@@ -46,7 +46,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev xvfb
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libx11-dev libxrandr-dev libxi-dev xvfb
           mkdir -p "$RUNNER_TEMP/bozzard-xdg"
           chmod 700 "$RUNNER_TEMP/bozzard-xdg"
           echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
