@@ -17,7 +17,8 @@ impl App {
                 self.editor.begin_gesture("Smoke transform");
                 let mut scene = self.editor.scene().clone();
                 let object = scene.objects.iter_mut().find(|o| o.id == id).unwrap();
-                object.transform.translation = [0.5, 0.5, 0.0];
+                // Isolated above the demo set so the pixel oracle is unobstructed.
+                object.transform.translation = [0.0, 2.5, 0.0];
                 object.spin = Some(Spin([0.0, 90.0, 0.0]));
                 self.editor.apply("Smoke transform", scene)?;
                 self.editor.finish_gesture();
@@ -92,6 +93,51 @@ impl App {
                             > 100,
                         "viewport rendered only a clear color"
                     );
+                    // Pixel oracle: the smoke-created teal cube must shade the
+                    // region its camera projection predicts, not just anywhere.
+                    let cube = self.editor.selected.clone().context("smoke cube lost")?;
+                    let demo = bozzard_demo::SceneDemo::new(self.editor.scene())?;
+                    let matrices = demo.instance.global_transforms(&demo.app.world)?;
+                    let center = matrices[&cube].transform_point3(Vec3::ZERO);
+                    let aspect = target.size[0] as f32 / target.size[1] as f32;
+                    let clip = self.editor.render(self.layer(), aspect)?.view_projection
+                        * center.extend(1.0);
+                    ensure!(clip.w > 0.0, "smoke cube is behind the camera");
+                    let ndc = clip.truncate() / clip.w;
+                    ensure!(
+                        (0.0..=1.0).contains(&ndc.z),
+                        "smoke cube is clipped by the camera"
+                    );
+                    let px = ((ndc.x + 1.0) * 0.5 * target.size[0] as f32) as i64;
+                    let py = ((1.0 - ndc.y) * 0.5 * target.size[1] as f32) as i64;
+                    let (mut teal, mut samples) = (0u32, 0u32);
+                    for y in (py - 6)..=(py + 6) {
+                        for x in (px - 6)..=(px + 6) {
+                            if x < 0
+                                || y < 0
+                                || x >= target.size[0] as i64
+                                || y >= target.size[1] as i64
+                            {
+                                continue;
+                            }
+                            let i = ((y as u32 * target.size[0] + x as u32) * 4) as usize;
+                            let (r, g, b) = (
+                                viewport.rgba[i] as i32,
+                                viewport.rgba[i + 1] as i32,
+                                viewport.rgba[i + 2] as i32,
+                            );
+                            samples += 1;
+                            // Tint [0.25, 0.8, 0.7] keeps g dominant under any
+                            // diffuse factor; the clear color is blue-dominant.
+                            if g > r + 25 && g > b && g > 100 {
+                                teal += 1;
+                            }
+                        }
+                    }
+                    ensure!(
+                        samples > 0 && teal * 2 > samples,
+                        "projected cube region is not the expected teal ({teal}/{samples})"
+                    );
                     viewport.write_ppm(&output.join("viewport.ppm"))?;
                     self.gpu.wait()?;
                     Ok(())
@@ -100,7 +146,7 @@ impl App {
                     Ok(()) => {
                         self.smoke_passed.store(true, Ordering::Relaxed);
                         println!(
-                            "editor_smoke_ok authored_commands play_isolation save_load native_ui_capture"
+                            "editor_smoke_ok authored_commands play_isolation save_load native_ui_capture viewport_pixel_oracle"
                         );
                     }
                     Err(error) => eprintln!("editor_smoke_failed: {error:#}"),
