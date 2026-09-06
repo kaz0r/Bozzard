@@ -1,0 +1,19 @@
+[package]
+name = "bozzard-player"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+bozzard-app.workspace = true
+bozzard-demo.workspace = true
+bozzard-render.workspace = true
+bozzard-scene.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+pollster.workspace = true
+winit.workspace = true
+
+[lints]
+workspace = true

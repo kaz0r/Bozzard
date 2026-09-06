@@ -1,0 +1,42 @@
+name: Hardware GPU
+
+# Run manually on an explicitly provisioned desktop runner. Never runs PR code automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: OS label on the currently booted desktop
+        required: true
+        type: choice
+        options: [Linux, Windows, macOS]
+      backend:
+        description: Graphics backend to test
+        required: true
+        type: choice
+        options: [vulkan, dx12, metal]
+
+permissions:
+  contents: read
+
+jobs:
+  gpu:
+    runs-on: [self-hosted, bozzard-gpu, '${{ inputs.os }}']
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cargo build --release --locked -p bozzard-player -p bozzard-server
+      - name: Packaged hardware rendering and window test
+        env:
+          BACKEND: ${{ inputs.backend }}
+        run: python3 tools/package.py --verify --window --hardware --backend "$BACKEND"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: hardware-pixels-${{ inputs.os }}-${{ inputs.backend }}
+          path: work/package-smoke/*.ppm
+          if-no-files-found: ignore

@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  native:
+    name: Native / ${{ matrix.os }} / ${{ matrix.backend }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            backend: vulkan
+            software: --software
+          - os: windows-2025
+            backend: dx12
+            software: --software
+          - os: macos-15
+            backend: metal
+            software: ""
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Linux graphics and window dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev xvfb
+          mkdir -p "$RUNNER_TEMP/bozzard-xdg"
+          chmod 700 "$RUNNER_TEMP/bozzard-xdg"
+          echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Lints
+        run: cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+      - name: CPU and headless tests
+        run: cargo test --workspace --locked --offline
+      - name: Check headless dependency boundary
+        run: python3 tools/check_headless.py
+      - name: Build native release executables
+        run: cargo build --release --locked --offline -p bozzard-player -p bozzard-server
+      - name: Package and verify pixels from extracted executables
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SOFTWARE: ${{ matrix.software }}
+        run: python3 tools/package.py --verify --backend "$BACKEND" $SOFTWARE
+      - name: Linux window presentation under Xvfb
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a ./target/release/bozzard-player --backend vulkan --software --frames 3
+          xvfb-run -a ./target/release/bozzard-player --backend vulkan --software --view 2d --frames 3
+      - name: Upload pixel diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pixels-${{ matrix.os }}
+          path: work/package-smoke/*.ppm
+          if-no-files-found: ignore
+      - name: Upload native development bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bozzard-${{ matrix.os }}
+          path: dist/*.zip
+          if-no-files-found: error
