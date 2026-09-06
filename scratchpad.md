@@ -71,3 +71,4 @@ No editor changes yet. Next action: verify egui renderer compatibility with wgpu
 - The oracle immediately caught a real placement flaw: the smoke cube was created at [0.5, 0.5, 0], overlapping the white textured hero-cube, so the projected pixel was occluded (0/169 teal). Moved the smoke cube to an isolated [0, 2.5, 0]; oracle passes. This also proves the check fails when the expected object is not visibly rendered.
 - Success line is now `editor_smoke_ok authored_commands play_isolation save_load native_ui_capture viewport_pixel_oracle`.
 - Validated: fmt, clippy -D warnings, all 19 workspace test binaries, headless audit, native Metal smoke, and `tools/package.py --profile debug --verify --editor-window` (packaged editor smoke passes the oracle from an empty working directory).
+- Committed as `380a446`, pushed. CI run 34040350695 passed all three platforms; the Linux job's packaged editor smoke passed with `viewport_pixel_oracle` under Xvfb.
