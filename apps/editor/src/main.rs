@@ -1,0 +1,599 @@
+use anyhow::{Context, Result, ensure};
+use bozzard_assets::{AssetData, LoadState};
+use bozzard_editor::Editor;
+use bozzard_render::{Backend, Gpu, SceneRenderer, wgpu};
+use bozzard_scene::{AssetKind, Camera, Layer, Mesh, Spin, Texture, Transform};
+use eframe::egui::{self, Color32, Pos2, Rect, Sense, Vec2};
+use glam::Vec3;
+use serde::{Deserialize, Serialize};
+use std::{
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
+mod acceptance;
+mod files;
+mod inspector;
+mod viewport;
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+enum Tool {
+    #[default]
+    Move,
+    Rotate,
+    Scale,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(default)]
+struct Workspace {
+    layer_2d: bool,
+    assets_visible: bool,
+    tool: Tool,
+    pan: [f32; 2],
+    orbit: [f32; 2],
+    zoom: f32,
+}
+impl Default for Workspace {
+    fn default() -> Self {
+        Self {
+            layer_2d: false,
+            assets_visible: true,
+            tool: Tool::Move,
+            pan: [0.0; 2],
+            orbit: [0.0; 2],
+            zoom: 1.0,
+        }
+    }
+}
+
+struct Target {
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    id: egui::TextureId,
+    size: [u32; 2],
+}
+struct App {
+    editor: Editor,
+    gpu: Gpu,
+    renderer: SceneRenderer,
+    target: Option<Target>,
+    render_state: eframe::egui_wgpu::RenderState,
+    workspace: Workspace,
+    status: String,
+    error: bool,
+    last_frame: Instant,
+    last_assets: Instant,
+    uploaded_revision: u64,
+    dialog: Option<files::Dialog>,
+    pending: Option<Pending>,
+    confirm_discard: bool,
+    allow_close: bool,
+    drag: Option<viewport::Drag>,
+    smoke: Option<PathBuf>,
+    smoke_passed: Arc<AtomicBool>,
+    smoke_frames: u32,
+    smoke_start: Instant,
+    smoke_requested: bool,
+}
+enum Pending {
+    Open(PathBuf),
+    New,
+    Close,
+}
+impl App {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        editor: Editor,
+        smoke: Option<PathBuf>,
+        smoke_passed: Arc<AtomicBool>,
+    ) -> Result<Self> {
+        let state = cc
+            .wgpu_render_state
+            .clone()
+            .context("editor requires native WebGPU")?;
+        let gpu = Gpu {
+            adapter: state.adapter.clone(),
+            device: state.device.clone(),
+            queue: state.queue.clone(),
+        };
+        let mut style = (*cc.egui_ctx.style_of(egui::Theme::Dark)).clone();
+        style.spacing.item_spacing = Vec2::new(8.0, 8.0);
+        style.visuals = egui::Visuals::dark();
+        style.visuals.selection.bg_fill = Color32::from_rgb(28, 101, 119);
+        cc.egui_ctx.set_style_of(egui::Theme::Dark, style);
+        cc.egui_ctx.set_theme(egui::ThemePreference::Dark);
+        let workspace = if smoke.is_none() {
+            cc.storage
+                .and_then(|s| eframe::get_value(s, "workspace"))
+                .unwrap_or_default()
+        } else {
+            Workspace::default()
+        };
+        let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb);
+        Ok(Self {
+            editor,
+            gpu,
+            renderer,
+            render_state: state,
+            target: None,
+            workspace,
+            status: "Ready · Select an object to begin".into(),
+            error: false,
+            last_frame: Instant::now(),
+            last_assets: Instant::now(),
+            uploaded_revision: 0,
+            dialog: None,
+            pending: None,
+            confirm_discard: false,
+            allow_close: false,
+            drag: None,
+            smoke,
+            smoke_passed,
+            smoke_frames: 0,
+            smoke_start: Instant::now(),
+            smoke_requested: false,
+        })
+    }
+    fn result(&mut self, result: Result<()>) {
+        if let Err(error) = result {
+            self.status = format!("{error:#}");
+            self.error = true;
+        } else {
+            self.error = false;
+        }
+    }
+    fn layer(&self) -> Layer {
+        if self.workspace.layer_2d {
+            Layer::TwoD
+        } else {
+            Layer::ThreeD
+        }
+    }
+    fn save_scene(&mut self, path: PathBuf) {
+        let result = self.editor.save(&path);
+        if result.is_ok() {
+            self.status = format!("Saved {}", path.display());
+        }
+        self.result(result);
+    }
+    fn request(&mut self, pending: Pending) {
+        self.editor.finish_gesture();
+        self.pending = Some(pending);
+        if self.editor.dirty() {
+            self.confirm_discard = true;
+        } else {
+            self.perform_pending();
+        }
+    }
+    fn perform_pending(&mut self) {
+        self.confirm_discard = false;
+        let result = (|| -> Result<()> {
+            match self.pending.take() {
+                Some(Pending::Close) => self.allow_close = true,
+                Some(Pending::Open(path)) => {
+                    self.editor = Editor::open(&path)?;
+                    self.uploaded_revision = 0;
+                    self.status = format!("Opened {}", path.display());
+                }
+                Some(Pending::New) => {
+                    let mut scene = bozzard_demo::scene_document()?;
+                    scene.name = "Untitled level".into();
+                    scene.objects.retain(|o| o.camera.is_some());
+                    let mut index = 1;
+                    let path = loop {
+                        let p = PathBuf::from(format!("work/editor-project/untitled-{index}.json"));
+                        if !p.exists() {
+                            break p;
+                        }
+                        index += 1;
+                    };
+                    self.editor = Editor::new(scene, &path)?;
+                    self.uploaded_revision = 0;
+                    self.status = "New level · Add a cube or sprite".into();
+                }
+                None => {}
+            }
+            Ok(())
+        })();
+        self.result(result);
+    }
+    fn sync_assets(&mut self) -> Result<()> {
+        if self.uploaded_revision != self.editor.asset_revision() {
+            // Document edits need no re-import. Re-uploading the small scene cache also handles undo/catalog changes.
+            self.renderer.clear_imported();
+            for entry in self.editor.assets.entries() {
+                if let Some(data) = entry.data() {
+                    upload(&self.gpu, &mut self.renderer, &entry.id, data)?;
+                }
+            }
+            self.uploaded_revision = self.editor.asset_revision();
+        }
+        if self.last_assets.elapsed() > Duration::from_millis(500) {
+            self.last_assets = Instant::now();
+            for handle in self.editor.assets.refresh() {
+                let entry = self
+                    .editor
+                    .assets
+                    .get(handle)
+                    .context("missing asset handle")?;
+                match entry.state() {
+                    LoadState::Ready => {
+                        upload(
+                            &self.gpu,
+                            &mut self.renderer,
+                            &entry.id,
+                            entry.data().context("asset missing data")?,
+                        )?;
+                        self.status = format!("Reloaded {}", entry.id);
+                        self.error = false;
+                    }
+                    LoadState::Failed(message) => {
+                        self.status = format!("{message} · Keeping last good asset");
+                        self.error = true;
+                    }
+                    LoadState::Pending => {}
+                }
+            }
+        }
+        Ok(())
+    }
+    fn toolbar(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::top("toolbar").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("BOZZARD")
+                        .strong()
+                        .color(Color32::from_rgb(80, 218, 198)),
+                );
+                ui.separator();
+                if ui.button("New").clicked() {
+                    self.request(Pending::New);
+                }
+                if ui.button("Open…").clicked() {
+                    self.dialog = Some(files::Dialog::new(files::Kind::Open, &self.editor.path));
+                }
+                if ui.button("Save").clicked() {
+                    self.save_scene(self.editor.path.clone());
+                }
+                if ui.button("Save As…").clicked() {
+                    self.dialog = Some(files::Dialog::new(files::Kind::Save, &self.editor.path));
+                }
+                ui.separator();
+                let editable = self.editor.play.is_none();
+                if ui
+                    .add_enabled(
+                        editable && self.editor.undo_label().is_some(),
+                        egui::Button::new("Undo"),
+                    )
+                    .on_hover_text(self.editor.undo_label().unwrap_or("Nothing to undo"))
+                    .clicked()
+                {
+                    let r = self.editor.undo();
+                    self.result(r);
+                }
+                if ui
+                    .add_enabled(
+                        editable && self.editor.redo_label().is_some(),
+                        egui::Button::new("Redo"),
+                    )
+                    .clicked()
+                {
+                    let r = self.editor.redo();
+                    self.result(r);
+                }
+                ui.separator();
+                if editable {
+                    if ui.button("▶ Play").clicked() {
+                        let r = self.editor.start_play();
+                        self.result(r);
+                    }
+                } else if ui.button("■ Stop").clicked() {
+                    self.editor.stop_play();
+                }
+                ui.separator();
+                ui.selectable_value(&mut self.workspace.layer_2d, false, "3D");
+                ui.selectable_value(&mut self.workspace.layer_2d, true, "2D");
+                ui.checkbox(&mut self.workspace.assets_visible, "Assets");
+            });
+            ui.horizontal(|ui| {
+                let modified = if self.editor.dirty() {
+                    " • modified"
+                } else {
+                    ""
+                };
+                ui.label(format!("{}{}", self.editor.scene().name, modified));
+                ui.weak(self.editor.path.display().to_string());
+                if self.editor.play.is_some() {
+                    ui.colored_label(
+                        Color32::from_rgb(100, 220, 160),
+                        "PLAY MODE · authored scene protected",
+                    );
+                }
+            });
+        });
+    }
+    fn hierarchy(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::left("hierarchy")
+            .default_size(225.0)
+            .min_size(160.0)
+            .max_size(420.0)
+            .resizable(true)
+            .show(ui, |ui| {
+                ui.heading("Hierarchy");
+                ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button("+ Cube").clicked() {
+                            let r = self.editor.create(Mesh::Cube, Layer::ThreeD);
+                            self.result(r);
+                        }
+                        if ui.button("+ Sprite").clicked() {
+                            let r = self.editor.create(Mesh::Quad, Layer::TwoD);
+                            self.workspace.layer_2d = true;
+                            self.result(r);
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        if ui.button("Duplicate").clicked() {
+                            let r = self.editor.duplicate();
+                            self.result(r);
+                        }
+                        if ui.button("Delete").clicked() {
+                            let r = self.editor.delete();
+                            self.result(r);
+                        }
+                    });
+                });
+                ui.separator();
+                let scene = self.editor.scene().clone();
+                let mut stack: Vec<_> = scene
+                    .objects
+                    .iter()
+                    .filter(|o| o.parent.is_none())
+                    .rev()
+                    .map(|o| (o, 0usize))
+                    .collect();
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    while let Some((object, depth)) = stack.pop() {
+                        ui.horizontal(|ui| {
+                            ui.add_space((depth.min(12) * 12) as f32);
+                            let kind = if object.camera.is_some() {
+                                "◉"
+                            } else if object.drawable.is_some() {
+                                "◇"
+                            } else {
+                                "·"
+                            };
+                            if ui
+                                .selectable_label(
+                                    self.editor.selected.as_ref() == Some(&object.id),
+                                    format!("{kind} {}", object.name),
+                                )
+                                .on_hover_text(&object.id)
+                                .clicked()
+                            {
+                                self.editor.finish_gesture();
+                                self.editor.selected = Some(object.id.clone());
+                            }
+                        });
+                        for child in scene
+                            .objects
+                            .iter()
+                            .filter(|o| o.parent.as_deref() == Some(&object.id))
+                            .rev()
+                        {
+                            stack.push((child, depth + 1));
+                        }
+                    }
+                });
+            });
+    }
+    fn assets_panel(&mut self, ui: &mut egui::Ui) {
+        if !self.workspace.assets_visible {
+            return;
+        }
+        egui::Panel::bottom("assets").default_size(155.0).min_size(90.0).max_size(360.0).resizable(true).show(ui,|ui|{
+            ui.horizontal(|ui|{ui.heading("Assets");if ui.add_enabled(self.editor.play.is_none(),egui::Button::new("Import…")).clicked(){self.dialog=Some(files::Dialog::new(files::Kind::Import,&self.editor.path));}ui.weak("Drop PNG / JPEG / OBJ files here · imports are copied into this project");});
+            egui::ScrollArea::vertical().show(ui,|ui|{
+                let scene=self.editor.scene().clone();
+                for (id,source) in &scene.assets {
+                    ui.horizontal(|ui|{
+                        ui.label(format!("{:?}",source.kind));ui.strong(id);ui.weak(&source.path);
+                        if ui.add_enabled(self.editor.play.is_none()&&self.editor.selected_object().is_some_and(|o|o.drawable.is_some()),egui::Button::new("Assign to selected")).clicked(){
+                            let mut next=scene.clone();if let Some(object)=next.objects.iter_mut().find(|o|Some(&o.id)==self.editor.selected.as_ref())&&let Some(d)=&mut object.drawable{match source.kind{AssetKind::Image=>d.texture=Texture::Asset(id.clone()),AssetKind::Mesh=>d.mesh=Mesh::Asset(id.clone())}}
+                            let r=self.editor.apply("Assign asset",next);self.result(r);
+                        }
+                    });
+                }
+                if scene.assets.is_empty(){ui.weak("No imported assets. Built-in cubes, sprites, and checker textures are ready to use.");}
+            });
+        });
+    }
+    fn shortcuts(&mut self, ctx: &egui::Context) {
+        if self.dialog.is_some() || self.confirm_discard {
+            return;
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
+            self.save_scene(self.editor.path.clone());
+        }
+        if !ctx.egui_wants_keyboard_input() && self.editor.play.is_none() {
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+                let r = self.editor.undo();
+                self.result(r);
+            }
+            if ctx.input_mut(|i| {
+                i.consume_key(
+                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                    egui::Key::Z,
+                )
+            }) {
+                let r = self.editor.redo();
+                self.result(r);
+            }
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::D)) {
+                let r = self.editor.duplicate();
+                self.result(r);
+            }
+            if ctx.input(|i| i.key_pressed(egui::Key::Delete)) {
+                let r = self.editor.delete();
+                self.result(r);
+            }
+        }
+    }
+}
+impl eframe::App for App {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        let now = Instant::now();
+        self.editor.advance(now.duration_since(self.last_frame));
+        self.last_frame = now;
+        self.shortcuts(&ctx);
+        if !ctx.input(|i| i.pointer.any_down()) && !ctx.egui_wants_keyboard_input() {
+            self.editor.finish_gesture();
+        }
+        if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close && self.editor.dirty()
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.request(Pending::Close);
+        }
+        if self.allow_close {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        let drops = ctx.input(|i| i.raw.dropped_files.clone());
+        for file in drops {
+            {
+                let path = file.path().to_path_buf();
+                if path.extension().is_some_and(|e| e == "json") {
+                    self.request(Pending::Open(path));
+                } else {
+                    let r = self.editor.import(&path).map(|_| ());
+                    self.result(r);
+                }
+            }
+        }
+        self.toolbar(ui);
+        egui::Panel::bottom("status").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                if self.error {
+                    ui.colored_label(Color32::LIGHT_RED, &self.status);
+                } else {
+                    ui.label(&self.status);
+                }
+            });
+        });
+        self.assets_panel(ui);
+        self.hierarchy(ui);
+        self.inspector(ui);
+        egui::CentralPanel::default().show(ui, |ui| {
+            if let Err(error) = self.viewport(ui) {
+                self.result(Err(error));
+                ui.colored_label(
+                    Color32::LIGHT_RED,
+                    "Viewport unavailable. Check the status message.",
+                );
+            }
+        });
+        self.file_dialog(&ctx);
+        self.discard_dialog(&ctx);
+        self.smoke_step(&ctx);
+        ctx.request_repaint_after(Duration::from_millis(16));
+    }
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, "workspace", &self.workspace);
+    }
+}
+fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetData) -> Result<()> {
+    match data {
+        AssetData::Image(i) => renderer.upload_image(gpu, id, i.width, i.height, &i.rgba),
+        AssetData::Mesh(m) => renderer.upload_mesh(gpu, id, &m.vertices, &m.indices),
+    }
+}
+
+fn main() -> Result<()> {
+    let mut source = None;
+    let mut smoke = None;
+    let mut backend = Backend::native();
+    let mut software = false;
+    let mut hardware = false;
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--scene" => source = Some(PathBuf::from(args.next().context("--scene needs a path")?)),
+            "--smoke" => {
+                smoke = Some(PathBuf::from(
+                    args.next().context("--smoke needs an output directory")?,
+                ))
+            }
+            "--backend" => backend = args.next().context("--backend needs a value")?.parse()?,
+            "--software" => software = true,
+            "--hardware" => hardware = true,
+            "--help" => {
+                println!(
+                    "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nNative scene editor. Import PNG/JPEG/OBJ, edit objects, save, and use Play/Stop."
+                );
+                return Ok(());
+            }
+            _ => anyhow::bail!("unknown argument {arg}"),
+        }
+    }
+    ensure!(
+        !(software && hardware),
+        "choose software or hardware, not both"
+    );
+    let editor = if let Some(path) = source {
+        Editor::open(&std::path::absolute(path)?)?
+    } else {
+        Editor::new(
+            bozzard_demo::scene_document()?,
+            &std::path::absolute("work/editor-project/scene.json")?,
+        )?
+    };
+    if let Some(dir) = &smoke {
+        std::fs::create_dir_all(dir)?;
+    }
+    let instance = bozzard_render::instance(backend);
+    let gpu = pollster::block_on(Gpu::request(&instance, None, software))?;
+    if hardware {
+        gpu.require_hardware()?;
+    }
+    let existing = eframe::egui_wgpu::WgpuSetupExisting {
+        instance,
+        adapter: gpu.adapter,
+        device: gpu.device,
+        queue: gpu.queue,
+    };
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1400.0, 900.0])
+            .with_min_inner_size([960.0, 640.0]),
+        renderer: eframe::Renderer::Wgpu,
+        wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
+            wgpu_setup: existing.into(),
+            ..Default::default()
+        },
+        persistence_path: Some(
+            smoke
+                .as_ref()
+                .map(|p| p.join("workspace"))
+                .unwrap_or_else(|| PathBuf::from("work/editor-workspace")),
+        ),
+        persist_window: smoke.is_none(),
+        ..Default::default()
+    };
+    let passed = Arc::new(AtomicBool::new(false));
+    let result = passed.clone();
+    let is_smoke = smoke.is_some();
+    eframe::run_native(
+        "Bozzard Editor",
+        options,
+        Box::new(move |cc| Ok(Box::new(App::new(cc, editor, smoke, passed)?))),
+    )
+    .map_err(|e| anyhow::anyhow!("editor: {e}"))?;
+    ensure!(
+        !is_smoke || result.load(Ordering::Relaxed),
+        "editor smoke run did not complete"
+    );
+    Ok(())
+}

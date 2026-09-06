@@ -310,6 +310,20 @@ pub fn capture_offscreen(
         view_formats: &[],
     });
     draw(&texture.create_view(&Default::default()))?;
+    read_texture(gpu, &texture, width, height)
+}
+
+/// Read an existing RGBA8 render target. The texture must have COPY_SRC usage.
+pub fn read_texture(gpu: &Gpu, texture: &wgpu::Texture, width: u32, height: u32) -> Result<Frame> {
+    ensure!(
+        width > 0 && height > 0 && width <= 4096 && height <= 4096,
+        "invalid readback dimensions"
+    );
+    let extent = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
     let row_bytes = (width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
     let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {

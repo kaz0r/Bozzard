@@ -29,14 +29,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: cargo build --release --locked -p bozzard-player -p bozzard-server
+      - run: cargo build --release --locked -p bozzard-player -p bozzard-server -p bozzard-editor-app
       - name: Packaged hardware rendering and window test
         env:
           BACKEND: ${{ inputs.backend }}
-        run: python3 tools/package.py --verify --window --hardware --backend "$BACKEND"
+        run: python3 tools/package.py --verify --window --editor-window --hardware --backend "$BACKEND"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: hardware-pixels-${{ inputs.os }}-${{ inputs.backend }}
-          path: work/package-smoke/*.ppm
+          path: |
+            work/package-smoke/*.ppm
+            work/editor-package-smoke/*.ppm
           if-no-files-found: ignore

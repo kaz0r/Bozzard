@@ -26,13 +26,14 @@ def main():
     parser.add_argument("--profile", choices=["debug", "release"], default="release")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--window", action="store_true", help="Also present 3 frames; needs a desktop session")
+    parser.add_argument("--editor-window", action="store_true", help="Verify the native editor workflow and capture its UI")
     parser.add_argument("--backend", choices=["metal", "vulkan", "dx12"])
     adapter = parser.add_mutually_exclusive_group()
     adapter.add_argument("--software", action="store_true")
     adapter.add_argument("--hardware", action="store_true")
     args = parser.parse_args()
-    if args.window and not args.verify:
-        parser.error("--window requires --verify")
+    if (args.window or args.editor_window) and not args.verify:
+        parser.error("window checks require --verify")
 
     system = platform.system().lower()
     machine = platform.machine().lower()
@@ -45,22 +46,25 @@ def main():
         stage = Path(temporary) / folder
         stage.mkdir()
         player_relative = Path(f"bozzard-player{suffix}")
+        editor_relative = Path(f"bozzard-editor{suffix}")
         if system == "darwin":
             player_relative = Path("Bozzard.app/Contents/MacOS/bozzard-player")
-            info = stage / "Bozzard.app/Contents/Info.plist"
-            info.parent.mkdir(parents=True)
-            with info.open("wb") as file:
-                plistlib.dump({
-                    "CFBundleExecutable": "bozzard-player",
-                    "CFBundleIdentifier": "dev.bozzard.player",
-                    "CFBundleName": "Bozzard",
-                    "CFBundlePackageType": "APPL",
-                    "CFBundleShortVersionString": "0.1.0",
-                    "CFBundleVersion": "1",
-                    "NSHighResolutionCapable": True,
-                }, file)
+            editor_relative = Path("Bozzard Editor.app/Contents/MacOS/bozzard-editor")
+            for app_name, executable, identifier in [("Bozzard", "bozzard-player", "dev.bozzard.player"), ("Bozzard Editor", "bozzard-editor", "dev.bozzard.editor")]:
+                info = stage / f"{app_name}.app/Contents/Info.plist"
+                info.parent.mkdir(parents=True)
+                with info.open("wb") as file:
+                    plistlib.dump({
+                        "CFBundleExecutable": executable,
+                        "CFBundleIdentifier": identifier,
+                        "CFBundleName": app_name,
+                        "CFBundlePackageType": "APPL",
+                        "CFBundleShortVersionString": "0.1.0",
+                        "CFBundleVersion": "1",
+                        "NSHighResolutionCapable": True,
+                    }, file)
         server_relative = Path(f"bozzard-server{suffix}")
-        for name, relative in [("bozzard-player", player_relative), ("bozzard-server", server_relative)]:
+        for name, relative in [("bozzard-player", player_relative), ("bozzard-server", server_relative), ("bozzard-editor", editor_relative)]:
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
@@ -69,6 +73,7 @@ def main():
         shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")
         (stage / "README.txt").write_text(
             "Bozzard engine foundation demo\n\n"
+            "Launch Bozzard Editor to create/edit objects, import assets, save, and Play/Stop.\n"
             "Launch the player for a native WebGPU scene; Escape closes it.\n"
             "1/2: 2D/3D. Space: pause. Arrows: pan. F5: save. R: reload.\n"
             "The server runs 120 simulation ticks and exits (no networking yet).\n"
@@ -92,11 +97,12 @@ def main():
             with zipfile.ZipFile(archive_path) as archive:
                 archive.extractall(extracted)
             package = extracted / folder
-            player, server = package / player_relative, package / server_relative
+            player, server, editor = package / player_relative, package / server_relative, package / editor_relative
             # Python's zip extractor does not restore executable bits.
             if system != "windows":
                 player.chmod(0o755)
                 server.chmod(0o755)
+                editor.chmod(0o755)
             cwd = extracted / "empty-working-directory"
             cwd.mkdir()
             graphics = (["--backend", args.backend] if args.backend else [])
@@ -106,12 +112,23 @@ def main():
                 graphics.append("--hardware")
             run(server, "--ticks", "120", cwd=cwd)
             run(player, "--help", cwd=cwd)
+            run(editor, "--help", cwd=cwd)
             saved = cwd / "saved-scene.json"
             run(server, "--scene", str(package / "asset-lab.json"), "--ticks", "120", "--save-scene", str(saved), cwd=cwd)
             run(player, "--scene", str(saved), "--smoke", "--output", str(ROOT / "work/package-smoke"), *graphics, cwd=cwd)
             if args.window:
                 run(player, "--scene", str(package / "asset-lab.json"), "--frames", "3", *graphics, cwd=cwd)
                 run(player, "--scene", str(package / "asset-lab.json"), "--view", "2d", "--frames", "3", *graphics, cwd=cwd)
+            if args.editor_window:
+                # Keep the editor snapshot on the same filesystem root as its source assets.
+                editor_output = cwd / "editor-smoke"
+                try:
+                    run(editor, "--scene", str(package / "asset-lab.json"), "--smoke", str(editor_output), *graphics, cwd=cwd)
+                finally:
+                    diagnostics = ROOT / "work/editor-package-smoke"
+                    diagnostics.mkdir(parents=True, exist_ok=True)
+                    for capture in editor_output.glob("*.ppm"):
+                        shutil.copy2(capture, diagnostics / capture.name)
         print("package_ok: extracted executables ran from an empty working directory", flush=True)
 
 

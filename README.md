@@ -2,7 +2,7 @@
 
 A native 2D/3D game engine in Rust, with our own ECS and WebGPU rendering through `wgpu`. No Bevy dependencies.
 
-The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, and scene save/load. It is an engine foundation, not a full editor or game exporter. PNG/JPEG textures and OBJ meshes can be imported and reloaded while running. Physics, audio, networking, and editor tooling remain future milestones.
+The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, scene save/load, and a first native editor. PNG/JPEG textures and OBJ meshes can be imported and reloaded while running. It is not yet a game exporter; physics, audio, and networking remain future milestones.
 
 ## Run
 
@@ -49,9 +49,20 @@ cargo run -p bozzard-player -- --scene work/my-scene.json --save-path work/my-sc
 
 # Headless simulation can load and save the same document.
 cargo run -p bozzard-server -- --scene work/my-scene.json --ticks 120 --save-scene work/simulated.json
+
+# Open the native editor on a scene file (creates the path on first save).
+cargo run -p bozzard-editor-app -- --scene work/my-scene.json
 ```
 
 The headless executable runs finite ticks as fast as possible and exits. It does not listen for clients yet.
+
+## Editor
+
+`bozzard-editor` is a native egui/wgpu shell over the same scene document and renderer. It edits the authored scene with validated commands: hierarchy with create/duplicate/delete of subtrees, an inspector for names, parents, transforms, cameras, spin, and drawable layers/meshes/textures/colors, and a GPU viewport with click selection plus move/rotate/scale axis handles. Right drag pans, Shift + right drag orbits, and scroll zooms; the 2D/3D toggle switches the edited layer.
+
+Undo/redo is bounded to 100 changes and coalesces each drag into one entry. Play starts a separate simulated world; editing is disabled while it runs and Stop restores the untouched authored scene. Saving always writes the authored document, even during Play. Imports copy PNG/JPEG/OBJ files into an `assets/` folder next to the scene before adding them to the catalog, so projects stay relocatable; dropped files import (or open, for `.json`). Unsaved changes prompt before New/Open/close, and the workspace layout persists between runs.
+
+Shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+D duplicate, Delete removes the selected subtree. An active camera's subtree cannot be deleted.
 
 ## Workspace
 
@@ -63,7 +74,9 @@ The headless executable runs finite ticks as fast as possible and exits. It does
 | `bozzard-assets` | CPU image/OBJ imports, store-scoped handles, load states, last-good hot reload |
 | `bozzard-render` | Native WebGPU, indexed geometry, texture sampling, depth, GPU readback |
 | `bozzard-demo` | Embedded reference scene, movement/rotation systems, scene file helpers |
+| `bozzard-editor` | Validated document transactions, undo/redo, play isolation, imports, ray picking |
 | `bozzard-player` | Window/input, scene controls, render extraction, GPU verification |
+| `bozzard-editor-app` | Native egui editor shell: hierarchy, inspector, assets, viewport gizmos |
 | `bozzard-server` | Graphics-free scene simulation and snapshots |
 
 Our crates forbid unsafe Rust. ECS/app use only the standard library. Scenes add `glam`, Serde, and JSON; the renderer never depends on the ECS or scene document crate. The player alone adds the image/OBJ importers; the server still has no image decoder, GPU, or window dependency. See [asset imports](docs/assets.md), [scene format](docs/scenes.md), [architecture](docs/architecture.md), and [milestones](docs/roadmap.md).
@@ -78,9 +91,12 @@ python3 tools/check_headless.py
 cargo run -p bozzard-player -- --smoke --backend metal
 cargo run -p bozzard-player -- --frames 3
 cargo run -p bozzard-player -- --view 2d --frames 3
+cargo run -p bozzard-editor-app -- --smoke work/editor-smoke --backend metal
 ```
 
-Ordinary Cargo tests require no GPU. They cover entity lifetimes, scheduling, scene hierarchy/validation, projection conventions, animation, scene round-trips, control commands, CLI save behavior, asset reload failure/recovery, and relocated asset references. Graphics checks are explicit and never silently skip.
+Ordinary Cargo tests require no GPU. They cover entity lifetimes, scheduling, scene hierarchy/validation, projection conventions, animation, scene round-trips, control commands, CLI save behavior, asset reload failure/recovery, relocated asset references, and editor document transactions (subtree commands, gesture coalescing, bounded history, play isolation, save/Save As, project-local imports, and ray picking). Graphics checks are explicit and never silently skip.
+
+The editor smoke opens the real native UI, exercises create/transform/undo/redo/play/save/load, captures a window screenshot, and verifies the viewport rendered more than a clear color. Diagnostics land in `work/editor-smoke/`.
 
 The smoke suite preserves the original triangle check, then verifies texture quadrants, indexed cube depth occlusion in both draw orders, camera translation, resized targets, animated 2D/3D scenes, and identical images after save/reload. Imported-asset checks verify UV orientation, sRGB decoding, corrupt-file recovery, and mesh replacement. Actual PPM diagnostics appear in `work/gpu-smoke/`. Reference color checks tolerate two byte values; same-device save/reload and draw-order comparisons are exact. These checks are correctness fixtures, not performance or image-quality benchmarks.
 
@@ -89,17 +105,17 @@ Foundation CI passed on all three hosted platforms at [`d319721`](https://github
 ## Development bundles
 
 ```sh
-cargo build --release --locked -p bozzard-player -p bozzard-server
-python3 tools/package.py --verify --window
+cargo build --release --locked -p bozzard-player -p bozzard-server -p bozzard-editor-app
+python3 tools/package.py --verify --window --editor-window
 ```
 
-This builds a host-native ZIP in `dist/`, including a macOS `.app` on macOS editable built-in/imported scenes, and their PNG/OBJ files. Default scene data, shaders and procedural textures are embedded, so the executables can run without the source checkout. Verification extracts the ZIP, runs a headless imported-scene save, loads that snapshot in the GPU suite, and optionally presents both native views from an empty working directory.
+This builds a host-native ZIP in `dist/`, including macOS `.app` bundles for the player and editor on macOS, editable built-in/imported scenes, and their PNG/OBJ files. `--editor-window` additionally runs the packaged editor smoke and captures its UI. Default scene data, shaders and procedural textures are embedded, so the executables can run without the source checkout. Verification extracts the ZIP, runs a headless imported-scene save, loads that snapshot in the GPU suite, and optionally presents both native views from an empty working directory.
 
 This is development demo packaging, not a general user-game export pipeline. OS runtimes and drivers remain prerequisites. Public distribution still needs license/notices, signing/notarization, installer choices, and minimum OS/runtime baselines.
 
 ## Cross-platform CI
 
-[CI](.github/workflows/ci.yml) defines native Ubuntu x86-64/Vulkan, Windows x86-64/DX12, and macOS Apple Silicon/Metal jobs. Each runs lints, CPU tests, headless dependency checks, release builds, and rendering from extracted packages. Linux uses Mesa software Vulkan; Windows requests WARP; macOS requests Metal. Linux also presents both views under Xvfb. No missing-adapter skips are allowed.
+[CI](.github/workflows/ci.yml) defines native Ubuntu x86-64/Vulkan, Windows x86-64/DX12, and macOS Apple Silicon/Metal jobs. Each runs lints, CPU tests, headless dependency checks, release builds, and rendering from extracted packages. Linux uses Mesa software Vulkan; Windows requests WARP; macOS requests Metal. Linux also presents both player views and runs the packaged editor UI smoke under Xvfb. No missing-adapter skips are allowed.
 
 [Hardware GPU](.github/workflows/hardware.yml) runs manually on a provisioned desktop runner with labels `self-hosted`, `bozzard-gpu`, and the OS label. It requires Rust, Python 3, Bash (Git Bash on Windows), working graphics drivers, and an interactive desktop. It verifies real GPU classification and both windows. Only the currently booted OS of a dual-boot computer is available. Run trusted revisions only on a personal hardware runner; external PR code is never dispatched there automatically.
 

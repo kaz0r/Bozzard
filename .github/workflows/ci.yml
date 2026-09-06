@@ -63,23 +63,25 @@ jobs:
       - name: Check headless dependency boundary
         run: python3 tools/check_headless.py
       - name: Build native release executables
-        run: cargo build --release --locked --offline -p bozzard-player -p bozzard-server
+        run: cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
       - name: Package and verify pixels from extracted executables
         env:
           BACKEND: ${{ matrix.backend }}
           SOFTWARE: ${{ matrix.software }}
-        run: python3 tools/package.py --verify --backend "$BACKEND" $SOFTWARE
-      - name: Linux window presentation under Xvfb
-        if: runner.os == 'Linux'
         run: |
-          xvfb-run -a ./target/release/bozzard-player --scene examples/demo/scenes/asset-lab.json --backend vulkan --software --frames 3
-          xvfb-run -a ./target/release/bozzard-player --scene examples/demo/scenes/asset-lab.json --backend vulkan --software --view 2d --frames 3
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a python3 tools/package.py --verify --window --editor-window --backend "$BACKEND" $SOFTWARE
+          else
+            python3 tools/package.py --verify --backend "$BACKEND" $SOFTWARE
+          fi
       - name: Upload pixel diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pixels-${{ matrix.os }}
-          path: work/package-smoke/*.ppm
+          path: |
+            work/package-smoke/*.ppm
+            work/editor-package-smoke/*.ppm
           if-no-files-found: ignore
       - name: Upload native development bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -19,12 +19,15 @@ Completed: local checks and the first successful GitHub matrix run verify all th
 
 The initial import slice supports opaque images and static OBJ geometry; async loading, glTF/material dependencies, mipmaps, and streaming are future extensions.
 
-## 3 — Editor module (next)
+## 3 — Editor module (current slice)
 
-- Native egui integration, docking/workspace persistence.
-- Scene hierarchy, inspector, viewport selection and transform gizmos.
-- Editable component metadata and command-based undo/redo.
-- Separate edit/play worlds; save, load, play, stop.
+- Implemented: native egui/wgpu shell with resizable panels and persisted workspace settings.
+- Implemented: scene hierarchy, inspector, viewport ray selection and move/rotate/scale axis handles.
+- Implemented: validated document commands with bounded, gesture-coalescing undo/redo.
+- Implemented: separate edit/play worlds; save, Save As, play, stop, unsaved-change prompts.
+- Implemented: project-local PNG/JPEG/OBJ imports with catalog assignment and native UI smoke checks.
+
+Remaining editor extensions: generic component reflection, arbitrary tab docking, and production gizmo ergonomics.
 
 ## 4 — First user-game export
 
