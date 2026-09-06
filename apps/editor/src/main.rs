@@ -182,14 +182,7 @@ impl App {
                     let mut scene = bozzard_demo::scene_document()?;
                     scene.name = "Untitled level".into();
                     scene.objects.retain(|o| o.camera.is_some());
-                    let mut index = 1;
-                    let path = loop {
-                        let p = PathBuf::from(format!("work/editor-project/untitled-{index}.json"));
-                        if !p.exists() {
-                            break p;
-                        }
-                        index += 1;
-                    };
+                    let path = untitled_scene_path()?;
                     self.editor = Editor::new(scene, &path)?;
                     self.uploaded_revision = 0;
                     self.status = "New level · Add a cube or sprite".into();
@@ -511,6 +504,24 @@ fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetData) -
     }
 }
 
+// Finder launches with an unrelated working directory. Use a user-owned location
+// and a fresh filename so a new session never silently replaces a saved level.
+fn untitled_scene_path() -> Result<PathBuf> {
+    let home_key = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    let home = std::env::var_os(home_key).context("user home directory is unavailable")?;
+    let directory = PathBuf::from(home)
+        .join("Documents")
+        .join("Bozzard Projects");
+    std::fs::create_dir_all(&directory)?;
+    for index in 1u64.. {
+        let path = directory.join(format!("untitled-{index}.json"));
+        if !path.exists() {
+            return Ok(path);
+        }
+    }
+    anyhow::bail!("no available untitled scene filename")
+}
+
 fn main() -> Result<()> {
     let mut source = None;
     let mut smoke = None;
@@ -545,10 +556,11 @@ fn main() -> Result<()> {
     let editor = if let Some(path) = source {
         Editor::open(&std::path::absolute(path)?)?
     } else {
-        Editor::new(
-            bozzard_demo::scene_document()?,
-            &std::path::absolute("work/editor-project/scene.json")?,
-        )?
+        let path = match &smoke {
+            Some(directory) => std::path::absolute(directory.join("initial-scene.json"))?,
+            None => untitled_scene_path()?,
+        };
+        Editor::new(bozzard_demo::scene_document()?, &path)?
     };
     if let Some(dir) = &smoke {
         std::fs::create_dir_all(dir)?;
@@ -573,12 +585,8 @@ fn main() -> Result<()> {
             wgpu_setup: existing.into(),
             ..Default::default()
         },
-        persistence_path: Some(
-            smoke
-                .as_ref()
-                .map(|p| p.join("workspace"))
-                .unwrap_or_else(|| PathBuf::from("work/editor-workspace")),
-        ),
+        // eframe chooses the platform application-data directory for normal launches.
+        persistence_path: smoke.as_ref().map(|p| p.join("workspace")),
         persist_window: smoke.is_none(),
         ..Default::default()
     };

@@ -16,9 +16,19 @@ pub fn load_document(path: Option<&Path>) -> anyhow::Result<Scene> {
 
 /// Rebase file references when saving elsewhere; assets themselves stay at their source paths.
 pub fn save_document_from(scene: &Scene, path: &Path, source: Option<&Path>) -> anyhow::Result<()> {
+    save_document(&prepare_document_from(scene, path, source)?, path)
+}
+
+/// Prepare rebased references without replacing the destination document.
+pub fn prepare_document_from(
+    scene: &Scene,
+    path: &Path,
+    source: Option<&Path>,
+) -> anyhow::Result<Scene> {
     use anyhow::{Context, ensure};
     if scene.assets.is_empty() {
-        return save_document(scene, path);
+        scene.validate()?;
+        return Ok(scene.clone());
     }
     scene.validate()?;
     let parent = |path: &Path| {
@@ -58,7 +68,7 @@ pub fn save_document_from(scene: &Scene, path: &Path, source: Option<&Path>) -> 
             .context("asset path is not UTF-8")?
             .replace('\\', "/");
     }
-    save_document(&saved, path)
+    Ok(saved)
 }
 
 /// Validate first, then replace through a sibling temporary file so failed saves keep the old file.

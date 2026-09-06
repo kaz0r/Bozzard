@@ -83,6 +83,8 @@ impl App {
                         target.size[0],
                         target.size[1],
                     )?;
+                    // Keep the evidence even when the pixel oracle rejects the frame.
+                    viewport.write_ppm(&output.join("viewport.ppm"))?;
                     let first = &viewport.rgba[..4];
                     ensure!(
                         viewport
@@ -138,7 +140,6 @@ impl App {
                         samples > 0 && teal * 2 > samples,
                         "projected cube region is not the expected teal ({teal}/{samples})"
                     );
-                    viewport.write_ppm(&output.join("viewport.ppm"))?;
                     self.gpu.wait()?;
                     Ok(())
                 })();

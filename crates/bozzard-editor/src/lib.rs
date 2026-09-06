@@ -1,7 +1,7 @@
 //! Testable editor document transactions. The authored document never becomes the play world.
 use anyhow::{Context, Result, ensure};
 use bozzard_assets::{AssetData, AssetStore};
-use bozzard_demo::{SceneDemo, save_document_from};
+use bozzard_demo::{SceneDemo, prepare_document_from, save_document};
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_scene::{
     AssetKind, AssetSource, Drawable, Layer, Mesh, Object, Scene, Texture, Transform,
@@ -140,14 +140,20 @@ impl Editor {
         ensure!(self.play.is_none(), "Stop Play before undo");
         self.finish_gesture();
         if let Some(change) = self.past.last() {
-            let assets = load_assets(&change.scene, &self.path)?;
+            let assets = if change.scene.assets != self.scene.assets {
+                Some(load_assets(&change.scene, &self.path)?)
+            } else {
+                None
+            };
             let change = self.past.pop().unwrap();
             self.future.push(Change {
                 label: change.label,
                 scene: std::mem::replace(&mut self.scene, change.scene),
             });
-            self.assets = assets;
-            self.asset_revision += 1;
+            if let Some(assets) = assets {
+                self.assets = assets;
+                self.asset_revision += 1;
+            }
             self.revision += 1;
             self.repair_selection();
         }
@@ -157,14 +163,20 @@ impl Editor {
         ensure!(self.play.is_none(), "Stop Play before redo");
         self.finish_gesture();
         if let Some(change) = self.future.last() {
-            let assets = load_assets(&change.scene, &self.path)?;
+            let assets = if change.scene.assets != self.scene.assets {
+                Some(load_assets(&change.scene, &self.path)?)
+            } else {
+                None
+            };
             let change = self.future.pop().unwrap();
             self.past.push(Change {
                 label: change.label,
                 scene: std::mem::replace(&mut self.scene, change.scene),
             });
-            self.assets = assets;
-            self.asset_revision += 1;
+            if let Some(assets) = assets {
+                self.assets = assets;
+                self.asset_revision += 1;
+            }
             self.revision += 1;
             self.repair_selection();
         }
@@ -256,9 +268,10 @@ impl Editor {
     pub fn save(&mut self, path: &Path) -> Result<()> {
         self.finish_gesture();
         // Always save the authored document, even during Play.
-        save_document_from(&self.scene, path, Some(&self.path))?;
-        let rebased = Scene::from_json(&std::fs::read_to_string(path)?)?;
+        let rebased = prepare_document_from(&self.scene, path, Some(&self.path))?;
         let assets = load_assets(&rebased, path)?;
+        // Complete all fallible preparation before the atomic destination replacement.
+        save_document(&rebased, path)?;
         if path != self.path {
             // History contains paths relative to the old root; discard it on Save As.
             self.past.clear();
@@ -721,6 +734,39 @@ mod tests {
         let text = downloads.join("notes.txt");
         std::fs::write(&text, b"hello").unwrap();
         assert!(e.import(&text).is_err());
+    }
+    #[test]
+    fn broken_asset_does_not_block_transform_history_or_overwrite_failed_save() {
+        let dir = Temp::new();
+        let path = dir.0.join("scene.json");
+        let source = dir.0.join("source.png");
+        std::fs::write(&source, PNG).unwrap();
+        let mut e = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+        let id = e.import(&source).unwrap();
+        e.save(&path).unwrap();
+        let saved_bytes = std::fs::read(&path).unwrap();
+        let before = e.scene.clone();
+        e.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let edited = e.scene.clone();
+        let revision = e.asset_revision();
+        let handle = e.assets.handle(&id).unwrap();
+        std::fs::write(dir.0.join(&e.scene.assets[&id].path), b"broken").unwrap();
+        e.undo().unwrap();
+        assert_eq!(e.scene, before);
+        e.redo().unwrap();
+        assert_eq!(e.scene, edited);
+        assert_eq!(e.asset_revision(), revision);
+        assert!(e.assets.get(handle).unwrap().data().is_some());
+        assert!(e.save(&path).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), saved_bytes);
+        let other = dir.0.join("other.json");
+        std::fs::write(&other, b"existing destination").unwrap();
+        assert!(e.save(&other).is_err());
+        assert_eq!(std::fs::read(other).unwrap(), b"existing destination");
+        assert_eq!(e.path, path);
+        assert_eq!(e.scene, edited);
+        assert!(e.dirty());
+        assert!(e.undo_label().is_some());
     }
     #[test]
     fn history_is_bounded_and_oldest_changes_fall_off() {

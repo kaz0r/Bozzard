@@ -8,25 +8,14 @@ Build the first usable native editor: hierarchy, viewport, component inspector, 
 
 The user explicitly requests continuous progress and next-step logging here. No agents are delegated. Prior authorization includes committing/pushing completed stages and watching CI.
 
-## Starting state
+## Current state and next action
 
-- Branch main, clean at `9b342ba` (pushed).
-- Foundation and asset-stage CI passed Linux Vulkan/llvmpipe, Windows DX12/WARP, macOS Metal: https://github.com/kaz0r/Bozzard/actions/runs/34020090346.
-- 22 CPU tests, local Metal pixel checks, extracted release bundles, 2D/3D presentation, and live asset reload have passed.
-- `bozzard-scene` owns versioned documents and validated ECS instances. `bozzard-demo::SceneDemo` supplies fixed-step Spin simulation. `bozzard-render::SceneRenderer` consumes render data and owns GPU caches. `bozzard-assets` imports PNG/JPEG/OBJ synchronously. Player and headless server are separate binaries.
-- Existing scene hierarchy membership is fixed per instance; editor transactions can rebuild validated edit instances. Preserve authored documents separately from the play world.
-
-## Plan and current work
-
-1. Inspect compatible egui/wgpu integration and choose the editor shell without changing runtime backend guarantees. IN PROGRESS.
-2. Add a testable editor document/command model, selection, undo/redo, separate play state, and project-local imports.
-3. Build a native editor UI with hierarchy, inspector, asset panel, viewport selection/manipulation, scene controls, and persisted workspace settings.
-4. Verify real editing/play/save workflows, add appropriate CPU and native CI checks, document usage.
-5. Commit/push the completed editor slice, watch CI, and record exact results and any remaining limitations.
-
-## Validation and next action
-
-No editor changes yet. Next action: verify egui renderer compatibility with wgpu 30 and implement the CPU editor model first. Do not claim editor completion until the native UI and save/play workflows actually run.
+- Reviewing the completed editor commits through `5f4d727` at the user's request. Earlier implementation checkpoints below are historical.
+- Editor UI, command model, asset import, Play isolation, packaging, and Linux native UI CI are implemented. Prior CI results are recorded below.
+- Review found: unchanged asset catalogs were reloaded during Undo/Redo; Save replaced the destination before validating imported assets; Finder launches used `/work` for default projects; failed pixel checks omitted the viewport diagnostic.
+- Fixes in progress: preserve asset caches during ordinary history operations, prepare/validate saves before replacement, use a user-owned default project folder and platform workspace storage, retain failed pixel captures.
+- Next: run regression/full workspace checks and native Metal smoke, inspect the final diff, commit/push fixes, and check CI. Native fast-drag gesture retest remains an explicit follow-up; automated smoke does not inject pointer gestures.
+- No agents delegated. Maintain this section and append validation results as work proceeds.
 
 ## Checkpoint — editor model started
 
@@ -72,3 +61,11 @@ No editor changes yet. Next action: verify egui renderer compatibility with wgpu
 - Success line is now `editor_smoke_ok authored_commands play_isolation save_load native_ui_capture viewport_pixel_oracle`.
 - Validated: fmt, clippy -D warnings, all 19 workspace test binaries, headless audit, native Metal smoke, and `tools/package.py --profile debug --verify --editor-window` (packaged editor smoke passes the oracle from an empty working directory).
 - Committed as `380a446`, pushed. CI run 34040350695 passed all three platforms; the Linux job's packaged editor smoke passed with `viewport_pixel_oracle` under Xvfb.
+
+## Review checkpoint — reliability fixes validated
+
+- Added a regression covering corrupt imported files: transform Undo/Redo preserves the existing cache and handles; failed Save and Save As preserve destination bytes, dirty state, document path, and undo history.
+- Split save preparation from atomic writing so the editor validates rebased imports before replacing the destination. Existing player/server save API remains intact.
+- Default new projects now use fresh filenames under the user's Documents/Bozzard Projects, independent of Finder's working directory. Normal workspace persistence uses eframe's platform application-data location; smoke output stays explicitly directed.
+- Viewport PPM is now saved before the pixel oracle runs so failed CI keeps diagnostic evidence.
+- Passed workspace tests (30 tests), Clippy with warnings denied, headless dependency audit, and native Apple M2 Pro Metal editor smoke including the projected-cube pixel oracle. Final smoke isolation adjustment also passed the native Metal smoke. Ready to commit and verify CI.
