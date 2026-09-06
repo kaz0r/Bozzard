@@ -13,8 +13,8 @@ The user explicitly requests continuous progress and next-step logging here. No 
 - Reviewing the completed editor commits through `5f4d727` at the user's request. Earlier implementation checkpoints below are historical.
 - Editor UI, command model, asset import, Play isolation, packaging, and Linux native UI CI are implemented. Prior CI results are recorded below.
 - Review found: unchanged asset catalogs were reloaded during Undo/Redo; Save replaced the destination before validating imported assets; Finder launches used `/work` for default projects; failed pixel checks omitted the viewport diagnostic.
-- Fixes in progress: preserve asset caches during ordinary history operations, prepare/validate saves before replacement, use a user-owned default project folder and platform workspace storage, retain failed pixel captures.
-- Next: run regression/full workspace checks and native Metal smoke, inspect the final diff, commit/push fixes, and check CI. Native Move/Rotate/Scale pointer gestures and one-step Undo have now been verified after fixing viewport pointer capture; automated CI smoke still does not inject pointer gestures.
+- Completed fixes: preserve asset caches during ordinary history operations, prepare/validate saves before replacement, use a user-owned default project folder and platform workspace storage, retain failed pixel captures, and capture gizmo pointer gestures.
+- Review code is committed/pushed as `4083d27` and `9db246b`. Local validation passed. Final CI run 34053362291 passed Linux/Vulkan, Windows/DX12, and macOS/Metal. The review is complete. Native Move/Rotate/Scale pointer gestures and one-step Undo have now been verified after fixing viewport pointer capture; automated CI smoke still does not inject pointer gestures.
 - No agents delegated. Maintain this section and append validation results as work proceeds.
 
 ## Checkpoint — editor model started
@@ -77,3 +77,12 @@ The user explicitly requests continuous progress and next-step logging here. No 
 - Real CUA pointer checks passed: Move X 0 → 1.108, Rotate X 12 → 65.570 degrees, Scale X 1.6 → 2.734. One Undo after each restored the initial value and clean document state.
 - Finder-style launch also confirmed the default path is under /Users/andre/Documents/Bozzard Projects instead of /work.
 - Initial review fixes committed/pushed as `4083d27`; CI run https://github.com/kaz0r/Bozzard/actions/runs/34053085889 is running. Gesture follow-up passed Clippy and native pointer validation; final native smoke and push next.
+
+## Review checkpoint — final platform verification
+
+- `9db246b` is pushed; native Metal smoke still passed after the pointer capture fix.
+- Final CI: https://github.com/kaz0r/Bozzard/actions/runs/34053362291. All three jobs passed: Linux/Vulkan, Windows/DX12, and macOS/Metal, including extracted-package verification. Linux also ran the native editor UI/pixel smoke.
+- The earlier run for `4083d27` was superseded by the final commit (macOS passed before cancellation; other jobs were cancelled by workflow concurrency).
+- Next engine work after this review: a controllable character, collisions and game logic, then export of a user project. Arbitrary docking, generic component reflection, and automated Windows/macOS editor pointer checks remain future work.
+
+- Final result: all-platform success confirmed from GitHub Actions for exact code commit `9db246b28803b95e3306cf002e5edb371e864ba8`. This final log-only commit skips redundant CI; engine code is unchanged from the verified commit.
