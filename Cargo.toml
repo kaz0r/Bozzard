@@ -9,6 +9,9 @@ rust-version = "1.95"
 publish = false
 
 [workspace.dependencies]
+bozzard-assets = { path = "crates/bozzard-assets" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+tobj = { version = "4.0.4", default-features = false }
 bozzard-ecs = { path = "crates/bozzard-ecs" }
 bozzard-app = { path = "crates/bozzard-app" }
 bozzard-render = { path = "crates/bozzard-render" }

@@ -1,0 +1,16 @@
+[package]
+name = "bozzard-assets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+bozzard-scene.workspace = true
+anyhow.workspace = true
+glam.workspace = true
+image.workspace = true
+tobj.workspace = true
+
+[lints]
+workspace = true

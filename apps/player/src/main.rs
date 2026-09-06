@@ -1,7 +1,8 @@
 use anyhow::{Context, Result, bail, ensure};
+mod assets;
 mod presentation;
 mod smoke;
-use bozzard_demo::{SceneDemo, load_document, save_document};
+use bozzard_demo::{SceneDemo, load_document, save_document_from};
 use bozzard_render::{Backend, Gpu, SceneRenderer, instance, wgpu};
 use bozzard_scene::{Layer, Scene, Transform};
 use presentation::extract;
@@ -161,11 +162,17 @@ impl View {
         }
     }
 
-    fn draw(&mut self, demo: &SceneDemo, layer: Layer) -> Result<bool> {
+    fn draw(
+        &mut self,
+        demo: &SceneDemo,
+        assets: &mut assets::Assets,
+        layer: Layer,
+    ) -> Result<bool> {
         if !self.drawable {
             self.surface_status = "window has zero size";
             return Ok(false);
         }
+        assets.poll(&self.gpu, &mut self.renderer)?;
         let (frame, reconfigure) = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
@@ -209,6 +216,7 @@ struct Player {
     options: Options,
     view: Option<View>,
     demo: SceneDemo,
+    assets: assets::Assets,
     paused: bool,
     last_frame: Instant,
     last_present: Instant,
@@ -233,19 +241,28 @@ impl Player {
                 self.options.layer = layer;
             }
             Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
-                let next = SceneDemo::new(&load_document(self.options.scene.as_deref())?)?;
+                let document = load_document(self.options.scene.as_deref())?;
+                let next = SceneDemo::new(&document)?;
+                let assets = assets::Assets::load(&document, self.options.scene.as_deref())?;
                 ensure!(
                     next.instance.has_view(self.options.layer),
                     "reloaded scene is missing the active view"
                 );
+                if let Some(view) = &mut self.view {
+                    let mut renderer = SceneRenderer::new(&view.gpu, view.config.format);
+                    assets.upload(&view.gpu, &mut renderer)?;
+                    view.renderer = renderer;
+                }
+                self.assets = assets;
                 self.demo = next;
                 self.last_frame = Instant::now();
                 println!("scene_reloaded");
             }
             Key::Named(NamedKey::F5) if !repeat => {
-                save_document(
+                save_document_from(
                     &self.demo.instance.capture(&self.demo.app.world)?,
                     &self.options.save_path,
+                    self.options.scene.as_deref(),
                 )?;
                 println!("scene_saved path={}", self.options.save_path.display());
             }
@@ -295,7 +312,11 @@ impl ApplicationHandler for Player {
             return;
         }
         match View::new(event_loop, &self.options) {
-            Ok(view) => {
+            Ok(mut view) => {
+                if let Err(error) = self.assets.upload(&view.gpu, &mut view.renderer) {
+                    self.fail(event_loop, error);
+                    return;
+                }
                 self.view = Some(view);
                 self.last_frame = Instant::now();
                 self.last_present = Instant::now();
@@ -342,7 +363,7 @@ impl ApplicationHandler for Player {
                     self.demo.app.advance(now.duration_since(self.last_frame));
                 }
                 self.last_frame = now;
-                match view.draw(&self.demo, self.options.layer) {
+                match view.draw(&self.demo, &mut self.assets, self.options.layer) {
                     Ok(true) => {
                         self.frames = self.frames.saturating_add(1);
                         self.last_present = now;
@@ -403,7 +424,7 @@ fn main() -> Result<()> {
     }
     let document = load_document(options.scene.as_deref())?;
     if let Some(path) = &options.write_scene {
-        save_document(&document, path)?;
+        save_document_from(&document, path, options.scene.as_deref())?;
         println!("scene_saved path={}", path.display());
         return Ok(());
     }
@@ -412,7 +433,9 @@ fn main() -> Result<()> {
         demo.instance.has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"
     );
+    let assets = assets::Assets::load(&document, options.scene.as_deref())?;
     let mut player = Player {
+        assets,
         options,
         view: None,
         demo,
@@ -441,6 +464,7 @@ mod controls_tests {
     #[test]
     fn view_pause_pan_and_transactional_reload_work_without_a_gpu() {
         let mut player = Player {
+            assets: assets::Assets::load(&bozzard_demo::scene_document().unwrap(), None).unwrap(),
             options: Options::default(),
             view: None,
             demo: SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap(),

@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+bozzard-assets.workspace = true
 bozzard-app.workspace = true
 bozzard-demo.workspace = true
 bozzard-render.workspace = true

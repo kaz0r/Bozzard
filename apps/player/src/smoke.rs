@@ -1,6 +1,6 @@
 use super::*;
 use bozzard_demo::{Position, demo};
-use bozzard_render::{DrawItem, Material, MeshKind, RenderScene};
+use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
 
@@ -32,7 +32,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let material = Material {
         tint: [1.0; 3],
         uv_scale: [1.0; 2],
-        checker: true,
+        texture: TextureKind::Checker,
         lit: false,
     };
     let scene = RenderScene {
@@ -40,7 +40,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         items: vec![DrawItem {
             model: Mat4::from_scale(Vec3::new(2.0, 2.0, 1.0)),
             mesh: MeshKind::Quad,
-            material,
+            material: material.clone(),
         }],
     };
     let frame = capture(gpu, &mut renderer, &scene, [257, 193])?;
@@ -61,8 +61,8 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
                 mesh: MeshKind::Cube,
                 material: Material {
                     tint: [0.9, 0.1, 0.2],
-                    checker: false,
-                    ..material
+                    texture: TextureKind::White,
+                    ..material.clone()
                 },
             },
             DrawItem {
@@ -71,8 +71,8 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
                 mesh: MeshKind::Cube,
                 material: Material {
                     tint: [0.1, 0.3, 0.9],
-                    checker: false,
-                    ..material
+                    texture: TextureKind::White,
+                    ..material.clone()
                 },
             },
         ],
@@ -93,16 +93,144 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let document = bozzard_demo::scene_document()?;
     check_document(gpu, &mut renderer, &document, options, "demo", true)?;
     if let Some(path) = &options.scene {
-        check_document(
+        let document = load_document(Some(path))?;
+        let assets = assets::Assets::load(&document, Some(path))?;
+        assets.upload(gpu, &mut renderer)?;
+        check_document(gpu, &mut renderer, &document, options, "loaded", false)?;
+    }
+    asset_checks(gpu, &mut renderer, options)?;
+    println!("scene_gpu_ok texture_quadrants depth_order camera_pan resize scene_roundtrip");
+    Ok(())
+}
+
+fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> Result<()> {
+    use bozzard_assets::{AssetStore, LoadState};
+    use bozzard_scene::{AssetKind, AssetSource};
+    use std::collections::BTreeMap;
+    let root = options.output.join("asset-fixture");
+    std::fs::create_dir_all(&root)?;
+    std::fs::write(
+        root.join("palette.png"),
+        include_bytes!("../../../examples/demo/scenes/assets/palette.png"),
+    )?;
+    let obj = include_bytes!("../../../examples/demo/scenes/assets/quad.obj");
+    std::fs::write(root.join("quad.obj"), obj)?;
+    let sources = BTreeMap::from([
+        (
+            "test-palette".into(),
+            AssetSource {
+                kind: AssetKind::Image,
+                path: "palette.png".into(),
+            },
+        ),
+        (
+            "test-quad".into(),
+            AssetSource {
+                kind: AssetKind::Mesh,
+                path: "quad.obj".into(),
+            },
+        ),
+    ]);
+    let mut store = AssetStore::new(&root, &sources)?;
+    store.refresh();
+    store.require_ready()?;
+    for entry in store.entries() {
+        assets::upload(
             gpu,
-            &mut renderer,
-            &load_document(Some(path))?,
-            options,
-            "loaded",
-            false,
+            renderer,
+            &entry.id,
+            entry.data().context("missing imported data")?,
         )?;
     }
-    println!("scene_gpu_ok texture_quadrants depth_order camera_pan resize scene_roundtrip");
+    let scene = RenderScene {
+        view_projection: glam::camera::rh::proj::directx::orthographic(
+            -2.0, 2.0, -1.5, 1.5, 0.1, 10.0,
+        ) * Mat4::from_translation(Vec3::new(0.0, 0.0, -3.0)),
+        items: vec![DrawItem {
+            model: Mat4::from_scale(Vec3::new(2.0, 2.0, 1.0)),
+            mesh: MeshKind::Imported("test-quad".into()),
+            material: Material {
+                tint: [1.0; 3],
+                uv_scale: [1.0; 2],
+                texture: TextureKind::Imported("test-palette".into()),
+                lit: false,
+            },
+        }],
+    };
+    let first = capture(gpu, renderer, &scene, [257, 193])?;
+    first.write_ppm(&options.output.join("imported.ppm"))?;
+    pixel(&first, 96, 64, [255, 0, 0])?;
+    pixel(&first, 160, 64, [0, 255, 0])?;
+    pixel(&first, 96, 128, [0, 0, 255])?;
+    // 128 sRGB decodes to about 55 in a linear RGBA8 readback target.
+    pixel(&first, 160, 128, [55, 55, 55])?;
+    let handle = store
+        .handle("test-palette")
+        .context("missing texture handle")?;
+    std::fs::write(root.join("palette.png"), b"incomplete file while editing")?;
+    ensure!(
+        store.refresh() == vec![handle],
+        "corrupt reload did not report texture change"
+    );
+    let entry = store.get(handle).context("lost texture handle")?;
+    ensure!(
+        matches!(entry.state(), LoadState::Failed(_)),
+        "corrupt image was accepted"
+    );
+    assets::upload(
+        gpu,
+        renderer,
+        &entry.id,
+        entry.data().context("lost last good asset")?,
+    )?;
+    ensure!(
+        capture(gpu, renderer, &scene, [257, 193])?.rgba == first.rgba,
+        "failed reload changed the image"
+    );
+    std::fs::write(
+        root.join("palette.png"),
+        include_bytes!("../../../examples/demo/scenes/assets/palette-reloaded.png"),
+    )?;
+    ensure!(
+        store.refresh() == vec![handle],
+        "texture recovery not detected"
+    );
+    let entry = store.get(handle).context("lost texture handle")?;
+    assets::upload(
+        gpu,
+        renderer,
+        &entry.id,
+        entry.data().context("missing recovered data")?,
+    )?;
+    let updated = capture(gpu, renderer, &scene, [257, 193])?;
+    pixel(&updated, 96, 64, [0, 255, 255])?;
+    updated.write_ppm(&options.output.join("imported-reloaded.ppm"))?;
+    // Same-sized OBJ edit verifies mesh buffer replacement without relying on timestamps.
+    let shifted = std::str::from_utf8(obj)?
+        .replace("v -0.5", "v -2.5")
+        .replace("v 0.5", "v -1.5");
+    std::fs::write(root.join("quad.obj"), shifted)?;
+    let mesh_handle = store.handle("test-quad").context("missing mesh handle")?;
+    ensure!(
+        store.refresh() == vec![mesh_handle],
+        "mesh change not detected"
+    );
+    let entry = store.get(mesh_handle).context("lost mesh handle")?;
+    assets::upload(
+        gpu,
+        renderer,
+        &entry.id,
+        entry.data().context("missing changed mesh")?,
+    )?;
+    pixel(
+        &capture(gpu, renderer, &scene, [257, 193])?,
+        128,
+        96,
+        [5, 6, 10],
+    )?;
+    println!(
+        "asset_gpu_ok imported_mesh texture_orientation srgb failed_reload recovery mesh_reload"
+    );
     Ok(())
 }
 

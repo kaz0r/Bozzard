@@ -7,17 +7,19 @@
 - Native WebGPU triangle and a graphics-free headless simulation.
 - Pixel readback checks, native CI definitions, development binary bundles.
 
-Exit: local checks pass and the first GitHub matrix run verifies all three native targets. Remote CI is not considered validated until that run succeeds.
+Completed: local checks and the first successful GitHub matrix run verify all three native targets (`d319721`, run 34019215092). Linux also presents both views under Xvfb.
 
 ## 2 — Scene and asset foundation (current slice)
 
 - Implemented: transform hierarchy with orthographic/perspective camera projections.
-- Implemented: persistent object IDs and versioned scene snapshots. Imported-asset IDs remain.
-- Asset handles, loading states, dependency tracking, hot reload.
-- Implemented: textured 2D quads and indexed 3D cubes with depth testing/basic lighting. General mesh and image import remain.
+- Implemented: persistent object IDs and versioned scene snapshots. Stable imported-asset IDs now map to relative source paths.
+- Implemented: store-scoped asset handles, pending/ready/failed state, scene-to-asset dependency mapping, and synchronous polling hot reload with last-good recovery.
+- Implemented: textured 2D quads and indexed 3D cubes with depth testing/basic lighting. PNG/JPEG and OBJ import now supplement these built-ins.
 - Implemented: scene round-trip, texture/depth/camera rendering checks, and player/headless/package integration.
 
-## 3 — Editor module
+The initial import slice supports opaque images and static OBJ geometry; async loading, glTF/material dependencies, mipmaps, and streaming are future extensions.
+
+## 3 — Editor module (next)
 
 - Native egui integration, docking/workspace persistence.
 - Scene hierarchy, inspector, viewport selection and transform gizmos.

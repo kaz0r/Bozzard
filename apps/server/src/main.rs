@@ -1,6 +1,6 @@
 //! Finite headless scene simulation. Networking is a later milestone.
 use anyhow::{Context, Result, bail};
-use bozzard_demo::{SceneDemo, load_document, save_document};
+use bozzard_demo::{SceneDemo, load_document, save_document_from};
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
@@ -28,7 +28,11 @@ fn main() -> Result<()> {
         demo.app.step();
     }
     if let Some(path) = save {
-        save_document(&demo.instance.capture(&demo.app.world)?, &path)?;
+        save_document_from(
+            &demo.instance.capture(&demo.app.world)?,
+            &path,
+            scene.as_deref(),
+        )?;
     }
     println!(
         "headless_ok ticks={} entities={} scene={:?}",

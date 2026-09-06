@@ -14,6 +14,53 @@ pub fn load_document(path: Option<&Path>) -> anyhow::Result<Scene> {
     }
 }
 
+/// Rebase file references when saving elsewhere; assets themselves stay at their source paths.
+pub fn save_document_from(scene: &Scene, path: &Path, source: Option<&Path>) -> anyhow::Result<()> {
+    use anyhow::{Context, ensure};
+    if scene.assets.is_empty() {
+        return save_document(scene, path);
+    }
+    scene.validate()?;
+    let parent = |path: &Path| {
+        path.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .to_path_buf()
+    };
+    let root = source
+        .map(parent)
+        .unwrap_or_else(|| Path::new(".").to_path_buf());
+    let destination = parent(path);
+    std::fs::create_dir_all(&destination)?;
+    let destination = destination.canonicalize()?;
+    let mut saved = scene.clone();
+    for asset in saved.assets.values_mut() {
+        let target = root
+            .join(&asset.path)
+            .canonicalize()
+            .with_context(|| format!("resolving asset '{}' for save", asset.path))?;
+        let from: Vec<_> = destination.components().collect();
+        let to: Vec<_> = target.components().collect();
+        let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+        ensure!(
+            common > 0 && from.first() == to.first(),
+            "cannot save relative asset references across filesystem roots"
+        );
+        let mut relative = std::path::PathBuf::new();
+        for _ in common..from.len() {
+            relative.push("..");
+        }
+        for component in &to[common..] {
+            relative.push(component.as_os_str());
+        }
+        asset.path = relative
+            .to_str()
+            .context("asset path is not UTF-8")?
+            .replace('\\', "/");
+    }
+    save_document(&saved, path)
+}
+
 /// Validate first, then replace through a sibling temporary file so failed saves keep the old file.
 pub fn save_document(scene: &Scene, path: &Path) -> anyhow::Result<()> {
     static NEXT_SAVE: AtomicU64 = AtomicU64::new(0);

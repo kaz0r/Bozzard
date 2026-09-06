@@ -64,7 +64,9 @@ def main():
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
-        shutil.copy2(ROOT / "examples/demo/scenes/scene-lab.json", stage / "scene-lab.json")
+        for scene in ["scene-lab.json", "asset-lab.json"]:
+            shutil.copy2(ROOT / "examples/demo/scenes" / scene, stage / scene)
+        shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")
         (stage / "README.txt").write_text(
             "Bozzard engine foundation demo\n\n"
             "Launch the player for a native WebGPU scene; Escape closes it.\n"
@@ -72,6 +74,8 @@ def main():
             "The server runs 120 simulation ticks and exits (no networking yet).\n"
             "The default scene, shaders and procedural textures are embedded.\n"
             "Use --scene scene-lab.json to load the included editable copy.\n"
+            "Use --scene asset-lab.json for imported PNG textures and OBJ meshes.\n"
+            "File edits reload automatically; failed imports retain the last good asset.\n"
             "Requires the host OS graphics drivers and system runtime libraries.\n"
             "This development bundle is not notarized or distribution-ready.\n",
             encoding="utf-8",
@@ -103,11 +107,11 @@ def main():
             run(server, "--ticks", "120", cwd=cwd)
             run(player, "--help", cwd=cwd)
             saved = cwd / "saved-scene.json"
-            run(server, "--scene", str(package / "scene-lab.json"), "--ticks", "120", "--save-scene", str(saved), cwd=cwd)
+            run(server, "--scene", str(package / "asset-lab.json"), "--ticks", "120", "--save-scene", str(saved), cwd=cwd)
             run(player, "--scene", str(saved), "--smoke", "--output", str(ROOT / "work/package-smoke"), *graphics, cwd=cwd)
             if args.window:
-                run(player, "--frames", "3", *graphics, cwd=cwd)
-                run(player, "--view", "2d", "--frames", "3", *graphics, cwd=cwd)
+                run(player, "--scene", str(package / "asset-lab.json"), "--frames", "3", *graphics, cwd=cwd)
+                run(player, "--scene", str(package / "asset-lab.json"), "--view", "2d", "--frames", "3", *graphics, cwd=cwd)
         print("package_ok: extracted executables ran from an empty working directory", flush=True)
 
 

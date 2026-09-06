@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bozzard_demo::SceneDemo;
-use bozzard_render::{DrawItem, Material, MeshKind, RenderScene};
+use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_scene::{Layer, Mesh, Texture};
 
 pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScene> {
@@ -15,11 +15,16 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
                 mesh: match drawable.mesh {
                     Mesh::Quad => MeshKind::Quad,
                     Mesh::Cube => MeshKind::Cube,
+                    Mesh::Asset(id) => MeshKind::Imported(id),
                 },
                 material: Material {
                     tint: drawable.color,
                     uv_scale: drawable.uv_scale,
-                    checker: drawable.texture == Texture::Checker,
+                    texture: match drawable.texture {
+                        Texture::White => TextureKind::White,
+                        Texture::Checker => TextureKind::Checker,
+                        Texture::Asset(id) => TextureKind::Imported(id),
+                    },
                     lit: layer == Layer::ThreeD,
                 },
             })

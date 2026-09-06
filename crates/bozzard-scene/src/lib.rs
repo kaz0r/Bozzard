@@ -145,21 +145,23 @@ impl Camera {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Mesh {
     Quad,
     Cube,
+    Asset(String),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Texture {
     White,
     Checker,
+    Asset(String),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Drawable {
     pub layer: Layer,
@@ -198,6 +200,23 @@ pub struct Scene {
     /// Active camera object ID per view. Scenes may provide either or both views.
     pub views: BTreeMap<Layer, String>,
     pub objects: Vec<Object>,
+    /// Stable asset IDs mapped to source paths relative to this scene file.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub assets: BTreeMap<String, AssetSource>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetKind {
+    Image,
+    Mesh,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssetSource {
+    pub kind: AssetKind,
+    pub path: String,
 }
 
 impl Scene {
@@ -225,6 +244,16 @@ impl Scene {
             self.objects.len() <= 100_000,
             "scene exceeds the initial object limit"
         );
+        for (id, source) in &self.assets {
+            ensure!(!id.trim().is_empty(), "asset ID is empty");
+            ensure!(
+                !source.path.is_empty()
+                    && !source.path.contains('\\')
+                    && !source.path.contains(':')
+                    && !source.path.starts_with('/'),
+                "asset '{id}' needs a relative path using forward slashes"
+            );
+        }
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
             ensure!(!object.id.trim().is_empty(), "object ID is empty");
@@ -240,7 +269,18 @@ impl Scene {
             if let Some(camera) = object.camera {
                 camera.validate()?;
             }
-            if let Some(drawable) = object.drawable {
+            if let Some(drawable) = &object.drawable {
+                for (id, kind) in drawable.asset_dependencies() {
+                    let source = self
+                        .assets
+                        .get(id)
+                        .with_context(|| format!("missing asset '{id}' on '{}'", object.id))?;
+                    ensure!(
+                        source.kind == kind,
+                        "wrong asset kind for '{id}' on '{}'",
+                        object.id
+                    );
+                }
                 ensure!(
                     drawable
                         .color
@@ -323,8 +363,8 @@ impl Scene {
             if let Some(value) = object.camera {
                 world.insert(entity, value)?;
             }
-            if let Some(value) = object.drawable {
-                world.insert(entity, value)?;
+            if let Some(value) = &object.drawable {
+                world.insert(entity, value.clone())?;
             }
             if let Some(value) = object.spin {
                 world.insert(entity, value)?;
@@ -401,7 +441,7 @@ impl SceneInstance {
             if let Some(drawable) = world.get::<Drawable>(*entity)
                 && drawable.layer == layer
             {
-                objects.push((matrices[id], *drawable));
+                objects.push((matrices[id], drawable.clone()));
             }
         }
         Ok(SceneView {
@@ -420,7 +460,7 @@ impl SceneInstance {
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
             object.camera = world.get::<Camera>(entity).copied();
-            object.drawable = world.get::<Drawable>(entity).copied();
+            object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
         }
         scene.validate()?;
@@ -431,6 +471,38 @@ impl SceneInstance {
 pub struct SceneView {
     pub view_projection: Mat4,
     pub objects: Vec<(Mat4, Drawable)>,
+}
+
+impl Drawable {
+    pub fn asset_dependencies(&self) -> Vec<(&str, AssetKind)> {
+        let mut result = Vec::new();
+        if let Mesh::Asset(id) = &self.mesh {
+            result.push((id.as_str(), AssetKind::Mesh));
+        }
+        if let Texture::Asset(id) = &self.texture {
+            result.push((id.as_str(), AssetKind::Image));
+        }
+        result
+    }
+}
+
+impl Scene {
+    /// Reverse dependencies used by reload diagnostics and future editor tooling.
+    pub fn asset_users(&self) -> BTreeMap<String, Vec<String>> {
+        let mut users: BTreeMap<String, Vec<String>> = self
+            .assets
+            .keys()
+            .map(|id| (id.clone(), Vec::new()))
+            .collect();
+        for object in &self.objects {
+            if let Some(drawable) = &object.drawable {
+                for (id, _) in drawable.asset_dependencies() {
+                    users.entry(id.into()).or_default().push(object.id.clone());
+                }
+            }
+        }
+        users
+    }
 }
 
 #[cfg(test)]
@@ -453,6 +525,7 @@ mod tests {
             name: "test".into(),
             views: BTreeMap::new(),
             objects: vec![object("child"), object("parent")],
+            assets: BTreeMap::new(),
         }
     }
 

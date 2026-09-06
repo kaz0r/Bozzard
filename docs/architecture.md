@@ -11,6 +11,7 @@ bozzard-server -> bozzard-demo -> bozzard-app -> bozzard-ecs
 bozzard-demo -> bozzard-scene -> bozzard-ecs + glam + serde
 bozzard-player -> bozzard-demo
 bozzard-player -> bozzard-render -> wgpu
+bozzard-player -> bozzard-assets -> bozzard-scene + image + tobj
 bozzard-player -> winit
 ```
 
@@ -48,8 +49,16 @@ Offscreen testing does not cover desktop presentation. The player separately han
 
 ## Scenes and future exporting
 
-Scenes now use persistent document-local object IDs, schema version 1, and explicit parent/camera references. See `scenes.md` for the current snapshot contract. Stable imported-asset identities and generic component schemas remain future work. Editor play mode will create a separate world. Editor changes should go through commands with undo/redo; saving must serialize authored state, not incidental runtime data.
+Scenes now use persistent document-local object IDs, schema version 1, and explicit parent/camera references. See `scenes.md` for the current snapshot contract. The optional asset catalog maps persistent IDs to typed, relative source paths. Generic component schemas remain future work. Editor play mode will create a separate world. Editor changes should go through commands with undo/redo; saving must serialize authored state, not incidental runtime data.
 
-The future exporter will validate scenes, collect asset dependencies, cook assets for the target, compile selected runtime/game modules, and package the result. Current development packaging only bundles the fixed demo. Public distribution additionally needs licenses/notices, platform signing/notarization, installer decisions, and minimum OS/runtime baselines verified on clean target systems.
+The future exporter will validate scenes, collect asset dependencies, cook assets for the target, compile selected runtime/game modules, and package the result. Current development packaging bundles the two fixed demos and their imported files. Public distribution additionally needs licenses/notices, platform signing/notarization, installer decisions, and minimum OS/runtime baselines verified on clean target systems.
 
 The scene renderer adds reusable indexed quad/cube meshes, per-object MVP and normal matrices, opaque textured materials, and a depth target recreated on resize. Separate fixtures check texture quadrants, near/far occlusion in reversed draw orders, camera panning, and identical rendering after scene serialization. Math/serialization are allowed in the headless dependency tree; wgpu and winit are not.
+
+## Imported asset lifecycle
+
+The scene document owns stable asset IDs and source paths, and exposes reverse object dependencies. `bozzard-assets` loads file data on the CPU; it never owns a GPU resource. Handles are private store/index pairs and reject cross-store access. This first store is append-free after construction, so no slot reuse can invalidate a handle. Recreating a scene constructs a new store.
+
+The player uploads CPU data into renderer-owned caches keyed by asset ID. The renderer accepts vertices, indices, and RGBA pixels and retains no dependency on the importer or scene crate. Changed textures invalidate object bind groups; changed meshes replace their buffers. Replacing a scene first loads a complete new store/world/renderer, then swaps them in. Suspending and recreating a window uploads the retained CPU assets to the new device.
+
+Polling reads source bytes every 500 ms and compares contents, avoiding timestamp granularity problems. Failed imports report an error once per changed source and retain the previous data and revision. This is a small synchronous baseline: background import jobs, memory budgets, cancellation, incremental dependency graphs, and streaming are deliberately later work. See `assets.md` for current limits.

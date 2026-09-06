@@ -1,19 +1,28 @@
 use crate::Gpu;
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use glam::Mat4;
+use std::collections::BTreeMap;
 use wgpu::util::DeviceExt;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum MeshKind {
     Quad,
     Cube,
+    Imported(String),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TextureKind {
+    White,
+    Checker,
+    Imported(String),
+}
+
+#[derive(Clone, Debug)]
 pub struct Material {
     pub tint: [f32; 3],
     pub uv_scale: [f32; 2],
-    pub checker: bool,
+    pub texture: TextureKind,
     pub lit: bool,
 }
 
@@ -38,8 +47,8 @@ struct MeshBuffers {
 }
 struct ObjectBinding {
     buffer: wgpu::Buffer,
-    white: wgpu::BindGroup,
-    checker: wgpu::BindGroup,
+    texture: TextureKind,
+    binding: wgpu::BindGroup,
 }
 struct DepthTarget {
     view: wgpu::TextureView,
@@ -47,7 +56,7 @@ struct DepthTarget {
 }
 
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
-/// Opaque objects only. Geometry and textures are built-ins until the asset pipeline lands.
+/// Opaque objects only. Imported images are sampled as sRGB; procedural colors are linear.
 pub struct SceneRenderer {
     pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
@@ -58,13 +67,15 @@ pub struct SceneRenderer {
     sampler: wgpu::Sampler,
     objects: Vec<ObjectBinding>,
     depth: Option<DepthTarget>,
+    imported_meshes: BTreeMap<String, MeshBuffers>,
+    imported_textures: BTreeMap<String, wgpu::TextureView>,
 }
 
 fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
     values.into_iter().flat_map(f32::to_le_bytes).collect()
 }
 
-fn mesh(gpu: &Gpu, vertices: &[[f32; 8]], indices: &[u16]) -> MeshBuffers {
+fn mesh(gpu: &Gpu, vertices: &[[f32; 8]], indices: &[u32]) -> MeshBuffers {
     MeshBuffers {
         vertices: gpu
             .device
@@ -147,7 +158,7 @@ fn cube(gpu: &Gpu) -> MeshBuffers {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     for (normal, points) in faces {
-        let base = vertices.len() as u16;
+        let base = vertices.len() as u32;
         for (p, uv) in points
             .into_iter()
             .zip([[0., 1.], [1., 1.], [1., 0.], [0., 0.]])
@@ -285,10 +296,12 @@ impl SceneRenderer {
             }),
             objects: Vec::new(),
             depth: None,
+            imported_meshes: BTreeMap::new(),
+            imported_textures: BTreeMap::new(),
         }
     }
 
-    fn object_binding(&self, gpu: &Gpu) -> ObjectBinding {
+    fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
             size: 160,
@@ -315,13 +328,104 @@ impl SceneRenderer {
                 ],
             })
         };
-        let white = bind(&self.white);
-        let checker = bind(&self.checker);
-        ObjectBinding {
+        let texture = match key {
+            TextureKind::White => &self.white,
+            TextureKind::Checker => &self.checker,
+            TextureKind::Imported(id) => self
+                .imported_textures
+                .get(id)
+                .with_context(|| format!("texture '{id}' is not uploaded"))?,
+        };
+        let binding = bind(texture);
+        Ok(ObjectBinding {
             buffer,
-            white,
-            checker,
-        }
+            texture: key.clone(),
+            binding,
+        })
+    }
+
+    pub fn clear_imported(&mut self) {
+        self.objects.clear();
+        self.imported_meshes.clear();
+        self.imported_textures.clear();
+    }
+
+    pub fn upload_mesh(
+        &mut self,
+        gpu: &Gpu,
+        id: &str,
+        vertices: &[[f32; 8]],
+        indices: &[u32],
+    ) -> Result<()> {
+        ensure!(
+            !vertices.is_empty() && !indices.is_empty() && indices.len().is_multiple_of(3),
+            "mesh needs indexed triangles"
+        );
+        ensure!(
+            vertices.len() <= 1_000_000 && indices.len() <= 3_000_000,
+            "mesh exceeds renderer limits"
+        );
+        ensure!(
+            vertices.iter().flatten().all(|v| v.is_finite())
+                && indices.iter().all(|i| (*i as usize) < vertices.len()),
+            "invalid mesh data"
+        );
+        self.imported_meshes
+            .insert(id.into(), mesh(gpu, vertices, indices));
+        Ok(())
+    }
+
+    pub fn upload_image(
+        &mut self,
+        gpu: &Gpu,
+        id: &str,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> Result<()> {
+        ensure!(
+            width > 0
+                && height > 0
+                && width <= 4096
+                && height <= 4096
+                && width <= gpu.device.limits().max_texture_dimension_2d
+                && height <= gpu.device.limits().max_texture_dimension_2d,
+            "invalid image dimensions"
+        );
+        ensure!(
+            rgba.len() == width as usize * height as usize * 4,
+            "invalid RGBA image length"
+        );
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(id),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        gpu.queue.write_texture(
+            texture.as_image_copy(),
+            rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            size,
+        );
+        self.imported_textures
+            .insert(id.into(), texture.create_view(&Default::default()));
+        // Drop bind groups referring to old texture views; the next draw rebuilds them.
+        self.objects.clear();
+        Ok(())
     }
 
     pub fn draw(
@@ -360,8 +464,20 @@ impl SceneRenderer {
                 size,
             });
         }
-        while self.objects.len() < scene.items.len() {
-            self.objects.push(self.object_binding(gpu));
+        self.objects.truncate(scene.items.len());
+        for (index, object) in scene.items.iter().enumerate() {
+            if index == self.objects.len() {
+                self.objects
+                    .push(self.object_binding(gpu, &object.material.texture)?);
+            } else if self.objects[index].texture != object.material.texture {
+                self.objects[index] = self.object_binding(gpu, &object.material.texture)?;
+            }
+            if let MeshKind::Imported(id) = &object.mesh {
+                ensure!(
+                    self.imported_meshes.contains_key(id),
+                    "mesh '{id}' is not uploaded"
+                );
+            }
         }
         for (object, binding) in scene.items.iter().zip(&self.objects) {
             let mvp = scene.view_projection * object.model;
@@ -370,7 +486,7 @@ impl SceneRenderer {
                 mvp.is_finite() && normal.is_finite(),
                 "invalid object matrix"
             );
-            let material = object.material;
+            let material = &object.material;
             let tail = [
                 material.tint[0],
                 material.tint[1],
@@ -426,21 +542,14 @@ impl SceneRenderer {
             });
             pass.set_pipeline(&self.pipeline);
             for (object, binding) in scene.items.iter().zip(&self.objects) {
-                let mesh = match object.mesh {
+                let mesh = match &object.mesh {
                     MeshKind::Quad => &self.quad,
                     MeshKind::Cube => &self.cube,
+                    MeshKind::Imported(id) => &self.imported_meshes[id],
                 };
-                pass.set_bind_group(
-                    0,
-                    if object.material.checker {
-                        &binding.checker
-                    } else {
-                        &binding.white
-                    },
-                    &[],
-                );
+                pass.set_bind_group(0, &binding.binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..mesh.count, 0, 0..1);
             }
         }

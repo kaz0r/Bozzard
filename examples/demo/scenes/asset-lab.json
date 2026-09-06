@@ -1,0 +1,381 @@
+{
+  "version": 1,
+  "name": "Bozzard Asset Lab",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "Camera 3D",
+      "transform": {
+        "translation": [
+          4,
+          3,
+          6
+        ],
+        "rotation_degrees": [
+          -22,
+          34,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "hero-cube",
+      "name": "Hero Cube",
+      "transform": {
+        "translation": [
+          0,
+          0.15,
+          0
+        ],
+        "rotation_degrees": [
+          12,
+          25,
+          0
+        ],
+        "scale": [
+          1.6,
+          1.6,
+          1.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "octahedron"
+        },
+        "texture": "checker",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "spin": [
+        8,
+        25,
+        0
+      ]
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0,
+          -1.05,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          8,
+          0.1,
+          8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "octahedron"
+        },
+        "texture": "checker",
+        "color": [
+          0.32,
+          0.42,
+          0.5
+        ],
+        "uv_scale": [
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "id": "orbit-pivot",
+      "name": "Orbit Pivot",
+      "transform": {
+        "translation": [
+          0,
+          0.2,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "spin": [
+        0,
+        35,
+        0
+      ]
+    },
+    {
+      "id": "satellite",
+      "name": "Satellite",
+      "transform": {
+        "translation": [
+          2.2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.55,
+          0.55,
+          0.55
+        ]
+      },
+      "parent": "orbit-pivot",
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "octahedron"
+        },
+        "texture": "white",
+        "color": [
+          0.04,
+          0.85,
+          0.65
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "spin": [
+        20,
+        10,
+        15
+      ]
+    },
+    {
+      "id": "coral-cube",
+      "name": "Coral Cube",
+      "transform": {
+        "translation": [
+          -2,
+          -0.45,
+          -1
+        ],
+        "rotation_degrees": [
+          0,
+          20,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "octahedron"
+        },
+        "texture": "white",
+        "color": [
+          0.95,
+          0.2,
+          0.12
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite-left",
+      "name": "Sprite Left",
+      "transform": {
+        "translation": [
+          -2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2,
+          2,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": {
+          "asset": "quad"
+        },
+        "texture": {
+          "asset": "palette"
+        },
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "spin": [
+        0,
+        0,
+        12
+      ]
+    },
+    {
+      "id": "sprite-right",
+      "name": "Sprite Right",
+      "transform": {
+        "translation": [
+          1.4,
+          0.4,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          -12
+        ],
+        "scale": [
+          2.4,
+          1.4,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": {
+          "asset": "quad"
+        },
+        "texture": {
+          "asset": "palette"
+        },
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite-accent",
+      "name": "Sprite Accent",
+      "transform": {
+        "translation": [
+          1.4,
+          -1.35,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.4,
+          0.15,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "white",
+        "color": [
+          0.05,
+          0.8,
+          0.65
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "palette": {
+      "kind": "image",
+      "path": "assets/palette.png"
+    },
+    "octahedron": {
+      "kind": "mesh",
+      "path": "assets/octahedron.obj"
+    },
+    "quad": {
+      "kind": "mesh",
+      "path": "assets/quad.obj"
+    }
+  }
+}
