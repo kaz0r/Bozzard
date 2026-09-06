@@ -210,15 +210,23 @@ impl App {
                 egui::FontId::proportional(12.0),
                 color,
             );
-            let handle = ui.interact(
-                Rect::from_center_size(end, Vec2::splat(22.0)).intersect(rect),
-                egui::Id::new(("gizmo", &object.id, axis)),
-                Sense::drag(),
-            );
-            handled |= handle.hovered() || handle.dragged();
-            if handle.drag_started()
-                && let Some(pointer) = ui.input(|i| i.pointer.press_origin())
-            {
+            let hit_rect = Rect::from_center_size(end, Vec2::splat(22.0)).intersect(rect);
+            // The viewport itself captures drag responses. Start handles from the
+            // press event, then retain ownership until release (even outside the handle).
+            let press = ui.input(|i| {
+                i.events.iter().find_map(|event| match event {
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        ..
+                    } if hit_rect.contains(*pos) => Some(*pos),
+                    _ => None,
+                })
+            });
+            handled |= ui.input(|i| i.pointer.hover_pos().is_some_and(|p| hit_rect.contains(p)))
+                || self.drag.is_some();
+            if let Some(pointer) = press {
                 self.editor.begin_gesture("Transform gizmo");
                 self.drag = Some(Drag {
                     id: object.id.clone(),
@@ -229,8 +237,8 @@ impl App {
                     tool: self.workspace.tool,
                 });
             }
-            if handle.dragged()
-                && let (Some(drag), Some(pointer)) = (&self.drag, handle.interact_pointer_pos())
+            if let (Some(drag), Some(pointer)) = (&self.drag, ui.input(|i| i.pointer.latest_pos()))
+                && drag.axis == axis
             {
                 let delta = pointer - drag.pointer;
                 let mut next = self.editor.scene().clone();
@@ -252,7 +260,9 @@ impl App {
                 let r = self.editor.apply("Transform gizmo", next);
                 self.result(r);
             }
-            if handle.drag_stopped() {
+            if self.drag.as_ref().is_some_and(|drag| drag.axis == axis)
+                && !ui.input(|i| i.pointer.primary_down())
+            {
                 self.drag = None;
                 self.editor.finish_gesture();
             }

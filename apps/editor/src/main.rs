@@ -443,7 +443,10 @@ impl eframe::App for App {
         self.editor.advance(now.duration_since(self.last_frame));
         self.last_frame = now;
         self.shortcuts(&ctx);
-        if !ctx.input(|i| i.pointer.any_down()) && !ctx.egui_wants_keyboard_input() {
+        if self.drag.is_none()
+            && !ctx.input(|i| i.pointer.any_down())
+            && !ctx.egui_wants_keyboard_input()
+        {
             self.editor.finish_gesture();
         }
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close && self.editor.dirty()

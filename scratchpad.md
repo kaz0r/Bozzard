@@ -14,7 +14,7 @@ The user explicitly requests continuous progress and next-step logging here. No 
 - Editor UI, command model, asset import, Play isolation, packaging, and Linux native UI CI are implemented. Prior CI results are recorded below.
 - Review found: unchanged asset catalogs were reloaded during Undo/Redo; Save replaced the destination before validating imported assets; Finder launches used `/work` for default projects; failed pixel checks omitted the viewport diagnostic.
 - Fixes in progress: preserve asset caches during ordinary history operations, prepare/validate saves before replacement, use a user-owned default project folder and platform workspace storage, retain failed pixel captures.
-- Next: run regression/full workspace checks and native Metal smoke, inspect the final diff, commit/push fixes, and check CI. Native fast-drag gesture retest remains an explicit follow-up; automated smoke does not inject pointer gestures.
+- Next: run regression/full workspace checks and native Metal smoke, inspect the final diff, commit/push fixes, and check CI. Native Move/Rotate/Scale pointer gestures and one-step Undo have now been verified after fixing viewport pointer capture; automated CI smoke still does not inject pointer gestures.
 - No agents delegated. Maintain this section and append validation results as work proceeds.
 
 ## Checkpoint — editor model started
@@ -69,3 +69,11 @@ The user explicitly requests continuous progress and next-step logging here. No 
 - Default new projects now use fresh filenames under the user's Documents/Bozzard Projects, independent of Finder's working directory. Normal workspace persistence uses eframe's platform application-data location; smoke output stays explicitly directed.
 - Viewport PPM is now saved before the pixel oracle runs so failed CI keeps diagnostic evidence.
 - Passed workspace tests (30 tests), Clippy with warnings denied, headless dependency audit, and native Apple M2 Pro Metal editor smoke including the projected-cube pixel oracle. Final smoke isolation adjustment also passed the native Metal smoke. Ready to commit and verify CI.
+
+## Review checkpoint — native gizmo capture fixed
+
+- Refreshed the packaged Mac preview to the current build and reproduced the unresolved no-op drag. The full viewport captured drag responses before gizmo handles could act.
+- Handles now begin from pointer press events inside their hit region and retain the gesture through release. The global gesture finisher waits for an active gizmo drag to complete.
+- Real CUA pointer checks passed: Move X 0 → 1.108, Rotate X 12 → 65.570 degrees, Scale X 1.6 → 2.734. One Undo after each restored the initial value and clean document state.
+- Finder-style launch also confirmed the default path is under /Users/andre/Documents/Bozzard Projects instead of /work.
+- Initial review fixes committed/pushed as `4083d27`; CI run https://github.com/kaz0r/Bozzard/actions/runs/34053085889 is running. Gesture follow-up passed Clippy and native pointer validation; final native smoke and push next.
