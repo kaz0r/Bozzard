@@ -124,6 +124,21 @@ impl App {
                             });
                         }
                         ui.separator();
+                        let mut box_collider = object.collider.is_some();
+                        if ui
+                            .checkbox(&mut box_collider, "Box collider (3D)")
+                            .changed()
+                        {
+                            object.collider =
+                                box_collider.then_some(bozzard_scene::BoxCollider::default());
+                        }
+                        if let Some(collider) = &mut object.collider {
+                            ui.checkbox(&mut collider.enabled, "Enabled");
+                            vector(ui, "Center", &mut collider.center, 0.05);
+                            positive_vector(ui, "Size", &mut collider.size, 0.05);
+                            ui.weak("Detection only; no physical response.");
+                        }
+                        ui.separator();
                         let mut spin = object.spin.is_some();
                         if ui.checkbox(&mut spin, "Spin behavior").changed() {
                             object.spin = spin.then_some(Spin([0.0, 45.0, 0.0]));
@@ -222,5 +237,20 @@ fn number(ui: &mut egui::Ui, label: &str, value: &mut f32, speed: f64) {
     ui.horizontal(|ui| {
         ui.label(label);
         ui.add(egui::DragValue::new(value).speed(speed));
+    });
+}
+
+fn positive_vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {
+    ui.label(label);
+    ui.horizontal(|ui| {
+        for (index, v) in value.iter_mut().enumerate() {
+            ui.add(
+                egui::DragValue::new(v)
+                    .speed(speed)
+                    .prefix(["X ", "Y ", "Z "][index])
+                    .range(0.0001..=f32::MAX)
+                    .max_decimals(3),
+            );
+        }
     });
 }

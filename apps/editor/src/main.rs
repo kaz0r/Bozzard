@@ -15,6 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 mod acceptance;
+mod colliders;
 mod files;
 mod inspector;
 mod viewport;
@@ -31,20 +32,22 @@ enum Tool {
 struct Workspace {
     layer_2d: bool,
     assets_visible: bool,
+    colliders_visible: bool,
     tool: Tool,
     pan: [f32; 2],
-    orbit: [f32; 2],
     zoom: f32,
+    camera: Option<viewport::FlyCamera>,
 }
 impl Default for Workspace {
     fn default() -> Self {
         Self {
             layer_2d: false,
             assets_visible: true,
+            colliders_visible: true,
             tool: Tool::Move,
             pan: [0.0; 2],
-            orbit: [0.0; 2],
             zoom: 1.0,
+            camera: None,
         }
     }
 }
@@ -72,6 +75,8 @@ struct App {
     confirm_discard: bool,
     allow_close: bool,
     drag: Option<viewport::Drag>,
+    navigation_button: Option<egui::PointerButton>,
+    mouse_captured: bool,
     smoke: Option<PathBuf>,
     smoke_passed: Arc<AtomicBool>,
     smoke_frames: u32,
@@ -130,6 +135,8 @@ impl App {
             confirm_discard: false,
             allow_close: false,
             drag: None,
+            navigation_button: None,
+            mouse_captured: false,
             smoke,
             smoke_passed,
             smoke_frames: 0,
@@ -175,6 +182,7 @@ impl App {
                 Some(Pending::Close) => self.allow_close = true,
                 Some(Pending::Open(path)) => {
                     self.editor = Editor::open(&path)?;
+                    self.workspace.camera = None;
                     self.uploaded_revision = 0;
                     self.status = format!("Opened {}", path.display());
                 }
@@ -184,6 +192,7 @@ impl App {
                     scene.objects.retain(|o| o.camera.is_some());
                     let path = untitled_scene_path()?;
                     self.editor = Editor::new(scene, &path)?;
+                    self.workspace.camera = None;
                     self.uploaded_revision = 0;
                     self.status = "New level · Add a cube or sprite".into();
                 }
@@ -442,7 +451,9 @@ impl eframe::App for App {
         let now = Instant::now();
         self.editor.advance(now.duration_since(self.last_frame));
         self.last_frame = now;
-        self.shortcuts(&ctx);
+        if !self.mouse_captured {
+            self.shortcuts(&ctx);
+        }
         if self.drag.is_none()
             && !ctx.input(|i| i.pointer.any_down())
             && !ctx.egui_wants_keyboard_input()

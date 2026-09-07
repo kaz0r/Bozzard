@@ -6,6 +6,9 @@ use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
+mod collision;
+pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot};
+
 pub const SCENE_VERSION: u32 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -190,6 +193,8 @@ pub struct Object {
     pub drawable: Option<Drawable>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spin: Option<Spin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collider: Option<BoxCollider>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -266,6 +271,9 @@ impl Scene {
                 .transform
                 .validate()
                 .with_context(|| format!("object '{}'", object.id))?;
+            if let Some(collider) = object.collider {
+                collider.validate()?;
+            }
             if let Some(camera) = object.camera {
                 camera.validate()?;
             }
@@ -348,6 +356,9 @@ impl Scene {
                 "invalid composed transform on '{}'",
                 object.id
             );
+            if let Some(collider) = object.collider {
+                collider.geometry(global)?;
+            }
             matrices.insert(object.id.as_str(), global);
         }
         Ok(order)
@@ -365,6 +376,9 @@ impl Scene {
             }
             if let Some(value) = &object.drawable {
                 world.insert(entity, value.clone())?;
+            }
+            if let Some(value) = object.collider {
+                world.insert(entity, value)?;
             }
             if let Some(value) = object.spin {
                 world.insert(entity, value)?;
@@ -462,6 +476,7 @@ impl SceneInstance {
             object.camera = world.get::<Camera>(entity).copied();
             object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
+            object.collider = world.get::<BoxCollider>(entity).copied();
         }
         scene.validate()?;
         Ok(scene)
@@ -517,6 +532,7 @@ mod tests {
             camera: None,
             drawable: None,
             spin: None,
+            collider: None,
         }
     }
     fn scene() -> Scene {

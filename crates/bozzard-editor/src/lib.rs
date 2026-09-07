@@ -197,6 +197,7 @@ impl Editor {
             transform: Transform::default(),
             camera: None,
             spin: None,
+            collider: None,
             drawable: Some(Drawable {
                 layer,
                 mesh,
@@ -376,6 +377,15 @@ impl Editor {
             &edit
         };
         extract(demo, layer, aspect)
+    }
+    /// Current authored or Play-world collider bounds and overlap pairs.
+    pub fn collisions(&self) -> Result<bozzard_scene::CollisionSnapshot> {
+        if let Some(play) = &self.play {
+            play.instance.collisions(&play.app.world)
+        } else {
+            let demo = SceneDemo::new(&self.scene)?;
+            demo.instance.collisions(&demo.app.world)
+        }
     }
     /// Ray selection against actual triangle geometry, including imported meshes.
     pub fn pick(&self, layer: Layer, aspect: f32, ndc: [f32; 2]) -> Result<Option<String>> {
@@ -767,6 +777,42 @@ mod tests {
         assert_eq!(e.scene, edited);
         assert!(e.dirty());
         assert!(e.undo_label().is_some());
+    }
+    #[test]
+    fn collider_edits_undo_and_queries_follow_the_play_world() {
+        let mut e = editor();
+        let mut scene = e.scene().clone();
+        scene.objects.retain(|o| o.camera.is_some());
+        e.apply("Empty scene", scene).unwrap();
+        e.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let a = e.selected.clone().unwrap();
+        e.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let b = e.selected.clone().unwrap();
+        let mut scene = e.scene().clone();
+        for object in scene.objects.iter_mut().filter(|o| o.id == a || o.id == b) {
+            object.collider = Some(bozzard_scene::BoxCollider::default());
+        }
+        e.apply("Add colliders", scene).unwrap();
+        assert_eq!(
+            e.collisions().unwrap().overlaps,
+            vec![(a.clone(), b.clone())]
+        );
+        e.undo().unwrap();
+        assert!(e.collisions().unwrap().boxes.is_empty());
+        e.redo().unwrap();
+        let authored = e.scene().clone();
+        e.start_play().unwrap();
+        let play = e.play.as_mut().unwrap();
+        let entity = play.instance.entity(&b).unwrap();
+        play.app
+            .world
+            .get_mut::<Transform>(entity)
+            .unwrap()
+            .translation[0] = 10.0;
+        assert!(e.collisions().unwrap().overlaps.is_empty());
+        assert_eq!(e.scene(), &authored);
+        e.stop_play();
+        assert_eq!(e.collisions().unwrap().overlaps, vec![(a, b)]);
     }
     #[test]
     fn history_is_bounded_and_oldest_changes_fall_off() {

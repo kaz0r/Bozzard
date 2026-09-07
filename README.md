@@ -58,11 +58,17 @@ The headless executable runs finite ticks as fast as possible and exits. It does
 
 ## Editor
 
-`bozzard-editor` is a native egui/wgpu shell over the same scene document and renderer. It edits the authored scene with validated commands: hierarchy with create/duplicate/delete of subtrees, an inspector for names, parents, transforms, cameras, spin, and drawable layers/meshes/textures/colors, and a GPU viewport with click selection plus move/rotate/scale axis handles. Right drag pans, Shift + right drag orbits, and scroll zooms; the 2D/3D toggle switches the edited layer.
+`bozzard-editor` is a native egui/wgpu shell over the same scene document and renderer. It edits the authored scene with validated commands: hierarchy with create/duplicate/delete of subtrees, an inspector for names, parents, transforms, cameras, spin, and drawable layers/meshes/textures/colors, and a GPU viewport with click selection plus move/rotate/scale axis handles. Rotation rings are draggable along their arcs, with one undo entry per gesture. Hover highlights the nearest axis with a warm outline; the captured axis stays emphasized throughout the drag. In 3D, right-drag captures the mouse for world-upright noclip look (release right mouse or press Escape to release); hold right mouse and WASD to fly forward/back/sideways, Space up / Ctrl down, and Shift to move faster. Middle-drag pans and scroll dollies forward/backward. In 2D, right/middle-drag pans and scroll zooms. Reset view restores the authored camera viewpoint; navigation never changes the scene document. The 2D/3D toggle switches the edited layer.
 
 Undo/redo is bounded to 100 changes and coalesces each drag into one entry. Play starts a separate simulated world; editing is disabled while it runs and Stop restores the untouched authored scene. Saving always writes the authored document, even during Play. Imports copy PNG/JPEG/OBJ files into an `assets/` folder next to the scene before adding them to the catalog, so projects stay relocatable; dropped files import (or open, for `.json`). Unsaved changes prompt before New/Open/close, and the workspace layout persists in the platform application-data directory. New scenes default to fresh filenames under `~/Documents/Bozzard Projects` (`%USERPROFILE%/Documents/Bozzard Projects` on Windows); use Save As to choose another location.
 
 Shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+D duplicate, Delete removes the selected subtree. An active camera's subtree cannot be deleted.
+
+### 3D box colliders
+
+Objects may have an optional `BoxCollider` with a local-space center, full local dimensions, and an enabled flag. The inspector adds or removes the component and edits these values; the box follows the object's complete parent transform, including rotation, nonuniform or mirrored scale, and shear. Collision detection is discrete: touching counts as overlap, and there is no gravity, rigidbody simulation, or physical response. `SceneInstance::collisions(&World)` is also available headlessly and returns sorted, unique overlap pairs by object ID.
+
+Enable **Colliders** in the 3D viewport to see cyan wire boxes; overlapping boxes turn orange and the overlay lists pairs. These debugging wires show through scene geometry. The default demo includes colliders on the hero cube, coral cube, and floor. Queries use a simple O(n²) pair scan; continuous collision detection and a spatial acceleration structure are future work.
 
 ## Workspace
 
@@ -70,7 +76,7 @@ Shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+D d
 | --- | --- |
 | `bozzard-ecs` | Generational entities, sparse-set storage, safe queries, resources, commands |
 | `bozzard-app` | Serial system scheduling, compiled-in plugins, fixed ticks, bounded catch-up |
-| `bozzard-scene` | Versioned JSON, persistent IDs, validated hierarchy, camera math, ECS instances |
+| `bozzard-scene` | Versioned JSON, persistent IDs, validated hierarchy, camera math, ECS instances, box overlap queries |
 | `bozzard-assets` | CPU image/OBJ imports, store-scoped handles, load states, last-good hot reload |
 | `bozzard-render` | Native WebGPU, indexed geometry, texture sampling, depth, GPU readback |
 | `bozzard-demo` | Embedded reference scene, movement/rotation systems, scene file helpers |
@@ -96,7 +102,7 @@ cargo run -p bozzard-editor-app -- --smoke work/editor-smoke --backend metal
 
 Ordinary Cargo tests require no GPU. They cover entity lifetimes, scheduling, scene hierarchy/validation, projection conventions, animation, scene round-trips, control commands, CLI save behavior, asset reload failure/recovery, relocated asset references, and editor document transactions (subtree commands, gesture coalescing, bounded history, play isolation, save/Save As, project-local imports, and ray picking). Graphics checks are explicit and never silently skip.
 
-The editor smoke opens the real native UI, exercises create/transform/undo/redo/play/save/load, captures a window screenshot, and verifies the viewport rendered more than a clear color. Diagnostics land in `work/editor-smoke/`.
+The editor smoke opens the real native UI, exercises create/transform/undo/redo/play/save/load, captures a window screenshot, and verifies the viewport rendered more than a clear color. Collider verification covers the editor's Colliders viewport toggle, orange overlap/cyan non-overlap wire boxes, and the overlap-pair overlay; headless checks exercise `SceneInstance::collisions(&World)`. Diagnostics land in `work/editor-smoke/`.
 
 The smoke suite preserves the original triangle check, then verifies texture quadrants, indexed cube depth occlusion in both draw orders, camera translation, resized targets, animated 2D/3D scenes, and identical images after save/reload. Imported-asset checks verify UV orientation, sRGB decoding, corrupt-file recovery, and mesh replacement. Actual PPM diagnostics appear in `work/gpu-smoke/`. Reference color checks tolerate two byte values; same-device save/reload and draw-order comparisons are exact. These checks are correctness fixtures, not performance or image-quality benchmarks.
 

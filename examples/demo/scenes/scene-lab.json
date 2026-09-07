@@ -98,7 +98,20 @@
         8,
         25,
         0
-      ]
+      ],
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
     },
     {
       "id": "floor",
@@ -133,6 +146,19 @@
           8,
           8
         ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
       }
     },
     {
@@ -235,6 +261,19 @@
           1,
           1
         ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
       }
     },
     {

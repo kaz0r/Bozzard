@@ -20,8 +20,13 @@ impl App {
                 // Isolated above the demo set so the pixel oracle is unobstructed.
                 object.transform.translation = [0.0, 2.5, 0.0];
                 object.spin = Some(Spin([0.0, 90.0, 0.0]));
+                object.collider = Some(bozzard_scene::BoxCollider::default());
                 self.editor.apply("Smoke transform", scene)?;
                 self.editor.finish_gesture();
+                ensure!(
+                    self.editor.collisions()?.boxes.iter().any(|b| b.id == id),
+                    "new collider missing from query"
+                );
                 let authored = self.editor.scene().clone();
                 self.editor.start_play()?;
                 for _ in 0..120 {
