@@ -12,7 +12,7 @@ The user explicitly requests continuous progress and next-step logging here. No 
 
 - Completed: draggable rotation rings, coherent axis highlights, noclip camera with Space/Ctrl vertical controls, 3D box collider components, SAT overlap queries, inspector controls and debug bounds/readout.
 - Local validation passed: 43 tests across the workspace (the final cross-axis regression ran separately), Clippy with warnings denied, formatting, headless dependency audit, native Metal smoke on default and positive-overlap scenes, visual inspection of collider wires/readout.
-- User now explicitly authorizes commit and push of the completed pending changes. Next: push, watch cross-platform CI, record final result.
+- Completed and pushed as `68f57ea`. Cross-platform CI passed Linux/Vulkan, Windows/DX12 and macOS/Metal: https://github.com/kaz0r/Bozzard/actions/runs/34132231726. No required milestone work remains.
 - User mouse requirement: if computer use moves the mouse, restore it to its starting position in the bottom-left corner of the main monitor, otherwise the Mac locks. Finalization uses no computer use.
 - Luna handled inspector/docs, Terra handled independent tests and a bounded SAT review. Root reviewed and integrated all changes. No active delegation remains.
 - Detection only: no gravity, contact response, continuous collision detection or spatial acceleration (queries are O(n²)). Next proposed feature is physical collision response or a character controller, chosen one at a time with the user.
@@ -156,3 +156,9 @@ The user explicitly requests continuous progress and next-step logging here. No 
 
 - Added the final fixed edge×edge-only separating fixture: all six face-normal intervals overlap but the SAT query correctly rejects the pair. Six collision integration tests passed, and final workspace Clippy/format/diff checks passed.
 - Finishing the pending editor quality-of-life work together with the collider milestone. Earlier uncommitted/no-push entries above are historical; latest user authorization supersedes them.
+
+## Finalization — pushed and CI passed
+
+- Code commit: `68f57eaa1eeda57589878b9f745901bdea443ffa` (main, pushed). Includes collider milestone and the previously uncommitted camera/gizmo improvements.
+- CI run https://github.com/kaz0r/Bozzard/actions/runs/34132231726 completed successfully on Ubuntu/Vulkan, Windows/DX12 and macOS/Metal, including tests, release builds, extracted package verification and GPU checks; Linux also verified the native editor UI.
+- This final documentation-only result update skips redundant CI. No code changes after the verified commit. No computer use or mouse movement during finalization.
