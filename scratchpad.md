@@ -10,7 +10,7 @@ The user explicitly requests continuous progress and next-step logging here. The
 
 ## Current state and next action
 
-- Current step complete, preparing commit and CI: collision response plus optional fixed-step gravity, inspector controls, runtime grounding status and gravity-lab.json (included in bundle manifest).
+- Current step complete, committed and CI verified: collision response plus optional fixed-step gravity, inspector controls, runtime grounding status and gravity-lab.json (included in bundle manifest).
 - Gravity configuration serializes; velocity/grounding are runtime-only. Disabling gravity/collider resets velocity. World-down swept movement supports landing and falling off edges. No jumping, dynamic pushing, rotational sweeps or compound movers.
 - Try: cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/gravity-lab.json. Select Falling Box, Play, hover viewport, WASD. Stop restores authored scene.
 - Validation: workspace tests including seven gravity regressions pass; native Metal smoke passed gravity_landing, response, Play isolation and pixel oracle. Headless dependency audit passed. Clippy with denied warnings and diff/format checks passed.
@@ -188,4 +188,10 @@ The user explicitly requests continuous progress and next-step logging here. The
 
 ## Response and gravity — publishing
 
-- User verified the gravity demo works and authorized committing and pushing both pending milestones. Local tests, Clippy, headless audit and native Metal smoke passed. Preparing commit; cross-platform CI verification pending.
+- User verified the gravity demo works and authorized committing and pushing both pending milestones. Local tests, Clippy, headless audit and native Metal smoke passed. Committed as bc71c81 and pushed to main; cross-platform CI passed.
+
+## Response and gravity — CI verified
+
+- Commit bc71c8113b457919c30f2d0120b75d2ffd2f3bcb pushed to main.
+- CI https://github.com/kaz0r/Bozzard/actions/runs/34157380591 completed successfully on macOS 15 / Metal, Windows 2025 / DX12, and Ubuntu 24.04 / Vulkan, including lint, tests, headless boundary, release packaging and pixel verification.
+- User confirmed gravity works. No outstanding failures; next proposed focused step remains jumping/basic character control. No mouse movement during publishing or verification.
