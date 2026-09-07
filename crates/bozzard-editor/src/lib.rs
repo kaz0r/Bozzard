@@ -198,6 +198,7 @@ impl Editor {
             camera: None,
             spin: None,
             collider: None,
+            gravity: None,
             drawable: Some(Drawable {
                 layer,
                 mesh,
@@ -378,6 +379,18 @@ impl Editor {
         };
         extract(demo, layer, aspect)
     }
+    /// Translate the selected Play-world collider without touching the authored scene.
+    pub fn move_selected_box(&mut self, delta: Vec3) -> Result<bozzard_scene::MoveResult> {
+        let id = self
+            .selected
+            .as_ref()
+            .context("select a box collider to move")?;
+        let play = self
+            .play
+            .as_mut()
+            .context("start Play to move a collider")?;
+        play.instance.move_box(&mut play.app.world, id, delta)
+    }
     /// Current authored or Play-world collider bounds and overlap pairs.
     pub fn collisions(&self) -> Result<bozzard_scene::CollisionSnapshot> {
         if let Some(play) = &self.play {
@@ -536,6 +549,7 @@ fn subtree(scene: &Scene, id: &str) -> BTreeSet<String> {
     }
 }
 pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScene> {
+    demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
         view_projection: view.view_projection,

@@ -106,16 +106,38 @@ pub fn scene_document() -> anyhow::Result<Scene> {
     Scene::from_json(include_str!("../scenes/scene-lab.json"))
 }
 
+#[derive(Default)]
+struct SimulationStatus {
+    error: Option<String>,
+}
+
 pub struct SceneDemo {
     pub app: App,
     pub instance: SceneInstance,
 }
 
 impl SceneDemo {
+    pub fn check_simulation(&self) -> anyhow::Result<()> {
+        if let Some(error) = self
+            .app
+            .world
+            .resource::<SimulationStatus>()
+            .and_then(|status| status.error.as_ref())
+        {
+            anyhow::bail!("simulation failed: {error}");
+        }
+        Ok(())
+    }
     pub fn new(document: &Scene) -> anyhow::Result<Self> {
         let mut app = App::default();
         let instance = document.spawn(&mut app.world)?;
         app.add_system(|world, _, tick| {
+            if world
+                .resource::<SimulationStatus>()
+                .is_some_and(|status| status.error.is_some())
+            {
+                return;
+            }
             for (_, transform, spin) in world
                 .query_pair_mut::<Transform, Spin>()
                 .expect("distinct components")
@@ -126,6 +148,22 @@ impl SceneDemo {
                     .rem_euclid(360.0);
                 }
             }
+        });
+        let gravity_instance = instance.clone();
+        app.world.insert_resource(SimulationStatus::default());
+        app.add_system(move |world, _, tick| {
+            // Freeze on simulation failure rather than silently advancing a broken world.
+            if world
+                .resource::<SimulationStatus>()
+                .is_some_and(|status| status.error.is_some())
+            {
+                return;
+            }
+            let error = gravity_instance
+                .step_gravity(world, tick.delta.as_secs_f32())
+                .err()
+                .map(|error| format!("{error:#}"));
+            world.insert_resource(SimulationStatus { error });
         });
         Ok(Self { app, instance })
     }

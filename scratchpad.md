@@ -6,17 +6,16 @@ Updated: 2026-09-07. This is the live handoff log; update it at implementation a
 
 Build the first usable native editor: hierarchy, viewport, component inspector, object creation/duplication/deletion, transform editing, asset import/assignment, undo/redo, save/load, and separate Play/Stop simulation. Keep our custom ECS and native wgpu renderer. The next larger workflow is a controllable character/collisions/game logic followed by exporting a user project; those follow the editor milestone.
 
-The user explicitly requests continuous progress and next-step logging here. No agents are delegated. Current user instruction: finish, commit and push the pending work (2026-09-07), superseding earlier no-commit requests.
+The user explicitly requests continuous progress and next-step logging here. The earlier collider milestone was committed and pushed as requested. User confirmed gravity works and requested commit, push and CI verification. Terra supplied gravity regression tests and review; Luna supplied inspector controls.
 
 ## Current state and next action
 
-- Completed: draggable rotation rings, coherent axis highlights, noclip camera with Space/Ctrl vertical controls, 3D box collider components, SAT overlap queries, inspector controls and debug bounds/readout.
-- Local validation passed: 43 tests across the workspace (the final cross-axis regression ran separately), Clippy with warnings denied, formatting, headless dependency audit, native Metal smoke on default and positive-overlap scenes, visual inspection of collider wires/readout.
-- Completed and pushed as `68f57ea`. Cross-platform CI passed Linux/Vulkan, Windows/DX12 and macOS/Metal: https://github.com/kaz0r/Bozzard/actions/runs/34132231726. No required milestone work remains.
-- User mouse requirement: if computer use moves the mouse, restore it to its starting position in the bottom-left corner of the main monitor, otherwise the Mac locks. Finalization uses no computer use.
-- Luna handled inspector/docs, Terra handled independent tests and a bounded SAT review. Root reviewed and integrated all changes. No active delegation remains.
-- Detection only: no gravity, contact response, continuous collision detection or spatial acceleration (queries are O(n²)). Next proposed feature is physical collision response or a character controller, chosen one at a time with the user.
-- Native right-button look/fly and middle-pan still need a hands-on feel check; CUA cannot hold those buttons while moving/typing. Unit math tests and native smoke pass.
+- Current step complete, preparing commit and CI: collision response plus optional fixed-step gravity, inspector controls, runtime grounding status and gravity-lab.json (included in bundle manifest).
+- Gravity configuration serializes; velocity/grounding are runtime-only. Disabling gravity/collider resets velocity. World-down swept movement supports landing and falling off edges. No jumping, dynamic pushing, rotational sweeps or compound movers.
+- Try: cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/gravity-lab.json. Select Falling Box, Play, hover viewport, WASD. Stop restores authored scene.
+- Validation: workspace tests including seven gravity regressions pass; native Metal smoke passed gravity_landing, response, Play isolation and pixel oracle. Headless dependency audit passed. Clippy with denied warnings and diff/format checks passed.
+- Mouse untouched; no computer use. Previous collider commit passed cross-platform CI; new changes have local checks only.
+- Next focused stage: jumping and a basic character controller using grounded state. Wait for user direction; do not automatically expand scope or commit.
 
 ## Checkpoint — editor model started
 
@@ -162,3 +161,31 @@ The user explicitly requests continuous progress and next-step logging here. No 
 - Code commit: `68f57eaa1eeda57589878b9f745901bdea443ffa` (main, pushed). Includes collider milestone and the previously uncommitted camera/gizmo improvements.
 - CI run https://github.com/kaz0r/Bozzard/actions/runs/34132231726 completed successfully on Ubuntu/Vulkan, Windows/DX12 and macOS/Metal, including tests, release builds, extracted package verification and GPU checks; Linux also verified the native editor UI.
 - This final documentation-only result update skips redundant CI. No code changes after the verified commit. No computer use or mouse movement during finalization.
+
+## Gravity — active implementation
+
+- Added optional Gravity config and runtime-only GravityState, fixed-step integration in SceneDemo, inspector controls and Play grounded status. Gravity uses swept box motion; Space/Ctrl remains available only for boxes without enabled gravity.
+- Added gravity-lab.json and native smoke falling/landing assertion. Validation in progress; no commit/push requested. Next: finish tests, native Metal smoke and document results.
+
+## Collision response — implementation checkpoint
+
+- Added move_box(world,id,world_delta) with translational swept SAT, earliest-contact stopping, tangential sliding, up to eight contact/recovery iterations, world→parent-local translation, contact IDs, and transactional failure. Initial penetration recovers or errors; compound movers with enabled child colliders are rejected. Obstacles are held static per query. No rotation sweeps, gravity or pushing.
+- Editor Play supports selected box WASD movement, Space/Ctrl vertical movement and Shift faster while hovering 3D viewport. Edit-mode noclip remains unchanged. Status reports blocked/sliding contacts. Added standalone response-lab.json with Move Me, floor and two thin walls, included in development bundles.
+- Native smoke now adds a temporary runtime-only floor and asserts a 20-unit downward sweep stops on contact, then verifies Stop preserves the authored scene.
+- Initial workspace check passed. Delegated tests compiling/running now; root identified a corner-test fixture that had an open diagonal gap and requested real extended walls instead. Final validation pending. No computer use/mouse movement planned.
+
+## Collision response — validated, uncommitted
+
+- All ten independent response regressions pass: free motion, high-speed wall, floor/down/up, slide, corner, parent-local conversion, disabled obstacles, error rollback, initial-overlap recovery and rotated-wall sweep. Full workspace count: 53 passing tests.
+- Reviewed test fixtures and solver: the original corner fixture contained a real diagonal opening; corrected the fixture to extended walls rather than changing the solver to block free space. No concrete solver defect found by the bounded independent review.
+- Native smoke passed with marker `collision_response`: runtime-only floor blocks 20-unit downward motion, Stop retains authored data, save/load and pixel oracle remain correct. Clippy/headless checks pass. New demo included in debug package.
+- Kept all files uncommitted and did not move the mouse. No CI run triggered for this step.
+
+## Gravity — validation checkpoint
+
+- Workspace tests and native Metal editor smoke passed, including a runtime-only falling box landing at the expected floor height. Seven independent gravity tests cover fall/cap, stable landing, leaving an edge, disabling, round-trip configuration and invalid inputs.
+- Native output: work/editor-gravity-smoke. Initial Clippy found nested inspector conditionals; collapsed them and suppressed misleading Falling status when gravity/collider is disabled. Final Clippy with denied warnings and git diff --check passed.
+
+## Response and gravity — publishing
+
+- User verified the gravity demo works and authorized committing and pushing both pending milestones. Local tests, Clippy, headless audit and native Metal smoke passed. Preparing commit; cross-platform CI verification pending.

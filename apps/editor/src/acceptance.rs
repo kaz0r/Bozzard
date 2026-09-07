@@ -32,6 +32,61 @@ impl App {
                 for _ in 0..120 {
                     self.editor.play.as_mut().unwrap().app.step();
                 }
+                // Add a temporary runtime-only floor using a known scene member.
+                // This exercises response even when the supplied scene has no colliders.
+                let play = self.editor.play.as_mut().unwrap();
+                let floor = play.instance.camera_entity(Layer::ThreeD)?;
+                *play.app.world.get_mut::<Transform>(floor).unwrap() = Transform {
+                    translation: [0.0, -5.0, 0.0],
+                    ..Transform::default()
+                };
+                play.app.world.insert(
+                    floor,
+                    bozzard_scene::BoxCollider {
+                        size: [30.0, 1.0, 30.0],
+                        ..Default::default()
+                    },
+                )?;
+                let movement = self.editor.move_selected_box(Vec3::new(0.0, -20.0, 0.0))?;
+                ensure!(
+                    !movement.contacts.is_empty()
+                        && movement.applied.y > -19.0
+                        && movement.applied.y < 0.0,
+                    "swept box crossed the runtime floor: {movement:?}"
+                );
+                let play = self.editor.play.as_mut().unwrap();
+                let mover = play.instance.entity(&id).context("missing smoke mover")?;
+                play.app.world.remove::<Spin>(mover)?;
+                *play.app.world.get_mut::<Transform>(mover).unwrap() = Transform {
+                    translation: [50.0, 0.0, 50.0],
+                    ..Default::default()
+                };
+                play.app
+                    .world
+                    .get_mut::<Transform>(floor)
+                    .unwrap()
+                    .translation = [50.0, -5.0, 50.0];
+                play.app
+                    .world
+                    .insert(mover, bozzard_scene::Gravity::default())?;
+                for _ in 0..180 {
+                    play.app.step();
+                    play.check_simulation()?;
+                }
+                let state = play
+                    .app
+                    .world
+                    .get::<bozzard_scene::GravityState>(mover)
+                    .unwrap();
+                ensure!(
+                    state.grounded && state.vertical_velocity == 0.0,
+                    "gravity did not settle: {state:?}"
+                );
+                let height = play.app.world.get::<Transform>(mover).unwrap().translation[1];
+                ensure!(
+                    (height + 4.0).abs() < 0.001,
+                    "gravity crossed floor: {height}"
+                );
                 self.editor.stop_play();
                 ensure!(
                     *self.editor.scene() == authored,
@@ -152,7 +207,7 @@ impl App {
                     Ok(()) => {
                         self.smoke_passed.store(true, Ordering::Relaxed);
                         println!(
-                            "editor_smoke_ok authored_commands play_isolation save_load native_ui_capture viewport_pixel_oracle"
+                            "editor_smoke_ok authored_commands play_isolation collision_response gravity_landing save_load native_ui_capture viewport_pixel_oracle"
                         );
                     }
                     Err(error) => eprintln!("editor_smoke_failed: {error:#}"),

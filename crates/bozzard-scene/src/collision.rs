@@ -1,6 +1,8 @@
-//! Discrete 3D box overlap queries. No integration, contact solver, or collision response.
+//! Box overlap queries and swept single-box translation against static colliders.
 use super::*;
 use glam::DVec3;
+mod response;
+pub use response::MoveResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]

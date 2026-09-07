@@ -4,6 +4,7 @@ use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_scene::{Layer, Mesh, Texture};
 
 pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScene> {
+    demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
         view_projection: view.view_projection,

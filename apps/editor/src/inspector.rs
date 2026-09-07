@@ -129,14 +129,41 @@ impl App {
                             .checkbox(&mut box_collider, "Box collider (3D)")
                             .changed()
                         {
-                            object.collider =
-                                box_collider.then_some(bozzard_scene::BoxCollider::default());
+                            if box_collider {
+                                object.collider = Some(bozzard_scene::BoxCollider::default());
+                            } else {
+                                object.collider = None;
+                                if let Some(gravity) = &mut object.gravity {
+                                    gravity.enabled = false;
+                                }
+                            }
                         }
                         if let Some(collider) = &mut object.collider {
                             ui.checkbox(&mut collider.enabled, "Enabled");
                             vector(ui, "Center", &mut collider.center, 0.05);
                             positive_vector(ui, "Size", &mut collider.size, 0.05);
-                            ui.weak("Detection only; no physical response.");
+                            ui.weak("Blocks swept box movement; no gravity.");
+                        }
+                        let mut gravity = object.gravity.is_some();
+                        if ui.checkbox(&mut gravity, "Gravity").changed() {
+                            if gravity {
+                                if object.collider.is_none() {
+                                    object.collider = Some(bozzard_scene::BoxCollider::default());
+                                }
+                                object.gravity = Some(bozzard_scene::Gravity::default());
+                            } else {
+                                object.gravity = None;
+                            }
+                        }
+                        if let Some(gravity) = &mut object.gravity {
+                            ui.checkbox(&mut gravity.enabled, "Enabled");
+                            positive_number(
+                                ui,
+                                "Acceleration (m/s²)",
+                                &mut gravity.acceleration,
+                                0.1,
+                            );
+                            positive_number(ui, "Max speed (m/s)", &mut gravity.max_speed, 0.5);
                         }
                         ui.separator();
                         let mut spin = object.spin.is_some();
@@ -209,6 +236,26 @@ impl App {
                         }
                     });
                 });
+                if let Some(play) = &self.editor.play
+                    && let Some(entity) = play.instance.entity(&original.id)
+                    && let Some(state) = play.app.world.get::<bozzard_scene::GravityState>(entity)
+                    && play
+                        .app
+                        .world
+                        .get::<bozzard_scene::Gravity>(entity)
+                        .is_some_and(|g| g.enabled)
+                    && play
+                        .app
+                        .world
+                        .get::<bozzard_scene::BoxCollider>(entity)
+                        .is_some_and(|c| c.enabled)
+                {
+                    ui.weak(if state.grounded {
+                        "Grounded"
+                    } else {
+                        "Falling"
+                    });
+                }
                 if object != original || scene.views != self.editor.scene().views {
                     self.editor.begin_gesture("Edit component");
                     if let Some(slot) = scene.objects.iter_mut().find(|o| o.id == object.id) {
@@ -237,6 +284,17 @@ fn number(ui: &mut egui::Ui, label: &str, value: &mut f32, speed: f64) {
     ui.horizontal(|ui| {
         ui.label(label);
         ui.add(egui::DragValue::new(value).speed(speed));
+    });
+}
+
+fn positive_number(ui: &mut egui::Ui, label: &str, value: &mut f32, speed: f64) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        ui.add(
+            egui::DragValue::new(value)
+                .speed(speed)
+                .range(0.0001..=f32::MAX),
+        );
     });
 }
 

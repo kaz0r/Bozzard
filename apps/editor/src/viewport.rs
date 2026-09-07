@@ -144,7 +144,11 @@ impl App {
                 self.workspace.camera = None;
             }
         });
-        ui.weak("Drag rings/handles · Hover to highlight an axis · Right drag: look · Hold right + WASD: fly · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly (2D: zoom)");
+        if self.editor.play.is_some() {
+            ui.weak("Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Gravity boxes fall automatically");
+        } else {
+            ui.weak("Drag rings/handles · Hover to highlight an axis · Right drag: look · Hold right + WASD: fly · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly (2D: zoom)");
+        }
         let can_navigate = self.editor.play.is_none()
             && ui.input(|i| i.focused && !i.key_pressed(egui::Key::Escape));
         if !can_navigate {
@@ -164,6 +168,50 @@ impl App {
         self.sync_assets()?;
         let available = ui.available_size().max(Vec2::splat(1.0));
         let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
+        if self.editor.play.is_some()
+            && !self.workspace.layer_2d
+            && response.hovered()
+            && ui.input(|i| i.focused)
+            && !ui.ctx().egui_wants_keyboard_input()
+            && self
+                .editor
+                .selected_object()
+                .and_then(|o| o.collider)
+                .is_some_and(|c| c.enabled)
+        {
+            let delta = ui.input(|i| {
+                let axis = |positive, negative| {
+                    i.key_down(positive) as u8 as f32 - i.key_down(negative) as u8 as f32
+                };
+                Vec3::new(
+                    axis(egui::Key::D, egui::Key::A),
+                    if self
+                        .editor
+                        .selected_object()
+                        .and_then(|o| o.gravity)
+                        .is_some_and(|g| g.enabled)
+                    {
+                        0.0
+                    } else {
+                        i.key_down(egui::Key::Space) as u8 as f32 - i.modifiers.ctrl as u8 as f32
+                    },
+                    axis(egui::Key::S, egui::Key::W),
+                )
+                .normalize_or_zero()
+                    * i.stable_dt.min(0.05)
+                    * if i.modifiers.shift { 8.0 } else { 3.0 }
+            });
+            if delta != Vec3::ZERO {
+                let result = self.editor.move_selected_box(delta).map(|movement| {
+                    self.status = if movement.contacts.is_empty() {
+                        "Moving selected box".into()
+                    } else {
+                        format!("Blocked/sliding against {}", movement.contacts.join(", "))
+                    };
+                });
+                self.result(result);
+            }
+        }
         let ppp = ui.ctx().pixels_per_point();
         let limit = self.gpu.device.limits().max_texture_dimension_2d.min(4096);
         let size = [

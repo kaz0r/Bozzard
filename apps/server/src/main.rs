@@ -26,6 +26,7 @@ fn main() -> Result<()> {
     let mut demo = SceneDemo::new(&document)?;
     for _ in 0..ticks {
         demo.app.step();
+        demo.check_simulation()?;
     }
     if let Some(path) = save {
         save_document_from(

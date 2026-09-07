@@ -66,9 +66,15 @@ Shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+D d
 
 ### 3D box colliders
 
-Objects may have an optional `BoxCollider` with a local-space center, full local dimensions, and an enabled flag. The inspector adds or removes the component and edits these values; the box follows the object's complete parent transform, including rotation, nonuniform or mirrored scale, and shear. Collision detection is discrete: touching counts as overlap, and there is no gravity, rigidbody simulation, or physical response. `SceneInstance::collisions(&World)` is also available headlessly and returns sorted, unique overlap pairs by object ID.
+Objects may have an optional `BoxCollider` with a local-space center, full local dimensions, and an enabled flag. The inspector adds or removes the component and edits these values; the box follows the object's complete parent transform, including rotation, nonuniform or mirrored scale, and shear. Collision detection is discrete: touching counts as overlap. `SceneInstance::collisions(&World)` is available headlessly and returns sorted, unique overlap pairs by object ID. `SceneInstance::move_box(&mut World, id, world_delta)` sweeps one box through static enabled box colliders, stops and slides on contact, and reports the requested and applied motion plus contacts in `MoveResult`; the world delta is converted into the moving object's parent-local space. Rotation sweeps, rigidbodies, and dynamic pushing are not included.
 
-Enable **Colliders** in the 3D viewport to see cyan wire boxes; overlapping boxes turn orange and the overlay lists pairs. These debugging wires show through scene geometry. The default demo includes colliders on the hero cube, coral cube, and floor. Queries use a simple O(n²) pair scan; continuous collision detection and a spatial acceleration structure are future work.
+Enable **Colliders** in the 3D viewport to see cyan wire boxes; overlapping boxes turn orange and the overlay lists pairs. These debugging wires show through scene geometry. The default demo includes colliders on the hero cube, coral cube, and floor.
+
+Select an enabled collider object and start Play, hover the 3D viewport, and use WASD for world-horizontal movement, Space/Ctrl for up/down, and Shift for faster movement.
+
+Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/response-lab.json`, select **Move Me**, and press **Play**. Move toward the walls with WASD or down onto the floor with Ctrl; Stop resets the authored scene.
+
+Movement supports one collider at a time; movers carrying enabled child colliders are rejected. Deep initial penetration is recovered within a bounded budget or returns an error without changing the world. Pair scanning remains unaccelerated, suitable for these initial demo scenes.
 
 ## Workspace
 
@@ -126,3 +132,11 @@ This is development demo packaging, not a general user-game export pipeline. OS 
 [Hardware GPU](.github/workflows/hardware.yml) runs manually on a provisioned desktop runner with labels `self-hosted`, `bozzard-gpu`, and the OS label. It requires Rust, Python 3, Bash (Git Bash on Windows), working graphics drivers, and an interactive desktop. It verifies real GPU classification and both windows. Only the currently booted OS of a dual-boot computer is available. Run trusted revisions only on a personal hardware runner; external PR code is never dispatched there automatically.
 
 Local Metal checks have passed on an Apple M2 Pro. The foundation matrix has passed on Linux/Vulkan (llvmpipe), Windows/DX12 (WARP), and GitHub-hosted macOS/Metal. Hosted offscreen checks do not establish native Windows/macOS desktop presentation; macOS presentation is tested locally, and Windows desktop presentation remains a hardware-runner check. OS labels and Cargo dependencies are pinned, while runner image contents and OS packages continue to receive updates. Additional GPU vendors and Intel macOS remain separate future coverage tiers.
+
+### Gravity
+
+Open `examples/demo/scenes/gravity-lab.json`, select **Falling Box**, and press **Play**. The box falls onto the floor; use WASD over the viewport to move it off an edge. Stop restores the authored scene.
+
+The inspector's **Gravity** component adds a box collider when needed, with positive world-down acceleration and a maximum fall speed. Play displays Grounded/Falling. Gravity runs at the shared fixed simulation timestep in editor, player and headless server. Disabling gravity or its collider resets fall velocity; Space/Ctrl vertical movement is available only without enabled gravity. Configuration saves with the scene; velocity and grounding reset on spawn.
+
+This is kinematic box gravity, with no jumping, dynamic pushing or rigidbody simulation. Bodies step sequentially in object-ID order. `SceneDemo::check_simulation()` surfaces simulation failures; built-in applications check it.

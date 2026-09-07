@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
 mod collision;
-pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot};
+mod gravity;
+pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot, MoveResult};
+pub use gravity::{Gravity, GravityState};
 
 pub const SCENE_VERSION: u32 = 1;
 
@@ -195,6 +197,8 @@ pub struct Object {
     pub spin: Option<Spin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collider: Option<BoxCollider>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gravity: Option<Gravity>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -271,6 +275,14 @@ impl Scene {
                 .transform
                 .validate()
                 .with_context(|| format!("object '{}'", object.id))?;
+            if let Some(gravity) = object.gravity {
+                gravity.validate()?;
+                ensure!(
+                    !gravity.enabled || object.collider.is_some(),
+                    "gravity needs a box collider on '{}'",
+                    object.id
+                );
+            }
             if let Some(collider) = object.collider {
                 collider.validate()?;
             }
@@ -377,6 +389,10 @@ impl Scene {
             if let Some(value) = &object.drawable {
                 world.insert(entity, value.clone())?;
             }
+            if let Some(value) = object.gravity {
+                world.insert(entity, value)?;
+                world.insert(entity, GravityState::default())?;
+            }
             if let Some(value) = object.collider {
                 world.insert(entity, value)?;
             }
@@ -395,6 +411,7 @@ impl Scene {
 
 /// Structural membership/parentage is fixed for this first scene instance API.
 /// Transform and optional component values remain live ECS data.
+#[derive(Clone)]
 pub struct SceneInstance {
     document: Scene,
     entities: BTreeMap<String, Entity>,
@@ -477,6 +494,7 @@ impl SceneInstance {
             object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
             object.collider = world.get::<BoxCollider>(entity).copied();
+            object.gravity = world.get::<Gravity>(entity).copied();
         }
         scene.validate()?;
         Ok(scene)
@@ -533,6 +551,7 @@ mod tests {
             drawable: None,
             spin: None,
             collider: None,
+            gravity: None,
         }
     }
     fn scene() -> Scene {
