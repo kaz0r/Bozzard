@@ -236,5 +236,11 @@ The user explicitly requests continuous progress and next-step logging here. The
 ## Camera framing — complete, ready to publish
 
 - Published prior jumping/editor improvements as 9deead1; user will review CI after nap, no CI success claimed.
-- New uncommitted task: Frame Selection / Frame All buttons and F / Shift+F while hovering viewport in Edit. Bounds include selected descendants, imported vertices, transformed cubes/quads and layer filtering. Empty selections frame their origin; empty layers show a message. Perspective fitting respects aspect/FOV, orthographic fitting adjusts editor-only zoom. Scene cameras and history remain untouched. Reports clipping-range failures.
+- Frame Selection / Frame All buttons and F / Shift+F while hovering viewport in Edit. Bounds include selected descendants, imported vertices, transformed cubes/quads and layer filtering. Empty selections frame their origin; empty layers show a message. Perspective fitting respects aspect/FOV, orthographic fitting adjusts editor-only zoom. Scene cameras and history remain untouched. Reports clipping-range failures.
 - User manually verified snapping/cancel/framing checks successfully. All 25 editor/core tests pass, covering transformed group bounds, imported mesh vertices, layer filtering, point fallback, portrait/wide perspective fit and orthographic centering. Workspace Clippy with denied warnings, formatting and diff checks pass. Native Metal acceptance smoke passed; artifacts: work/editor-framing-smoke. No CI verification performed yet.
+
+## Camera framing — committed and CI verified
+
+- Code commit `578681eb89fc4c1e78fa962b83758bce47cddf21` was pushed to `main` with the user-verified framing feature and documentation.
+- CI run https://github.com/kaz0r/Bozzard/actions/runs/34251737663 passed all three platform jobs: Ubuntu 24.04/Vulkan, Windows 2025/DX12, and macOS 15/Metal. Each completed formatting, lint, CPU/headless tests, dependency-boundary checks, release builds, extracted package/pixel verification, diagnostics, and bundle upload.
+- User manually verified snapping (Move/Rotate/Scale, Ctrl override, Undo), Escape cancellation, and camera framing before publishing. No feature expansion or mouse automation was used.
