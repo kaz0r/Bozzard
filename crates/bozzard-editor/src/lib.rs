@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 
+mod framing;
+
 const HISTORY_LIMIT: usize = 100;
 struct Change {
     label: String,
@@ -806,6 +808,28 @@ mod tests {
         assert!(e.redo_label().is_none());
         assert!(!e.dirty());
         assert_eq!(Editor::open(&other).unwrap().scene(), e.scene());
+    }
+    #[test]
+    fn framing_uses_imported_mesh_vertices_in_world_space() {
+        let dir = Temp::new();
+        let source = dir.0.join("triangle.obj");
+        std::fs::write(&source, "v 2 0 0\nv 4 0 0\nv 2 3 0\nf 1 2 3\n").unwrap();
+        let mut e = Editor::new(
+            bozzard_demo::scene_document().unwrap(),
+            &dir.0.join("project/scene.json"),
+        )
+        .unwrap();
+        let asset = e.import(&source).unwrap();
+        e.create(Mesh::Asset(asset), Layer::ThreeD).unwrap();
+        let id = e.selected.clone().unwrap();
+        let mut scene = e.scene.clone();
+        let object = scene.objects.iter_mut().find(|o| o.id == id).unwrap();
+        object.transform.translation = [10.0, 0.0, 0.0];
+        e.apply("Place mesh", scene).unwrap();
+        assert_eq!(
+            e.frame_bounds(Layer::ThreeD, Some(&id)).unwrap(),
+            Some([Vec3::new(12.0, 0.0, 0.0), Vec3::new(14.0, 3.0, 0.0)])
+        );
     }
     #[test]
     fn import_copies_into_the_project_and_rejects_bad_files() {

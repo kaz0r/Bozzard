@@ -17,6 +17,7 @@ use std::{
 mod acceptance;
 mod colliders;
 mod files;
+mod framing;
 mod inspector;
 mod snapping;
 mod viewport;
@@ -39,6 +40,7 @@ struct Workspace {
     pan: [f32; 2],
     zoom: f32,
     camera: Option<viewport::FlyCamera>,
+    ortho_zoom: f32,
 }
 impl Default for Workspace {
     fn default() -> Self {
@@ -51,6 +53,7 @@ impl Default for Workspace {
             pan: [0.0; 2],
             zoom: 1.0,
             camera: None,
+            ortho_zoom: 1.0,
         }
     }
 }
@@ -188,6 +191,7 @@ impl App {
                 Some(Pending::Open(path)) => {
                     self.editor = Editor::open(&path)?;
                     self.workspace.camera = None;
+                    self.workspace.ortho_zoom = 1.0;
                     self.uploaded_revision = 0;
                     self.status = format!("Opened {}", path.display());
                 }
@@ -198,6 +202,7 @@ impl App {
                     let path = untitled_scene_path()?;
                     self.editor = Editor::new(scene, &path)?;
                     self.workspace.camera = None;
+                    self.workspace.ortho_zoom = 1.0;
                     self.uploaded_revision = 0;
                     self.status = "New level · Add a cube or sprite".into();
                 }

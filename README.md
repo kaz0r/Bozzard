@@ -156,3 +156,7 @@ Creating a Cube switches to 3D; creating a Sprite switches to 2D. Successful cre
 Enable **Snap** in the viewport toolbar, then drag a Move, Rotate, or Scale gizmo. **Snap settings** sets the increments (defaults: 0.5 local units, 15°, and 0.1 scale multiplier). Hold **Ctrl** while dragging to temporarily invert Snap. Changes are relative to the start of each drag, preserving existing offsets; this is not absolute world-grid alignment. Scale snapping preserves mirrored axes and avoids zero scale. Numeric inspector edits remain exact, each drag remains one Undo action, and preferences persist between editor sessions.
 
 Press **Escape** during a gizmo drag to restore its starting transform without adding an Undo entry or clearing Redo history. Document keyboard shortcuts are paused while dragging.
+
+### Framing the viewport
+
+In Edit, use **Frame selected** (**F** over the viewport) to fit an object and its descendants, or **Frame all** (**Shift+F**) to fit drawable objects in the active layer. Imported mesh geometry and parent transforms are included. Selections without visible geometry center on their origin. Framing retains the 3D viewing direction and works in perspective and orthographic views; **Reset view** restores the authored camera view. It changes editor navigation only, without modifying scene cameras or Undo history. If geometry exceeds the authored camera's depth clipping range, the editor reports this instead of changing that camera.

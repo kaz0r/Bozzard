@@ -1,3 +1,4 @@
+use super::framing::{fit_2d, fit_3d};
 use super::*;
 use glam::Mat4;
 pub struct Drag {
@@ -131,6 +132,7 @@ fn look_rotation(look: [f32; 2]) -> Mat4 {
 }
 impl App {
     pub fn viewport(&mut self, ui: &mut egui::Ui) -> Result<()> {
+        let mut frame_request = None;
         ui.horizontal_wrapped(|ui| {
             ui.strong("Scene viewport");
             ui.separator();
@@ -141,10 +143,30 @@ impl App {
                 self.workspace.snapping.ui(ui);
             });
             ui.checkbox(&mut self.workspace.colliders_visible, "Colliders");
+            ui.add_enabled_ui(self.editor.play.is_none() && self.drag.is_none(), |ui| {
+                if ui
+                    .add_enabled(
+                        self.editor.selected_object().is_some(),
+                        egui::Button::new("Frame selected"),
+                    )
+                    .on_hover_text("Frame selection and its children · F over viewport")
+                    .clicked()
+                {
+                    frame_request = Some(true);
+                }
+                if ui
+                    .button("Frame all")
+                    .on_hover_text("Fit visible geometry in this layer · Shift+F over viewport")
+                    .clicked()
+                {
+                    frame_request = Some(false);
+                }
+            });
             if ui.button("Reset view").clicked() {
                 self.workspace.pan = [0.0; 2];
                 self.workspace.zoom = 1.0;
                 self.workspace.camera = None;
+                self.workspace.ortho_zoom = 1.0;
             }
         });
         if self.editor.play.is_some() {
@@ -171,6 +193,45 @@ impl App {
         self.sync_assets()?;
         let available = ui.available_size().max(Vec2::splat(1.0));
         let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
+        if self.editor.play.is_none()
+            && self.drag.is_none()
+            && !self.mouse_captured
+            && response.hovered()
+            && !ui.ctx().egui_wants_keyboard_input()
+            && ui.input(|i| i.focused && i.key_pressed(egui::Key::F))
+        {
+            frame_request = Some(!ui.input(|i| i.modifiers.shift));
+        }
+        let frame_bounds = if let Some(selected) = frame_request {
+            let result = (|| -> Result<Option<[Vec3; 2]>> {
+                let id = if selected {
+                    Some(
+                        self.editor
+                            .selected
+                            .as_deref()
+                            .context("select an object to frame")?,
+                    )
+                } else {
+                    None
+                };
+                self.editor.frame_bounds(self.layer(), id)
+            })();
+            match result {
+                Ok(Some(bounds)) => Some(bounds),
+                Ok(None) => {
+                    self.status = "No geometry to frame in this layer".into();
+                    self.error = false;
+                    None
+                }
+                Err(error) => {
+                    self.result(Err(error));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         if self.editor.play.is_some()
             && !self.workspace.layer_2d
             && response.hovered()
@@ -315,12 +376,23 @@ impl App {
                 0.0
             };
             if self.workspace.layer_2d {
+                if let Some(bounds) = frame_bounds {
+                    match fit_2d(bounds, scene.view_projection) {
+                        Ok((pan, zoom)) => {
+                            self.workspace.pan = pan;
+                            self.workspace.zoom = zoom;
+                            self.status = "View framed".into();
+                            self.error = false;
+                        }
+                        Err(error) => self.result(Err(error)),
+                    }
+                }
                 if right || middle {
                     self.workspace.pan[0] += 2.0 * delta.x / rect.width();
                     self.workspace.pan[1] -= 2.0 * delta.y / rect.height();
                 }
                 self.workspace.zoom =
-                    (self.workspace.zoom * (scroll * 0.002).exp()).clamp(0.1, 20.0);
+                    (self.workspace.zoom * (scroll * 0.002).exp()).clamp(0.0001, 10000.0);
                 scene.view_projection =
                     Mat4::from_translation(Vec3::new(
                         self.workspace.pan[0],
@@ -337,12 +409,36 @@ impl App {
                     .find(|o| &o.id == camera_id)
                     .and_then(|o| o.camera)
                     .context("missing viewport camera")?;
-                let lens = authored_camera.projection(aspect)?;
-                let base = scene.view_projection.inverse() * lens;
+                let authored_lens = authored_camera.projection(aspect)?;
+                let base = scene.view_projection.inverse() * authored_lens;
                 let camera = self
                     .workspace
                     .camera
                     .get_or_insert_with(|| FlyCamera::from_pose(base));
+                if let Some(bounds) = frame_bounds {
+                    match fit_3d(bounds, camera.rotation(), authored_camera, aspect) {
+                        Ok((position, zoom)) => {
+                            camera.position = position.to_array();
+                            self.workspace.ortho_zoom = zoom;
+                            self.status = "View framed".into();
+                            self.error = false;
+                        }
+                        Err(error) => {
+                            self.status = format!("{error:#}");
+                            self.error = true;
+                        }
+                    }
+                }
+                let lens = if matches!(authored_camera, Camera::Orthographic { .. }) {
+                    Mat4::from_scale(Vec3::new(
+                        self.workspace.ortho_zoom,
+                        self.workspace.ortho_zoom,
+                        1.0,
+                    )) * authored_lens
+                } else {
+                    authored_lens
+                };
+
                 let flying = right
                     && ui.input(|i| i.pointer.secondary_down())
                     && !ui.ctx().egui_wants_keyboard_input();
