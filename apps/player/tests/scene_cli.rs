@@ -2,22 +2,27 @@ use bozzard_scene::Scene;
 use std::{
     path::PathBuf,
     process::Command,
-    time::{SystemTime, UNIX_EPOCH},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "bozzard-scene-test-{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir(&path).unwrap();
-        Self(path)
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        loop {
+            // Clock timestamps can repeat across parallel tests. Reserve each directory
+            // exclusively and skip stale names from an earlier process with the same PID.
+            let path = std::env::temp_dir().join(format!(
+                "bozzard-scene-test-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            match std::fs::create_dir(&path) {
+                Ok(()) => return Self(path),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("creating test directory {}: {error}", path.display()),
+            }
+        }
     }
 }
 impl Drop for Temp {
@@ -128,4 +133,22 @@ fn saving_imported_scene_rebases_paths_and_preserves_asset_ids() {
     let mut missing = saved;
     missing.assets.remove("palette");
     assert!(missing.validate().is_err());
+}
+
+#[test]
+fn parallel_tests_reserve_distinct_temporary_directories() {
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(16));
+    let workers: Vec<_> = (0..16)
+        .map(|_| {
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                Temp::new()
+            })
+        })
+        .collect();
+    let directories: Vec<_> = workers.into_iter().map(|w| w.join().unwrap()).collect();
+    let paths: std::collections::BTreeSet<_> = directories.iter().map(|d| &d.0).collect();
+    assert_eq!(paths.len(), directories.len());
+    assert!(directories.iter().all(|d| d.0.is_dir()));
 }

@@ -252,3 +252,8 @@ The user explicitly requests continuous progress and next-step logging here. The
 - Added centered portrait and short memorial dedication at the top of README.md. Reviewed native rasterized previews and refined contours/eyes. SVG XML structure and README path verified; 100% vector artwork with no embedded raster/scripts. No commit/push requested for this tribute; prior local docs commit remains untouched.
 
 - User clarified his name is **Bozz**; engine name remains **Bozzard**. Corrected portrait title/description and README dedication. Removed the circular background, border and decorative arc; portrait SVG now has a transparent background.
+
+## CI temporary-directory race — fixed locally, uncommitted
+
+- User reported failure on README-only commit f221637, run 34274953747. Player scene_cli test helper used PID plus wall-clock timestamp; parallel tests can observe the same timestamp and collide at create_dir (AlreadyExists). Portrait/README changes did not change runtime code.
+- Replaced timestamp names with atomic sequence numbers and exclusive create_dir retry on existing paths, preserving cleanup ownership. Added parallel directory reservation regression. All four scene_cli tests pass, including concurrent directory creation; player all-target Clippy with denied warnings, formatting and diff checks pass. No commit/push requested in this debugging turn; remote CI has not rerun with this fix.
