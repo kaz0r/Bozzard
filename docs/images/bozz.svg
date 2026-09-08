@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="725" viewBox="105 100 480 580" role="img" aria-labelledby="title description">
+  <title id="title">Bozz</title>
+  <desc id="description">A vector portrait of Bozz, looking up with glossy dark eyes, a small white muzzle, warm sable fur, long black-fringed butterfly ears and a soft white chest. Drawn from his photograph, in his memory.</desc>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#5a4130"/><stop offset=".45" stop-color="#ac7c4e"/><stop offset="1" stop-color="#65564a"/></linearGradient>
+    <linearGradient id="ruff" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#ded5c0"/><stop offset=".38" stop-color="#fffdf4"/><stop offset=".8" stop-color="#f8f4e8"/><stop offset="1" stop-color="#c7c1b3"/></linearGradient>
+    <linearGradient id="earL" x1="0" y1="0" x2=".85" y2="1"><stop stop-color="#111716"/><stop offset=".46" stop-color="#242621"/><stop offset=".74" stop-color="#6d6859"/><stop offset="1" stop-color="#c0b39a"/></linearGradient>
+    <linearGradient id="earR" x1=".65" y1="0" x2=".25" y2="1"><stop stop-color="#101716"/><stop offset=".4" stop-color="#22231e"/><stop offset=".75" stop-color="#565346"/><stop offset="1" stop-color="#a38b65"/></linearGradient>
+    <radialGradient id="face" cx="46%" cy="42%" r="65%"><stop stop-color="#bd9357"/><stop offset=".52" stop-color="#9d713d"/><stop offset=".82" stop-color="#75552f"/><stop offset="1" stop-color="#43392a"/></radialGradient>
+    <linearGradient id="cheekL" x1="1" y1="0" x2=".1" y2="1"><stop stop-color="#d1a86b"/><stop offset=".45" stop-color="#b7894e"/><stop offset="1" stop-color="#765132"/></linearGradient>
+    <linearGradient id="cheekR" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d8b478"/><stop offset=".5" stop-color="#b48950"/><stop offset="1" stop-color="#725b3c"/></linearGradient>
+    <radialGradient id="muzzle" cx="48%" cy="65%" r="65%"><stop stop-color="#fffef6"/><stop offset=".52" stop-color="#ebece4"/><stop offset=".84" stop-color="#b6beb7"/><stop offset="1" stop-color="#6a766d"/></radialGradient>
+    <linearGradient id="blaze" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#9eaaa0"/><stop offset=".55" stop-color="#e6ece5"/><stop offset="1" stop-color="#f5f7ef"/></linearGradient>
+    <radialGradient id="eye" cx="42%" cy="28%" r="78%"><stop stop-color="#343c38"/><stop offset=".35" stop-color="#101b1d"/><stop offset=".8" stop-color="#080f10"/><stop offset="1" stop-color="#46483a"/></radialGradient>
+    <linearGradient id="nose" x1="0" y1="0" x2=".3" y2="1"><stop stop-color="#566260"/><stop offset=".34" stop-color="#1b2929"/><stop offset="1" stop-color="#080f10"/></linearGradient>
+  </defs>
+  <!-- Shoulder silhouette and feathered white bib. -->
+  <path d="M264 402 C231 416 214 464 211 510 Q207 540 198 558 Q211 551 218 540 Q212 569 216 579 Q231 569 234 558 Q225 592 238 605 Q247 598 250 586 Q254 616 271 628 Q270 614 274 607 Q284 638 302 646 Q300 634 307 627 Q325 653 342 660 Q337 646 344 639 Q356 660 371 665 Q379 654 379 640 Q394 655 410 653 Q416 641 412 632 Q431 643 445 640 Q449 629 443 615 Q461 627 469 617 Q471 602 465 591 Q481 601 494 592 Q487 578 479 571 Q498 576 507 566 Q494 555 492 543 C505 478 468 422 438 407Z" fill="url(#body)"/>
+  <path d="M319 426 C296 441 278 457 260 478 C264 508 236 526 237 554 Q245 547 249 535 C235 568 250 600 260 613 Q257 599 261 589 Q266 615 283 633 Q278 615 284 606 C296 634 313 647 329 653 Q322 640 321 629 Q330 650 346 660 Q344 646 348 634 Q358 656 369 662 Q375 650 378 636 Q386 646 398 652 Q399 639 398 627 Q409 637 424 642 Q420 630 420 614 Q431 624 447 628 Q441 616 440 602 Q451 609 463 607 Q457 591 452 577 Q462 585 475 586 C456 556 478 513 446 480 C426 458 405 443 398 424Z" fill="url(#ruff)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M292 466 C272 502 269 550 280 588 M315 477 C286 530 289 573 307 611 M341 490 C320 541 322 599 339 628 M376 490 C386 546 366 603 369 634 M409 477 C433 521 411 584 417 606 M434 484 C452 521 435 556 446 582" stroke="#b9aa90" stroke-width="3" opacity=".36"/>
+    <path d="M300 474 C279 520 279 558 287 581 M321 495 C302 547 301 589 317 623 M353 487 C335 543 344 596 351 633 M390 490 C401 547 385 581 385 624 M422 492 C437 530 424 563 430 590" stroke="#fffef7" stroke-width="6" opacity=".9"/>
+  </g>
+  <!-- His asymmetry and slight head tilt are retained from the photograph. -->
+  <g transform="rotate(-12 358 367)">
+    <!-- The left ear hangs more softly; the right ear lifts into a dark crest. -->
+    <path d="M282 282 C251 239 204 187 166 188 C139 191 139 229 141 264 Q136 288 134 298 Q142 293 144 285 Q134 318 133 331 Q143 322 147 311 Q137 347 138 365 Q147 357 151 346 Q145 378 147 390 Q158 379 161 369 Q156 401 158 412 Q169 404 174 391 Q172 417 176 431 Q188 417 190 401 Q189 426 195 438 Q205 426 207 410 Q212 430 219 438 Q227 424 226 407 Q234 421 242 427 C250 393 273 350 295 317Z" fill="url(#earL)"/>
+    <path d="M411 260 C427 221 460 151 489 140 C516 127 539 150 548 182 Q554 196 564 205 Q556 204 552 199 Q559 219 573 233 Q563 231 559 225 Q565 247 579 260 Q569 259 563 253 Q566 275 581 290 Q570 287 565 278 Q566 304 578 320 Q566 314 559 302 Q560 326 566 343 Q554 336 548 325 Q552 350 550 366 Q538 358 532 346 Q532 373 528 391 Q516 380 513 369 Q510 392 504 406 Q493 396 489 382 Q480 402 469 407 Q461 391 460 374 Q448 383 435 385 C428 338 416 309 411 260Z" fill="url(#earR)"/>
+    <path d="M179 204 C203 217 222 248 249 279 C241 302 218 320 205 350 C183 318 164 255 179 204Z" fill="#4d4837"/>
+    <path d="M488 162 C509 179 514 217 520 246 C490 260 475 281 453 304 C456 249 468 198 488 162Z" fill="#444131"/>
+    <path d="M187 217 C209 239 226 265 239 282 C223 296 214 310 204 326 C205 289 191 254 187 217Z" fill="#7a6749" opacity=".6"/>
+    <path d="M485 183 C481 215 479 249 463 281 C480 266 491 252 504 246 C502 220 498 196 485 183Z" fill="#82714e" opacity=".55"/>
+    <path d="M157 206 C140 250 163 328 158 384 C176 325 147 252 157 206Z" fill="#aaa08a" opacity="0.38"/>
+    <path d="M164 199 C154 253 174 314 174 407 C188 328 162 249 164 199Z" fill="#b1a58e" opacity="0.45"/>
+    <path d="M174 198 C165 256 187 338 185 420 C204 342 175 265 174 198Z" fill="#d3c4a6" opacity="0.4"/>
+    <path d="M181 207 C181 276 207 337 200 418 C216 350 190 274 181 207Z" fill="#b3a98d" opacity="0.45"/>
+    <path d="M150 218 C134 278 151 322 142 355 C160 319 146 263 150 218Z" fill="#bdb49f" opacity="0.35"/>
+    <path d="M199 217 C205 265 236 305 220 414 C246 345 218 264 199 217Z" fill="#c6b797" opacity="0.32"/>
+    <path d="M210 231 C219 279 241 310 236 387 C254 328 232 271 210 231Z" fill="#dad0b4" opacity="0.25"/>
+    <path d="M168 222 C164 284 186 346 173 383 C196 350 174 279 168 222Z" fill="#111c1b" opacity="0.8"/>
+    <path d="M191 228 C191 282 218 341 207 393 C229 352 206 280 191 228Z" fill="#171e19" opacity="0.8"/>
+    <path d="M490 145 C521 157 533 205 561 246 C544 199 526 141 490 145Z" fill="#657065" opacity="0.45"/>
+    <path d="M481 151 C520 177 526 229 565 281 C544 224 526 160 481 151Z" fill="#7f8270" opacity="0.38"/>
+    <path d="M474 161 C509 194 507 269 560 316 C525 264 521 189 474 161Z" fill="#a09c7f" opacity="0.4"/>
+    <path d="M469 180 C490 223 493 291 543 345 C514 288 501 218 469 180Z" fill="#c2b792" opacity="0.38"/>
+    <path d="M462 208 C472 254 483 320 525 367 C501 310 485 254 462 208Z" fill="#aa9b76" opacity="0.52"/>
+    <path d="M459 237 C459 285 475 339 504 388 C492 330 477 277 459 237Z" fill="#dbca9c" opacity="0.34"/>
+    <path d="M501 163 C524 208 523 260 550 294 C529 243 532 197 501 163Z" fill="#101a18" opacity="0.8"/>
+    <path d="M483 176 C502 232 493 284 529 329 C510 281 511 215 483 176Z" fill="#131c18" opacity="0.9"/>
+    <path d="M456 268 C451 309 470 356 481 387 C481 344 465 311 456 268Z" fill="#d7ba86" opacity="0.45"/>
+    <!-- Warm cheek feathers overlap the inner ear fringes. -->
+    <path d="M278 293 C246 307 228 350 222 398 L210 428 225 418 214 457 230 443 224 480 241 463 239 497 256 481 261 512 274 491 289 518 302 485 322 477 342 423Z" fill="url(#cheekL)"/>
+    <path d="M432 281 C475 312 488 357 487 394 L499 423 482 412 494 451 477 438 482 476 464 457 460 494 447 475 438 508 425 481 408 501 398 474 376 443Z" fill="url(#cheekR)"/>
+    <path d="M252 340 C251 304 277 277 296 264 Q300 258 301 251 Q308 252 313 260 Q319 248 319 240 Q328 245 331 252 Q343 241 346 232 Q354 239 355 250 Q368 239 371 231 Q377 237 376 249 Q390 244 396 237 Q398 248 391 256 Q410 250 419 250 Q416 261 421 269 C444 286 461 318 457 352 C456 397 417 443 360 454 C307 452 268 411 252 340Z" fill="url(#face)"/>
+    <!-- Sable forehead: soft, flowing patches rather than an invented white blaze. -->
+    <path d="M284 286 C302 265 328 262 343 286 C354 302 357 329 357 350 C348 324 334 302 317 298 C303 294 291 300 281 304Z" fill="#6f512d"/>
+    <path d="M368 350 C368 316 382 285 407 270 C429 279 440 300 443 317 C428 303 417 295 404 300 C385 307 377 332 368 350Z" fill="#735735"/>
+    <path d="M335 256 C350 276 358 294 359 326 C366 300 369 274 382 248 L367 262 356 241 350 260Z" fill="#b29358"/>
+    <path d="M337 313 C322 298 298 300 282 317 C270 331 269 353 280 365 C297 371 321 358 332 344Z" fill="#dabc83"/>
+    <path d="M380 313 C392 298 417 296 433 309 C447 323 447 342 434 353 C417 361 394 353 383 337Z" fill="#dfc593"/>
+    <g transform="translate(0 33.5) scale(1 .9)">
+    <!-- Eye sockets are brown-grey, with an unbroken dark lid and tiny reflected light. -->
+    <path d="M279 326 C287 310 309 308 322 322 C331 334 328 350 315 359 C298 365 281 354 277 342Z" fill="#9a825b"/>
+    <path d="M390 320 C396 303 416 301 431 311 C444 320 444 337 433 350 C419 361 399 351 391 338Z" fill="#9a8057"/>
+    <path d="M282 331 C288 315 306 313 318 323 C330 334 323 351 311 355 C296 360 281 349 282 331Z" fill="url(#eye)"/>
+    <path d="M394 320 C402 306 419 306 430 315 C442 326 436 342 425 348 C412 354 393 342 394 320Z" fill="url(#eye)"/>
+    <path d="M282 331 C289 315 307 312 321 326 M393 322 C399 305 420 303 434 318" fill="none" stroke="#262921" stroke-width="4" stroke-linecap="round"/>
+    <path d="M285 345 C291 356 309 361 320 349 M399 340 C408 352 425 354 434 341" fill="none" stroke="#b5b39a" stroke-width="2.5" stroke-linecap="round" opacity=".75"/>
+    <ellipse cx="302" cy="337" rx="12" ry="15" fill="#080f10"/>
+    <ellipse cx="415" cy="327" rx="12" ry="16" fill="#080f10"/>
+    <path d="M286 331 C286 324 292 321 296 322 L294 336 C290 337 287 335 286 331Z" fill="#b8c8c5" opacity=".68"/>
+    <path d="M398 321 C399 314 404 311 408 314 L404 327 C401 327 398 325 398 321Z" fill="#c8d5d2" opacity=".65"/>
+    <ellipse cx="307" cy="326" rx="4.2" ry="3.4" fill="#fffdf2"/>
+    <ellipse cx="420" cy="316" rx="3.8" ry="3.1" fill="#fffdf2"/>
+    <circle cx="313" cy="338" r="1.6" fill="#d8e3de"/>
+    <circle cx="426" cy="329" r="1.6" fill="#d8e3de"/>
+    </g>
+    <path d="M340 428 C344 448 332 466 329 476 Q344 466 348 455 Q350 474 356 482 Q361 467 365 456 Q371 472 380 478 Q378 460 384 447 L381 428Z" fill="#f6eddb"/>
+    <!-- Small white muzzle, charcoal bridge and a heart-shaped black nose. -->
+    <path d="M340 345 C326 356 320 373 322 388 C311 394 311 408 324 420 C339 439 375 443 397 427 C413 416 413 397 401 387 C394 367 381 351 369 345 L357 359Z" fill="#5c5746"/>
+    <path d="M345 369 Q350 362 353 353 Q360 347 360 344 Q364 349 368 353 Q372 352 374 347 Q375 355 379 359 Q386 360 389 365 Q383 367 383 371 Q390 375 392 380 L384 391 Q364 397 345 394 L333 380 Q340 377 342 370 Q341 365 339 362 Q346 362 350 363Z" fill="url(#blaze)"/>
+    <path d="M337 385 Q330 386 327 390 Q331 391 333 395 Q325 395 321 399 Q325 403 329 406 Q324 408 323 412 Q329 416 335 415 Q334 421 334 424 Q341 425 346 421 Q347 427 352 430 Q357 429 361 425 Q364 431 369 433 Q375 431 377 426 Q384 431 388 428 Q391 424 390 420 Q400 422 401 417 Q399 413 398 409 Q404 408 406 404 Q403 400 398 398 Q402 395 403 391 Q397 387 390 387 C375 379 351 379 337 385Z" fill="url(#muzzle)"/>
+    <path d="M335 380 C343 371 377 370 388 381 C392 392 380 405 363 409 C349 408 336 398 335 389Z" fill="url(#nose)"/>
+    <path d="M342 382 C353 376 374 376 382 382" fill="none" stroke="#92a19c" stroke-width="2.7" stroke-linecap="round" opacity=".7"/>
+    <ellipse cx="346" cy="388" rx="6.5" ry="4.8" transform="rotate(15 346 388)" fill="#070e0f"/>
+    <ellipse cx="378" cy="387" rx="6.3" ry="4.7" transform="rotate(-18 378 387)" fill="#070e0f"/>
+    <path d="M361 407 L362 415 M344 417 Q351 423 362 418 Q375 424 383 417" fill="none" stroke="#38413a" stroke-width="2.7" stroke-linecap="round"/>
+    <path d="M347 429 Q364 437 382 428" fill="none" stroke="#fdfcf1" stroke-width="3" stroke-linecap="round"/>
+    <path d="M276 349 C245 379 254 425 233 457 C270 429 258 388 276 349Z" fill="#ddba7d" opacity="0.85"/>
+    <path d="M283 367 C269 405 264 445 244 479 C278 451 279 398 283 367Z" fill="#edc991" opacity="0.7"/>
+    <path d="M293 381 C282 426 279 463 260 499 C294 469 289 419 293 381Z" fill="#8a5c31" opacity="0.8"/>
+    <path d="M302 398 C299 433 292 474 280 502 C307 473 308 433 302 398Z" fill="#efc58a" opacity="0.8"/>
+    <path d="M313 415 C313 442 307 469 300 491 C321 472 326 450 313 415Z" fill="#cf9f62" opacity="0.9"/>
+    <path d="M264 342 C239 362 240 402 224 423 C249 406 251 370 264 342Z" fill="#735231" opacity="0.8"/>
+    <path d="M252 378 C238 410 235 441 228 464 C251 438 249 405 252 378Z" fill="#f0d2a2" opacity="0.5"/>
+    <path d="M325 430 C321 451 319 467 321 480 C336 463 337 448 325 430Z" fill="#9a6b3d" opacity="0.7"/>
+    <path d="M435 344 C463 378 455 415 479 445 C445 425 447 380 435 344Z" fill="#e3c28b" opacity="0.8"/>
+    <path d="M424 366 C444 402 439 453 461 479 C429 454 432 405 424 366Z" fill="#edcca0" opacity="0.8"/>
+    <path d="M415 389 C426 425 419 469 442 495 C410 474 414 425 415 389Z" fill="#8b6037" opacity="0.85"/>
+    <path d="M408 412 C414 443 402 473 422 491 C396 478 397 449 408 412Z" fill="#eccb99" opacity="0.8"/>
+    <path d="M448 366 C469 391 465 414 487 432 C469 405 477 389 448 366Z" fill="#8e704b" opacity="0.7"/>
+    <path d="M456 412 C464 438 458 456 473 470 C450 458 449 432 456 412Z" fill="#fff0c7" opacity="0.55"/>
+    <path d="M395 426 C389 447 395 467 401 477 C383 463 382 443 395 426Z" fill="#bc8c52" opacity="0.8"/>
+    <g fill="none" stroke-linecap="round" stroke-width="1.7">
+      <path d="M296 269 Q312 277 322 293 M310 261 Q323 273 330 288 M329 254 Q340 274 343 296 M347 249 Q356 277 357 300 M375 249 Q366 279 367 301 M392 255 Q381 274 377 295 M408 264 Q392 277 386 293" stroke="#d1b174" opacity=".55"/>
+      <path d="M270 320 Q267 337 272 349 M267 353 Q274 371 284 378 M278 361 Q290 378 301 382 M291 367 Q304 380 317 383 M437 345 Q430 361 417 369 M445 350 Q442 370 428 380 M434 373 Q423 386 409 390" stroke="#f0d2a0" opacity=".63"/>
+      <path d="M303 302 Q316 303 324 311 M399 298 Q413 292 425 303 M333 330 Q335 343 342 353 M382 326 Q378 340 377 348" stroke="#59462d" opacity=".7"/>
+      <path d="M324 400 Q303 394 289 400 M327 407 Q304 408 290 418 M397 397 Q418 388 430 391 M397 406 Q419 401 433 407" stroke="#e3dfc8" opacity=".7" stroke-width="1"/>
+    </g>
+    <g fill="#5d6c60" opacity=".5"><circle cx="337" cy="402" r="1.2"/><circle cx="341" cy="407" r="1"/><circle cx="333" cy="408" r=".9"/><circle cx="389" cy="400" r="1.1"/><circle cx="384" cy="405" r="1"/><circle cx="392" cy="406" r=".9"/></g>
+  </g>
+</svg>

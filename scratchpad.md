@@ -244,3 +244,11 @@ The user explicitly requests continuous progress and next-step logging here. The
 - Code commit `578681eb89fc4c1e78fa962b83758bce47cddf21` was pushed to `main` with the user-verified framing feature and documentation.
 - CI run https://github.com/kaz0r/Bozzard/actions/runs/34251737663 passed all three platform jobs: Ubuntu 24.04/Vulkan, Windows 2025/DX12, and macOS 15/Metal. Each completed formatting, lint, CPU/headless tests, dependency-boundary checks, release builds, extracted package/pixel verification, diagnostics, and bundle upload.
 - User manually verified snapping (Move/Rotate/Scale, Ctrl override, Undo), Escape cancellation, and camera framing before publishing. No feature expansion or mouse automation was used.
+
+## Bozz portrait — tribute
+
+- User shared a photograph of their late dog, Bozz, for whom this engine is named, and requested a beautiful SVG of his face in the README. This is a personal memorial; treat future changes with care.
+- Created docs/images/bozz.svg as original editable vector paths and gradients, referencing his sable face, asymmetrical black ear fringes, dark reflective eyes, slight head tilt, small white muzzle and white chest. No embedded raster, font, script or external resources. Accessible title/description included.
+- Added centered portrait and short memorial dedication at the top of README.md. Reviewed native rasterized previews and refined contours/eyes. SVG XML structure and README path verified; 100% vector artwork with no embedded raster/scripts. No commit/push requested for this tribute; prior local docs commit remains untouched.
+
+- User clarified his name is **Bozz**; engine name remains **Bozzard**. Corrected portrait title/description and README dedication. Removed the circular background, border and decorative arc; portrait SVG now has a transparent background.

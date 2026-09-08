@@ -1,5 +1,12 @@
 # Bozzard
 
+<p align="center">
+  <img src="docs/images/bozz.svg" width="360" alt="A portrait of Bozz, with long dark-fringed ears, warm sable fur, gentle eyes and a white muzzle and chest." />
+</p>
+<p align="center">
+  <em>In loving memory of Bozz.<br />The inspiration behind Bozzard.</em>
+</p>
+
 A native 2D/3D game engine in Rust, with our own ECS and WebGPU rendering through `wgpu`. No Bevy dependencies.
 
 The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, scene save/load, and a first native editor. PNG/JPEG textures and OBJ meshes can be imported and reloaded while running. It is not yet a game exporter; physics, audio, and networking remain future milestones.
