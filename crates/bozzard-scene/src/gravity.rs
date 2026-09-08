@@ -8,6 +8,8 @@ pub struct Gravity {
     /// Positive world-down acceleration, in world units / second squared.
     pub acceleration: f32,
     pub max_speed: f32,
+    /// Upward launch speed used by editor Play controls, in world units / second.
+    pub jump_speed: f32,
 }
 impl Default for Gravity {
     fn default() -> Self {
@@ -15,6 +17,7 @@ impl Default for Gravity {
             enabled: true,
             acceleration: 9.81,
             max_speed: 50.0,
+            jump_speed: 5.0,
         }
     }
 }
@@ -28,6 +31,10 @@ impl Gravity {
             self.max_speed.is_finite() && self.max_speed > 0.0,
             "gravity max speed must be positive and finite"
         );
+        ensure!(
+            self.jump_speed.is_finite() && self.jump_speed > 0.0,
+            "jump speed must be positive and finite"
+        );
         Ok(())
     }
 }
@@ -38,7 +45,33 @@ pub struct GravityState {
     pub grounded: bool,
 }
 impl SceneInstance {
-    /// Sequential kinematic gravity in stable object-ID order. No dynamic impulses or jumping.
+    /// Apply an upward launch speed only to a grounded, enabled gravity box.
+    /// Returns false when jumping is unavailable; consumes grounding immediately.
+    pub fn jump_box(&self, world: &mut World, id: &str, speed: f32) -> Result<bool> {
+        ensure!(
+            speed.is_finite() && speed > 0.0,
+            "jump speed must be positive and finite"
+        );
+        let entity = self.entity(id).context("unknown jumping object")?;
+        if !world.get::<Gravity>(entity).is_some_and(|g| g.enabled)
+            || !world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
+            || !world
+                .get::<GravityState>(entity)
+                .is_some_and(|s| s.grounded)
+        {
+            return Ok(false);
+        }
+        world.insert(
+            entity,
+            GravityState {
+                vertical_velocity: speed,
+                grounded: false,
+            },
+        )?;
+        Ok(true)
+    }
+
+    /// Sequential kinematic gravity in stable object-ID order. No dynamic impulses.
     /// Disabled gravity/colliders reset velocity. Errors leave the failing body's move unapplied;
     /// previously stepped bodies in the same tick are not rolled back.
     pub fn step_gravity(&self, world: &mut World, dt: f32) -> Result<()> {
@@ -75,7 +108,12 @@ impl SceneInstance {
                 .contact_normals
                 .iter()
                 .any(|normal| normal.y >= 0.5);
-            if state.grounded {
+            let hit_ceiling = state.vertical_velocity > 0.0
+                && movement
+                    .contact_normals
+                    .iter()
+                    .any(|normal| normal.y <= -0.5);
+            if state.grounded || hit_ceiling {
                 state.vertical_velocity = 0.0;
             }
             world.insert(entity, state)?;

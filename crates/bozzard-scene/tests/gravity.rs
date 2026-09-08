@@ -36,6 +36,7 @@ fn gravity_free_fall_accelerates_downward_and_caps_speed() {
             enabled: true,
             acceleration: 9.81,
             max_speed: 50.0,
+            jump_speed: 5.0,
         }
     );
     let scene = collision_scene(
@@ -167,7 +168,7 @@ fn gravity_config_captures_but_runtime_velocity_starts_fresh_after_spawning() {
           "id":"mover", "name":"mover",
           "transform":{"translation":[0,10,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
           "collider":{"center":[0,0,0],"size":[1,1,1],"enabled":true},
-          "gravity":{"enabled":true,"acceleration":12.5,"max_speed":7}
+          "gravity":{"enabled":true,"acceleration":12.5,"max_speed":7,"jump_speed":8}
         }"#,
     );
     let mut first_world = World::new();
@@ -182,8 +183,11 @@ fn gravity_config_captures_but_runtime_velocity_starts_fresh_after_spawning() {
             enabled: true,
             acceleration: 12.5,
             max_speed: 7.0,
+            jump_speed: 8.0,
         })
     );
+    let saved = Scene::from_json(&saved.to_json().unwrap()).unwrap();
+    assert_eq!(saved.objects[0].gravity.unwrap().jump_speed, 8.0);
     let mut second_world = World::new();
     let second = saved.spawn(&mut second_world).unwrap();
     assert_eq!(
@@ -198,6 +202,8 @@ fn gravity_rejects_invalid_configuration_and_step_delta() {
         r#"{"enabled":true,"acceleration":0,"max_speed":50}"#,
         r#"{"enabled":true,"acceleration":-1,"max_speed":50}"#,
         r#"{"enabled":true,"acceleration":10,"max_speed":0}"#,
+        r#"{"jump_speed":0}"#,
+        r#"{"jump_speed":-1}"#,
     ] {
         let json = format!(
             r#"{{"version":1,"name":"bad","views":{{}},"objects":[{{"id":"mover","name":"mover","transform":{{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},"collider":{{"center":[0,0,0],"size":[1,1,1],"enabled":true}},"gravity":{invalid}}}]}}"#
@@ -240,4 +246,61 @@ fn gravity_rejects_invalid_configuration_and_step_delta() {
         );
         assert_eq!(state(&instance, &world, "mover"), &GravityState::default());
     }
+}
+
+fn jump_scene(ceiling: bool) -> (bozzard_scene::SceneInstance, World) {
+    let mut document = collision_scene(
+        r#"
+        {"id":"mover","name":"Mover","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"collider":{},"gravity":{}},
+        {"id":"floor","name":"Floor","transform":{"translation":[0,-1,0],"rotation_degrees":[0,0,0],"scale":[10,1,10]},"collider":{}}
+    "#,
+    );
+    if ceiling {
+        let mut roof = document.objects[1].clone();
+        roof.id = "ceiling".into();
+        roof.transform.translation[1] = 2.0;
+        document.objects.push(roof);
+    }
+    let mut world = World::new();
+    let instance = document.spawn(&mut world).unwrap();
+    (instance, world)
+}
+
+#[test]
+fn jump_requires_grounding_and_can_repeat_only_after_landing() {
+    let (instance, mut world) = jump_scene(false);
+    assert!(!instance.jump_box(&mut world, "mover", 5.0).unwrap());
+    instance.step_gravity(&mut world, 1.0 / 60.0).unwrap();
+    for invalid in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+        assert!(instance.jump_box(&mut world, "mover", invalid).is_err());
+        assert!(state(&instance, &world, "mover").grounded);
+    }
+    assert!(instance.jump_box(&mut world, "mover", 5.0).unwrap());
+    assert!(!instance.jump_box(&mut world, "mover", 5.0).unwrap());
+    instance.step_gravity(&mut world, 0.1).unwrap();
+    assert!(center(&instance, &world, "mover").y > 0.3);
+    assert!(!instance.jump_box(&mut world, "mover", 5.0).unwrap());
+    for _ in 0..120 {
+        instance.step_gravity(&mut world, 1.0 / 60.0).unwrap();
+    }
+    assert!(state(&instance, &world, "mover").grounded);
+    let entity = instance.entity("mover").unwrap();
+    world.get_mut::<Gravity>(entity).unwrap().enabled = false;
+    assert!(!instance.jump_box(&mut world, "mover", 5.0).unwrap());
+    world.get_mut::<Gravity>(entity).unwrap().enabled = true;
+    assert!(instance.jump_box(&mut world, "mover", 5.0).unwrap());
+}
+
+#[test]
+fn jumping_into_ceiling_cancels_ascent_and_starts_falling() {
+    let (instance, mut world) = jump_scene(true);
+    instance.step_gravity(&mut world, 1.0 / 60.0).unwrap();
+    assert!(instance.jump_box(&mut world, "mover", 10.0).unwrap());
+    instance.step_gravity(&mut world, 0.2).unwrap();
+    let height = center(&instance, &world, "mover").y;
+    assert!((height - 1.0).abs() < EPSILON);
+    assert_eq!(state(&instance, &world, "mover").vertical_velocity, 0.0);
+    assert!(!state(&instance, &world, "mover").grounded);
+    instance.step_gravity(&mut world, 0.1).unwrap();
+    assert!(center(&instance, &world, "mover").y < height);
 }

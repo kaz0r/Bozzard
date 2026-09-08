@@ -131,12 +131,15 @@ fn look_rotation(look: [f32; 2]) -> Mat4 {
 }
 impl App {
     pub fn viewport(&mut self, ui: &mut egui::Ui) -> Result<()> {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.strong("Scene viewport");
             ui.separator();
             ui.selectable_value(&mut self.workspace.tool, Tool::Move, "Move");
             ui.selectable_value(&mut self.workspace.tool, Tool::Rotate, "Rotate");
             ui.selectable_value(&mut self.workspace.tool, Tool::Scale, "Scale");
+            ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+                self.workspace.snapping.ui(ui);
+            });
             ui.checkbox(&mut self.workspace.colliders_visible, "Colliders");
             if ui.button("Reset view").clicked() {
                 self.workspace.pan = [0.0; 2];
@@ -145,9 +148,9 @@ impl App {
             }
         });
         if self.editor.play.is_some() {
-            ui.weak("Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Gravity boxes fall automatically");
+            ui.weak("Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Space: jump when grounded");
         } else {
-            ui.weak("Drag rings/handles · Hover to highlight an axis · Right drag: look · Hold right + WASD: fly · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly (2D: zoom)");
+            ui.weak("Drag rings/handles · Esc: cancel drag · Hover to highlight an axis · Right drag: look · Hold right + WASD: fly · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly (2D: zoom)");
         }
         let can_navigate = self.editor.play.is_none()
             && ui.input(|i| i.focused && !i.key_pressed(egui::Key::Escape));
@@ -179,6 +182,23 @@ impl App {
                 .and_then(|o| o.collider)
                 .is_some_and(|c| c.enabled)
         {
+            // Ignore OS key repeats: holding Space must not auto-jump after landing.
+            if ui.input(|i| {
+                i.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        egui::Event::Key {
+                            key: egui::Key::Space,
+                            pressed: true,
+                            repeat: false,
+                            ..
+                        }
+                    )
+                })
+            }) {
+                let result = self.editor.jump_selected_box().map(|_| ());
+                self.result(result);
+            }
             let delta = ui.input(|i| {
                 let axis = |positive, negative| {
                     i.key_down(positive) as u8 as f32 - i.key_down(negative) as u8 as f32
@@ -417,6 +437,13 @@ impl App {
         Ok(())
     }
     fn gizmo(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Mat4) -> Result<bool> {
+        if self.drag.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.editor.cancel_gesture()?;
+            self.drag = None;
+            self.status = "Gizmo drag cancelled".into();
+            self.error = false;
+            return Ok(true);
+        }
         let Some(object) = self.editor.selected_object().cloned() else {
             return Ok(false);
         };
@@ -601,15 +628,11 @@ impl App {
                 let delta = pointer - drag.pointer;
                 let mut next = self.editor.scene().clone();
                 if let Some(object) = next.objects.iter_mut().find(|o| o.id == drag.id) {
-                    object.transform = drag.start;
                     let amount = delta.dot(drag.screen_axis.normalized());
-                    match drag.tool {
-                        Tool::Move => {
-                            object.transform.translation[drag.axis] +=
-                                amount / drag.screen_axis.length()
-                        }
+                    let amount = match drag.tool {
+                        Tool::Move => amount / drag.screen_axis.length(),
                         Tool::Rotate => {
-                            let degrees = if let Some(ring) = &mut drag.ring {
+                            if let Some(ring) = &mut drag.ring {
                                 if let Some((_, angle)) = ring_hit(&ring.segments, pointer) {
                                     ring.angle += angle_delta(angle, ring.last_angle);
                                     ring.last_angle = angle;
@@ -617,14 +640,17 @@ impl App {
                                 ring.angle.to_degrees()
                             } else {
                                 amount
-                            };
-                            object.transform.rotation_degrees[drag.axis] += degrees;
+                            }
                         }
-                        Tool::Scale => {
-                            object.transform.scale[drag.axis] *=
-                                (amount * 0.01).exp().clamp(0.01, 100.0)
-                        }
-                    }
+                        Tool::Scale => (amount * 0.01).exp().clamp(0.01, 100.0),
+                    };
+                    object.transform = self.workspace.snapping.transform(
+                        drag.start,
+                        drag.tool,
+                        drag.axis,
+                        amount,
+                        ui.input(|i| i.modifiers.ctrl),
+                    );
                 }
                 let r = self.editor.apply("Transform gizmo", next);
                 self.result(r);

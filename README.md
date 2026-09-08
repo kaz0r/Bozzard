@@ -139,4 +139,20 @@ Open `examples/demo/scenes/gravity-lab.json`, select **Falling Box**, and press 
 
 The inspector's **Gravity** component adds a box collider when needed, with positive world-down acceleration and a maximum fall speed. Play displays Grounded/Falling. Gravity runs at the shared fixed simulation timestep in editor, player and headless server. Disabling gravity or its collider resets fall velocity; Space/Ctrl vertical movement is available only without enabled gravity. Configuration saves with the scene; velocity and grounding reset on spawn.
 
-This is kinematic box gravity, with no jumping, dynamic pushing or rigidbody simulation. Bodies step sequentially in object-ID order. `SceneDemo::check_simulation()` surfaces simulation failures; built-in applications check it.
+This is kinematic box gravity, with no dynamic pushing or rigidbody simulation. Bodies step sequentially in object-ID order. `SceneDemo::check_simulation()` surfaces simulation failures; built-in applications check it.
+
+In editor Play, press **Space** over the 3D viewport to jump with the selected grounded gravity box (set **Jump speed** under Gravity; default 5 units/s). Midair presses and held-key repeats do not jump. Ceiling contact cancels ascent. The headless API is `SceneInstance::jump_box(world, id, speed)`, returning whether a jump was accepted.
+
+Jump speed is saved per object with the scene. Existing scenes that omit it retain the 5 units/s default. Adjust it before Play; higher values produce higher jumps.
+
+The Gravity inspector estimates jump height and airtime (landing at the same height without obstacles, including the fall speed limit). **Reset gravity defaults** restores tuning values while preserving Enabled; Undo restores your previous settings.
+
+The Hierarchy search filters object names and IDs without case sensitivity, including nested objects. Clear it with **×** to restore the full tree. During Play, the Gravity inspector displays **Rising**, **Falling**, or **Grounded** and signed vertical speed.
+
+Creating a Cube switches to 3D; creating a Sprite switches to 2D. Successful creation or duplication clears the hierarchy filter so the new object is listed. Duplicate/Delete require a selected object; their tooltips show shortcuts and explain that children are included.
+
+### Transform snapping
+
+Enable **Snap** in the viewport toolbar, then drag a Move, Rotate, or Scale gizmo. **Snap settings** sets the increments (defaults: 0.5 local units, 15°, and 0.1 scale multiplier). Hold **Ctrl** while dragging to temporarily invert Snap. Changes are relative to the start of each drag, preserving existing offsets; this is not absolute world-grid alignment. Scale snapping preserves mirrored axes and avoids zero scale. Numeric inspector edits remain exact, each drag remains one Undo action, and preferences persist between editor sessions.
+
+Press **Escape** during a gizmo drag to restore its starting transform without adding an Undo entry or clearing Redo history. Document keyboard shortcuts are paused while dragging.

@@ -9,7 +9,8 @@ impl App {
             .show(ui, |ui| {
                 ui.heading("Inspector");
                 let Some(original) = self.editor.selected_object().cloned() else {
-                    ui.weak("Select an object in the scene or hierarchy.");
+                    ui.weak("Click an object in the viewport or select its name in the Hierarchy.");
+                    ui.weak("Use the Hierarchy search to find an object, or add a Cube or Sprite there.");
                     return;
                 };
                 let mut object = original.clone();
@@ -142,7 +143,7 @@ impl App {
                             ui.checkbox(&mut collider.enabled, "Enabled");
                             vector(ui, "Center", &mut collider.center, 0.05);
                             positive_vector(ui, "Size", &mut collider.size, 0.05);
-                            ui.weak("Blocks swept box movement; no gravity.");
+                            ui.weak("Blocks swept box movement. Add Gravity below to make it fall.");
                         }
                         let mut gravity = object.gravity.is_some();
                         if ui.checkbox(&mut gravity, "Gravity").changed() {
@@ -164,6 +165,35 @@ impl App {
                                 0.1,
                             );
                             positive_number(ui, "Max speed (m/s)", &mut gravity.max_speed, 0.5);
+                            positive_number(ui, "Jump speed (m/s)", &mut gravity.jump_speed, 0.1);
+                            // Continuous-motion estimates; fixed-step integration differs slightly.
+                            let acceleration = f64::from(gravity.acceleration);
+                            let launch = f64::from(gravity.jump_speed);
+                            let fall_limit = f64::from(gravity.max_speed);
+                            let height = launch * launch / (2.0 * acceleration);
+                            let ascent_time = launch / acceleration;
+                            let descent_time = if launch <= fall_limit {
+                                ascent_time
+                            } else {
+                                fall_limit / acceleration
+                                    + (height - fall_limit * fall_limit / (2.0 * acceleration))
+                                        / fall_limit
+                            };
+                            ui.weak(format!(
+                                "Estimated jump: {height:.2} m high · {:.2} s airtime",
+                                ascent_time + descent_time
+                            ))
+                            .on_hover_text("Assumes enabled gravity, no obstacles, and landing at the starting height. Includes the fall speed limit; fixed-step motion may differ slightly.");
+                            if ui.small_button("Reset gravity defaults")
+                                .on_hover_text("Reset acceleration, fall speed and jump speed. Keeps Enabled unchanged. Supports Undo.")
+                                .clicked()
+                            {
+                                *gravity = bozzard_scene::Gravity {
+                                    enabled: gravity.enabled,
+                                    ..Default::default()
+                                };
+                            }
+
                         }
                         ui.separator();
                         let mut spin = object.spin.is_some();
@@ -252,9 +282,13 @@ impl App {
                 {
                     ui.weak(if state.grounded {
                         "Grounded"
+                    } else if state.vertical_velocity > 0.0 {
+                        "Rising"
                     } else {
                         "Falling"
                     });
+                    ui.weak(format!("Vertical speed: {:+.2} m/s", state.vertical_velocity))
+                        .on_hover_text("Positive is upward; negative is downward.");
                 }
                 if object != original || scene.views != self.editor.scene().views {
                     self.editor.begin_gesture("Edit component");

@@ -18,6 +18,7 @@ mod acceptance;
 mod colliders;
 mod files;
 mod inspector;
+mod snapping;
 mod viewport;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,6 +35,7 @@ struct Workspace {
     assets_visible: bool,
     colliders_visible: bool,
     tool: Tool,
+    snapping: snapping::Snapping,
     pan: [f32; 2],
     zoom: f32,
     camera: Option<viewport::FlyCamera>,
@@ -45,6 +47,7 @@ impl Default for Workspace {
             assets_visible: true,
             colliders_visible: true,
             tool: Tool::Move,
+            snapping: snapping::Snapping::default(),
             pan: [0.0; 2],
             zoom: 1.0,
             camera: None,
@@ -66,6 +69,7 @@ struct App {
     render_state: eframe::egui_wgpu::RenderState,
     workspace: Workspace,
     status: String,
+    hierarchy_search: String,
     error: bool,
     last_frame: Instant,
     last_assets: Instant,
@@ -126,6 +130,7 @@ impl App {
             target: None,
             workspace,
             status: "Ready · Select an object to begin".into(),
+            hierarchy_search: String::new(),
             error: false,
             last_frame: Instant::now(),
             last_assets: Instant::now(),
@@ -329,26 +334,50 @@ impl App {
                     ui.horizontal(|ui| {
                         if ui.button("+ Cube").clicked() {
                             let r = self.editor.create(Mesh::Cube, Layer::ThreeD);
+                            if r.is_ok() {
+                                self.hierarchy_search.clear();
+                                self.workspace.layer_2d = false;
+                            }
                             self.result(r);
                         }
                         if ui.button("+ Sprite").clicked() {
                             let r = self.editor.create(Mesh::Quad, Layer::TwoD);
-                            self.workspace.layer_2d = true;
+                            if r.is_ok() {
+                                self.hierarchy_search.clear();
+                                self.workspace.layer_2d = true;
+                            }
                             self.result(r);
                         }
                     });
                     ui.horizontal(|ui| {
-                        if ui.button("Duplicate").clicked() {
+                        let selected = self.editor.selected_object().is_some();
+                        if ui.add_enabled(selected, egui::Button::new("Duplicate"))
+                            .on_hover_text("Duplicate selected object and its children · Cmd/Ctrl+D")
+                            .clicked() {
                             let r = self.editor.duplicate();
+                            if r.is_ok() { self.hierarchy_search.clear(); }
                             self.result(r);
                         }
-                        if ui.button("Delete").clicked() {
+                        if ui.add_enabled(selected, egui::Button::new("Delete"))
+                            .on_hover_text("Delete selected object and its children · Delete key · Undo to restore")
+                            .clicked() {
                             let r = self.editor.delete();
                             self.result(r);
                         }
                     });
                 });
                 ui.separator();
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.hierarchy_search)
+                            .hint_text("Search name or ID…")
+                            .desired_width(ui.available_width() - 28.0),
+                    );
+                    if ui.small_button("×").on_hover_text("Clear search").clicked() {
+                        self.hierarchy_search.clear();
+                    }
+                });
+                let query = self.hierarchy_search.trim().to_lowercase();
                 let scene = self.editor.scene().clone();
                 let mut stack: Vec<_> = scene
                     .objects
@@ -357,29 +386,38 @@ impl App {
                     .rev()
                     .map(|o| (o, 0usize))
                     .collect();
+                let mut matches = 0usize;
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     while let Some((object, depth)) = stack.pop() {
-                        ui.horizontal(|ui| {
-                            ui.add_space((depth.min(12) * 12) as f32);
-                            let kind = if object.camera.is_some() {
-                                "◉"
-                            } else if object.drawable.is_some() {
-                                "◇"
-                            } else {
-                                "·"
-                            };
-                            if ui
-                                .selectable_label(
-                                    self.editor.selected.as_ref() == Some(&object.id),
-                                    format!("{kind} {}", object.name),
-                                )
-                                .on_hover_text(&object.id)
-                                .clicked()
-                            {
-                                self.editor.finish_gesture();
-                                self.editor.selected = Some(object.id.clone());
-                            }
-                        });
+                        if query.is_empty()
+                            || object.name.to_lowercase().contains(&query)
+                            || object.id.to_lowercase().contains(&query)
+                        {
+                            matches += 1;
+                            ui.horizontal(|ui| {
+                                if query.is_empty() {
+                                    ui.add_space((depth.min(12) * 12) as f32);
+                                }
+                                let kind = if object.camera.is_some() {
+                                    "◉"
+                                } else if object.drawable.is_some() {
+                                    "◇"
+                                } else {
+                                    "·"
+                                };
+                                if ui
+                                    .selectable_label(
+                                        self.editor.selected.as_ref() == Some(&object.id),
+                                        format!("{kind} {}", object.name),
+                                    )
+                                    .on_hover_text(&object.id)
+                                    .clicked()
+                                {
+                                    self.editor.finish_gesture();
+                                    self.editor.selected = Some(object.id.clone());
+                                }
+                            });
+                        }
                         for child in scene
                             .objects
                             .iter()
@@ -390,6 +428,15 @@ impl App {
                         }
                     }
                 });
+                if matches == 0 {
+                    ui.weak(if query.is_empty() {
+                        "Scene is empty. Add a Cube or Sprite above."
+                    } else {
+                        "No matching objects. Clear search to see all."
+                    });
+                } else if !query.is_empty() {
+                    ui.weak(format!("{matches} of {} objects", scene.objects.len()));
+                }
             });
     }
     fn assets_panel(&mut self, ui: &mut egui::Ui) {
@@ -414,7 +461,7 @@ impl App {
         });
     }
     fn shortcuts(&mut self, ctx: &egui::Context) {
-        if self.dialog.is_some() || self.confirm_discard {
+        if self.dialog.is_some() || self.confirm_discard || self.drag.is_some() {
             return;
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
@@ -434,11 +481,18 @@ impl App {
                 let r = self.editor.redo();
                 self.result(r);
             }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::D)) {
+            if self.editor.selected_object().is_some()
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::D))
+            {
                 let r = self.editor.duplicate();
+                if r.is_ok() {
+                    self.hierarchy_search.clear();
+                }
                 self.result(r);
             }
-            if ctx.input(|i| i.key_pressed(egui::Key::Delete)) {
+            if self.editor.selected_object().is_some()
+                && ctx.input(|i| i.key_pressed(egui::Key::Delete))
+            {
                 let r = self.editor.delete();
                 self.result(r);
             }

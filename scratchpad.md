@@ -8,14 +8,18 @@ Build the first usable native editor: hierarchy, viewport, component inspector, 
 
 The user explicitly requests continuous progress and next-step logging here. The earlier collider milestone was committed and pushed as requested. User confirmed gravity works and requested commit, push and CI verification. Terra supplied gravity regression tests and review; Luna supplied inspector controls.
 
+## Pre-commit reminder
+
+- User will test at home. BEFORE committing, remind them to check snapping manually (Move/Rotate/Scale, Ctrl override, Undo), and now Escape cancellation. Do not commit until this requested check is addressed. This is a pre-commit checkpoint, not a timed notification.
+
 ## Current state and next action
 
 - Current step complete, committed and CI verified: collision response plus optional fixed-step gravity, inspector controls, runtime grounding status and gravity-lab.json (included in bundle manifest).
-- Gravity configuration serializes; velocity/grounding are runtime-only. Disabling gravity/collider resets velocity. World-down swept movement supports landing and falling off edges. No jumping, dynamic pushing, rotational sweeps or compound movers.
+- Gravity configuration serializes; velocity/grounding are runtime-only. Disabling gravity/collider resets velocity. World-down swept movement supports landing and falling off edges. Grounded jumping is available; no dynamic pushing, rotational sweeps or compound movers.
 - Try: cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/gravity-lab.json. Select Falling Box, Play, hover viewport, WASD. Stop restores authored scene.
 - Validation: workspace tests including seven gravity regressions pass; native Metal smoke passed gravity_landing, response, Play isolation and pixel oracle. Headless dependency audit passed. Clippy with denied warnings and diff/format checks passed.
 - Mouse untouched; no computer use. Previous collider commit passed cross-platform CI; new changes have local checks only.
-- Next focused stage: jumping and a basic character controller using grounded state. Wait for user direction; do not automatically expand scope or commit.
+- Latest small step: grounded-only Space jumping implemented and locally validated, uncommitted. Next: user tries jumping in gravity-lab; jump speed is now exposed in the inspector and validated locally. Next: user tries tuning it before Play.
 
 ## Checkpoint — editor model started
 
@@ -195,3 +199,36 @@ The user explicitly requests continuous progress and next-step logging here. The
 - Commit bc71c8113b457919c30f2d0120b75d2ffd2f3bcb pushed to main.
 - CI https://github.com/kaz0r/Bozzard/actions/runs/34157380591 completed successfully on macOS 15 / Metal, Windows 2025 / DX12, and Ubuntu 24.04 / Vulkan, including lint, tests, headless boundary, release packaging and pixel verification.
 - User confirmed gravity works. No outstanding failures; next proposed focused step remains jumping/basic character control. No mouse movement during publishing or verification.
+
+## Jumping — complete, uncommitted
+
+- Small user-requested step: Space launches a grounded gravity box at 5 units/s in Play, ignores key repeat, and immediately consumes grounding. Ceiling impacts cancel upward velocity. No new dependencies. Scene/editor tests pass, including two new jump regressions (grounding, midair rejection, landing/re-jump, invalid speeds, disabled gravity, ceiling impact). Workspace Clippy with denied warnings, formatting and diff checks pass. Initial test fixture lacked required transform fields; corrected before passing. UI input compiled; no live mouse testing.
+
+## Configurable jump speed — complete, uncommitted
+
+- User requested a small follow-up: Gravity.jump_speed defaults to 5 units/s for existing scenes, validates positive finite values, appears in the inspector, and drives editor Play jumps from the runtime component. Scene/editor tests pass: custom value survives JSON round-trip, invalid values are rejected, editor jump uses configured 8 units/s and Stop preserves authoring. Workspace Clippy with denied warnings, formatting and diff checks pass. No mouse movement or native UI test.
+
+## Gravity inspector polish — complete, uncommitted
+
+- User authorized 2–3 small follow-ups. Chosen: estimated jump height/airtime and Reset gravity defaults. Estimates include capped descent and explain same-height/no-obstacle assumptions. Reset uses existing authored edit/undo path and preserves Enabled, avoiding unintended activation.
+- Corrected obsolete collider hint claiming no gravity. No new dependencies or changes to simulation. Workspace Clippy with denied warnings, formatting and diff checks passed. Reset follows existing component editing/history machinery. No native UI/mouse test performed. Next: user tries tuning/reset in the inspector; pending jumping and inspector changes remain uncommitted.
+
+## Editor convenience pass — complete, uncommitted
+
+- User requested more small quality-of-life changes. Added case-insensitive hierarchy search by name/ID (flat results, traverses descendants, clear button, match count and empty state), actionable empty inspector guidance, and Rising/Grounded/Falling plus vertical-speed readout during Play. Search is transient UI state and does not edit the scene. Workspace Clippy with denied warnings, formatting and diff checks passed. Reviewed traversal to ensure children remain searchable when their parents do not match. No live UI or mouse use. Next: user tries hierarchy filtering and Play readouts; pending changes remain uncommitted.
+
+## Object action polish — complete, uncommitted
+
+- User requested another small pass. Duplicate/Delete buttons and keyboard actions now require a selection; tooltips explain shortcuts and subtree behavior. Successful creation/duplication clears hierarchy filtering, including keyboard duplication. Creating a Cube now switches to 3D, matching Sprite's switch to 2D; failed creation preserves the current view/filter. Existing undo/redo flow unchanged. Workspace Clippy with denied warnings, formatting and diff checks pass. Reviewed both button and keyboard duplication paths. No native UI or mouse testing. Next: try filtered creation/duplication and switching between Cube/Sprite; all pending QoL work remains uncommitted.
+
+## Transform snapping — complete, uncommitted
+
+- User authorized a slightly larger task. Implementing editor-only move/rotation/scale snapping with persisted increments and toolbar toggle; Ctrl temporarily inverts snapping while dragging. Relative to drag-start transform, preserving offsets and mirrored scale. Existing gesture undo remains one action per drag. Three focused snapping tests pass (signed relative movement, rotation wrap, modifier inversion, mirrored/nonzero scale, persisted/default preferences and invalid increments). All nine editor-app tests, workspace Clippy with denied warnings, formatting and diff checks pass. Native Metal smoke passed authored commands, Play isolation, collision response, gravity landing, save/load and pixel oracle; artifacts in work/editor-snapping-smoke. No manual gizmo drag or mouse movement. Next: user tries toolbar Snap and Ctrl override; pending jumping/QoL/snapping changes remain uncommitted.
+
+## Cancel gizmo drag — complete, uncommitted
+
+- Next small editor workflow: Escape restores active gesture start without adding Undo or clearing Redo. Core restoration uses transactional apply; editor suppresses document shortcuts during a drag to avoid finalizing the gesture behind the gizmo. All 12 editor-core tests pass, including cancel restoration, clean dirty-state, retained Redo, and no-op cancellation. Workspace Clippy with denied warnings, formatting and diff checks pass. Manual interaction is pending the user’s at-home test. No mouse movement. Next: remind user of the pre-commit manual checks before committing.
+
+## Publishing editor improvements
+
+- User explicitly requested commit/push now and will verify CI after their nap. This supersedes waiting for the manual pre-commit check; reminded them snapping and Escape cancellation remain manually unverified. Publishing jumping, configurable jump speed, inspector/hierarchy QoL, snapping and cancellation. Next authorized task: Frame Selection / Frame All camera navigation.

@@ -94,6 +94,16 @@ impl Editor {
             self.record(change);
         }
     }
+    /// Restore the active gesture's starting document without changing Undo/Redo history.
+    /// Failed asset restoration leaves the gesture active and the document unchanged.
+    pub fn cancel_gesture(&mut self) -> Result<()> {
+        if let Some(change) = &self.gesture {
+            let original = change.scene.clone();
+            self.apply("Cancel gesture", original)?;
+            self.gesture = None;
+        }
+        Ok(())
+    }
     fn record(&mut self, change: Change) {
         self.past.push(change);
         if self.past.len() > HISTORY_LIMIT {
@@ -391,6 +401,17 @@ impl Editor {
             .context("start Play to move a collider")?;
         play.instance.move_box(&mut play.app.world, id, delta)
     }
+    /// Jump only in the Play world; authoring remains unchanged.
+    pub fn jump_selected_box(&mut self) -> Result<bool> {
+        let id = self.selected.as_ref().context("select a box to jump")?;
+        let play = self.play.as_mut().context("start Play to jump")?;
+        let entity = play.instance.entity(id).context("unknown jumping object")?;
+        let Some(gravity) = play.app.world.get::<bozzard_scene::Gravity>(entity) else {
+            return Ok(false);
+        };
+        let speed = gravity.jump_speed;
+        play.instance.jump_box(&mut play.app.world, id, speed)
+    }
     /// Current authored or Play-world collider bounds and overlap pairs.
     pub fn collisions(&self) -> Result<bozzard_scene::CollisionSnapshot> {
         if let Some(play) = &self.play {
@@ -609,6 +630,48 @@ mod tests {
         .unwrap()
     }
     #[test]
+    fn play_jump_uses_configured_speed_without_changing_authoring() {
+        let mut e = editor();
+        e.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let id = e.selected.clone().unwrap();
+        let mut scene = e.scene.clone();
+        let object = scene.objects.iter_mut().find(|o| o.id == id).unwrap();
+        object.collider = Some(bozzard_scene::BoxCollider::default());
+        object.gravity = Some(bozzard_scene::Gravity {
+            jump_speed: 8.0,
+            ..Default::default()
+        });
+        e.apply("Jump settings", scene).unwrap();
+        let authored = e.scene.clone();
+        e.start_play().unwrap();
+        let play = e.play.as_mut().unwrap();
+        let entity = play.instance.entity(&id).unwrap();
+        play.app
+            .world
+            .insert(
+                entity,
+                bozzard_scene::GravityState {
+                    grounded: true,
+                    vertical_velocity: 0.0,
+                },
+            )
+            .unwrap();
+        assert!(e.jump_selected_box().unwrap());
+        assert_eq!(
+            e.play
+                .as_ref()
+                .unwrap()
+                .app
+                .world
+                .get::<bozzard_scene::GravityState>(entity)
+                .unwrap()
+                .vertical_velocity,
+            8.0
+        );
+        e.stop_play();
+        assert_eq!(e.scene, authored);
+    }
+    #[test]
     fn commands_duplicate_and_delete_subtrees_with_undo_redo() {
         let mut e = editor();
         let initial = e.scene.clone();
@@ -653,6 +716,32 @@ mod tests {
         e.undo().unwrap();
         assert_eq!(e.scene, initial);
         assert!(!e.dirty());
+    }
+    #[test]
+    fn cancelled_gesture_restores_document_and_preserves_redo() {
+        let mut e = editor();
+        let initial = e.scene.clone();
+        let mut changed = initial.clone();
+        changed.objects[0].transform.translation[0] += 2.0;
+        e.apply("Earlier edit", changed.clone()).unwrap();
+        e.undo().unwrap();
+        let revision = e.revision;
+        e.begin_gesture("Drag");
+        for offset in [1.0, 3.0] {
+            let mut dragged = initial.clone();
+            dragged.objects[0].transform.translation[1] += offset;
+            e.apply("Drag", dragged).unwrap();
+        }
+        e.cancel_gesture().unwrap();
+        e.finish_gesture();
+        assert_eq!(e.scene, initial);
+        assert!(!e.dirty());
+        assert!(e.past.is_empty());
+        assert_eq!(e.future.len(), 1);
+        assert!(e.revision > revision);
+        e.cancel_gesture().unwrap(); // No gesture is a harmless no-op.
+        e.redo().unwrap();
+        assert_eq!(e.scene, changed);
     }
     #[test]
     fn play_is_a_separate_world_and_cannot_change_authored_state() {
