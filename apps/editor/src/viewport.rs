@@ -130,6 +130,47 @@ impl FlyCamera {
 fn look_rotation(look: [f32; 2]) -> Mat4 {
     Mat4::from_rotation_y(look[0]) * Mat4::from_rotation_x(look[1])
 }
+/// Remove viewport Tab events before egui's focus traversal sees them.
+pub fn filter_fly_tab(
+    input: &mut egui::RawInput,
+    eligible: bool,
+    latched: &mut bool,
+    held: &mut bool,
+) -> bool {
+    if !input.focused {
+        *held = false;
+    }
+    let mut changed = false;
+    input.events.retain(|event| {
+        let egui::Event::Key {
+            key: egui::Key::Tab,
+            pressed,
+            repeat,
+            modifiers,
+            ..
+        } = event
+        else {
+            return true;
+        };
+        if !pressed && *held {
+            *held = false;
+            return false;
+        }
+        if !eligible || !modifiers.is_none() {
+            return true;
+        }
+        if *pressed {
+            if !*held && !repeat {
+                *latched = !*latched;
+                changed = true;
+            }
+            *held = true;
+        }
+        false
+    });
+    changed
+}
+
 impl App {
     pub fn viewport(&mut self, ui: &mut egui::Ui) -> Result<()> {
         let mut frame_request = None;
@@ -172,18 +213,31 @@ impl App {
         if self.editor.play.is_some() {
             ui.weak("Esc: stop simulation · Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Space: jump when grounded");
         } else {
-            ui.weak("Drag rings/handles · Esc: cancel drag · Hover to highlight an axis · Right drag: look · Hold right + WASD: fly · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly (2D: zoom)");
+            ui.weak(if self.fly_latched {
+                "Fly mode · Move trackpad/mouse to look · WASD: move · Space/Ctrl: up/down · Shift: faster · Tab or Esc: release"
+            } else {
+                "Drag rings/handles · Esc: cancel drag · Right drag: look · Tab over 3D viewport: toggle fly · WASD: move · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly"
+            });
         }
         let can_navigate = ui.is_enabled()
             && self.editor.play.is_none()
+            && self.dialog.is_none()
+            && !self.confirm_discard
             && ui.input(|i| i.focused && !i.key_pressed(egui::Key::Escape));
+        if !can_navigate || self.workspace.layer_2d {
+            if self.fly_latched {
+                self.status = "Camera released".into();
+            }
+            self.fly_latched = false;
+        }
         if !can_navigate {
             self.navigation_button = None;
         }
         let looking = can_navigate
             && !self.workspace.layer_2d
-            && self.navigation_button == Some(egui::PointerButton::Secondary)
-            && ui.input(|i| i.pointer.secondary_down());
+            && (self.fly_latched
+                || (self.navigation_button == Some(egui::PointerButton::Secondary)
+                    && ui.input(|i| i.pointer.secondary_down())));
         if self.mouse_captured && !looking {
             ui.ctx()
                 .send_viewport_cmd(egui::ViewportCommand::CursorGrab(egui::CursorGrab::None));
@@ -198,6 +252,7 @@ impl App {
             .entries()
             .any(|entry| entry.data().is_none())
         {
+            self.viewport_rect = None;
             ui.centered_and_justified(|ui| {
                 ui.label(if self.editor.assets.entries().any(|entry| matches!(entry.state(), LoadState::Failed(_))) {
                     "An asset could not load. See Assets for details; repair the file and reload."
@@ -211,6 +266,7 @@ impl App {
         }
         let available = ui.available_size().max(Vec2::splat(1.0));
         let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
+        self.viewport_rect = Some(rect);
         if self.editor.play.is_none()
             && self.drag.is_none()
             && !self.mouse_captured
@@ -375,6 +431,7 @@ impl App {
                         ..
                     } = event
                         && can_navigate
+                        && !self.fly_latched
                         && rect.contains(*pos)
                         && matches!(
                             button,
@@ -457,8 +514,8 @@ impl App {
                     authored_lens
                 };
 
-                let flying = right
-                    && ui.input(|i| i.pointer.secondary_down())
+                let flying = can_navigate
+                    && (self.fly_latched || (right && ui.input(|i| i.pointer.secondary_down())))
                     && !ui.ctx().egui_wants_keyboard_input();
                 if flying {
                     if !self.mouse_captured {
@@ -535,6 +592,7 @@ impl App {
             false
         };
         if response.clicked()
+            && !self.mouse_captured
             && !handled
             && self.editor.play.is_none()
             && let Some(p) = response.interact_pointer_pos()
@@ -551,7 +609,7 @@ impl App {
         Ok(())
     }
     fn gizmo(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Mat4) -> Result<bool> {
-        if !ui.is_enabled() {
+        if !ui.is_enabled() || self.fly_latched {
             return Ok(false);
         }
         if self.drag.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -784,6 +842,52 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn fly_tab_is_removed_before_focus_navigation_and_ignores_repeats() {
+        let key = |pressed, repeat, modifiers| egui::Event::Key {
+            key: egui::Key::Tab,
+            physical_key: Some(egui::Key::Tab),
+            pressed,
+            repeat,
+            modifiers,
+        };
+        let mut latched = false;
+        let mut held = false;
+        let mut input = egui::RawInput::default();
+        input.events.push(key(true, false, egui::Modifiers::NONE));
+        assert!(filter_fly_tab(&mut input, true, &mut latched, &mut held));
+        assert!(latched && held && input.events.is_empty());
+        // Both OS-marked repeats and repeated raw down events must be swallowed.
+        input.events = vec![
+            key(true, true, egui::Modifiers::NONE),
+            key(true, false, egui::Modifiers::NONE),
+        ];
+        assert!(!filter_fly_tab(&mut input, true, &mut latched, &mut held));
+        assert!(latched && input.events.is_empty());
+        input.events = vec![key(false, false, egui::Modifiers::NONE)];
+        filter_fly_tab(&mut input, true, &mut latched, &mut held);
+        assert!(!held && input.events.is_empty());
+        input.events = vec![key(true, false, egui::Modifiers::NONE)];
+        assert!(filter_fly_tab(&mut input, true, &mut latched, &mut held));
+        assert!(!latched && input.events.is_empty());
+    }
+
+    #[test]
+    fn fly_tab_preserves_normal_ui_navigation_when_ineligible() {
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key {
+            key: egui::Key::Tab,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        let mut latched = false;
+        let mut held = false;
+        assert!(!filter_fly_tab(&mut input, false, &mut latched, &mut held));
+        assert_eq!(input.events.len(), 1);
+        assert!(!latched && !held);
+    }
     #[test]
     fn ring_hit_accepts_the_arc_and_unwraps_a_full_turn() {
         let points: Vec<_> = (0..64)

@@ -299,3 +299,11 @@ The user explicitly requests continuous progress and next-step logging here. The
 ## Escape stops simulation
 
 - User requested Escape to leave Play mode. Added the editor shortcut using the existing stop_play restoration path, with a completion status and viewport hint. Open dialogs/loading retain their existing shortcut priority; Edit-mode Escape still cancels gizmo dragging. No commit/push requested.
+
+## Trackpad fly-mode alternative
+
+- User requested a trackpad-friendly alternative to holding RMB. Tab over the 3D viewport toggles latched camera flight using existing relative pointer motion and WASD/Space/Ctrl/Shift controls. Tab/Escape releases capture; focus loss, Play, 2D, dialogs and loading also release it. RMB/middle-drag controls remain intact. Ignore Tab repeats and typing focus, prevent object picking/gizmo edits while latched, and show the active fly-mode exit keys. Mouse was not moved by automation. Previous async/QoL changes were published as 1161b89; this change is uncommitted.
+
+- Manual testing found Tab cycled egui controls before viewport handling. Moved Tab interception to eframe's raw_input_hook, before egui focus processing, using the last viewport rectangle and current pointer position. Consume the complete key press/release and suppress repeats, preserving normal UI Tab outside eligible navigation. Regression tests cover swallowed events, release/re-entry and normal UI navigation. No mouse automation or publication.
+
+- User confirmed trackpad fly mode works perfectly and requested commit/push. All 13 editor tests, editor Clippy with denied warnings, formatting and diff checks pass. User will verify CI; do not monitor it for this publication. Next suggested task: double-click a Hierarchy object to frame it (not yet requested for implementation).

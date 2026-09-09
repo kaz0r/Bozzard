@@ -93,6 +93,9 @@ struct App {
     drag: Option<viewport::Drag>,
     navigation_button: Option<egui::PointerButton>,
     mouse_captured: bool,
+    fly_latched: bool,
+    fly_tab_down: bool,
+    viewport_rect: Option<Rect>,
     smoke: Option<PathBuf>,
     smoke_passed: Arc<AtomicBool>,
     smoke_frames: u32,
@@ -163,6 +166,9 @@ impl App {
             drag: None,
             navigation_button: None,
             mouse_captured: false,
+            fly_latched: false,
+            fly_tab_down: false,
+            viewport_rect: None,
             smoke,
             smoke_passed,
             smoke_frames: 0,
@@ -617,6 +623,46 @@ impl App {
     }
 }
 impl eframe::App for App {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+        let pointer = input
+            .events
+            .iter()
+            .rev()
+            .find_map(|event| {
+                if let egui::Event::PointerMoved(pos) = event {
+                    Some(*pos)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| ctx.input(|i| i.pointer.hover_pos()));
+        let over_viewport = self
+            .viewport_rect
+            .zip(pointer)
+            .is_some_and(|(rect, pos)| rect.contains(pos));
+        let eligible = input.focused
+            && self.editor.play.is_none()
+            && !self.workspace.layer_2d
+            && self.loading.is_none()
+            && self.dialog.is_none()
+            && !self.confirm_discard
+            && self.drag.is_none()
+            && (self.fly_latched || (over_viewport && !ctx.egui_wants_keyboard_input()));
+        if viewport::filter_fly_tab(
+            input,
+            eligible,
+            &mut self.fly_latched,
+            &mut self.fly_tab_down,
+        ) {
+            self.navigation_button = None;
+            self.status = if self.fly_latched {
+                "Fly mode · Tab or Esc to release"
+            } else {
+                "Camera released"
+            }
+            .into();
+        }
+    }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.poll_loading();

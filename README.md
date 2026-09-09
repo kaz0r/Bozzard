@@ -173,4 +173,6 @@ Press **Escape** during a gizmo drag to restore its starting transform without a
 
 ### Framing the viewport
 
+For trackpads, hover the 3D viewport and press **Tab** to toggle fly mode. Look around without holding a button; WASD, Space/Ctrl and Shift use the same controls as RMB flight. Press **Tab** or **Escape** to release the cursor. Focus loss, Play, dialogs and switching to 2D also release fly mode. RMB navigation remains available.
+
 In Edit, use **Frame selected** (**F** over the viewport) to fit an object and its descendants, or **Frame all** (**Shift+F**) to fit drawable objects in the active layer. Imported mesh geometry and parent transforms are included. Selections without visible geometry center on their origin. Framing retains the 3D viewing direction and works in perspective and orthographic views; **Reset view** restores the authored camera view. It changes editor navigation only, without modifying scene cameras or Undo history. If geometry exceeds the authored camera's depth clipping range, the editor reports this instead of changing that camera.
