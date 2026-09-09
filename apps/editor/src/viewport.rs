@@ -173,7 +173,17 @@ pub fn filter_fly_tab(
 
 impl App {
     pub fn viewport(&mut self, ui: &mut egui::Ui) -> Result<()> {
-        let mut frame_request = None;
+        // Hierarchy is drawn first; consume its request once, using the current
+        // viewport dimensions and the same bounds/fitting path as F and toolbar.
+        let hierarchy_frame = std::mem::take(&mut self.hierarchy_frame_requested);
+        let mut frame_request = (hierarchy_frame
+            && ui.is_enabled()
+            && self.editor.play.is_none()
+            && self.drag.is_none()
+            && !self.mouse_captured
+            && self.dialog.is_none()
+            && !self.confirm_discard)
+            .then_some(true);
         ui.horizontal_wrapped(|ui| {
             ui.strong("Scene viewport");
             ui.separator();

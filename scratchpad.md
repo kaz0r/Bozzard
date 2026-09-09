@@ -307,3 +307,34 @@ The user explicitly requests continuous progress and next-step logging here. The
 - Manual testing found Tab cycled egui controls before viewport handling. Moved Tab interception to eframe's raw_input_hook, before egui focus processing, using the last viewport rectangle and current pointer position. Consume the complete key press/release and suppress repeats, preserving normal UI Tab outside eligible navigation. Regression tests cover swallowed events, release/re-entry and normal UI navigation. No mouse automation or publication.
 
 - User confirmed trackpad fly mode works perfectly and requested commit/push. All 13 editor tests, editor Clippy with denied warnings, formatting and diff checks pass. User will verify CI; do not monitor it for this publication. Next suggested task: double-click a Hierarchy object to frame it (not yet requested for implementation).
+
+## Ubuntu XKB failure report — checked
+
+- User supplied an X11 startup panic indicating libxkbcommon-x11 could not load. Current `.github/workflows/ci.yml` already installs `libxkbcommon-x11-0`; xkbcommon-dl 0.4.2 tries both the versioned `.so.0` and unversioned `.so`, so a development-package symlink is not required.
+- Checked current commit `72e6535`, CI run 34389954108: Ubuntu/Vulkan passed, including extracted player/editor window verification; macOS passed as well. Windows was still running at inspection. No code/workflow change or publication performed.
+- Next: obtain the failing run/job URL if this report concerns a different run or hardware runner; do not change the already-passing hosted Ubuntu dependency setup without identifying that environment. Hierarchy double-click framing remains the next proposed feature.
+
+## Hierarchy double-click framing — complete locally
+
+- User confirmed the Ubuntu error was from an older run and authorized the next implementation step.
+- Double-clicking a Hierarchy row selects it and requests the existing Frame Selection path, including descendants and current-layer filtering. Works in the normal tree and filtered search results. Requests are consumed once by the viewport, using its current dimensions; Play, active drags/capture, dialogs and disabled loading UI do not trigger framing. Authored cameras/history remain unchanged. Added row tooltip and README instructions.
+- Validation: all 33 editor-core/editor-app tests passed (including existing bounds and perspective/orthographic fitting regressions), editor-app all-target Clippy with denied warnings and diff checks passed; formatted the workspace. No native double-click interaction test performed.
+- User confirmed double-click framing works. Changes remain uncommitted/unpushed.
+- Next proposed convenience step: F2 / inline Hierarchy rename with Enter to apply, Escape to cancel, and one undoable change. Name editing already exists in the inspector; this would make it accessible directly from the Hierarchy. Subsequently authorized; see implementation checkpoint below.
+
+## Inline Hierarchy rename — implemented locally
+
+- Added F2 and a Rename button for selected objects in Edit mode. The inline text draft is separate from the document: Enter applies through the existing transaction API, Escape or focus loss discards it. Starting rename finishes any prior inspector gesture, clears the search, focuses and scrolls to the row. IDs stay unchanged.
+- Renaming suppresses document shortcuts and is cancelled by loading, Play, dialogs, camera capture or selection changes. README documents the controls.
+- Validation: all 33 existing editor-core/editor-app tests passed; editor-app all-target Clippy with denied warnings, formatting and diff checks passed. Native keyboard/focus interaction has not been manually verified; no new UI regression test or mouse automation performed.
+- Changes remain uncommitted/unpushed. Next: manually verify F2/Rename, Enter then Undo/Redo, Escape and click-away cancellation, including a filtered selection. After validation, consider hierarchy context-menu actions (rename/duplicate/delete/frame) as the next small convenience step.
+
+## Mac-friendly shortcuts and Hierarchy context menu — implemented locally
+
+- User requested an Apple-keyboard alternative while retaining F2, plus a right-click object menu with visible shortcut labels. Rename now also uses Cmd+Return (Ctrl+Enter elsewhere). Added Rename, Duplicate, Frame Selection and Delete menu actions, targeting the clicked row even if another object was selected.
+- Menu displays platform-specific shortcuts: Cmd+Return / F2, Cmd+D, Cmd+Shift+F, Cmd+Backspace / Delete on Mac; Ctrl equivalents and Delete elsewhere. Added global Edit-mode Cmd/Ctrl+Shift+F for selection framing and Mac Cmd+Backspace for deletion. Existing viewport F/Shift+F shortcuts remain intact. Typing, Play, loading/dialogs and captured navigation retain shortcut guards; menu operations reuse existing transactions and deletion safeguards.
+- Validation: all 33 existing editor-core/editor-app tests passed; editor-app all-target Clippy with denied warnings, formatting and diff checks passed. README updated. No native context-menu or shortcut interaction verification performed; no mouse automation, commit or push.
+- User confirmed the functionality works, but supplied a screenshot showing cramped menu spacing and a missing shortcut-symbol glyph. Replaced symbolic menu shortcuts with plain Cmd+Return / Cmd+D / Cmd+Shift+F / Cmd+Backspace labels, showing only the primary shortcut (F2/Delete remain supported). Added a 290-point minimum menu width and more vertical spacing. Formatting, editor-app all-target Clippy with denied warnings and diff checks pass. Updated visuals have not been inspected natively.
+- Implemented the agreed platform-primary menu labels: Mac shows Cmd+Return, Cmd+D, Cmd+Shift+F, Cmd+Backspace; Windows/Linux show F2, Ctrl+D, Ctrl+Shift+F, Delete. Existing compile-target OS detection handles this automatically; alternate keybindings remain unchanged. README updated. Formatting, editor-app all-target Clippy with denied warnings and diff checks passed; no native Windows/Linux visual verification.
+- User approved the result and authorized commit/push. Publishing Hierarchy double-click framing, inline rename, context-menu actions and platform-primary shortcut labels together. Final checks: all 33 editor-core/editor-app tests, editor-app all-target Clippy with denied warnings, formatting and diff checks passed.
+- Next: verify the publication's cross-platform CI. Next proposed implementation: drag-and-drop Hierarchy reparenting with world-transform preservation and Undo, including safe rejection of cycles or transforms that cannot be represented. Not yet authorized for implementation.

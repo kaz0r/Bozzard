@@ -75,6 +75,8 @@ struct App {
     workspace: Workspace,
     status: String,
     hierarchy_search: String,
+    hierarchy_frame_requested: bool,
+    hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
     loading: Option<loading::Loading>,
     import_queue: std::collections::VecDeque<PathBuf>,
@@ -148,6 +150,8 @@ impl App {
             workspace,
             status: "Ready · Select an object to begin".into(),
             hierarchy_search: String::new(),
+            hierarchy_frame_requested: false,
+            hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),
             loading: None,
             import_queue: std::collections::VecDeque::new(),
@@ -418,7 +422,27 @@ impl App {
             });
         });
     }
+    fn begin_hierarchy_rename(&mut self) {
+        if let Some(object) = self.editor.selected_object() {
+            self.hierarchy_rename = Some((object.id.clone(), object.name.clone(), true));
+            self.hierarchy_search.clear();
+            self.editor.finish_gesture();
+        }
+    }
+
     fn hierarchy(&mut self, ui: &mut egui::Ui) {
+        if self.loading.is_some()
+            || self.editor.play.is_some()
+            || self.dialog.is_some()
+            || self.confirm_discard
+            || self.mouse_captured
+            || self
+                .hierarchy_rename
+                .as_ref()
+                .is_some_and(|(id, _, _)| self.editor.selected.as_ref() != Some(id))
+        {
+            self.hierarchy_rename = None;
+        }
         egui::Panel::left("hierarchy")
             .default_size(225.0)
             .min_size(160.0)
@@ -463,6 +487,12 @@ impl App {
                         }
                     });
                 });
+                if ui.add_enabled(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && self.editor.selected_object().is_some(), egui::Button::new("Rename"))
+                    .on_hover_text("Rename selected object · F2 or Cmd/Ctrl+Enter · Enter applies, Escape cancels")
+                    .clicked()
+                {
+                    self.begin_hierarchy_rename();
+                }
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.add(
@@ -495,6 +525,33 @@ impl App {
                                 if query.is_empty() {
                                     ui.add_space((depth.min(12) * 12) as f32);
                                 }
+                                if let Some((id, name, focus)) = &mut self.hierarchy_rename
+                                    && id == &object.id
+                                {
+                                    let response = ui.add(egui::TextEdit::singleline(name)
+                                        .id_salt(("hierarchy-rename", id.as_str()))
+                                        .desired_width(ui.available_width()));
+                                    let first = std::mem::take(focus);
+                                    if first {
+                                        response.request_focus();
+                                        response.scroll_to_me(Some(egui::Align::Center));
+                                    }
+                                    let cancel = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                                    let apply = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+                                    if cancel || apply || (!first && response.lost_focus()) {
+                                        let (id, name, _) = self.hierarchy_rename.take().unwrap();
+                                        response.surrender_focus();
+                                        if apply && !cancel {
+                                            let mut scene = self.editor.scene().clone();
+                                            if let Some(target) = scene.objects.iter_mut().find(|o| o.id == id) {
+                                                target.name = name;
+                                                let result = self.editor.apply("Rename object", scene);
+                                                self.result(result);
+                                            }
+                                        }
+                                    }
+                                    return;
+                                }
                                 let kind = if object.camera.is_some() {
                                     "◉"
                                 } else if object.drawable.is_some() {
@@ -502,17 +559,57 @@ impl App {
                                 } else {
                                     "·"
                                 };
-                                if ui
+                                let response = ui
                                     .selectable_label(
                                         self.editor.selected.as_ref() == Some(&object.id),
                                         format!("{kind} {}", object.name),
                                     )
-                                    .on_hover_text(&object.id)
-                                    .clicked()
-                                {
+                                    .on_hover_text(format!("{} · Double-click to frame in Edit mode", object.id));
+                                if response.clicked() || response.double_clicked() || response.secondary_clicked() {
                                     self.editor.finish_gesture();
                                     self.editor.selected = Some(object.id.clone());
                                 }
+                                if response.double_clicked()
+                                    && self.editor.play.is_none()
+                                    && self.drag.is_none()
+                                    && !self.mouse_captured
+                                {
+                                    self.hierarchy_frame_requested = true;
+                                }
+                                response.context_menu(|ui| {
+                                    ui.set_min_width(290.0);
+                                    ui.spacing_mut().item_spacing.y = 6.0;
+                                    let mac = cfg!(target_os = "macos");
+                                    ui.add_enabled_ui(self.editor.play.is_none() && self.loading.is_none()
+                                        && self.drag.is_none() && !self.mouse_captured, |ui| {
+                                        if ui.add(egui::Button::new("Rename").shortcut_text(if mac { "Cmd+Return" } else { "F2" })).clicked() {
+                                            self.editor.selected = Some(object.id.clone());
+                                            self.begin_hierarchy_rename();
+                                            ui.close();
+                                        }
+                                        if ui.add(egui::Button::new("Duplicate").shortcut_text(if mac { "Cmd+D" } else { "Ctrl+D" })).clicked() {
+                                            self.editor.finish_gesture();
+                                            self.editor.selected = Some(object.id.clone());
+                                            let result = self.editor.duplicate();
+                                            if result.is_ok() { self.hierarchy_search.clear(); }
+                                            self.result(result);
+                                            ui.close();
+                                        }
+                                        if ui.add(egui::Button::new("Frame Selection").shortcut_text(if mac { "Cmd+Shift+F" } else { "Ctrl+Shift+F" })).clicked() {
+                                            self.editor.selected = Some(object.id.clone());
+                                            self.hierarchy_frame_requested = true;
+                                            ui.close();
+                                        }
+                                        ui.separator();
+                                        if ui.add(egui::Button::new("Delete").shortcut_text(if mac { "Cmd+Backspace" } else { "Delete" })).clicked() {
+                                            self.editor.finish_gesture();
+                                            self.editor.selected = Some(object.id.clone());
+                                            let result = self.editor.delete();
+                                            self.result(result);
+                                            ui.close();
+                                        }
+                                    });
+                                });
                             });
                         }
                         for child in scene
@@ -577,6 +674,20 @@ impl App {
         {
             return;
         }
+        if self.hierarchy_rename.is_some() {
+            return;
+        }
+        if self.editor.play.is_none()
+            && !self.mouse_captured
+            && !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::F2)
+                    || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter)
+            })
+        {
+            self.begin_hierarchy_rename();
+            return;
+        }
         if self.editor.play.is_some()
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
@@ -590,7 +701,15 @@ impl App {
         {
             self.save_scene(self.editor.path.clone());
         }
-        if !ctx.egui_wants_keyboard_input() && self.editor.play.is_none() {
+        if !ctx.egui_wants_keyboard_input() && self.editor.play.is_none() && !self.mouse_captured {
+            if ctx.input_mut(|i| {
+                i.consume_key(
+                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                    egui::Key::F,
+                )
+            }) {
+                self.hierarchy_frame_requested = self.editor.selected_object().is_some();
+            }
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
                 let r = self.editor.undo();
                 self.result(r);
@@ -614,7 +733,11 @@ impl App {
                 self.result(r);
             }
             if self.editor.selected_object().is_some()
-                && ctx.input(|i| i.key_pressed(egui::Key::Delete))
+                && ctx.input_mut(|i| {
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+                        || (cfg!(target_os = "macos")
+                            && i.consume_key(egui::Modifiers::COMMAND, egui::Key::Backspace))
+                })
             {
                 let r = self.editor.delete();
                 self.result(r);
