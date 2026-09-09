@@ -170,11 +170,12 @@ impl App {
             }
         });
         if self.editor.play.is_some() {
-            ui.weak("Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Space: jump when grounded");
+            ui.weak("Esc: stop simulation · Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Space: jump when grounded");
         } else {
             ui.weak("Drag rings/handles · Esc: cancel drag · Hover to highlight an axis · Right drag: look · Hold right + WASD: fly · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly (2D: zoom)");
         }
-        let can_navigate = self.editor.play.is_none()
+        let can_navigate = ui.is_enabled()
+            && self.editor.play.is_none()
             && ui.input(|i| i.focused && !i.key_pressed(egui::Key::Escape));
         if !can_navigate {
             self.navigation_button = None;
@@ -191,6 +192,23 @@ impl App {
             self.mouse_captured = false;
         }
         self.sync_assets()?;
+        if self
+            .editor
+            .assets
+            .entries()
+            .any(|entry| entry.data().is_none())
+        {
+            ui.centered_and_justified(|ui| {
+                ui.label(if self.editor.assets.entries().any(|entry| matches!(entry.state(), LoadState::Failed(_))) {
+                    "An asset could not load. See Assets for details; repair the file and reload."
+                } else if self.reload_paused {
+                    "Loading paused. Click Reload in Assets to continue."
+                } else {
+                    "Loading scene assets…"
+                });
+            });
+            return Ok(());
+        }
         let available = ui.available_size().max(Vec2::splat(1.0));
         let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
         if self.editor.play.is_none()
@@ -533,6 +551,9 @@ impl App {
         Ok(())
     }
     fn gizmo(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Mat4) -> Result<bool> {
+        if !ui.is_enabled() {
+            return Ok(false);
+        }
         if self.drag.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.editor.cancel_gesture()?;
             self.drag = None;

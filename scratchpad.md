@@ -274,3 +274,28 @@ The user explicitly requests continuous progress and next-step logging here. The
 - docs/assets.md and README describe supported formats and limits. Bozz portrait/dedication unchanged. Sample: cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/model-lab.json.
 - Still uncommitted/unpushed; no remote CI run for this feature. Next: user manual import/browser check, then publish when requested and verify Linux/Vulkan + Windows/DX12 CI. Future scope: asynchronous loading, full PBR, skeletal animation, mipmaps and more robust intersecting-transparency ordering. Current glTF importer is static; unsupported required extensions are rejected.
 - Historical correction: prior temporary-directory race fix was committed and pushed as a05f06b before this feature began.
+
+## Asynchronous asset loading — implementation and native verification
+
+- Model/browser feature was committed and pushed as d4e4cd9. User now requested asynchronous loading before trying Sponza; current changes are not authorized for publication yet.
+- Added bozzard-assets job worker with nonblocking polling, stage progress, cooperative cancellation and visible worker failure. Asset snapshots share immutable decoded data/source bytes through Arc. Editor initial catalog load, explicit Open/Import, save validation and periodic reload run in background; player hot reload uses the same mechanism (player/CLI startup remains synchronous).
+- Prepared imports own only their newly created project file until accepted; cancelled/stale/dropped results clean it up. Import acceptance preserves current object edits and checks catalog/path. Save acceptance validates document revision before atomic JSON write. Save-and-continue waits for success. Scene switches discard old refresh results. Cancelling reload pauses checks until Reload. File drops queue serially (32 total); cancellation/failure clears remaining queue.
+- History retains shared asset snapshots for catalog changes; Undo/Redo avoids decoding again. Save still validates corrupted sources before writing. Explicit jobs temporarily disable authoring controls; the window redraws with progress/cancel. GPU uploads remain on the render thread and can hitch for large assets.
+- Workspace CPU tests passed. Native acceptance caught an egui panel-wrapper layout regression; fixed by disabling controls within panels. Native Model Workshop pixel/editor check now passes. Extended the smoke workflow to exercise background save/open, queued imports and cancellation; running that flow now. Final Clippy/headless/full test checks pending after final integration.
+- GPT-5.6 Luna updated README and docs/assets.md; root owns code and scratchpad. No mouse movement/computer-use automation. No commit/push or remote CI run for this feature.
+
+## Asynchronous asset loading — ready for manual testing
+
+- Full workspace tests passed (including 11 asset and 20 editor-core tests), workspace Clippy with denied warnings passed, formatting/diff checks and headless dependency audit passed.
+- Extended native smoke now exercises actual App background Save/Open, serial queued imports, cancelled import publication, and existing authoring/physics/pixel checks. It caught a second bug: disabled inspector widgets could still mutate cloned component values, invalidating an in-flight save. Guarded document writes while disabled/in Play and only write tint when its control changes. Active gizmo/navigation input is suspended during foreground loading.
+- Native Metal extended smoke passed: work/async-editor-flow-smoke. Extracted debug package verification also passed from an empty working directory, including native model/material pixel tests, relocated scenes, headless saves and the extended editor workflow. No new dependency crates were needed.
+- Manual test: cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/model-lab.json. Import/drop one or multiple models/images; watch stages at the bottom, cancel a larger import, use Save/Open and Undo/Redo, and edit a texture externally while the scene remains interactive. Cancel reload pauses polling until Reload. Small files may finish before the progress UI is perceptible.
+- Remaining deliberate limits: a codec call completes before cancellation is observed; final GPU upload/atomic scene write stay on the UI/render thread. This is background CPU loading, not GPU streaming. Player startup and explicit CLI loading are synchronous. Next after user validation: publish when requested, verify cross-platform CI, then stress-test a compatible Sponza model to measure remaining upload/rendering bottlenecks. All current changes remain uncommitted.
+
+## Background-check status flicker
+
+- User reported a persistent “Reloaded soft-sprite” status alternating with other text. The status UI showed every automatic 500 ms check, even unchanged snapshots; the initial load left the final asset's reload message behind. Keep quick background checks quiet, show progress immediately for initial loading or after 500 ms for slow checks, and report initial completion as “Scene assets ready.” Group multiple successful reloads and retain errors rather than overwriting a failure with a later success in the same batch. No commit/push requested.
+
+## Escape stops simulation
+
+- User requested Escape to leave Play mode. Added the editor shortcut using the existing stop_play restoration path, with a completion status and viewport hint. Open dialogs/loading retain their existing shortcut priority; Edit-mode Escape still cancels gizmo dragging. No commit/push requested.

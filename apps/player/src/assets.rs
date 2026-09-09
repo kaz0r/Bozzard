@@ -10,6 +10,7 @@ use std::{
 pub struct Assets {
     store: AssetStore,
     last_poll: Instant,
+    reload: Option<bozzard_assets::job::Job<(AssetStore, Vec<bozzard_assets::Handle>)>>,
 }
 
 impl Assets {
@@ -24,6 +25,7 @@ impl Assets {
         Ok(Self {
             store,
             last_poll: Instant::now(),
+            reload: None,
         })
     }
 
@@ -37,11 +39,17 @@ impl Assets {
     }
 
     pub fn poll(&mut self, gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
-        if self.last_poll.elapsed() < Duration::from_millis(500) {
-            return Ok(());
+        if self.reload.is_none() && self.last_poll.elapsed() >= Duration::from_millis(500) {
+            self.reload = Some(self.store.refresh_job()?);
         }
+        let Some(result) = self.reload.as_ref().and_then(|job| job.poll()) else {
+            return Ok(());
+        };
+        self.reload = None;
         self.last_poll = Instant::now();
-        for handle in self.store.refresh() {
+        let (store, changed) = result?;
+        self.store = store;
+        for handle in changed {
             let entry = self
                 .store
                 .get(handle)

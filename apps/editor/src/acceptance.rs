@@ -101,14 +101,10 @@ impl App {
                 self.editor.redo()?;
                 self.editor.redo()?;
                 self.editor.selected = Some(id);
+                self.smoke_selection = self.editor.selected.clone();
                 let path = std::path::absolute(output.join("edited-scene.json"))?;
-                self.editor.save(&path)?;
-                let restored = Editor::open(&path)?;
-                ensure!(
-                    *restored.scene() == *self.editor.scene(),
-                    "editor save/load mismatch"
-                );
-                self.status="Editor acceptance: create · transform · undo/redo · play isolation · save/load passed".into();
+                self.save_scene(path);
+                ensure!(self.loading.is_some(), "background save did not start");
                 Ok(())
             })();
             if let Err(error) = result {
@@ -118,7 +114,70 @@ impl App {
                 return;
             }
         }
-        if self.smoke_frames >= 8 && !self.smoke_requested && !self.error {
+        if (4..=9).contains(&self.smoke_frames) {
+            let result = (|| -> Result<()> {
+                ensure!(!self.error, "background operation failed: {}", self.status);
+                match self.smoke_frames {
+                    4 => {
+                        ensure!(!self.editor.dirty(), "background save did not finish");
+                        self.smoke_expected = Some(self.editor.scene().clone());
+                        self.request(Pending::Open(self.editor.path.clone()));
+                        ensure!(self.loading.is_some(), "background open did not start");
+                    }
+                    5 => {
+                        ensure!(
+                            Some(self.editor.scene()) == self.smoke_expected.as_ref(),
+                            "background save/open mismatch"
+                        );
+                        self.editor.selected = self.smoke_selection.clone();
+                    }
+                    6 => {
+                        let source = std::path::absolute(output.join("async-palette.png"))?;
+                        std::fs::write(
+                            &source,
+                            include_bytes!("../../../examples/demo/scenes/assets/palette.png"),
+                        )?;
+                        self.start_import(source.clone());
+                        self.start_import(source);
+                        ensure!(
+                            self.loading.is_some() && self.import_queue.len() == 1,
+                            "bounded import queue did not start"
+                        );
+                    }
+                    7 => {
+                        ensure!(
+                            self.editor.scene().assets.len()
+                                == self.smoke_expected.as_ref().unwrap().assets.len() + 2,
+                            "queued imports did not publish"
+                        );
+                        self.smoke_expected = Some(self.editor.scene().clone());
+                    }
+                    8 => {
+                        self.start_import(std::path::absolute(output.join("async-palette.png"))?);
+                        self.loading
+                            .as_ref()
+                            .context("cancel test import missing")?
+                            .cancel();
+                    }
+                    9 => {
+                        ensure!(
+                            Some(self.editor.scene()) == self.smoke_expected.as_ref(),
+                            "cancelled import changed scene"
+                        );
+                        self.status = "Editor acceptance: background save/open · queued imports · cancellation · authored commands passed".into();
+                    }
+                    _ => {}
+                }
+                Ok(())
+            })();
+            if let Err(error) = result {
+                eprintln!("editor_smoke_failed: {error:#}");
+                self.allow_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                return;
+            }
+        }
+        if self.smoke_frames >= 12 && !self.smoke_requested && !self.error {
             self.smoke_requested = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
@@ -207,7 +266,7 @@ impl App {
                     Ok(()) => {
                         self.smoke_passed.store(true, Ordering::Relaxed);
                         println!(
-                            "editor_smoke_ok authored_commands play_isolation collision_response gravity_landing save_load native_ui_capture viewport_pixel_oracle"
+                            "editor_smoke_ok authored_commands play_isolation collision_response gravity_landing background_save_open queued_imports cancellation native_ui_capture viewport_pixel_oracle"
                         );
                     }
                     Err(error) => eprintln!("editor_smoke_failed: {error:#}"),

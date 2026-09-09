@@ -14,11 +14,14 @@ use std::{
 };
 
 mod framing;
+mod loading;
+pub use loading::{LoadedScene, PreparedImport, PreparedSave};
 
 const HISTORY_LIMIT: usize = 100;
 struct Change {
     label: String,
     scene: Scene,
+    assets: Option<AssetStore>,
 }
 
 pub struct Editor {
@@ -42,10 +45,18 @@ impl Editor {
     pub fn new(scene: Scene, path: &Path) -> Result<Self> {
         scene.validate()?;
         let assets = load_assets(&scene, path)?;
-        Ok(Self {
+        Ok(Self::from_loaded(scene, path.to_path_buf(), assets))
+    }
+    pub fn new_pending(scene: Scene, path: &Path) -> Result<Self> {
+        scene.validate()?;
+        let assets = AssetStore::new(root(path), &scene.assets)?;
+        Ok(Self::from_loaded(scene, path.to_path_buf(), assets))
+    }
+    fn from_loaded(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
+        Self {
             saved: scene.clone(),
             scene,
-            path: path.to_path_buf(),
+            path,
             selected: None,
             past: Vec::new(),
             future: Vec::new(),
@@ -54,7 +65,7 @@ impl Editor {
             assets,
             revision: 1,
             asset_revision: 1,
-        })
+        }
     }
     pub fn scene(&self) -> &Scene {
         &self.scene
@@ -86,13 +97,17 @@ impl Editor {
             self.gesture = Some(Change {
                 label: label.into(),
                 scene: self.scene.clone(),
+                assets: Some(self.assets.clone()),
             });
         }
     }
     pub fn finish_gesture(&mut self) {
-        if let Some(change) = self.gesture.take()
+        if let Some(mut change) = self.gesture.take()
             && change.scene != self.scene
         {
+            if change.scene.assets == self.scene.assets {
+                change.assets = None;
+            }
             self.record(change);
         }
     }
@@ -124,7 +139,7 @@ impl Editor {
         }
         // Catalog replacements validate all imports before publishing a new document.
         let assets = if scene.assets != self.scene.assets {
-            Some(load_assets(&scene, &self.path)?)
+            Some(self.cached_assets(&scene, &self.path)?)
         } else {
             None
         };
@@ -132,6 +147,7 @@ impl Editor {
             self.record(Change {
                 label: label.into(),
                 scene: self.scene.clone(),
+                assets: assets.as_ref().map(|_| self.assets.clone()),
             });
         }
         self.scene = scene;
@@ -151,16 +167,14 @@ impl Editor {
     pub fn undo(&mut self) -> Result<()> {
         ensure!(self.play.is_none(), "Stop Play before undo");
         self.finish_gesture();
-        if let Some(change) = self.past.last() {
-            let assets = if change.scene.assets != self.scene.assets {
-                Some(load_assets(&change.scene, &self.path)?)
-            } else {
-                None
-            };
-            let change = self.past.pop().unwrap();
+        if let Some(change) = self.past.pop() {
+            let assets = change
+                .assets
+                .filter(|_| change.scene.assets != self.scene.assets);
             self.future.push(Change {
                 label: change.label,
                 scene: std::mem::replace(&mut self.scene, change.scene),
+                assets: assets.as_ref().map(|_| self.assets.clone()),
             });
             if let Some(assets) = assets {
                 self.assets = assets;
@@ -174,16 +188,14 @@ impl Editor {
     pub fn redo(&mut self) -> Result<()> {
         ensure!(self.play.is_none(), "Stop Play before redo");
         self.finish_gesture();
-        if let Some(change) = self.future.last() {
-            let assets = if change.scene.assets != self.scene.assets {
-                Some(load_assets(&change.scene, &self.path)?)
-            } else {
-                None
-            };
-            let change = self.future.pop().unwrap();
+        if let Some(change) = self.future.pop() {
+            let assets = change
+                .assets
+                .filter(|_| change.scene.assets != self.scene.assets);
             self.past.push(Change {
                 label: change.label,
                 scene: std::mem::replace(&mut self.scene, change.scene),
+                assets: assets.as_ref().map(|_| self.assets.clone()),
             });
             if let Some(assets) = assets {
                 self.assets = assets;
@@ -399,6 +411,13 @@ impl Editor {
         self.apply("Remove unused asset", scene)
     }
     pub fn import(&mut self, source: &Path) -> Result<String> {
+        self.import_with(source, &bozzard_assets::job::Progress::default())
+    }
+    fn import_with(
+        &mut self,
+        source: &Path,
+        progress: &bozzard_assets::job::Progress,
+    ) -> Result<String> {
         ensure!(self.play.is_none(), "Stop Play before importing");
         let extension = source
             .extension()
@@ -410,6 +429,7 @@ impl Editor {
             "obj" | "gltf" | "glb" => AssetKind::Mesh,
             _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, or GLB"),
         };
+        progress.stage("Reading model and packing textures")?;
         let packed = if kind == AssetKind::Mesh {
             bozzard_assets::portable_model(source)?
         } else {
@@ -461,8 +481,9 @@ impl Editor {
             },
         )]);
         let mut candidate = AssetStore::new(source.parent().unwrap_or(Path::new(".")), &sources)?;
-        candidate.refresh();
+        candidate.refresh_with(progress)?;
         candidate.require_ready()?;
+        progress.stage("Copying asset into project")?;
         std::fs::create_dir_all(target.parent().unwrap())?;
         // create_new prevents overwriting an existing user asset.
         use std::io::Write;
@@ -478,6 +499,7 @@ impl Editor {
             destination.write_all(&bytes)?;
             destination.sync_all()?;
             drop(destination);
+            progress.stage("Validating project assets")?;
             let mut scene = self.scene.clone();
             scene.assets.insert(
                 id.clone(),

@@ -142,12 +142,7 @@ impl App {
                     Kind::Open => self.request(Pending::Open(path)),
                     Kind::Save => self.save_scene(path),
                     Kind::Import => {
-                        let r = self.editor.import(&path).map(|id| {
-                            self.status = format!("Imported {id}");
-                            self.asset_browser.reveal(id);
-                            self.workspace.assets_visible = true;
-                        });
-                        self.result(r);
+                        self.start_import(path);
                     }
                 },
             }
@@ -168,11 +163,10 @@ impl App {
                 ui.label("Save your changes before continuing?");
                 ui.horizontal(|ui| {
                     if ui.button("Save and continue").clicked() {
-                        let r = self.editor.save(&self.editor.path.clone());
-                        if r.is_ok() {
-                            self.perform_pending();
-                        } else {
-                            self.result(r);
+                        self.save_scene(self.editor.path.clone());
+                        if self.loading.is_some() {
+                            self.continue_after_save = true;
+                            self.confirm_discard = false;
                         }
                     }
                     if ui.button("Discard changes").clicked() {

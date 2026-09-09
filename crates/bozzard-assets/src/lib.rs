@@ -1,4 +1,5 @@
-//! Synchronous CPU imports and reload state. No GPU or window dependencies.
+//! CPU imports and background loading. No GPU or window dependencies.
+pub mod job;
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bozzard_scene::{AssetKind, AssetSource};
@@ -7,7 +8,10 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Cursor, Read},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 const MAX_SOURCE_BYTES: u64 = 32 * 1024 * 1024;
@@ -65,14 +69,15 @@ pub enum AssetData {
     Mesh(MeshData),
 }
 
+#[derive(Clone)]
 pub struct Entry {
     pub id: String,
     source: AssetSource,
     state: LoadState,
-    data: Option<AssetData>,
+    data: Option<Arc<AssetData>>,
     revision: u64,
     // Compare bytes, so same-size edits and coarse filesystem timestamps cannot hide changes.
-    observed: Option<SourceSnapshot>,
+    observed: Option<Arc<SourceSnapshot>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,13 +91,14 @@ impl Entry {
         &self.state
     }
     pub fn data(&self) -> Option<&AssetData> {
-        self.data.as_ref()
+        self.data.as_deref()
     }
     pub fn revision(&self) -> u64 {
         self.revision
     }
 }
 
+#[derive(Clone)]
 pub struct AssetStore {
     id: u64,
     root: PathBuf,
@@ -142,11 +148,64 @@ impl AssetStore {
         self.entries.iter()
     }
 
+    /// Reuse decoded data when catalog paths still resolve to the same file.
+    pub fn for_catalog(
+        &self,
+        root: &Path,
+        sources: &BTreeMap<String, AssetSource>,
+    ) -> Result<Self> {
+        let mut next = Self::new(root, sources)?;
+        for entry in &mut next.entries {
+            if let Some(old) = self.handle(&entry.id).and_then(|h| self.get(h)) {
+                let old_path = self.root.join(&old.source.path);
+                let new_path = root.join(&entry.source.path);
+                let same_path = old_path == new_path
+                    || std::fs::canonicalize(&old_path)
+                        .ok()
+                        .zip(std::fs::canonicalize(&new_path).ok())
+                        .is_some_and(|(a, b)| a == b);
+                if old.source.kind == entry.source.kind && same_path {
+                    let source = entry.source.clone();
+                    *entry = old.clone();
+                    entry.source = source;
+                }
+            }
+        }
+        Ok(next)
+    }
+
+    pub fn load_pending(&mut self) -> Result<()> {
+        let mut pending = Self::new(
+            &self.root,
+            &self
+                .entries
+                .iter()
+                .filter(|entry| entry.observed.is_none())
+                .map(|entry| (entry.id.clone(), entry.source.clone()))
+                .collect(),
+        )?;
+        pending.refresh();
+        pending.require_ready()?;
+        for entry in &mut self.entries {
+            if let Some(loaded) = pending.handle(&entry.id).and_then(|h| pending.get(h)) {
+                *entry = loaded.clone();
+            }
+        }
+        Ok(())
+    }
+
     /// Returns every changed state, including failures. A failed reload keeps data/revision intact.
     /// Call at a bounded interval, not every frame. Imports run on the calling thread for now.
     pub fn refresh(&mut self) -> Vec<Handle> {
+        self.refresh_with(&job::Progress::default())
+            .expect("uncancelled refresh")
+    }
+
+    pub fn refresh_with(&mut self, progress: &job::Progress) -> Result<Vec<Handle>> {
         let mut changed = Vec::new();
+        let total = self.entries.len();
         for (index, entry) in self.entries.iter_mut().enumerate() {
+            progress.stage(format!("Checking {} ({}/{total})", entry.id, index + 1))?;
             let path = self.root.join(&entry.source.path);
             let snapshot = source_snapshot(&path).map_err(|error| format!("{error:#}"));
             let snapshot = match snapshot {
@@ -156,17 +215,19 @@ impl AssetStore {
                     dependencies: Vec::new(),
                 },
             };
-            if entry.observed.as_ref() == Some(&snapshot) {
+            if entry.observed.as_deref() == Some(&snapshot) {
                 continue;
             }
+            progress.stage(format!("Decoding {} ({}/{total})", entry.id, index + 1))?;
             let loaded = match &snapshot.primary {
                 Ok(bytes) => import(entry.source.kind, &path, bytes, &snapshot),
                 Err(error) => Err(anyhow::anyhow!(error.clone())),
             };
-            entry.observed = Some(snapshot);
+            progress.check()?;
+            entry.observed = Some(Arc::new(snapshot));
             match loaded {
                 Ok(data) => {
-                    entry.data = Some(data);
+                    entry.data = Some(Arc::new(data));
                     entry.revision += 1;
                     entry.state = LoadState::Ready;
                 }
@@ -179,7 +240,16 @@ impl AssetStore {
                 index,
             });
         }
-        changed
+        Ok(changed)
+    }
+
+    /// The worker owns a cheap snapshot; callers publish only when their catalog still matches.
+    pub fn refresh_job(&self) -> Result<job::Job<(Self, Vec<Handle>)>> {
+        let mut store = self.clone();
+        job::Job::start("Checking assets", move |progress| {
+            let changed = store.refresh_with(&progress)?;
+            Ok((store, changed))
+        })
     }
 
     pub fn require_ready(&self) -> Result<()> {
@@ -1270,6 +1340,58 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn background_refresh_keeps_live_data_until_published_and_recovers() {
+        use std::time::{Duration, Instant};
+        let wait = |job: job::Job<(AssetStore, Vec<Handle>)>| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                if let Some(result) = job.poll() {
+                    break result.unwrap();
+                }
+                assert!(Instant::now() < deadline, "refresh timed out");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        };
+        let dir = Temp::new();
+        let sources = BTreeMap::from([(
+            "palette".into(),
+            AssetSource {
+                kind: AssetKind::Image,
+                path: "palette.png".into(),
+            },
+        )]);
+        std::fs::write(dir.0.join("palette.png"), PNG).unwrap();
+        let mut store = AssetStore::new(&dir.0, &sources).unwrap();
+        store.refresh();
+        let handle = store.handle("palette").unwrap();
+        let original = store.get(handle).unwrap().data().unwrap() as *const AssetData;
+        let (unchanged, changes) = wait(store.refresh_job().unwrap());
+        assert!(changes.is_empty());
+        assert_eq!(
+            unchanged.get(handle).unwrap().data().unwrap() as *const AssetData,
+            original
+        );
+        std::fs::write(dir.0.join("palette.png"), b"broken").unwrap();
+        let (failed, changes) = wait(store.refresh_job().unwrap());
+        assert_eq!(changes, vec![handle]);
+        assert_eq!(store.get(handle).unwrap().state(), &LoadState::Ready);
+        assert!(matches!(
+            failed.get(handle).unwrap().state(),
+            LoadState::Failed(_)
+        ));
+        assert_eq!(
+            failed.get(handle).unwrap().data().unwrap() as *const AssetData,
+            original
+        );
+        std::fs::write(dir.0.join("palette.png"), NEXT_PNG).unwrap();
+        let (recovered, changes) = wait(failed.refresh_job().unwrap());
+        assert_eq!(changes, vec![handle]);
+        assert_eq!(recovered.get(handle).unwrap().revision(), 2);
+        assert_eq!(store.get(handle).unwrap().revision(), 1);
+        recovered.require_ready().unwrap();
     }
 
     #[test]

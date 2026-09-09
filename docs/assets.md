@@ -30,11 +30,19 @@ Transparent surfaces are sorted by their centers and blended without writing dep
 
 ## Reload behavior
 
-The CPU store exposes private store-scoped handles, `Pending`/`Ready`/`Failed` states, last-good data, and a revision that advances only after a successful import. Loading is synchronous. Startup fails visibly if any catalog asset cannot load; there are no silent placeholder substitutions.
+The CPU store exposes private store-scoped handles, `Pending`/`Ready`/`Failed` states, last-good data, and a revision that advances only after a successful import. Player startup and command-line scene loading remain synchronous: the scene and its catalog are decoded and validated before the player starts, and startup fails visibly if any catalog asset cannot load. There are no silent placeholder substitutions. GPU uploads happen on the render thread after CPU loading completes.
+
+The native editor keeps its initial file open responsive after reading and validating the scene document: catalog loading runs in a bounded background job. Opening a scene and importing a dropped asset show progress stages and publish the result only when the main thread accepts it. Import progress can include preparing the import, reading and packing model resources, decoding, copying into the project, and validating project assets. Cancellation prevents an open result from being published; stale import or refresh results are discarded. A prepared import that is cancelled or fails delivery removes the newly created project file. The editor's periodic catalog refresh also runs in the background. The embedded default scene path still constructs its initial asset store synchronously.
+
+Editor saves also prepare and validate the rebased scene and catalog in a background job. The final atomic JSON write occurs on the UI thread only after preparation succeeds and the editor path and document revision are unchanged. Cancelling a save prevents publication. “Save and continue” waits for that same save job before completing the pending open, new-scene, or close action.
+
+Undo and redo retain the decoded asset store with history entries, so moving through editor history reuses cached data instead of rereading source files. Explicit open, import, and save jobs temporarily disable authoring controls. Hot reload keeps authoring available while its background job runs. Cancelling a job prevents publication, but the current codec/import call may finish before cancellation is observed; its result is then discarded.
+
+The player and editor check for source changes about every 500 ms. Their hot-reload jobs report checking and decoding stages, then publish CPU data before the render thread replaces the corresponding GPU resource. A reload failure keeps the last-good asset visible. Cancelling editor reload pauses automatic reload until **Reload** is clicked; the player has no reload-cancel control. Dropping a job also requests cancellation.
 
 The native player checks source contents every 500 ms, including while paused. A changed file or tracked glTF/OBJ dependency triggers import and GPU replacement. Corrupt/incomplete/deleted files produce a terminal diagnostic and leave the previous asset visible. Repairing the file reloads it without restarting. Content comparison detects equal-length edits and avoids relying on coarse file timestamps. Changing the catalog itself requires R to reload the scene; a failed scene reload preserves the old world and renderer.
 
-Polling retains source bytes and imports on the main thread, so large projects can stall. Async jobs, cancellation, file watchers, unloading and streaming remain extensions of this baseline. The finite headless server validates the catalog but does not decode or upload rendering assets.
+The finite headless server validates the catalog but does not decode or upload rendering assets. File watching, unloading, and streaming remain extensions of this baseline.
 
 ## Acceptance checks
 

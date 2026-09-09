@@ -7,6 +7,7 @@ impl App {
             .max_size(450.0)
             .resizable(true)
             .show(ui, |ui| {
+                if self.loading.is_some() { ui.disable(); }
                 ui.heading("Inspector");
                 let Some(original) = self.editor.selected_object().cloned() else {
                     ui.weak("Click an object in the viewport or select its name in the Hierarchy.");
@@ -111,7 +112,10 @@ impl App {
                                 });
                             ui.horizontal(|ui| {
                                 ui.label("Tint");
-                                ui.color_edit_button_rgb(&mut d.color);
+                                let mut color = d.color;
+                                if ui.color_edit_button_rgb(&mut color).changed() {
+                                    d.color = color;
+                                }
                             });
                             ui.horizontal(|ui| {
                                 ui.label("UV repeat");
@@ -290,7 +294,8 @@ impl App {
                     ui.weak(format!("Vertical speed: {:+.2} m/s", state.vertical_velocity))
                         .on_hover_text("Positive is upward; negative is downward.");
                 }
-                if object != original || scene.views != self.editor.scene().views {
+                if ui.is_enabled() && self.editor.play.is_none()
+                    && (object != original || scene.views != self.editor.scene().views) {
                     self.editor.begin_gesture("Edit component");
                     if let Some(slot) = scene.objects.iter_mut().find(|o| o.id == object.id) {
                         *slot = object;
