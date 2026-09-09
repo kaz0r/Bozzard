@@ -12,6 +12,8 @@ publish = false
 bozzard-assets = { path = "crates/bozzard-assets" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tobj = { version = "4.0.4", default-features = false }
+gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }
+base64 = "0.22"
 bozzard-ecs = { path = "crates/bozzard-ecs" }
 bozzard-app = { path = "crates/bozzard-app" }
 bozzard-render = { path = "crates/bozzard-render" }

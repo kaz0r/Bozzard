@@ -70,6 +70,23 @@ pub fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetDat
         AssetData::Image(image) => {
             renderer.upload_image(gpu, id, image.width, image.height, &image.rgba)
         }
-        AssetData::Mesh(mesh) => renderer.upload_mesh(gpu, id, &mesh.vertices, &mesh.indices),
+        AssetData::Mesh(mesh) => {
+            let parts: Vec<_> = mesh
+                .parts
+                .iter()
+                .map(|part| bozzard_render::ModelPart {
+                    start: part.start,
+                    count: part.count,
+                    color: part.color,
+                    alpha_cutoff: part.alpha_cutoff,
+                    image: part.image.as_ref().map(|image| bozzard_render::ModelImage {
+                        width: image.width,
+                        height: image.height,
+                        rgba: &image.rgba,
+                    }),
+                })
+                .collect();
+            renderer.upload_model(gpu, id, &mesh.vertices, &mesh.indices, &parts)
+        }
     }
 }

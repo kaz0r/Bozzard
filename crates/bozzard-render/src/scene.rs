@@ -1,7 +1,7 @@
 use crate::Gpu;
 use anyhow::{Context, Result, ensure};
-use glam::Mat4;
-use std::collections::BTreeMap;
+use glam::{Mat4, Vec3};
+use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
 
 #[derive(Clone, Debug)]
@@ -9,6 +9,7 @@ pub enum MeshKind {
     Quad,
     Cube,
     Imported(String),
+    ModelPart(String, usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -16,6 +17,7 @@ pub enum TextureKind {
     White,
     Checker,
     Imported(String),
+    ModelPart(String, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +42,34 @@ pub struct RenderScene {
     pub items: Vec<DrawItem>,
 }
 
+/// CPU-side material surface uploaded as part of a static model.
+pub struct ModelPart<'a> {
+    pub start: u32,
+    pub count: u32,
+    pub color: [f32; 4],
+    pub alpha_cutoff: Option<f32>,
+    pub image: Option<ModelImage<'a>>,
+}
+pub struct ModelImage<'a> {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: &'a [u8],
+}
+struct UploadedPart {
+    mesh: MeshBuffers,
+    texture: Option<wgpu::TextureView>,
+    color: [f32; 4],
+    cutoff: Option<f32>,
+    translucent: bool,
+    center: Vec3,
+}
+struct PreparedDraw {
+    object: DrawItem,
+    opacity: f32,
+    cutoff: f32,
+    transparent: bool,
+    depth: f32,
+}
 struct MeshBuffers {
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
@@ -59,6 +89,7 @@ struct DepthTarget {
 /// Opaque objects only. Imported images are sampled as sRGB; procedural colors are linear.
 pub struct SceneRenderer {
     pipeline: wgpu::RenderPipeline,
+    transparent_pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     quad: MeshBuffers,
     cube: MeshBuffers,
@@ -68,6 +99,8 @@ pub struct SceneRenderer {
     objects: Vec<ObjectBinding>,
     depth: Option<DepthTarget>,
     imported_meshes: BTreeMap<String, MeshBuffers>,
+    models: BTreeMap<String, Vec<UploadedPart>>,
+    transparent_textures: BTreeSet<String>,
     imported_textures: BTreeMap<String, wgpu::TextureView>,
 }
 
@@ -257,18 +290,22 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("scene.wgsl").into()),
             });
-        let pipeline = gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let make_pipeline = |transparent: bool| {
+            gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("scene pipeline"), layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(),
                 buffers: &[Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })] }),
+                targets: &[Some(wgpu::ColorTargetState { format, blend: transparent.then_some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })] }),
             primitive: Default::default(),
             depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Less),
+                depth_write_enabled: Some(!transparent), depth_compare: Some(wgpu::CompareFunction::Less),
                 stencil: Default::default(), bias: Default::default() }),
             multisample: Default::default(), multiview_mask: None, cache: None,
-        });
+        })
+        };
+        let pipeline = make_pipeline(false);
+        let transparent_pipeline = make_pipeline(true);
         let quad = mesh(
             gpu,
             &[
@@ -281,6 +318,7 @@ impl SceneRenderer {
         );
         Self {
             pipeline,
+            transparent_pipeline,
             layout,
             quad,
             cube: cube(gpu),
@@ -297,6 +335,8 @@ impl SceneRenderer {
             objects: Vec::new(),
             depth: None,
             imported_meshes: BTreeMap::new(),
+            models: BTreeMap::new(),
+            transparent_textures: BTreeSet::new(),
             imported_textures: BTreeMap::new(),
         }
     }
@@ -331,6 +371,12 @@ impl SceneRenderer {
         let texture = match key {
             TextureKind::White => &self.white,
             TextureKind::Checker => &self.checker,
+            TextureKind::ModelPart(id, index) => self
+                .models
+                .get(id)
+                .and_then(|parts| parts.get(*index))
+                .and_then(|part| part.texture.as_ref())
+                .context("model texture is not uploaded")?,
             TextureKind::Imported(id) => self
                 .imported_textures
                 .get(id)
@@ -348,6 +394,8 @@ impl SceneRenderer {
         self.objects.clear();
         self.imported_meshes.clear();
         self.imported_textures.clear();
+        self.models.clear();
+        self.transparent_textures.clear();
     }
 
     pub fn upload_mesh(
@@ -370,6 +418,8 @@ impl SceneRenderer {
                 && indices.iter().all(|i| (*i as usize) < vertices.len()),
             "invalid mesh data"
         );
+        self.models.remove(id);
+        self.objects.clear();
         self.imported_meshes
             .insert(id.into(), mesh(gpu, vertices, indices));
         Ok(())
@@ -421,6 +471,11 @@ impl SceneRenderer {
             },
             size,
         );
+        if rgba.chunks_exact(4).any(|pixel| pixel[3] < 255) {
+            self.transparent_textures.insert(id.into());
+        } else {
+            self.transparent_textures.remove(id);
+        }
         self.imported_textures
             .insert(id.into(), texture.create_view(&Default::default()));
         // Drop bind groups referring to old texture views; the next draw rebuilds them.
@@ -428,6 +483,185 @@ impl SceneRenderer {
         Ok(())
     }
 
+    /// Upload all model surfaces before replacing the prior GPU model.
+    pub fn upload_model(
+        &mut self,
+        gpu: &Gpu,
+        id: &str,
+        vertices: &[[f32; 8]],
+        indices: &[u32],
+        parts: &[ModelPart<'_>],
+    ) -> Result<()> {
+        if parts.is_empty() {
+            return self.upload_mesh(gpu, id, vertices, indices);
+        }
+        ensure!(
+            !vertices.is_empty()
+                && vertices.len() <= 1_000_000
+                && !indices.is_empty()
+                && indices.len() <= 3_000_000,
+            "invalid model size"
+        );
+        ensure!(
+            vertices.iter().flatten().all(|v| v.is_finite())
+                && indices.iter().all(|i| (*i as usize) < vertices.len()),
+            "invalid model geometry"
+        );
+        let shared = mesh(gpu, vertices, indices);
+        let mut uploaded = Vec::new();
+        for part in parts {
+            let start = part.start as usize;
+            let end = start
+                .checked_add(part.count as usize)
+                .context("model index range overflow")?;
+            ensure!(
+                part.count > 0 && part.count.is_multiple_of(3) && end <= indices.len(),
+                "invalid model surface range"
+            );
+            ensure!(
+                part.color
+                    .iter()
+                    .all(|c| c.is_finite() && (0.0..=1.0).contains(c))
+                    && part
+                        .alpha_cutoff
+                        .is_none_or(|a| a.is_finite() && (0.0..=1.0).contains(&a)),
+                "invalid model material"
+            );
+            let texture = if let Some(image) = &part.image {
+                ensure!(
+                    image.width > 0
+                        && image.height > 0
+                        && image.width <= 4096
+                        && image.height <= 4096
+                        && image.width <= gpu.device.limits().max_texture_dimension_2d
+                        && image.height <= gpu.device.limits().max_texture_dimension_2d
+                        && image.rgba.len() == image.width as usize * image.height as usize * 4,
+                    "invalid model image"
+                );
+                let size = wgpu::Extent3d {
+                    width: image.width,
+                    height: image.height,
+                    depth_or_array_layers: 1,
+                };
+                let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("model base color"),
+                    size,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+                gpu.queue.write_texture(
+                    texture.as_image_copy(),
+                    image.rgba,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(image.width * 4),
+                        rows_per_image: Some(image.height),
+                    },
+                    size,
+                );
+                Some(texture.create_view(&Default::default()))
+            } else {
+                None
+            };
+            let mut min = Vec3::splat(f32::INFINITY);
+            let mut max = Vec3::splat(f32::NEG_INFINITY);
+            for &index in &indices[start..end] {
+                let p = Vec3::from_slice(&vertices[index as usize][..3]);
+                min = min.min(p);
+                max = max.max(p);
+            }
+            uploaded.push(UploadedPart {
+                mesh: MeshBuffers {
+                    vertices: shared.vertices.clone(),
+                    indices: gpu
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("model surface indices"),
+                            contents: &indices[start..end]
+                                .iter()
+                                .flat_map(|i| i.to_le_bytes())
+                                .collect::<Vec<_>>(),
+                            usage: wgpu::BufferUsages::INDEX,
+                        }),
+                    count: part.count,
+                },
+                texture,
+                color: part.color,
+                cutoff: part.alpha_cutoff,
+                translucent: part.color[3] < 1.0
+                    || part
+                        .image
+                        .as_ref()
+                        .is_some_and(|image| image.rgba.chunks_exact(4).any(|p| p[3] < 255)),
+                center: min * 0.5 + max * 0.5,
+            });
+        }
+        self.imported_meshes.remove(id);
+        self.models.insert(id.into(), uploaded);
+        self.objects.clear();
+        Ok(())
+    }
+    fn prepare(&self, scene: &RenderScene) -> Vec<PreparedDraw> {
+        let mut draws = Vec::new();
+        let mut add = |object: DrawItem,
+                       opacity: f32,
+                       cutoff: Option<f32>,
+                       translucent: bool,
+                       center: Vec3| {
+            let depth = scene
+                .view_projection
+                .project_point3(object.model.transform_point3(center))
+                .z;
+            draws.push(PreparedDraw {
+                object,
+                opacity,
+                cutoff: cutoff.unwrap_or(0.0),
+                transparent: cutoff.is_none() && translucent,
+                depth,
+            });
+        };
+        for object in &scene.items {
+            if let MeshKind::Imported(id) = &object.mesh
+                && let Some(parts) = self.models.get(id)
+            {
+                for (index, part) in parts.iter().enumerate() {
+                    let mut item = object.clone();
+                    item.mesh = MeshKind::ModelPart(id.clone(), index);
+                    for (tint, color) in item.material.tint.iter_mut().zip(part.color) {
+                        *tint *= color;
+                    }
+                    let translucent = if item.material.texture == TextureKind::White {
+                        if part.texture.is_some() {
+                            item.material.texture = TextureKind::ModelPart(id.clone(), index);
+                        }
+                        part.translucent
+                    } else {
+                        part.color[3] < 1.0
+                            || matches!(&item.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
+                    };
+                    add(item, part.color[3], part.cutoff, translucent, part.center);
+                }
+            } else {
+                let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id));
+                add(object.clone(), 1.0, None, transparent, Vec3::ZERO);
+            }
+        }
+        // Opaque first; translucent surfaces back-to-front by projected center.
+        draws.sort_by(|a, b| {
+            a.transparent.cmp(&b.transparent).then_with(|| {
+                if a.transparent {
+                    b.depth.total_cmp(&a.depth)
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+        });
+        draws
+    }
     pub fn draw(
         &mut self,
         gpu: &Gpu,
@@ -464,13 +698,23 @@ impl SceneRenderer {
                 size,
             });
         }
-        self.objects.truncate(scene.items.len());
-        for (index, object) in scene.items.iter().enumerate() {
+        let draws = self.prepare(scene);
+        self.objects.truncate(draws.len());
+        for (index, draw) in draws.iter().enumerate() {
+            let object = &draw.object;
             if index == self.objects.len() {
                 self.objects
                     .push(self.object_binding(gpu, &object.material.texture)?);
             } else if self.objects[index].texture != object.material.texture {
                 self.objects[index] = self.object_binding(gpu, &object.material.texture)?;
+            }
+            if let MeshKind::ModelPart(id, index) = &object.mesh {
+                ensure!(
+                    self.models
+                        .get(id)
+                        .is_some_and(|parts| *index < parts.len()),
+                    "model surface is not uploaded"
+                );
             }
             if let MeshKind::Imported(id) = &object.mesh {
                 ensure!(
@@ -479,7 +723,8 @@ impl SceneRenderer {
                 );
             }
         }
-        for (object, binding) in scene.items.iter().zip(&self.objects) {
+        for (draw, binding) in draws.iter().zip(&self.objects) {
+            let object = &draw.object;
             let mvp = scene.view_projection * object.model;
             let normal = object.model.inverse().transpose();
             ensure!(
@@ -491,11 +736,11 @@ impl SceneRenderer {
                 material.tint[0],
                 material.tint[1],
                 material.tint[2],
-                1.0,
+                draw.opacity,
                 material.uv_scale[0],
                 material.uv_scale[1],
                 if material.lit { 1.0 } else { 0.0 },
-                0.0,
+                draw.cutoff,
             ];
             gpu.queue.write_buffer(
                 &binding.buffer,
@@ -540,12 +785,18 @@ impl SceneRenderer {
                 }),
                 ..Default::default()
             });
-            pass.set_pipeline(&self.pipeline);
-            for (object, binding) in scene.items.iter().zip(&self.objects) {
+            for (draw, binding) in draws.iter().zip(&self.objects) {
+                let object = &draw.object;
+                pass.set_pipeline(if draw.transparent {
+                    &self.transparent_pipeline
+                } else {
+                    &self.pipeline
+                });
                 let mesh = match &object.mesh {
                     MeshKind::Quad => &self.quad,
                     MeshKind::Cube => &self.cube,
                     MeshKind::Imported(id) => &self.imported_meshes[id],
+                    MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
                 };
                 pass.set_bind_group(0, &binding.binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(..));

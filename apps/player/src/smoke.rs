@@ -25,6 +25,124 @@ fn pixel(frame: &Frame, x: u32, y: u32, expected: [u8; 3]) -> Result<()> {
     Ok(())
 }
 
+fn model_material_checks(gpu: &Gpu) -> Result<()> {
+    use bozzard_render::{ModelImage, ModelPart};
+    let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let vertices = [
+        [-0.9, -0.8, 0.5, 0., 0., 1., 0., 1.],
+        [-0.1, -0.8, 0.5, 0., 0., 1., 1., 1.],
+        [-0.1, 0.8, 0.5, 0., 0., 1., 1., 0.],
+        [-0.9, 0.8, 0.5, 0., 0., 1., 0., 0.],
+        [0.1, -0.8, 0.5, 0., 0., 1., 0., 1.],
+        [0.9, -0.8, 0.5, 0., 0., 1., 1., 1.],
+        [0.9, 0.8, 0.5, 0., 0., 1., 1., 0.],
+        [0.1, 0.8, 0.5, 0., 0., 1., 0., 0.],
+    ];
+    let indices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
+    let green = [0, 255, 0, 255];
+    let parts = [
+        ModelPart {
+            start: 0,
+            count: 6,
+            color: [1., 0., 0., 1.],
+            alpha_cutoff: None,
+            image: None,
+        },
+        ModelPart {
+            start: 6,
+            count: 6,
+            color: [1.; 4],
+            alpha_cutoff: None,
+            image: Some(ModelImage {
+                width: 1,
+                height: 1,
+                rgba: &green,
+            }),
+        },
+    ];
+    renderer.upload_model(gpu, "multipart", &vertices, &indices, &parts)?;
+    let material = Material {
+        tint: [1.; 3],
+        uv_scale: [1.; 2],
+        texture: TextureKind::White,
+        lit: false,
+    };
+    let scene = RenderScene {
+        view_projection: Mat4::IDENTITY,
+        items: vec![DrawItem {
+            model: Mat4::IDENTITY,
+            mesh: MeshKind::Imported("multipart".into()),
+            material: material.clone(),
+        }],
+    };
+    let image = capture(gpu, &mut renderer, &scene, [64, 64])?;
+    pixel(&image, 16, 32, [255, 0, 0])?;
+    pixel(&image, 48, 32, [0, 255, 0])?;
+    let invalid = [ModelPart {
+        start: 0,
+        count: 999,
+        color: [1.; 4],
+        alpha_cutoff: None,
+        image: None,
+    }];
+    ensure!(
+        renderer
+            .upload_model(gpu, "multipart", &vertices, &indices, &invalid)
+            .is_err(),
+        "invalid model upload accepted"
+    );
+    ensure!(
+        capture(gpu, &mut renderer, &scene, [64, 64])?.rgba == image.rgba,
+        "failed model upload replaced last good model"
+    );
+    renderer.upload_image(gpu, "half-red", 1, 1, &[255, 0, 0, 128])?;
+    let alpha_scene = RenderScene {
+        view_projection: Mat4::IDENTITY,
+        items: vec![
+            DrawItem {
+                model: Mat4::from_translation(Vec3::new(0., 0., 0.2)),
+                mesh: MeshKind::Quad,
+                material: Material {
+                    texture: TextureKind::Imported("half-red".into()),
+                    ..material.clone()
+                },
+            },
+            DrawItem {
+                model: Mat4::from_translation(Vec3::new(0., 0., 0.8)),
+                mesh: MeshKind::Quad,
+                material: Material {
+                    tint: [0., 0., 1.],
+                    ..material.clone()
+                },
+            },
+        ],
+    };
+    pixel(
+        &capture(gpu, &mut renderer, &alpha_scene, [64, 64])?,
+        32,
+        32,
+        [128, 0, 127],
+    )?;
+    let masked = [ModelPart {
+        start: 0,
+        count: 12,
+        color: [1., 1., 1., 0.5],
+        alpha_cutoff: Some(0.75),
+        image: None,
+    }];
+    renderer.upload_model(gpu, "multipart", &vertices, &indices, &masked)?;
+    pixel(
+        &capture(gpu, &mut renderer, &scene, [64, 64])?,
+        16,
+        32,
+        [5, 6, 10],
+    )?;
+    println!(
+        "model_materials_ok multipart base_color_texture alpha_blend alpha_mask transactional_upload"
+    );
+    Ok(())
+}
+
 fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let projection = glam::camera::rh::proj::directx::orthographic(-2.0, 2.0, -1.5, 1.5, 0.1, 10.0);
@@ -283,6 +401,7 @@ pub fn run(options: &Options) -> Result<()> {
     if options.hardware {
         gpu.require_hardware()?;
     }
+    model_material_checks(&gpu)?;
     let renderer = TriangleRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let (mut app, entity) = demo();
     let first = render_offscreen(&gpu, &renderer, [0.0, 0.0])?;

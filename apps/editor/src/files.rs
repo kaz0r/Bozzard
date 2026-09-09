@@ -37,7 +37,7 @@ impl App {
         let title = match dialog.kind {
             Kind::Open => "Open scene",
             Kind::Save => "Save scene as",
-            Kind::Import => "Import asset",
+            Kind::Import => "Import image or model",
         };
         egui::Window::new(title)
             .collapsible(false)
@@ -78,9 +78,10 @@ impl App {
                                     .to_ascii_lowercase();
                                 let valid = folder
                                     || match dialog.kind {
-                                        Kind::Import => {
-                                            matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "obj")
-                                        }
+                                        Kind::Import => matches!(
+                                            ext.as_str(),
+                                            "png" | "jpg" | "jpeg" | "obj" | "gltf" | "glb"
+                                        ),
                                         _ => ext == "json",
                                     };
                                 if !valid {
@@ -143,6 +144,8 @@ impl App {
                     Kind::Import => {
                         let r = self.editor.import(&path).map(|id| {
                             self.status = format!("Imported {id}");
+                            self.asset_browser.reveal(id);
+                            self.workspace.assets_visible = true;
                         });
                         self.result(r);
                     }

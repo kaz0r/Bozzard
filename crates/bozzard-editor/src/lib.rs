@@ -299,6 +299,105 @@ impl Editor {
         self.revision += 1;
         Ok(())
     }
+    /// Instantiate a catalog entry in one undoable edit, preserving source material colors.
+    pub fn add_asset_to_scene(&mut self, asset_id: &str) -> Result<Layer> {
+        ensure!(self.play.is_none(), "Stop Play before adding assets");
+        let source = self
+            .scene
+            .assets
+            .get(asset_id)
+            .context("asset is no longer in the catalog")?;
+        let entry = self
+            .assets
+            .handle(asset_id)
+            .and_then(|h| self.assets.get(h))
+            .context("asset is not loaded")?;
+        ensure!(
+            matches!(entry.state(), bozzard_assets::LoadState::Ready),
+            "repair or reload this asset before adding it"
+        );
+        let (layer, mesh, texture) = match source.kind {
+            AssetKind::Mesh => (Layer::ThreeD, Mesh::Asset(asset_id.into()), Texture::White),
+            AssetKind::Image => (Layer::TwoD, Mesh::Quad, Texture::Asset(asset_id.into())),
+        };
+        let mut scene = self.scene.clone();
+        let id = unique_id(&scene, "object");
+        let mut transform = Transform::default();
+        if let Some(AssetData::Image(image)) = entry.data() {
+            transform.scale[0] = image.width as f32 / image.height as f32;
+        }
+        scene.objects.push(Object {
+            id: id.clone(),
+            name: asset_id.into(),
+            parent: None,
+            transform,
+            camera: None,
+            spin: None,
+            collider: None,
+            gravity: None,
+            drawable: Some(Drawable {
+                layer,
+                mesh,
+                texture,
+                color: [1.0; 3],
+                uv_scale: [1.0; 2],
+            }),
+        });
+        self.finish_gesture();
+        self.apply("Add asset to scene", scene)?;
+        self.selected = Some(id);
+        Ok(layer)
+    }
+    pub fn assign_asset_to_selected(&mut self, asset_id: &str) -> Result<()> {
+        let source = self
+            .scene
+            .assets
+            .get(asset_id)
+            .context("asset is no longer in the catalog")?;
+        let entry = self
+            .assets
+            .handle(asset_id)
+            .and_then(|h| self.assets.get(h))
+            .context("asset is not loaded")?;
+        ensure!(
+            matches!(entry.state(), bozzard_assets::LoadState::Ready),
+            "repair or reload this asset before assigning it"
+        );
+        let mut scene = self.scene.clone();
+        let object = scene
+            .objects
+            .iter_mut()
+            .find(|o| Some(&o.id) == self.selected.as_ref())
+            .context("select a drawable object")?;
+        let drawable = object
+            .drawable
+            .as_mut()
+            .context("selected object has no drawable")?;
+        match source.kind {
+            AssetKind::Mesh => drawable.mesh = Mesh::Asset(asset_id.into()),
+            AssetKind::Image => drawable.texture = Texture::Asset(asset_id.into()),
+        }
+        self.finish_gesture();
+        self.apply("Assign asset", scene)
+    }
+    /// Remove only an unused catalog entry; the source file stays on disk for Undo/reuse.
+    pub fn remove_asset(&mut self, asset_id: &str) -> Result<()> {
+        ensure!(
+            self.scene.assets.contains_key(asset_id),
+            "asset is no longer in the catalog"
+        );
+        ensure!(
+            !self.scene.objects.iter().any(|object| object
+                .drawable
+                .as_ref()
+                .is_some_and(|d| d.asset_dependencies().iter().any(|(id, _)| *id == asset_id))),
+            "asset is used by scene objects"
+        );
+        let mut scene = self.scene.clone();
+        scene.assets.remove(asset_id);
+        self.finish_gesture();
+        self.apply("Remove unused asset", scene)
+    }
     pub fn import(&mut self, source: &Path) -> Result<String> {
         ensure!(self.play.is_none(), "Stop Play before importing");
         let extension = source
@@ -308,8 +407,18 @@ impl Editor {
             .to_ascii_lowercase();
         let kind = match extension.as_str() {
             "png" | "jpg" | "jpeg" => AssetKind::Image,
-            "obj" => AssetKind::Mesh,
-            _ => anyhow::bail!("Choose PNG, JPEG, or OBJ"),
+            "obj" | "gltf" | "glb" => AssetKind::Mesh,
+            _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, or GLB"),
+        };
+        let packed = if kind == AssetKind::Mesh {
+            bozzard_assets::portable_model(source)?
+        } else {
+            None
+        };
+        let extension = if packed.is_some() {
+            "gltf".to_owned()
+        } else {
+            extension
         };
         let base = source
             .file_stem()
@@ -362,7 +471,11 @@ impl Editor {
             .create_new(true)
             .open(&target)?;
         let result = (|| -> Result<()> {
-            destination.write_all(&std::fs::read(source)?)?;
+            let bytes = match packed {
+                Some(bytes) => bytes,
+                None => std::fs::read(source)?,
+            };
+            destination.write_all(&bytes)?;
             destination.sync_all()?;
             drop(destination);
             let mut scene = self.scene.clone();
@@ -808,6 +921,106 @@ mod tests {
         assert!(e.redo_label().is_none());
         assert!(!e.dirty());
         assert_eq!(Editor::open(&other).unwrap().scene(), e.scene());
+    }
+    #[test]
+    fn model_imports_are_portable_and_asset_actions_are_undoable() {
+        let fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/assets");
+        for extension in ["gltf", "glb"] {
+            let dir = Temp::new();
+            let downloads = dir.0.join("downloads");
+            std::fs::create_dir_all(&downloads).unwrap();
+            for file in [
+                format!("courier.{extension}"),
+                "courier.bin".into(),
+                "courier-paint.png".into(),
+            ] {
+                std::fs::copy(fixture.join(&file), downloads.join(&file)).unwrap();
+            }
+            let mut e = Editor::new(
+                bozzard_demo::scene_document().unwrap(),
+                &dir.0.join("project/scene.json"),
+            )
+            .unwrap();
+            let asset = e
+                .import(&downloads.join(format!("courier.{extension}")))
+                .unwrap();
+            assert!(e.scene.assets[&asset].path.ends_with(".gltf"));
+            std::fs::remove_dir_all(downloads).unwrap();
+            e.assets.refresh();
+            e.assets.require_ready().unwrap();
+            let before = e.scene.clone();
+            assert_eq!(e.add_asset_to_scene(&asset).unwrap(), Layer::ThreeD);
+            assert_eq!(
+                e.selected_object()
+                    .unwrap()
+                    .drawable
+                    .as_ref()
+                    .unwrap()
+                    .color,
+                [1.0; 3]
+            );
+            assert!(e.remove_asset(&asset).is_err());
+            e.undo().unwrap();
+            assert_eq!(e.scene, before);
+            e.remove_asset(&asset).unwrap();
+            assert!(!e.scene.assets.contains_key(&asset));
+            e.undo().unwrap();
+            assert!(e.scene.assets.contains_key(&asset));
+            e.save(&dir.0.join("project/scene.json")).unwrap();
+            let reopened = Editor::open(&e.path).unwrap();
+            let mesh = reopened
+                .assets
+                .handle(&asset)
+                .and_then(|h| reopened.assets.get(h))
+                .and_then(|entry| entry.data())
+                .unwrap();
+            let AssetData::Mesh(mesh) = mesh else {
+                panic!("not mesh")
+            };
+            assert_eq!(mesh.parts.len(), 10);
+        }
+    }
+    #[test]
+    fn obj_material_import_keeps_textures_after_source_removal() {
+        let dir = Temp::new();
+        let source = dir.0.join("source");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join("color.png"), PNG).unwrap();
+        std::fs::write(
+            source.join("mesh.mtl"),
+            "newmtl paint\nKd 0.8 0.5 0.2\nmap_Kd color.png\n",
+        )
+        .unwrap();
+        std::fs::write(source.join("mesh.obj"), "mtllib mesh.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nusemtl paint\nf 1/1 2/2 3/3\n").unwrap();
+        let mut e = Editor::new(
+            bozzard_demo::scene_document().unwrap(),
+            &dir.0.join("project/scene.json"),
+        )
+        .unwrap();
+        let id = e.import(&source.join("mesh.obj")).unwrap();
+        std::fs::remove_dir_all(source).unwrap();
+        e.assets.refresh();
+        e.assets.require_ready().unwrap();
+        let AssetData::Mesh(mesh) = e
+            .assets
+            .get(e.assets.handle(&id).unwrap())
+            .unwrap()
+            .data()
+            .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(mesh.parts.len(), 1);
+        assert!(mesh.parts[0].image.is_some());
+        assert_eq!(mesh.parts[0].color, [0.8, 0.5, 0.2, 1.0]);
+        assert_eq!(mesh.vertices[0][7], 1.0);
+        e.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        e.assign_asset_to_selected(&id).unwrap();
+        assert_eq!(
+            e.selected_object().unwrap().drawable.as_ref().unwrap().mesh,
+            Mesh::Asset(id)
+        );
     }
     #[test]
     fn framing_uses_imported_mesh_vertices_in_world_space() {

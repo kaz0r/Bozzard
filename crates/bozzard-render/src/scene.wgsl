@@ -2,7 +2,7 @@ struct ObjectUniform {
     mvp: mat4x4<f32>,
     normal: mat4x4<f32>,
     tint: vec4<f32>,
-    parameters: vec4<f32>, // UV scale, lighting enabled, padding
+    parameters: vec4<f32>, // UV scale, lighting enabled, alpha cutoff
 };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;
@@ -25,8 +25,11 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @lo
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let base = textureSample(color_texture, color_sampler, in.uv).rgb * object.tint.rgb;
+    let texel = textureSample(color_texture, color_sampler, in.uv);
+    let alpha = texel.a * object.tint.a;
+    if alpha <= 0.00001 || alpha < object.parameters.w { discard; }
+    let base = texel.rgb * object.tint.rgb;
     let diffuse = 0.3 + 0.7 * max(dot(normalize(in.normal), normalize(vec3<f32>(0.4, 0.8, 0.6))), 0.0);
     let light = mix(1.0, diffuse, object.parameters.z);
-    return vec4<f32>(base * light, 1.0);
+    return vec4<f32>(base * light, alpha);
 }

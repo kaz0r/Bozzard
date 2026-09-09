@@ -68,7 +68,7 @@ def main():
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
-        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json"]:
+        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json"]:
             shutil.copy2(ROOT / "examples/demo/scenes" / scene, stage / scene)
         shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")
         (stage / "README.txt").write_text(
@@ -80,6 +80,7 @@ def main():
             "The default scene, shaders and procedural textures are embedded.\n"
             "Use --scene scene-lab.json to load the included editable copy.\n"
             "Use --scene asset-lab.json for imported PNG textures and OBJ meshes.\n"
+            "Open model-lab.json for textured glTF/GLB models, OBJ and transparent sprites.\n"
             "Open gravity-lab.json to try gravity, or response-lab.json for box movement against walls.\n"
             "File edits reload automatically; failed imports retain the last good asset.\n"
             "Requires the host OS graphics drivers and system runtime libraries.\n"
@@ -117,6 +118,9 @@ def main():
             saved = cwd / "saved-scene.json"
             run(server, "--scene", str(package / "asset-lab.json"), "--ticks", "120", "--save-scene", str(saved), cwd=cwd)
             run(player, "--scene", str(saved), "--smoke", "--output", str(ROOT / "work/package-smoke"), *graphics, cwd=cwd)
+            model_saved = cwd / "saved-model-scene.json"
+            run(server, "--scene", str(package / "model-lab.json"), "--ticks", "1", "--save-scene", str(model_saved), cwd=cwd)
+            run(player, "--scene", str(model_saved), "--smoke", "--output", str(ROOT / "work/model-package-smoke"), *graphics, cwd=cwd)
             if args.window:
                 run(player, "--scene", str(package / "asset-lab.json"), "--frames", "3", *graphics, cwd=cwd)
                 run(player, "--scene", str(package / "asset-lab.json"), "--view", "2d", "--frames", "3", *graphics, cwd=cwd)

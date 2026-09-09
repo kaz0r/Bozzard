@@ -1,7 +1,9 @@
 //! Native WebGPU renderer. No dependency on the ECS, simulation, or a window toolkit.
 pub use wgpu;
 mod scene;
-pub use scene::{DrawItem, Material, MeshKind, RenderScene, SceneRenderer, TextureKind};
+pub use scene::{
+    DrawItem, Material, MeshKind, ModelImage, ModelPart, RenderScene, SceneRenderer, TextureKind,
+};
 
 use anyhow::{Context, Result, ensure};
 use std::{io::Write, path::Path, sync::mpsc, time::Duration};

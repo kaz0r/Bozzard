@@ -15,6 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 mod acceptance;
+mod asset_browser;
 mod colliders;
 mod files;
 mod framing;
@@ -73,6 +74,7 @@ struct App {
     workspace: Workspace,
     status: String,
     hierarchy_search: String,
+    asset_browser: asset_browser::AssetBrowser,
     error: bool,
     last_frame: Instant,
     last_assets: Instant,
@@ -134,6 +136,7 @@ impl App {
             workspace,
             status: "Ready · Select an object to begin".into(),
             hierarchy_search: String::new(),
+            asset_browser: asset_browser::AssetBrowser::default(),
             error: false,
             last_frame: Instant::now(),
             last_assets: Instant::now(),
@@ -448,28 +451,38 @@ impl App {
         if !self.workspace.assets_visible {
             return;
         }
-        egui::Panel::bottom("assets").default_size(155.0).min_size(90.0).max_size(360.0).resizable(true).show(ui,|ui|{
-            ui.horizontal(|ui|{ui.heading("Assets");if ui.add_enabled(self.editor.play.is_none(),egui::Button::new("Import…")).clicked(){self.dialog=Some(files::Dialog::new(files::Kind::Import,&self.editor.path));}ui.weak("Drop PNG / JPEG / OBJ files here · imports are copied into this project");});
-            egui::ScrollArea::vertical().show(ui,|ui|{
-                let scene=self.editor.scene().clone();
-                for (id,source) in &scene.assets {
-                    ui.horizontal(|ui|{
-                        ui.label(format!("{:?}",source.kind));ui.strong(id);ui.weak(&source.path);
-                        if ui.add_enabled(self.editor.play.is_none()&&self.editor.selected_object().is_some_and(|o|o.drawable.is_some()),egui::Button::new("Assign to selected")).clicked(){
-                            let mut next=scene.clone();if let Some(object)=next.objects.iter_mut().find(|o|Some(&o.id)==self.editor.selected.as_ref())&&let Some(d)=&mut object.drawable{match source.kind{AssetKind::Image=>d.texture=Texture::Asset(id.clone()),AssetKind::Mesh=>d.mesh=Mesh::Asset(id.clone())}}
-                            let r=self.editor.apply("Assign asset",next);self.result(r);
-                        }
-                    });
+        egui::Panel::bottom("assets")
+            .default_size(260.0)
+            .min_size(180.0)
+            .max_size(520.0)
+            .resizable(true)
+            .show(ui, |ui| {
+                let output = self.asset_browser.ui(ui, &mut self.editor);
+                if output.import_requested {
+                    self.dialog = Some(files::Dialog::new(files::Kind::Import, &self.editor.path));
                 }
-                if scene.assets.is_empty(){ui.weak("No imported assets. Built-in cubes, sprites, and checker textures are ready to use.");}
+                if output.reload_requested {
+                    self.last_assets = Instant::now() - Duration::from_secs(1);
+                    let result = self.sync_assets();
+                    self.result(result);
+                }
+                if let Some(layer) = output.added_layer {
+                    self.workspace.layer_2d = layer == Layer::TwoD;
+                    self.hierarchy_search.clear();
+                }
+                if let Some(status) = output.status {
+                    self.status = status.message;
+                    self.error = status.error;
+                }
             });
-        });
     }
     fn shortcuts(&mut self, ctx: &egui::Context) {
         if self.dialog.is_some() || self.confirm_discard || self.drag.is_some() {
             return;
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
+        if !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S))
+        {
             self.save_scene(self.editor.path.clone());
         }
         if !ctx.egui_wants_keyboard_input() && self.editor.play.is_none() {
@@ -534,7 +547,11 @@ impl eframe::App for App {
                 if path.extension().is_some_and(|e| e == "json") {
                     self.request(Pending::Open(path));
                 } else {
-                    let r = self.editor.import(&path).map(|_| ());
+                    let r = self.editor.import(&path).map(|id| {
+                        self.status = format!("Imported {id}");
+                        self.asset_browser.reveal(id);
+                        self.workspace.assets_visible = true;
+                    });
                     self.result(r);
                 }
             }
@@ -573,7 +590,24 @@ impl eframe::App for App {
 fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetData) -> Result<()> {
     match data {
         AssetData::Image(i) => renderer.upload_image(gpu, id, i.width, i.height, &i.rgba),
-        AssetData::Mesh(m) => renderer.upload_mesh(gpu, id, &m.vertices, &m.indices),
+        AssetData::Mesh(m) => {
+            let parts: Vec<_> = m
+                .parts
+                .iter()
+                .map(|part| bozzard_render::ModelPart {
+                    start: part.start,
+                    count: part.count,
+                    color: part.color,
+                    alpha_cutoff: part.alpha_cutoff,
+                    image: part.image.as_ref().map(|image| bozzard_render::ModelImage {
+                        width: image.width,
+                        height: image.height,
+                        rgba: &image.rgba,
+                    }),
+                })
+                .collect();
+            renderer.upload_model(gpu, id, &m.vertices, &m.indices, &parts)
+        }
     }
 }
 
@@ -615,7 +649,7 @@ fn main() -> Result<()> {
             "--hardware" => hardware = true,
             "--help" => {
                 println!(
-                    "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nNative scene editor. Import PNG/JPEG/OBJ, edit objects, save, and use Play/Stop."
+                    "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nNative scene editor. Import PNG/JPEG/OBJ/glTF/GLB, edit objects, save, and use Play/Stop."
                 );
                 return Ok(());
             }

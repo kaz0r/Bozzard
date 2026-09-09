@@ -9,7 +9,7 @@
 
 A native 2D/3D game engine in Rust, with our own ECS and WebGPU rendering through `wgpu`. No Bevy dependencies.
 
-The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, scene save/load, and a first native editor. PNG/JPEG textures and OBJ meshes can be imported and reloaded while running. It is not yet a game exporter; physics, audio, and networking remain future milestones.
+The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, scene save/load, and a first native editor. PNG/JPEG textures and static OBJ/glTF/GLB models can be imported and reloaded while running, including base-color materials and transparency. It is not yet a game exporter; physics, audio, and networking remain future milestones.
 
 ## Run
 
@@ -24,6 +24,9 @@ cargo run -p bozzard-player -- --view 2d
 
 # Load the editable scene file rather than the embedded default.
 cargo run -p bozzard-player -- --scene examples/demo/scenes/scene-lab.json
+
+# Open the textured model workshop and asset browser.
+cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/model-lab.json
 
 # Load file-backed textures and meshes (edit the source assets to hot reload).
 cargo run -p bozzard-player -- --scene examples/demo/scenes/asset-lab.json
@@ -67,7 +70,7 @@ The headless executable runs finite ticks as fast as possible and exits. It does
 
 `bozzard-editor` is a native egui/wgpu shell over the same scene document and renderer. It edits the authored scene with validated commands: hierarchy with create/duplicate/delete of subtrees, an inspector for names, parents, transforms, cameras, spin, and drawable layers/meshes/textures/colors, and a GPU viewport with click selection plus move/rotate/scale axis handles. Rotation rings are draggable along their arcs, with one undo entry per gesture. Hover highlights the nearest axis with a warm outline; the captured axis stays emphasized throughout the drag. In 3D, right-drag captures the mouse for world-upright noclip look (release right mouse or press Escape to release); hold right mouse and WASD to fly forward/back/sideways, Space up / Ctrl down, and Shift to move faster. Middle-drag pans and scroll dollies forward/backward. In 2D, right/middle-drag pans and scroll zooms. Reset view restores the authored camera viewpoint; navigation never changes the scene document. The 2D/3D toggle switches the edited layer.
 
-Undo/redo is bounded to 100 changes and coalesces each drag into one entry. Play starts a separate simulated world; editing is disabled while it runs and Stop restores the untouched authored scene. Saving always writes the authored document, even during Play. Imports copy PNG/JPEG/OBJ files into an `assets/` folder next to the scene before adding them to the catalog, so projects stay relocatable; dropped files import (or open, for `.json`). Unsaved changes prompt before New/Open/close, and the workspace layout persists in the platform application-data directory. New scenes default to fresh filenames under `~/Documents/Bozzard Projects` (`%USERPROFILE%/Documents/Bozzard Projects` on Windows); use Save As to choose another location.
+Undo/redo is bounded to 100 changes and coalesces each drag into one entry. Play starts a separate simulated world; editing is disabled while it runs and Stop restores the untouched authored scene. Saving always writes the authored document, even during Play. The Assets panel offers previews, search, filters, and undoable add/assign/remove actions. Imports copy PNG/JPEG/OBJ/glTF/GLB files into an `assets/` folder next to the scene before adding them to the catalog, packing resource-bearing models into self-contained glTF so projects stay relocatable; dropped files import (or open, for `.json`). Unsaved changes prompt before New/Open/close, and the workspace layout persists in the platform application-data directory. New scenes default to fresh filenames under `~/Documents/Bozzard Projects` (`%USERPROFILE%/Documents/Bozzard Projects` on Windows); use Save As to choose another location.
 
 Shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+D duplicate, Delete removes the selected subtree. An active camera's subtree cannot be deleted.
 
@@ -90,7 +93,7 @@ Movement supports one collider at a time; movers carrying enabled child collider
 | `bozzard-ecs` | Generational entities, sparse-set storage, safe queries, resources, commands |
 | `bozzard-app` | Serial system scheduling, compiled-in plugins, fixed ticks, bounded catch-up |
 | `bozzard-scene` | Versioned JSON, persistent IDs, validated hierarchy, camera math, ECS instances, box overlap queries |
-| `bozzard-assets` | CPU image/OBJ imports, store-scoped handles, load states, last-good hot reload |
+| `bozzard-assets` | CPU image/OBJ/glTF/GLB imports, store-scoped handles, load states, last-good hot reload |
 | `bozzard-render` | Native WebGPU, indexed geometry, texture sampling, depth, GPU readback |
 | `bozzard-demo` | Embedded reference scene, movement/rotation systems, scene file helpers |
 | `bozzard-editor` | Validated document transactions, undo/redo, play isolation, imports, ray picking |
@@ -98,7 +101,7 @@ Movement supports one collider at a time; movers carrying enabled child collider
 | `bozzard-editor-app` | Native egui editor shell: hierarchy, inspector, assets, viewport gizmos |
 | `bozzard-server` | Graphics-free scene simulation and snapshots |
 
-Our crates forbid unsafe Rust. ECS/app use only the standard library. Scenes add `glam`, Serde, and JSON; the renderer never depends on the ECS or scene document crate. The player alone adds the image/OBJ importers; the server still has no image decoder, GPU, or window dependency. See [asset imports](docs/assets.md), [scene format](docs/scenes.md), [architecture](docs/architecture.md), and [milestones](docs/roadmap.md).
+Our crates forbid unsafe Rust. ECS/app use only the standard library. Scenes add `glam`, Serde, and JSON; the renderer never depends on the ECS or scene document crate. The player and editor add the image/model importers; the server still has no image decoder, GPU, or window dependency. See [asset imports](docs/assets.md), [scene format](docs/scenes.md), [architecture](docs/architecture.md), and [milestones](docs/roadmap.md).
 
 ## Verification
 
@@ -128,7 +131,7 @@ cargo build --release --locked -p bozzard-player -p bozzard-server -p bozzard-ed
 python3 tools/package.py --verify --window --editor-window
 ```
 
-This builds a host-native ZIP in `dist/`, including macOS `.app` bundles for the player and editor on macOS, editable built-in/imported scenes, and their PNG/OBJ files. `--editor-window` additionally runs the packaged editor smoke and captures its UI. Default scene data, shaders and procedural textures are embedded, so the executables can run without the source checkout. Verification extracts the ZIP, runs a headless imported-scene save, loads that snapshot in the GPU suite, and optionally presents both native views from an empty working directory.
+This builds a host-native ZIP in `dist/`, including macOS `.app` bundles for the player and editor on macOS, editable built-in/imported scenes, and their image and model files. `--editor-window` additionally runs the packaged editor smoke and captures its UI. Default scene data, shaders and procedural textures are embedded, so the executables can run without the source checkout. Verification extracts the ZIP, runs a headless imported-scene save, loads that snapshot in the GPU suite, and optionally presents both native views from an empty working directory.
 
 This is development demo packaging, not a general user-game export pipeline. OS runtimes and drivers remain prerequisites. Public distribution still needs license/notices, signing/notarization, installer choices, and minimum OS/runtime baselines.
 

@@ -1,0 +1,284 @@
+{
+  "version": 1,
+  "name": "Model Workshop",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "Camera 3D",
+      "transform": {
+        "translation": [
+          4,
+          3,
+          6
+        ],
+        "rotation_degrees": [
+          -22,
+          34,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.65,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          1,
+          12
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.3,
+          0.35,
+          0.4
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "courier-gltf",
+      "name": "Courier \u2014 glTF",
+      "transform": {
+        "translation": [
+          -1.4,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -15,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "courier-gltf"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "courier-glb",
+      "name": "Courier \u2014 GLB",
+      "transform": {
+        "translation": [
+          1.4,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          20,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "courier-glb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "obj",
+      "name": "OBJ reference",
+      "transform": {
+        "translation": [
+          0,
+          0.4,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          30,
+          0
+        ],
+        "scale": [
+          0.6,
+          0.6,
+          0.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "octahedron-obj"
+        },
+        "texture": {
+          "asset": "courier-paint"
+        },
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite",
+      "name": "Transparent sprite",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2,
+          2,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": {
+          "asset": "soft-sprite"
+        },
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "courier-gltf": {
+      "kind": "mesh",
+      "path": "assets/courier.gltf"
+    },
+    "courier-glb": {
+      "kind": "mesh",
+      "path": "assets/courier.glb"
+    },
+    "octahedron-obj": {
+      "kind": "mesh",
+      "path": "assets/octahedron.obj"
+    },
+    "courier-paint": {
+      "kind": "image",
+      "path": "assets/courier-paint.png"
+    },
+    "soft-sprite": {
+      "kind": "image",
+      "path": "assets/soft-sprite.png"
+    }
+  }
+}
