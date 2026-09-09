@@ -19,6 +19,7 @@ mod asset_browser;
 mod colliders;
 mod files;
 mod framing;
+mod hierarchy;
 mod inspector;
 mod loading;
 mod snapping;
@@ -75,6 +76,7 @@ struct App {
     workspace: Workspace,
     status: String,
     hierarchy_search: String,
+    hierarchy_state: hierarchy::HierarchyState,
     hierarchy_frame_requested: bool,
     hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
@@ -153,6 +155,7 @@ impl App {
             workspace,
             status: "Ready · Select an object to begin".into(),
             hierarchy_search: String::new(),
+            hierarchy_state: hierarchy::HierarchyState::default(),
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),
@@ -238,6 +241,7 @@ impl App {
                     scene.objects.retain(|o| o.camera.is_some());
                     let path = untitled_scene_path()?;
                     self.editor = Editor::new(scene, &path)?;
+                    self.hierarchy_state = hierarchy::HierarchyState::default();
                     self.refresh = None;
                     self.reload_paused = false;
                     self.workspace.camera = None;
@@ -430,6 +434,8 @@ impl App {
             self.hierarchy_rename = Some((object.id.clone(), object.name.clone(), true));
             self.hierarchy_search.clear();
             self.editor.finish_gesture();
+            self.hierarchy_state
+                .reveal(self.editor.scene(), self.editor.selected.as_deref());
         }
     }
 
@@ -509,6 +515,13 @@ impl App {
                 });
                 let query = self.hierarchy_search.trim().to_lowercase();
                 let scene = self.editor.scene().clone();
+                self.hierarchy_state.sync_selection(&scene, self.editor.selected.as_deref());
+                ui.add_enabled_ui(query.is_empty(), |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.small_button("Expand all").clicked() { self.hierarchy_state.expand_all(); }
+                        if ui.small_button("Collapse all").clicked() { self.hierarchy_state.collapse_all(&scene); }
+                    });
+                }).response.on_hover_text("Search includes descendants even in collapsed branches");
                 let mut stack: Vec<_> = scene
                     .objects
                     .iter()
@@ -541,6 +554,15 @@ impl App {
                             ui.horizontal(|ui| {
                                 if query.is_empty() {
                                     ui.add_space((depth.min(12) * 12) as f32);
+                                    if scene.objects.iter().any(|o| o.parent.as_deref() == Some(&object.id)) {
+                                        let collapsed = self.hierarchy_state.is_collapsed(&object.id);
+                                        if ui.add_sized([18.0, 18.0], egui::Button::new(if collapsed { "▶" } else { "▼" }).frame(false))
+                                            .on_hover_text(if collapsed { "Expand children" } else { "Collapse children" }).clicked() {
+                                            self.hierarchy_state.toggle(&object.id);
+                                        }
+                                    } else {
+                                        ui.add_space(18.0);
+                                    }
                                 }
                                 if let Some((id, name, focus)) = &mut self.hierarchy_rename
                                     && id == &object.id
@@ -646,6 +668,9 @@ impl App {
                                 });
                             });
                         }
+                        if !self.hierarchy_state.visit_children(&object.id, !query.is_empty()) {
+                            continue;
+                        }
                         for child in scene
                             .objects
                             .iter()
@@ -673,6 +698,7 @@ impl App {
                     let result = self.editor.reparent(&id, parent.as_deref());
                     if result.is_ok() {
                         self.editor.selected = Some(id);
+                        self.hierarchy_state.reveal(self.editor.scene(), self.editor.selected.as_deref());
                         self.status = "Parent updated · World transform preserved".into();
                         self.error = false;
                     }
