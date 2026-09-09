@@ -106,6 +106,9 @@ struct App {
     smoke_expected: Option<bozzard_scene::Scene>,
     smoke_selection: Option<String>,
 }
+#[derive(Clone)]
+struct HierarchyDrag(String);
+
 enum Pending {
     Open(PathBuf),
     New,
@@ -514,6 +517,20 @@ impl App {
                     .map(|o| (o, 0usize))
                     .collect();
                 let mut matches = 0usize;
+                let can_reparent = ui.is_enabled() && self.editor.play.is_none()
+                    && self.drag.is_none() && !self.mouse_captured
+                    && self.hierarchy_rename.is_none() && self.dialog.is_none() && !self.confirm_discard;
+                let mut reparent_request: Option<(String, Option<String>)> = None;
+                if can_reparent {
+                    let root = ui.label("Scene root · drop here to unparent")
+                        .on_hover_text("Preserves world transform · Undo to restore parent");
+                    if root.dnd_hover_payload::<HierarchyDrag>().is_some() {
+                        ui.painter().rect_stroke(root.rect, 2.0, egui::Stroke::new(1.5, Color32::LIGHT_BLUE), egui::StrokeKind::Inside);
+                    }
+                    if let Some(id) = root.dnd_release_payload::<HierarchyDrag>() {
+                        reparent_request = Some((id.0.clone(), None));
+                    }
+                }
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     while let Some((object, depth)) = stack.pop() {
                         if query.is_empty()
@@ -564,7 +581,17 @@ impl App {
                                         self.editor.selected.as_ref() == Some(&object.id),
                                         format!("{kind} {}", object.name),
                                     )
-                                    .on_hover_text(format!("{} · Double-click to frame in Edit mode", object.id));
+                                    .interact(if can_reparent { Sense::click_and_drag() } else { Sense::click() })
+                                    .on_hover_text(format!("{} · Double-click to frame · Drag onto an object to reparent", object.id));
+                                if can_reparent {
+                                    response.dnd_set_drag_payload(HierarchyDrag(object.id.clone()));
+                                    if response.dnd_hover_payload::<HierarchyDrag>().is_some() {
+                                        ui.painter().rect_stroke(response.rect, 2.0, egui::Stroke::new(1.5, Color32::LIGHT_BLUE), egui::StrokeKind::Inside);
+                                    }
+                                    if let Some(id) = response.dnd_release_payload::<HierarchyDrag>() {
+                                        reparent_request = Some((id.0.clone(), Some(object.id.clone())));
+                                    }
+                                }
                                 if response.clicked() || response.double_clicked() || response.secondary_clicked() {
                                     self.editor.finish_gesture();
                                     self.editor.selected = Some(object.id.clone());
@@ -600,6 +627,13 @@ impl App {
                                             self.hierarchy_frame_requested = true;
                                             ui.close();
                                         }
+                                        if ui.add_enabled(object.parent.is_some(), egui::Button::new("Unparent"))
+                                            .on_hover_text("Move to Scene root, preserving world transform · Undo to restore")
+                                            .clicked()
+                                        {
+                                            reparent_request = Some((object.id.clone(), None));
+                                            ui.close();
+                                        }
                                         ui.separator();
                                         if ui.add(egui::Button::new("Delete").shortcut_text(if mac { "Cmd+Backspace" } else { "Delete" })).clicked() {
                                             self.editor.finish_gesture();
@@ -622,6 +656,28 @@ impl App {
                         }
                     }
                 });
+                // Use only the blank region below the rows, never the row gaps
+                // or toolbar, so dropping near a child cannot accidentally unparent it.
+                if can_reparent {
+                    let size = Vec2::new(ui.available_width(), (ui.available_height() - 26.0).max(0.0));
+                    let (_, blank) = ui.allocate_exact_size(size, Sense::hover());
+                    if blank.dnd_hover_payload::<HierarchyDrag>().is_some() {
+                        ui.painter().rect_stroke(blank.rect, 2.0, egui::Stroke::new(1.5, Color32::LIGHT_BLUE), egui::StrokeKind::Inside);
+                        ui.painter().text(blank.rect.center(), egui::Align2::CENTER_CENTER, "Drop to unparent", egui::FontId::proportional(12.0), Color32::LIGHT_BLUE);
+                    }
+                    if let Some(id) = blank.dnd_release_payload::<HierarchyDrag>() {
+                        reparent_request = Some((id.0.clone(), None));
+                    }
+                }
+                if let Some((id, parent)) = reparent_request {
+                    let result = self.editor.reparent(&id, parent.as_deref());
+                    if result.is_ok() {
+                        self.editor.selected = Some(id);
+                        self.status = "Parent updated · World transform preserved".into();
+                        self.error = false;
+                    }
+                    self.result(result);
+                }
                 if matches == 0 {
                     ui.weak(if query.is_empty() {
                         "Scene is empty. Add a Cube or Sprite above."

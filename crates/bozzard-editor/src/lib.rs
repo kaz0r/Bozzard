@@ -14,6 +14,7 @@ use std::{
 };
 
 mod framing;
+mod hierarchy;
 mod loading;
 pub use loading::{LoadedScene, PreparedImport, PreparedSave};
 
