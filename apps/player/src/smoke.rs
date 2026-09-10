@@ -4,6 +4,7 @@ use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
 mod pbr;
+mod shadows;
 mod upload;
 
 fn capture(
@@ -526,6 +527,23 @@ fn check_document(
         let aspect = size[0] as f32 / size[1] as f32;
         let initial = capture(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
+        if layer == Layer::ThreeD && document.lighting.shadows {
+            let mut without = extract(&demo, layer, aspect)?;
+            without.lighting.shadows = false;
+            let unshadowed = capture(gpu, renderer, &without, size)?;
+            unshadowed.write_ppm(
+                &options
+                    .output
+                    .join(format!("{prefix}-{label}-no-shadows.ppm")),
+            )?;
+            let affected = initial
+                .rgba
+                .chunks_exact(4)
+                .zip(unshadowed.rgba.chunks_exact(4))
+                .filter(|(a, b)| (0..3).any(|i| a[i].abs_diff(b[i]) > 3))
+                .count();
+            println!("scene_shadow_comparison scene={prefix} changed_pixels={affected}");
+        }
         for _ in 0..120 {
             demo.app.step();
         }
@@ -558,6 +576,7 @@ pub fn run(options: &Options) -> Result<()> {
     }
     model_material_checks(&gpu)?;
     pbr::checks(&gpu)?;
+    shadows::checks(&gpu)?;
     upload::checks(&gpu)?;
     let renderer = TriangleRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let (mut app, entity) = demo();

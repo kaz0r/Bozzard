@@ -234,6 +234,7 @@ impl UploadContext {
                 )?;
                 if parts.is_empty() {
                     Target::Mesh(MeshBuffers {
+                        bounds: bounds(vertices, indices),
                         vertices: shared,
                         indices: buffer(
                             indices.len(),
@@ -324,6 +325,7 @@ impl UploadContext {
                         }
                         uploaded.push(UploadedPart {
                             mesh: MeshBuffers {
+                                bounds: [min, max],
                                 vertices: shared.clone(),
                                 indices: buffer(
                                     part.count as usize,

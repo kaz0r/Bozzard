@@ -403,6 +403,34 @@ impl App {
                         .range(0.0..=100000.0)
                         .prefix("Ambient intensity "),
                 );
+                ui.checkbox(&mut light.shadows, "Sun shadows");
+                egui::ComboBox::from_id_salt("shadow-resolution")
+                    .selected_text(format!("{} px", light.shadow_resolution))
+                    .show_ui(ui, |ui| {
+                        for resolution in [512, 1024, 2048, 4096] {
+                            ui.selectable_value(
+                                &mut light.shadow_resolution,
+                                resolution,
+                                format!("{resolution} px"),
+                            );
+                        }
+                    });
+                ui.add(
+                    egui::DragValue::new(&mut light.shadow_bias)
+                        .speed(0.001)
+                        .range(0.0..=1.0)
+                        .prefix("Depth bias "),
+                )
+                .on_hover_text(
+                    "World units. Increase only enough to remove surface shadow speckling.",
+                );
+                ui.add(
+                    egui::DragValue::new(&mut light.shadow_normal_bias)
+                        .speed(0.001)
+                        .range(0.0..=1.0)
+                        .prefix("Normal bias "),
+                )
+                .on_hover_text("World units. Large values can detach shadows from objects.");
                 if ui.button("Reset lighting").clicked() {
                     *light = Default::default();
                 }

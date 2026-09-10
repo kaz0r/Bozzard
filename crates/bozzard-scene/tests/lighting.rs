@@ -24,6 +24,23 @@ fn lighting_defaults_roundtrip_and_validation() {
         invalid.lighting.ambient_intensity = intensity;
         assert!(invalid.validate().is_err());
     }
+    for resolution in [0, 255, 1000, 8192] {
+        let mut invalid = scene.clone();
+        invalid.lighting.shadow_resolution = resolution;
+        assert!(invalid.validate().is_err());
+    }
+    for bias in [-0.01, f32::NAN, 1.01] {
+        let mut invalid = scene.clone();
+        invalid.lighting.shadow_bias = bias;
+        assert!(invalid.validate().is_err());
+        invalid = scene.clone();
+        invalid.lighting.shadow_normal_bias = bias;
+        assert!(invalid.validate().is_err());
+    }
+    scene.lighting.shadows = false;
+    scene.lighting.shadow_resolution = 4096;
+    scene.lighting.shadow_bias = 0.02;
+    assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
     scene.lighting.sun_color = [2.; 3];
     assert!(scene.validate().is_err());
 }

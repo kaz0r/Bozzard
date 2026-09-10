@@ -78,7 +78,9 @@ struct VertexOutput {
     let f0 = mix(vec3<f32>(0.04),base,metallic);
     let fresnel = f0 + (1.0-f0)*pow(1.0-vh,5.0);
     let diffuse = (1.0-fresnel)*(1.0-metallic)*base/3.14159265;
-    let direct = (diffuse + distribution*visibility*fresnel)*nl*object.sun.w*object.sun_color.rgb;
+    let shadow_normal = normalize(in.normal) * select(-1.0, 1.0, facing);
+    let visibility_sun = sun_visibility(in.world, shadow_normal);
+    let direct = (diffuse + distribution*visibility*fresnel)*nl*object.sun.w*object.sun_color.rgb*visibility_sun;
     let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao;
     return vec4<f32>(direct+indirect+emissive,alpha);
 }

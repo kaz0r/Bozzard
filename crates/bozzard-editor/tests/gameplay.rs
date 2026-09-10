@@ -97,6 +97,8 @@ fn authored_lighting_survives_undo_play_and_scene_roundtrip() {
     let original = editor.scene().clone();
     let mut changed = original.clone();
     changed.lighting.sun_intensity = 8.;
+    changed.lighting.shadow_resolution = 4096;
+    changed.lighting.shadow_bias = 0.02;
     changed.lighting.sun_direction = [-1., 1., 0.];
     changed.lighting.ambient_color = [0.2, 0.4, 0.8];
     editor.apply("Lighting", changed.clone()).unwrap();

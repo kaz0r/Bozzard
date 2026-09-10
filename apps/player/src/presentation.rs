@@ -8,6 +8,10 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
         lighting: bozzard_render::Lighting {
+            shadows: view.lighting.shadows,
+            shadow_resolution: view.lighting.shadow_resolution,
+            shadow_bias: view.lighting.shadow_bias,
+            shadow_normal_bias: view.lighting.shadow_normal_bias,
             sun_direction: view.lighting.sun_direction,
             sun_color: view.lighting.sun_color,
             sun_intensity: view.lighting.sun_intensity,

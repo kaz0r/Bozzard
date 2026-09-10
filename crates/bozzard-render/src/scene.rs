@@ -4,6 +4,7 @@ use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
 mod lighting;
+mod shadows;
 mod upload;
 pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
@@ -92,6 +93,7 @@ struct PreparedDraw {
     depth: f32,
 }
 struct MeshBuffers {
+    bounds: [Vec3; 2],
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
     count: u32,
@@ -110,6 +112,7 @@ struct DepthTarget {
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
 /// Opaque objects only. Imported images are sampled as sRGB; procedural colors are linear.
 pub struct SceneRenderer {
+    shadows: shadows::Shadows,
     pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
@@ -135,8 +138,19 @@ pub(crate) fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
     values.into_iter().flat_map(f32::to_le_bytes).collect()
 }
 
+fn bounds(vertices: &[[f32; 8]], indices: &[u32]) -> [Vec3; 2] {
+    indices.iter().fold(
+        [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)],
+        |[min, max], i| {
+            let p = Vec3::from_slice(&vertices[*i as usize][..3]);
+            [min.min(p), max.max(p)]
+        },
+    )
+}
+
 fn mesh(gpu: &Gpu, vertices: &[[f32; 8]], indices: &[u32]) -> MeshBuffers {
     MeshBuffers {
+        bounds: bounds(vertices, indices),
         vertices: gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -305,18 +319,26 @@ impl SceneRenderer {
                     },
                 ],
             });
+        let shadows = shadows::Shadows::new(gpu, &layout);
         let pipeline_layout = gpu
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("scene pipeline layout"),
-                bind_group_layouts: &[Some(&layout)],
+                bind_group_layouts: &[Some(&layout), None, Some(&shadows.sample_layout)],
                 immediate_size: 0,
             });
         let shader = gpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("scene shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("scene.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(
+                    format!(
+                        "{}\n{}",
+                        include_str!("scene/shadow_sample.wgsl"),
+                        include_str!("scene.wgsl")
+                    )
+                    .into(),
+                ),
             });
         let make_pipeline = |transparent: bool| {
             gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -334,7 +356,7 @@ impl SceneRenderer {
         };
         let pipeline = make_pipeline(false);
         let transparent_pipeline = make_pipeline(true);
-        let pbr = crate::pbr::PbrRenderer::new(gpu, format, &layout);
+        let pbr = crate::pbr::PbrRenderer::new(gpu, format, &layout, &shadows.sample_layout);
         let quad = mesh(
             gpu,
             &[
@@ -346,6 +368,7 @@ impl SceneRenderer {
             &[0, 1, 2, 0, 2, 3],
         );
         Self {
+            shadows,
             pbr,
             pipeline,
             transparent_pipeline,
@@ -749,6 +772,7 @@ impl SceneRenderer {
             }
             uploaded.push(UploadedPart {
                 mesh: MeshBuffers {
+                    bounds: [min, max],
                     vertices: shared.vertices.clone(),
                     indices: gpu
                         .device
@@ -989,17 +1013,23 @@ impl SceneRenderer {
                             size[0] as f32,
                             size[1] as f32,
                             object.model.determinant().signum(),
-                            0.,
+                            if self.shading(&object.mesh).is_none_or(|s| s.double_sided) {
+                                1.
+                            } else {
+                                0.
+                            },
                         ])
                         .chain(scene.lighting.uniform()),
                 ),
             );
         }
+        self.update_shadows(gpu, scene, &draws)?;
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("scene frame"),
             });
+        self.draw_shadows(&mut encoder, scene, &draws);
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
@@ -1046,6 +1076,7 @@ impl SceneRenderer {
                     MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
                 };
                 pass.set_bind_group(0, &binding.binding, &[]);
+                pass.set_bind_group(2, &self.shadows.sample_binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
                 if let Some(shading) = shading {
                     pass.set_bind_group(1, &shading.binding, &[]);

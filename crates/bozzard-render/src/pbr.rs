@@ -50,6 +50,7 @@ impl ModelShading<'_> {
 }
 
 pub(crate) struct UploadedShading {
+    pub double_sided: bool,
     pub vertices: wgpu::Buffer,
     pub binding: wgpu::BindGroup,
 }
@@ -68,6 +69,7 @@ impl PbrRenderer {
         gpu: &Gpu,
         format: wgpu::TextureFormat,
         object_layout: &wgpu::BindGroupLayout,
+        shadow_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let mut entries = vec![wgpu::BindGroupLayoutEntry {
             binding: 0,
@@ -107,14 +109,21 @@ impl PbrRenderer {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("PBR pipeline layout"),
-                bind_group_layouts: &[Some(object_layout), Some(&layout)],
+                bind_group_layouts: &[Some(object_layout), Some(&layout), Some(shadow_layout)],
                 immediate_size: 0,
             });
         let shader = gpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("metallic roughness PBR"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("pbr.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(
+                    format!(
+                        "{}\n{}",
+                        include_str!("scene/shadow_sample.wgsl"),
+                        include_str!("pbr.wgsl")
+                    )
+                    .into(),
+                ),
             });
         let pipeline = |transparent| {
             gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -243,6 +252,7 @@ impl PbrRenderer {
             });
         }
         UploadedShading {
+            double_sided: material.double_sided,
             binding: gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("PBR material"),
                 layout: &self.layout,
