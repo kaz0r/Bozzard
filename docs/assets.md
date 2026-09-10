@@ -26,6 +26,8 @@ Paths use forward slashes and are relative to the scene file, never the process'
 
 Sources are limited to 32 MiB each. Imported geometry is limited to one million vertices and three million indices. Models are also limited to 4096 surfaces and 256 hierarchy levels. External dependencies are bounded to 256 files and 128 MiB combined; decoded buffers and images each have a 128 MiB budget.
 
+glTF surfaces sharing a source image now reuse its decoded pixels and GPU texture within the model. Opaque alpha handling uses a separate variant when necessary. The image budget counts unique decoded variants. `cargo run -p bozzard-assets --example inspect -- MODEL.gltf` reports CPU import/check times, geometry bounds and shared decoded-image memory; renderer model upload statistics expose surface count, unique texture count, texture bytes and CPU submission time (not GPU elapsed time).
+
 Transparent surfaces are sorted by their centers and blended without writing depth. Intersecting transparent surfaces can still show ordering artifacts; this is not a full PBR renderer. OBJ imports preserve diffuse color, opacity, and diffuse images.
 
 ## Reload behavior

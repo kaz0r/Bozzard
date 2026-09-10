@@ -2,7 +2,8 @@
 pub use wgpu;
 mod scene;
 pub use scene::{
-    DrawItem, Material, MeshKind, ModelImage, ModelPart, RenderScene, SceneRenderer, TextureKind,
+    DrawItem, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, RenderScene,
+    SceneRenderer, TextureKind,
 };
 
 use anyhow::{Context, Result, ensure};

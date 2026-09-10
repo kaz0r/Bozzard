@@ -55,6 +55,13 @@ pub struct ModelImage<'a> {
     pub height: u32,
     pub rgba: &'a [u8],
 }
+#[derive(Clone, Copy, Debug)]
+pub struct ModelUploadStats {
+    pub surfaces: usize,
+    pub unique_images: usize,
+    pub texture_bytes: usize,
+    pub cpu_upload_ms: f64,
+}
 struct UploadedPart {
     mesh: MeshBuffers,
     texture: Option<wgpu::TextureView>,
@@ -102,6 +109,7 @@ pub struct SceneRenderer {
     models: BTreeMap<String, Vec<UploadedPart>>,
     transparent_textures: BTreeSet<String>,
     imported_textures: BTreeMap<String, wgpu::TextureView>,
+    model_upload_stats: BTreeMap<String, ModelUploadStats>,
 }
 
 fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
@@ -338,6 +346,7 @@ impl SceneRenderer {
             models: BTreeMap::new(),
             transparent_textures: BTreeSet::new(),
             imported_textures: BTreeMap::new(),
+            model_upload_stats: BTreeMap::new(),
         }
     }
 
@@ -391,6 +400,7 @@ impl SceneRenderer {
     }
 
     pub fn clear_imported(&mut self) {
+        self.model_upload_stats.clear();
         self.objects.clear();
         self.imported_meshes.clear();
         self.imported_textures.clear();
@@ -419,6 +429,7 @@ impl SceneRenderer {
             "invalid mesh data"
         );
         self.models.remove(id);
+        self.model_upload_stats.remove(id);
         self.objects.clear();
         self.imported_meshes
             .insert(id.into(), mesh(gpu, vertices, indices));
@@ -483,6 +494,10 @@ impl SceneRenderer {
         Ok(())
     }
 
+    pub fn model_upload_stats(&self, id: &str) -> Option<ModelUploadStats> {
+        self.model_upload_stats.get(id).copied()
+    }
+
     /// Upload all model surfaces before replacing the prior GPU model.
     pub fn upload_model(
         &mut self,
@@ -492,6 +507,7 @@ impl SceneRenderer {
         indices: &[u32],
         parts: &[ModelPart<'_>],
     ) -> Result<()> {
+        let started = std::time::Instant::now();
         if parts.is_empty() {
             return self.upload_mesh(gpu, id, vertices, indices);
         }
@@ -509,6 +525,9 @@ impl SceneRenderer {
         );
         let shared = mesh(gpu, vertices, indices);
         let mut uploaded = Vec::new();
+        // Shared CPU image slices map to one GPU allocation within a model upload.
+        // Keys never escape this call, so pointer reuse across later loads is irrelevant.
+        let mut textures: BTreeMap<(usize, u32, u32), (wgpu::TextureView, bool)> = BTreeMap::new();
         for part in parts {
             let start = part.start as usize;
             let end = start
@@ -527,6 +546,7 @@ impl SceneRenderer {
                         .is_none_or(|a| a.is_finite() && (0.0..=1.0).contains(&a)),
                 "invalid model material"
             );
+            let mut image_translucent = false;
             let texture = if let Some(image) = &part.image {
                 ensure!(
                     image.width > 0
@@ -538,32 +558,41 @@ impl SceneRenderer {
                         && image.rgba.len() == image.width as usize * image.height as usize * 4,
                     "invalid model image"
                 );
-                let size = wgpu::Extent3d {
-                    width: image.width,
-                    height: image.height,
-                    depth_or_array_layers: 1,
-                };
-                let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("model base color"),
-                    size,
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                    view_formats: &[],
-                });
-                gpu.queue.write_texture(
-                    texture.as_image_copy(),
-                    image.rgba,
-                    wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(image.width * 4),
-                        rows_per_image: Some(image.height),
-                    },
-                    size,
-                );
-                Some(texture.create_view(&Default::default()))
+                let key = (image.rgba.as_ptr() as usize, image.width, image.height);
+                if let Some((view, translucent)) = textures.get(&key) {
+                    image_translucent = *translucent;
+                    Some(view.clone())
+                } else {
+                    let size = wgpu::Extent3d {
+                        width: image.width,
+                        height: image.height,
+                        depth_or_array_layers: 1,
+                    };
+                    let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("model base color"),
+                        size,
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        view_formats: &[],
+                    });
+                    gpu.queue.write_texture(
+                        texture.as_image_copy(),
+                        image.rgba,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(image.width * 4),
+                            rows_per_image: Some(image.height),
+                        },
+                        size,
+                    );
+                    let view = texture.create_view(&Default::default());
+                    image_translucent = image.rgba.chunks_exact(4).any(|p| p[3] < 255);
+                    textures.insert(key, (view.clone(), image_translucent));
+                    Some(view)
+                }
             } else {
                 None
             };
@@ -592,16 +621,24 @@ impl SceneRenderer {
                 texture,
                 color: part.color,
                 cutoff: part.alpha_cutoff,
-                translucent: part.color[3] < 1.0
-                    || part
-                        .image
-                        .as_ref()
-                        .is_some_and(|image| image.rgba.chunks_exact(4).any(|p| p[3] < 255)),
+                translucent: part.color[3] < 1.0 || image_translucent,
                 center: min * 0.5 + max * 0.5,
             });
         }
         self.imported_meshes.remove(id);
         self.models.insert(id.into(), uploaded);
+        self.model_upload_stats.insert(
+            id.into(),
+            ModelUploadStats {
+                surfaces: parts.len(),
+                unique_images: textures.len(),
+                texture_bytes: textures
+                    .keys()
+                    .map(|(_, width, height)| *width as usize * *height as usize * 4)
+                    .sum(),
+                cpu_upload_ms: started.elapsed().as_secs_f64() * 1000.0,
+            },
+        );
         self.objects.clear();
         Ok(())
     }

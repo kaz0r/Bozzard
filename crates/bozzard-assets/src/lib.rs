@@ -58,7 +58,7 @@ pub struct MeshPart {
     pub count: u32,
     /// glTF baseColorFactor, including alpha.
     pub color: [f32; 4],
-    pub image: Option<ImageData>,
+    pub image: Option<Arc<ImageData>>,
     /// Present for glTF `alphaMode: MASK`.
     pub alpha_cutoff: Option<f32>,
 }
@@ -513,7 +513,7 @@ fn import(
                                 .1
                                 .as_ref()
                                 .map_err(|error| anyhow::anyhow!(error.clone()))?;
-                            image = Some(decoded_image(contents, "OBJ diffuse texture")?);
+                            image = Some(Arc::new(decoded_image(contents, "OBJ diffuse texture")?));
                         }
                         if material.normal_texture.is_some()
                             || material.specular_texture.is_some()
@@ -772,7 +772,7 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     let mut parts = Vec::new();
-    let mut image_bytes = 0;
+    let mut images = ModelImages::default();
     let mut visited = BTreeSet::new();
     for node in scene.nodes() {
         append_node(
@@ -785,7 +785,7 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
             &mut indices,
             &mut parts,
             &mut warnings,
-            &mut image_bytes,
+            &mut images,
             &mut visited,
             0,
         )?;
@@ -814,7 +814,7 @@ fn append_node(
     indices: &mut Vec<u32>,
     parts: &mut Vec<MeshPart>,
     warnings: &mut Vec<String>,
-    image_bytes: &mut usize,
+    images: &mut ModelImages,
     visited: &mut BTreeSet<usize>,
     depth: usize,
 ) -> Result<()> {
@@ -843,16 +843,8 @@ fn append_node(
         );
         for primitive in mesh.primitives() {
             append_primitive(
-                primitive,
-                transform,
-                buffers,
-                path,
-                snapshot,
-                vertices,
-                indices,
-                parts,
-                warnings,
-                image_bytes,
+                primitive, transform, buffers, path, snapshot, vertices, indices, parts, warnings,
+                images,
             )?;
         }
     }
@@ -867,7 +859,7 @@ fn append_node(
             indices,
             parts,
             warnings,
-            image_bytes,
+            images,
             visited,
             depth + 1,
         )?;
@@ -886,7 +878,7 @@ fn append_primitive(
     indices: &mut Vec<u32>,
     parts: &mut Vec<MeshPart>,
     warnings: &mut Vec<String>,
-    image_bytes: &mut usize,
+    images: &mut ModelImages,
 ) -> Result<()> {
     ensure!(
         primitive.mode() == gltf::mesh::Mode::Triangles,
@@ -985,10 +977,6 @@ fn append_primitive(
     let start = u32::try_from(indices.len()).context("mesh index count overflow")?;
     indices.extend(primitive_indices.into_iter().map(|index| base + index));
     let mut color = pbr.base_color_factor();
-    let image = pbr
-        .base_color_texture()
-        .map(|texture| image_for(texture.texture().source(), buffers, path, snapshot))
-        .transpose()?;
     let alpha_cutoff = match material.alpha_mode() {
         gltf::material::AlphaMode::Mask => Some(material.alpha_cutoff().unwrap_or(0.5)),
         gltf::material::AlphaMode::Opaque => {
@@ -997,24 +985,19 @@ fn append_primitive(
         }
         gltf::material::AlphaMode::Blend => None,
     };
-    let mut image = image;
-    if matches!(material.alpha_mode(), gltf::material::AlphaMode::Opaque)
-        && let Some(image) = &mut image
-    {
-        for pixel in image.rgba.chunks_exact_mut(4) {
-            pixel[3] = 255;
-        }
-    }
+    let image = pbr
+        .base_color_texture()
+        .map(|texture| {
+            images.load(
+                texture.texture().source(),
+                matches!(material.alpha_mode(), gltf::material::AlphaMode::Opaque),
+                buffers,
+                path,
+                snapshot,
+            )
+        })
+        .transpose()?;
     ensure!(parts.len() < MAX_PARTS, "glTF has too many primitive parts");
-    if let Some(image) = &image {
-        *image_bytes = image_bytes
-            .checked_add(image.rgba.len())
-            .context("decoded image byte count overflow")?;
-        ensure!(
-            *image_bytes <= MAX_DECODED_IMAGE_BYTES,
-            "decoded glTF images exceed 128 MiB"
-        );
-    }
     parts.push(MeshPart {
         start,
         count: u32::try_from(indices.len()).context("mesh index count overflow")? - start,
@@ -1023,6 +1006,44 @@ fn append_primitive(
         alpha_cutoff,
     });
     Ok(())
+}
+
+#[derive(Default)]
+struct ModelImages {
+    images: BTreeMap<(usize, bool), Arc<ImageData>>,
+    bytes: usize,
+}
+impl ModelImages {
+    fn load(
+        &mut self,
+        image: gltf::Image<'_>,
+        opaque: bool,
+        buffers: &[Vec<u8>],
+        path: &Path,
+        snapshot: &SourceSnapshot,
+    ) -> Result<Arc<ImageData>> {
+        let key = (image.index(), opaque);
+        if let Some(image) = self.images.get(&key) {
+            return Ok(image.clone());
+        }
+        let mut decoded = image_for(image, buffers, path, snapshot)?;
+        if opaque {
+            for pixel in decoded.rgba.chunks_exact_mut(4) {
+                pixel[3] = 255;
+            }
+        }
+        self.bytes = self
+            .bytes
+            .checked_add(decoded.rgba.len())
+            .context("decoded image byte count overflow")?;
+        ensure!(
+            self.bytes <= MAX_DECODED_IMAGE_BYTES,
+            "unique decoded glTF images exceed 128 MiB"
+        );
+        let decoded = Arc::new(decoded);
+        self.images.insert(key, decoded.clone());
+        Ok(decoded)
+    }
 }
 
 fn image_for(
@@ -1645,6 +1666,50 @@ mod tests {
             .is_ok()
         );
     }
+    #[test]
+    fn gltf_surfaces_share_decoded_images_without_merging_alpha_variants() {
+        let buffer = format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(triangle_bytes())
+        );
+        let texture = format!("data:image/png;base64,{}", STANDARD.encode(PNG));
+        let mut json: serde_json::Value =
+            serde_json::from_slice(&gltf_document(&buffer, Some(&texture))).unwrap();
+        let primitive = json["meshes"][0]["primitives"][0].clone();
+        json["meshes"][0]["primitives"]
+            .as_array_mut()
+            .unwrap()
+            .push(primitive.clone());
+        let mut opaque = json["materials"][0].clone();
+        opaque["alphaMode"] = serde_json::json!("OPAQUE");
+        json["materials"][0]["alphaMode"] = serde_json::json!("BLEND");
+        json["materials"].as_array_mut().unwrap().push(opaque);
+        let mut third = primitive;
+        third["material"] = serde_json::json!(1);
+        json["meshes"][0]["primitives"]
+            .as_array_mut()
+            .unwrap()
+            .push(third);
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let AssetData::Mesh(mesh) = import(
+            AssetKind::Mesh,
+            Path::new("shared.gltf"),
+            &bytes,
+            &no_dependencies(),
+        )
+        .unwrap() else {
+            panic!()
+        };
+        assert!(Arc::ptr_eq(
+            mesh.parts[0].image.as_ref().unwrap(),
+            mesh.parts[1].image.as_ref().unwrap()
+        ));
+        assert!(!Arc::ptr_eq(
+            mesh.parts[0].image.as_ref().unwrap(),
+            mesh.parts[2].image.as_ref().unwrap()
+        ));
+    }
+
     #[test]
     fn gltf_uses_requested_uv_set_and_accepts_small_nonzero_scale() {
         let buffer = format!(

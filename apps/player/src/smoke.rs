@@ -61,6 +61,28 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         },
     ];
     renderer.upload_model(gpu, "multipart", &vertices, &indices, &parts)?;
+    let shared_parts: Vec<_> = [0, 6]
+        .into_iter()
+        .map(|start| ModelPart {
+            start,
+            count: 6,
+            color: [1.; 4],
+            alpha_cutoff: None,
+            image: Some(ModelImage {
+                width: 1,
+                height: 1,
+                rgba: &green,
+            }),
+        })
+        .collect();
+    renderer.upload_model(gpu, "shared-texture", &vertices, &indices, &shared_parts)?;
+    let stats = renderer
+        .model_upload_stats("shared-texture")
+        .context("missing upload stats")?;
+    ensure!(
+        stats.surfaces == 2 && stats.unique_images == 1 && stats.texture_bytes == 4,
+        "shared model texture was uploaded more than once: {stats:?}"
+    );
     let material = Material {
         tint: [1.; 3],
         uv_scale: [1.; 2],
