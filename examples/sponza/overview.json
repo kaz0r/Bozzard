@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "name": "Sponza overview",
+  "views": {
+    "3d": "camera",
+    "2d": "camera-2d"
+  },
+  "assets": {
+    "sponza": {
+      "kind": "mesh",
+      "path": "../../work/sponza/glTF/Sponza.gltf"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Atrium camera",
+      "transform": {
+        "translation": [
+          5,
+          6,
+          0
+        ],
+        "rotation_degrees": [
+          -15,
+          90,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 65,
+        "near": 0.05,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 10,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "sponza",
+      "name": "Sponza",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "sponza"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "lighting": {
+    "sun_direction": [
+      0.3,
+      0.85,
+      0.25
+    ],
+    "sun_color": [
+      1.0,
+      0.93,
+      0.82
+    ],
+    "sun_intensity": 4.0,
+    "ambient_color": [
+      0.7,
+      0.8,
+      1.0
+    ],
+    "ambient_intensity": 0.02,
+    "shadows": true,
+    "shadow_resolution": 4096,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01
+  },
+  "environment": {
+    "zenith": [
+      0.15,
+      0.32,
+      0.65
+    ],
+    "horizon": [
+      0.65,
+      0.7,
+      0.8
+    ],
+    "ground": [
+      0.12,
+      0.1,
+      0.08
+    ],
+    "intensity": 0.65,
+    "background": true
+  }
+}

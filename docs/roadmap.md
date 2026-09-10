@@ -13,11 +13,11 @@ Completed: local checks and the first successful GitHub matrix run verify all th
 
 - Implemented: transform hierarchy with orthographic/perspective camera projections.
 - Implemented: persistent object IDs and versioned scene snapshots. Stable imported-asset IDs now map to relative source paths.
-- Implemented: store-scoped asset handles, pending/ready/failed state, scene-to-asset dependency mapping, and synchronous polling hot reload with last-good recovery.
-- Implemented: textured 2D quads and indexed 3D cubes with depth testing/basic lighting. PNG/JPEG and OBJ import now supplement these built-ins.
+- Implemented: store-scoped asset handles, pending/ready/failed state, scene-to-asset dependency mapping, background open/import/save/reload jobs, staged GPU residency, and last-good recovery.
+- Implemented: textured 2D quads and indexed 3D cubes with depth testing, authored sun/ambient lighting, shadows, procedural environment lighting, PBR materials, HDR display transforms, culling, and state caching. PNG/JPEG, OBJ, and glTF/GLB import supplement these built-ins.
 - Implemented: scene round-trip, texture/depth/camera rendering checks, and player/headless/package integration.
 
-The initial import slice supports opaque images and static OBJ geometry; async loading, glTF/material dependencies, mipmaps, and streaming are future extensions.
+The current import slice supports static OBJ and glTF/GLB geometry, material dependencies, mipmaps, and scalable external-resource packaging. Streaming, panorama environments, reflection probes, GI, and atmospheric simulation remain future extensions.
 
 ## 3 — Editor module (current slice)
 
@@ -25,7 +25,7 @@ The initial import slice supports opaque images and static OBJ geometry; async l
 - Implemented: scene hierarchy, inspector, viewport ray selection and move/rotate/scale axis handles.
 - Implemented: validated document commands with bounded, gesture-coalescing undo/redo.
 - Implemented: separate edit/play worlds; save, Save As, play, stop, unsaved-change prompts.
-- Implemented: project-local PNG/JPEG/OBJ imports with catalog assignment and native UI smoke checks.
+- Implemented: project-local PNG/JPEG/OBJ/glTF/GLB imports with catalog assignment, background preparation, lighting/display controls, and staged GPU uploads.
 
 Remaining editor extensions: generic component reflection, arbitrary tab docking, and production gizmo ergonomics.
 
@@ -49,7 +49,7 @@ See [run commands and manual acceptance checklist](playable-demo.md). This is a 
 
 ## 6 — Simulation and content systems
 
-- Physics, audio, animation, input actions, materials and lighting.
+- Full physics, audio, animation, input actions, authored point/spot lights, cascaded shadows, and production lighting/content systems.
 - Scene/prefab composition and scripting design.
 - Module dependency/lifecycle contract; evaluate runtime binary loading.
 - Profiling and evidence-driven ECS/render improvements.
