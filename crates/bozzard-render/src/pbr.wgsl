@@ -81,6 +81,8 @@ struct VertexOutput {
     let shadow_normal = normalize(in.normal) * select(-1.0, 1.0, facing);
     let visibility_sun = sun_visibility(in.world, shadow_normal);
     let direct = (diffuse + distribution*visibility*fresnel)*nl*object.sun.w*object.sun_color.rgb*visibility_sun;
-    let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao;
+    let ibl_diffuse = diffuse_environment(n)*base*(1.0-f0)*(1.0-metallic);
+    let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);
+    let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao + (ibl_diffuse+ibl_specular)*ao;
     return vec4<f32>(min(direct+indirect+emissive, vec3<f32>(60000.0)),alpha);
 }

@@ -4,6 +4,7 @@ use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
 mod display;
+mod environment;
 mod pbr;
 mod shadows;
 mod upload;
@@ -145,6 +146,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             }],
         )?;
         let mip_scene = RenderScene {
+            environment: bozzard_render::EnvironmentSettings::disabled(),
             display: Default::default(),
             lighting: Default::default(),
             view_projection: Mat4::IDENTITY,
@@ -163,6 +165,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         }
     }
     let scene = RenderScene {
+        environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
         lighting: Default::default(),
         view_projection: Mat4::IDENTITY,
@@ -195,6 +198,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     );
     renderer.upload_image(gpu, "half-red", 1, 1, &[255, 0, 0, 128])?;
     let alpha_scene = RenderScene {
+        environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
         lighting: Default::default(),
         view_projection: Mat4::IDENTITY,
@@ -255,6 +259,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         lit: false,
     };
     let scene = RenderScene {
+        environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
         lighting: Default::default(),
         view_projection,
@@ -275,6 +280,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let wide = capture(gpu, &mut renderer, &scene, [2053, 129])?;
     pixel(&wide, 767, 42, [240, 180, 70])?;
     let mut depth_scene = RenderScene {
+        environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
         lighting: Default::default(),
         view_projection,
@@ -367,6 +373,7 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         "unchanged catalog snapshot re-uploaded assets"
     );
     let scene = RenderScene {
+        environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
         lighting: Default::default(),
         view_projection: glam::camera::rh::proj::directx::orthographic(
@@ -593,6 +600,7 @@ pub fn run(options: &Options) -> Result<()> {
         gpu.require_hardware()?;
     }
     model_material_checks(&gpu)?;
+    environment::checks(&gpu)?;
     display::checks(&gpu)?;
     pbr::checks(&gpu)?;
     shadows::checks(&gpu)?;

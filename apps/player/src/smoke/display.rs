@@ -4,6 +4,7 @@ use bozzard_render::{DisplaySettings, Lighting, ModelPart};
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut scene = RenderScene {
+        environment: bozzard_render::EnvironmentSettings::disabled(),
         display: DisplaySettings {
             exposure_ev: -2.,
             tone_mapping: true,

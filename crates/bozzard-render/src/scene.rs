@@ -3,6 +3,8 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+mod environment;
+pub use environment::EnvironmentSettings;
 mod display;
 pub use display::DisplaySettings;
 mod lighting;
@@ -46,6 +48,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub environment: EnvironmentSettings,
     pub display: DisplaySettings,
     pub lighting: Lighting,
     pub view_projection: Mat4,
@@ -115,6 +118,7 @@ struct DepthTarget {
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
 /// HDR opaque/transparent passes. Imported color images are sRGB; procedural colors are linear.
 pub struct SceneRenderer {
+    environment: environment::Environment,
     display: display::Display,
     shadows: shadows::Shadows,
     pipeline: wgpu::RenderPipeline,
@@ -290,6 +294,7 @@ fn texture(gpu: &Gpu, checker: bool) -> wgpu::TextureView {
 
 impl SceneRenderer {
     pub fn new(gpu: &Gpu, format: wgpu::TextureFormat) -> Self {
+        let environment = environment::Environment::new(gpu);
         let display = display::Display::new(gpu, format);
         let format = wgpu::TextureFormat::Rgba16Float;
         let layout = gpu
@@ -330,7 +335,12 @@ impl SceneRenderer {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("scene pipeline layout"),
-                bind_group_layouts: &[Some(&layout), None, Some(&shadows.sample_layout)],
+                bind_group_layouts: &[
+                    Some(&layout),
+                    None,
+                    Some(&shadows.sample_layout),
+                    Some(&environment.layout),
+                ],
                 immediate_size: 0,
             });
         let shader = gpu
@@ -339,7 +349,8 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}",
+                        "{}\n{}\n{}",
+                        include_str!("scene/environment_sample.wgsl"),
                         include_str!("scene/shadow_sample.wgsl"),
                         include_str!("scene.wgsl")
                     )
@@ -362,7 +373,13 @@ impl SceneRenderer {
         };
         let pipeline = make_pipeline(false);
         let transparent_pipeline = make_pipeline(true);
-        let pbr = crate::pbr::PbrRenderer::new(gpu, format, &layout, &shadows.sample_layout);
+        let pbr = crate::pbr::PbrRenderer::new(
+            gpu,
+            format,
+            &layout,
+            &shadows.sample_layout,
+            &environment.layout,
+        );
         let quad = mesh(
             gpu,
             &[
@@ -374,6 +391,7 @@ impl SceneRenderer {
             &[0, 1, 2, 0, 2, 3],
         );
         Self {
+            environment,
             display,
             shadows,
             pbr,
@@ -962,6 +980,8 @@ impl SceneRenderer {
             scene.view_projection.is_finite() && scene.view_projection.inverse().is_finite(),
             "invalid view/projection matrix"
         );
+        self.environment
+            .prepare(gpu, scene.environment, scene.view_projection.inverse())?;
         self.display.prepare(gpu, size, scene.display, raw)?;
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -1086,6 +1106,7 @@ impl SceneRenderer {
                 }),
                 ..Default::default()
             });
+            self.environment.background(&mut pass, scene.environment);
             for (draw, binding) in draws.iter().zip(&self.objects) {
                 let object = &draw.object;
                 let shading = match &object.mesh {
@@ -1106,6 +1127,7 @@ impl SceneRenderer {
                 };
                 pass.set_bind_group(0, &binding.binding, &[]);
                 pass.set_bind_group(2, &self.shadows.sample_binding, &[]);
+                pass.set_bind_group(3, &self.environment.binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
                 if let Some(shading) = shading {
                     pass.set_bind_group(1, &shading.binding, &[]);

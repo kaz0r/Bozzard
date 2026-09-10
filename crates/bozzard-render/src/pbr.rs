@@ -70,6 +70,7 @@ impl PbrRenderer {
         format: wgpu::TextureFormat,
         object_layout: &wgpu::BindGroupLayout,
         shadow_layout: &wgpu::BindGroupLayout,
+        environment_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let mut entries = vec![wgpu::BindGroupLayoutEntry {
             binding: 0,
@@ -109,7 +110,12 @@ impl PbrRenderer {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("PBR pipeline layout"),
-                bind_group_layouts: &[Some(object_layout), Some(&layout), Some(shadow_layout)],
+                bind_group_layouts: &[
+                    Some(object_layout),
+                    Some(&layout),
+                    Some(shadow_layout),
+                    Some(environment_layout),
+                ],
                 immediate_size: 0,
             });
         let shader = gpu
@@ -118,7 +124,8 @@ impl PbrRenderer {
                 label: Some("metallic roughness PBR"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}",
+                        "{}\n{}\n{}",
+                        include_str!("scene/environment_sample.wgsl"),
                         include_str!("scene/shadow_sample.wgsl"),
                         include_str!("pbr.wgsl")
                     )

@@ -1,5 +1,7 @@
 //! Versioned scene documents and ECS instances, with no graphics dependencies.
 //! IDs are document-local persistent strings, never runtime entity handles.
+mod environment;
+pub use environment::EnvironmentSettings;
 mod display;
 pub use display::DisplaySettings;
 mod lighting;
@@ -216,6 +218,8 @@ pub struct Object {
 #[serde(deny_unknown_fields)]
 pub struct Scene {
     #[serde(default)]
+    pub environment: EnvironmentSettings,
+    #[serde(default)]
     pub display: DisplaySettings,
     #[serde(default)]
     pub lighting: Lighting,
@@ -261,6 +265,7 @@ impl Scene {
     fn order(&self) -> Result<Vec<usize>> {
         self.lighting.validate()?;
         self.display.validate()?;
+        self.environment.validate()?;
         ensure!(
             self.version == SCENE_VERSION,
             "unsupported scene version {} (expected {SCENE_VERSION})",
@@ -509,6 +514,7 @@ impl SceneInstance {
             }
         }
         Ok(SceneView {
+            environment: self.document.environment,
             display: self.document.display,
             lighting: self.document.lighting,
             view_projection,
@@ -539,6 +545,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub environment: EnvironmentSettings,
     pub display: DisplaySettings,
     pub lighting: Lighting,
     pub view_projection: Mat4,
@@ -597,6 +604,7 @@ mod tests {
     }
     fn scene() -> Scene {
         Scene {
+            environment: EnvironmentSettings::default(),
             display: DisplaySettings::default(),
             lighting: Lighting::default(),
             version: 1,

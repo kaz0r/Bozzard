@@ -57,3 +57,22 @@ fn display_defaults_and_validation_roundtrip() {
         assert!(scene.validate().is_err());
     }
 }
+
+#[test]
+fn environment_validation_and_scene_roundtrip() {
+    let mut scene = legacy();
+    scene.environment.zenith = [1., 0.2, 0.1];
+    scene.environment.intensity = 2.;
+    scene.environment.background = false;
+    assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
+    for intensity in [-0.1, 1001., f32::NAN, f32::INFINITY] {
+        let mut invalid = scene.clone();
+        invalid.environment.intensity = intensity;
+        assert!(invalid.validate().is_err());
+    }
+    for value in [-0.1, 1.1, f32::NAN] {
+        let mut invalid = scene.clone();
+        invalid.environment.ground[0] = value;
+        assert!(invalid.validate().is_err());
+    }
+}

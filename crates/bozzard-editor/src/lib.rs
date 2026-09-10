@@ -757,6 +757,17 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
     demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
+        environment: bozzard_render::EnvironmentSettings {
+            zenith: view.environment.zenith,
+            horizon: view.environment.horizon,
+            ground: view.environment.ground,
+            intensity: if layer == Layer::ThreeD {
+                view.environment.intensity
+            } else {
+                0.
+            },
+            background: layer == Layer::ThreeD && view.environment.background,
+        },
         display: bozzard_render::DisplaySettings {
             exposure_ev: if layer == Layer::ThreeD {
                 view.display.exposure_ev

@@ -98,6 +98,8 @@ fn authored_lighting_survives_undo_play_and_scene_roundtrip() {
     let mut changed = original.clone();
     changed.lighting.sun_intensity = 8.;
     changed.display.exposure_ev = 2.;
+    changed.environment.intensity = 1.5;
+    changed.environment.zenith = [0.2, 0.4, 1.];
     changed.display.tone_mapping = false;
     changed.lighting.shadow_resolution = 4096;
     changed.lighting.shadow_bias = 0.02;
@@ -154,7 +156,13 @@ fn display_exposure_is_3d_only() {
     let two = bozzard_editor::extract(&demo, bozzard_scene::Layer::TwoD, 1.).unwrap();
     assert_eq!(two.display.exposure_ev, 0.);
     assert!(!two.display.tone_mapping);
+    assert_eq!(two.environment.intensity, 0.);
+    assert!(!two.environment.background);
     let three = bozzard_editor::extract(&demo, bozzard_scene::Layer::ThreeD, 1.).unwrap();
     assert_eq!(three.display.exposure_ev, 3.);
     assert!(three.display.tone_mapping);
+    assert_eq!(
+        three.environment,
+        bozzard_render::EnvironmentSettings::default()
+    );
 }

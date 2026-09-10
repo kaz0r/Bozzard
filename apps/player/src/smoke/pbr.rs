@@ -49,6 +49,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            environment: bozzard_render::EnvironmentSettings::disabled(),
             display: Default::default(),
             lighting: self.lighting,
             view_projection: glam::camera::rh::proj::directx::orthographic(
