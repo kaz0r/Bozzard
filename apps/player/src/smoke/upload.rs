@@ -5,6 +5,7 @@ use std::sync::Arc;
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let scene = RenderScene {
+        display: Default::default(),
         lighting: Default::default(),
         view_projection: Mat4::IDENTITY,
         items: vec![DrawItem {

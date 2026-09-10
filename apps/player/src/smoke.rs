@@ -3,11 +3,23 @@ use bozzard_demo::{Position, demo};
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
+mod display;
 mod pbr;
 mod shadows;
 mod upload;
 
 fn capture(
+    gpu: &Gpu,
+    renderer: &mut SceneRenderer,
+    scene: &RenderScene,
+    size: [u32; 2],
+) -> Result<Frame> {
+    capture_offscreen(gpu, size[0], size[1], |view| {
+        renderer.draw_linear(gpu, view, size, scene)
+    })
+}
+
+fn capture_display(
     gpu: &Gpu,
     renderer: &mut SceneRenderer,
     scene: &RenderScene,
@@ -133,6 +145,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             }],
         )?;
         let mip_scene = RenderScene {
+            display: Default::default(),
             lighting: Default::default(),
             view_projection: Mat4::IDENTITY,
             items: vec![DrawItem {
@@ -150,6 +163,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         }
     }
     let scene = RenderScene {
+        display: Default::default(),
         lighting: Default::default(),
         view_projection: Mat4::IDENTITY,
         items: vec![DrawItem {
@@ -181,6 +195,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     );
     renderer.upload_image(gpu, "half-red", 1, 1, &[255, 0, 0, 128])?;
     let alpha_scene = RenderScene {
+        display: Default::default(),
         lighting: Default::default(),
         view_projection: Mat4::IDENTITY,
         items: vec![
@@ -240,6 +255,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         lit: false,
     };
     let scene = RenderScene {
+        display: Default::default(),
         lighting: Default::default(),
         view_projection,
         items: vec![DrawItem {
@@ -259,6 +275,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let wide = capture(gpu, &mut renderer, &scene, [2053, 129])?;
     pixel(&wide, 767, 42, [240, 180, 70])?;
     let mut depth_scene = RenderScene {
+        display: Default::default(),
         lighting: Default::default(),
         view_projection,
         items: vec![
@@ -350,6 +367,7 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         "unchanged catalog snapshot re-uploaded assets"
     );
     let scene = RenderScene {
+        display: Default::default(),
         lighting: Default::default(),
         view_projection: glam::camera::rh::proj::directx::orthographic(
             -2.0, 2.0, -1.5, 1.5, 0.1, 10.0,
@@ -525,12 +543,12 @@ fn check_document(
             continue;
         }
         let aspect = size[0] as f32 / size[1] as f32;
-        let initial = capture(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
+        let initial = capture_display(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
         if layer == Layer::ThreeD && document.lighting.shadows {
             let mut without = extract(&demo, layer, aspect)?;
             without.lighting.shadows = false;
-            let unshadowed = capture(gpu, renderer, &without, size)?;
+            let unshadowed = capture_display(gpu, renderer, &without, size)?;
             unshadowed.write_ppm(
                 &options
                     .output
@@ -547,7 +565,7 @@ fn check_document(
         for _ in 0..120 {
             demo.app.step();
         }
-        let moved = capture(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
+        let moved = capture_display(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
         moved.write_ppm(
             &options
                 .output
@@ -558,7 +576,7 @@ fn check_document(
         }
         let saved = demo.instance.capture(&demo.app.world)?;
         let restored = SceneDemo::new(&Scene::from_json(&saved.to_json()?)?)?;
-        let reloaded = capture(gpu, renderer, &extract(&restored, layer, aspect)?, size)?;
+        let reloaded = capture_display(gpu, renderer, &extract(&restored, layer, aspect)?, size)?;
         ensure!(
             moved.rgba == reloaded.rgba,
             "{label} save/reload changed the image"
@@ -575,6 +593,7 @@ pub fn run(options: &Options) -> Result<()> {
         gpu.require_hardware()?;
     }
     model_material_checks(&gpu)?;
+    display::checks(&gpu)?;
     pbr::checks(&gpu)?;
     shadows::checks(&gpu)?;
     upload::checks(&gpu)?;

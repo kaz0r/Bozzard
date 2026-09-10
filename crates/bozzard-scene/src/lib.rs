@@ -1,5 +1,7 @@
 //! Versioned scene documents and ECS instances, with no graphics dependencies.
 //! IDs are document-local persistent strings, never runtime entity handles.
+mod display;
+pub use display::DisplaySettings;
 mod lighting;
 pub use lighting::Lighting;
 
@@ -214,6 +216,8 @@ pub struct Object {
 #[serde(deny_unknown_fields)]
 pub struct Scene {
     #[serde(default)]
+    pub display: DisplaySettings,
+    #[serde(default)]
     pub lighting: Lighting,
     pub version: u32,
     pub name: String,
@@ -256,6 +260,7 @@ impl Scene {
     /// Iterative topological sort: arbitrary document order, no recursive stack limit.
     fn order(&self) -> Result<Vec<usize>> {
         self.lighting.validate()?;
+        self.display.validate()?;
         ensure!(
             self.version == SCENE_VERSION,
             "unsupported scene version {} (expected {SCENE_VERSION})",
@@ -504,6 +509,7 @@ impl SceneInstance {
             }
         }
         Ok(SceneView {
+            display: self.document.display,
             lighting: self.document.lighting,
             view_projection,
             objects,
@@ -533,6 +539,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub display: DisplaySettings,
     pub lighting: Lighting,
     pub view_projection: Mat4,
     pub objects: Vec<(Mat4, Drawable)>,
@@ -590,6 +597,7 @@ mod tests {
     }
     fn scene() -> Scene {
         Scene {
+            display: DisplaySettings::default(),
             lighting: Lighting::default(),
             version: 1,
             name: "test".into(),

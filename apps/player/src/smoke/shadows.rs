@@ -60,6 +60,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         material: receiver.material.clone(),
     };
     let mut scene = RenderScene {
+        display: Default::default(),
         lighting: Lighting {
             sun_direction: [1., 0., 1.],
             sun_intensity: 2.,

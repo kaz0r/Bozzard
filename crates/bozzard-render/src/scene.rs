@@ -3,6 +3,8 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+mod display;
+pub use display::DisplaySettings;
 mod lighting;
 mod shadows;
 mod upload;
@@ -44,6 +46,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub display: DisplaySettings,
     pub lighting: Lighting,
     pub view_projection: Mat4,
     pub items: Vec<DrawItem>,
@@ -110,8 +113,9 @@ struct DepthTarget {
 }
 
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
-/// Opaque objects only. Imported images are sampled as sRGB; procedural colors are linear.
+/// HDR opaque/transparent passes. Imported color images are sRGB; procedural colors are linear.
 pub struct SceneRenderer {
+    display: display::Display,
     shadows: shadows::Shadows,
     pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
@@ -286,6 +290,8 @@ fn texture(gpu: &Gpu, checker: bool) -> wgpu::TextureView {
 
 impl SceneRenderer {
     pub fn new(gpu: &Gpu, format: wgpu::TextureFormat) -> Self {
+        let display = display::Display::new(gpu, format);
+        let format = wgpu::TextureFormat::Rgba16Float;
         let layout = gpu
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -368,6 +374,7 @@ impl SceneRenderer {
             &[0, 1, 2, 0, 2, 3],
         );
         Self {
+            display,
             shadows,
             pbr,
             pipeline,
@@ -925,6 +932,27 @@ impl SceneRenderer {
         size: [u32; 2],
         scene: &RenderScene,
     ) -> Result<()> {
+        self.draw_frame(gpu, target, size, scene, false)
+    }
+    /// Diagnostic linear readback: bypass exposure, tone mapping and display encoding.
+    /// Requires a non-sRGB output. Normal editor/player rendering must use draw.
+    pub fn draw_linear(
+        &mut self,
+        gpu: &Gpu,
+        target: &wgpu::TextureView,
+        size: [u32; 2],
+        scene: &RenderScene,
+    ) -> Result<()> {
+        self.draw_frame(gpu, target, size, scene, true)
+    }
+    fn draw_frame(
+        &mut self,
+        gpu: &Gpu,
+        target: &wgpu::TextureView,
+        size: [u32; 2],
+        scene: &RenderScene,
+        raw: bool,
+    ) -> Result<()> {
         ensure!(
             size.iter()
                 .all(|s| *s > 0 && *s <= gpu.device.limits().max_texture_dimension_2d),
@@ -934,6 +962,7 @@ impl SceneRenderer {
             scene.view_projection.is_finite() && scene.view_projection.inverse().is_finite(),
             "invalid view/projection matrix"
         );
+        self.display.prepare(gpu, size, scene.display, raw)?;
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("scene depth target"),
@@ -1034,7 +1063,7 @@ impl SceneRenderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target,
+                    view: self.display.hdr(),
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -1086,6 +1115,7 @@ impl SceneRenderer {
                 pass.draw_indexed(0..mesh.count, 0, 0..1);
             }
         }
+        self.display.draw(&mut encoder, target);
         gpu.queue.submit([encoder.finish()]);
         Ok(())
     }

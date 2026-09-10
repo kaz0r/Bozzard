@@ -36,5 +36,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let diffuse = object.sun_color.w * object.ambient_color.rgb
         + object.sun_color.rgb * object.sun.w * max(dot(normalize(in.normal), object.sun.xyz), 0.0) / 3.14159265 * sun_visibility(in.world, normalize(in.normal));
     let light = mix(vec3<f32>(1.0), diffuse, object.parameters.z);
-    return vec4<f32>(base * light, alpha);
+    return vec4<f32>(min(base * light, vec3<f32>(60000.0)), alpha);
 }

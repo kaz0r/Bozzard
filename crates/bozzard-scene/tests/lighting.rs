@@ -44,3 +44,16 @@ fn lighting_defaults_roundtrip_and_validation() {
     scene.lighting.sun_color = [2.; 3];
     assert!(scene.validate().is_err());
 }
+
+#[test]
+fn display_defaults_and_validation_roundtrip() {
+    let mut scene = legacy();
+    assert!(scene.display.tone_mapping);
+    scene.display.exposure_ev = 2.5;
+    scene.display.tone_mapping = false;
+    assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
+    for ev in [f32::NAN, f32::INFINITY, -16.01, 16.01] {
+        scene.display.exposure_ev = ev;
+        assert!(scene.validate().is_err());
+    }
+}

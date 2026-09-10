@@ -82,5 +82,5 @@ struct VertexOutput {
     let visibility_sun = sun_visibility(in.world, shadow_normal);
     let direct = (diffuse + distribution*visibility*fresnel)*nl*object.sun.w*object.sun_color.rgb*visibility_sun;
     let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao;
-    return vec4<f32>(direct+indirect+emissive,alpha);
+    return vec4<f32>(min(direct+indirect+emissive, vec3<f32>(60000.0)),alpha);
 }

@@ -49,6 +49,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            display: Default::default(),
             lighting: self.lighting,
             view_projection: glam::camera::rh::proj::directx::orthographic(
                 -1., 1., -1., 1., 0.1, 10.,

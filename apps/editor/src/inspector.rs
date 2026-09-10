@@ -431,6 +431,16 @@ impl App {
                         .prefix("Normal bias "),
                 )
                 .on_hover_text("World units. Large values can detach shadows from objects.");
+                ui.separator();
+                ui.strong("Display (3D)");
+                ui.add(
+                    egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
+                        .text("Exposure EV"),
+                );
+                ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
+                if ui.button("Reset display").clicked() {
+                    scene.display = Default::default();
+                }
                 if ui.button("Reset lighting").clicked() {
                     *light = Default::default();
                 }
@@ -438,7 +448,8 @@ impl App {
         });
         if ui.is_enabled()
             && self.editor.play.is_none()
-            && scene.lighting != self.editor.scene().lighting
+            && (scene.lighting != self.editor.scene().lighting
+                || scene.display != self.editor.scene().display)
         {
             self.editor.begin_gesture("Edit scene lighting");
             let result = self.editor.apply("Edit scene lighting", scene);
