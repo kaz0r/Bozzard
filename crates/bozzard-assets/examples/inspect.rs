@@ -54,6 +54,23 @@ fn main() -> Result<()> {
         if let Some(image) = &part.image {
             images.insert(std::sync::Arc::as_ptr(image) as usize, image.rgba.len());
         }
+        if let Some(shading) = &part.shading {
+            let material = &shading.material;
+            for map in [
+                &material.normal,
+                &material.metallic_roughness,
+                &material.occlusion,
+                &material.emissive,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                images.insert(
+                    std::sync::Arc::as_ptr(&map.image) as usize,
+                    map.image.rgba.len(),
+                );
+            }
+        }
     }
     println!(
         "unique_images={} decoded_image_mib={:.2}",

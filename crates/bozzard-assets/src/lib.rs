@@ -1,11 +1,13 @@
 //! CPU imports and background loading. No GPU or window dependencies.
 pub mod job;
 mod package;
+mod pbr;
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bozzard_scene::{AssetKind, AssetSource};
 use glam::{Mat3, Mat4, Vec3};
 pub use package::{ModelPackage, package_gltf};
+pub use pbr::{Filter, PbrMaterial, Sampler, SurfaceShading, TextureMap, Wrap};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Cursor, Read},
@@ -18,6 +20,8 @@ use std::{
 
 const MAX_SOURCE_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_DECODED_IMAGE_BYTES: usize = 128 * 1024 * 1024;
+// Sponza's complete set of shared PBR maps decodes to 272 MiB.
+const MAX_GLTF_IMAGE_BYTES: usize = 512 * 1024 * 1024;
 const MAX_VERTICES: usize = 1_000_000;
 const MAX_PARTS: usize = 4096;
 const MAX_NODE_DEPTH: usize = 256;
@@ -63,6 +67,7 @@ pub struct MeshPart {
     pub image: Option<Arc<ImageData>>,
     /// Present for glTF `alphaMode: MASK`.
     pub alpha_cutoff: Option<f32>,
+    pub shading: Option<SurfaceShading>,
 }
 
 #[derive(Clone, Debug)]
@@ -543,6 +548,7 @@ fn import(
                         color,
                         image,
                         alpha_cutoff: None,
+                        shading: None,
                     });
                 }
             }
@@ -959,6 +965,19 @@ fn append_primitive(
         "glTF texture coordinate count does not match POSITION"
     );
     let base = u32::try_from(vertices.len()).context("mesh vertex count overflow")?;
+    let shading = pbr::import_surface(
+        &primitive,
+        transform,
+        buffers,
+        path,
+        snapshot,
+        images,
+        &positions,
+        &normals,
+        &primitive_indices,
+        base,
+        warnings,
+    )?;
     for ((position, normal), uv) in positions.into_iter().zip(normals).zip(texcoords) {
         ensure!(
             position.is_finite() && normal.is_finite() && uv.into_iter().all(f32::is_finite),
@@ -1006,6 +1025,7 @@ fn append_primitive(
         color,
         image,
         alpha_cutoff,
+        shading: Some(shading),
     });
     Ok(())
 }
@@ -1039,8 +1059,8 @@ impl ModelImages {
             .checked_add(decoded.rgba.len())
             .context("decoded image byte count overflow")?;
         ensure!(
-            self.bytes <= MAX_DECODED_IMAGE_BYTES,
-            "unique decoded glTF images exceed 128 MiB"
+            self.bytes <= MAX_GLTF_IMAGE_BYTES,
+            "unique decoded glTF images exceed 512 MiB"
         );
         let decoded = Arc::new(decoded);
         self.images.insert(key, decoded.clone());
@@ -1209,6 +1229,7 @@ fn portable_mesh_gltf(mesh: &MeshData) -> Result<Vec<u8>> {
         color: [1.0; 4],
         image: None,
         alpha_cutoff: None,
+        shading: None,
     };
     let source_parts: Vec<&MeshPart> = if mesh.parts.is_empty() {
         vec![&fallback]
@@ -1710,6 +1731,164 @@ mod tests {
             mesh.parts[0].image.as_ref().unwrap(),
             mesh.parts[2].image.as_ref().unwrap()
         ));
+    }
+
+    #[test]
+    fn gltf_pbr_maps_share_images_preserve_uvs_samplers_and_tangents() {
+        let mut buffer = triangle_bytes();
+        buffer.extend(
+            [[0.0_f32, 0.0], [0.0, 1.0], [1.0, 0.0]]
+                .into_iter()
+                .flatten()
+                .flat_map(f32::to_le_bytes),
+        );
+        let uri = format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(&buffer)
+        );
+        let texture = format!("data:image/png;base64,{}", STANDARD.encode(PNG));
+        let mut json: serde_json::Value =
+            serde_json::from_slice(&gltf_document(&uri, Some(&texture))).unwrap();
+        json["buffers"][0]["byteLength"] = serde_json::json!(buffer.len());
+        json["bufferViews"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"buffer":0,"byteOffset":36,"byteLength":24}));
+        json["accessors"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"bufferView":1,"componentType":5126,"count":3,"type":"VEC2"}));
+        json["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_1"] = serde_json::json!(2);
+        json["samplers"] = serde_json::json!([
+            {"wrapS":33071,"wrapT":33648,"magFilter":9728,"minFilter":9729},
+            {"minFilter":9986}
+        ]);
+        json["textures"] = serde_json::json!([{"source":0,"sampler":0},{"source":0,"sampler":1}]);
+        let material = &mut json["materials"][0];
+        material["pbrMetallicRoughness"]["metallicRoughnessTexture"] =
+            serde_json::json!({"index":1});
+        material["pbrMetallicRoughness"]["metallicFactor"] = serde_json::json!(0.3);
+        material["pbrMetallicRoughness"]["roughnessFactor"] = serde_json::json!(0.7);
+        material["normalTexture"] = serde_json::json!({"index":0,"texCoord":1,"scale":0.6});
+        material["occlusionTexture"] = serde_json::json!({"index":1,"strength":0.4});
+        material["emissiveTexture"] = serde_json::json!({"index":0});
+        material["emissiveFactor"] = serde_json::json!([0.1, 0.2, 0.3]);
+        material["doubleSided"] = serde_json::json!(true);
+        let load = |json: &serde_json::Value| {
+            import(
+                AssetKind::Mesh,
+                Path::new("pbr.gltf"),
+                &serde_json::to_vec(json).unwrap(),
+                &no_dependencies(),
+            )
+        };
+        let AssetData::Mesh(mesh) = load(&json).unwrap() else {
+            panic!()
+        };
+        let part = &mesh.parts[0];
+        let shading = part.shading.as_ref().unwrap();
+        let m = &shading.material;
+        assert_eq!(
+            (
+                m.metallic,
+                m.roughness,
+                m.normal_scale,
+                m.occlusion_strength
+            ),
+            (0.3, 0.7, 0.6, 0.4)
+        );
+        assert_eq!(m.emissive_factor, [0.1, 0.2, 0.3]);
+        assert!(m.double_sided);
+        for map in [&m.normal, &m.metallic_roughness, &m.occlusion, &m.emissive]
+            .into_iter()
+            .flatten()
+        {
+            assert!(Arc::ptr_eq(part.image.as_ref().unwrap(), &map.image));
+        }
+        assert_eq!(
+            m.base_color_sampler,
+            Sampler {
+                wrap_u: Wrap::Clamp,
+                wrap_v: Wrap::Mirror,
+                mag: Filter::Nearest,
+                min: Filter::Linear,
+                mip: None
+            }
+        );
+        assert_eq!(
+            m.metallic_roughness.as_ref().unwrap().sampler.min,
+            Filter::Nearest
+        );
+        assert_eq!(
+            m.metallic_roughness.as_ref().unwrap().sampler.mip,
+            Some(Filter::Linear)
+        );
+        assert_eq!(&shading.vertices[1][4..6], &[0., 1.]);
+        assert_eq!(&shading.vertices[1][6..8], &[1., 0.]);
+        // Normal UV1 swaps UV axes; mirrored node flips tangent handedness back.
+        assert_eq!(&shading.vertices[0][..4], &[0., 1., 0., 1.]);
+        let mut missing_uv = json.clone();
+        missing_uv["materials"][0]["emissiveTexture"]["texCoord"] = serde_json::json!(3);
+        assert!(
+            load(&missing_uv)
+                .unwrap_err()
+                .to_string()
+                .contains("TEXCOORD_3")
+        );
+
+        let tangent_offset = buffer.len();
+        buffer.extend(
+            [[1.0_f32, 0.0, 0.0, 1.0]; 3]
+                .into_iter()
+                .flatten()
+                .flat_map(f32::to_le_bytes),
+        );
+        json["buffers"][0]["byteLength"] = serde_json::json!(buffer.len());
+        json["buffers"][0]["uri"] = serde_json::json!(format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(&buffer)
+        ));
+        json["bufferViews"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"buffer":0,"byteOffset":tangent_offset,"byteLength":48}));
+        json["accessors"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"bufferView":2,"componentType":5126,"count":3,"type":"VEC4"}));
+        json["meshes"][0]["primitives"][0]["attributes"]["TANGENT"] = serde_json::json!(3);
+        let AssetData::Mesh(mesh) = load(&json).unwrap() else {
+            panic!()
+        };
+        assert_eq!(
+            &mesh.parts[0].shading.as_ref().unwrap().vertices[0][..4],
+            &[-1., 0., 0., -1.]
+        );
+        for i in 0..3 {
+            let offset = tangent_offset + i * 16;
+            buffer[offset..offset + 16].copy_from_slice(
+                &[0.0_f32, 0., 1., 1.]
+                    .into_iter()
+                    .flat_map(f32::to_le_bytes)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        json["buffers"][0]["uri"] = serde_json::json!(format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(&buffer)
+        ));
+        let AssetData::Mesh(mesh) = load(&json).unwrap() else {
+            panic!()
+        };
+        assert_eq!(
+            &mesh.parts[0].shading.as_ref().unwrap().vertices[0][..4],
+            &[0., 1., 0., 1.]
+        );
+        assert!(
+            mesh.warnings
+                .iter()
+                .any(|w| w.contains("Repaired 3 degenerate"))
+        );
     }
 
     #[test]
