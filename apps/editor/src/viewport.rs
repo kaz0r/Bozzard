@@ -650,6 +650,21 @@ impl App {
             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
             Color32::WHITE,
         );
+        let stats = self.renderer.frame_stats();
+        ui.painter().text(
+            rect.left_top() + egui::vec2(8.0, 8.0),
+            egui::Align2::LEFT_TOP,
+            format!(
+                "Draws {}/{} · {} tris · {} shadow draws · CPU {:.2} ms",
+                stats.visible_surfaces,
+                stats.surfaces,
+                stats.color_triangles,
+                stats.shadow_draws,
+                stats.cpu_ms
+            ),
+            egui::FontId::monospace(11.0),
+            Color32::WHITE,
+        );
         if self.workspace.colliders_visible && !self.workspace.layer_2d {
             self.collider_overlay(ui, rect, projection)?;
         }

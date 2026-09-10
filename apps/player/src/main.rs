@@ -26,6 +26,7 @@ struct Options {
     software: bool,
     hardware: bool,
     smoke: bool,
+    benchmark_frames: Option<u32>,
     frames: Option<u32>,
     output: PathBuf,
     scene: Option<PathBuf>,
@@ -41,6 +42,7 @@ impl Default for Options {
             software: false,
             hardware: false,
             smoke: false,
+            benchmark_frames: None,
             frames: None,
             output: "work/gpu-smoke".into(),
             scene: None,
@@ -62,6 +64,17 @@ fn options() -> Result<Option<Options>> {
             "--software" => result.software = true,
             "--hardware" => result.hardware = true,
             "--smoke" => result.smoke = true,
+            "--benchmark-frames" => {
+                let frames = args
+                    .next()
+                    .context("--benchmark-frames needs a count")?
+                    .parse()?;
+                ensure!(
+                    (1..=1000).contains(&frames),
+                    "benchmark frames must be within 1..1000"
+                );
+                result.benchmark_frames = Some(frames);
+            }
             "--scene" => result.scene = Some(args.next().context("--scene needs a file")?.into()),
             "--write-scene" => {
                 result.write_scene = Some(args.next().context("--write-scene needs a file")?.into())
@@ -84,7 +97,7 @@ fn options() -> Result<Option<Options>> {
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
                 println!(
-                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
+                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -102,6 +115,10 @@ fn options() -> Result<Option<Options>> {
     ensure!(
         result.write_scene.is_none() || (!result.smoke && result.frames.is_none()),
         "--write-scene is a standalone command; it cannot be combined with --smoke or --frames"
+    );
+    ensure!(
+        result.benchmark_frames.is_none() || (result.smoke && result.scene.is_some()),
+        "--benchmark-frames requires --smoke --scene FILE"
     );
     Ok(Some(result))
 }

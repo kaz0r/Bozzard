@@ -3,6 +3,8 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+mod visibility;
+pub use visibility::FrameStats;
 mod environment;
 pub use environment::EnvironmentSettings;
 mod display;
@@ -118,6 +120,9 @@ struct DepthTarget {
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
 /// HDR opaque/transparent passes. Imported color images are sRGB; procedural colors are linear.
 pub struct SceneRenderer {
+    stats: FrameStats,
+    culling: bool,
+    state_caching: bool,
     environment: environment::Environment,
     display: display::Display,
     shadows: shadows::Shadows,
@@ -391,6 +396,9 @@ impl SceneRenderer {
             &[0, 1, 2, 0, 2, 3],
         );
         Self {
+            stats: Default::default(),
+            culling: true,
+            state_caching: true,
             environment,
             display,
             shadows,
@@ -971,6 +979,8 @@ impl SceneRenderer {
         scene: &RenderScene,
         raw: bool,
     ) -> Result<()> {
+        let started = std::time::Instant::now();
+        self.stats = FrameStats::default();
         ensure!(
             size.iter()
                 .all(|s| *s > 0 && *s <= gpu.device.limits().max_texture_dimension_2d),
@@ -1029,6 +1039,11 @@ impl SceneRenderer {
                 );
             }
         }
+        let visible = self.visibility(scene, &draws);
+        self.stats.scene_items = scene.items.len();
+        self.stats.surfaces = draws.len();
+        self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
+        self.stats.culled_surfaces = draws.len() - self.stats.visible_surfaces;
         for (draw, binding) in draws.iter().zip(&self.objects) {
             let object = &draw.object;
             let mvp = scene.view_projection * object.model;
@@ -1073,12 +1088,15 @@ impl SceneRenderer {
             );
         }
         self.update_shadows(gpu, scene, &draws)?;
+        self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
+        let encode_started = std::time::Instant::now();
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("scene frame"),
             });
-        self.draw_shadows(&mut encoder, scene, &draws);
+        (self.stats.shadow_draws, self.stats.shadow_triangles) =
+            self.draw_shadows(&mut encoder, scene, &draws);
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
@@ -1107,18 +1125,29 @@ impl SceneRenderer {
                 ..Default::default()
             });
             self.environment.background(&mut pass, scene.environment);
-            for (draw, binding) in draws.iter().zip(&self.objects) {
+            let mut last_pipeline = None;
+            for ((draw, binding), visible) in draws.iter().zip(&self.objects).zip(&visible) {
+                if !visible {
+                    continue;
+                }
                 let object = &draw.object;
                 let shading = match &object.mesh {
                     MeshKind::ModelPart(id, index) => self.models[id][*index].shading.as_ref(),
                     _ => None,
                 };
-                pass.set_pipeline(match (shading.is_some(), draw.transparent) {
-                    (true, false) => &self.pbr.opaque,
-                    (true, true) => &self.pbr.transparent,
-                    (false, false) => &self.pipeline,
-                    (false, true) => &self.transparent_pipeline,
-                });
+                let key = (shading.is_some(), draw.transparent);
+                if !self.state_caching || last_pipeline != Some(key) {
+                    pass.set_pipeline(match key {
+                        (true, false) => &self.pbr.opaque,
+                        (true, true) => &self.pbr.transparent,
+                        (false, false) => &self.pipeline,
+                        (false, true) => &self.transparent_pipeline,
+                    });
+                    pass.set_bind_group(2, &self.shadows.sample_binding, &[]);
+                    pass.set_bind_group(3, &self.environment.binding, &[]);
+                    self.stats.pipeline_binds += 1;
+                    last_pipeline = Some(key);
+                }
                 let mesh = match &object.mesh {
                     MeshKind::Quad => &self.quad,
                     MeshKind::Cube => &self.cube,
@@ -1126,8 +1155,6 @@ impl SceneRenderer {
                     MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
                 };
                 pass.set_bind_group(0, &binding.binding, &[]);
-                pass.set_bind_group(2, &self.shadows.sample_binding, &[]);
-                pass.set_bind_group(3, &self.environment.binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
                 if let Some(shading) = shading {
                     pass.set_bind_group(1, &shading.binding, &[]);
@@ -1135,10 +1162,16 @@ impl SceneRenderer {
                 }
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..mesh.count, 0, 0..1);
+                self.stats.color_triangles += u64::from(mesh.count / 3);
             }
         }
         self.display.draw(&mut encoder, target);
-        gpu.queue.submit([encoder.finish()]);
+        let commands = encoder.finish();
+        self.stats.encode_ms = encode_started.elapsed().as_secs_f64() * 1000.;
+        let submit_started = std::time::Instant::now();
+        gpu.queue.submit([commands]);
+        self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
+        self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())
     }
 }

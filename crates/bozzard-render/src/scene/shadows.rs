@@ -201,7 +201,7 @@ fn fit(
     matrix.is_finite().then_some((matrix, far - near))
 }
 impl SceneRenderer {
-    fn mesh_for(&self, kind: &MeshKind) -> &MeshBuffers {
+    pub(super) fn mesh_for(&self, kind: &MeshKind) -> &MeshBuffers {
         match kind {
             MeshKind::Quad => &self.quad,
             MeshKind::Cube => &self.cube,
@@ -268,7 +268,7 @@ impl SceneRenderer {
         encoder: &mut wgpu::CommandEncoder,
         scene: &RenderScene,
         draws: &[PreparedDraw],
-    ) {
+    ) -> (usize, u64) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("sun shadow casters"),
             color_attachments: &[],
@@ -283,8 +283,9 @@ impl SceneRenderer {
             ..Default::default()
         });
         if !scene.lighting.shadows || self.shadows.resolution == 1 {
-            return;
+            return (0, 0);
         }
+        let mut counts = (0, 0);
         pass.set_pipeline(&self.shadows.pipeline);
         pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
         for (draw, binding) in draws.iter().zip(&self.objects) {
@@ -296,7 +297,10 @@ impl SceneRenderer {
             pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
             pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..mesh.count, 0, 0..1);
+            counts.0 += 1;
+            counts.1 += u64::from(mesh.count / 3);
         }
+        counts
     }
 }
 #[cfg(test)]

@@ -3,11 +3,13 @@ use bozzard_demo::{Position, demo};
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
+mod benchmark;
 mod display;
 mod environment;
 mod pbr;
 mod shadows;
 mod upload;
+mod visibility;
 
 fn capture(
     gpu: &Gpu,
@@ -551,6 +553,12 @@ fn check_document(
         }
         let aspect = size[0] as f32 / size[1] as f32;
         let initial = capture_display(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
+        if layer == Layer::ThreeD
+            && prefix == "loaded"
+            && let Some(frames) = options.benchmark_frames
+        {
+            benchmark::run(gpu, renderer, &extract(&demo, layer, aspect)?, size, frames)?;
+        }
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
         if layer == Layer::ThreeD && document.lighting.shadows {
             let mut without = extract(&demo, layer, aspect)?;
@@ -600,6 +608,7 @@ pub fn run(options: &Options) -> Result<()> {
         gpu.require_hardware()?;
     }
     model_material_checks(&gpu)?;
+    visibility::checks(&gpu)?;
     environment::checks(&gpu)?;
     display::checks(&gpu)?;
     pbr::checks(&gpu)?;
