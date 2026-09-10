@@ -438,6 +438,16 @@ impl SceneRenderer {
         self.transparent_textures.clear();
     }
 
+    /// Retire one catalog entry without invalidating unrelated GPU resources.
+    pub fn remove_asset(&mut self, id: &str) {
+        self.imported_meshes.remove(id);
+        self.models.remove(id);
+        self.imported_textures.remove(id);
+        self.transparent_textures.remove(id);
+        self.model_upload_stats.remove(id);
+        self.objects.clear();
+    }
+
     pub fn upload_mesh(
         &mut self,
         gpu: &Gpu,
@@ -460,6 +470,8 @@ impl SceneRenderer {
         );
         self.models.remove(id);
         self.model_upload_stats.remove(id);
+        self.imported_textures.remove(id);
+        self.transparent_textures.remove(id);
         self.objects.clear();
         self.imported_meshes
             .insert(id.into(), mesh(gpu, vertices, indices));
@@ -519,6 +531,9 @@ impl SceneRenderer {
         }
         self.imported_textures
             .insert(id.into(), texture.create_view(&Default::default()));
+        self.imported_meshes.remove(id);
+        self.models.remove(id);
+        self.model_upload_stats.remove(id);
         // Drop bind groups referring to old texture views; the next draw rebuilds them.
         self.objects.clear();
         Ok(())
@@ -782,6 +797,8 @@ impl SceneRenderer {
         }
         self.imported_meshes.remove(id);
         self.models.insert(id.into(), uploaded);
+        self.imported_textures.remove(id);
+        self.transparent_textures.remove(id);
         self.model_upload_stats.insert(
             id.into(),
             ModelUploadStats {

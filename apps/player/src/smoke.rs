@@ -333,14 +333,15 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
     let mut store = AssetStore::new(&root, &sources)?;
     store.refresh();
     store.require_ready()?;
-    for entry in store.entries() {
-        assets::upload(
-            gpu,
-            renderer,
-            &entry.id,
-            entry.data().context("missing imported data")?,
-        )?;
-    }
+    let mut residency = bozzard_render_assets::Residency::default();
+    ensure!(
+        residency.sync(gpu, renderer, &store)?.uploaded == 2,
+        "initial residency upload missing"
+    );
+    ensure!(
+        residency.sync(gpu, renderer, &store.clone())?.uploaded == 0,
+        "unchanged catalog snapshot re-uploaded assets"
+    );
     let scene = RenderScene {
         view_projection: glam::camera::rh::proj::directx::orthographic(
             -2.0, 2.0, -1.5, 1.5, 0.1, 10.0,
@@ -376,12 +377,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         matches!(entry.state(), LoadState::Failed(_)),
         "corrupt image was accepted"
     );
-    assets::upload(
-        gpu,
-        renderer,
-        &entry.id,
-        entry.data().context("lost last good asset")?,
-    )?;
+    ensure!(
+        residency.sync(gpu, renderer, &store)?.uploaded == 0,
+        "failed CPU reload re-uploaded last-good data"
+    );
     ensure!(
         capture(gpu, renderer, &scene, [257, 193])?.rgba == first.rgba,
         "failed reload changed the image"
@@ -394,13 +393,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         store.refresh() == vec![handle],
         "texture recovery not detected"
     );
-    let entry = store.get(handle).context("lost texture handle")?;
-    assets::upload(
-        gpu,
-        renderer,
-        &entry.id,
-        entry.data().context("missing recovered data")?,
-    )?;
+    ensure!(
+        residency.sync(gpu, renderer, &store)?.uploaded == 1,
+        "texture recovery re-uploaded unrelated assets"
+    );
     let updated = capture(gpu, renderer, &scene, [257, 193])?;
     pixel(&updated, 96, 64, [0, 255, 255])?;
     updated.write_ppm(&options.output.join("imported-reloaded.ppm"))?;
@@ -414,13 +410,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         store.refresh() == vec![mesh_handle],
         "mesh change not detected"
     );
-    let entry = store.get(mesh_handle).context("lost mesh handle")?;
-    assets::upload(
-        gpu,
-        renderer,
-        &entry.id,
-        entry.data().context("missing changed mesh")?,
-    )?;
+    ensure!(
+        residency.sync(gpu, renderer, &store)?.uploaded == 1,
+        "mesh reload re-uploaded unrelated assets"
+    );
     pixel(
         &capture(gpu, renderer, &scene, [257, 193])?,
         128,
@@ -428,7 +421,7 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         [5, 6, 10],
     )?;
     println!(
-        "asset_gpu_ok imported_mesh texture_orientation srgb failed_reload recovery mesh_reload"
+        "asset_gpu_ok imported_mesh texture_orientation srgb failed_reload recovery mesh_reload residency_reuse"
     );
     Ok(())
 }

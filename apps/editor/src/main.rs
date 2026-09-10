@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, ensure};
-use bozzard_assets::{AssetData, LoadState};
+use bozzard_assets::LoadState;
 use bozzard_editor::Editor;
 use bozzard_render::{Backend, Gpu, SceneRenderer, wgpu};
 use bozzard_scene::{AssetKind, Camera, Layer, Mesh, Spin, Texture, Transform};
@@ -72,6 +72,7 @@ struct App {
     editor: Editor,
     gpu: Gpu,
     renderer: SceneRenderer,
+    residency: bozzard_render_assets::Residency,
     target: Option<Target>,
     render_state: eframe::egui_wgpu::RenderState,
     workspace: Workspace,
@@ -152,6 +153,7 @@ impl App {
             editor,
             gpu,
             renderer,
+            residency: bozzard_render_assets::Residency::default(),
             render_state: state,
             target: None,
             workspace,
@@ -260,13 +262,8 @@ impl App {
     }
     fn sync_assets(&mut self) -> Result<()> {
         if self.uploaded_revision != self.editor.asset_revision() {
-            // Document edits need no re-import. Re-uploading the small scene cache also handles undo/catalog changes.
-            self.renderer.clear_imported();
-            for entry in self.editor.assets.entries() {
-                if let Some(data) = entry.data() {
-                    upload(&self.gpu, &mut self.renderer, &entry.id, data)?;
-                }
-            }
+            self.residency
+                .sync(&self.gpu, &mut self.renderer, &self.editor.assets)?;
             self.uploaded_revision = self.editor.asset_revision();
         }
         if self.refresh.is_none()
@@ -317,12 +314,6 @@ impl App {
                     .context("missing asset handle")?;
                 match entry.state() {
                     LoadState::Ready => {
-                        upload(
-                            &self.gpu,
-                            &mut self.renderer,
-                            &entry.id,
-                            entry.data().context("asset missing data")?,
-                        )?;
                         reloaded.push(entry.id.clone());
                     }
                     LoadState::Failed(message) => {
@@ -338,6 +329,8 @@ impl App {
                     LoadState::Pending => {}
                 }
             }
+            self.residency
+                .sync(&self.gpu, &mut self.renderer, &self.editor.assets)?;
             if let Some(message) = failure {
                 self.status = message;
                 self.error = true;
@@ -739,6 +732,8 @@ impl App {
                 }
                 if output.reload_requested {
                     self.reload_paused = false;
+                    self.residency.retry_failed();
+                    self.uploaded_revision = 0;
                     self.last_assets = Instant::now() - Duration::from_secs(1);
                     let result = self.sync_assets();
                     self.result(result);
@@ -1006,9 +1001,6 @@ impl eframe::App for App {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, "workspace", &self.workspace);
     }
-}
-fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetData) -> Result<()> {
-    bozzard_render_assets::upload(gpu, renderer, id, data)
 }
 
 // Finder launches with an unrelated working directory. Use a user-owned location

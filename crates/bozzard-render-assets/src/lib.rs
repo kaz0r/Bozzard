@@ -1,9 +1,11 @@
 //! Shared asset-to-renderer adapter used by the editor and standalone player.
 //! Neither the CPU importer nor the renderer depends on this bridge.
+mod residency;
 use bozzard_assets::{
     AssetData, Filter, ImageData, MeshData, Sampler, SurfaceShading, TextureMap, Wrap,
 };
 use bozzard_render::{Gpu, MaterialMap, ModelImage, ModelPart, ModelShading, SceneRenderer, wgpu};
+pub use residency::{Residency, ResidencyReport};
 
 fn image(source: &ImageData) -> ModelImage<'_> {
     ModelImage {

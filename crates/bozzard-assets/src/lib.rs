@@ -100,6 +100,10 @@ impl Entry {
     pub fn data(&self) -> Option<&AssetData> {
         self.data.as_deref()
     }
+    /// Immutable data identity survives catalog snapshots and Undo/Redo.
+    pub fn shared_data(&self) -> Option<Arc<AssetData>> {
+        self.data.clone()
+    }
     pub fn revision(&self) -> u64 {
         self.revision
     }
