@@ -89,6 +89,58 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         texture: TextureKind::White,
         lit: false,
     };
+    // Extreme minification must converge to the linear-light average, rather
+    // than aliasing between black/white or averaging sRGB bytes (about 55).
+    for (width, height, checker, expected) in [
+        (64, 64, true, [128; 3]),
+        (7, 3, false, [55; 3]),
+        (1, 17, false, [55; 3]),
+    ] {
+        let rgba: Vec<u8> = (0..height)
+            .flat_map(|y| {
+                (0..width).flat_map(move |x| {
+                    let value = if checker {
+                        if (x + y) % 2 == 0 { 0 } else { 255 }
+                    } else {
+                        128
+                    };
+                    [value, value, value, 255]
+                })
+            })
+            .collect();
+        renderer.upload_model(
+            gpu,
+            "mip-test",
+            &vertices,
+            &indices,
+            &[ModelPart {
+                start: 0,
+                count: 12,
+                color: [1.; 4],
+                alpha_cutoff: None,
+                image: Some(ModelImage {
+                    width,
+                    height,
+                    rgba: &rgba,
+                }),
+            }],
+        )?;
+        let mip_scene = RenderScene {
+            view_projection: Mat4::IDENTITY,
+            items: vec![DrawItem {
+                model: Mat4::IDENTITY,
+                mesh: MeshKind::Imported("mip-test".into()),
+                material: Material {
+                    uv_scale: [128.; 2],
+                    ..material.clone()
+                },
+            }],
+        };
+        let mip_frame = capture(gpu, &mut renderer, &mip_scene, [64, 64])?;
+        for x in 10..24 {
+            pixel(&mip_frame, x, 32, expected)?;
+        }
+    }
     let scene = RenderScene {
         view_projection: Mat4::IDENTITY,
         items: vec![DrawItem {
@@ -160,7 +212,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         [5, 6, 10],
     )?;
     println!(
-        "model_materials_ok multipart base_color_texture alpha_blend alpha_mask transactional_upload"
+        "model_materials_ok multipart base_color_texture alpha_blend alpha_mask transactional_upload linear_light_mipmaps"
     );
     Ok(())
 }

@@ -103,6 +103,8 @@ pub struct SceneRenderer {
     white: wgpu::TextureView,
     checker: wgpu::TextureView,
     sampler: wgpu::Sampler,
+    model_sampler: wgpu::Sampler,
+    mipmaps: crate::mipmap::Mipmaps,
     objects: Vec<ObjectBinding>,
     depth: Option<DepthTarget>,
     imported_meshes: BTreeMap<String, MeshBuffers>,
@@ -341,6 +343,16 @@ impl SceneRenderer {
                 ..Default::default()
             }),
             objects: Vec::new(),
+            model_sampler: gpu.device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("model trilinear repeat sampler"),
+                address_mode_u: wgpu::AddressMode::Repeat,
+                address_mode_v: wgpu::AddressMode::Repeat,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::MipmapFilterMode::Linear,
+                ..Default::default()
+            }),
+            mipmaps: crate::mipmap::Mipmaps::new(gpu),
             depth: None,
             imported_meshes: BTreeMap::new(),
             models: BTreeMap::new(),
@@ -372,7 +384,13 @@ impl SceneRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        resource: wgpu::BindingResource::Sampler(
+                            if matches!(key, TextureKind::ModelPart(..)) {
+                                &self.model_sampler
+                            } else {
+                                &self.sampler
+                            },
+                        ),
                     },
                 ],
             })
@@ -571,11 +589,13 @@ impl SceneRenderer {
                     let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                         label: Some("model base color"),
                         size,
-                        mip_level_count: 1,
+                        mip_level_count: crate::mipmap::levels(image.width, image.height),
                         sample_count: 1,
                         dimension: wgpu::TextureDimension::D2,
                         format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING
+                            | wgpu::TextureUsages::COPY_DST
+                            | wgpu::TextureUsages::RENDER_ATTACHMENT,
                         view_formats: &[],
                     });
                     gpu.queue.write_texture(
@@ -588,6 +608,7 @@ impl SceneRenderer {
                         },
                         size,
                     );
+                    self.mipmaps.generate(gpu, &texture);
                     let view = texture.create_view(&Default::default());
                     image_translucent = image.rgba.chunks_exact(4).any(|p| p[3] < 255);
                     textures.insert(key, (view.clone(), image_translucent));
@@ -634,7 +655,7 @@ impl SceneRenderer {
                 unique_images: textures.len(),
                 texture_bytes: textures
                     .keys()
-                    .map(|(_, width, height)| *width as usize * *height as usize * 4)
+                    .map(|(_, width, height)| crate::mipmap::texture_bytes(*width, *height))
                     .sum(),
                 cpu_upload_ms: started.elapsed().as_secs_f64() * 1000.0,
             },
