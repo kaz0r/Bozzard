@@ -17,7 +17,7 @@ pub(crate) fn texture_bytes(width: u32, height: u32) -> usize {
 }
 
 impl Mipmaps {
-    pub(crate) fn new(gpu: &Gpu) -> Self {
+    pub(crate) fn new(gpu: &Gpu, format: wgpu::TextureFormat) -> Self {
         let shader = gpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -40,7 +40,7 @@ impl Mipmaps {
                     entry_point: Some("fs_main"),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        format,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],

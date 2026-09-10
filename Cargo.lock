@@ -265,6 +265,7 @@ dependencies = [
  "bozzard-demo",
  "bozzard-editor",
  "bozzard-render",
+ "bozzard-render-assets",
  "bozzard-scene",
  "eframe",
  "glam",
@@ -282,6 +283,7 @@ dependencies = [
  "bozzard-assets",
  "bozzard-demo",
  "bozzard-render",
+ "bozzard-render-assets",
  "bozzard-scene",
  "glam",
  "pollster 0.4.0",
@@ -296,6 +298,15 @@ dependencies = [
  "glam",
  "pollster 0.4.0",
  "wgpu",
+]
+
+[[package]]
+name = "bozzard-render-assets"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bozzard-assets",
+ "bozzard-render",
 ]
 
 [[package]]

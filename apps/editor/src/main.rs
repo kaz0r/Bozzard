@@ -1008,27 +1008,7 @@ impl eframe::App for App {
     }
 }
 fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetData) -> Result<()> {
-    match data {
-        AssetData::Image(i) => renderer.upload_image(gpu, id, i.width, i.height, &i.rgba),
-        AssetData::Mesh(m) => {
-            let parts: Vec<_> = m
-                .parts
-                .iter()
-                .map(|part| bozzard_render::ModelPart {
-                    start: part.start,
-                    count: part.count,
-                    color: part.color,
-                    alpha_cutoff: part.alpha_cutoff,
-                    image: part.image.as_ref().map(|image| bozzard_render::ModelImage {
-                        width: image.width,
-                        height: image.height,
-                        rgba: &image.rgba,
-                    }),
-                })
-                .collect();
-            renderer.upload_model(gpu, id, &m.vertices, &m.indices, &parts)
-        }
-    }
+    bozzard_render_assets::upload(gpu, renderer, id, data)
 }
 
 // Finder launches with an unrelated working directory. Use a user-owned location

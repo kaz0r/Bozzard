@@ -1,7 +1,9 @@
 //! Native WebGPU renderer. No dependency on the ECS, simulation, or a window toolkit.
 pub use wgpu;
 mod mipmap;
+mod pbr;
 mod scene;
+pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
     DrawItem, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, RenderScene,
     SceneRenderer, TextureKind,

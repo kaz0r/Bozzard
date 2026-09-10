@@ -3,6 +3,7 @@ use bozzard_demo::{Position, demo};
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
+mod pbr;
 
 fn capture(
     gpu: &Gpu,
@@ -42,6 +43,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     let green = [0, 255, 0, 255];
     let parts = [
         ModelPart {
+            shading: None,
             start: 0,
             count: 6,
             color: [1., 0., 0., 1.],
@@ -49,6 +51,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             image: None,
         },
         ModelPart {
+            shading: None,
             start: 6,
             count: 6,
             color: [1.; 4],
@@ -64,6 +67,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     let shared_parts: Vec<_> = [0, 6]
         .into_iter()
         .map(|start| ModelPart {
+            shading: None,
             start,
             count: 6,
             color: [1.; 4],
@@ -114,6 +118,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             &vertices,
             &indices,
             &[ModelPart {
+                shading: None,
                 start: 0,
                 count: 12,
                 color: [1.; 4],
@@ -153,6 +158,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     pixel(&image, 16, 32, [255, 0, 0])?;
     pixel(&image, 48, 32, [0, 255, 0])?;
     let invalid = [ModelPart {
+        shading: None,
         start: 0,
         count: 999,
         color: [1.; 4],
@@ -198,6 +204,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         [128, 0, 127],
     )?;
     let masked = [ModelPart {
+        shading: None,
         start: 0,
         count: 12,
         color: [1., 1., 1., 0.5],
@@ -476,6 +483,7 @@ pub fn run(options: &Options) -> Result<()> {
         gpu.require_hardware()?;
     }
     model_material_checks(&gpu)?;
+    pbr::checks(&gpu)?;
     let renderer = TriangleRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let (mut app, entity) = demo();
     let first = render_offscreen(&gpu, &renderer, [0.0, 0.0])?;

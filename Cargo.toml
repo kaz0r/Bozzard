@@ -17,6 +17,7 @@ base64 = "0.22"
 bozzard-ecs = { path = "crates/bozzard-ecs" }
 bozzard-app = { path = "crates/bozzard-app" }
 bozzard-render = { path = "crates/bozzard-render" }
+bozzard-render-assets = { path = "crates/bozzard-render-assets" }
 bozzard-demo = { path = "examples/demo" }
 bozzard-scene = { path = "crates/bozzard-scene" }
 glam = "0.33.6"

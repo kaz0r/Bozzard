@@ -746,7 +746,7 @@ fn gltf_preflight(bytes: &[u8]) -> Result<serde_json::Value> {
 }
 
 fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<MeshData> {
-    let json = gltf_preflight(bytes)?;
+    gltf_preflight(bytes)?;
     let gltf = gltf::Gltf::from_slice(bytes).context("parsing validated glTF")?;
     let mut buffers = Vec::new();
     let mut buffer_bytes = 0usize;
@@ -772,7 +772,7 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
         );
         buffers.push(data);
     }
-    let mut warnings = material_warnings(&json);
+    let mut warnings = Vec::new();
     let scene = gltf
         .default_scene()
         .or_else(|| gltf.scenes().next())
@@ -1091,46 +1091,6 @@ fn image_for(
         gltf::image::Source::Uri { uri, .. } => snapshot_resource(path, uri, snapshot)?.to_vec(),
     };
     decoded_image(&bytes, "glTF base color texture")
-}
-
-fn material_warnings(json: &serde_json::Value) -> Vec<String> {
-    let mut warnings = Vec::new();
-    for material in json
-        .get("materials")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-    {
-        let pbr = material.get("pbrMetallicRoughness");
-        if pbr
-            .and_then(|x| x.get("metallicRoughnessTexture"))
-            .is_some()
-            || pbr
-                .and_then(|x| x.get("metallicFactor"))
-                .and_then(serde_json::Value::as_f64)
-                .is_some_and(|x| x != 1.0)
-            || pbr
-                .and_then(|x| x.get("roughnessFactor"))
-                .and_then(serde_json::Value::as_f64)
-                .is_some_and(|x| x != 1.0)
-        {
-            warnings.push("metallic/roughness PBR properties are not rendered".into());
-        }
-        if ["normalTexture", "occlusionTexture", "emissiveTexture"]
-            .iter()
-            .any(|key| material.get(key).is_some())
-            || material
-                .get("emissiveFactor")
-                .is_some_and(|value| value != &serde_json::json!([0.0, 0.0, 0.0]))
-        {
-            warnings.push(
-                "normal, occlusion, and emissive material properties are not rendered".into(),
-            );
-        }
-    }
-    warnings.sort();
-    warnings.dedup();
-    warnings
 }
 
 /// Read a glTF/GLB and return an ordinary JSON `.gltf` whose buffers and images are data URIs.

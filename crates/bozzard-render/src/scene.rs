@@ -3,6 +3,7 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 
 #[derive(Clone, Debug)]
 pub enum MeshKind {
@@ -49,7 +50,9 @@ pub struct ModelPart<'a> {
     pub color: [f32; 4],
     pub alpha_cutoff: Option<f32>,
     pub image: Option<ModelImage<'a>>,
+    pub shading: Option<crate::ModelShading<'a>>,
 }
+#[derive(Clone)]
 pub struct ModelImage<'a> {
     pub width: u32,
     pub height: u32,
@@ -69,6 +72,8 @@ struct UploadedPart {
     cutoff: Option<f32>,
     translucent: bool,
     center: Vec3,
+    sampler: wgpu::Sampler,
+    shading: Option<crate::pbr::UploadedShading>,
 }
 struct PreparedDraw {
     object: DrawItem,
@@ -81,6 +86,7 @@ struct MeshBuffers {
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
     count: u32,
+    vertex_offset: u64,
 }
 struct ObjectBinding {
     buffer: wgpu::Buffer,
@@ -105,6 +111,8 @@ pub struct SceneRenderer {
     sampler: wgpu::Sampler,
     model_sampler: wgpu::Sampler,
     mipmaps: crate::mipmap::Mipmaps,
+    linear_mipmaps: crate::mipmap::Mipmaps,
+    pbr: crate::pbr::PbrRenderer,
     objects: Vec<ObjectBinding>,
     depth: Option<DepthTarget>,
     imported_meshes: BTreeMap<String, MeshBuffers>,
@@ -114,7 +122,7 @@ pub struct SceneRenderer {
     model_upload_stats: BTreeMap<String, ModelUploadStats>,
 }
 
-fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
+pub(crate) fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
     values.into_iter().flat_map(f32::to_le_bytes).collect()
 }
 
@@ -138,6 +146,7 @@ fn mesh(gpu: &Gpu, vertices: &[[f32; 8]], indices: &[u32]) -> MeshBuffers {
                 usage: wgpu::BufferUsages::INDEX,
             }),
         count: indices.len() as u32,
+        vertex_offset: 0,
     }
 }
 
@@ -265,7 +274,7 @@ impl SceneRenderer {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(160),
+                            min_binding_size: wgpu::BufferSize::new(304),
                         },
                         count: None,
                     },
@@ -316,6 +325,7 @@ impl SceneRenderer {
         };
         let pipeline = make_pipeline(false);
         let transparent_pipeline = make_pipeline(true);
+        let pbr = crate::pbr::PbrRenderer::new(gpu, format, &layout);
         let quad = mesh(
             gpu,
             &[
@@ -327,6 +337,7 @@ impl SceneRenderer {
             &[0, 1, 2, 0, 2, 3],
         );
         Self {
+            pbr,
             pipeline,
             transparent_pipeline,
             layout,
@@ -352,7 +363,8 @@ impl SceneRenderer {
                 mipmap_filter: wgpu::MipmapFilterMode::Linear,
                 ..Default::default()
             }),
-            mipmaps: crate::mipmap::Mipmaps::new(gpu),
+            mipmaps: crate::mipmap::Mipmaps::new(gpu, wgpu::TextureFormat::Rgba8UnormSrgb),
+            linear_mipmaps: crate::mipmap::Mipmaps::new(gpu, wgpu::TextureFormat::Rgba8Unorm),
             depth: None,
             imported_meshes: BTreeMap::new(),
             models: BTreeMap::new(),
@@ -365,7 +377,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 160,
+            size: 304,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -385,8 +397,8 @@ impl SceneRenderer {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: wgpu::BindingResource::Sampler(
-                            if matches!(key, TextureKind::ModelPart(..)) {
-                                &self.model_sampler
+                            if let TextureKind::ModelPart(id, index) = key {
+                                &self.models[id][*index].sampler
                             } else {
                                 &self.sampler
                             },
@@ -516,6 +528,75 @@ impl SceneRenderer {
         self.model_upload_stats.get(id).copied()
     }
 
+    fn upload_material_image(
+        &self,
+        gpu: &Gpu,
+        image: &ModelImage<'_>,
+        srgb: bool,
+        cache: &mut ImageCache,
+    ) -> Result<wgpu::TextureView> {
+        ensure!(
+            image.width > 0
+                && image.height > 0
+                && image.width <= 4096
+                && image.height <= 4096
+                && image.width <= gpu.device.limits().max_texture_dimension_2d
+                && image.height <= gpu.device.limits().max_texture_dimension_2d
+                && image.rgba.len() == image.width as usize * image.height as usize * 4,
+            "invalid PBR image"
+        );
+        let key = (
+            image.rgba.as_ptr() as usize,
+            image.width,
+            image.height,
+            srgb,
+        );
+        if let Some((view, _)) = cache.get(&key) {
+            return Ok(view.clone());
+        }
+        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("PBR texture"),
+            size: wgpu::Extent3d {
+                width: image.width,
+                height: image.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: crate::mipmap::levels(image.width, image.height),
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: if srgb {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            } else {
+                wgpu::TextureFormat::Rgba8Unorm
+            },
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        gpu.queue.write_texture(
+            texture.as_image_copy(),
+            image.rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(image.width * 4),
+                rows_per_image: Some(image.height),
+            },
+            texture.size(),
+        );
+        if srgb {
+            self.mipmaps.generate(gpu, &texture);
+        } else {
+            self.linear_mipmaps.generate(gpu, &texture);
+        }
+        let view = texture.create_view(&Default::default());
+        cache.insert(
+            key,
+            (view.clone(), image.rgba.chunks_exact(4).any(|p| p[3] < 255)),
+        );
+        Ok(view)
+    }
+
     /// Upload all model surfaces before replacing the prior GPU model.
     pub fn upload_model(
         &mut self,
@@ -545,8 +626,11 @@ impl SceneRenderer {
         let mut uploaded = Vec::new();
         // Shared CPU image slices map to one GPU allocation within a model upload.
         // Keys never escape this call, so pointer reuse across later loads is irrelevant.
-        let mut textures: BTreeMap<(usize, u32, u32), (wgpu::TextureView, bool)> = BTreeMap::new();
+        let mut textures: ImageCache = BTreeMap::new();
         for part in parts {
+            if let Some(shading) = &part.shading {
+                shading.validate()?;
+            }
             let start = part.start as usize;
             let end = start
                 .checked_add(part.count as usize)
@@ -555,6 +639,16 @@ impl SceneRenderer {
                 part.count > 0 && part.count.is_multiple_of(3) && end <= indices.len(),
                 "invalid model surface range"
             );
+            if let Some(shading) = &part.shading {
+                let base = shading.vertex_start as usize;
+                ensure!(
+                    base.checked_add(shading.vertices.len())
+                        .is_some_and(|end| end <= vertices.len())
+                        && indices[start..end].iter().all(|i| (*i as usize) >= base
+                            && (*i as usize) < base + shading.vertices.len()),
+                    "shading attributes do not cover model surface"
+                );
+            }
             ensure!(
                 part.color
                     .iter()
@@ -576,7 +670,12 @@ impl SceneRenderer {
                         && image.rgba.len() == image.width as usize * image.height as usize * 4,
                     "invalid model image"
                 );
-                let key = (image.rgba.as_ptr() as usize, image.width, image.height);
+                let key = (
+                    image.rgba.as_ptr() as usize,
+                    image.width,
+                    image.height,
+                    true,
+                );
                 if let Some((view, translucent)) = textures.get(&key) {
                     image_translucent = *translucent;
                     Some(view.clone())
@@ -633,17 +732,52 @@ impl SceneRenderer {
                             label: Some("model surface indices"),
                             contents: &indices[start..end]
                                 .iter()
-                                .flat_map(|i| i.to_le_bytes())
+                                .flat_map(|i| {
+                                    (i - part.shading.as_ref().map_or(0, |s| s.vertex_start))
+                                        .to_le_bytes()
+                                })
                                 .collect::<Vec<_>>(),
                             usage: wgpu::BufferUsages::INDEX,
                         }),
                     count: part.count,
+                    vertex_offset: part
+                        .shading
+                        .as_ref()
+                        .map_or(0, |s| s.vertex_start as u64 * 32),
                 },
                 texture,
                 color: part.color,
                 cutoff: part.alpha_cutoff,
                 translucent: part.color[3] < 1.0 || image_translucent,
                 center: min * 0.5 + max * 0.5,
+                sampler: part.shading.as_ref().map_or_else(
+                    || self.model_sampler.clone(),
+                    |s| gpu.device.create_sampler(&s.base_color_sampler),
+                ),
+                shading: if let Some(shading) = &part.shading {
+                    let mut views = [None, None, None, None];
+                    for (slot, map) in [
+                        &shading.normal,
+                        &shading.metallic_roughness,
+                        &shading.occlusion,
+                        &shading.emissive,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        if let Some(map) = map {
+                            views[slot] = Some(self.upload_material_image(
+                                gpu,
+                                &map.image,
+                                slot == 3,
+                                &mut textures,
+                            )?);
+                        }
+                    }
+                    Some(self.pbr.upload(gpu, shading, views))
+                } else {
+                    None
+                },
             });
         }
         self.imported_meshes.remove(id);
@@ -655,7 +789,7 @@ impl SceneRenderer {
                 unique_images: textures.len(),
                 texture_bytes: textures
                     .keys()
-                    .map(|(_, width, height)| crate::mipmap::texture_bytes(*width, *height))
+                    .map(|(_, width, height, _)| crate::mipmap::texture_bytes(*width, *height))
                     .sum(),
                 cpu_upload_ms: started.elapsed().as_secs_f64() * 1000.0,
             },
@@ -733,8 +867,8 @@ impl SceneRenderer {
             "invalid render dimensions"
         );
         ensure!(
-            scene.view_projection.is_finite(),
-            "non-finite view/projection matrix"
+            scene.view_projection.is_finite() && scene.view_projection.inverse().is_finite(),
+            "invalid view/projection matrix"
         );
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -807,7 +941,15 @@ impl SceneRenderer {
                     mvp.to_cols_array()
                         .into_iter()
                         .chain(normal.to_cols_array())
-                        .chain(tail),
+                        .chain(tail)
+                        .chain(object.model.to_cols_array())
+                        .chain(scene.view_projection.inverse().to_cols_array())
+                        .chain([
+                            size[0] as f32,
+                            size[1] as f32,
+                            object.model.determinant().signum(),
+                            0.,
+                        ]),
                 ),
             );
         }
@@ -845,10 +987,15 @@ impl SceneRenderer {
             });
             for (draw, binding) in draws.iter().zip(&self.objects) {
                 let object = &draw.object;
-                pass.set_pipeline(if draw.transparent {
-                    &self.transparent_pipeline
-                } else {
-                    &self.pipeline
+                let shading = match &object.mesh {
+                    MeshKind::ModelPart(id, index) => self.models[id][*index].shading.as_ref(),
+                    _ => None,
+                };
+                pass.set_pipeline(match (shading.is_some(), draw.transparent) {
+                    (true, false) => &self.pbr.opaque,
+                    (true, true) => &self.pbr.transparent,
+                    (false, false) => &self.pipeline,
+                    (false, true) => &self.transparent_pipeline,
                 });
                 let mesh = match &object.mesh {
                     MeshKind::Quad => &self.quad,
@@ -857,7 +1004,11 @@ impl SceneRenderer {
                     MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
                 };
                 pass.set_bind_group(0, &binding.binding, &[]);
-                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
+                if let Some(shading) = shading {
+                    pass.set_bind_group(1, &shading.binding, &[]);
+                    pass.set_vertex_buffer(1, shading.vertices.slice(..));
+                }
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..mesh.count, 0, 0..1);
             }

@@ -15,6 +15,7 @@ bozzard-demo.workspace = true
 bozzard-scene.workspace = true
 bozzard-assets.workspace = true
 bozzard-render.workspace = true
+bozzard-render-assets.workspace = true
 anyhow.workspace = true
 glam.workspace = true
 serde.workspace = true
