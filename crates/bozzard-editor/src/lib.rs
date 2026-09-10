@@ -435,12 +435,17 @@ impl Editor {
             _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, or GLB"),
         };
         progress.stage("Reading model and packing textures")?;
-        let packed = if kind == AssetKind::Mesh {
+        let package = if matches!(extension.as_str(), "gltf" | "glb") {
+            Some(bozzard_assets::package_gltf(source, progress)?)
+        } else {
+            None
+        };
+        let packed = if kind == AssetKind::Mesh && package.is_none() {
             bozzard_assets::portable_model(source)?
         } else {
             None
         };
-        let extension = if packed.is_some() {
+        let extension = if packed.is_some() || package.is_some() {
             "gltf".to_owned()
         } else {
             extension
@@ -462,6 +467,7 @@ impl Editor {
         let id = loop {
             let id = format!("{base}-{number}");
             if !self.scene.assets.contains_key(&id)
+                && !root(&self.path).join(format!("assets/{id}")).exists()
                 && !root(&self.path)
                     .join(format!("assets/{id}.{extension}"))
                     .exists()
@@ -470,7 +476,11 @@ impl Editor {
             }
             number += 1;
         };
-        let relative = format!("assets/{id}.{extension}");
+        let relative = if package.is_some() {
+            format!("assets/{id}/model.gltf")
+        } else {
+            format!("assets/{id}.{extension}")
+        };
         let target = root(&self.path).join(&relative);
         // Validate from the original location before copying any bytes into the project.
         let sources = BTreeMap::from([(
@@ -489,6 +499,38 @@ impl Editor {
         candidate.refresh_with(progress)?;
         candidate.require_ready()?;
         progress.stage("Copying asset into project")?;
+        if let Some(package) = package {
+            let directory = target.parent().context("package directory")?;
+            std::fs::create_dir_all(directory.parent().context("assets directory")?)?;
+            std::fs::create_dir(directory)?;
+            let result = (|| -> Result<()> {
+                use std::io::Write;
+                for (name, bytes) in package.files {
+                    progress.stage(format!("Copying {name}"))?;
+                    let mut file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(directory.join(name))?;
+                    file.write_all(&bytes)?;
+                    file.sync_all()?;
+                }
+                progress.stage("Validating project assets")?;
+                let mut scene = self.scene.clone();
+                scene.assets.insert(
+                    id.clone(),
+                    AssetSource {
+                        kind,
+                        path: relative,
+                    },
+                );
+                self.apply("Import asset", scene)
+            })();
+            if result.is_err() {
+                let _ = std::fs::remove_dir_all(directory);
+            }
+            result?;
+            return Ok(id);
+        }
         std::fs::create_dir_all(target.parent().unwrap())?;
         // create_new prevents overwriting an existing user asset.
         use std::io::Write;
@@ -973,6 +1015,21 @@ mod tests {
                 .import(&downloads.join(format!("courier.{extension}")))
                 .unwrap();
             assert!(e.scene.assets[&asset].path.ends_with(".gltf"));
+            let packaged =
+                std::fs::read_to_string(dir.0.join("project").join(&e.scene.assets[&asset].path))
+                    .unwrap();
+            let packaged: serde_json::Value = serde_json::from_str(&packaged).unwrap();
+            for array in ["buffers", "images"] {
+                for resource in packaged[array].as_array().unwrap() {
+                    if let Some(uri) = resource.get("uri").and_then(|u| u.as_str()) {
+                        assert!(
+                            !uri.starts_with("data:"),
+                            "project packages must not expand resources into base64"
+                        );
+                        assert_eq!(Path::new(uri).components().count(), 1);
+                    }
+                }
+            }
             std::fs::remove_dir_all(downloads).unwrap();
             e.assets.refresh();
             e.assets.require_ready().unwrap();

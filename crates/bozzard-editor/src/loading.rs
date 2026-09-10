@@ -31,7 +31,11 @@ pub struct PreparedImport {
 impl Drop for PreparedImport {
     fn drop(&mut self) {
         if let Some(path) = &self.created {
-            let _ = std::fs::remove_file(path);
+            if self.source.path == format!("assets/{}/model.gltf", self.id) {
+                let _ = std::fs::remove_dir_all(path);
+            } else {
+                let _ = std::fs::remove_file(path);
+            }
         }
     }
 }
@@ -114,7 +118,11 @@ impl Editor {
             let mut worker = Self::from_loaded(scene, path.clone(), assets);
             let id = worker.import_with(&source, &progress)?;
             let source = worker.scene.assets[&id].clone();
-            let created = Some(root(&path).join(&source.path));
+            let created = Some(if source.path == format!("assets/{id}/model.gltf") {
+                root(&path).join(format!("assets/{id}"))
+            } else {
+                root(&path).join(&source.path)
+            });
             Ok(PreparedImport {
                 path,
                 catalog,
@@ -268,6 +276,27 @@ mod tests {
         assert_eq!(std::fs::read(path).unwrap(), original);
         assert!(editor.dirty());
     }
+    #[test]
+    fn abandoned_model_package_removes_its_owned_directory_only() {
+        let temp = Temp::new();
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/assets/courier.gltf");
+        let editor = Editor::new(
+            bozzard_demo::scene_document().unwrap(),
+            &temp.0.join("scene.json"),
+        )
+        .unwrap();
+        let prepared = wait(&editor.import_job(fixture).unwrap()).unwrap();
+        let directory = prepared.created.clone().unwrap();
+        assert!(directory.is_dir());
+        assert!(directory.join("model.gltf").is_file());
+        let neighbour = directory.parent().unwrap().join("user-file.txt");
+        std::fs::write(&neighbour, b"keep").unwrap();
+        drop(prepared);
+        assert!(!directory.exists());
+        assert_eq!(std::fs::read(neighbour).unwrap(), b"keep");
+    }
+
     #[test]
     fn background_open_loads_a_complete_catalog_or_fails() {
         let fixture =

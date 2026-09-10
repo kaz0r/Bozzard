@@ -1,9 +1,11 @@
 //! CPU imports and background loading. No GPU or window dependencies.
 pub mod job;
+mod package;
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bozzard_scene::{AssetKind, AssetSource};
 use glam::{Mat3, Mat4, Vec3};
+pub use package::{ModelPackage, package_gltf};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Cursor, Read},
