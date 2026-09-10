@@ -1,5 +1,8 @@
 //! Versioned scene documents and ECS instances, with no graphics dependencies.
 //! IDs are document-local persistent strings, never runtime entity handles.
+mod lighting;
+pub use lighting::Lighting;
+
 use anyhow::{Context, Result, ensure};
 use bozzard_ecs::{Entity, World};
 use glam::{EulerRot, Mat4, Quat, Vec3};
@@ -210,6 +213,8 @@ pub struct Object {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scene {
+    #[serde(default)]
+    pub lighting: Lighting,
     pub version: u32,
     pub name: String,
     /// Active camera object ID per view. Scenes may provide either or both views.
@@ -250,6 +255,7 @@ impl Scene {
 
     /// Iterative topological sort: arbitrary document order, no recursive stack limit.
     fn order(&self) -> Result<Vec<usize>> {
+        self.lighting.validate()?;
         ensure!(
             self.version == SCENE_VERSION,
             "unsupported scene version {} (expected {SCENE_VERSION})",
@@ -498,6 +504,7 @@ impl SceneInstance {
             }
         }
         Ok(SceneView {
+            lighting: self.document.lighting,
             view_projection,
             objects,
         })
@@ -526,6 +533,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub lighting: Lighting,
     pub view_projection: Mat4,
     pub objects: Vec<(Mat4, Drawable)>,
 }
@@ -582,6 +590,7 @@ mod tests {
     }
     fn scene() -> Scene {
         Scene {
+            lighting: Lighting::default(),
             version: 1,
             name: "test".into(),
             views: BTreeMap::new(),

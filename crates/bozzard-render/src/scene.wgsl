@@ -3,6 +3,8 @@ struct ObjectUniform {
     normal: mat4x4<f32>,
     tint: vec4<f32>,
     parameters: vec4<f32>, // UV scale, lighting enabled, alpha cutoff
+    model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
+    sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;
@@ -29,7 +31,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let alpha = texel.a * object.tint.a;
     if alpha <= 0.00001 || alpha < object.parameters.w { discard; }
     let base = texel.rgb * object.tint.rgb;
-    let diffuse = 0.3 + 0.7 * max(dot(normalize(in.normal), normalize(vec3<f32>(0.4, 0.8, 0.6))), 0.0);
-    let light = mix(1.0, diffuse, object.parameters.z);
+    let diffuse = object.sun_color.w * object.ambient_color.rgb
+        + object.sun_color.rgb * object.sun.w * max(dot(normalize(in.normal), object.sun.xyz), 0.0) / 3.14159265;
+    let light = mix(vec3<f32>(1.0), diffuse, object.parameters.z);
     return vec4<f32>(base * light, alpha);
 }

@@ -757,6 +757,13 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
     demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
+        lighting: bozzard_render::Lighting {
+            sun_direction: view.lighting.sun_direction,
+            sun_color: view.lighting.sun_color,
+            sun_intensity: view.lighting.sun_intensity,
+            ambient_color: view.lighting.ambient_color,
+            ambient_intensity: view.lighting.ambient_intensity,
+        },
         view_projection: view.view_projection,
         items: view
             .objects

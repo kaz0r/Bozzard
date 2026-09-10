@@ -16,8 +16,10 @@ struct Fixture<'a> {
     base: Option<ModelImage<'a>>,
     color: [f32; 4],
     lit: bool,
+    pbr: bool,
     reversed: bool,
     model: Mat4,
+    lighting: bozzard_render::Lighting,
 }
 impl Fixture<'_> {
     fn draw(&self, gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<Frame> {
@@ -43,10 +45,11 @@ impl Fixture<'_> {
                 color: self.color,
                 alpha_cutoff: None,
                 image: self.base.clone(),
-                shading: Some(self.shading.clone()),
+                shading: self.pbr.then(|| self.shading.clone()),
             }],
         )?;
         let scene = RenderScene {
+            lighting: self.lighting,
             view_projection: glam::camera::rh::proj::directx::orthographic(
                 -1., 1., -1., 1., 0.1, 10.,
             ) * Mat4::from_translation(Vec3::new(0., 0., -3.)),
@@ -93,9 +96,48 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         base: None,
         color: [1.; 4],
         lit: true,
+        pbr: true,
         reversed: false,
         model: Mat4::IDENTITY,
+        lighting: Default::default(),
     };
+    for pbr in [true, false] {
+        f.pbr = pbr;
+        f.lighting.ambient_intensity = 0.;
+        f.lighting.sun_direction = [0., 0., 1.];
+        f.lighting.sun_intensity = 1.;
+        f.lighting.sun_color = [1., 0., 0.];
+        let red = center(&f.draw(gpu, &mut renderer)?);
+        ensure!(
+            red[0] > 60 && red[1] == 0 && red[2] == 0,
+            "authored sun color missing: {red:?}"
+        );
+        f.lighting.sun_intensity = 0.5;
+        let half = center(&f.draw(gpu, &mut renderer)?);
+        ensure!(
+            (i32::from(half[0]) * 2 - i32::from(red[0])).abs() <= 2,
+            "sun intensity is not linear"
+        );
+        f.lighting.sun_direction = [0., 0., -1.];
+        pixel(&f.draw(gpu, &mut renderer)?, 32, 32, [0, 0, 0])?;
+        f.lighting.sun_intensity = 0.;
+        f.lighting.ambient_color = [0., 1., 0.];
+        f.lighting.ambient_intensity = 0.25;
+        pixel(&f.draw(gpu, &mut renderer)?, 32, 32, [0, 64, 0])?;
+        f.lit = false;
+        pixel(&f.draw(gpu, &mut renderer)?, 32, 32, [255; 3])?;
+        f.lit = true;
+        f.lighting.sun_direction = [0.; 3];
+        ensure!(
+            f.draw(gpu, &mut renderer).is_err(),
+            "renderer accepted invalid sun direction"
+        );
+        f.lighting = Default::default();
+    }
+    f.pbr = true;
+    println!(
+        "lighting_gpu_ok pbr_and_diffuse sun_direction color linear_intensity ambient unlit invalid_input"
+    );
     let baseline = center(&f.draw(gpu, &mut renderer)?);
     ensure!(
         baseline[0] > 60,

@@ -90,3 +90,46 @@ fn inspector_settings_are_undoable_and_invalid_camera_edits_preserve_document() 
     assert!(editor.duplicate().is_err());
     assert_eq!(editor.scene(), &changed);
 }
+
+#[test]
+fn authored_lighting_survives_undo_play_and_scene_roundtrip() {
+    let mut editor = editor();
+    let original = editor.scene().clone();
+    let mut changed = original.clone();
+    changed.lighting.sun_intensity = 8.;
+    changed.lighting.sun_direction = [-1., 1., 0.];
+    changed.lighting.ambient_color = [0.2, 0.4, 0.8];
+    editor.apply("Lighting", changed.clone()).unwrap();
+    assert_eq!(
+        editor
+            .render(bozzard_scene::Layer::ThreeD, 1.)
+            .unwrap()
+            .lighting
+            .sun_intensity,
+        8.
+    );
+    editor.undo().unwrap();
+    assert_eq!(editor.scene(), &original);
+    editor.redo().unwrap();
+    assert_eq!(editor.scene(), &changed);
+    assert_eq!(
+        Scene::from_json(&changed.to_json().unwrap()).unwrap(),
+        changed
+    );
+    editor.start_play().unwrap();
+    assert_eq!(
+        editor
+            .render(bozzard_scene::Layer::ThreeD, 1.)
+            .unwrap()
+            .lighting
+            .sun_direction,
+        [-1., 1., 0.]
+    );
+    assert!(editor.apply("Forbidden in Play", original).is_err());
+    editor.stop_play();
+    assert_eq!(editor.scene(), &changed);
+    let mut invalid = changed.clone();
+    invalid.lighting.sun_direction = [0.; 3];
+    assert!(editor.apply("Invalid", invalid).is_err());
+    assert_eq!(editor.scene(), &changed);
+}

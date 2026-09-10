@@ -9,6 +9,7 @@ impl App {
             .show(ui, |ui| {
                 if self.loading.is_some() { ui.disable(); }
                 ui.heading("Inspector");
+                self.lighting_inspector(ui);
                 let Some(original) = self.editor.selected_object().cloned() else {
                     ui.weak("Click an object in the viewport or select its name in the Hierarchy.");
                     ui.weak("Use the Hierarchy search to find an object, or add a Cube or Sprite there.");
@@ -365,6 +366,56 @@ impl App {
                     self.result(r);
                 }
             });
+    }
+    fn lighting_inspector(&mut self, ui: &mut egui::Ui) {
+        let mut scene = self.editor.scene().clone();
+        ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+            ui.collapsing("Scene lighting", |ui| {
+                let light = &mut scene.lighting;
+                let direction = Vec3::from(light.sun_direction).normalize();
+                let mut azimuth = direction.z.atan2(direction.x).to_degrees();
+                let mut elevation = direction.y.clamp(-1., 1.).asin().to_degrees();
+                let changed = ui
+                    .add(egui::Slider::new(&mut azimuth, -180.0..=180.0).text("Sun azimuth °"))
+                    .changed();
+                let changed = ui
+                    .add(egui::Slider::new(&mut elevation, -90.0..=90.0).text("Sun elevation °"))
+                    .changed()
+                    || changed;
+                if changed {
+                    let a = azimuth.to_radians();
+                    let e = elevation.to_radians();
+                    light.sun_direction = [e.cos() * a.cos(), e.sin(), e.cos() * a.sin()];
+                }
+                ui.label("Sun color (linear RGB)");
+                ui.color_edit_button_rgb(&mut light.sun_color);
+                ui.add(
+                    egui::DragValue::new(&mut light.sun_intensity)
+                        .speed(0.05)
+                        .range(0.0..=100000.0)
+                        .prefix("Sun intensity "),
+                );
+                ui.label("Ambient color (linear RGB)");
+                ui.color_edit_button_rgb(&mut light.ambient_color);
+                ui.add(
+                    egui::DragValue::new(&mut light.ambient_intensity)
+                        .speed(0.005)
+                        .range(0.0..=100000.0)
+                        .prefix("Ambient intensity "),
+                );
+                if ui.button("Reset lighting").clicked() {
+                    *light = Default::default();
+                }
+            });
+        });
+        if ui.is_enabled()
+            && self.editor.play.is_none()
+            && scene.lighting != self.editor.scene().lighting
+        {
+            self.editor.begin_gesture("Edit scene lighting");
+            let result = self.editor.apply("Edit scene lighting", scene);
+            self.result(result);
+        }
     }
 }
 fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {

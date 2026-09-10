@@ -5,7 +5,7 @@ mod pbr;
 mod scene;
 pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
-    DrawItem, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, PendingUpload,
+    DrawItem, Lighting, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, PendingUpload,
     RenderScene, SceneRenderer, TextureKind, UploadContext, UploadData, UploadProgress,
     UploadSource,
 };

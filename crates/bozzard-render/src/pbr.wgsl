@@ -1,6 +1,7 @@
 struct ObjectUniform {
     mvp: mat4x4<f32>, normal: mat4x4<f32>, tint: vec4<f32>, parameters: vec4<f32>,
     model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
+    sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
 };
 struct MaterialUniform { factors: vec4<f32>, emissive: vec4<f32> };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
@@ -62,7 +63,7 @@ struct VertexOutput {
     let near = object.inverse_view_projection * vec4<f32>(ndc,0.0,1.0);
     let view_ray = near.xyz / near.w - in.world;
     let v = view_ray / max(length(view_ray),0.000001);
-    let l = normalize(vec3<f32>(0.4,0.8,0.6));
+    let l = object.sun.xyz;
     let h = (v+l) / max(length(v+l),0.000001);
     let nl = max(dot(n,l),0.0);
     let nv = max(dot(n,v),0.0001);
@@ -77,8 +78,7 @@ struct VertexOutput {
     let f0 = mix(vec3<f32>(0.04),base,metallic);
     let fresnel = f0 + (1.0-f0)*pow(1.0-vh,5.0);
     let diffuse = (1.0-fresnel)*(1.0-metallic)*base/3.14159265;
-    // Preview illumination; authored lights, shadowing and IBL follow separately.
-    let direct = (diffuse + distribution*visibility*fresnel)*nl*3.0;
-    let indirect = base*(1.0-metallic)*0.03*ao;
+    let direct = (diffuse + distribution*visibility*fresnel)*nl*object.sun.w*object.sun_color.rgb;
+    let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao;
     return vec4<f32>(direct+indirect+emissive,alpha);
 }

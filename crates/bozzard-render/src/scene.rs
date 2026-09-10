@@ -3,7 +3,9 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+mod lighting;
 mod upload;
+pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 
@@ -41,6 +43,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub lighting: Lighting,
     pub view_projection: Mat4,
     pub items: Vec<DrawItem>,
 }
@@ -280,7 +283,7 @@ impl SceneRenderer {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(304),
+                            min_binding_size: wgpu::BufferSize::new(352),
                         },
                         count: None,
                     },
@@ -383,7 +386,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 304,
+            size: 352,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -927,6 +930,7 @@ impl SceneRenderer {
                 size,
             });
         }
+        scene.lighting.validate()?;
         let draws = self.prepare(scene);
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {
@@ -986,7 +990,8 @@ impl SceneRenderer {
                             size[1] as f32,
                             object.model.determinant().signum(),
                             0.,
-                        ]),
+                        ])
+                        .chain(scene.lighting.uniform()),
                 ),
             );
         }
