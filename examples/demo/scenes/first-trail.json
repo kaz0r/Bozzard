@@ -1,0 +1,833 @@
+{
+  "version": 1,
+  "name": "Bozzard — First Trail",
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Follow camera",
+      "transform": {
+        "translation": [
+          0.0,
+          3.5,
+          8.0
+        ],
+        "rotation_degrees": [
+          -18.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55.0,
+        "near": 0.1,
+        "far": 150.0
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player — WASD / Space",
+      "transform": {
+        "translation": [
+          0.0,
+          0.65,
+          2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          1.2,
+          0.8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.4,
+          0.2
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "gravity": {
+        "enabled": true,
+        "acceleration": 9.81,
+        "max_speed": 50.0,
+        "jump_speed": 5.0
+      },
+      "player_controller": {
+        "camera": "camera",
+        "move_speed": 4.0,
+        "jump_speed": 6.0,
+        "camera_distance": 3.6,
+        "camera_height": 1.0,
+        "camera_radius": 0.3,
+        "orbit_sensitivity": 0.2,
+        "fall_height": -8.0
+      }
+    },
+    {
+      "id": "trail",
+      "name": "Trail — falling off respawns",
+      "transform": {
+        "translation": [
+          0.0,
+          -0.5,
+          -8.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          8.0,
+          1.0,
+          26.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.18,
+          0.3,
+          0.24
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "jump-step",
+      "name": "Jump over this step",
+      "transform": {
+        "translation": [
+          0.0,
+          0.325,
+          -5.5
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          5.0,
+          0.65,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.52,
+          0.35,
+          0.22
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "wall",
+      "name": "Camera obstruction wall",
+      "transform": {
+        "translation": [
+          3.5,
+          1.5,
+          -11.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          3.0,
+          6.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.35,
+          0.4,
+          0.52
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "obstacle",
+      "name": "Detour block",
+      "transform": {
+        "translation": [
+          -1.5,
+          0.75,
+          -12.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          2.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.48,
+          0.35,
+          0.28
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "gold-1",
+      "name": "Gold 1",
+      "transform": {
+        "translation": [
+          0.0,
+          0.9,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.45,
+          0.45,
+          0.45
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.78,
+          0.12
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        65.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "id": "gold-2",
+      "name": "Gold 2",
+      "transform": {
+        "translation": [
+          0.0,
+          1.4,
+          -6.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.45,
+          0.45,
+          0.45
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.78,
+          0.12
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        65.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "id": "gold-3",
+      "name": "Gold 3",
+      "transform": {
+        "translation": [
+          0.0,
+          0.9,
+          -14.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.45,
+          0.45,
+          0.45
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.78,
+          0.12
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        65.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "id": "checkpoint",
+      "name": "Blue checkpoint",
+      "transform": {
+        "translation": [
+          0.0,
+          0.1,
+          -9.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          0.2,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.1,
+          0.65,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            3.0,
+            0.0
+          ],
+          "size": [
+            1.0,
+            8.0,
+            1.0
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "checkpoint",
+          "respawn": [
+            0.0,
+            0.65,
+            -9.0
+          ]
+        }
+      }
+    },
+    {
+      "id": "goal",
+      "name": "Green goal — collect all gold",
+      "transform": {
+        "translation": [
+          0.0,
+          0.12,
+          -18.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          0.24,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.15,
+          1.0,
+          0.35
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            3.0,
+            0.0
+          ],
+          "size": [
+            1.0,
+            8.0,
+            1.0
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "goal"
+        }
+      }
+    },
+    {
+      "id": "rock-1",
+      "name": "Imported trail crystal 1",
+      "transform": {
+        "translation": [
+          -6.0,
+          0.5,
+          -2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          2.0,
+          2.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "trail-rock"
+        },
+        "texture": "white",
+        "color": [
+          0.32,
+          0.48,
+          0.6
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "rock-2",
+      "name": "Imported trail crystal 2",
+      "transform": {
+        "translation": [
+          6.0,
+          1.0,
+          -5.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          3.0,
+          2.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "trail-rock"
+        },
+        "texture": "white",
+        "color": [
+          0.32,
+          0.48,
+          0.6
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "rock-3",
+      "name": "Imported trail crystal 3",
+      "transform": {
+        "translation": [
+          -6.0,
+          1.0,
+          -12.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          3.0,
+          2.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "trail-rock"
+        },
+        "texture": "white",
+        "color": [
+          0.32,
+          0.48,
+          0.6
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "rock-4",
+      "name": "Imported trail crystal 4",
+      "transform": {
+        "translation": [
+          6.0,
+          0.5,
+          -19.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          2.0,
+          2.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "trail-rock"
+        },
+        "texture": "white",
+        "color": [
+          0.32,
+          0.48,
+          0.6
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "rock-5",
+      "name": "Imported trail crystal 5",
+      "transform": {
+        "translation": [
+          -5.0,
+          0.75,
+          -21.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          2.5,
+          2.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "trail-rock"
+        },
+        "texture": "white",
+        "color": [
+          0.32,
+          0.48,
+          0.6
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    }
+  ],
+  "assets": {
+    "trail-rock": {
+      "kind": "mesh",
+      "path": "assets/octahedron.obj"
+    }
+  }
+}

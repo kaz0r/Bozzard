@@ -4,19 +4,45 @@ Live handoff, condensed after publication of `bc22cc8`. Keep this file current a
 
 ## Current status and next step
 
-- Native editor milestone is implemented. Current work improves scene organization while retaining our custom ECS and native wgpu renderer.
-- Latest code: **`bc22cc8`**, committed and pushed to `main`: world-preserving Hierarchy reparenting and unparenting. User confirmed the unparenting follow-up works.
-- **Next action: verify cross-platform CI for `bc22cc8`.** No result has been recorded yet. Previous Hierarchy release `0406da6` passed CI according to the user.
-- **Collapsible Hierarchy branches implemented locally**, authorized by the user; details below. User confirmed the feature works and authorized commit/push. Next: verify CI for this publication.
+- Native editor milestone and **first playable third-person demo are implemented**, retaining the custom ECS/native wgpu and headless boundary. Automated validation passed; user confirmed “it all works” and authorized commit/push of this milestone. No detailed manual test breakdown was supplied.
+- Previous published code: **`9462782`**, committed and pushed to `main`: collapsible Hierarchy branches and scratchpad cleanup, following reparenting/unparenting in `bc22cc8`. This commit records the playable milestone; use Git history for its publication hash.
+- User confirmed CI passed for `9462782`; not independently rechecked this turn. Previous Hierarchy release `0406da6` also passed CI according to the user.
+- Shared fixed-step Player Controller, camera-relative movement/jumping, follow/orbit obstruction camera, collectible/checkpoint/goal triggers and fall respawn are implemented. Inspector and editor/standalone input adapters are connected; `examples/demo/scenes/first-trail.json` reuses the local CC0 octahedron model for scenery.
 - Longer-term: develop basic character control into a usable game-logic workflow, then user-project export. A compatible Sponza stress test remains a useful asset/upload performance investigation; no completed benchmark is recorded.
-- Publishing scratchpad cleanup and the collapsible-branches feature together under the user's explicit commit/push authorization. Earlier reparenting code is published. Future work requires fresh publication authorization.
+- User authorized publication of the playable milestone and its documentation. Hosted CI for this milestone has not yet been checked; do not infer it from earlier CI or local validation.
 
-## Current implementation: collapsible branches (publishing)
+## Current milestone: first playable third-person demo
+
+User authorized the full playable milestone and, after confirming it works, its commit and push. Export remains a separate milestone. Goal: move from an editor with movable objects to an authored, playable game workflow, retaining the custom ECS and native renderer.
+
+1. **Player Controller component:** designate the player and configure movement/jumping. Gameplay input must not depend on editor selection. Build on existing collision response, gravity and grounded jumping.
+2. **Follow camera:** configurable distance/height, mouse orbit and collision avoidance to prevent walls from obscuring the character. Gameplay camera behavior remains separate from editor navigation.
+3. **Basic interactions:** trigger volumes, collectibles, checkpoints and respawning after falling.
+4. **Playable sample level:** imported scenery, obstacles, collectibles and a reachable goal. The same authored scene must work in editor Play and the standalone player.
+
+**Implementation / validation checkpoint:**
+
+- **115 workspace tests passed**, including **three input-boundary regressions** beyond the prior 112: combined physical/logical standalone dispatch, missing editor focus-release recovery and still-held raw-repeat safety. The six original parent-approved review fixes remain complete: safe checkpoint defaults/preserved tuning, atomic controller/active-camera Undo/Redo, physical editor gameplay with logical shortcuts, logical-point standalone orbit/scale reset, pre-advance modifier cancellation and persistent command errors.
+- The two follow-up boundaries are complete under the approved conservative contract: standalone controller scenes reserve physical WASD/Space from logical commands (Colemak physical S/logical R cannot restart); restart uses physical R, while legacy scenes retain logical commands. Editor latches are preserved because egui-winit raw events discard native repeat information. Focus discontinuities mark unresolved held keys and display a yellow rearm hint after refocus: **press/release those physical keys inside the editor, then press again to play**. Observed releases clear hints per key. Same-window viewport/dialog cancellation does not create a focus hint and still requires release/repress. Seamless focus recovery is deliberately not claimed.
+- `cargo fmt --all -- --check`, focused tests (33), workspace tests and Clippy with `-D warnings` (`--locked --offline`), headless dependency audit and diff checks passed. Headless First Trail ran 120 ticks / 16 entities. Latest logs: `work/playable-boundary-{focused-tests,workspace-tests,clippy,fmt-check,headless-audit,diff-check,server}.log`.
+- Native **Metal / Apple M2 Pro** editor smoke passed authored commands, Play isolation, collision/gravity, async save/open/import/cancellation, native capture and viewport pixel oracle (`work/editor-playable-boundary-smoke`, `work/playable-boundary-editor-smoke.log`). It uses the established fixture, not pointer-played First Trail, the rearm hint or new Inspector gestures.
+- Standalone First Trail Metal GPU smoke passed model/material/imported-asset/render/save-reload checks; native window presented **120 frames** (`work/player-playable-boundary-smoke`, `work/playable-boundary-player-{smoke,window}.log`). Winning route remains deterministic injected-input coverage, not automated OS pointer input.
+- README and `docs/playable-demo.md` provide launch commands, controls, authoring constraints, review-fix cases and manual expected outcomes. User confirmed the demo works; specific pointer/focus, HiDPI/layout, Inspector, error-title and Windows/Linux test coverage was not supplied. No agent-performed manual gesture acceptance is claimed.
+- Deliberate limits remain one root kinematic box player/root perspective camera, unconfined RMB drag, sampled trigger overlaps, conservative box camera probing and title-based standalone HUD; no full physics, skeletal animation, scripting, saved progress or export. Existing checkpoint tuning, legacy selected-box controls and Bozz memorial are preserved.
+- Independent review confirmed all six original findings resolved. Final focused review of the two input boundaries found no issues; its remaining notes concern unperformed native manual acceptance. Parent inspected the final status, whitespace/index checks and test/Metal/headless logs.
+
+**Next:** check hosted CI after publication, then discuss the standalone user-project export milestone. User confirmed the playable demo works; retain the documented manual checklist for regression testing and unreported platform/input edge cases. Further implementation/publication requires fresh authorization.
+
+**Scope boundaries:** begin with a simple character shape. Defer skeletal animation, full physics and a general scripting system; this milestone should produce a small playable demo, not expand into every gameplay subsystem.
+
+**Following milestone:** export that game as a standalone user project. Keyboard Hierarchy navigation and other small editor conveniences are deferred for now.
+
+## Latest completed implementation: collapsible branches (`9462782`)
 
 - Added per-parent disclosure arrows and Expand all / Collapse all. Flat search still traverses collapsed branches and disables bulk collapse controls; clearing search restores the stored branch state.
 - Transient state in `apps/editor/src/hierarchy.rs`, separate from documents/history. New/Open reset it; removed IDs are pruned. A changed selection ancestry, explicit rename or successful reparenting reveals ancestors. Manual collapse stays collapsed while the selection is unchanged.
 - Validation: **38 editor-core/editor-app tests passed** (22 core + 16 app), including three new tests for traversal/search, expand/collapse, selection reveal, manual-collapse persistence, reparented ancestry and deleted-ID pruning. Editor-app all-target Clippy with denied warnings, formatting and diff checks passed. Native Metal smoke passed all existing authoring/physics/async/pixel checks (`work/editor-collapse-smoke`); it does not exercise disclosure clicks. README updated; no mouse automation/manual gesture verification.
-- User confirmed the collapsible-branches feature works; no detailed manual test breakdown was supplied. User authorized commit/push. Next: verify this publication's CI. Possible later improvement: keyboard tree navigation; not yet authorized.
+- User confirmed the collapsible-branches feature works; no detailed manual test breakdown was supplied. Published as `9462782`; user confirmed CI passed. Keyboard tree navigation is deferred in favor of discussing a larger milestone.
 
 ## Published implementation: Hierarchy organization
 

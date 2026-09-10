@@ -220,7 +220,15 @@ impl App {
                 self.workspace.ortho_zoom = 1.0;
             }
         });
-        if self.editor.play.is_some() {
+        if let Some(state) = self.editor.play.as_ref().and_then(|play| play.gameplay()) {
+            ui.label(state.feedback());
+            if !self.workspace.layer_2d
+                && let Some(hint) = self.gameplay_controls.rearm_hint()
+            {
+                ui.colored_label(egui::Color32::YELLOW, hint);
+            }
+            ui.weak("Hover 3D viewport: WASD move · Space jump · Right-drag orbit · Esc stop · Gold: collect · Blue: checkpoint · Green: goal");
+        } else if self.editor.play.is_some() {
             ui.weak("Esc: stop simulation · Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Space: jump when grounded");
         } else {
             ui.weak(if self.fly_latched {
@@ -316,7 +324,46 @@ impl App {
             None
         };
 
+        let authored_player = self
+            .editor
+            .play
+            .as_ref()
+            .is_some_and(|play| play.gameplay().is_some());
+        if authored_player {
+            let eligible = ui.is_enabled()
+                && !self.workspace.layer_2d
+                && (response.hovered() || response.dragged_by(egui::PointerButton::Secondary))
+                && self.dialog.is_none()
+                && !self.confirm_discard
+                && self.loading.is_none()
+                && ui.input(|i| {
+                    i.focused
+                        && !i.modifiers.command
+                        && !i.modifiers.ctrl
+                        && !i.modifiers.alt
+                        && !i.key_pressed(egui::Key::Escape)
+                })
+                && !ui.ctx().egui_wants_keyboard_input();
+            let play = self.editor.play.as_mut().unwrap();
+            if eligible {
+                let orbit = ui.input(|i| {
+                    if response.dragged_by(egui::PointerButton::Secondary) {
+                        i.pointer.delta()
+                    } else {
+                        Vec2::ZERO
+                    }
+                });
+                let input = self.gameplay_controls.take_input([orbit.x, orbit.y]);
+                play.set_gameplay_input(input);
+            } else {
+                self.gameplay_controls.reset();
+                play.clear_gameplay_input();
+            }
+        } else {
+            self.gameplay_controls.reset();
+        }
         if self.editor.play.is_some()
+            && !authored_player
             && !self.workspace.layer_2d
             && response.hovered()
             && ui.input(|i| i.focused)

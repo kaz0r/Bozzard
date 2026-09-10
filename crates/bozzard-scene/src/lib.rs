@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
 mod collision;
+mod gameplay;
 mod gravity;
 pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot, MoveResult};
+pub use gameplay::{GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction};
 pub use gravity::{Gravity, GravityState};
 
 pub const SCENE_VERSION: u32 = 1;
@@ -199,6 +201,10 @@ pub struct Object {
     pub collider: Option<BoxCollider>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gravity: Option<Gravity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub player_controller: Option<PlayerController>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<Trigger>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -263,6 +269,7 @@ impl Scene {
                 "asset '{id}' needs a relative path using forward slashes"
             );
         }
+        gameplay::validate(self)?;
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
             ensure!(!object.id.trim().is_empty(), "object ID is empty");
@@ -371,8 +378,12 @@ impl Scene {
             if let Some(collider) = object.collider {
                 collider.geometry(global)?;
             }
+            if let Some(trigger) = &object.trigger {
+                trigger.volume.geometry(global)?;
+            }
             matrices.insert(object.id.as_str(), global);
         }
+        gameplay::validate_respawns(self, &matrices)?;
         Ok(order)
     }
 
@@ -396,16 +407,24 @@ impl Scene {
             if let Some(value) = object.collider {
                 world.insert(entity, value)?;
             }
+            if let Some(value) = &object.player_controller {
+                world.insert(entity, value.clone())?;
+            }
+            if let Some(value) = &object.trigger {
+                world.insert(entity, value.clone())?;
+            }
             if let Some(value) = object.spin {
                 world.insert(entity, value)?;
             }
             entities.insert(object.id.clone(), entity);
         }
-        Ok(SceneInstance {
+        let instance = SceneInstance {
             document: self.clone(),
             entities,
             order,
-        })
+        };
+        instance.initialize_gameplay(world);
+        Ok(instance)
     }
 }
 
@@ -471,6 +490,9 @@ impl SceneInstance {
         for (id, entity) in &self.entities {
             if let Some(drawable) = world.get::<Drawable>(*entity)
                 && drawable.layer == layer
+                && !world
+                    .resource::<GameplayState>()
+                    .is_some_and(|s| s.collected.contains(id))
             {
                 objects.push((matrices[id], drawable.clone()));
             }
@@ -495,6 +517,8 @@ impl SceneInstance {
             object.spin = world.get::<Spin>(entity).copied();
             object.collider = world.get::<BoxCollider>(entity).copied();
             object.gravity = world.get::<Gravity>(entity).copied();
+            object.player_controller = world.get::<PlayerController>(entity).cloned();
+            object.trigger = world.get::<Trigger>(entity).cloned();
         }
         scene.validate()?;
         Ok(scene)
@@ -552,6 +576,8 @@ mod tests {
             spin: None,
             collider: None,
             gravity: None,
+            player_controller: None,
+            trigger: None,
         }
     }
     fn scene() -> Scene {

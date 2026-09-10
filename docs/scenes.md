@@ -16,6 +16,8 @@ Validation rejects missing parents, cycles, duplicate/empty IDs, invalid camera 
 
 - `camera`: `orthographic` with `vertical_size`, or `perspective` with `vertical_fov_degrees`; both have positive `near` and `far > near`. A scene's `views` maps `2d`/`3d` to camera object IDs. Either view may be omitted.
 - `drawable`: a `2d`/`3d` layer, `quad`/`cube` mesh, `white`/`checker` texture, linear RGB tint, and positive UV scale. Either mesh or texture can instead be `{"asset":"stable-id"}` referencing the document’s `assets` catalog; the referenced kind must match.
+- `player_controller`: optional single-player movement/jump/follow-camera settings with a validated active 3D camera ID.
+- `trigger`: optional local box `volume` plus collectible/checkpoint/goal `action`; separate from solid colliders. See [gameplay format, constraints and runtime-state rules](playable-demo.md#authoring-contract). Both additions remain optional in schema v1.
 - `spin`: X/Y/Z angular rates in degrees per second. The demo registers a fixed-step system that updates local rotation, so children inherit parent motion.
 
 Quads and cubes have unit dimensions centered at the origin; scale determines their size. Quad UVs start at the top-left. Both geometry types use indexed buffers. The renderer has per-object uniform buffers and a recreated-on-resize depth target. Nearer surfaces win using a strict less-than depth test. Equal-depth overlap has no stable layering promise: give overlapping sprites distinct Z positions.

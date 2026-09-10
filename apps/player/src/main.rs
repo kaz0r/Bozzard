@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail, ensure};
 mod assets;
+mod gameplay_input;
 mod presentation;
 mod smoke;
 use bozzard_demo::{SceneDemo, load_document, save_document_from};
@@ -16,7 +17,7 @@ use winit::{
     dpi::LogicalSize,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{Key, NamedKey},
+    keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     window::{Window, WindowId},
 };
 
@@ -83,7 +84,7 @@ fn options() -> Result<Option<Options>> {
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
                 println!(
-                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close."
+                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -218,16 +219,111 @@ struct Player {
     demo: SceneDemo,
     assets: assets::Assets,
     paused: bool,
+    gameplay_controls: gameplay_input::GameplayControls,
     last_frame: Instant,
     last_present: Instant,
     frames: u32,
     error: Option<anyhow::Error>,
+    command_error: Option<String>,
 }
 
 impl Player {
+    fn window_title(&self) -> String {
+        let status = if let Some(error) = &self.command_error {
+            format!("ERROR: {error} | ")
+        } else {
+            String::new()
+        };
+        if let Some(state) = self.demo.gameplay() {
+            format!(
+                "Bozzard | {status}{} {}/{} | CP: {} | falls: {} | WASD move, Space jump, RMB orbit, physical R restart",
+                if state.won {
+                    "YOU WIN!"
+                } else {
+                    "Gold → goal"
+                },
+                state.collected.len(),
+                state.total,
+                state.checkpoint.as_deref().unwrap_or("start"),
+                state.respawns
+            )
+        } else {
+            let layer = if self.options.layer == Layer::TwoD {
+                "2D"
+            } else {
+                "3D"
+            };
+            let state = if self.paused { "paused" } else { "playing" };
+            format!(
+                "Bozzard — {status}{layer} / {state} | 1/2: view | Space: pause | Arrows: pan | F5: save | R: reload"
+            )
+        }
+    }
+
+    /// The native handler and regression tests share movement/command dispatch.
+    fn dispatch_keyboard(
+        &mut self,
+        physical: PhysicalKey,
+        logical: &Key,
+        state: ElementState,
+        repeat: bool,
+        synthetic: bool,
+    ) -> Result<()> {
+        if self.demo.gameplay().is_some() {
+            if !synthetic && let PhysicalKey::Code(code) = physical {
+                let input =
+                    self.gameplay_controls
+                        .key(code, state == ElementState::Pressed, repeat);
+                if self.options.layer == Layer::ThreeD {
+                    self.demo.set_gameplay_input(input);
+                } else {
+                    self.demo.clear_gameplay_input();
+                }
+            }
+            // Gameplay positions must never also invoke logical commands on another layout.
+            if matches!(
+                physical,
+                PhysicalKey::Code(
+                    KeyCode::KeyA | KeyCode::KeyD | KeyCode::KeyW | KeyCode::KeyS | KeyCode::Space
+                )
+            ) {
+                return Ok(());
+            }
+            if physical == PhysicalKey::Code(KeyCode::KeyR) {
+                return if state == ElementState::Pressed && !synthetic {
+                    self.handle_key(&Key::Character("r".into()), repeat)
+                } else {
+                    Ok(())
+                };
+            }
+            if matches!(logical, Key::Character(value) if value.eq_ignore_ascii_case("r")) {
+                return Ok(());
+            }
+        }
+        if state == ElementState::Pressed && (!synthetic || self.demo.gameplay().is_none()) {
+            self.handle_key(logical, repeat)?;
+        }
+        Ok(())
+    }
+
     fn handle_key(&mut self, key: &Key, repeat: bool) -> Result<()> {
+        let result = self.execute_key(key, repeat);
+        match &result {
+            Ok(true) => self.command_error = None,
+            Err(error) => self.command_error = Some(format!("{error:#}")),
+            Ok(false) => {}
+        }
+        if let Some(view) = &self.view {
+            view.window.set_title(&self.window_title());
+        }
+        result.map(|_| ())
+    }
+
+    fn execute_key(&mut self, key: &Key, repeat: bool) -> Result<bool> {
         match key {
-            Key::Named(NamedKey::Space) if !repeat => self.paused = !self.paused,
+            Key::Named(NamedKey::Space) if !repeat && self.demo.gameplay().is_none() => {
+                self.paused = !self.paused
+            }
             Key::Character(value) if !repeat && (value == "1" || value == "2") => {
                 let layer = if value == "1" {
                     Layer::TwoD
@@ -239,6 +335,8 @@ impl Player {
                     "scene has no {layer:?} view"
                 );
                 self.options.layer = layer;
+                self.gameplay_controls.reset();
+                self.demo.clear_gameplay_input();
             }
             Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
                 let document = load_document(self.options.scene.as_deref())?;
@@ -255,6 +353,10 @@ impl Player {
                 }
                 self.assets = assets;
                 self.demo = next;
+                self.gameplay_controls.reset();
+                if self.demo.gameplay().is_some() {
+                    self.paused = false;
+                }
                 self.last_frame = Instant::now();
                 println!("scene_reloaded");
             }
@@ -271,7 +373,7 @@ impl Player {
                 | NamedKey::ArrowRight
                 | NamedKey::ArrowUp
                 | NamedKey::ArrowDown),
-            ) => {
+            ) if self.demo.gameplay().is_none() => {
                 let entity = self.demo.instance.camera_entity(self.options.layer)?;
                 let camera = self
                     .demo
@@ -286,18 +388,9 @@ impl Player {
                     _ => camera.translation[1] -= 0.25,
                 }
             }
-            _ => return Ok(()),
+            _ => return Ok(false),
         }
-        if let Some(view) = &self.view {
-            let layer = if self.options.layer == Layer::TwoD {
-                "2D"
-            } else {
-                "3D"
-            };
-            let state = if self.paused { "paused" } else { "playing" };
-            view.window.set_title(&format!("Bozzard — {layer} / {state} | 1/2: view | Space: pause | Arrows: pan | F5: save | R: reload"));
-        }
-        Ok(())
+        Ok(true)
     }
 
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: anyhow::Error) {
@@ -317,6 +410,8 @@ impl ApplicationHandler for Player {
                     self.fail(event_loop, error);
                     return;
                 }
+                self.gameplay_controls
+                    .set_scale_factor(view.window.scale_factor());
                 self.view = Some(view);
                 self.last_frame = Instant::now();
                 self.last_present = Instant::now();
@@ -327,6 +422,8 @@ impl ApplicationHandler for Player {
 
     fn suspended(&mut self, _: &ActiveEventLoop) {
         self.view = None;
+        self.gameplay_controls.reset();
+        self.demo.clear_gameplay_input();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -336,18 +433,42 @@ impl ApplicationHandler for Player {
         if self.view.as_ref().is_none_or(|v| id != v.window.id()) {
             return;
         }
-        if let WindowEvent::KeyboardInput { event, .. } = &event
-            && event.state == ElementState::Pressed
-            && let Err(error) = self.handle_key(&event.logical_key, event.repeat)
-        {
-            eprintln!("scene command failed: {error:#}");
-            if let Some(view) = &self.view {
-                view.window.set_title(&format!("Bozzard — {error}"));
+        if self.demo.gameplay().is_some() {
+            if let Some(input) = self.gameplay_controls.event(&event)
+                && self.options.layer == Layer::ThreeD
+            {
+                self.demo.set_gameplay_input(input);
+            } else {
+                self.demo.clear_gameplay_input();
             }
         }
+        if let WindowEvent::KeyboardInput {
+            event,
+            is_synthetic,
+            ..
+        } = &event
+            && let Err(error) = self.dispatch_keyboard(
+                event.physical_key,
+                &event.logical_key,
+                event.state,
+                event.repeat,
+                *is_synthetic,
+            )
+        {
+            eprintln!("scene command failed: {error:#}");
+        }
+        let now = Instant::now();
+        if matches!(event, WindowEvent::RedrawRequested) {
+            if !self.paused {
+                self.demo.app.advance(now.duration_since(self.last_frame));
+            }
+            self.last_frame = now;
+        }
+        let title = self.window_title();
         let Some(view) = self.view.as_mut() else {
             return;
         };
+        view.window.set_title(&title);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. }
@@ -358,11 +479,6 @@ impl ApplicationHandler for Player {
             }
             WindowEvent::Resized(size) => view.resize(size.width, size.height),
             WindowEvent::RedrawRequested => {
-                let now = Instant::now();
-                if !self.paused {
-                    self.demo.app.advance(now.duration_since(self.last_frame));
-                }
-                self.last_frame = now;
                 match view.draw(&self.demo, &mut self.assets, self.options.layer) {
                     Ok(true) => {
                         self.frames = self.frames.saturating_add(1);
@@ -440,10 +556,12 @@ fn main() -> Result<()> {
         view: None,
         demo,
         paused: false,
+        gameplay_controls: gameplay_input::GameplayControls::default(),
         last_frame: Instant::now(),
         last_present: Instant::now(),
         frames: 0,
         error: None,
+        command_error: None,
     };
     EventLoop::new()?.run_app(&mut player)?;
     if let Some(error) = player.error {
@@ -461,6 +579,246 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod controls_tests {
     use super::*;
+    fn authored_player() -> Player {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/first-trail.json");
+        let document = load_document(Some(&path)).unwrap();
+        Player {
+            assets: assets::Assets::load(&document, Some(&path)).unwrap(),
+            options: Options {
+                scene: Some(path),
+                ..Default::default()
+            },
+            view: None,
+            demo: SceneDemo::new(&document).unwrap(),
+            paused: false,
+            gameplay_controls: gameplay_input::GameplayControls::default(),
+            last_frame: Instant::now(),
+            last_present: Instant::now(),
+            frames: 0,
+            error: None,
+            command_error: None,
+        }
+    }
+
+    #[test]
+    fn combined_dispatch_reserves_gameplay_positions_and_restarts_physically() {
+        let mut player = authored_player();
+        player.gameplay_controls.event(&WindowEvent::Focused(true));
+        player.demo.app.step();
+        player.command_error = Some("retained status".into());
+        for code in [
+            KeyCode::KeyS,
+            KeyCode::KeyW,
+            KeyCode::KeyA,
+            KeyCode::KeyD,
+            KeyCode::Space,
+            KeyCode::KeyP,
+        ] {
+            player
+                .dispatch_keyboard(
+                    PhysicalKey::Code(code),
+                    &Key::Character("r".into()),
+                    ElementState::Pressed,
+                    false,
+                    false,
+                )
+                .unwrap();
+            assert_eq!(player.demo.app.ticks(), 1, "logical R must not reload");
+            assert_eq!(player.command_error.as_deref(), Some("retained status"));
+            let input = player
+                .demo
+                .app
+                .world
+                .resource::<bozzard_scene::GameplayInput>()
+                .unwrap();
+            if code == KeyCode::KeyS {
+                assert_eq!(input.movement, [0.0, -1.0], "Colemak backward still moves");
+            }
+            if code == KeyCode::Space {
+                assert!(input.jump);
+                assert!(!player.paused);
+            }
+            player
+                .dispatch_keyboard(
+                    PhysicalKey::Code(code),
+                    &Key::Character("r".into()),
+                    ElementState::Released,
+                    false,
+                    false,
+                )
+                .unwrap();
+        }
+        // Reservation applies to all logical commands, not just restart.
+        player.options.save_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for code in [
+            KeyCode::KeyS,
+            KeyCode::KeyW,
+            KeyCode::KeyA,
+            KeyCode::KeyD,
+            KeyCode::Space,
+        ] {
+            for logical in [Key::Character("1".into()), Key::Named(NamedKey::F5)] {
+                player
+                    .dispatch_keyboard(
+                        PhysicalKey::Code(code),
+                        &logical,
+                        ElementState::Pressed,
+                        false,
+                        false,
+                    )
+                    .unwrap();
+                assert_eq!(player.options.layer, Layer::ThreeD);
+                assert_eq!(player.command_error.as_deref(), Some("retained status"));
+            }
+        }
+        for (state, repeat, synthetic) in [
+            (ElementState::Pressed, true, false),
+            (ElementState::Released, false, false),
+            (ElementState::Pressed, false, true),
+        ] {
+            player
+                .dispatch_keyboard(
+                    PhysicalKey::Code(KeyCode::KeyR),
+                    &Key::Character("p".into()),
+                    state,
+                    repeat,
+                    synthetic,
+                )
+                .unwrap();
+            assert_eq!(player.demo.app.ticks(), 1);
+        }
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::KeyR),
+                &Key::Character("p".into()),
+                ElementState::Pressed,
+                false,
+                false,
+            )
+            .unwrap();
+        assert_eq!(player.demo.app.ticks(), 0);
+        assert!(player.command_error.is_none());
+        assert_eq!(player.gameplay_controls.current().movement, [0.0; 2]);
+
+        // The same physical S/logical R still reloads legacy non-controller scenes.
+        player.options.scene = None;
+        player.demo = SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap();
+        player.demo.app.step();
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::KeyS),
+                &Key::Character("r".into()),
+                ElementState::Pressed,
+                false,
+                false,
+            )
+            .unwrap();
+        assert_eq!(player.demo.app.ticks(), 0);
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::Space),
+                &Key::Named(NamedKey::Space),
+                ElementState::Pressed,
+                false,
+                false,
+            )
+            .unwrap();
+        assert!(player.paused);
+    }
+
+    #[test]
+    fn command_errors_survive_gameplay_titles_until_a_successful_command() {
+        let mut player = authored_player();
+        // Failed commands survive simulation/redraw titles and ordinary gameplay keys.
+        let source = player.options.scene.clone();
+        player.options.scene = Some(PathBuf::from("__bozzard_missing_scene__/missing.json"));
+        assert!(
+            player
+                .handle_key(&Key::Character("r".into()), false)
+                .is_err()
+        );
+        let failure = player.command_error.clone().unwrap();
+        for _ in 0..3 {
+            player.demo.app.step();
+            player
+                .handle_key(&Key::Character("w".into()), false)
+                .unwrap();
+            player
+                .handle_key(&Key::Character("r".into()), true)
+                .unwrap();
+            assert!(player.window_title().contains(&format!("ERROR: {failure}")));
+        }
+        player.options.scene = source;
+        player
+            .handle_key(&Key::Character("r".into()), false)
+            .unwrap();
+        assert!(player.command_error.is_none());
+        assert!(!player.window_title().contains("ERROR:"));
+        // Saving to a directory reliably fails without depending on host permissions.
+        player.options.save_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        assert!(player.handle_key(&Key::Named(NamedKey::F5), false).is_err());
+        player.demo.app.step();
+        assert!(player.window_title().contains("ERROR:"));
+        player
+            .handle_key(&Key::Character("r".into()), false)
+            .unwrap();
+        assert!(!player.window_title().contains("ERROR:"));
+    }
+
+    #[test]
+    fn authored_player_space_does_not_pause_and_restart_clears_win_and_input() {
+        let mut player = authored_player();
+        let document = load_document(player.options.scene.as_deref()).unwrap();
+        player
+            .handle_key(&Key::Named(NamedKey::Space), false)
+            .unwrap();
+        assert!(!player.paused);
+        let camera = player.demo.instance.camera_entity(Layer::ThreeD).unwrap();
+        let pose = *player.demo.app.world.get::<Transform>(camera).unwrap();
+        player
+            .handle_key(&Key::Named(NamedKey::ArrowLeft), false)
+            .unwrap();
+        assert_eq!(
+            *player.demo.app.world.get::<Transform>(camera).unwrap(),
+            pose
+        );
+        for tick in 0..340 {
+            player
+                .demo
+                .set_gameplay_input(bozzard_scene::GameplayInput {
+                    movement: [0.0, 1.0],
+                    jump: tick == 80,
+                    ..Default::default()
+                });
+            player.demo.app.step();
+        }
+        player.demo.check_simulation().unwrap();
+        assert!(player.demo.gameplay().unwrap().won);
+        player
+            .handle_key(&Key::Character("r".into()), false)
+            .unwrap();
+        let state = player.demo.gameplay().unwrap();
+        assert!(!state.won && state.collected.is_empty() && state.checkpoint.is_none());
+        assert_eq!(
+            player
+                .demo
+                .instance
+                .capture(&player.demo.app.world)
+                .unwrap(),
+            document
+        );
+        assert_eq!(
+            player
+                .demo
+                .app
+                .world
+                .resource::<bozzard_scene::GameplayInput>()
+                .unwrap()
+                .movement,
+            [0.0; 2]
+        );
+    }
     #[test]
     fn view_pause_pan_and_transactional_reload_work_without_a_gpu() {
         let mut player = Player {
@@ -469,10 +827,12 @@ mod controls_tests {
             view: None,
             demo: SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap(),
             paused: false,
+            gameplay_controls: gameplay_input::GameplayControls::default(),
             last_frame: Instant::now(),
             last_present: Instant::now(),
             frames: 0,
             error: None,
+            command_error: None,
         };
         player
             .handle_key(&Key::Named(NamedKey::Space), false)

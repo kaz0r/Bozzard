@@ -29,7 +29,17 @@ The initial import slice supports opaque images and static OBJ geometry; async l
 
 Remaining editor extensions: generic component reflection, arbitrary tab docking, and production gizmo ergonomics.
 
-## 4 — First user-game export
+## 4 — First playable third-person demo (implemented locally)
+
+- Serialized Player Controller settings, selection-independent camera-relative movement and grounded jumping.
+- Configurable follow camera height/distance, mouse orbit and conservative solid-box obstruction avoidance.
+- Non-solid collectible/checkpoint/goal volumes, automatic fall respawn and visible progress/win feedback.
+- First Trail: ready-to-play authored level with obstacles and reused local static-model scenery, shared by editor Play and standalone player.
+- Shared headless fixed-step runtime, inspector authoring, validated references/settings and deterministic route/Play isolation regressions.
+
+See [run commands and manual acceptance checklist](playable-demo.md). This is a single kinematic box character, not skeletal animation, full physics, scripting or a game export pipeline. Manual pointer/platform verification remains separate from automated simulation/rendering checks.
+
+## 5 — First user-game export
 
 - Project manifest and selected runtime modules.
 - Asset cooker and deterministic package manifest.
@@ -37,14 +47,14 @@ Remaining editor extensions: generic component reflection, arbitrary tab docking
 - Playable exported project tested outside its source directory.
 - Minimum OS baselines, dependency notices, signing/notarization plan.
 
-## 5 — Simulation and content systems
+## 6 — Simulation and content systems
 
 - Physics, audio, animation, input actions, materials and lighting.
 - Scene/prefab composition and scripting design.
 - Module dependency/lifecycle contract; evaluate runtime binary loading.
 - Profiling and evidence-driven ECS/render improvements.
 
-## 6 — Dedicated game servers
+## 7 — Dedicated game servers
 
 - Real-time pacing, shutdown and operational diagnostics.
 - Networking transport, entity replication, authority and interest management.

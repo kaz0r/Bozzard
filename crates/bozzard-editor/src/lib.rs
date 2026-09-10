@@ -224,6 +224,8 @@ impl Editor {
             spin: None,
             collider: None,
             gravity: None,
+            player_controller: None,
+            trigger: None,
             drawable: Some(Drawable {
                 layer,
                 mesh,
@@ -348,6 +350,8 @@ impl Editor {
             spin: None,
             collider: None,
             gravity: None,
+            player_controller: None,
+            trigger: None,
             drawable: Some(Drawable {
                 layer,
                 mesh,

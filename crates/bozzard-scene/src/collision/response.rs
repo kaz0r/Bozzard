@@ -36,7 +36,7 @@ fn radius(a: &CollisionBox, b: &CollisionBox, axis: DVec3) -> f64 {
         .map(|e| e.dot(axis).abs())
         .sum()
 }
-fn penetration(a: &CollisionBox, b: &CollisionBox) -> Option<(f64, DVec3)> {
+pub(super) fn penetration(a: &CollisionBox, b: &CollisionBox) -> Option<(f64, DVec3)> {
     let mut best = (f64::INFINITY, DVec3::ZERO);
     for axis in axes(a, b) {
         let distance = (a.center - b.center).dot(axis);

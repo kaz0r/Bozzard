@@ -19,6 +19,7 @@ mod asset_browser;
 mod colliders;
 mod files;
 mod framing;
+mod gameplay_input;
 mod hierarchy;
 mod inspector;
 mod loading;
@@ -100,6 +101,7 @@ struct App {
     fly_latched: bool,
     fly_tab_down: bool,
     viewport_rect: Option<Rect>,
+    gameplay_controls: gameplay_input::GameplayControls,
     smoke: Option<PathBuf>,
     smoke_passed: Arc<AtomicBool>,
     smoke_frames: u32,
@@ -179,6 +181,7 @@ impl App {
             fly_latched: false,
             fly_tab_down: false,
             viewport_rect: None,
+            gameplay_controls: gameplay_input::GameplayControls::default(),
             smoke,
             smoke_passed,
             smoke_frames: 0,
@@ -401,10 +404,12 @@ impl App {
                 ui.separator();
                 if editable {
                     if ui.button("▶ Play").clicked() {
+                        self.gameplay_controls.reset();
                         let r = self.editor.start_play();
                         self.result(r);
                     }
                 } else if ui.button("■ Stop").clicked() {
+                    self.gameplay_controls.reset();
                     self.editor.stop_play();
                 }
                 ui.separator();
@@ -773,6 +778,7 @@ impl App {
         if self.editor.play.is_some()
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
+            self.gameplay_controls.reset();
             self.editor.stop_play();
             self.status = "Simulation stopped · Back to editing".into();
             self.error = false;
@@ -845,6 +851,17 @@ impl eframe::App for App {
             .viewport_rect
             .zip(pointer)
             .is_some_and(|(rect, pos)| rect.contains(pos));
+        self.gameplay_controls.prepare(
+            input,
+            ctx.input(|i| i.modifiers),
+            over_viewport
+                && !ctx.egui_wants_keyboard_input()
+                && self.loading.is_none()
+                && self.dialog.is_none()
+                && !self.confirm_discard
+                && !self.workspace.layer_2d,
+            self.editor.play.as_mut(),
+        );
         let eligible = input.focused
             && self.editor.play.is_none()
             && !self.workspace.layer_2d

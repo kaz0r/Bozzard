@@ -63,10 +63,14 @@ pub struct CollisionBox {
     pub entity: Entity,
     /// Bit-indexed corners: X=bit0, Y=bit1, Z=bit2. Bit set selects the positive extent.
     pub corners: [Vec3; 8],
-    center: DVec3,
-    edges: [DVec3; 3],
+    pub(super) center: DVec3,
+    pub(super) edges: [DVec3; 3],
 }
 impl CollisionBox {
+    pub(super) fn penetrates(&self, other: &Self) -> bool {
+        response::penetration(self, other).is_some_and(|(depth, _)| depth > 1e-5)
+    }
+
     /// SAT for transformed boxes, including shear from rotated/nonuniformly scaled parents.
     /// Touching counts as overlap; a relative 1e-6 tolerance handles transform roundoff.
     pub fn intersects(&self, other: &Self) -> bool {

@@ -16,6 +16,7 @@ impl App {
                 };
                 let mut object = original.clone();
                 let mut scene = self.editor.scene().clone();
+                let checkpoint_start = checkpoint_respawn(&scene, &original);
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                         ui.label("Name");
@@ -200,6 +201,62 @@ impl App {
 
                         }
                         ui.separator();
+                        let mut controller = object.player_controller.is_some();
+                        if ui.checkbox(&mut controller, "Player Controller").changed() {
+                            object.player_controller = controller.then(|| bozzard_scene::PlayerController {
+                                camera: scene.views.get(&Layer::ThreeD).cloned().unwrap_or_default(),
+                                ..Default::default()
+                            });
+                            if controller {
+                                object.collider.get_or_insert_with(Default::default).enabled = true;
+                                object.gravity.get_or_insert_with(Default::default).enabled = true;
+                            }
+                        }
+                        if let Some(config) = &mut object.player_controller {
+                            ui.weak("One root player per scene. Enabled collider + Gravity required. Selection does not control gameplay.");
+                            egui::ComboBox::from_id_salt("follow-camera")
+                                .selected_text(&config.camera).show_ui(ui, |ui| {
+                                    for candidate in scene.objects.iter().filter(|o| eligible_follow_camera(o)) {
+                                        if ui.selectable_value(&mut config.camera, candidate.id.clone(), &candidate.name).changed() {
+                                            scene.views.insert(Layer::ThreeD, candidate.id.clone());
+                                        }
+                                    }
+                                });
+                            ui.weak("Choosing a root perspective camera also activates it for 3D (one Undo).");
+                            positive_number(ui, "Move speed", &mut config.move_speed, 0.1);
+                            positive_number(ui, "Controller jump speed", &mut config.jump_speed, 0.1);
+                            positive_number(ui, "Follow distance", &mut config.camera_distance, 0.1);
+                            positive_number(ui, "Follow height", &mut config.camera_height, 0.1);
+                            positive_number(ui, "Camera clearance", &mut config.camera_radius, 0.05);
+                            positive_number(ui, "Orbit sensitivity", &mut config.orbit_sensitivity, 0.01);
+                            ui.horizontal(|ui| { ui.label("Fall / respawn Y"); ui.add(egui::DragValue::new(&mut config.fall_height).speed(0.1)); });
+                            ui.weak("Controller jump speed overrides Gravity's legacy selected-box jump speed.");
+                        }
+                        let mut trigger = object.trigger.is_some();
+                        if ui.checkbox(&mut trigger, "Trigger volume").changed() {
+                            object.trigger = trigger.then(bozzard_scene::Trigger::default);
+                            if trigger { object.collider = None; object.gravity = None; object.player_controller = None; }
+                        }
+                        if let Some(trigger) = &mut object.trigger {
+                            ui.checkbox(&mut trigger.volume.enabled, "Trigger enabled");
+                            vector(ui, "Trigger center", &mut trigger.volume.center, 0.05);
+                            positive_vector(ui, "Trigger size", &mut trigger.volume.size, 0.05);
+                            use bozzard_scene::TriggerAction;
+                            egui::ComboBox::from_id_salt("trigger-action")
+                                .selected_text(match trigger.action { TriggerAction::Collectible => "Collectible", TriggerAction::Checkpoint { .. } => "Checkpoint", TriggerAction::Goal => "Goal" })
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut trigger.action, TriggerAction::Collectible, "Collectible");
+                                    let checkpoint = checkpoint_action(&trigger.action, checkpoint_start);
+                                    ui.selectable_value(&mut trigger.action, checkpoint, "Checkpoint");
+                                    ui.selectable_value(&mut trigger.action, TriggerAction::Goal, "Goal (all collectibles)");
+                                });
+                            if let TriggerAction::Checkpoint { respawn } = &mut trigger.action {
+                                vector(ui, "Respawn (world)", respawn, 0.1);
+                                ui.weak("Place above a safe floor, clear of solids and above Fall Y.");
+                            }
+                            ui.weak("Non-solid box. Collectibles hide once per run; progress survives falls, resets on Stop / Play or player R.");
+                        }
+                        ui.separator();
                         let mut spin = object.spin.is_some();
                         if ui.checkbox(&mut spin, "Spin behavior").changed() {
                             object.spin = spin.then_some(Spin([0.0, 45.0, 0.0]));
@@ -262,7 +319,10 @@ impl App {
                                 for (layer, label) in
                                     [(Layer::TwoD, "Use for 2D"), (Layer::ThreeD, "Use for 3D")]
                                 {
-                                    if ui.button(label).clicked() {
+                                    let eligible = layer != Layer::ThreeD
+                                        || !scene.objects.iter().any(|o| o.player_controller.is_some())
+                                        || eligible_follow_camera(&object);
+                                    if ui.add_enabled(eligible, egui::Button::new(label)).clicked() {
                                         scene.views.insert(layer, object.id.clone());
                                     }
                                 }
@@ -300,6 +360,7 @@ impl App {
                     if let Some(slot) = scene.objects.iter_mut().find(|o| o.id == object.id) {
                         *slot = object;
                     }
+                    synchronize_follow_camera(&mut scene);
                     let r = self.editor.apply("Edit component", scene);
                     self.result(r);
                 }
@@ -350,4 +411,181 @@ fn positive_vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: 
             );
         }
     });
+}
+
+fn eligible_follow_camera(object: &bozzard_scene::Object) -> bool {
+    object.parent.is_none()
+        && object.spin.is_none()
+        && object.gravity.is_none()
+        && object.collider.is_none()
+        && object.trigger.is_none()
+        && object.player_controller.is_none()
+        && matches!(object.camera, Some(Camera::Perspective { .. }))
+}
+
+// Both camera widgets publish the active view and controller reference in one transaction.
+fn synchronize_follow_camera(scene: &mut bozzard_scene::Scene) {
+    if let Some(camera) = scene.views.get(&Layer::ThreeD) {
+        for object in &mut scene.objects {
+            if let Some(controller) = &mut object.player_controller {
+                controller.camera.clone_from(camera);
+            }
+        }
+    }
+}
+
+fn checkpoint_action(
+    current: &bozzard_scene::TriggerAction,
+    start: [f32; 3],
+) -> bozzard_scene::TriggerAction {
+    use bozzard_scene::TriggerAction;
+    match current {
+        TriggerAction::Checkpoint { .. } => current.clone(),
+        _ => TriggerAction::Checkpoint { respawn: start },
+    }
+}
+
+// Called on the validated authored document, never a partially edited inspector draft.
+fn checkpoint_respawn(scene: &bozzard_scene::Scene, marker: &bozzard_scene::Object) -> [f32; 3] {
+    if let Some(player) = scene.objects.iter().find(|o| o.player_controller.is_some()) {
+        return player.transform.translation; // Validated controllers are roots with safe starts.
+    }
+    let mut matrix = marker.transform.matrix();
+    let mut parent = marker.parent.as_deref();
+    while let Some(id) = parent {
+        let object = scene
+            .objects
+            .iter()
+            .find(|o| o.id == id)
+            .expect("validated parent");
+        matrix = object.transform.matrix() * matrix;
+        parent = object.parent.as_deref();
+    }
+    matrix.transform_point3(Vec3::ZERO).to_array()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bozzard_scene::{Scene, TriggerAction};
+
+    fn editor() -> Editor {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/first-trail.json");
+        Editor::open(&path).unwrap()
+    }
+
+    #[test]
+    fn existing_checkpoint_respawn_is_preserved_when_building_choices() {
+        let editor = editor();
+        let marker = editor
+            .scene()
+            .objects
+            .iter()
+            .find(|o| o.id == "checkpoint")
+            .unwrap();
+        let current = &marker.trigger.as_ref().unwrap().action;
+        let start = checkpoint_respawn(editor.scene(), marker);
+        assert_ne!(*current, TriggerAction::Checkpoint { respawn: start });
+        assert_eq!(checkpoint_action(current, start), *current);
+        assert_eq!(
+            checkpoint_action(&TriggerAction::Goal, start),
+            TriggerAction::Checkpoint { respawn: start }
+        );
+    }
+
+    #[test]
+    fn floor_checkpoint_conversion_uses_safe_start_and_parent_fallback_is_world_space() {
+        let mut editor = editor();
+        let mut scene = editor.scene().clone();
+        let marker = scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "checkpoint")
+            .unwrap();
+        marker.trigger.as_mut().unwrap().action = TriggerAction::Goal;
+        editor.apply("Goal", scene).unwrap();
+        let original = editor.scene().clone();
+        let marker = original
+            .objects
+            .iter()
+            .find(|o| o.id == "checkpoint")
+            .unwrap();
+        assert_eq!(marker.transform.translation[1], 0.1);
+        let respawn = checkpoint_respawn(&original, marker);
+        let mut scene = original.clone();
+        scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "checkpoint")
+            .unwrap()
+            .trigger
+            .as_mut()
+            .unwrap()
+            .action = checkpoint_action(&TriggerAction::Goal, respawn);
+        editor.apply("Checkpoint", scene.clone()).unwrap();
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &original);
+        editor.redo().unwrap();
+        assert_eq!(editor.scene(), &scene);
+
+        let mut fallback: Scene = original;
+        let player = fallback
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "player")
+            .unwrap();
+        player.player_controller = None;
+        player.transform.translation = [3.0, 4.0, 5.0];
+        player.transform.rotation_degrees = [0.0, 90.0, 0.0];
+        player.transform.scale = [2.0; 3];
+        let parent_matrix = player.transform.matrix();
+        let marker = fallback
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "checkpoint")
+            .unwrap();
+        marker.parent = Some("player".into());
+        let expected =
+            parent_matrix.transform_point3(Vec3::from_array(marker.transform.translation));
+        fallback.validate().unwrap();
+        let marker = fallback
+            .objects
+            .iter()
+            .find(|o| o.id == "checkpoint")
+            .unwrap();
+        assert!(
+            Vec3::from_array(checkpoint_respawn(&fallback, marker)).abs_diff_eq(expected, 1e-5)
+        );
+    }
+
+    #[test]
+    fn follow_camera_switch_is_one_validated_undoable_transaction() {
+        let mut editor = editor();
+        editor.selected = Some("camera".into());
+        editor.duplicate().unwrap();
+        let camera = editor.selected.clone().unwrap();
+        assert!(eligible_follow_camera(editor.selected_object().unwrap()));
+        let original = editor.scene().clone();
+        let mut next = original.clone();
+        next.views.insert(Layer::ThreeD, camera.clone());
+        synchronize_follow_camera(&mut next);
+        editor.begin_gesture("Edit component");
+        editor.apply("Edit component", next.clone()).unwrap();
+        editor.finish_gesture();
+        assert_eq!(
+            editor
+                .scene()
+                .objects
+                .iter()
+                .find_map(|o| o.player_controller.as_ref())
+                .unwrap()
+                .camera,
+            camera
+        );
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &original);
+        editor.redo().unwrap();
+        assert_eq!(editor.scene(), &next);
+    }
 }

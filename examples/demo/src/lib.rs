@@ -1,6 +1,6 @@
 //! Shared simulation for the native player and the headless executable.
 use bozzard_app::{App, Entity, Plugin};
-use bozzard_scene::{Scene, SceneInstance, Spin, Transform};
+use bozzard_scene::{GameplayInput, GameplayState, Scene, SceneInstance, Spin, Transform};
 use std::{
     io::Write,
     path::Path,
@@ -117,6 +117,29 @@ pub struct SceneDemo {
 }
 
 impl SceneDemo {
+    pub fn gameplay(&self) -> Option<&GameplayState> {
+        self.app.world.resource::<GameplayState>()
+    }
+    /// Preserve queued edges until a fixed tick; neutral input clears them on focus loss.
+    pub fn set_gameplay_input(&mut self, input: GameplayInput) {
+        let previous = self
+            .app
+            .world
+            .resource::<GameplayInput>()
+            .copied()
+            .unwrap_or_default();
+        self.app.world.insert_resource(GameplayInput {
+            movement: input.movement,
+            jump: previous.jump || input.jump,
+            orbit: [
+                previous.orbit[0] + input.orbit[0],
+                previous.orbit[1] + input.orbit[1],
+            ],
+        });
+    }
+    pub fn clear_gameplay_input(&mut self) {
+        self.app.world.insert_resource(GameplayInput::default());
+    }
     pub fn check_simulation(&self) -> anyhow::Result<()> {
         if let Some(error) = self
             .app
@@ -159,8 +182,11 @@ impl SceneDemo {
             {
                 return;
             }
+            let dt = tick.delta.as_secs_f32();
             let error = gravity_instance
-                .step_gravity(world, tick.delta.as_secs_f32())
+                .gameplay_motion(world, dt)
+                .and_then(|()| gravity_instance.step_gravity(world, dt))
+                .and_then(|()| gravity_instance.gameplay_interactions(world))
                 .err()
                 .map(|error| format!("{error:#}"));
             world.insert_resource(SimulationStatus { error });
@@ -205,6 +231,38 @@ pub fn demo() -> (App, Entity) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn gameplay_edges_accumulate_until_tick_and_clear_on_focus_loss() {
+        let document = Scene::from_json(include_str!("../scenes/first-trail.json")).unwrap();
+        let mut demo = SceneDemo::new(&document).unwrap();
+        demo.set_gameplay_input(GameplayInput {
+            orbit: [10.0, 0.0],
+            jump: true,
+            ..Default::default()
+        });
+        demo.set_gameplay_input(GameplayInput {
+            orbit: [10.0, 0.0],
+            ..Default::default()
+        });
+        demo.app.step();
+        demo.check_simulation().unwrap();
+        let yaw = demo.gameplay().unwrap().yaw;
+        assert!((yaw - 356.0).abs() < 0.001);
+        demo.app.step();
+        assert_eq!(demo.gameplay().unwrap().yaw, yaw);
+        demo.set_gameplay_input(GameplayInput {
+            movement: [1.0, 0.0],
+            orbit: [100.0, 0.0],
+            jump: true,
+        });
+        demo.clear_gameplay_input();
+        demo.app.step();
+        assert_eq!(demo.gameplay().unwrap().yaw, yaw);
+        assert_eq!(
+            demo.app.world.resource::<GameplayInput>().unwrap().movement,
+            [0.0; 2]
+        );
+    }
     #[test]
     fn scene_animation_and_save_reload_preserve_parented_objects() {
         let mut demo = SceneDemo::new(&scene_document().unwrap()).unwrap();

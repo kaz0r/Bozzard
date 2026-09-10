@@ -9,7 +9,7 @@
 
 A native 2D/3D game engine in Rust, with our own ECS and WebGPU rendering through `wgpu`. No Bevy dependencies.
 
-The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, scene save/load, and a first native editor. PNG/JPEG textures and static OBJ/glTF/GLB models can be imported and reloaded while running, including base-color materials and transparency. It is not yet a game exporter; physics, audio, and networking remain future milestones.
+The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth and basic directional lighting, scene save/load, and a first native editor. PNG/JPEG textures and static OBJ/glTF/GLB models can be imported and reloaded while running, including base-color materials and transparency. The first playable third-person demo adds an authored controller, follow camera, kinematic box movement/jumping and simple trigger interactions. It is not yet a game exporter; full physics, audio, and networking remain future milestones.
 
 ## Run
 
@@ -37,7 +37,22 @@ cargo run -p bozzard-server -- --ticks 120
 
 Windows needs Rust's MSVC toolchain and Visual Studio C++ build tools. Linux needs a C linker, Vulkan drivers and window-system development packages; the CI workflow lists Ubuntu packages. `--backend metal|dx12|vulkan` selects one graphics API explicitly. `--software` requires a software adapter; `--hardware` requires a reported integrated/discrete GPU. Missing adapters fail visibly.
 
+## First playable demo
+
+```sh
+# Select any object, click Play, and hover the 3D viewport — selection does not control the player.
+cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/first-trail.json
+# The same authored level starts immediately in the native player.
+cargo run -p bozzard-player --locked --offline -- --scene examples/demo/scenes/first-trail.json
+```
+
+**WASD** moves relative to the follow camera, **Space** jumps when grounded, and **right-drag** orbits (visible, unconfined pointer). Collect three gold cubes, cross the blue checkpoint and reach the green goal. Jump just before the brown step while moving forward. Falling off respawns at the latest checkpoint, retaining collected gold. Progress/win appears above the editor viewport and in the standalone window title. Editor **Stop / Play**, or standalone **physical R**, resets the run. Inspector **Player Controller** and **Trigger volume** author the settings; editor Save/Stop never publish simulated state.
+
+See the [quick-start, fastest manual checklist, authoring contract and limits](docs/playable-demo.md). Dependencies must be cached for `--offline`; omit it on first download. The level reuses the repository's tiny static CC0 model, with no external assets.
+
 ## Player controls
+
+For scenes **without** a Player Controller (including the embedded default):
 
 | Key | Action |
 | --- | --- |
@@ -84,7 +99,7 @@ Objects may have an optional `BoxCollider` with a local-space center, full local
 
 Enable **Colliders** in the 3D viewport to see cyan wire boxes; overlapping boxes turn orange and the overlay lists pairs. These debugging wires show through scene geometry. The default demo includes colliders on the hero cube, coral cube, and floor.
 
-Select an enabled collider object and start Play, hover the 3D viewport, and use WASD for world-horizontal movement, Space/Ctrl for up/down, and Shift for faster movement.
+For scenes without an authored Player Controller, select an enabled collider object and start Play, hover the 3D viewport, and use WASD for world-horizontal movement, Space/Ctrl for up/down, and Shift for faster movement.
 
 Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/response-lab.json`, select **Move Me**, and press **Play**. Move toward the walls with WASD or down onto the floor with Ctrl; Stop resets the authored scene.
 
