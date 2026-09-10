@@ -53,6 +53,7 @@ pub(crate) struct UploadedShading {
     pub vertices: wgpu::Buffer,
     pub binding: wgpu::BindGroup,
 }
+#[derive(Clone)]
 pub(crate) struct PbrRenderer {
     pub opaque: wgpu::RenderPipeline,
     pub transparent: wgpu::RenderPipeline,
@@ -175,6 +176,23 @@ impl PbrRenderer {
         material: &ModelShading<'_>,
         views: [Option<wgpu::TextureView>; 4],
     ) -> UploadedShading {
+        let vertices = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("PBR tangent and UV attributes"),
+                contents: &crate::scene::float_bytes(material.vertices.iter().flatten().copied()),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.bind(gpu, material, views, vertices)
+    }
+
+    pub(crate) fn bind(
+        &self,
+        gpu: &Gpu,
+        material: &ModelShading<'_>,
+        views: [Option<wgpu::TextureView>; 4],
+        vertices: wgpu::Buffer,
+    ) -> UploadedShading {
         let uniform = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -230,15 +248,7 @@ impl PbrRenderer {
                 layout: &self.layout,
                 entries: &entries,
             }),
-            vertices: gpu
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("PBR tangent and UV attributes"),
-                    contents: &crate::scene::float_bytes(
-                        material.vertices.iter().flatten().copied(),
-                    ),
-                    usage: wgpu::BufferUsages::VERTEX,
-                }),
+            vertices,
         }
     }
 }

@@ -6,6 +6,7 @@ use bozzard_assets::{
 };
 use bozzard_render::{Gpu, MaterialMap, ModelImage, ModelPart, ModelShading, SceneRenderer, wgpu};
 pub use residency::{Residency, ResidencyReport};
+use std::sync::Arc;
 
 fn image(source: &ImageData) -> ModelImage<'_> {
     ModelImage {
@@ -75,6 +76,23 @@ pub fn model_parts(mesh: &MeshData) -> Vec<ModelPart<'_>> {
             shading: part.shading.as_ref().map(shading),
         })
         .collect()
+}
+
+struct SharedSource(Arc<AssetData>);
+impl bozzard_render::UploadSource for SharedSource {
+    fn data(&self) -> bozzard_render::UploadData<'_> {
+        match self.0.as_ref() {
+            AssetData::Image(data) => bozzard_render::UploadData::Image(image(data)),
+            AssetData::Mesh(mesh) => bozzard_render::UploadData::Model {
+                vertices: &mesh.vertices,
+                indices: &mesh.indices,
+                parts: model_parts(mesh),
+            },
+        }
+    }
+}
+pub fn upload_source(data: Arc<AssetData>) -> Arc<dyn bozzard_render::UploadSource> {
+    Arc::new(SharedSource(data))
 }
 pub fn upload(
     gpu: &Gpu,

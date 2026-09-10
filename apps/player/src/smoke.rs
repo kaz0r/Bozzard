@@ -4,6 +4,7 @@ use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
 mod pbr;
+mod upload;
 
 fn capture(
     gpu: &Gpu,
@@ -293,7 +294,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     check_document(gpu, &mut renderer, &document, options, "demo", true)?;
     if let Some(path) = &options.scene {
         let document = load_document(Some(path))?;
-        let assets = assets::Assets::load(&document, Some(path))?;
+        let mut assets = assets::Assets::load(&document, Some(path))?;
         assets.upload(gpu, &mut renderer)?;
         check_document(gpu, &mut renderer, &document, options, "loaded", false)?;
     }
@@ -410,6 +411,71 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         store.refresh() == vec![mesh_handle],
         "mesh change not detected"
     );
+    let wait_staged = |residency: &mut bozzard_render_assets::Residency,
+                       renderer: &mut SceneRenderer,
+                       store: &AssetStore|
+     -> Result<()> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while residency.progress().is_none() {
+            residency.advance(gpu, renderer, store, 32)?;
+            ensure!(
+                std::time::Instant::now() < deadline,
+                "GPU preparation did not finish"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        Ok(())
+    };
+    wait_staged(&mut residency, renderer, &store)?;
+    ensure!(
+        capture(gpu, renderer, &scene, [257, 193])?.rgba == updated.rgba,
+        "partial replacement changed the old model"
+    );
+    residency.cancel();
+    ensure!(
+        residency.advance(gpu, renderer, &store, 32)?.uploaded == 0
+            && residency.progress().is_none(),
+        "cancelled upload restarted automatically"
+    );
+    ensure!(
+        capture(gpu, renderer, &scene, [257, 193])?.rgba == updated.rgba,
+        "cancelled replacement lost the old model"
+    );
+    residency.retry_failed();
+    wait_staged(&mut residency, renderer, &store)?;
+    let superseded =
+        std::sync::Arc::downgrade(&store.get(mesh_handle).unwrap().shared_data().unwrap());
+    std::fs::write(
+        root.join("quad.obj"),
+        format!("{}\n# New generation\n", std::str::from_utf8(obj)?),
+    )?;
+    ensure!(
+        store.refresh() == vec![mesh_handle],
+        "new mesh generation not detected"
+    );
+    residency.advance(gpu, renderer, &store, 32)?;
+    ensure!(
+        superseded.upgrade().is_none(),
+        "stale upload retained or published superseded source"
+    );
+    ensure!(
+        residency.sync(gpu, renderer, &store)?.uploaded == 1,
+        "new generation did not replace stale upload"
+    );
+    ensure!(
+        capture(gpu, renderer, &scene, [257, 193])?.rgba == updated.rgba,
+        "stale geometry was published instead of newest generation"
+    );
+    std::fs::write(
+        root.join("quad.obj"),
+        std::str::from_utf8(obj)?
+            .replace("v -0.5", "v -2.5")
+            .replace("v 0.5", "v -1.5"),
+    )?;
+    ensure!(
+        store.refresh() == vec![mesh_handle],
+        "final mesh replacement not detected"
+    );
     ensure!(
         residency.sync(gpu, renderer, &store)?.uploaded == 1,
         "mesh reload re-uploaded unrelated assets"
@@ -420,8 +486,17 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         96,
         [5, 6, 10],
     )?;
+    let empty = AssetStore::new(&root, &BTreeMap::new())?;
+    ensure!(
+        residency.sync(gpu, renderer, &empty)?.removed == 2,
+        "removed catalog entries were not retired"
+    );
+    ensure!(
+        capture(gpu, renderer, &scene, [257, 193]).is_err(),
+        "removed GPU assets remained visible"
+    );
     println!(
-        "asset_gpu_ok imported_mesh texture_orientation srgb failed_reload recovery mesh_reload residency_reuse"
+        "asset_gpu_ok imported_mesh texture_orientation srgb failed_reload recovery mesh_reload residency_reuse staged_cancel stale_generation retirement"
     );
     Ok(())
 }
@@ -477,6 +552,7 @@ pub fn run(options: &Options) -> Result<()> {
     }
     model_material_checks(&gpu)?;
     pbr::checks(&gpu)?;
+    upload::checks(&gpu)?;
     let renderer = TriangleRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let (mut app, entity) = demo();
     let first = render_offscreen(&gpu, &renderer, [0.0, 0.0])?;

@@ -91,7 +91,6 @@ struct App {
     error: bool,
     last_frame: Instant,
     last_assets: Instant,
-    uploaded_revision: u64,
     dialog: Option<files::Dialog>,
     pending: Option<Pending>,
     confirm_discard: bool,
@@ -172,7 +171,6 @@ impl App {
             error: false,
             last_frame: Instant::now(),
             last_assets: Instant::now() - Duration::from_secs(1),
-            uploaded_revision: 0,
             dialog: None,
             pending: None,
             confirm_discard: false,
@@ -251,7 +249,7 @@ impl App {
                     self.reload_paused = false;
                     self.workspace.camera = None;
                     self.workspace.ortho_zoom = 1.0;
-                    self.uploaded_revision = 0;
+                    self.residency.retry_failed();
                     self.status = "New level · Add a cube or sprite".into();
                 }
                 None => {}
@@ -261,11 +259,6 @@ impl App {
         self.result(result);
     }
     fn sync_assets(&mut self) -> Result<()> {
-        if self.uploaded_revision != self.editor.asset_revision() {
-            self.residency
-                .sync(&self.gpu, &mut self.renderer, &self.editor.assets)?;
-            self.uploaded_revision = self.editor.asset_revision();
-        }
         if self.refresh.is_none()
             && self.loading.is_none()
             && !self.reload_paused
@@ -329,8 +322,6 @@ impl App {
                     LoadState::Pending => {}
                 }
             }
-            self.residency
-                .sync(&self.gpu, &mut self.renderer, &self.editor.assets)?;
             if let Some(message) = failure {
                 self.status = message;
                 self.error = true;
@@ -733,7 +724,6 @@ impl App {
                 if output.reload_requested {
                     self.reload_paused = false;
                     self.residency.retry_failed();
-                    self.uploaded_revision = 0;
                     self.last_assets = Instant::now() - Duration::from_secs(1);
                     let result = self.sync_assets();
                     self.result(result);
@@ -947,6 +937,35 @@ impl eframe::App for App {
                     return;
                 }
                 // Fast automatic checks are housekeeping, not a new user operation.
+                if let Some((id, progress)) = self.residency.progress() {
+                    ui.spinner();
+                    ui.label(format!(
+                        "Uploading {id} · {:.0}%",
+                        100.0 * progress.bytes_done as f64 / progress.bytes_total.max(1) as f64
+                    ));
+                    if ui.button("Cancel this upload").clicked() {
+                        self.residency.cancel();
+                        self.reload_paused = true;
+                        self.status = "GPU upload cancelled · Reload to retry".into();
+                    }
+                    return;
+                }
+                if let Some((id, cancelled)) = self.residency.preparing() {
+                    ui.spinner();
+                    ui.label(format!(
+                        "{} GPU resources · {id}",
+                        if cancelled { "Cancelling" } else { "Preparing" }
+                    ));
+                    if ui
+                        .add_enabled(!cancelled, egui::Button::new("Cancel this upload"))
+                        .clicked()
+                    {
+                        self.residency.cancel();
+                        self.reload_paused = true;
+                        self.status = "GPU upload cancelled · Reload to retry".into();
+                    }
+                    return;
+                }
                 // Show progress for initial loading or a genuinely slow check only.
                 if let Some((_, job)) = &self.refresh
                     && (self.last_assets.elapsed() >= Duration::from_millis(500)

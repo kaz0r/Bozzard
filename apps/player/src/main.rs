@@ -341,7 +341,7 @@ impl Player {
             Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
                 let document = load_document(self.options.scene.as_deref())?;
                 let next = SceneDemo::new(&document)?;
-                let assets = assets::Assets::load(&document, self.options.scene.as_deref())?;
+                let mut assets = assets::Assets::load(&document, self.options.scene.as_deref())?;
                 ensure!(
                     next.instance.has_view(self.options.layer),
                     "reloaded scene is missing the active view"

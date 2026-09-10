@@ -61,16 +61,26 @@ impl Mipmaps {
     }
 
     pub(crate) fn generate(&self, gpu: &Gpu, texture: &wgpu::Texture) {
-        if texture.mip_level_count() == 1 {
-            return;
+        for level in 1..texture.mip_level_count() {
+            self.generate_rows(gpu, texture, level, 0, (texture.height() >> level).max(1));
         }
+    }
+
+    pub(crate) fn generate_rows(
+        &self,
+        gpu: &Gpu,
+        texture: &wgpu::Texture,
+        level: u32,
+        row: u32,
+        rows: u32,
+    ) {
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("generate model mipmaps"),
             });
         let layout = self.pipeline.get_bind_group_layout(0);
-        for level in 1..texture.mip_level_count() {
+        {
             let view = |mip| {
                 texture.create_view(&wgpu::TextureViewDescriptor {
                     base_mip_level: mip,
@@ -101,7 +111,11 @@ impl Mipmaps {
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        load: if row == 0 {
+                            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -109,6 +123,7 @@ impl Mipmaps {
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &binding, &[]);
+            pass.set_scissor_rect(0, row, (texture.width() >> level).max(1), rows);
             pass.draw(0..3, 0..1);
         }
         gpu.queue.submit([encoder.finish()]);

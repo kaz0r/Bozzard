@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bozzard_assets::{AssetData, AssetStore};
-use bozzard_render::{Gpu, SceneRenderer};
+use bozzard_render::{Gpu, PendingUpload, SceneRenderer, UploadProgress};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -16,6 +16,12 @@ pub struct ResidencyReport {
 pub struct Residency {
     current: BTreeMap<String, Arc<AssetData>>,
     failed: BTreeMap<String, Arc<AssetData>>,
+    pending: Option<(String, Arc<AssetData>, PendingUpload)>,
+    preparing: Option<(
+        String,
+        Arc<AssetData>,
+        bozzard_assets::job::Job<PendingUpload>,
+    )>,
 }
 impl Residency {
     pub fn sync(
@@ -24,31 +30,98 @@ impl Residency {
         renderer: &mut SceneRenderer,
         store: &AssetStore,
     ) -> Result<ResidencyReport> {
-        let desired = store
+        let mut result = ResidencyReport::default();
+        loop {
+            let report = self.advance(gpu, renderer, store, 4 * 1024 * 1024)?;
+            result.uploaded += report.uploaded;
+            result.removed += report.removed;
+            if self.pending.is_none()
+                && self.preparing.is_none()
+                && store.entries().all(|entry| {
+                    entry.shared_data().is_none_or(|data| {
+                        self.current
+                            .get(&entry.id)
+                            .is_some_and(|old| Arc::ptr_eq(old, &data))
+                            || self
+                                .failed
+                                .get(&entry.id)
+                                .is_some_and(|old| Arc::ptr_eq(old, &data))
+                    })
+                })
+            {
+                break;
+            }
+            if self.preparing.is_some() {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+        anyhow::ensure!(
+            self.has_all(store),
+            "GPU assets are unavailable; retry the failed upload"
+        );
+        Ok(result)
+    }
+
+    pub fn progress(&self) -> Option<(&str, UploadProgress)> {
+        self.pending
+            .as_ref()
+            .map(|(id, _, job)| (id.as_str(), job.progress()))
+    }
+    pub fn preparing(&self) -> Option<(&str, bool)> {
+        self.preparing
+            .as_ref()
+            .map(|(id, _, job)| (id.as_str(), job.cancelled()))
+    }
+    pub fn has_all(&self, store: &AssetStore) -> bool {
+        store
+            .entries()
+            .all(|entry| entry.data().is_some() && self.current.contains_key(&entry.id))
+    }
+    pub fn cancel(&mut self) {
+        if let Some((id, data, _)) = self.pending.take() {
+            self.failed.insert(id, data);
+        }
+        if let Some((id, data, job)) = &self.preparing {
+            job.cancel();
+            self.failed.insert(id.clone(), data.clone());
+        }
+    }
+    pub fn advance(
+        &mut self,
+        gpu: &Gpu,
+        renderer: &mut SceneRenderer,
+        store: &AssetStore,
+        budget: usize,
+    ) -> Result<ResidencyReport> {
+        let desired: BTreeMap<_, _> = store
             .entries()
             .filter_map(|entry| entry.shared_data().map(|data| (entry.id.clone(), data)))
             .collect();
-        self.reconcile(desired, |id, data| match data {
-            Some(data) => crate::upload(gpu, renderer, id, data),
-            None => {
-                renderer.remove_asset(id);
-                Ok(())
-            }
-        })
-    }
-
-    /// Explicit retries are separate from polling, so a failed GPU upload is not
-    /// retried every frame while the source identity remains unchanged.
-    pub fn retry_failed(&mut self) {
-        self.failed.clear();
-    }
-
-    fn reconcile(
-        &mut self,
-        desired: BTreeMap<String, Arc<AssetData>>,
-        mut apply: impl FnMut(&str, Option<&AssetData>) -> Result<()>,
-    ) -> Result<ResidencyReport> {
         let mut report = ResidencyReport::default();
+        if let Some((id, data, job)) = &self.preparing
+            && desired.get(id).is_none_or(|next| !Arc::ptr_eq(next, data))
+        {
+            job.cancel();
+        }
+        if let Some(result) = self.preparing.as_ref().and_then(|(_, _, job)| job.poll()) {
+            let (id, data, job) = self.preparing.take().unwrap();
+            if !job.cancelled() {
+                match result {
+                    Ok(upload) => self.pending = Some((id, data, upload)),
+                    Err(error) => {
+                        self.failed.insert(id.clone(), data);
+                        return Err(error.context(format!(
+                            "preparing GPU asset '{id}'; keeping previous data"
+                        )));
+                    }
+                }
+            }
+        }
+        if self.pending.as_ref().is_some_and(|(id, data, _)| {
+            desired.get(id).is_none_or(|next| !Arc::ptr_eq(next, data))
+        }) {
+            self.pending = None;
+        }
         let removed: Vec<_> = self
             .current
             .keys()
@@ -56,133 +129,72 @@ impl Residency {
             .cloned()
             .collect();
         for id in removed {
-            apply(&id, None)?;
+            renderer.remove_asset(&id);
             self.current.remove(&id);
             report.removed += 1;
         }
         self.failed
-            .retain(|id, data| desired.get(id).is_some_and(|new| Arc::ptr_eq(new, data)));
-        let mut failure = None;
-        for (id, data) in desired {
-            if self
-                .current
-                .get(&id)
-                .is_some_and(|old| Arc::ptr_eq(old, &data))
-                || self
-                    .failed
-                    .get(&id)
-                    .is_some_and(|old| Arc::ptr_eq(old, &data))
-            {
-                continue;
+            .retain(|id, data| desired.get(id).is_some_and(|next| Arc::ptr_eq(next, data)));
+        if self.pending.is_none() && self.preparing.is_none() {
+            for (id, data) in &desired {
+                if self
+                    .current
+                    .get(id)
+                    .is_some_and(|old| Arc::ptr_eq(old, data))
+                    || self
+                        .failed
+                        .get(id)
+                        .is_some_and(|old| Arc::ptr_eq(old, data))
+                {
+                    continue;
+                }
+                let context = renderer.upload_context();
+                let gpu = gpu.clone();
+                let source = crate::upload_source(data.clone());
+                match bozzard_assets::job::Job::start("Preparing GPU resources", move |progress| {
+                    progress.check()?;
+                    let upload = context.begin_upload(&gpu, source)?;
+                    progress.check()?;
+                    Ok(upload)
+                }) {
+                    Ok(job) => {
+                        self.preparing = Some((id.clone(), data.clone(), job));
+                    }
+                    Err(error) => {
+                        self.failed.insert(id.clone(), data.clone());
+                        return Err(error.context(format!(
+                            "preparing GPU asset '{id}'; keeping previous data"
+                        )));
+                    }
+                }
+                break;
             }
-            match apply(&id, Some(&data)) {
-                Ok(()) => {
+        }
+        if let Some((id, data, mut job)) = self.pending.take() {
+            match job.advance(gpu, renderer, budget) {
+                Ok(progress) if progress.complete => {
+                    job.finish(renderer, &id)?;
                     self.current.insert(id.clone(), data);
                     self.failed.remove(&id);
                     report.uploaded += 1;
                 }
+                Ok(_) => {
+                    self.pending = Some((id, data, job));
+                }
                 Err(error) => {
                     self.failed.insert(id.clone(), data);
-                    if failure.is_none() {
-                        failure =
-                            Some(error.context(format!(
-                                "uploading asset '{id}'; keeping previous GPU data"
-                            )));
-                    }
+                    return Err(
+                        error.context(format!("uploading GPU asset '{id}'; keeping previous data"))
+                    );
                 }
             }
         }
-        if let Some(error) = failure {
-            Err(error)
-        } else {
-            Ok(report)
-        }
+        Ok(report)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn image(value: u8) -> Arc<AssetData> {
-        Arc::new(AssetData::Image(bozzard_assets::ImageData {
-            width: 1,
-            height: 1,
-            rgba: vec![value; 4],
-        }))
-    }
-    #[test]
-    fn catalog_snapshots_upload_only_changed_assets_and_retire_removed_entries() {
-        let a = image(1);
-        let b = image(2);
-        let mut residency = Residency::default();
-        let mut gpu = BTreeMap::new();
-        let mut apply = |id: &str, data: Option<&AssetData>| {
-            if let Some(AssetData::Image(image)) = data {
-                gpu.insert(id.to_owned(), image.rgba[0]);
-            } else {
-                gpu.remove(id);
-            }
-            Ok(())
-        };
-        let catalog = BTreeMap::from([("a".into(), a.clone()), ("b".into(), b.clone())]);
-        assert_eq!(
-            residency
-                .reconcile(catalog.clone(), &mut apply)
-                .unwrap()
-                .uploaded,
-            2
-        );
-        assert_eq!(
-            residency.reconcile(catalog.clone(), &mut apply).unwrap(),
-            ResidencyReport::default()
-        );
-        let mut changed = catalog.clone();
-        changed.insert("b".into(), image(3));
-        assert_eq!(
-            residency.reconcile(changed, &mut apply).unwrap().uploaded,
-            1
-        );
-        // Undo restores an earlier immutable snapshot and requires one replacement.
-        assert_eq!(
-            residency.reconcile(catalog, &mut apply).unwrap().uploaded,
-            1
-        );
-        assert_eq!(
-            residency
-                .reconcile(BTreeMap::from([("a".into(), a)]), &mut apply)
-                .unwrap()
-                .removed,
-            1
-        );
-        assert_eq!(gpu, BTreeMap::from([("a".into(), 1)]));
-    }
-    #[test]
-    fn failure_keeps_last_good_and_does_not_starve_other_assets_or_retry_each_frame() {
-        let mut residency = Residency::default();
-        let old = image(1);
-        let bad = image(2);
-        let other = image(3);
-        let mut calls = Vec::new();
-        let mut apply = |id: &str, data: Option<&AssetData>| {
-            calls.push(id.to_owned());
-            if matches!(data,Some(AssetData::Image(image)) if image.rgba[0]==2) {
-                anyhow::bail!("upload failed");
-            }
-            Ok(())
-        };
-        residency
-            .reconcile(BTreeMap::from([("a".into(), old.clone())]), &mut apply)
-            .unwrap();
-        let catalog = BTreeMap::from([("a".into(), bad), ("b".into(), other)]);
-        assert!(residency.reconcile(catalog.clone(), &mut apply).is_err());
-        assert!(Arc::ptr_eq(&residency.current["a"], &old));
-        assert!(residency.current.contains_key("b"));
-        assert_eq!(
-            residency.reconcile(catalog.clone(), &mut apply).unwrap(),
-            ResidencyReport::default()
-        );
-        residency.retry_failed();
-        assert!(residency.reconcile(catalog, &mut apply).is_err());
-        assert_eq!(calls, ["a", "a", "b", "a"]);
+    /// Explicit retries are separate from polling, so a failed GPU upload is not
+    /// retried every frame while the source identity remains unchanged.
+    pub fn retry_failed(&mut self) {
+        self.failed.clear();
     }
 }

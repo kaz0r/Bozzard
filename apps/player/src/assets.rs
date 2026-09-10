@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bozzard_assets::{AssetData, AssetStore, LoadState};
+use bozzard_assets::{AssetStore, LoadState};
 use bozzard_render::{Gpu, SceneRenderer};
 use bozzard_scene::Scene;
 use std::{
@@ -9,6 +9,7 @@ use std::{
 
 pub struct Assets {
     store: AssetStore,
+    residency: bozzard_render_assets::Residency,
     last_poll: Instant,
     reload: Option<bozzard_assets::job::Job<(AssetStore, Vec<bozzard_assets::Handle>)>>,
 }
@@ -24,21 +25,30 @@ impl Assets {
         store.require_ready()?;
         Ok(Self {
             store,
+            residency: bozzard_render_assets::Residency::default(),
             last_poll: Instant::now(),
             reload: None,
         })
     }
 
-    pub fn upload(&self, gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
+    pub fn upload(&mut self, gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
+        self.residency = bozzard_render_assets::Residency::default();
+        self.residency.sync(gpu, renderer, &self.store)?;
         for entry in self.store.entries() {
-            if let Some(data) = entry.data() {
-                upload(gpu, renderer, &entry.id, data)?;
+            if let Some(stats) = renderer.model_upload_stats(&entry.id) {
+                println!("gpu_asset_ready id={} stats={stats:?}", entry.id);
             }
         }
         Ok(())
     }
 
     pub fn poll(&mut self, gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
+        if let Err(error) = self
+            .residency
+            .advance(gpu, renderer, &self.store, 4 * 1024 * 1024)
+        {
+            eprintln!("gpu_upload_failed: {error:#}");
+        }
         if self.reload.is_none() && self.last_poll.elapsed() >= Duration::from_millis(500) {
             self.reload = Some(self.store.refresh_job()?);
         }
@@ -56,9 +66,8 @@ impl Assets {
                 .expect("handle returned by same store");
             match entry.state() {
                 LoadState::Ready => {
-                    upload(gpu, renderer, &entry.id, entry.data().expect("ready asset"))?;
                     println!(
-                        "asset_reloaded id={} revision={}",
+                        "asset_decoded id={} revision={} queued_for_gpu=true",
                         entry.id,
                         entry.revision()
                     );
@@ -71,8 +80,4 @@ impl Assets {
         }
         Ok(())
     }
-}
-
-pub fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, data: &AssetData) -> Result<()> {
-    bozzard_render_assets::upload(gpu, renderer, id, data)
 }

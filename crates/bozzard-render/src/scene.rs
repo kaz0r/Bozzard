@@ -3,6 +3,8 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+mod upload;
+pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 
 #[derive(Clone, Debug)]
@@ -64,6 +66,10 @@ pub struct ModelUploadStats {
     pub unique_images: usize,
     pub texture_bytes: usize,
     pub cpu_upload_ms: f64,
+    pub prepare_ms: f64,
+    pub upload_slices: usize,
+    pub max_slice_bytes: usize,
+    pub max_slice_cpu_ms: f64,
 }
 struct UploadedPart {
     mesh: MeshBuffers,
@@ -809,6 +815,20 @@ impl SceneRenderer {
                     .map(|(_, width, height, _)| crate::mipmap::texture_bytes(*width, *height))
                     .sum(),
                 cpu_upload_ms: started.elapsed().as_secs_f64() * 1000.0,
+                prepare_ms: 0.0,
+                upload_slices: 1,
+                max_slice_cpu_ms: started.elapsed().as_secs_f64() * 1000.0,
+                max_slice_bytes: vertices.len() * 32
+                    + indices.len() * 4
+                    + parts
+                        .iter()
+                        .filter_map(|p| p.shading.as_ref())
+                        .map(|s| s.vertices.len() * 48)
+                        .sum::<usize>()
+                    + textures
+                        .keys()
+                        .map(|(_, w, h, _)| crate::mipmap::texture_bytes(*w, *h))
+                        .sum::<usize>(),
             },
         );
         self.objects.clear();

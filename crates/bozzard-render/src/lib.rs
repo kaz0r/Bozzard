@@ -5,8 +5,9 @@ mod pbr;
 mod scene;
 pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
-    DrawItem, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, RenderScene,
-    SceneRenderer, TextureKind,
+    DrawItem, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, PendingUpload,
+    RenderScene, SceneRenderer, TextureKind, UploadContext, UploadData, UploadProgress,
+    UploadSource,
 };
 
 use anyhow::{Context, Result, ensure};
@@ -58,6 +59,7 @@ pub fn instance(backend: Backend) -> wgpu::Instance {
     wgpu::Instance::new(descriptor)
 }
 
+#[derive(Clone)]
 pub struct Gpu {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,

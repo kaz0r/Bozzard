@@ -238,6 +238,7 @@ impl App {
             });
         }
         let can_navigate = ui.is_enabled()
+            && self.residency.has_all(&self.editor.assets)
             && self.editor.play.is_none()
             && self.dialog.is_none()
             && !self.confirm_discard
@@ -264,11 +265,18 @@ impl App {
             self.mouse_captured = false;
         }
         self.sync_assets()?;
+        self.residency.advance(
+            &self.gpu,
+            &mut self.renderer,
+            &self.editor.assets,
+            4 * 1024 * 1024,
+        )?;
         if self
             .editor
             .assets
             .entries()
             .any(|entry| entry.data().is_none())
+            || !self.residency.has_all(&self.editor.assets)
         {
             self.viewport_rect = None;
             ui.centered_and_justified(|ui| {
@@ -276,6 +284,8 @@ impl App {
                     "An asset could not load. See Assets for details; repair the file and reload."
                 } else if self.reload_paused {
                     "Loading paused. Click Reload in Assets to continue."
+                } else if self.editor.assets.entries().all(|entry| entry.data().is_some()) {
+                    "Preparing graphics resources… See upload progress below."
                 } else {
                     "Loading scene assets…"
                 });

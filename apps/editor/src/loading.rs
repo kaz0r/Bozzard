@@ -79,7 +79,7 @@ impl App {
                     self.hierarchy_state = hierarchy::HierarchyState::default();
                     self.workspace.camera = None;
                     self.workspace.ortho_zoom = 1.0;
-                    self.uploaded_revision = 0;
+                    self.residency.retry_failed();
                     // Catalog revisions are local to an editor; an older scene's refresh must never land here.
                     self.refresh = None;
                     self.reload_paused = false;
