@@ -79,6 +79,22 @@ pub struct MeshPart {
 }
 
 impl MeshData {
+    pub fn part_bounds(&self, index: usize) -> Option<[Vec3; 2]> {
+        let part = self.parts.get(index)?;
+        let indices = self
+            .indices
+            .get(part.start as usize..(part.start + part.count) as usize)?;
+        if indices.is_empty() {
+            return None;
+        }
+        Some(indices.iter().fold(
+            [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)],
+            |[min, max], i| {
+                let p = Vec3::from_slice(&self.vertices[*i as usize][..3]);
+                [min.min(p), max.max(p)]
+            },
+        ))
+    }
     fn with_surface_keys(mut self) -> Self {
         for part in &mut self.parts {
             // Deterministic FNV-1a over source labels and indexed geometry. Deliberately
@@ -183,6 +199,25 @@ impl Entry {
             return None;
         };
         picking::cast_linear(mesh, origin, direction)
+    }
+    /// Reuse the source BVH for transformed surface rays, filtering original triangle IDs.
+    pub fn raycast_filtered(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        accept: impl Fn(u32) -> bool,
+        reference: bool,
+    ) -> Option<MeshHit> {
+        let AssetData::Mesh(mesh) = self.data()? else {
+            return None;
+        };
+        if reference {
+            picking::cast_linear_filtered(mesh, origin, direction, &accept)
+        } else {
+            self.mesh_index
+                .as_ref()?
+                .cast_filtered(mesh, origin, direction, &accept)
+        }
     }
     /// Cached bounds of indexed triangles, available without scanning source vertices.
     pub fn mesh_bounds(&self) -> Option<[Vec3; 2]> {

@@ -58,8 +58,27 @@ impl Editor {
                     let AssetData::Mesh(mesh) = data else {
                         anyhow::bail!("framing asset is not a mesh");
                     };
-                    for vertex in &mesh.vertices {
-                        include(matrix.transform_point3(Vec3::from_slice(&vertex[..3])))?;
+                    if mesh.parts.is_empty() {
+                        for vertex in &mesh.vertices {
+                            include(matrix.transform_point3(Vec3::from_slice(&vertex[..3])))?;
+                        }
+                    } else {
+                        for (index, part) in mesh.parts.iter().enumerate() {
+                            let mut model = matrix;
+                            if let Some(value) = drawable.material_overrides.iter().find(|v| {
+                                v.surface as usize == index && v.source == part.source_key
+                            }) {
+                                let bounds = mesh.part_bounds(index).context("empty surface")?;
+                                model *= value.matrix(bounds[0] * 0.5 + bounds[1] * 0.5);
+                            }
+                            for i in &mesh.indices
+                                [part.start as usize..(part.start + part.count) as usize]
+                            {
+                                include(model.transform_point3(Vec3::from_slice(
+                                    &mesh.vertices[*i as usize][..3],
+                                )))?;
+                            }
+                        }
                     }
                 }
                 mesh => {

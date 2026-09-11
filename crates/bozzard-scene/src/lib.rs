@@ -683,6 +683,11 @@ impl Drawable {
         if let Texture::Asset(id) = &self.texture {
             result.push((id.as_str(), AssetKind::Image));
         }
+        for value in &self.material_overrides {
+            if let Some(Texture::Asset(id)) = &value.texture {
+                result.push((id.as_str(), AssetKind::Image));
+            }
+        }
         result
     }
 }
@@ -698,7 +703,10 @@ impl Scene {
         for object in &self.objects {
             if let Some(drawable) = &object.drawable {
                 for (id, _) in drawable.asset_dependencies() {
-                    users.entry(id.into()).or_default().push(object.id.clone());
+                    let objects = users.entry(id.into()).or_default();
+                    if objects.last() != Some(&object.id) {
+                        objects.push(object.id.clone());
+                    }
                 }
             }
         }

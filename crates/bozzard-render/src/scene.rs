@@ -62,6 +62,9 @@ pub struct Material {
 pub struct SurfaceMaterialOverride {
     pub surface: u32,
     pub source: String,
+    pub transform: Mat4,
+    pub texture: Option<TextureKind>,
+    pub uv_scale: [f32; 2],
     pub tint: [f32; 3],
     pub metallic: Option<f32>,
     pub roughness: Option<f32>,
@@ -972,7 +975,23 @@ impl SceneRenderer {
                     for (tint, color) in item.material.tint.iter_mut().zip(part.color) {
                         *tint *= color;
                     }
-                    let translucent = if item.material.texture == TextureKind::White {
+                    let override_value = overrides
+                        .get(&index)
+                        .filter(|value| value.source == part.source_key);
+                    if let Some(value) = override_value {
+                        item.model *= Mat4::from_translation(part.center)
+                            * value.transform
+                            * Mat4::from_translation(-part.center);
+                        for (uv, scale) in item.material.uv_scale.iter_mut().zip(value.uv_scale) {
+                            *uv *= scale;
+                        }
+                        if let Some(texture) = &value.texture {
+                            item.material.texture = texture.clone();
+                        }
+                    }
+                    let translucent = if item.material.texture == TextureKind::White
+                        && override_value.is_none_or(|v| v.texture.is_none())
+                    {
                         if part.texture.is_some() {
                             item.material.texture = TextureKind::ModelPart(id.clone(), index);
                         }
@@ -981,9 +1000,6 @@ impl SceneRenderer {
                         part.color[3] < 1.0
                             || matches!(&item.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
                     };
-                    let override_value = overrides
-                        .get(&index)
-                        .filter(|value| value.source == part.source_key);
                     if let Some(value) = override_value {
                         for (tint, multiplier) in item.material.tint.iter_mut().zip(value.tint) {
                             *tint *= multiplier;
@@ -1064,6 +1080,14 @@ impl SceneRenderer {
             );
             let mut surfaces = BTreeSet::new();
             for value in item.material.surface_overrides.iter() {
+                ensure!(
+                    value.transform.is_finite() && value.transform.inverse().is_finite(),
+                    "invalid surface transform"
+                );
+                ensure!(
+                    value.uv_scale.iter().all(|v| v.is_finite() && *v > 0.0),
+                    "invalid surface UV scale"
+                );
                 ensure!(
                     value.surface < 4096 && surfaces.insert(value.surface),
                     "invalid or duplicate material override surface"

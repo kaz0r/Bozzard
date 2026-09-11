@@ -141,13 +141,23 @@ impl MeshIndex {
         }
     }
     pub(super) fn cast(&self, mesh: &MeshData, origin: Vec3, direction: Vec3) -> Option<MeshHit> {
+        self.cast_filtered(mesh, origin, direction, &|_| true)
+    }
+    pub(super) fn cast_filtered(
+        &self,
+        mesh: &MeshData,
+        origin: Vec3,
+        direction: Vec3,
+        accept: &impl Fn(u32) -> bool,
+    ) -> Option<MeshHit> {
         if self.nodes.is_empty() || !valid_ray(origin, direction) {
             return None;
         }
         let mut best = None;
-        self.visit(0, mesh, origin, direction, &mut best);
+        self.visit(0, mesh, origin, direction, &mut best, accept);
         best
     }
+    #[allow(clippy::too_many_arguments)]
     fn visit(
         &self,
         node: usize,
@@ -155,6 +165,7 @@ impl MeshIndex {
         origin: Vec3,
         direction: Vec3,
         best: &mut Option<MeshHit>,
+        accept: &impl Fn(u32) -> bool,
     ) {
         let node = self.nodes[node];
         let limit = best.map_or(f32::INFINITY, |hit| hit.distance);
@@ -165,7 +176,9 @@ impl MeshIndex {
             for triangle in
                 &self.triangle_order[node.first as usize..(node.first + node.count) as usize]
             {
-                if let Some(distance) = triangle_hit(mesh, *triangle, origin, direction) {
+                if accept(*triangle)
+                    && let Some(distance) = triangle_hit(mesh, *triangle, origin, direction)
+                {
                     let hit = MeshHit {
                         distance,
                         triangle: *triangle,
@@ -188,11 +201,11 @@ impl MeshIndex {
                 (Some(a), Some(b)) => {
                     let order = if a <= b { [left, right] } else { [right, left] };
                     for child in order {
-                        self.visit(child, mesh, origin, direction, best);
+                        self.visit(child, mesh, origin, direction, best, accept);
                     }
                 }
-                (Some(_), None) => self.visit(left, mesh, origin, direction, best),
-                (None, Some(_)) => self.visit(right, mesh, origin, direction, best),
+                (Some(_), None) => self.visit(left, mesh, origin, direction, best, accept),
+                (None, Some(_)) => self.visit(right, mesh, origin, direction, best, accept),
                 (None, None) => {}
             }
         }
@@ -242,10 +255,19 @@ pub(super) fn box_entry(
 
 /// Linear oracle preserves the original editor's triangle test and first-hit tie order.
 pub(super) fn cast_linear(mesh: &MeshData, origin: Vec3, direction: Vec3) -> Option<MeshHit> {
+    cast_linear_filtered(mesh, origin, direction, &|_| true)
+}
+pub(super) fn cast_linear_filtered(
+    mesh: &MeshData,
+    origin: Vec3,
+    direction: Vec3,
+    accept: &impl Fn(u32) -> bool,
+) -> Option<MeshHit> {
     if !valid_ray(origin, direction) {
         return None;
     }
     (0..mesh.indices.len() / 3)
+        .filter(|triangle| accept(*triangle as u32))
         .filter_map(|triangle| {
             triangle_hit(mesh, triangle as u32, origin, direction).map(|distance| MeshHit {
                 distance,

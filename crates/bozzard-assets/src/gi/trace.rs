@@ -43,6 +43,8 @@ impl Geometry {
 }
 struct Instance {
     geometry: Arc<Geometry>,
+    triangles: Option<std::ops::Range<u32>>,
+    source_texture: bool,
     inverse: Mat4,
     normal: Mat4,
     drawable: Drawable,
@@ -121,39 +123,82 @@ impl TraceScene {
                 triangles <= 1_000_000,
                 "GI bake exceeds one million static triangles including instances"
             );
-            let model = matrices[&object.id];
-            let local = super::transform_bounds(
+            let split = drawable.material_overrides.iter().any(|v| {
                 geometry
-                    .index
-                    .bounds()
-                    .context("GI mesh has no triangles")?,
-                model,
-            );
-            bounds = [bounds[0].min(local[0]), bounds[1].max(local[1])];
-            let texture = if let Texture::Asset(id) = &drawable.texture {
-                Some(
-                    assets
-                        .handle(id)
-                        .and_then(|h| assets.get(h))
-                        .and_then(|e| e.shared_data())
-                        .context("GI texture missing")?,
-                )
+                    .mesh()
+                    .parts
+                    .get(v.surface as usize)
+                    .is_some_and(|p| p.source_key == v.source)
+                    && (v.transform != bozzard_scene::Transform::default()
+                        || v.texture.is_some()
+                        || v.uv_scale != [1.; 2])
+            });
+            let parts: Vec<_> = if split {
+                (0..geometry.mesh().parts.len()).map(Some).collect()
             } else {
-                None
+                vec![None]
             };
-            let texture_blended = texture.as_deref().is_some_and(|data| match data {
-                AssetData::Image(image) => image.rgba.chunks_exact(4).any(|p| p[3] < 255),
-                _ => false,
-            });
-            instances.push(Instance {
-                texture_blended,
-                geometry,
-                inverse: model.inverse(),
-                normal: model.inverse().transpose(),
-                drawable: drawable.clone(),
-                texture,
-                bounds: local,
-            });
+            for part_index in parts {
+                let mut drawable = drawable.clone();
+                let mut model = matrices[&object.id];
+                let mut source_texture = drawable.texture == Texture::White;
+                let mut triangles = None;
+                let local_bounds = if let Some(index) = part_index {
+                    let part = &geometry.mesh().parts[index];
+                    triangles = Some(part.start / 3..(part.start + part.count) / 3);
+                    let bounds = geometry
+                        .mesh()
+                        .part_bounds(index)
+                        .context("empty GI surface")?;
+                    drawable
+                        .material_overrides
+                        .retain(|v| v.surface as usize == index && v.source == part.source_key);
+                    if let Some(value) = drawable.material_overrides.first() {
+                        model *= value.matrix(bounds[0] * 0.5 + bounds[1] * 0.5);
+                        for (uv, scale) in drawable.uv_scale.iter_mut().zip(value.uv_scale) {
+                            *uv *= scale;
+                        }
+                        if let Some(texture) = &value.texture {
+                            drawable.texture = texture.clone();
+                            source_texture = false;
+                        }
+                    }
+                    bounds
+                } else {
+                    geometry
+                        .index
+                        .bounds()
+                        .context("GI mesh has no triangles")?
+                };
+                let local = super::transform_bounds(local_bounds, model);
+                bounds = [bounds[0].min(local[0]), bounds[1].max(local[1])];
+                let texture = if let Texture::Asset(id) = &drawable.texture {
+                    Some(
+                        assets
+                            .handle(id)
+                            .and_then(|h| assets.get(h))
+                            .and_then(|e| e.shared_data())
+                            .context("GI texture missing")?,
+                    )
+                } else {
+                    None
+                };
+                let texture_blended = texture.as_deref().is_some_and(|data| match data {
+                    AssetData::Image(image) => image.rgba.chunks_exact(4).any(|p| p[3] < 255),
+                    _ => false,
+                });
+                instances.push(Instance {
+                    triangles,
+                    source_texture,
+                    texture_blended,
+                    geometry: geometry.clone(),
+                    inverse: model.inverse(),
+                    normal: model.inverse().transpose(),
+                    drawable: drawable.clone(),
+                    texture,
+                    bounds: local,
+                });
+            }
         }
         ensure!(!instances.is_empty(), "No static 3D geometry to bake");
         let extent = (bounds[1] - bounds[0]).length();
@@ -202,12 +247,17 @@ impl TraceScene {
                 }
                 let local = instance.inverse.transform_point3(start);
                 let ray = instance.inverse.transform_vector3(direction);
-                if let Some(hit) =
-                    instance
-                        .geometry
-                        .index
-                        .cast(instance.geometry.mesh(), local, ray)
-                    && hit.distance < nearest
+                if let Some(hit) = instance.geometry.index.cast_filtered(
+                    instance.geometry.mesh(),
+                    local,
+                    ray,
+                    &|t| {
+                        instance
+                            .triangles
+                            .as_ref()
+                            .is_none_or(|range| range.contains(&t))
+                    },
+                ) && hit.distance < nearest
                 {
                     nearest = hit.distance;
                     best = Some((instance, hit));
@@ -407,7 +457,7 @@ impl Instance {
                 }
             }
             if let Some(image) = &part.image
-                && self.drawable.texture == Texture::White
+                && self.source_texture
             {
                 color *= sampling::image(
                     image,
@@ -421,7 +471,7 @@ impl Instance {
             } else {
                 color *= self.fallback_texture(uv);
             }
-            let blended = if self.drawable.texture == Texture::White {
+            let blended = if self.source_texture {
                 self.geometry.blended[part_index]
             } else {
                 part.alpha_cutoff.is_none() && (part.color[3] < 1. || self.texture_blended)
@@ -542,6 +592,8 @@ mod tests {
     fn surface(mesh: MeshData, drawable: Drawable) -> Instance {
         let index = Arc::new(MeshIndex::build(&mesh, &Progress::default()).unwrap());
         Instance {
+            triangles: None,
+            source_texture: drawable.texture == Texture::White,
             geometry: Arc::new(Geometry::new(Arc::new(AssetData::Mesh(mesh)), index)),
             inverse: Mat4::IDENTITY,
             normal: Mat4::IDENTITY,
@@ -620,6 +672,9 @@ mod tests {
             .push(bozzard_scene::SurfaceMaterialOverride {
                 surface: 0,
                 source: "0123456789abcdef".into(),
+                transform: Default::default(),
+                texture: None,
+                uv_scale: [1.; 2],
                 tint: [1., 0.5, 1.],
                 metallic: None,
                 roughness: None,

@@ -137,15 +137,43 @@ pub fn fit_volume(scene: &Scene, assets: &AssetStore) -> Result<GiVolumeSettings
         if !statics.contains(&object.id) {
             continue;
         }
-        let local = match &object.drawable.as_ref().unwrap().mesh {
-            bozzard_scene::Mesh::Cube => [Vec3::splat(-0.5), Vec3::splat(0.5)],
-            bozzard_scene::Mesh::Quad => [Vec3::new(-0.5, -0.5, 0.), Vec3::new(0.5, 0.5, 0.)],
-            bozzard_scene::Mesh::Asset(id) => assets
-                .handle(id)
-                .and_then(|h| assets.get(h))
-                .and_then(|e| e.mesh_bounds())
-                .context("GI mesh bounds unavailable")?,
-        };
+        let drawable = object.drawable.as_ref().unwrap();
+        let local =
+            match &drawable.mesh {
+                bozzard_scene::Mesh::Cube => [Vec3::splat(-0.5), Vec3::splat(0.5)],
+                bozzard_scene::Mesh::Quad => [Vec3::new(-0.5, -0.5, 0.), Vec3::new(0.5, 0.5, 0.)],
+                bozzard_scene::Mesh::Asset(id) => {
+                    let entry = assets
+                        .handle(id)
+                        .and_then(|h| assets.get(h))
+                        .context("GI mesh unavailable")?;
+                    let mut local = entry.mesh_bounds().context("GI mesh bounds unavailable")?;
+                    if let Some(crate::AssetData::Mesh(mesh)) = entry.data()
+                        && !mesh.parts.is_empty()
+                        && drawable
+                            .material_overrides
+                            .iter()
+                            .any(|v| v.transform != bozzard_scene::Transform::default())
+                    {
+                        local = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
+                        for (index, part) in mesh.parts.iter().enumerate() {
+                            let mut bounds = mesh
+                                .part_bounds(index)
+                                .context("GI surface bounds unavailable")?;
+                            if let Some(value) = drawable.material_overrides.iter().find(|v| {
+                                v.surface as usize == index && v.source == part.source_key
+                            }) {
+                                bounds = transform_bounds(
+                                    bounds,
+                                    value.matrix(bounds[0] * 0.5 + bounds[1] * 0.5),
+                                );
+                            }
+                            local = [local[0].min(bounds[0]), local[1].max(bounds[1])];
+                        }
+                    }
+                    local
+                }
+            };
         let world = transform_bounds(local, matrices[&object.id]);
         bounds = [bounds[0].min(world[0]), bounds[1].max(world[1])];
     }

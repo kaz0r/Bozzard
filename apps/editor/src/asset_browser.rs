@@ -10,6 +10,7 @@ pub struct AssetBrowser {
     search: String,
     filter: AssetFilter,
     selected: Option<String>,
+    show_details: bool,
     thumbnails: HashMap<String, Thumbnail>,
     catalog_revision: u64,
 }
@@ -91,13 +92,30 @@ impl AssetBrowser {
         }
         let mut output = AssetBrowserOutput::default();
         let editing = editor.play.is_none();
-        let selected_drawable = editor
-            .selected_object()
-            .is_some_and(|object| object.drawable.is_some())
-            && editor.selected_surface().is_none();
+        let selected_drawable = |asset: &AssetSnapshot| {
+            editor
+                .selected_object()
+                .is_some_and(|object| object.drawable.is_some())
+                && (editor.selected_surface().is_none() || asset.kind == AssetKind::Image)
+        };
 
+        super::theme::panel_title(ui, "Content Browser");
         ui.horizontal(|ui| {
-            ui.heading("Assets");
+            ui.weak("Assets");
+            ui.weak("/");
+            egui::ComboBox::from_id_salt("asset-location")
+                .width(86.0)
+                .selected_text(match self.filter {
+                    AssetFilter::All => "All assets",
+                    AssetFilter::Images => "Textures",
+                    AssetFilter::Models => "Models",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.filter, AssetFilter::All, "All assets");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Images, "Textures");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Models, "Models");
+                });
+            ui.separator();
             if ui
                 .add_enabled(editing, egui::Button::new("Import…"))
                 .on_hover_text("Import PNG, JPEG, OBJ, glTF, or GLB")
@@ -112,23 +130,19 @@ impl AssetBrowser {
             {
                 output.reload_requested = true;
             }
-            if !editing {
-                ui.weak("Stop Play to edit assets");
-            }
-        });
-        ui.horizontal(|ui| {
-            ui.label("Find");
+            ui.separator();
             ui.add(
                 egui::TextEdit::singleline(&mut self.search)
                     .hint_text("Search assets")
-                    .desired_width(180.0),
+                    .desired_width(140.0),
             );
             if ui.small_button("×").on_hover_text("Clear search").clicked() {
                 self.search.clear();
             }
-            filter_button(ui, &mut self.filter, AssetFilter::All, "All");
-            filter_button(ui, &mut self.filter, AssetFilter::Images, "Images");
-            filter_button(ui, &mut self.filter, AssetFilter::Models, "Models");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.toggle_value(&mut self.show_details, "Details");
+                ui.small(format!("{} assets", assets.len()));
+            });
         });
 
         let query = self.search.trim().to_ascii_lowercase();
@@ -143,11 +157,16 @@ impl AssetBrowser {
             .collect();
 
         let mut command = None;
-        let available = ui.available_size();
+        let mut available = ui.available_size();
+        let sidebar = available.x > 500.0;
+        if sidebar {
+            available.x -= 146.0;
+        }
         let side_details = available.x > 650.0;
         let selected = self
             .selected
             .as_ref()
+            .filter(|_| self.show_details)
             .and_then(|id| assets.iter().find(|asset| &asset.id == id));
         let grid_width = if side_details && selected.is_some() {
             available.x - 276.0
@@ -160,6 +179,21 @@ impl AssetBrowser {
             available.y
         };
         ui.horizontal_top(|ui| {
+            if sidebar {
+                ui.allocate_ui_with_layout(Vec2::new(130.0, available.y), egui::Layout::top_down(egui::Align::Min), |ui| {
+                    ui.small("PROJECT");
+                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Models, "Models")] {
+                        ui.horizontal(|ui| {
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 16.0), Sense::hover());
+                            draw_folder(ui.painter(), rect);
+                            filter_button(ui, &mut self.filter, filter, name);
+                        });
+                    }
+                    ui.separator();
+                    ui.small("Scene asset library").on_hover_text("Assets referenced by the open scene, grouped by type. Import adds files to this library.");
+                });
+                ui.separator();
+            }
             ui.allocate_ui_with_layout(
                 Vec2::new(grid_width, grid_height),
                 egui::Layout::top_down(egui::Align::Min),
@@ -178,13 +212,13 @@ impl AssetBrowser {
                                 });
                                 return;
                             }
-                            let columns = (grid_width / 150.0).floor().max(1.0) as usize;
+                            let columns = (grid_width / 112.0).floor().max(1.0) as usize;
                             egui::Grid::new("asset-browser-grid")
                                 .num_columns(columns)
                                 .spacing(Vec2::new(8.0, 8.0))
                                 .show(ui, |ui| {
                                     for (index, asset) in shown.iter().enumerate() {
-                                        self.tile(ui, asset, editor, editing, &mut command);
+                                        self.tile(ui, asset, editor, editing, selected_drawable(asset), &mut command);
                                         if (index + 1) % columns == 0 {
                                             ui.end_row();
                                         }
@@ -203,7 +237,7 @@ impl AssetBrowser {
                             .id_salt("asset-details-scroll")
                             .max_height(available.y)
                             .show(ui, |ui| {
-                                self.details(ui, asset, editing, selected_drawable, &mut command);
+                                self.details(ui, asset, editing, selected_drawable(asset), &mut command);
                             });
                     },
                 );
@@ -214,7 +248,7 @@ impl AssetBrowser {
                 .id_salt("asset-details-narrow")
                 .max_height(ui.available_height())
                 .show(ui, |ui| {
-                    self.details(ui, asset, editing, selected_drawable, &mut command)
+                    self.details(ui, asset, editing, selected_drawable(asset), &mut command)
                 });
         }
 
@@ -274,26 +308,82 @@ impl AssetBrowser {
         asset: &AssetSnapshot,
         editor: &Editor,
         editing: bool,
+        selected_drawable: bool,
         command: &mut Option<AssetCommand>,
     ) {
-        const TILE: Vec2 = Vec2::new(132.0, 128.0);
+        const TILE: Vec2 = Vec2::new(96.0, 92.0);
         let selected = self.selected.as_deref() == Some(&asset.id);
-        egui::Frame::group(ui.style())
+        egui::Frame::new()
+            .inner_margin(4)
+            .corner_radius(2)
+            .stroke(Stroke::new(
+                1.0,
+                if selected {
+                    super::theme::ACCENT
+                } else {
+                    Color32::TRANSPARENT
+                },
+            ))
             .fill(if selected {
-                ui.visuals().selection.bg_fill
+                Color32::from_rgb(57, 51, 41)
             } else {
-                ui.visuals().faint_bg_color
+                Color32::TRANSPARENT
             })
             .show(ui, |ui| {
                 ui.vertical(|ui| {
                     ui.set_width(TILE.x);
                     ui.set_min_height(TILE.y);
-                    let preview = ui.allocate_exact_size(Vec2::new(120.0, 82.0), Sense::click());
+                    let preview = ui.allocate_exact_size(Vec2::new(TILE.x, 64.0), Sense::click());
                     let thumbnail = self.thumbnail(ui.ctx(), editor, asset);
                     draw_preview(ui, preview.0, asset, thumbnail);
-                    if preview.1.clicked() {
+                    let ready = editing && matches!(asset.state, LoadState::Ready);
+                    if preview.1.clicked() || preview.1.secondary_clicked() {
                         self.selected = Some(asset.id.clone());
                     }
+                    if preview.1.double_clicked() && ready {
+                        *command = Some(AssetCommand::Add(asset.id.clone()));
+                    }
+                    preview
+                        .1
+                        .on_hover_text(format!(
+                            "{}\nDouble-click to add · Right-click for actions",
+                            asset.path
+                        ))
+                        .context_menu(|ui| {
+                            if ui
+                                .add_enabled(ready, egui::Button::new("Add to scene"))
+                                .clicked()
+                            {
+                                *command = Some(AssetCommand::Add(asset.id.clone()));
+                                ui.close();
+                            }
+                            if ui
+                                .add_enabled(
+                                    ready && selected_drawable,
+                                    egui::Button::new("Assign to selected"),
+                                )
+                                .clicked()
+                            {
+                                *command = Some(AssetCommand::Assign(asset.id.clone()));
+                                ui.close();
+                            }
+                            if ui.button("Show details").clicked() {
+                                self.show_details = true;
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui
+                                .add_enabled(
+                                    editing && asset.users == 0,
+                                    egui::Button::new("Remove from scene library"),
+                                )
+                                .on_hover_text("The source file stays on disk")
+                                .clicked()
+                            {
+                                *command = Some(AssetCommand::Remove(asset.id.clone()));
+                                ui.close();
+                            }
+                        });
                     if ui
                         .add(egui::Button::selectable(selected, &asset.id).truncate())
                         .on_hover_text(&asset.path)
@@ -301,21 +391,12 @@ impl AssetBrowser {
                     {
                         self.selected = Some(asset.id.clone());
                     }
-                    ui.weak(match asset.kind {
+                    ui.small(match asset.kind {
                         AssetKind::Image => "Image",
                         AssetKind::Mesh => "Model",
                     });
                     if matches!(asset.state, LoadState::Failed(_)) {
                         ui.colored_label(Color32::LIGHT_RED, "Load failed");
-                    }
-                    if ui
-                        .add_enabled(
-                            editing && matches!(asset.state, LoadState::Ready),
-                            egui::Button::new("Add to scene"),
-                        )
-                        .clicked()
-                    {
-                        *command = Some(AssetCommand::Add(asset.id.clone()));
                     }
                 });
             });
@@ -524,6 +605,22 @@ fn thumbnail_image(width: u32, height: u32, rgba: &[u8]) -> ColorImage {
     ColorImage::from_rgba_unmultiplied([output_width as usize, output_height as usize], &pixels)
 }
 
+fn draw_folder(painter: &egui::Painter, rect: Rect) {
+    painter.rect_filled(
+        Rect::from_min_size(rect.min + Vec2::new(1.0, 2.0), Vec2::new(7.0, 5.0)),
+        1.0,
+        Color32::from_rgb(94, 150, 154),
+    );
+    painter.rect_filled(
+        Rect::from_min_max(
+            rect.min + Vec2::new(1.0, 5.0),
+            rect.max - Vec2::new(1.0, 1.0),
+        ),
+        1.0,
+        Color32::from_rgb(171, 160, 132),
+    );
+}
+
 fn filter_button(ui: &mut egui::Ui, filter: &mut AssetFilter, value: AssetFilter, label: &str) {
     if ui.selectable_label(*filter == value, label).clicked() {
         *filter = value;
@@ -543,7 +640,7 @@ fn draw_preview(
     thumbnail: Option<TextureHandle>,
 ) {
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 4.0, Color32::from_gray(28));
+    painter.rect_filled(rect, 2.0, Color32::from_gray(25));
     match (asset.kind, thumbnail, asset.mesh.as_ref()) {
         (AssetKind::Image, Some(texture), _) => {
             let size = texture.size_vec2();
@@ -627,11 +724,99 @@ fn draw_mesh_preview(painter: &egui::Painter, rect: Rect, vertices: &[[f32; 8]],
         painter.add(egui::Shape::convex_polygon(
             points.to_vec(),
             Color32::from_rgb(
-                (66.0 * light) as u8,
-                (157.0 * light) as u8,
-                (172.0 * light) as u8,
+                (188.0 * light) as u8,
+                (177.0 * light) as u8,
+                (152.0 * light) as u8,
             ),
-            Stroke::new(0.35, Color32::from_rgb(99, 184, 196)),
+            Stroke::new(0.35, Color32::from_rgb(210, 197, 168)),
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_browser_fits_and_double_click_add_is_edit_only() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/model-lab.json");
+        let mut editor = Editor::open(&path).unwrap();
+        let original = editor.scene().clone();
+        for width in [640.0, 1100.0] {
+            for details in [false, true] {
+                let ctx = egui::Context::default();
+                super::super::theme::install(&ctx);
+                let mut browser = AssetBrowser {
+                    show_details: details,
+                    ..Default::default()
+                };
+                for frame in 0..3 {
+                    let mut output = ctx.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(Rect::from_min_size(
+                                Pos2::ZERO,
+                                Vec2::new(width, 240.0),
+                            )),
+                            time: Some(frame as f64),
+                            ..Default::default()
+                        },
+                        |ui| {
+                            let available = ui.max_rect();
+                            browser.ui(ui, &mut editor);
+                            assert!(
+                                ui.min_rect().right() <= available.right() + 1.0,
+                                "browser overflow at width {width}, details={details}: {:?}",
+                                ui.min_rect()
+                            );
+                        },
+                    );
+                    output.textures_delta.clear();
+                }
+                assert_eq!(
+                    editor.scene(),
+                    &original,
+                    "idle browser changed authored data"
+                );
+            }
+        }
+        let asset = snapshots(&editor).remove(0);
+        assert!(matches!(asset.state, LoadState::Ready));
+        for editing in [false, true] {
+            let ctx = egui::Context::default();
+            let mut browser = AssetBrowser::default();
+            let mut command = None;
+            for (frame, pressed) in [None, Some(true), Some(false), Some(true), Some(false)]
+                .into_iter()
+                .enumerate()
+            {
+                let pos = Pos2::new(35.0, 35.0);
+                let mut events = vec![egui::Event::PointerMoved(pos)];
+                if let Some(pressed) = pressed {
+                    events.push(egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                }
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(300.0, 200.0))),
+                        time: Some(frame as f64 * 0.05),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| browser.tile(ui, &asset, &editor, editing, false, &mut command),
+                );
+                output.textures_delta.clear();
+            }
+            assert_eq!(browser.selected.as_deref(), Some(asset.id.as_str()));
+            if editing {
+                assert!(matches!(command, Some(AssetCommand::Add(ref id)) if id == &asset.id));
+            } else {
+                assert!(command.is_none(), "Play must not permit adding assets");
+            }
+        }
     }
 }

@@ -424,10 +424,6 @@ impl Editor {
         Ok(layer)
     }
     pub fn assign_asset_to_selected(&mut self, asset_id: &str) -> Result<()> {
-        ensure!(
-            self.selected_surface().is_none(),
-            "Select the whole model before assigning an asset"
-        );
         let source = self
             .scene
             .assets
@@ -442,6 +438,16 @@ impl Editor {
             matches!(entry.state(), bozzard_assets::LoadState::Ready),
             "repair or reload this asset before assigning it"
         );
+        if self.selected_surface().is_some() {
+            ensure!(
+                source.kind == AssetKind::Image,
+                "Assign an image to a surface; select the whole model to replace its mesh"
+            );
+            let mut value = self.selected_material_override()?;
+            value.texture = Some(Texture::Asset(asset_id.into()));
+            self.finish_gesture();
+            return self.set_selected_material_override(value);
+        }
         let mut scene = self.scene.clone();
         let object = scene
             .objects
@@ -727,6 +733,16 @@ fn subtree(scene: &Scene, id: &str) -> BTreeSet<String> {
         }
     }
 }
+fn render_texture(texture: Texture) -> TextureKind {
+    match texture {
+        Texture::White => TextureKind::White,
+        Texture::Checker => TextureKind::Checker,
+        Texture::Normals => TextureKind::Normals,
+        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
+        Texture::Toon => TextureKind::Toon,
+        Texture::Asset(id) => TextureKind::Imported(id),
+    }
+}
 pub fn extract(
     demo: &SceneDemo,
     assets: &bozzard_assets::AssetStore,
@@ -841,6 +857,9 @@ pub fn extract(
                         .map(|value| bozzard_render::SurfaceMaterialOverride {
                             surface: value.surface,
                             source: value.source,
+                            transform: value.transform.matrix(),
+                            texture: value.texture.map(render_texture),
+                            uv_scale: value.uv_scale,
                             tint: value.tint,
                             metallic: value.metallic,
                             roughness: value.roughness,
@@ -849,14 +868,7 @@ pub fn extract(
                     tint: d.color,
                     uv_scale: d.uv_scale,
                     lit: layer == Layer::ThreeD,
-                    texture: match d.texture {
-                        Texture::White => TextureKind::White,
-                        Texture::Checker => TextureKind::Checker,
-                        Texture::Normals => TextureKind::Normals,
-                        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
-                        Texture::Toon => TextureKind::Toon,
-                        Texture::Asset(id) => TextureKind::Imported(id),
-                    },
+                    texture: render_texture(d.texture),
                 },
             })
             .collect(),

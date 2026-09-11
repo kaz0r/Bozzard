@@ -4,7 +4,16 @@ use bozzard_render::{MaterialMap, ModelImage, ModelPart, ModelShading, SurfaceMa
 const KEYS: [&str; 2] = ["0000000000000001", "0000000000000002"];
 
 fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, factors: [[f32; 2]; 2]) -> Result<()> {
-    let vertices: Vec<_> = [-0.5, 0.5]
+    upload_transformed(gpu, renderer, id, factors, Mat4::IDENTITY)
+}
+fn upload_transformed(
+    gpu: &Gpu,
+    renderer: &mut SceneRenderer,
+    id: &str,
+    factors: [[f32; 2]; 2],
+    transform: Mat4,
+) -> Result<()> {
+    let mut vertices: Vec<_> = [-0.5, 0.5]
         .into_iter()
         .flat_map(|x| {
             [
@@ -16,6 +25,12 @@ fn upload(gpu: &Gpu, renderer: &mut SceneRenderer, id: &str, factors: [[f32; 2];
             .map(|[x, y]| [x, y, 0., 0., 0., 1., 0.5, 0.5])
         })
         .collect();
+    let pivot = Vec3::new(-0.5, 0., 0.);
+    let matrix = Mat4::from_translation(pivot) * transform * Mat4::from_translation(-pivot);
+    for vertex in &mut vertices[..4] {
+        let p = matrix.transform_point3(Vec3::from_slice(&vertex[..3]));
+        vertex[..3].copy_from_slice(&p.to_array());
+    }
     let attributes = [[1., 0., 0., 1., 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]; 4];
     let parts: Vec<_> = factors
         .iter()
@@ -106,6 +121,9 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let value = SurfaceMaterialOverride {
         surface: 0,
         source: KEYS[0].into(),
+        transform: Mat4::IDENTITY,
+        texture: None,
+        uv_scale: [1.; 2],
         tint: [0.25, 0.5, 1.],
         metallic: None,
         roughness: None,
@@ -180,6 +198,47 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             .to_bits()
             == upload_stamp,
         "material edit uploaded shared source data"
+    );
+    // The edited surface must match independently baked geometry, without touching its siblings/instances.
+    for item in &mut scene.items {
+        item.material.lit = false;
+    }
+    renderer.upload_image(gpu, "surface-blue", 1, 1, &[0, 0, 255, 255])?;
+    let transform = Mat4::from_translation(Vec3::new(0.2, 0.2, 0.))
+        * Mat4::from_rotation_z(0.7)
+        * Mat4::from_scale(Vec3::new(0.5, 1.2, 1.));
+    let edit = SurfaceMaterialOverride {
+        transform,
+        texture: Some(TextureKind::Imported("surface-blue".into())),
+        tint: [1.; 3],
+        ..value.clone()
+    };
+    scene.items[0].material.surface_overrides = vec![edit.clone()].into();
+    let moved = render(&mut renderer, &scene)?;
+    pixel(&moved, 51, 30, [0, 0, 102])?;
+    for (x, y) in [(85, 38), (43, 90), (85, 90)] {
+        pixel(&moved, x, y, [204, 153, 102])?;
+    }
+    upload_transformed(
+        gpu,
+        &mut renderer,
+        "surface-moved-reference",
+        [[0.2, 0.7]; 2],
+        transform,
+    )?;
+    let mut reference = scene.clone();
+    reference.items[0].mesh = MeshKind::Imported("surface-moved-reference".into());
+    reference.items[0].material.surface_overrides = vec![SurfaceMaterialOverride {
+        transform: Mat4::IDENTITY,
+        ..edit
+    }]
+    .into();
+    ensure!(
+        moved.rgba == render(&mut renderer, &reference)?.rgba,
+        "surface transform differs from baked reference geometry"
+    );
+    println!(
+        "editable_surfaces_gpu_ok pivot_transform texture surface_and_instance_isolation baked_geometry_parity"
     );
     for bad in [f32::NAN, f32::INFINITY, -0.1, 1.1] {
         scene.items[0].material.surface_overrides = vec![SurfaceMaterialOverride {

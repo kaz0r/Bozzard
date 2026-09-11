@@ -306,6 +306,54 @@ fn asset_byte_replacement_invalidates_but_failed_reload_and_rebase_preserve_sour
 }
 
 #[test]
+fn surface_edits_move_gi_geometry_and_replace_only_its_texture() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/model-lab.json");
+    let mut s = Scene::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    s.objects.retain(|o| o.id == "courier-gltf");
+    s.views.clear();
+    s.objects[0].transform = Default::default();
+    let mut assets = AssetStore::new(path.parent().unwrap(), &s.assets).unwrap();
+    assets.load_pending().unwrap();
+    let crate::AssetData::Mesh(mesh) = assets
+        .get(assets.handle("courier-gltf").unwrap())
+        .unwrap()
+        .data()
+        .unwrap()
+    else {
+        panic!()
+    };
+    let bounds = mesh.part_bounds(0).unwrap();
+    let pivot = (bounds[0] + bounds[1]) * 0.5;
+    let mut value =
+        bozzard_scene::SurfaceMaterialOverride::inherited(0, mesh.parts[0].source_key.clone());
+    value.transform.translation = [12., 3., 0.];
+    value.transform.rotation_degrees = [0., 25., 0.];
+    value.transform.scale = [1.5, 0.8, 1.];
+    value.texture = Some(bozzard_scene::Texture::White);
+    value.metallic = Some(0.);
+    let center = value.matrix(pivot).transform_point3(pivot);
+    let origin = center + Vec3::Z * 10.;
+    let baseline = trace::TraceScene::new(&s, &assets, &Progress::default()).unwrap();
+    assert!(baseline.hit(origin, Vec3::NEG_Z, 100.).is_none());
+    let hash = source(&s, &assets, volume()).unwrap();
+    s.objects[0].drawable.as_mut().unwrap().material_overrides = vec![value];
+    let tracer = trace::TraceScene::new(&s, &assets, &Progress::default()).unwrap();
+    let hit = tracer.hit(origin, Vec3::NEG_Z, 100.).unwrap();
+    assert!((hit.position.x - center.x).abs() < 1e-5);
+    assert!((hit.position.y - center.y).abs() < 1e-5);
+    assert!(fit_volume(&s, &assets).unwrap().max[0] > center.x);
+    assert_ne!(source(&s, &assets, volume()).unwrap(), hash);
+    s.objects[0].drawable.as_mut().unwrap().material_overrides[0].texture =
+        Some(bozzard_scene::Texture::Checker);
+    let changed = trace::TraceScene::new(&s, &assets, &Progress::default())
+        .unwrap()
+        .hit(origin, Vec3::NEG_Z, 100.)
+        .unwrap();
+    assert!(changed.albedo.distance(hit.albedo) > 0.01);
+}
+
+#[test]
 fn dynamic_exclusion_handles_reverse_order_deep_hierarchies() {
     let mut s = scene();
     for i in 0..1000 {

@@ -29,6 +29,17 @@ fn main() -> Result<()> {
     value.tint = [0.2, 0.7, 1.0];
     value.metallic = Some(0.65);
     value.roughness = Some(0.2);
+    let bounds = editor
+        .selected_mesh()
+        .unwrap()
+        .part_bounds(index)
+        .context("missing surface bounds")?;
+    let size = (bounds[1] - bounds[0]).max(glam::Vec3::ONE);
+    value.transform.translation = (size * glam::Vec3::new(0.05, 0.1, 0.)).to_array();
+    value.transform.rotation_degrees = [0., 12., 5.];
+    value.transform.scale = [0.9, 1.1, 1.];
+    value.texture = Some(bozzard_scene::Texture::Checker);
+    value.uv_scale = [3.; 2];
     let asset_revision = editor.asset_revision();
     editor.begin_gesture("Edit surface material");
     editor.set_selected_material_override(value.clone())?;
@@ -61,19 +72,24 @@ fn main() -> Result<()> {
     reopened.start_play()?;
     let render = reopened.render(Layer::ThreeD, 1.6)?;
     ensure!(
-        render.items.iter().any(|item| item
-            .material
-            .surface_overrides
-            .iter()
-            .any(|v| v.surface == value.surface
-                && v.source == value.source
-                && v.tint == value.tint)),
+        render.items.iter().any(
+            |item| item
+                .material
+                .surface_overrides
+                .iter()
+                .any(|v| v.surface == value.surface
+                    && v.source == value.source
+                    && v.tint == value.tint
+                    && v.transform == value.transform.matrix()
+                    && v.texture == Some(bozzard_render::TextureKind::Checker)
+                    && v.uv_scale == value.uv_scale)
+        ),
         "Play lost material override"
     );
     reopened.stop_play();
     ensure!(reopened.scene() == &saved, "Play changed authored state");
     println!(
-        "real_scene_material_override_ok object={object:?} surface={index} undo redo save_reopen source_identity play output={}",
+        "real_scene_surface_edit_ok object={object:?} surface={index} transform texture material undo redo save_reopen source_identity play output={}",
         output.display()
     );
     Ok(())

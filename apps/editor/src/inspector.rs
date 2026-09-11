@@ -1,29 +1,26 @@
 use super::*;
 impl App {
     pub fn inspector(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::right("inspector")
-            .default_size(300.0)
-            .min_size(240.0)
-            .max_size(450.0)
-            .resizable(true)
-            .show(ui, |ui| {
-                if self.loading.is_some() { ui.disable(); }
-                ui.heading("Inspector");
-                self.lighting_inspector(ui);
-                let Some(original) = self.editor.selected_object().cloned() else {
-                    ui.weak("Click an object in the viewport or select its name in the Hierarchy.");
-                    ui.weak("Use the Hierarchy search to find an object, or add a Cube or Sprite there.");
-                    return;
-                };
-                let mut object = original.clone();
-                let mut scene = self.editor.scene().clone();
-                let checkpoint_start = checkpoint_respawn(&scene, &original);
-                egui::ScrollArea::vertical().show(ui, |ui| {
+        if self.loading.is_some() {
+            ui.disable();
+        }
+        theme::panel_title(ui, "Properties");
+        let Some(original) = self.editor.selected_object().cloned() else {
+            ui.add_space(16.0);
+            ui.weak("No entity selected");
+            ui.small("Select in the viewport or Scene Hierarchy to inspect components.");
+            return;
+        };
+        let mut object = original.clone();
+        let mut scene = self.editor.scene().clone();
+        let checkpoint_start = checkpoint_respawn(&scene, &original);
+        ui.push_id(&original.id, |ui| {
+        egui::ScrollArea::vertical().id_salt("entity-properties").show(ui, |ui| {
                     if self.surface_inspector(ui) { return; }
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-                        ui.label("Name");
-                        ui.text_edit_singleline(&mut object.name);
-                        ui.weak(format!("ID: {}", object.id));
+                        ui.add(egui::TextEdit::singleline(&mut object.name).desired_width(f32::INFINITY))
+                            .on_hover_text(format!("Entity name · ID: {}", object.id));
+                        ui.small("Parent");
                         egui::ComboBox::from_id_salt("parent")
                             .selected_text(object.parent.as_deref().unwrap_or("Root"))
                             .show_ui(ui, |ui| {
@@ -39,7 +36,7 @@ impl App {
                                 }
                             });
                         ui.separator();
-                        ui.strong("Transform");
+                        egui::CollapsingHeader::new("TRANSFORM").default_open(true).show(ui, |ui| {
                         vector(ui, "Position", &mut object.transform.translation, 0.05);
                         vector(
                             ui,
@@ -48,11 +45,16 @@ impl App {
                             0.5,
                         );
                         vector(ui, "Scale", &mut object.transform.scale, 0.02);
-                        if ui.button("Reset transform").clicked() {
+                        if ui.small_button("Reset transform").clicked() {
                             object.transform = Transform::default();
                         }
+                        });
                         ui.separator();
-                        crate::lights::inspector(ui, &mut object.light);
+                        egui::CollapsingHeader::new("LIGHT").default_open(original.light.is_some()).show(ui, |ui| {
+                            crate::lights::inspector(ui, &mut object.light);
+                        });
+                        ui.separator();
+                        egui::CollapsingHeader::new("MESH RENDERER").default_open(original.drawable.is_some()).show(ui, |ui| {
                         let mut drawable = object.drawable.is_some();
                         if ui.checkbox(&mut drawable, "Renderable").changed() {
                             object.drawable = if drawable {
@@ -97,35 +99,7 @@ impl App {
                                 });
                             if d.mesh != original_mesh { d.material_overrides.clear(); }
                             ui.label("Texture / material effect");
-                            egui::ComboBox::from_id_salt("texture")
-                                .selected_text(match &d.texture {
-                                    Texture::White => "White",
-                                    Texture::Checker => "Checker",
-                                    Texture::Normals => "World normals",
-                                    Texture::ProceduralChecker => "Procedural checker",
-                                    Texture::Toon => "Toon (3 bands)",
-                                    Texture::Asset(id) => id,
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut d.texture, Texture::White, "White");
-                                    ui.selectable_value(&mut d.texture, Texture::Normals, "World normals");
-                                    ui.selectable_value(&mut d.texture, Texture::ProceduralChecker, "Procedural checker");
-                                    ui.selectable_value(&mut d.texture, Texture::Toon, "Toon (3 bands)");
-                                    ui.selectable_value(
-                                        &mut d.texture,
-                                        Texture::Checker,
-                                        "Checker",
-                                    );
-                                    for (id, asset) in &scene.assets {
-                                        if asset.kind == AssetKind::Image {
-                                            ui.selectable_value(
-                                                &mut d.texture,
-                                                Texture::Asset(id.clone()),
-                                                id,
-                                            );
-                                        }
-                                    }
-                                });
+                            texture_control(ui, &mut d.texture, &scene);
                             ui.horizontal(|ui| {
                                 ui.label("Tint");
                                 let mut color = d.color;
@@ -144,7 +118,9 @@ impl App {
                                 }
                             });
                         }
+                        });
                         ui.separator();
+                        egui::CollapsingHeader::new("PHYSICS").default_open(original.collider.is_some()).show(ui, |ui| {
                         let mut box_collider = object.collider.is_some();
                         if ui
                             .checkbox(&mut box_collider, "Box collider (3D)")
@@ -215,7 +191,9 @@ impl App {
                             }
 
                         }
+                        });
                         ui.separator();
+                        egui::CollapsingHeader::new("PLAYER & TRIGGERS").default_open(original.player_controller.is_some() || original.trigger.is_some()).show(ui, |ui| {
                         let mut controller = object.player_controller.is_some();
                         if ui.checkbox(&mut controller, "Player Controller").changed() {
                             object.player_controller = controller.then(|| bozzard_scene::PlayerController {
@@ -271,7 +249,9 @@ impl App {
                             }
                             ui.weak("Non-solid box. Collectibles hide once per run; progress survives falls, resets on Stop / Play or player R.");
                         }
+                        });
                         ui.separator();
+                        egui::CollapsingHeader::new("BEHAVIOR").default_open(original.spin.is_some()).show(ui, |ui| {
                         let mut spin = object.spin.is_some();
                         if ui.checkbox(&mut spin, "Spin behavior").changed() {
                             object.spin = spin.then_some(Spin([0.0, 45.0, 0.0]));
@@ -280,7 +260,9 @@ impl App {
                             vector(ui, "Degrees/sec", &mut spin.0, 0.5);
                             ui.weak("Runs in Play mode only");
                         }
+                        });
                         ui.separator();
+                        egui::CollapsingHeader::new("CAMERA").default_open(original.camera.is_some()).show(ui, |ui| {
                         let mut camera = object.camera.is_some();
                         if ui.checkbox(&mut camera, "Camera").changed() {
                             object.camera = if camera {
@@ -343,194 +325,197 @@ impl App {
                                 }
                             });
                         }
+                        });
                     });
                 });
-                if let Some(play) = &self.editor.play
-                    && let Some(entity) = play.instance.entity(&original.id)
-                    && let Some(state) = play.app.world.get::<bozzard_scene::GravityState>(entity)
-                    && play
-                        .app
-                        .world
-                        .get::<bozzard_scene::Gravity>(entity)
-                        .is_some_and(|g| g.enabled)
-                    && play
-                        .app
-                        .world
-                        .get::<bozzard_scene::BoxCollider>(entity)
-                        .is_some_and(|c| c.enabled)
-                {
-                    ui.weak(if state.grounded {
-                        "Grounded"
-                    } else if state.vertical_velocity > 0.0 {
-                        "Rising"
-                    } else {
-                        "Falling"
-                    });
-                    ui.weak(format!("Vertical speed: {:+.2} m/s", state.vertical_velocity))
-                        .on_hover_text("Positive is upward; negative is downward.");
-                }
-                if ui.is_enabled() && self.editor.play.is_none()
-                    && (object != original || scene.views != self.editor.scene().views) {
-                    self.editor.begin_gesture("Edit component");
-                    if let Some(slot) = scene.objects.iter_mut().find(|o| o.id == object.id) {
-                        *slot = object;
-                    }
-                    synchronize_follow_camera(&mut scene);
-                    let r = self.editor.apply("Edit component", scene);
-                    self.result(r);
-                }
+        });
+        if let Some(play) = &self.editor.play
+            && let Some(entity) = play.instance.entity(&original.id)
+            && let Some(state) = play.app.world.get::<bozzard_scene::GravityState>(entity)
+            && play
+                .app
+                .world
+                .get::<bozzard_scene::Gravity>(entity)
+                .is_some_and(|g| g.enabled)
+            && play
+                .app
+                .world
+                .get::<bozzard_scene::BoxCollider>(entity)
+                .is_some_and(|c| c.enabled)
+        {
+            ui.weak(if state.grounded {
+                "Grounded"
+            } else if state.vertical_velocity > 0.0 {
+                "Rising"
+            } else {
+                "Falling"
             });
+            ui.weak(format!(
+                "Vertical speed: {:+.2} m/s",
+                state.vertical_velocity
+            ))
+            .on_hover_text("Positive is upward; negative is downward.");
+        }
+        if ui.is_enabled()
+            && self.editor.play.is_none()
+            && (object != original || scene.views != self.editor.scene().views)
+        {
+            self.editor.begin_gesture("Edit component");
+            if let Some(slot) = scene.objects.iter_mut().find(|o| o.id == object.id) {
+                *slot = object;
+            }
+            synchronize_follow_camera(&mut scene);
+            let r = self.editor.apply("Edit component", scene);
+            self.result(r);
+        }
     }
-    fn lighting_inspector(&mut self, ui: &mut egui::Ui) {
+    pub fn lighting_inspector(&mut self, ui: &mut egui::Ui) {
         let mut scene = self.editor.scene().clone();
         let mut bake_gi = false;
         let mut fit_gi = false;
         let gi_current = self.editor.gi_current();
         ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-            egui::CollapsingHeader::new("Scene lighting")
+            egui::CollapsingHeader::new("GLOBAL ILLUMINATION")
                 .open(self.smoke_gi_frame.map(|_| true))
                 .show(ui, |ui| {
-                    egui::ScrollArea::vertical()
-                        .id_salt("lighting-controls")
-                        .max_height(360.0)
-                        .show(ui, |ui| {
-                            let actions = gi::controls(
-                                ui,
-                                &mut scene.gi,
-                                &mut self.workspace.gi_visible,
-                                gi_current,
-                                self.smoke_gi_frame.is_some(),
-                            );
-                            fit_gi = actions.0;
-                            bake_gi = actions.1;
-                            ui.separator();
-                            let light = &mut scene.lighting;
-                            let direction = Vec3::from(light.sun_direction).normalize();
-                            let mut azimuth = direction.z.atan2(direction.x).to_degrees();
-                            let mut elevation = direction.y.clamp(-1., 1.).asin().to_degrees();
-                            let changed = ui
-                                .add(
-                                    egui::Slider::new(&mut azimuth, -180.0..=180.0)
-                                        .text("Sun azimuth °"),
-                                )
-                                .changed();
-                            let changed = ui
-                                .add(
-                                    egui::Slider::new(&mut elevation, -90.0..=90.0)
-                                        .text("Sun elevation °"),
-                                )
-                                .changed()
-                                || changed;
-                            if changed {
-                                let a = azimuth.to_radians();
-                                let e = elevation.to_radians();
-                                light.sun_direction =
-                                    [e.cos() * a.cos(), e.sin(), e.cos() * a.sin()];
-                            }
-                            ui.label("Sun color (linear RGB)");
-                            color_edit_button_rgb(ui, &mut light.sun_color);
-                            ui.add(
-                                egui::DragValue::new(&mut light.sun_intensity)
-                                    .speed(0.05)
-                                    .range(0.0..=100000.0)
-                                    .prefix("Sun intensity "),
-                            );
-                            ui.label("Ambient color (linear RGB)");
-                            color_edit_button_rgb(ui, &mut light.ambient_color);
-                            ui.add(
-                                egui::DragValue::new(&mut light.ambient_intensity)
-                                    .speed(0.005)
-                                    .range(0.0..=100000.0)
-                                    .prefix("Ambient intensity "),
-                            );
-                            ui.checkbox(&mut light.shadows, "Sun shadows");
-                            egui::ComboBox::from_id_salt("shadow-resolution")
-                                .selected_text(format!("{} px", light.shadow_resolution))
-                                .show_ui(ui, |ui| {
-                                    for resolution in [512, 1024, 2048, 4096] {
-                                        ui.selectable_value(
-                                            &mut light.shadow_resolution,
-                                            resolution,
-                                            format!("{resolution} px"),
-                                        );
-                                    }
-                                });
-                            ui.add(
-                            egui::DragValue::new(&mut light.shadow_bias)
-                                .speed(0.001)
-                                .range(0.0..=1.0)
-                                .prefix("Depth bias "),
+                    let actions = gi::controls(
+                        ui,
+                        &mut scene.gi,
+                        &mut self.workspace.gi_visible,
+                        gi_current,
+                        self.smoke_gi_frame.is_some(),
+                    );
+                    fit_gi = actions.0;
+                    bake_gi = actions.1;
+                });
+            ui.separator();
+            let light = &mut scene.lighting;
+            egui::CollapsingHeader::new("DIRECTIONAL LIGHT")
+                .default_open(true)
+                .show(ui, |ui| {
+                    let direction = Vec3::from(light.sun_direction).normalize();
+                    let mut azimuth = direction.z.atan2(direction.x).to_degrees();
+                    let mut elevation = direction.y.clamp(-1., 1.).asin().to_degrees();
+                    let changed = ui
+                        .add(egui::Slider::new(&mut azimuth, -180.0..=180.0).text("Sun azimuth °"))
+                        .changed();
+                    let changed = ui
+                        .add(
+                            egui::Slider::new(&mut elevation, -90.0..=90.0).text("Sun elevation °"),
                         )
-                        .on_hover_text(
-                            "World units. Increase only enough to remove surface shadow speckling.",
-                        );
-                            ui.add(
-                                egui::DragValue::new(&mut light.shadow_normal_bias)
-                                    .speed(0.001)
-                                    .range(0.0..=1.0)
-                                    .prefix("Normal bias "),
-                            )
-                            .on_hover_text(
-                                "World units. Large values can detach shadows from objects.",
-                            );
-                            ui.separator();
-                            ui.strong("Environment (3D)");
-                            ui.add(
-                                egui::DragValue::new(&mut scene.environment.intensity)
-                                    .speed(0.01)
-                                    .range(0.0..=1000.0)
-                                    .prefix("Sky intensity "),
-                            );
-                            ui.checkbox(&mut scene.environment.background, "Show sky background");
-                            for (name, color) in [
-                                ("Zenith", &mut scene.environment.zenith),
-                                ("Horizon", &mut scene.environment.horizon),
-                                ("Ground", &mut scene.environment.ground),
-                            ] {
-                                ui.horizontal(|ui| {
-                                    ui.label(name);
-                                    color_edit_button_rgb(ui, color);
-                                });
-                            }
-                            if ui.button("Reset environment").clicked() {
-                                scene.environment = Default::default();
-                            }
-                            ui.separator();
-                            crate::fog::controls(ui, &mut scene.fog);
-                            ui.strong("Display (3D)");
-                            ui.add(
-                                egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
-                                    .text("Exposure EV"),
-                            );
-                            ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
-                            let bloom = &mut scene.display.bloom;
-                            ui.checkbox(&mut bloom.enabled, "Bloom");
-                            ui.add_enabled_ui(bloom.enabled, |ui| {
-                                ui.add(
-                                    egui::Slider::new(&mut bloom.intensity, 0.0..=10.0)
-                                        .logarithmic(true)
-                                        .text("Glow intensity"),
+                        .changed()
+                        || changed;
+                    if changed {
+                        let a = azimuth.to_radians();
+                        let e = elevation.to_radians();
+                        light.sun_direction = [e.cos() * a.cos(), e.sin(), e.cos() * a.sin()];
+                    }
+                    ui.label("Sun color (linear RGB)");
+                    color_edit_button_rgb(ui, &mut light.sun_color);
+                    ui.add(
+                        egui::DragValue::new(&mut light.sun_intensity)
+                            .speed(0.05)
+                            .range(0.0..=100000.0)
+                            .prefix("Sun intensity "),
+                    );
+                    ui.label("Ambient color (linear RGB)");
+                    color_edit_button_rgb(ui, &mut light.ambient_color);
+                    ui.add(
+                        egui::DragValue::new(&mut light.ambient_intensity)
+                            .speed(0.005)
+                            .range(0.0..=100000.0)
+                            .prefix("Ambient intensity "),
+                    );
+                    ui.checkbox(&mut light.shadows, "Sun shadows");
+                    egui::ComboBox::from_id_salt("shadow-resolution")
+                        .selected_text(format!("{} px", light.shadow_resolution))
+                        .show_ui(ui, |ui| {
+                            for resolution in [512, 1024, 2048, 4096] {
+                                ui.selectable_value(
+                                    &mut light.shadow_resolution,
+                                    resolution,
+                                    format!("{resolution} px"),
                                 );
-                                ui.horizontal(|ui| {
-                                    ui.label("Threshold");
-                                    ui.add(
-                                        egui::DragValue::new(&mut bloom.threshold)
-                                            .speed(0.05)
-                                            .range(0.0..=60000.),
-                                    );
-                                });
-                                ui.add(
-                                    egui::Slider::new(&mut bloom.scatter, 0.0..=1.0).text("Spread"),
-                                );
-                                ui.weak("Threshold is scene brightness before exposure.");
-                            });
-                            if ui.button("Reset display").clicked() {
-                                scene.display = Default::default();
-                            }
-                            if ui.button("Reset lighting").clicked() {
-                                *light = Default::default();
                             }
                         });
+                    ui.add(
+                        egui::DragValue::new(&mut light.shadow_bias)
+                            .speed(0.001)
+                            .range(0.0..=1.0)
+                            .prefix("Depth bias "),
+                    )
+                    .on_hover_text(
+                        "World units. Increase only enough to remove surface shadow speckling.",
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut light.shadow_normal_bias)
+                            .speed(0.001)
+                            .range(0.0..=1.0)
+                            .prefix("Normal bias "),
+                    )
+                    .on_hover_text("World units. Large values can detach shadows from objects.");
+                    if ui.small_button("Reset lighting").clicked() {
+                        *light = Default::default();
+                    }
+                });
+            ui.separator();
+            egui::CollapsingHeader::new("ENVIRONMENT")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::DragValue::new(&mut scene.environment.intensity)
+                            .speed(0.01)
+                            .range(0.0..=1000.0)
+                            .prefix("Sky intensity "),
+                    );
+                    ui.checkbox(&mut scene.environment.background, "Show sky background");
+                    for (name, color) in [
+                        ("Zenith", &mut scene.environment.zenith),
+                        ("Horizon", &mut scene.environment.horizon),
+                        ("Ground", &mut scene.environment.ground),
+                    ] {
+                        ui.horizontal(|ui| {
+                            ui.label(name);
+                            color_edit_button_rgb(ui, color);
+                        });
+                    }
+                    if ui.button("Reset environment").clicked() {
+                        scene.environment = Default::default();
+                    }
+                });
+            ui.separator();
+            crate::fog::controls(ui, &mut scene.fog);
+            ui.separator();
+            egui::CollapsingHeader::new("DISPLAY & BLOOM")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
+                            .text("Exposure EV"),
+                    );
+                    ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
+                    let bloom = &mut scene.display.bloom;
+                    ui.checkbox(&mut bloom.enabled, "Bloom");
+                    ui.add_enabled_ui(bloom.enabled, |ui| {
+                        ui.add(
+                            egui::Slider::new(&mut bloom.intensity, 0.0..=10.0)
+                                .logarithmic(true)
+                                .text("Glow intensity"),
+                        );
+                        ui.horizontal(|ui| {
+                            ui.label("Threshold");
+                            ui.add(
+                                egui::DragValue::new(&mut bloom.threshold)
+                                    .speed(0.05)
+                                    .range(0.0..=60000.),
+                            );
+                        });
+                        ui.add(egui::Slider::new(&mut bloom.scatter, 0.0..=1.0).text("Spread"));
+                        ui.weak("Threshold is scene brightness before exposure.");
+                    });
+                    if ui.button("Reset display").clicked() {
+                        scene.display = Default::default();
+                    }
                 });
         });
         if ui.is_enabled()
@@ -558,17 +543,56 @@ impl App {
         }
     }
 }
+pub(super) fn texture_control(
+    ui: &mut egui::Ui,
+    texture: &mut Texture,
+    scene: &bozzard_scene::Scene,
+) {
+    egui::ComboBox::from_id_salt("texture")
+        .selected_text(match texture {
+            Texture::White => "White / no map",
+            Texture::Checker => "Checker",
+            Texture::Normals => "World normals",
+            Texture::ProceduralChecker => "Procedural checker",
+            Texture::Toon => "Toon (3 bands)",
+            Texture::Asset(id) => id,
+        })
+        .show_ui(ui, |ui| {
+            for (value, label) in [
+                (Texture::White, "White / no map"),
+                (Texture::Checker, "Checker"),
+                (Texture::Normals, "World normals"),
+                (Texture::ProceduralChecker, "Procedural checker"),
+                (Texture::Toon, "Toon (3 bands)"),
+            ] {
+                ui.selectable_value(texture, value, label);
+            }
+            for (id, asset) in &scene.assets {
+                if asset.kind == AssetKind::Image {
+                    ui.selectable_value(texture, Texture::Asset(id.clone()), id);
+                }
+            }
+        });
+}
 pub(super) fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {
-    ui.label(label);
-    ui.horizontal(|ui| {
-        for (index, v) in value.iter_mut().enumerate() {
-            ui.add(
-                egui::DragValue::new(v)
-                    .speed(speed)
-                    .prefix(["X ", "Y ", "Z "][index])
-                    .max_decimals(3),
-            );
-        }
+    ui.push_id(label, |ui| {
+        ui.label(label);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            let width = ((ui.available_width() - 12.0) / 3.0 - 18.0).max(24.0);
+            for (index, v) in value.iter_mut().enumerate() {
+                ui.label(
+                    egui::RichText::new([" X ", " Y ", " Z "][index])
+                        .background_color(theme::AXES[index])
+                        .color(Color32::WHITE),
+                );
+                ui.add_sized(
+                    [width, 20.0],
+                    egui::DragValue::new(v).speed(speed).max_decimals(3),
+                )
+                .on_hover_text(format!("{label} · {}", ["X", "Y", "Z"][index]));
+            }
+        });
     });
 }
 fn number(ui: &mut egui::Ui, label: &str, value: &mut f32, speed: f64) {
