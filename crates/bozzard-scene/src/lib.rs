@@ -11,7 +11,7 @@ pub use environment::EnvironmentSettings;
 mod display;
 pub use display::{BloomSettings, DisplaySettings};
 mod light;
-pub use light::{Light, LightKind, MAX_LOCAL_LIGHTS, WorldLight};
+pub use light::{Light, LightKind, MAX_LOCAL_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, WorldLight};
 mod lighting;
 pub use lighting::Lighting;
 
@@ -331,6 +331,15 @@ impl Scene {
             "scene supports at most {MAX_LOCAL_LIGHTS} local lights"
         );
         gameplay::validate(self)?;
+        ensure!(
+            self.objects
+                .iter()
+                .filter_map(|o| o.light)
+                .filter(Light::requests_shadow_map)
+                .count()
+                <= MAX_SHADOWED_SPOT_LIGHTS,
+            "scene supports at most {MAX_SHADOWED_SPOT_LIGHTS} shadowed spotlights (including disabled lights)"
+        );
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
             ensure!(!object.id.trim().is_empty(), "object ID is empty");
@@ -585,10 +594,12 @@ impl SceneInstance {
             }
         }
         let mut lights = Vec::new();
+        let mut shadowed_spots = 0;
         if layer == Layer::ThreeD {
             for (id, entity) in &self.entities {
                 if let Some(light) = world.get::<Light>(*entity) {
                     light.validate()?;
+                    shadowed_spots += usize::from(light.requests_shadow_map());
                     if light.enabled {
                         lights.push(light.at(matrices[id])?);
                     }
@@ -596,6 +607,10 @@ impl SceneInstance {
             }
         }
         ensure!(lights.len() <= MAX_LOCAL_LIGHTS, "too many runtime lights");
+        ensure!(
+            shadowed_spots <= MAX_SHADOWED_SPOT_LIGHTS,
+            "too many runtime shadowed spotlights"
+        );
         Ok(SceneView {
             fog: self.document.fog,
             lights,

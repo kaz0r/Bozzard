@@ -278,15 +278,19 @@ impl App {
                         ensure!(
                             self.editor
                                 .selected_object()
-                                .is_some_and(|o| o.light.is_some()),
-                            "light selection lost"
+                                .is_some_and(|o| o.light.is_some_and(|l| l.requests_shadow_map())),
+                            "shadowed spotlight selection lost"
                         );
                         ensure!(
-                            !self.editor.render(Layer::ThreeD, 1.)?.lights.is_empty(),
-                            "light extraction missing"
+                            self.editor
+                                .render(Layer::ThreeD, 1.)?
+                                .lights
+                                .iter()
+                                .any(|l| l.shadows.is_some()),
+                            "spotlight shadow extraction missing"
                         );
                         println!(
-                            "editor_light_smoke_ok authored_component extraction inspector guides native_ui_capture"
+                            "editor_light_smoke_ok authored_component shadow_settings extraction inspector guides native_ui_capture"
                         );
                         return Ok(());
                     }
@@ -433,9 +437,27 @@ impl App {
                             }
                         }
                         if self.smoke_light_frame.is_none() {
-                            if let Err(error) =
-                                self.editor.create_light(bozzard_scene::LightKind::Spot)
-                            {
+                            let result = (|| -> Result<()> {
+                                self.editor.create_light(bozzard_scene::LightKind::Spot)?;
+                                let selected = self
+                                    .editor
+                                    .selected
+                                    .as_ref()
+                                    .context("missing new spotlight")?;
+                                let mut scene = self.editor.scene().clone();
+                                scene
+                                    .objects
+                                    .iter_mut()
+                                    .find(|o| &o.id == selected)
+                                    .unwrap()
+                                    .light
+                                    .as_mut()
+                                    .unwrap()
+                                    .shadows = true;
+                                self.editor.apply("Enable spotlight shadows", scene)?;
+                                Ok(())
+                            })();
+                            if let Err(error) = result {
                                 eprintln!("editor_smoke_failed: {error:#}");
                                 self.allow_close = true;
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -444,6 +466,8 @@ impl App {
                             self.workspace.camera = None;
                             self.workspace.ortho_zoom = 1.;
                             self.workspace.layer_2d = false;
+                            // Leave enough vertical space to visually verify both shadow biases.
+                            self.workspace.assets_visible = false;
                             self.smoke_light_frame = Some(self.smoke_frames + 3);
                             self.smoke_requested = false;
                             continue;

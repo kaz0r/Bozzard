@@ -19,7 +19,7 @@ pub struct FrameStats {
 }
 /// Reject only when every transformed AABB corner is outside the same homogeneous
 /// clip plane. No perspective divide: handles near-plane crossings and negative w.
-fn visible(bounds: [Vec3; 2], mvp: Mat4) -> bool {
+pub(super) fn visible(bounds: [Vec3; 2], mvp: Mat4) -> bool {
     let corners: [glam::Vec4; 8] = std::array::from_fn(|i| {
         mvp * Vec3::new(
             bounds[i & 1].x,

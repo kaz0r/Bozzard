@@ -7,7 +7,15 @@ cargo run -p bozzard-editor-app --locked --offline -- \
   --scene examples/sponza/scene.json
 ```
 
-The source layout is `work/sponza/glTF/Sponza.gltf` with its upstream resources. Durable scene files are `examples/sponza/scene.json` (tuned corridor), `examples/sponza/atrium.json`, and `examples/sponza/overview.json`. The tuned scenes use the authored lighting setup; inspected captures are `work/sponza/final-atrium/loaded-3d.ppm` and `work/sponza/final-overview/loaded-3d.ppm`.
+To try the local-light shadow test, launch the opt-in spotlight fixture:
+
+```sh
+cargo run -p bozzard-editor-app -- --scene examples/sponza/spotlights.json
+```
+
+In the editor, select **Warm spot** or **Cool spot** and toggle **Cast shadows** to compare each spotlight's local shadowing.
+
+The source layout is `work/sponza/glTF/Sponza.gltf` with its upstream resources. Durable scene files are `examples/sponza/scene.json` (tuned corridor), `examples/sponza/atrium.json`, `examples/sponza/overview.json`, and `examples/sponza/spotlights.json` (local-light test). The first three fixtures use the authored sun/sky setup; inspected captures are `work/sponza/final-atrium/loaded-3d.ppm` and `work/sponza/final-overview/loaded-3d.ppm`.
 
 Inspect the complete CPU import with:
 
@@ -71,7 +79,7 @@ These debug figures are retained as historical context. The current release pick
 
 The benchmark was run on an Apple M2 Pro at 800×500 with a 4096 shadow map for 30 debug frames. The associated validation scope includes workspace formatting/tests/Clippy/headless checks, native editor validation, and the Metal Sponza rendering checks; this page records the reproduction and measurements rather than a new run.
 
-The scene uses the current authored sun and ambient lighting, one camera-independent directional shadow map, procedural diffuse/specular environment lighting, PBR materials, HDR display encoding, staged GPU uploads, and conservative color-pass culling. The corridor, atrium, and overview captures were visually inspected at their durable viewpoints. Point and spot lights are available for authored scenes but are not used by these captures and have no local shadow maps. Cascaded shadows, HDR panorama import, local reflection probes, scene environment occlusion, baked GI/multibounce, bloom, atmospheric simulation, GPU timestamps, multidraw, instancing, and occlusion culling remain outside this reproduction scope.
+The standard fixtures use the current authored sun and ambient lighting, one camera-independent directional shadow map, procedural diffuse/specular environment lighting, PBR materials, HDR display encoding, staged GPU uploads, and conservative color-pass culling. The corridor, atrium, and overview captures were visually inspected at their durable viewpoints. `spotlights.json` uses the same Sponza asset path and adds the authored **Warm spot** and **Cool spot** local lights for testing spotlight shadow maps; point-light shadows are not available. This spotlight fixture exercises local lights and shadows, not a GI bake or bloom, which are absent from these fixtures. Cascaded shadows, HDR panorama import, local reflection probes, scene environment occlusion, atmospheric simulation, GPU timestamps, multidraw, instancing, and occlusion culling remain outside this reproduction scope.
 
 Final native Metal validation also ran directly from `examples/sponza/scene.json` (`work/sponza/final-durable`). All graphics fixtures and exact scene save/reload passed. Shadow-enabled versus disabled captures differed at 158,181 corridor pixels, 144,930 atrium pixels, and 168,284 overview pixels. The checked-in views reference the ignored dataset; they contain no downloaded model or textures. These local commits have not been pushed or validated by Linux/Windows CI.
 

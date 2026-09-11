@@ -2,7 +2,27 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — Windows material-save CI fixture fix (CI passed)
+## Current checkpoint — make the Sponza lighting example easy to find
+
+User tested Sponza and reported little visible improvement from the recent lighting work. The stock `examples/sponza/scene.json` uses its existing sun/sky setup with no punctual lights, no bloom, and no GI bake, so the new opt-in capabilities do not change it automatically. User did not identify an exact scene path; this diagnosis applies to the stock fixture. Promoted the previously rendered `work/spot-shadows-scenes/sponza-on.json` into `examples/sponza/spotlights.json`, with the same asset path as the stock fixture. This adds a discoverable two-spotlight example without editing the original scene or imported assets. GPT-5.6 Luna (`sponza_lighting_docs`) updated only `docs/sponza.md` to explain the example and correct stale capability wording.
+
+Validation passed: full native Metal smoke, Sponza asset load and scene roundtrip under the new durable path. `work/sponza-spotlights-example/loaded-3d.ppm` is byte-identical to the previously visually reviewed `work/spot-shadows-sponza/loaded-3d.ppm`. Log: `/tmp/bozzard-sponza-spotlights-example.log`. Diff whitespace check passed. User requested committing and pushing this follow-up together with spotlight-shadow commit `8767e58`; this checkpoint records the validated example. New hosted CI has not yet been verified. User can open `cargo run -p bozzard-editor-app -- --scene examples/sponza/spotlights.json`, select Warm spot or Cool spot and toggle Cast shadows. This preset demonstrates local light/shadow authoring; bloom and baked GI remain separate opt-in work for the scene. Pointer untouched.
+
+## Previous checkpoint — spotlight shadows (validated, `8767e58`)
+
+User approved the next subsystem: realtime spotlight shadows. Implemented and validated; this checkpoint commits after `d2ee004`. **Do not push without a new request.** Root owns implementation, tests and this scratchpad; GPT-5.6 Luna (`spotlight_docs`) updated only `docs/lighting.md` and `README.md`. The latest hosted result still covers prior code `d66d2e1` (green Metal/Vulkan/DX12), not this subsystem.
+
+Implementation: opt-in `Light.shadows` (default false), world-space `shadow_bias`/`shadow_normal_bias` (0.005/0.01, finite0..1), up to eight authored shadow-enabled spots including disabled ones. Point settings are retained but do not cast/count. Renderer allocates1024px Depth32Float array layers only for contributing spots (maximum32MiB; empty returns1px fallback). Independent80-byte caster uniforms and shared640-byte receiver array prevent cross-light queue-write aliasing; local-light uniforms carry contiguous layer+1 slots. Perspective projection follows transformed direction/outer cone/range; near=min(range×0.001,0.05), far=range. Reuse cutout/mirrored/sided caster policy and3×3PCF; blended/unlit casters excluded. Light-frustum culling preserves off-camera casters and has a full reference path. Shadows multiply only each spot's direct PBR/Lambert light; sun/GI/ambient/emissive remain independent. GI fingerprints ignore realtime shadow settings and preserve old default serialization. No GPU dependency added to scene/server.
+
+Validation: full workspace CPU tests, all-target denied-warning Clippy, formatting, diff checks, headless audit passed. CPU coverage includes defaults/roundtrip, parent transforms, authored/runtime limits including disabled spots, Undo/Redo/duplicate/Save/Play extraction, invalid biases and GI fingerprint independence. Projection tests cover vertical directions, cone bounds and depth over supported angle/range extremes. Full Metal suite passed new `spot_shadow_gpu_ok`: PBR/Lambert, toggle/resize, PCF, ambient/emissive, GI/sun binding replacement, unlit, off-camera/light-frustum culling and exact reference pixels, cutout/mirror/sidedness/blend, multiple/reordered/inactive/removed lights, finalslot8 and invalid inputs. Existing render fixtures remained green. Native editor smoke passed shadow settings/extraction, inspector/guides, subsequent GI bake/save and existing authored workflows; full shadow controls visually reviewed at `work/editor-spot-shadows-final/editor-light.png`. Acceptance-only hiding of Assets makes those controls visible without mouse movement.
+
+Release visuals: Lighting Lab's warm spot now has shadows enabled. Reviewed `work/spot-shadows-lab/loaded-3d.png`, synthetic independent colored shadows and Sponza on/off images in `work/spot-shadows-sponza{,-off}/loaded-3d.png`. Ignored reproducible comparison scenes: `work/spot-shadows-scenes/{lighting-off,sponza-on,sponza-off}.json`; Sponza assets remain outside Git. M2 Pro30frames800×500 optimized renderer: Lighting Lab shadows on CPU0.293ms/synchronizedwall1.172ms versus off0.254/1.014ms; Sponza2spots on0.701/2.800ms versus off0.728/2.149ms. No FPS or CPU speedup claim. Sponza light-frustum culling reduced206shadowdraws/524534triangles to93/277253 with byte-identical reference/culling/cached pixels; color visibility89/103surfaces.
+
+Logs: `/tmp/bozzard-spot-shadows-{tests,final-cpu,final-scene-tests,final-clippy,final-gpu,lab,lab-off,sponza,sponza-off}.log`, `/tmp/bozzard-editor-spot-shadows-final.log`. Final helper naming cleanup (`requests_shadow_map`) and extra GPU fixtures compile with all-target Clippy; focused scene/editor tests and the final full GPU run passed. Context7 unavailable; used existing/pinned wgpu30.0.1 code and official WGSL reference. Preserve Bozz artwork; pointer never moved.
+
+Next: user test via `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/lighting-lab.json`, select Warm Spot and toggle Cast shadows; also test a spot in Sponza. Await a requested push and check hosted Metal/Vulkan/DX12. Next possible subsystem after this checkpoint: point-light shadows; fixed spot resolution/budget tuning can follow measurement.
+
+## Previous checkpoint — Windows material-save CI fixture fix (CI passed)
 
 All three rendering subsystems were pushed to `main` through `f50fe42`. [CI run 34594913733](https://github.com/kaz0r/Bozzard/actions/runs/34594913733) passed Linux/Vulkan and macOS/Metal, but Windows failed CPU tests before reaching DX12 verification. The same material-save failure also occurred on the preceding `db5295c` run, before the new rendering subsystems.
 
@@ -110,7 +130,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-The lighting, bloom and baked-GI commits plus the Windows test-fixture fix are pushed through `d66d2e1`, with all three hosted platforms green. Suggested next rendering subsystem: local-light shadows (spot first), followed by probe-quality improvements around thin walls. Await user direction before starting it. Path tracing remains a later renderer project.
+Spotlight shadows and the Sponza spotlight example are locally validated; user requested committing and pushing both. Hosted CI for the delivered revision remains to be verified. Point-light shadows are a possible next subsystem; probe-quality improvements around thin walls remain another option. Await user direction before starting either. Path tracing remains a later renderer project.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 

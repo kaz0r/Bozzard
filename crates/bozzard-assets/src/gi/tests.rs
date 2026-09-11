@@ -165,6 +165,47 @@ fn fingerprint_excludes_display_and_camera_but_tracks_static_transport() {
     assert!(fit_volume(&s, &a).is_err());
 }
 #[test]
+fn realtime_spot_shadows_do_not_expire_baked_transport() {
+    let mut s = scene();
+    let mut lamp = cube("lamp", [0., 2., 0.], [1.; 3], [1.; 3]);
+    lamp.drawable = None;
+    lamp.light = Some(bozzard_scene::Light {
+        kind: bozzard_scene::LightKind::Spot,
+        ..Default::default()
+    });
+    s.objects.push(lamp);
+    let a = store(&s);
+    let before = source(&s, &a, volume()).unwrap();
+    let light = s.objects.last_mut().unwrap().light.as_mut().unwrap();
+    // Default shadow fields are absent in JSON, preserving the pre-shadow fingerprint format.
+    let json = serde_json::to_value(*light).unwrap();
+    assert!(
+        json.get("shadows").is_none()
+            && json.get("shadow_bias").is_none()
+            && json.get("shadow_normal_bias").is_none()
+    );
+    light.shadows = true;
+    light.shadow_bias = 0.1;
+    light.shadow_normal_bias = 0.2;
+    assert_eq!(before, source(&s, &a, volume()).unwrap());
+    s.objects
+        .last_mut()
+        .unwrap()
+        .light
+        .as_mut()
+        .unwrap()
+        .intensity *= 2.;
+    assert_ne!(before, source(&s, &a, volume()).unwrap());
+    s.objects
+        .last_mut()
+        .unwrap()
+        .light
+        .as_mut()
+        .unwrap()
+        .shadow_bias = f32::NAN;
+    assert!(source(&s, &a, volume()).is_err());
+}
+#[test]
 fn malformed_bakes_and_volume_settings_are_rejected() {
     for v in [
         GiVolumeSettings {

@@ -33,7 +33,8 @@ materials alongside normals, checker and toon exhibits. Press **Play** to rotate
 the shader sculptures. Expand a pedestal in the Hierarchy to select its child.
 Toggle each light's **Enabled** control to isolate its contribution. Directional
 lights aim down local −Z and ignore distance; point/spot lights have finite range.
-Only the scene sun currently casts shadows.
+The scene sun casts shadows; spotlights can opt into **Cast shadows** (up to eight
+1024 px maps). Point and object-directional lights remain unshadowed.
 
 The demonstration effects deliberately replace full material shading: normals
 show orientation, checker shows UVs, and toon uses scene sun direction/shadows.

@@ -2,7 +2,7 @@ use super::*;
 use bozzard_render::{IrradianceVolume, ModelPart, ModelShading};
 use std::{path::Path, sync::Arc};
 const STRIDE: usize = 41;
-fn volume(color: [f32; 3], resolution: [u32; 3]) -> IrradianceVolume {
+pub(super) fn volume(color: [f32; 3], resolution: [u32; 3]) -> IrradianceVolume {
     let mut data = vec![[0.; 4]; resolution.iter().product::<u32>() as usize * STRIDE];
     for p in data.chunks_exact_mut(STRIDE) {
         p[0] = [

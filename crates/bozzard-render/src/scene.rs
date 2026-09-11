@@ -17,8 +17,11 @@ mod gi;
 pub use gi::IrradianceVolume;
 mod lighting;
 mod local_lights;
-pub use local_lights::{LocalLight, MAX_LOCAL_LIGHTS};
+pub use local_lights::{
+    LocalLight, MAX_LOCAL_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, SpotShadowSettings,
+};
 mod shadows;
+mod spot_shadows;
 mod upload;
 pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
@@ -1196,6 +1199,7 @@ impl SceneRenderer {
             );
         }
         self.update_shadows(gpu, scene, &draws)?;
+        self.update_spot_shadows(gpu, scene)?;
         self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
         let encode_started = std::time::Instant::now();
         let mut encoder = gpu
@@ -1205,6 +1209,9 @@ impl SceneRenderer {
             });
         (self.stats.shadow_draws, self.stats.shadow_triangles) =
             self.draw_shadows(&mut encoder, scene, &draws);
+        let (spot_draws, spot_triangles) = self.draw_spot_shadows(&mut encoder, &draws);
+        self.stats.shadow_draws += spot_draws;
+        self.stats.shadow_triangles += spot_triangles;
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),

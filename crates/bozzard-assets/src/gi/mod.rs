@@ -94,7 +94,13 @@ fn source_with(
             write(&serde_json::to_vec(drawable)?);
             dependencies.extend(drawable.asset_dependencies().into_iter().map(|(id, _)| id));
         }
-        if let Some(light) = object.light.filter(|l| l.enabled) {
+        if let Some(mut light) = object.light.filter(|l| l.enabled) {
+            light.validate()?;
+            // The bake traces its own visibility, independent of realtime shadow maps.
+            // Default fields serialize away, preserving fingerprints of older scenes.
+            light.shadows = false;
+            light.shadow_bias = bozzard_scene::Light::default().shadow_bias;
+            light.shadow_normal_bias = bozzard_scene::Light::default().shadow_normal_bias;
             let world = light.at(matrices[id])?;
             write(&serde_json::to_vec(&(
                 light,

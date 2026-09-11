@@ -323,6 +323,7 @@
       },
       "light": {
         "kind": "spot",
+        "shadows": true,
         "color": [
           1,
           0.8,

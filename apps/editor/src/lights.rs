@@ -58,8 +58,30 @@ pub fn inspector(ui: &mut egui::Ui, value: &mut Option<Light>) {
                     .text("Inner angle °"),
                 );
                 ui.weak("Angles from the center. Rotate the object to aim local −Z.");
+                ui.checkbox(&mut light.shadows, "Cast shadows");
+                if light.shadows {
+                    ui.weak("1024 px · Up to 8 shadowed spotlights per scene.");
+                    ui.add(
+                        egui::DragValue::new(&mut light.shadow_bias)
+                            .speed(0.001)
+                            .range(0.0..=1.0)
+                            .prefix("Depth bias "),
+                    )
+                    .on_hover_text(
+                        "World units. Increase slightly to remove surface shadow speckling.",
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut light.shadow_normal_bias)
+                            .speed(0.001)
+                            .range(0.0..=1.0)
+                            .prefix("Normal bias "),
+                    )
+                    .on_hover_text("World units. Large offsets can detach shadows from objects.");
+                }
+            } else {
+                ui.weak("Point and object-directional shadows are not available yet.");
             }
-            ui.weak("Range ignores scale. Local lights currently cast no shadows.");
+            ui.weak("Range ignores scale.");
         });
         ui.separator();
     }
