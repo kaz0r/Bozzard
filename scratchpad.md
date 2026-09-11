@@ -2,13 +2,13 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — Windows material-save CI fixture fix
+## Current checkpoint — Windows material-save CI fixture fix (CI passed)
 
 All three rendering subsystems were pushed to `main` through `f50fe42`. [CI run 34594913733](https://github.com/kaz0r/Bozzard/actions/runs/34594913733) passed Linux/Vulkan and macOS/Metal, but Windows failed CPU tests before reaching DX12 verification. The same material-save failure also occurred on the preceding `db5295c` run, before the new rendering subsystems.
 
 Cause: `materials::tests::overrides_save_reopen_duplicate_and_play_without_mutating_source` loads assets from the repository checkout and saves into the system temp directory. On Windows CI these are on different filesystem roots, so Save As correctly rejects relative references across drives. The test now allocates its temporary output under ignored `work/material-tests/` on the checkout filesystem, preserving collision-safe allocation, cleanup, and all save/reopen assertions. Production asset-path validation is unchanged.
 
-Validation passed: all 38 editor CPU tests (32 unit + 6 integration), editor all-target Clippy with warnings denied, formatting and diff checks. Logs: `/tmp/bozzard-windows-material-fixture-{tests,clippy}.log`. User requested committing/pushing the correction and watching CI; this checkpoint records the validated fix. Hosted verification is pending the push, including Windows DX12 steps that the failing test prevented from running. Pointer untouched.
+Validation passed: all 38 editor CPU tests (32 unit + 6 integration), editor all-target Clippy with warnings denied, formatting and diff checks. Logs: `/tmp/bozzard-windows-material-fixture-{tests,clippy}.log`. Fix committed and pushed as `d66d2e1`. [CI run 34596562891](https://github.com/kaz0r/Bozzard/actions/runs/34596562891) completed successfully on Linux/Vulkan, macOS/Metal and Windows/DX12, including CPU/headless tests, release builds, extracted-package pixel verification and artifact uploads. Windows passed the formerly failing material-save test stage and its previously blocked graphics verification. Watch log: `/tmp/bozzard-ci-d66d2e1-watch.log`. This follow-up changes only documentation and skips redundant CI; the tested code is unchanged. Pointer untouched.
 
 ## Previous checkpoint — local lights, bloom, baked GI (validated)
 
@@ -110,7 +110,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-The lighting, bloom and baked-GI commits are pushed through `f50fe42`; resolve and validate the Windows test-fixture issue described at the top before starting another rendering subsystem. Suggested next rendering subsystem: local-light shadows (spot first), followed by probe-quality improvements around thin walls. Path tracing remains a later renderer project.
+The lighting, bloom and baked-GI commits plus the Windows test-fixture fix are pushed through `d66d2e1`, with all three hosted platforms green. Suggested next rendering subsystem: local-light shadows (spot first), followed by probe-quality improvements around thin walls. Await user direction before starting it. Path tracing remains a later renderer project.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 
