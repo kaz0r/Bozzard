@@ -2,7 +2,27 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — editable surface materials
+## Current checkpoint — release profiling and accelerated picking
+
+Release-mode Sponza performance pass implemented and validated; this checkpoint commits after `d489ca3`. **Do not push.** User is at work and will announce when home to test. No pointer movement or user interaction used. Latest CI still covers pushed `0469807`, not the local surface/material/picking commits. Root owns implementation/scratchpad; Luna wrote `docs/performance.md` and linked it from `docs/sponza.md`.
+
+### Measurement and implementation
+
+- Apple M2 Pro release baseline: editor scene extraction/overlays each ~0.003ms; picking1.2ms; renderer CPU0.64ms and synchronized CPU+GPU+wait3.32ms at800×500,shadow4096. Chosen optimization is picking, the largest measured editor CPU operation. Picking happens on clicks; no FPS/rendering-speed claim. Full viewport UI/compositor cost and GPU timestamps are not measured. No ECS-cache rewrite.
+- `crates/bozzard-assets/src/picking.rs`: balanced median-split BVH, leaves <=8triangles, near-first traversal, conservative bounds, unchanged triangle test and first-source-triangle ties. Original geometry/order unchanged. Built with each mesh replacement on the editor's loader thread; cancellation checks during construction. Traversal uses bounded stack recursion without heap allocation.
+- Private Arc index on AssetStore Entry cannot become detached from its immutable mesh. Catalog/Undo snapshots and duplicate instances share it. Reload publishes matching data/index; failure preserves both last-good versions. Texture/material edits cannot mutate the index. No GPU dependency introduced; scene/headless boundary unchanged.
+- `Entry::raycast_reference` and `Editor::pick_surface_reference_with_projection` retain the linear oracle. `benchmark_editor` compares paired accelerated/reference results outside timing, alternates which runs first, reports midpoint median/nearest-rankp95, index resident bytes/build cost and1681 wider-grid oracle rays per view. Player benchmark now reports prepare/encode/submit CPU medians.
+
+### Results and validation
+
+- Paired200-sample Sponza corridor: center BVH0.006667ms vslinear1.309292ms; grid0.009834ms vs1.295583ms. Atrium center0.006646/1.330771ms, grid0.011355/1.321001ms. Overview center0.005750/1.316250ms, grid0.009708/1.290750ms. Full tables/methodology in `docs/performance.md`.
+- Index:262267triangles,65781nodes,3154060resident bytes (~3.01MiB),35.4–36.6ms build. Temporary build scratch/source geometry excluded from resident index size. Single warm-cache open measurements vary665–786ms; no precise cold-load claim.
+- Full workspace tests, all-target denied-warning Clippy, formatting, headless audit and whitespace checks passed. Tests cover many rays, exact distance/triangle parity, edge/parallel/inside/missed rays, nonunit directions, scales, degenerate/coincident triangles, source ordering, mirrored/parented overlapping instances, cancellation and shared/reloaded index lifetime.
+- 5043 untimed Sponza rays across3views matched exact object/surface results, plus paired timed comparisons. Hit counts1681/1675/1661 include misses in atrium/overview.
+- Release native Model Workshop editor smoke passed authored commands/Play/async save/open/import/cancel/material controls; UI visually reviewed at `work/editor-picking-release/editor-surface.ppm`. Native Metal graphics suite and final100frameSponza benchmark passed. All16PPM diagnostics in `work/sponza/performance-{before,after}/` are byte-identical. Final renderer CPU0.671ms/synchronizedwall3.330ms: same counts/pixels, no timing improvement claimed.
+- Logs: `/tmp/bozzard-sponza-cpu-{before,after}.log`, `/tmp/bozzard-sponza-{atrium,overview}-picking.log`, `/tmp/bozzard-picking-workspace-tests.log`, `/tmp/bozzard-picking-clippy.log`, `/tmp/bozzard-editor-picking-release.log`, `/tmp/bozzard-sponza-render-{before,after}.log`.
+
+## Previous checkpoint — editable surface materials (`d489ca3`)
 
 Implemented and validated tint/metallic/roughness overrides. This checkpoint commits the subsystem after `e6b3085`; **do not push**. User is at work and will announce when home to test; no scheduled reminder. Latest verified CI still covers pushed `0469807`, not these two local commits. Root owns implementation/scratchpad; Luna updated documentation. Pointer never moved.
 
@@ -50,7 +70,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-Wait for the user's home test of surface selection and material controls; obtain direction before another subsystem. Local commits remain unpushed. Run cross-platform CI only when a push is requested. Possible later subsystem: per-surface texture replacement with managed asset dependencies, after this override workflow is accepted.
+Wait for the user's home test of surface selection and material controls; obtain direction before another subsystem. Local commits remain unpushed. Run cross-platform CI only when a push is requested. Picking optimization is complete. Further frame-performance work should start with GPU pass timings/full viewport profiling; another possible feature is per-surface texture replacement with managed asset dependencies.
 
 Launch: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/sponza/scene.json`. Click geometry or choose Imported surfaces; edit Tint, enable Metallic/Roughness, Undo/Redo, Reset override, Save As/reopen, Play/Stop. Duplicate via Select whole model and verify independent edits on the copy. Use Save As into `work/sponza/` to keep the tracked sample view clean. F over viewport / double-click a row frames a surface; Shift+F frames all.
 

@@ -636,35 +636,6 @@ impl Editor {
     }
 }
 
-trait TriangleVertices {
-    fn map_vertices(&self, vertices: &[[f32; 8]]) -> [Vec3; 3];
-}
-impl TriangleVertices for [u32] {
-    fn map_vertices(&self, vertices: &[[f32; 8]]) -> [Vec3; 3] {
-        [0, 1, 2].map(|i| Vec3::from_slice(&vertices[self[i] as usize][..3]))
-    }
-}
-fn ray_triangle(o: Vec3, d: Vec3, [a, b, c]: [Vec3; 3]) -> Option<f32> {
-    let e1 = b - a;
-    let e2 = c - a;
-    let p = d.cross(e2);
-    let det = e1.dot(p);
-    if det.abs() < 1e-8 {
-        return None;
-    }
-    let t = o - a;
-    let u = t.dot(p) / det;
-    if !(0.0..=1.0).contains(&u) {
-        return None;
-    }
-    let q = t.cross(e1);
-    let v = d.dot(q) / det;
-    if v < 0.0 || u + v > 1.0 {
-        return None;
-    }
-    let distance = e2.dot(q) / det;
-    (distance > 0.0).then_some(distance)
-}
 fn ray_box(o: Vec3, d: Vec3) -> Option<f32> {
     let mut near = 0.0_f32;
     let mut far = f32::INFINITY;

@@ -2,12 +2,14 @@
 pub mod job;
 mod package;
 mod pbr;
+mod picking;
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bozzard_scene::{AssetKind, AssetSource};
 use glam::{Mat3, Mat4, Vec3};
 pub use package::{ModelPackage, package_gltf};
 pub use pbr::{Filter, PbrMaterial, Sampler, SurfaceShading, TextureMap, Wrap};
+pub use picking::{MeshHit, MeshPickStats};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Cursor, Read},
@@ -136,6 +138,7 @@ pub struct Entry {
     source: AssetSource,
     state: LoadState,
     data: Option<Arc<AssetData>>,
+    mesh_index: Option<Arc<picking::MeshIndex>>,
     revision: u64,
     // Compare bytes, so same-size edits and coarse filesystem timestamps cannot hide changes.
     observed: Option<Arc<SourceSnapshot>>,
@@ -160,6 +163,23 @@ impl Entry {
     }
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+    /// Nearest triangle in immutable imported geometry; no texture alpha testing.
+    pub fn raycast(&self, origin: Vec3, direction: Vec3) -> Option<MeshHit> {
+        let AssetData::Mesh(mesh) = self.data()? else {
+            return None;
+        };
+        self.mesh_index.as_ref()?.cast(mesh, origin, direction)
+    }
+    /// Diagnostic full-scan oracle for checking accelerated picking and measuring it.
+    pub fn raycast_reference(&self, origin: Vec3, direction: Vec3) -> Option<MeshHit> {
+        let AssetData::Mesh(mesh) = self.data()? else {
+            return None;
+        };
+        picking::cast_linear(mesh, origin, direction)
+    }
+    pub fn mesh_pick_stats(&self) -> Option<MeshPickStats> {
+        self.mesh_index.as_ref().map(|index| index.stats())
     }
 }
 
@@ -187,6 +207,7 @@ impl AssetStore {
                     source: source.clone(),
                     state: LoadState::Pending,
                     data: None,
+                    mesh_index: None,
                     revision: 0,
                     observed: None,
                 }
@@ -288,11 +309,21 @@ impl AssetStore {
                 Ok(bytes) => import(entry.source.kind, &path, bytes, &snapshot),
                 Err(error) => Err(anyhow::anyhow!(error.clone())),
             };
+            let loaded = loaded.and_then(|data| {
+                let mesh_index = if let AssetData::Mesh(mesh) = &data {
+                    progress.stage(format!("Indexing {} ({}/{total})", entry.id, index + 1))?;
+                    Some(Arc::new(picking::MeshIndex::build(mesh, progress)?))
+                } else {
+                    None
+                };
+                Ok((data, mesh_index))
+            });
             progress.check()?;
             entry.observed = Some(Arc::new(snapshot));
             match loaded {
-                Ok(data) => {
+                Ok((data, mesh_index)) => {
                     entry.data = Some(Arc::new(data));
+                    entry.mesh_index = mesh_index;
                     entry.revision += 1;
                     entry.state = LoadState::Ready;
                 }
@@ -1534,6 +1565,78 @@ mod tests {
             panic!()
         };
         assert_eq!(&image.rgba[..4], &[0, 255, 255, 255]);
+    }
+
+    #[test]
+    fn picking_index_follows_shared_geometry_across_reload_and_catalog_snapshots() {
+        let dir = Temp::new();
+        let sources = BTreeMap::from([(
+            "mesh".into(),
+            AssetSource {
+                kind: AssetKind::Mesh,
+                path: "mesh.obj".into(),
+            },
+        )]);
+        let path = dir.0.join("mesh.obj");
+        std::fs::write(&path, OBJ).unwrap();
+        let mut store = AssetStore::new(&dir.0, &sources).unwrap();
+        let handle = store.handle("mesh").unwrap();
+        assert!(
+            store
+                .get(handle)
+                .unwrap()
+                .raycast(Vec3::Z, -Vec3::Z)
+                .is_none()
+        );
+        store.refresh();
+        let original = store.clone();
+        let old_index = original.get(handle).unwrap().mesh_index.as_ref().unwrap();
+        let old_hit = original.get(handle).unwrap().raycast(Vec3::Z, -Vec3::Z);
+        assert!(old_hit.is_some());
+        let catalog = store.for_catalog(&dir.0, &sources).unwrap();
+        assert!(Arc::ptr_eq(
+            old_index,
+            catalog
+                .get(catalog.handle("mesh").unwrap())
+                .unwrap()
+                .mesh_index
+                .as_ref()
+                .unwrap()
+        ));
+        std::fs::write(&path, "broken mesh").unwrap();
+        store.refresh();
+        assert!(Arc::ptr_eq(
+            old_index,
+            store.get(handle).unwrap().mesh_index.as_ref().unwrap()
+        ));
+        assert_eq!(
+            store.get(handle).unwrap().raycast(Vec3::Z, -Vec3::Z),
+            old_hit
+        );
+        std::fs::write(&path, "v 4 -1 0\nv 6 -1 0\nv 5 1 0\nf 1 2 3\n").unwrap();
+        let job = store.refresh_job().unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let loaded = loop {
+            if let Some(result) = job.poll() {
+                break result.unwrap().0;
+            }
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::yield_now();
+        };
+        assert_eq!(
+            store.get(handle).unwrap().raycast(Vec3::Z, -Vec3::Z),
+            old_hit,
+            "worker must not mutate published data"
+        );
+        let next = loaded.get(handle).unwrap();
+        assert!(!Arc::ptr_eq(old_index, next.mesh_index.as_ref().unwrap()));
+        assert!(next.raycast(Vec3::Z, -Vec3::Z).is_none());
+        assert!(next.raycast(Vec3::new(5., 0., 1.), -Vec3::Z).is_some());
+        assert_eq!(
+            original.get(handle).unwrap().raycast(Vec3::Z, -Vec3::Z),
+            old_hit,
+            "Undo snapshot retains matching old index"
+        );
     }
 
     #[test]

@@ -177,6 +177,24 @@ impl Editor {
         projection: Mat4,
         ndc: [f32; 2],
     ) -> Result<Option<Pick>> {
+        self.pick_surface_impl(layer, projection, ndc, false)
+    }
+    /// Diagnostic reference retaining the full triangle scan for correctness/performance checks.
+    pub fn pick_surface_reference_with_projection(
+        &self,
+        layer: Layer,
+        projection: Mat4,
+        ndc: [f32; 2],
+    ) -> Result<Option<Pick>> {
+        self.pick_surface_impl(layer, projection, ndc, true)
+    }
+    fn pick_surface_impl(
+        &self,
+        layer: Layer,
+        projection: Mat4,
+        ndc: [f32; 2],
+        reference: bool,
+    ) -> Result<Option<Pick>> {
         let demo = SceneDemo::new(&self.scene)?;
         let inv = projection.inverse();
         let origin = inv.project_point3(Vec3::new(ndc[0], ndc[1], 0.0));
@@ -212,28 +230,23 @@ impl Editor {
                     .assets
                     .handle(id)
                     .and_then(|h| self.assets.get(h))
-                    .and_then(|e| e.data())
-                    .and_then(|data| {
-                        let AssetData::Mesh(mesh) = data else {
+                    .and_then(|entry| {
+                        let AssetData::Mesh(mesh) = entry.data()? else {
                             return None;
                         };
-                        mesh.indices
-                            .chunks_exact(3)
-                            .enumerate()
-                            .filter_map(|(index, tri)| {
-                                ray_triangle(o, d, tri.map_vertices(&mesh.vertices))
-                                    .map(|t| (t, index * 3))
-                            })
-                            .min_by(|a, b| a.0.total_cmp(&b.0))
-                            .map(|(t, index)| {
-                                (
-                                    t,
-                                    mesh.parts.iter().position(|part| {
-                                        index >= part.start as usize
-                                            && index < part.start as usize + part.count as usize
-                                    }),
-                                )
-                            })
+                        let hit = if reference {
+                            entry.raycast_reference(o, d)
+                        } else {
+                            entry.raycast(o, d)
+                        }?;
+                        let index = hit.triangle as usize * 3;
+                        Some((
+                            hit.distance,
+                            mesh.parts.iter().position(|part| {
+                                index >= part.start as usize
+                                    && index < part.start as usize + part.count as usize
+                            }),
+                        ))
                     }),
             };
             if let Some((t, surface)) = hit
@@ -381,6 +394,74 @@ mod tests {
                 .x,
             -3.0
         );
+    }
+
+    #[test]
+    fn accelerated_picks_match_reference_through_parented_mirrored_instances() {
+        let fixture = Fixture::new();
+        let mut obj = String::from("mtllib parts.mtl\n");
+        for i in 0..80 {
+            let x = (i % 10) as f32 * 0.7 - 3.5;
+            let y = (i / 10) as f32 * 0.7 - 2.8;
+            obj.push_str(&format!(
+                "o Face{i}\nusemtl {}\nv {x} {y} 0\nv {} {y} 0\nv {x} {} 0\nf {} {} {}\n",
+                if i % 2 == 0 {
+                    "LeftPaint"
+                } else {
+                    "RightPaint"
+                },
+                x + 0.6,
+                y + 0.6,
+                i * 3 + 1,
+                i * 3 + 2,
+                i * 3 + 3
+            ));
+        }
+        std::fs::write(fixture.0.join("parts.obj"), obj).unwrap();
+        let mut editor = fixture.editor();
+        let mut scene = editor.scene().clone();
+        let mut parent = scene.objects[0].clone();
+        parent.id = "group".into();
+        parent.drawable = None;
+        parent.transform.translation = [2., -0.5, 1.];
+        parent.transform.rotation_degrees = [15., 30., -10.];
+        parent.transform.scale = [-2., 0.7, 1.3];
+        scene.objects[0].parent = Some("group".into());
+        scene.objects.push(parent);
+        let mut copy = scene.objects[0].clone();
+        copy.id = "copy".into();
+        copy.parent = None;
+        copy.transform.translation = [-1., 0., 3.];
+        copy.transform.scale = [0.6, 1.5, -1.];
+        scene.objects.push(copy);
+        editor.apply("Fixture transforms", scene).unwrap();
+        let before = editor.scene().clone();
+        let projections = [
+            projection(),
+            glam::camera::rh::proj::directx::perspective(1.2, 1.5, 0.1, 100.)
+                * glam::camera::rh::view::look_at_mat4(Vec3::new(4., 3., 12.), Vec3::ZERO, Vec3::Y),
+        ];
+        let mut hits = 0;
+        for projection in projections {
+            for y in -10..=10 {
+                for x in -15..=15 {
+                    let ndc = [x as f32 / 15., y as f32 / 10.];
+                    let actual = editor
+                        .pick_surface_with_projection(Layer::ThreeD, projection, ndc)
+                        .unwrap();
+                    assert_eq!(
+                        actual,
+                        editor
+                            .pick_surface_reference_with_projection(Layer::ThreeD, projection, ndc)
+                            .unwrap()
+                    );
+                    hits += usize::from(actual.is_some());
+                }
+            }
+        }
+        assert!(hits > 50);
+        assert_eq!(editor.scene(), &before);
+        assert_eq!(editor.undo_label(), Some("Fixture transforms"));
     }
 
     #[test]

@@ -43,6 +43,9 @@ pub(super) fn run(
     }
     let mut cpu = [Vec::new(), Vec::new(), Vec::new()];
     let mut wall = cpu.clone();
+    let mut prepare = cpu.clone();
+    let mut encode = cpu.clone();
+    let mut submit = cpu.clone();
     let mut stats = [bozzard_render::FrameStats::default(); 3];
     // Interleave configurations to reduce warm-up/thermal bias. Synchronize each frame;
     // wall time includes CPU+GPU+wait overhead, not a claim of windowed FPS/GPU timestamps.
@@ -56,6 +59,9 @@ pub(super) fn run(
             stats[i] = renderer.frame_stats();
             if iteration >= 3 {
                 cpu[i].push(stats[i].cpu_ms);
+                prepare[i].push(stats[i].prepare_ms);
+                encode[i].push(stats[i].encode_ms);
+                submit[i].push(stats[i].submit_ms);
                 wall[i].push(started.elapsed().as_secs_f64() * 1000.);
             }
         }
@@ -66,11 +72,14 @@ pub(super) fn run(
     };
     for (i, (name, _, _)) in modes.iter().enumerate() {
         println!(
-            "frame_benchmark mode={name} frames={frames} size={}x{} cpu_median_ms={:.3} synchronized_wall_median_ms={:.3} surfaces={} visible={} culled={} triangles={} shadow_draws={} shadow_triangles={} pipeline_binds={} exact_pixels=true",
+            "frame_benchmark mode={name} frames={frames} size={}x{} cpu_median_ms={:.3} synchronized_wall_median_ms={:.3} prepare_median_ms={:.3} encode_median_ms={:.3} submit_median_ms={:.3} surfaces={} visible={} culled={} triangles={} shadow_draws={} shadow_triangles={} pipeline_binds={} exact_pixels=true",
             size[0],
             size[1],
             median(&mut cpu[i]),
             median(&mut wall[i]),
+            median(&mut prepare[i]),
+            median(&mut encode[i]),
+            median(&mut submit[i]),
             stats[i].surfaces,
             stats[i].visible_surfaces,
             stats[i].culled_surfaces,
