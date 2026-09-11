@@ -14,7 +14,7 @@ Direct light uses the renderer's shared PBR GGX plus Lambert contribution. Point
 max(1 - (distance / range)^4, 0)^2
 ```
 
-Sun lighting and its existing camera-independent shadows remain available. Point and spot lights currently have no local shadow maps. Bloom and baked GI are separate pending subsystems and are not implied by this feature.
+Sun lighting and its existing camera-independent shadows remain available. Point and spot lights currently have no local shadow maps. Bloom is available as a separate post-process display effect; baked GI remains a separate pending subsystem.
 
 In the editor, the Hierarchy **+ Light** menu creates a point or spot light. Selecting any object also exposes the **Light (3D)** component checkbox in the inspector, which adds or removes the component. The inspector edits `enabled`, kind, color, intensity, range, and (for spots) both angles. Light changes are undoable and are disabled while Play is running, consistent with other authored component edits.
 
@@ -27,6 +27,8 @@ Light markers remain clickable in the 3D viewport. Disabled lights are shown as 
 3. Disable the light and confirm its contribution disappears. Create duplicate lights, use Undo/Redo, save, close/reopen, and enter/stop Play; confirm authored values persist and Play edits do not publish back to the scene.
 4. Try invalid values (a negative or non-finite color/intensity/range, angles outside the limits, or more than 32 authored light components including disabled ones) and confirm validation or inspector clamping rejects them. Test a very small and a very large object scale to confirm range remains in world units.
 5. Render the same scene in 2D and 3D and confirm lights affect only the 3D result. Select enabled and disabled lights to inspect their colored or gray markers, then select a point and spot light to inspect the range and cone guides. Confirm there are no local light shadows; sun shadows remain governed by the Scene lighting controls.
+6. In **Display (3D)**, enable Bloom and inspect the defaults: intensity `0.15`, threshold `1`, and Spread `0.7`. Lower or raise the scene-linear threshold and confirm only bright regions produce the glow; adjust Spread to change the radius.
+7. Disable Bloom or set intensity to zero and confirm the glow disappears. Toggle it back on, use **Reset display**, save/reopen, and enter/stop Play to confirm display settings follow normal history and Play isolation. Verify 2D extraction and raw `draw_linear` diagnostics bypass Bloom.
 
 ## Verified implementation checks
 
@@ -41,3 +43,17 @@ Native Metal smoke validation passed the existing fixtures plus `local_lights_gp
 Workspace CPU tests, all-target Clippy, and headless boundary checks passed. The new fixtures are included in the existing cross-platform `--smoke` CI coverage. Native editor-window capture remains unverified because the macOS screen was locked during the attempted capture; hosted CI validation for this subsystem remains pending.
 
 The practical checks above describe the remaining hands-on editor workflow and are not a claim that the locked-screen UI check has passed.
+
+## Bloom
+
+Bloom is an optional 3D display effect configured under the scene's **Display (3D)** controls. It is disabled by default. `intensity` defaults to `0.15` and accepts `0..=10`; `threshold` defaults to `1` and accepts `0..=60000` scene-linear radiance before exposure; and `scatter` defaults to `0.7` and accepts `0..=1` (shown as **Spread** in the editor). The threshold uses a 50% soft knee.
+
+The renderer extracts bright HDR scene color, builds up to six half-resolution `Rgba16Float` pyramid levels, then combines normalized linear downsample/tent-upsample levels. The result is added to HDR scene color before exposure, Reinhard tone mapping, and sRGB encoding. Constant fields therefore do not change brightness when the pyramid depth changes, and the composite preserves alpha. Bloom changes do not illuminate geometry.
+
+Bloom is bypassed when disabled or when intensity is zero, by raw `draw_linear` diagnostics, and for 2D extraction. Disabling it releases the pyramid resources. Display controls follow normal Undo/Redo, save/reopen, and Play isolation rules; **Reset display** restores the defaults. Baked GI remains a separate pending subsystem.
+
+Bloom validation passed the workspace CPU tests, Clippy, headless checks, and formatting. Native Metal full smoke passed `bloom_gpu_ok`, covering halo formation, threshold, intensity, spread, disable, raw readback, alpha preservation, HDR-before-display ordering, constant-energy normalization, odd/tiny resize handling, and sRGB parity. The numeric oracle for a constant HDR-4 field with threshold 1 and intensity 1 produced HDR-7 before exposure, then the expected −3 EV exposure, Reinhard, and sRGB result across 64×64, 97×53, 1×1, 1×17, and 3×5 targets.
+
+Visual review compared `work/bloom-gpu/bloom-off.png` and `work/bloom-gpu/bloom-on.png`; the saved Lighting Lab also rendered with bloom enabled at intensity `0.4`, threshold `0.6`, and scatter `0.8` in `work/bloom-lab/loaded-3d.png`. Save/reload pixel parity passed. A release 30-frame 800×500 M2 Pro measurement reported 0.200 ms CPU median and 0.978 ms synchronized CPU+GPU+wait wall median with bloom enabled; the same binary with bloom disabled measured 0.074 ms and 0.526 ms. These are renderer measurements, not FPS claims.
+
+The cross-platform fixtures are included in the existing `--smoke` CI coverage. Native editor-window capture remains unverified because the macOS screen was locked, and hosted CI validation remains pending. Logs are retained at `/tmp/bozzard-bloom-tests.log`, `/tmp/bozzard-bloom-clippy.log`, `/tmp/bozzard-bloom-gpu.log`, `/tmp/bozzard-bloom-lab.log`, and `/tmp/bozzard-bloom-lab-off.log`.

@@ -2,12 +2,14 @@ use super::*;
 
 #[derive(Clone, Copy, Debug)]
 pub struct DisplaySettings {
+    pub bloom: BloomSettings,
     pub exposure_ev: f32,
     pub tone_mapping: bool,
 }
 impl Default for DisplaySettings {
     fn default() -> Self {
         Self {
+            bloom: BloomSettings::default(),
             exposure_ev: 0.,
             tone_mapping: true,
         }
@@ -15,6 +17,7 @@ impl Default for DisplaySettings {
 }
 impl DisplaySettings {
     pub fn validate(&self) -> Result<()> {
+        self.bloom.validate()?;
         ensure!(
             self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
             "invalid exposure"
@@ -23,6 +26,7 @@ impl DisplaySettings {
     }
 }
 pub(super) struct Display {
+    bloom: bloom::Bloom,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     target: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
@@ -70,6 +74,7 @@ impl Display {
             mapped_at_creation: false,
         });
         Self {
+            bloom: bloom::Bloom::new(gpu),
             pipeline,
             uniform,
             target: None,
@@ -107,21 +112,24 @@ impl Display {
                     view_formats: &[],
                 })
                 .create_view(&Default::default());
-            let binding = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("HDR scene input"),
-                layout: &self.pipeline.get_bind_group_layout(0),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: self.uniform.as_entire_binding(),
-                    },
-                ],
-            });
+            self.bloom.prepare(
+                gpu,
+                &view,
+                size,
+                settings.bloom,
+                !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
+            );
+            let binding = self.binding(gpu, &view);
             self.target = Some((view, binding, size));
+        } else if self.bloom.prepare(
+            gpu,
+            &self.target.as_ref().unwrap().0,
+            size,
+            settings.bloom,
+            !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
+        ) {
+            let binding = self.binding(gpu, &self.target.as_ref().unwrap().0);
+            self.target.as_mut().unwrap().1 = binding;
         }
         gpu.queue.write_buffer(
             &self.uniform,
@@ -134,15 +142,44 @@ impl Display {
                     0.
                 },
                 if !raw && !self.srgb_target { 1. } else { 0. },
-                0.,
+                if !raw && settings.bloom.enabled {
+                    settings.bloom.intensity
+                } else {
+                    0.
+                },
             ]),
         );
         Ok(())
+    }
+    fn binding(&self, gpu: &Gpu, view: &wgpu::TextureView) -> wgpu::BindGroup {
+        gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("HDR scene and bloom"),
+            layout: &self.pipeline.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(self.bloom.output()),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&self.bloom.sampler),
+                },
+            ],
+        })
     }
     pub fn hdr(&self) -> &wgpu::TextureView {
         &self.target.as_ref().unwrap().0
     }
     pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.bloom.draw(encoder);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("exposure tone mapping and display encoding"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

@@ -343,5 +343,13 @@
   "environment": {
     "intensity": 0,
     "background": false
+  },
+  "display": {
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.4,
+      "threshold": 0.6,
+      "scatter": 0.8
+    }
   }
 }

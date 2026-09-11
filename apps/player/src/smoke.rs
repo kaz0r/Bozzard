@@ -4,6 +4,7 @@ use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
 use glam::{Mat4, Vec3};
 mod benchmark;
+mod bloom;
 mod display;
 mod environment;
 mod overrides;
@@ -648,6 +649,7 @@ pub fn run(options: &Options) -> Result<()> {
     visibility::checks(&gpu)?;
     environment::checks(&gpu)?;
     display::checks(&gpu)?;
+    bloom::checks(&gpu, &options.output)?;
     pbr::checks(&gpu)?;
     overrides::checks(&gpu)?;
     shadows::checks(&gpu)?;

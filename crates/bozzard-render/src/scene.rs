@@ -7,6 +7,8 @@ mod visibility;
 pub use visibility::FrameStats;
 mod environment;
 pub use environment::EnvironmentSettings;
+mod bloom;
+pub use bloom::BloomSettings;
 mod display;
 pub use display::DisplaySettings;
 mod lighting;

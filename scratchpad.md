@@ -7,18 +7,26 @@ Live handoff. Replace superseded status; use Git history for completed narrative
 User approved implementing all three subsystems and committing each after validation. Root owns code and this scratchpad; GPT-5.6 Luna (`lighting_docs`) owns the light documentation. No push requested for this goal. Escape and prior four commits were pushed through `db5295c`; user confirmed Escape works.
 
 1. Point/spot lights: IMPLEMENTED; CPU and offscreen GPU validation passed. Native editor window capture pending unlock. Authored object component, ECS/transforms, bounded shared renderer light list, PBR+Lambert lighting, editor creation/inspector/guides, save/history/Play, CPU and native GPU validation. Local-light shadows remain future work as discussed; sun shadows unchanged.
-2. Bloom: NEXT / implementation starting after light commit. HDR threshold/downsample/upsample composite before display mapping, editor controls and persistence, disabled/2D/raw parity and resize/GPU checks.
+2. Bloom: IMPLEMENTED and CPU/Metal validated; committing next. HDR threshold/downsample/upsample composite before display mapping, editor controls and persistence, disabled/2D/raw parity and resize/GPU checks.
 3. Baked GI: PENDING. Implement scene-dependent indirect light (occlusion and bounced color), bake workflow, saved data/invalidation, renderer/editor integration and reference tests. Do not substitute ambient/AO for GI. Choose concrete bake representation after lighting/bloom are verified.
 
 Validation: run meaningful scene/editor tests, native Metal pixel/smoke checks, formatting/Clippy/headless boundary and visual review for each subsystem. CI workflow must exercise new GPU fixtures on Metal/Vulkan/DX12; actual hosted CI requires a later push. Preserve Bozz artwork. Avoid moving pointer.
 
-### Light subsystem evidence
+### Light subsystem evidence (`e12b983`)
 
 - Scene `Object.light` and ECS capture/view, max32 validated authored components, 3D-only extraction; inherited transforms, world-unit range, local −Z spotlight cones. Renderer uses shared bounded 2064-byte frame uniform (group2binding3), no hardware ray features; same GGX/direct Lambert responses and unchanged sun-shadow policy.
 - Editor + Light creation, component controls, history/duplicate/save/Play isolation, fixed-size clickable markers (including disabled), selected sphere/cone guides. New asset-free `examples/demo/scenes/lighting-lab.json` demonstrates colored points and warm spot.
 - Full workspace tests, all-target Clippy, headless boundary passed. Native Metal fixture suite passed existing rendering regressions plus local color, inverse-square falloff, smooth range cutoff, cone penumbra/equal-angle edge/direction, multiple/removal/lastslot32/overflow/invalid values/unlit. Logs `/tmp/bozzard-local-lights-{tests,clippy,final-gpu,ui-tests,final-clippy}.log`.
 - Release Lighting Lab 30frames800×500: optimizedCPUmedian0.068ms, synchronizedwall0.497ms,5draws60triangles; exact reference/culling/cache pixels. `work/lighting-lab/loaded-3d.png` visually reviewed. Full viewport/compositor cost not measured.
 - Native editor smoke added a final light-inspector/guide capture, but current local run timed out waiting for screenshots. `ioreg` confirmed `CGSSessionScreenIsLocked=Yes`; `/tmp/bozzard-editor-local-lights.log`. CPU authored workflow ran and files exist; do not claim native UI capture passed. Async unlock request pending. Retry with fresh output directory after unlock. Pointer never moved. Hosted CI for new changes also pending push; same fixtures run in existing Metal/Vulkan/DX12 workflow.
+
+### Bloom subsystem evidence
+
+- Scene `display.bloom`: enabled(defaultfalse), intensity0.15 [0..10], threshold1 [0..60000] scene-linear/pre-exposure, scatter0.7 [0..1]. Editor Display3D controls/Reset/history/Save/Play; 2D extraction disables.
+- Max6 half-resolution RGBA16Float levels, normalized bilinear downsample + tent upsample, 50% soft knee, convex broad-level blend to preserve constant energy across sizes. Add to HDR before exposure/Reinhard/sRGB; preserve alpha. Disabled/zero intensity/raw release pyramid resources and produce original pixels. No geometry illumination claim.
+- Full workspace tests/Clippy/headless audit/fmt passed. Native Metal suites pass halo/intensity/threshold/spread, disable/raw exactpixel parity, alpha, known HDR arithmetic, hardware/shader sRGB parity, constant energy at64×64/97×53/1×1/1×17/3×5, invalid input, and all previous render fixtures. `work/bloom-gpu/bloom-{off,on}.png` visually reviewed; `work/bloom-lab/loaded-3d.png` shows soft highlight glow. Save/reload actual Lighting Lab produces identical pixels.
+- Release Lighting Lab30frames800×500 bloom on: optimized CPU0.200ms/synchronizedwall0.978ms. Bloom-off comparison in `/tmp/bozzard-bloom-lab-off.log`; hardware/compositor/fullviewport timings not implied.
+- Logs `/tmp/bozzard-bloom-{tests,clippy,gpu,lab,lab-off}.log`. Tests automatically execute in existing hosted smoke matrix but hosted CI pending push. Native UI capture still waiting for Mac unlock; no pointer movement.
 
 ## Previous checkpoint — Escape deselection
 

@@ -5,7 +5,7 @@ pub use surface::SurfaceMaterialOverride;
 mod environment;
 pub use environment::EnvironmentSettings;
 mod display;
-pub use display::DisplaySettings;
+pub use display::{BloomSettings, DisplaySettings};
 mod light;
 pub use light::{Light, LightKind, MAX_LOCAL_LIGHTS, WorldLight};
 mod lighting;

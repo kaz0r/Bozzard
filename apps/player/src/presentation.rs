@@ -34,6 +34,12 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
             background: layer == Layer::ThreeD && view.environment.background,
         },
         display: bozzard_render::DisplaySettings {
+            bloom: bozzard_render::BloomSettings {
+                enabled: layer == Layer::ThreeD && view.display.bloom.enabled,
+                intensity: view.display.bloom.intensity,
+                threshold: view.display.bloom.threshold,
+                scatter: view.display.bloom.scatter,
+            },
             exposure_ev: if layer == Layer::ThreeD {
                 view.display.exposure_ev
             } else {

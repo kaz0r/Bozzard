@@ -753,6 +753,12 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
             background: layer == Layer::ThreeD && view.environment.background,
         },
         display: bozzard_render::DisplaySettings {
+            bloom: bozzard_render::BloomSettings {
+                enabled: layer == Layer::ThreeD && view.display.bloom.enabled,
+                intensity: view.display.bloom.intensity,
+                threshold: view.display.bloom.threshold,
+                scatter: view.display.bloom.scatter,
+            },
             exposure_ev: if layer == Layer::ThreeD {
                 view.display.exposure_ev
             } else {
@@ -837,6 +843,45 @@ mod tests {
             Path::new("work/editor-test/scene.json"),
         )
         .unwrap()
+    }
+    #[test]
+    fn bloom_history_save_reset_and_2d_isolation() {
+        let dir = Temp::new();
+        let mut e = editor();
+        let initial = e.scene().clone();
+        e.begin_gesture("Bloom slider");
+        for intensity in [0.2, 0.4] {
+            let mut scene = e.scene().clone();
+            scene.display.bloom = bozzard_scene::BloomSettings {
+                enabled: true,
+                intensity,
+                threshold: 1.5,
+                scatter: 0.8,
+            };
+            e.apply("Bloom slider", scene).unwrap();
+        }
+        e.finish_gesture();
+        assert!(e.render(Layer::ThreeD, 1.).unwrap().display.bloom.enabled);
+        assert!(!e.render(Layer::TwoD, 1.).unwrap().display.bloom.enabled);
+        e.undo().unwrap();
+        assert_eq!(e.scene(), &initial);
+        e.redo().unwrap();
+        let authored = e.scene().clone();
+        e.start_play().unwrap();
+        assert!(e.render(Layer::ThreeD, 1.).unwrap().display.bloom.enabled);
+        e.save(&dir.0.join("bloom.json")).unwrap();
+        assert_eq!(
+            Editor::open(&dir.0.join("bloom.json")).unwrap().scene(),
+            &authored
+        );
+        e.stop_play();
+        assert_eq!(e.scene(), &authored);
+        let mut reset = e.scene().clone();
+        reset.display = Default::default();
+        e.apply("Reset display", reset).unwrap();
+        assert!(!e.render(Layer::ThreeD, 1.).unwrap().display.bloom.enabled);
+        e.undo().unwrap();
+        assert_eq!(e.scene(), &authored);
     }
     #[test]
     fn local_light_history_duplicate_save_and_play_isolation() {

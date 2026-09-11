@@ -76,3 +76,42 @@ fn environment_validation_and_scene_roundtrip() {
         assert!(invalid.validate().is_err());
     }
 }
+
+#[test]
+fn bloom_roundtrip_defaults_and_invalid_values() {
+    use bozzard_scene::BloomSettings;
+    let mut scene = legacy();
+    assert!(!scene.display.bloom.enabled);
+    scene.display.bloom = BloomSettings {
+        enabled: true,
+        intensity: 0.4,
+        threshold: 2.,
+        scatter: 0.6,
+    };
+    assert_eq!(scene, Scene::from_json(&scene.to_json().unwrap()).unwrap());
+    for invalid in [
+        BloomSettings {
+            intensity: -0.1,
+            ..Default::default()
+        },
+        BloomSettings {
+            intensity: 10.01,
+            ..Default::default()
+        },
+        BloomSettings {
+            threshold: f32::NAN,
+            ..Default::default()
+        },
+        BloomSettings {
+            threshold: 60001.,
+            ..Default::default()
+        },
+        BloomSettings {
+            scatter: 1.01,
+            ..Default::default()
+        },
+    ] {
+        scene.display.bloom = invalid;
+        assert!(scene.validate().is_err());
+    }
+}

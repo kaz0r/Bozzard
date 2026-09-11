@@ -7,6 +7,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: DisplaySettings {
+            bloom: Default::default(),
             exposure_ev: -2.,
             tone_mapping: true,
         },
