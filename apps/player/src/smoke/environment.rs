@@ -67,6 +67,7 @@ fn center(frame: &Frame) -> [u8; 3] {
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         display: Default::default(),

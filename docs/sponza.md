@@ -15,7 +15,7 @@ Inspect the complete CPU import with:
 cargo run -p bozzard-assets --example inspect --locked --offline -- work/sponza/glTF/Sponza.gltf
 ```
 
-In the editor, click imported geometry in the viewport or choose a row in **Imported surfaces**. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. Press **Escape** to clear the whole-object or inspected-surface selection and its outline after higher-priority editing or navigation actions have finished. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
+In the editor, Alt-click imported geometry in the viewport or choose a surface row in the Hierarchy or **Imported surfaces** inspector. Ordinary clicks select the whole model for Move/Rotate/Scale. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. Press **Escape** to clear the whole-object or inspected-surface selection and its outline after higher-priority editing or navigation actions have finished. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
 
 The CPU-only surface reproduction is:
 
@@ -28,7 +28,7 @@ Picking and outline/framing are held until the CPU model identity matches the GP
 
 Manual surface-override checklist:
 
-- [ ] Open `examples/sponza/scene.json` and click imported geometry.
+- [ ] Open `examples/sponza/scene.json` and Alt-click imported geometry.
 - [ ] Choose a row in **Imported surfaces**, change Tint, and confirm only that object's surface changes.
 - [ ] Enable and adjust Metallic or Roughness; confirm the value multiplies the existing map, then use **Reset override**.
 - [ ] Select the whole model, duplicate the owning object, select a surface on the copy, change its Tint, and confirm the original remains unchanged; Undo/redo the edit.

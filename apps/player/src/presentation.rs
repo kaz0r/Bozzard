@@ -3,6 +3,10 @@ use bozzard_demo::SceneDemo;
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_scene::{Layer, Mesh, Texture};
 
+#[cfg(test)]
+#[path = "fog_tests.rs"]
+mod fog_tests;
+
 pub fn extract(
     demo: &SceneDemo,
     assets: &bozzard_assets::AssetStore,
@@ -31,11 +35,21 @@ pub fn extract(
     }
 
     Ok(RenderScene {
+        fog: bozzard_render::FogSettings {
+            enabled: layer == Layer::ThreeD && view.fog.enabled,
+            color: view.fog.color,
+            distance_density: view.fog.distance_density,
+            start_distance: view.fog.start_distance,
+            height_density: view.fog.height_density,
+            base_height: view.fog.base_height,
+            height_falloff: view.fog.height_falloff,
+        },
         gi,
         lights: view
             .lights
             .iter()
             .map(|world| bozzard_render::LocalLight {
+                directional: world.light.kind == bozzard_scene::LightKind::Directional,
                 position: world.position,
                 direction: world.direction,
                 color: world.light.color,
@@ -111,6 +125,9 @@ pub fn extract(
                     texture: match drawable.texture {
                         Texture::White => TextureKind::White,
                         Texture::Checker => TextureKind::Checker,
+                        Texture::Normals => TextureKind::Normals,
+                        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
+                        Texture::Toon => TextureKind::Toon,
                         Texture::Asset(id) => TextureKind::Imported(id),
                     },
                     lit: layer == Layer::ThreeD,

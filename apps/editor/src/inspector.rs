@@ -96,14 +96,21 @@ impl App {
                                     }
                                 });
                             if d.mesh != original_mesh { d.material_overrides.clear(); }
+                            ui.label("Texture / material effect");
                             egui::ComboBox::from_id_salt("texture")
                                 .selected_text(match &d.texture {
                                     Texture::White => "White",
                                     Texture::Checker => "Checker",
+                                    Texture::Normals => "World normals",
+                                    Texture::ProceduralChecker => "Procedural checker",
+                                    Texture::Toon => "Toon (3 bands)",
                                     Texture::Asset(id) => id,
                                 })
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(&mut d.texture, Texture::White, "White");
+                                    ui.selectable_value(&mut d.texture, Texture::Normals, "World normals");
+                                    ui.selectable_value(&mut d.texture, Texture::ProceduralChecker, "Procedural checker");
+                                    ui.selectable_value(&mut d.texture, Texture::Toon, "Toon (3 bands)");
                                     ui.selectable_value(
                                         &mut d.texture,
                                         Texture::Checker,
@@ -127,7 +134,7 @@ impl App {
                                 }
                             });
                             ui.horizontal(|ui| {
-                                ui.label("UV repeat");
+                                ui.label("UV repeat").on_hover_text("Also controls procedural checker density; tint colors checker and toon effects.");
                                 for value in &mut d.uv_scale {
                                     ui.add(
                                         egui::DragValue::new(value)
@@ -489,6 +496,7 @@ impl App {
                                 scene.environment = Default::default();
                             }
                             ui.separator();
+                            crate::fog::controls(ui, &mut scene.fog);
                             ui.strong("Display (3D)");
                             ui.add(
                                 egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
@@ -527,7 +535,8 @@ impl App {
         });
         if ui.is_enabled()
             && self.editor.play.is_none()
-            && (scene.gi != self.editor.scene().gi
+            && (scene.fog != self.editor.scene().fog
+                || scene.gi != self.editor.scene().gi
                 || scene.lighting != self.editor.scene().lighting
                 || scene.display != self.editor.scene().display
                 || scene.environment != self.editor.scene().environment)

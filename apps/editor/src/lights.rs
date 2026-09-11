@@ -13,27 +13,36 @@ pub fn inspector(ui: &mut egui::Ui, value: &mut Option<Light>) {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut light.kind, LightKind::Point, "Point");
                 ui.selectable_value(&mut light.kind, LightKind::Spot, "Spot");
+                ui.selectable_value(&mut light.kind, LightKind::Directional, "Directional");
             });
             ui.horizontal(|ui| {
                 ui.label("Color");
                 inspector::color_edit_button_rgb(ui, &mut light.color);
             });
             ui.horizontal(|ui| {
-                ui.label("Intensity (cd)");
+                ui.label(if light.kind == LightKind::Directional {
+                    "Illuminance (lux)"
+                } else {
+                    "Intensity (cd)"
+                });
                 ui.add(
                     egui::DragValue::new(&mut light.intensity)
                         .speed(1.)
                         .range(0.0..=100_000.),
                 );
             });
-            ui.horizontal(|ui| {
-                ui.label("Range");
-                ui.add(
-                    egui::DragValue::new(&mut light.range)
-                        .speed(0.1)
-                        .range(0.001..=100_000.),
-                );
-            });
+            if light.kind != LightKind::Directional {
+                ui.horizontal(|ui| {
+                    ui.label("Range");
+                    ui.add(
+                        egui::DragValue::new(&mut light.range)
+                            .speed(0.1)
+                            .range(0.001..=100_000.),
+                    );
+                });
+            } else {
+                ui.weak("Rotate to aim local −Z. Position and scale do not affect illumination.");
+            }
             if light.kind == LightKind::Spot {
                 ui.add(
                     egui::Slider::new(&mut light.outer_angle_degrees, 0.1..=89.9)
@@ -145,6 +154,13 @@ impl App {
                         edge(point(i), point(i + 1));
                     }
                 }
+            } else if light.kind == LightKind::Directional {
+                let forward = Vec3::from(world.direction);
+                let side = forward.any_orthonormal_vector() * 0.2;
+                let tip = origin + forward * 2.;
+                edge(origin, tip);
+                edge(tip, tip - forward * 0.4 + side);
+                edge(tip, tip - forward * 0.4 - side);
             } else {
                 let forward = Vec3::from(world.direction);
                 let up = if forward.y.abs() < 0.99 {

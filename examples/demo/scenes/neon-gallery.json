@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "name": "Neon Gallery — lights, shaders, and nested exhibits",
+  "views": {"3d": "camera"},
+  "assets": {"octahedron": {"kind": "mesh", "path": "assets/octahedron.obj"}},
+  "lighting": {"sun_direction": [0.4, 0.8, 0.6], "sun_intensity": 0.25, "ambient_intensity": 0.015, "shadows": true},
+  "environment": {"intensity": 0.04, "background": false},
+  "fog": {"enabled": true, "color": [0.12,0.16,0.24], "distance_density": 0.018, "start_distance": 3, "height_density": 0.08, "base_height": 0.25, "height_falloff": 1.8},
+  "display": {"bloom": {"enabled": true, "intensity": 0.3, "threshold": 0.8, "scatter": 0.7}},
+  "objects": [
+    {"id":"camera","name":"Gallery entrance","transform":{"translation":[0,4.2,12],"rotation_degrees":[-15,0,0],"scale":[1,1,1]},"camera":{"projection":"perspective","vertical_fov_degrees":55,"near":0.1,"far":100}},
+    {"id":"floor","name":"Slate floor — colored light pools","transform":{"translation":[0,-0.15,0],"rotation_degrees":[0,0,0],"scale":[13,0.3,10]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.32,0.36,0.42]}},
+    {"id":"wall","name":"Backdrop — spotlight wash","transform":{"translation":[0,2.5,-3.5],"rotation_degrees":[0,0,0],"scale":[13,5,0.25]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.38,0.4,0.46]}},
+    {"id":"normals","name":"01 · NORMALS — expand for sculpture","transform":{"translation":[-3.4,0.35,-0.5],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.55,0.55,0.6]}},
+    {"id":"normal-sculpture","name":"World normals · rotate me / press Play","parent":"normals","transform":{"translation":[0,1.45,0],"rotation_degrees":[20,30,10],"scale":[1.35,1.35,1.35]},"spin":[12,24,0],"drawable":{"uv_scale":[1,1],"gi_static":false,"layer":"3d","mesh":"cube","texture":"normals","color":[1,1,1]}},
+    {"id":"checker","name":"02 · CHECKER — expand for sculpture","transform":{"translation":[0,0.35,-0.5],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.55,0.55,0.6]}},
+    {"id":"checker-sculpture","name":"Procedural checker · change Tint / UV repeat","parent":"checker","transform":{"translation":[0,1.45,0],"rotation_degrees":[15,25,0],"scale":[1.35,1.35,1.35]},"spin":[0,18,0],"drawable":{"gi_static":false,"layer":"3d","mesh":"cube","texture":"procedural_checker","color":[0.15,0.95,0.7],"uv_scale":[1,1]}},
+    {"id":"toon","name":"03 · TOON — expand for sculpture","transform":{"translation":[3.4,0.35,-0.5],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.55,0.55,0.6]}},
+    {"id":"toon-sculpture","name":"Toon octahedron · bands follow scene sun direction","parent":"toon","transform":{"translation":[0,1.45,0],"rotation_degrees":[0,20,0],"scale":[1.1,1.1,1.1]},"spin":[0,22,0],"drawable":{"uv_scale":[1,1],"gi_static":false,"layer":"3d","mesh":{"asset":"octahedron"},"texture":"toon","color":[1,0.48,0.12]}},
+    {"id":"warm-reference","name":"Standard material · warm point-light receiver","transform":{"translation":[-3.4,0.55,2],"rotation_degrees":[0,25,0],"scale":[1.1,1.1,1.1]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.7,0.7,0.7]}},
+    {"id":"cool-reference","name":"Standard material · cyan point-light receiver","transform":{"translation":[3.4,0.55,2],"rotation_degrees":[0,-25,0],"scale":[1.1,1.1,1.1]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.7,0.7,0.7]}},
+    {"id":"spot-reference","name":"Standard material · spotlight receiver","transform":{"translation":[0,0.7,2],"rotation_degrees":[0,15,0],"scale":[0.7,1.4,0.7]},"drawable":{"uv_scale":[1,1],"layer":"3d","mesh":"cube","texture":"white","color":[0.7,0.7,0.7]}},
+    {"id":"warm-point","name":"LIGHT · amber point — toggle Enabled to compare","transform":{"translation":[-3.4,2,2.8],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"light":{"kind":"point","color":[1,0.16,0.035],"intensity":38,"range":6}},
+    {"id":"cool-point","name":"LIGHT · cyan point — toggle Enabled to compare","transform":{"translation":[3.4,2,2.8],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"light":{"kind":"point","color":[0.025,0.5,1],"intensity":44,"range":6}},
+    {"id":"spot","name":"LIGHT · violet spot — adjust cone angles","transform":{"translation":[0,4.5,4],"rotation_degrees":[-48,0,0],"scale":[1,1,1]},"light":{"kind":"spot","color":[0.6,0.2,1],"intensity":140,"range":12,"inner_angle_degrees":16,"outer_angle_degrees":32}},
+    {"id":"directional","name":"LIGHT · cool directional fill — rotate to aim","transform":{"translation":[0,5,-2],"rotation_degrees":[-35,145,0],"scale":[1,1,1]},"light":{"kind":"directional","color":[0.35,0.5,1],"intensity":0.8}}
+  ]
+}

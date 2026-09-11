@@ -51,6 +51,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            fog: Default::default(),
             gi: None,
             lights: self.lights.clone(),
             environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -266,6 +267,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
 fn local_light_checks(gpu: &Gpu, renderer: &mut SceneRenderer, f: &mut Fixture<'_>) -> Result<()> {
     use bozzard_render::LocalLight;
     let point = LocalLight {
+        directional: false,
         position: [0., 0., 1.],
         direction: [0., 0., -1.],
         color: [1., 0., 0.],
@@ -284,6 +286,18 @@ fn local_light_checks(gpu: &Gpu, renderer: &mut SceneRenderer, f: &mut Fixture<'
             red[0] > 65 && red[1] == 0 && red[2] == 0,
             "local light color missing: {red:?}"
         );
+        f.lights[0].directional = true;
+        let directional = center(&f.draw(gpu, renderer)?);
+        ensure!(
+            directional[0] > 65 && directional[1..] == [0, 0],
+            "directional color missing"
+        );
+        f.lights[0].position = [1000., -2000., -1000.];
+        f.lights[0].range = 0.001;
+        pixel(&f.draw(gpu, renderer)?, 32, 32, directional)?;
+        f.lights[0].direction = [0., 0., 1.];
+        pixel(&f.draw(gpu, renderer)?, 32, 32, [0; 3])?;
+        f.lights[0] = point;
         f.lights[0].position[2] = 2.;
         let far = center(&f.draw(gpu, renderer)?);
         ensure!(
@@ -361,10 +375,45 @@ fn local_light_checks(gpu: &Gpu, renderer: &mut SceneRenderer, f: &mut Fixture<'
     f.pbr = true;
     f.lighting = Default::default();
     println!(
-        "local_lights_gpu_ok pbr diffuse colors inverse_square range cone penumbra rotation equal_angles multiple removal limit validation unlit"
+        "local_lights_gpu_ok pbr diffuse directional colors inverse_square range cone penumbra rotation equal_angles multiple removal limit validation unlit"
     );
     Ok(())
 }
+#[test]
+#[ignore = "requires a native graphics adapter; run explicitly with --ignored"]
+fn local_lights_gpu() -> Result<()> {
+    let instance = bozzard_render::instance(bozzard_render::Backend::native());
+    let gpu = pollster::block_on(Gpu::request(&instance, None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let attributes = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 4];
+    let mut f = Fixture {
+        shading: ModelShading {
+            vertex_start: 0,
+            vertices: &attributes,
+            metallic: 0.,
+            roughness: 1.,
+            normal_scale: 1.,
+            occlusion_strength: 1.,
+            emissive_factor: [0.; 3],
+            double_sided: false,
+            base_color_sampler: Default::default(),
+            normal: None,
+            metallic_roughness: None,
+            occlusion: None,
+            emissive: None,
+        },
+        base: None,
+        color: [1.; 4],
+        lit: true,
+        pbr: true,
+        reversed: false,
+        model: Mat4::IDENTITY,
+        lights: Vec::new(),
+        lighting: Default::default(),
+    };
+    local_light_checks(&gpu, &mut renderer, &mut f)
+}
+
 fn center_at(frame: &Frame, x: usize, y: usize) -> [u8; 3] {
     frame.rgba[(y * 64 + x) * 4..(y * 64 + x) * 4 + 3]
         .try_into()

@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
 mod visibility;
 pub use visibility::FrameStats;
+mod fog;
+pub use fog::FogSettings;
 mod environment;
 pub use environment::EnvironmentSettings;
 mod bloom;
@@ -34,6 +36,9 @@ pub enum MeshKind {
 pub enum TextureKind {
     White,
     Checker,
+    Normals,
+    ProceduralChecker,
+    Toon,
     Imported(String),
     ModelPart(String, usize),
 }
@@ -66,6 +71,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub fog: FogSettings,
     pub gi: Option<IrradianceVolume>,
     pub lights: Vec<LocalLight>,
     pub environment: EnvironmentSettings,
@@ -334,7 +340,7 @@ impl SceneRenderer {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(368),
+                            min_binding_size: wgpu::BufferSize::new(416),
                         },
                         count: None,
                     },
@@ -375,11 +381,13 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}\n{}\n{}\n{}",
+                        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
                         include_str!("scene/environment_sample.wgsl"),
                         include_str!("scene/shadow_sample.wgsl"),
                         include_str!("scene/local_lights.wgsl"),
                         include_str!("scene/gi.wgsl"),
+                        include_str!("scene/effects.wgsl"),
+                        include_str!("scene/fog.wgsl"),
                         include_str!("scene.wgsl")
                     )
                     .into(),
@@ -465,7 +473,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 368,
+            size: 416,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -496,7 +504,10 @@ impl SceneRenderer {
             })
         };
         let texture = match key {
-            TextureKind::White => &self.white,
+            TextureKind::White
+            | TextureKind::Normals
+            | TextureKind::ProceduralChecker
+            | TextureKind::Toon => &self.white,
             TextureKind::Checker => &self.checker,
             TextureKind::ModelPart(id, index) => self
                 .models
@@ -1010,7 +1021,7 @@ impl SceneRenderer {
     ) -> Result<()> {
         self.draw_frame(gpu, target, size, scene, false)
     }
-    /// Diagnostic linear readback: bypass exposure, tone mapping and display encoding.
+    /// Diagnostic linear readback: bypass fog, bloom, exposure, tone mapping and display encoding.
     /// Requires a non-sRGB output. Normal editor/player rendering must use draw.
     pub fn draw_linear(
         &mut self,
@@ -1070,6 +1081,7 @@ impl SceneRenderer {
                 );
             }
         }
+        scene.fog.validate()?;
         self.environment
             .prepare(gpu, scene.environment, scene.view_projection.inverse())?;
         self.display.prepare(gpu, size, scene.display, raw)?;
@@ -1168,7 +1180,18 @@ impl SceneRenderer {
                             },
                         ])
                         .chain(scene.lighting.uniform())
-                        .chain([draw.pbr_override[0], draw.pbr_override[1], 0., 0.]),
+                        .chain([
+                            draw.pbr_override[0],
+                            draw.pbr_override[1],
+                            match material.texture {
+                                TextureKind::Normals => 1.,
+                                TextureKind::ProceduralChecker => 2.,
+                                TextureKind::Toon => 3.,
+                                _ => 0.,
+                            },
+                            0.,
+                        ])
+                        .chain(scene.fog.uniform(raw)),
                 ),
             );
         }

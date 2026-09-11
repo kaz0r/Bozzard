@@ -37,6 +37,19 @@ cargo run -p bozzard-server -- --ticks 120
 
 Windows needs Rust's MSVC toolchain and Visual Studio C++ build tools. Linux needs a C linker, Vulkan drivers and window-system development packages; the CI workflow lists Ubuntu packages. `--backend metal|dx12|vulkan` selects one graphics API explicitly. `--software` requires a software adapter; `--hardware` requires a reported integrated/discrete GPU. Missing adapters fail visibly.
 
+## Lighting and material galleries
+
+Try the [material and lighting showcases](docs/showcases.md) for textured PBR samples, fog, colored lighting and transform controls:
+
+```sh
+cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/material-gallery.json
+cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/neon-gallery.json
+```
+
+## Material effect demo
+
+Open `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/shader-lab.json` (or use `bozzard-player`). Select a whole object and choose **Texture / material effect** in the Inspector: **World normals**, **Procedural checker**, or **Toon (3 bands)**. Tint colors checker/toon; UV repeat controls checker density (8 cells per repeat); rotating an object changes its world-normal colors. Toon uses the sun direction and shadow visibility, not full PBR/local lighting. Effects replace the texture slot and apply to every surface, including imported models; choose White to restore imported textures. They are view effects, not GI bake materials; the examples opt out of contributing to GI.
+
 ## First playable demo
 
 ```sh
@@ -103,7 +116,7 @@ Scenes also include one procedural distant environment by default: zenith `[0.15
 
 The renderer uses a conservative per-surface homogeneous AABB culling test in the color pass while retaining all offscreen shadow casters for stable shadow bounds. Compatible consecutive draws reuse pipeline and shared shadow/environment bindings without changing draw or alpha order. The viewport can show compact `FrameStats` metrics for scene items, visible/culled surfaces, color triangles, shadow draws/triangles, pipeline binds, and CPU total/prepare/encode/submit times; these are not GPU time or FPS. The `--smoke --scene FILE --benchmark-frames N` mode (1–1000) compares reference, culling, and full-cache configurations with warmups, interleaved timings, and per-frame GPU waits, reporting CPU and synchronized CPU+GPU+wait medians. Diagnostic culling/state-cache toggles are available; GPU timestamps, multidraw, instancing, and occlusion culling remain unsupported.
 
-Imported model surfaces can be picked by nearest triangle in the viewport or searched in the **Imported surfaces** inspector. Source node/mesh/primitive and material names, factors, map dimensions, and sampler details remain read-only; **F** / **Frame surface** frames one surface and **Shift+F** frames the layer. Picking pauses while CPU model data differs from the GPU's last-good resident data, and outlines/framing wait for matching graphics. Inspection is transient and guards owner editing actions such as gizmos, duplicate/delete, and asset assignment. It does not expand source hierarchy into editable primitives; per-object overrides are authored separately. An unpartitioned OBJ remains a whole object with no synthetic surface list, and OBJ remains diffuse-only.
+Ordinary viewport clicks select whole imported models for transforming. **Alt-click** picks an imported surface by nearest triangle; surfaces can also be searched in the **Imported surfaces** inspector. **Select whole model** in the viewport toolbar or inspector returns to owner editing; source surfaces have no independent transforms. Source node/mesh/primitive and material names, factors, map dimensions, and sampler details remain read-only; **F** / **Frame surface** frames one surface and **Shift+F** frames the layer. Picking pauses while CPU model data differs from the GPU's last-good resident data, and outlines/framing wait for matching graphics. Inspection is transient and guards owner editing actions such as gizmos, duplicate/delete, and asset assignment. It does not expand source hierarchy into editable primitives; per-object overrides are authored separately. An unpartitioned OBJ remains a whole object with no synthetic surface list, and OBJ remains diffuse-only.
 
 Imported surfaces support per-object material overrides: tint multipliers and opt-in metallic/roughness replacements for PBR maps, with **Reset override** returning to the source material. Overrides follow duplicate, Undo/redo, save/reopen, and Play isolation; source-signature mismatches leave them stored but inactive with a warning. Shared GPU data is unchanged, and OBJ diffuse surfaces support tint only.
 
@@ -199,7 +212,7 @@ Creating a Cube switches to 3D; creating a Sprite switches to 2D. Successful cre
 
 ### Transform snapping
 
-Enable **Snap** in the viewport toolbar, then drag a Move, Rotate, or Scale gizmo. **Snap settings** sets the increments (defaults: 0.5 local units, 15°, and 0.1 scale multiplier). Hold **Ctrl** while dragging to temporarily invert Snap. Changes are relative to the start of each drag, preserving existing offsets; this is not absolute world-grid alignment. Scale snapping preserves mirrored axes and avoids zero scale. Numeric inspector edits remain exact, each drag remains one Undo action, and preferences persist between editor sessions.
+Choose **Move / Rotate / Scale** in the viewport toolbar, or press **W / E / R** over the idle viewport (shortcuts are inactive during text entry, navigation, dragging, and Play). Drag Move arrows, Rotate rings, or Scale squares; the white **All** center square scales uniformly when dragged up/right (down/left shrinks). Rotation rings follow the authored Y-X-Z Euler axes, scale handles follow the object's rotated local axes, and Move uses parent-space axes. Enable **Snap** in the viewport toolbar, then drag a Move, Rotate, or Scale gizmo. **Snap settings** sets the increments (defaults: 0.5 local units, 15°, and 0.1 scale multiplier). Hold **Ctrl** while dragging to temporarily invert Snap. Changes are relative to the start of each drag, preserving existing offsets; this is not absolute world-grid alignment. Scale snapping preserves mirrored axes and avoids zero scale. Numeric inspector edits remain exact, each drag remains one Undo action, and preferences persist between editor sessions.
 
 Press **Escape** during a gizmo drag to restore its starting transform without adding an Undo entry or clearing Redo history. Document keyboard shortcuts are paused while dragging.
 

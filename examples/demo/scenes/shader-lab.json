@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "Shader Lab — select an object, then Texture / material effect",
+  "views": {"3d": "camera"},
+  "assets": {"octahedron": {"kind": "mesh", "path": "assets/octahedron.obj"}},
+  "objects": [
+    {"id":"camera","name":"Camera","transform":{"translation":[0,2.5,9],"rotation_degrees":[-12,0,0],"scale":[1,1,1]},"camera":{"projection":"perspective","vertical_fov_degrees":55,"near":0.1,"far":100}},
+    {"id":"floor","name":"Standard material (reference)","transform":{"translation":[0,-1.2,0],"rotation_degrees":[0,0,0],"scale":[10,0.2,5]},"drawable":{"layer":"3d","mesh":"cube","texture":"white","color":[0.25,0.25,0.25],"uv_scale":[1,1]}},
+    {"id":"normals","name":"1 — World normals (rotate me)","transform":{"translation":[-2.5,0,0],"rotation_degrees":[15,30,0],"scale":[1.4,1.4,1.4]},"drawable":{"gi_static":false,"layer":"3d","mesh":"cube","texture":"normals","color":[1,1,1],"uv_scale":[1,1]}},
+    {"id":"checker","name":"2 — Procedural checker (edit Tint / UV repeat)","transform":{"translation":[0,0,0],"rotation_degrees":[15,30,0],"scale":[1.4,1.4,1.4]},"drawable":{"gi_static":false,"layer":"3d","mesh":"cube","texture":"procedural_checker","color":[0.2,0.85,0.65],"uv_scale":[1,1]}},
+    {"id":"toon","name":"3 — Toon (edit Tint / sun direction)","transform":{"translation":[2.5,0,0],"rotation_degrees":[0,20,0],"scale":[1,1,1]},"drawable":{"gi_static":false,"layer":"3d","mesh":{"asset":"octahedron"},"texture":"toon","color":[1,0.45,0.12],"uv_scale":[1,1]}}
+  ]
+}

@@ -18,6 +18,7 @@ mod acceptance;
 mod asset_browser;
 mod colliders;
 mod files;
+mod fog;
 mod framing;
 mod gameplay_input;
 mod gi;
@@ -488,7 +489,7 @@ impl App {
                         }
                     });
                     ui.menu_button("+ Light", |ui| {
-                        for (kind, label) in [(bozzard_scene::LightKind::Point, "Point light"), (bozzard_scene::LightKind::Spot, "Spot light")] {
+                        for (kind, label) in [(bozzard_scene::LightKind::Point, "Point light"), (bozzard_scene::LightKind::Spot, "Spot light"), (bozzard_scene::LightKind::Directional, "Directional light")] {
                             if ui.button(label).clicked() {
                                 let result = self.editor.create_light(kind);
                                 if result.is_ok() { self.workspace.layer_2d = false; self.hierarchy_search.clear(); }
@@ -524,7 +525,7 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.hierarchy_search)
-                            .hint_text("Search name or ID…")
+                            .hint_text("Search object, surface or material…")
                             .desired_width(ui.available_width() - 28.0),
                     );
                     if ui.small_button("×").on_hover_text("Clear search").clicked() {
@@ -534,6 +535,8 @@ impl App {
                 let query = self.hierarchy_search.trim().to_lowercase();
                 let scene = self.editor.scene().clone();
                 self.hierarchy_state.sync_selection(&scene, self.editor.selected.as_deref());
+                self.hierarchy_state.sync_surface_selection(self.editor.selected_surface()
+                    .and_then(|s| self.editor.selected.as_deref().map(|id| (id, s.index))));
                 ui.add_enabled_ui(query.is_empty(), |ui| {
                     ui.horizontal(|ui| {
                         if ui.small_button("Expand all").clicked() { self.hierarchy_state.expand_all(); }
@@ -564,15 +567,19 @@ impl App {
                 }
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     while let Some((object, depth)) = stack.pop() {
-                        if query.is_empty()
+                        let object_matches = query.is_empty()
                             || object.name.to_lowercase().contains(&query)
-                            || object.id.to_lowercase().contains(&query)
-                        {
+                            || object.id.to_lowercase().contains(&query);
+                        let mesh = self.editor.object_mesh(&object.id);
+                        let has_surfaces = mesh.is_some_and(|m| !m.parts.is_empty());
+                        let surface_matches = mesh.is_some_and(|m| m.parts.iter().enumerate()
+                            .any(|(index, part)| surfaces::surface_matches(index, part, &query)));
+                        if object_matches || surface_matches {
                             matches += 1;
                             ui.horizontal(|ui| {
                                 if query.is_empty() {
                                     ui.add_space((depth.min(12) * 12) as f32);
-                                    if scene.objects.iter().any(|o| o.parent.as_deref() == Some(&object.id)) {
+                                    if has_surfaces || scene.objects.iter().any(|o| o.parent.as_deref() == Some(&object.id)) {
                                         let collapsed = self.hierarchy_state.is_collapsed(&object.id);
                                         if ui.add_sized([18.0, 18.0], egui::Button::new(if collapsed { "▶" } else { "▼" }).frame(false))
                                             .on_hover_text(if collapsed { "Expand children" } else { "Collapse children" }).clicked() {
@@ -618,7 +625,7 @@ impl App {
                                 };
                                 let response = ui
                                     .selectable_label(
-                                        self.editor.selected.as_ref() == Some(&object.id),
+                                        self.editor.selected.as_ref() == Some(&object.id) && self.editor.selected_surface().is_none(),
                                         format!("{kind} {}", object.name),
                                     )
                                     .interact(if can_reparent { Sense::click_and_drag() } else { Sense::click() })
@@ -689,6 +696,7 @@ impl App {
                         if !self.hierarchy_state.visit_children(&object.id, !query.is_empty()) {
                             continue;
                         }
+                        self.hierarchy_surfaces(ui, &object.id, depth + 1, if object_matches { "" } else { &query });
                         for child in scene
                             .objects
                             .iter()
@@ -830,10 +838,7 @@ impl App {
             }) {
                 self.hierarchy_frame_requested = self.editor.selected_object().is_some();
             }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-                let r = self.editor.undo();
-                self.result(r);
-            }
+            // egui accepts extra Shift for Cmd+Z: consume Redo before Undo.
             if ctx.input_mut(|i| {
                 i.consume_key(
                     egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
@@ -841,6 +846,9 @@ impl App {
                 )
             }) {
                 let r = self.editor.redo();
+                self.result(r);
+            } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+                let r = self.editor.undo();
                 self.result(r);
             }
             if self.editor.selected_object().is_some()
