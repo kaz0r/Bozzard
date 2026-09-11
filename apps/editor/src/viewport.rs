@@ -3,13 +3,83 @@ use super::*;
 use glam::Mat4;
 pub struct Drag {
     id: String,
+    surface: Option<usize>,
     axis: usize,
     start: Transform,
     pointer: Pos2,
     screen_axis: Vec2,
     tool: Tool,
     ring: Option<RingDrag>,
+    move_axis: Option<AxisDrag>,
 }
+// Capture the original constraint, not the moving object's current projection.
+// A parent-space unit can be scaled, mirrored or rotated in world space.
+struct AxisDrag {
+    origin: Vec3,
+    axis: Vec3,
+    inverse: Mat4,
+    rect: Rect,
+    start: f32,
+}
+impl AxisDrag {
+    fn new(origin: Vec3, axis: Vec3, projection: Mat4, rect: Rect, pointer: Pos2) -> Option<Self> {
+        let mut drag = Self {
+            origin,
+            axis,
+            inverse: projection.inverse(),
+            rect,
+            start: 0.0,
+        };
+        drag.start = drag.parameter(pointer)?;
+        Some(drag)
+    }
+    fn parameter(&self, pointer: Pos2) -> Option<f32> {
+        let ndc = Vec2::new(
+            2.0 * (pointer.x - self.rect.left()) / self.rect.width() - 1.0,
+            1.0 - 2.0 * (pointer.y - self.rect.top()) / self.rect.height(),
+        );
+        let near = self.inverse.project_point3(Vec3::new(ndc.x, ndc.y, 0.0));
+        let far = self.inverse.project_point3(Vec3::new(ndc.x, ndc.y, 1.0));
+        let ray = (far - near).normalize_or_zero();
+        let length = self.axis.length();
+        if length < 1e-8 || !length.is_finite() {
+            return None;
+        }
+        let axis = self.axis / length;
+        let cosine = axis.dot(ray);
+        let denominator = 1.0 - cosine * cosine;
+        // Nearly end-on axes cannot be constrained reliably from a screen point.
+        // Leave the last valid transform alone instead of jumping across the scene.
+        if denominator < 1e-4 {
+            return None;
+        }
+        let offset = near - self.origin;
+        let t = (axis.dot(offset) - cosine * ray.dot(offset)) / (denominator * length);
+        t.is_finite().then_some(t)
+    }
+    fn delta(&self, pointer: Pos2) -> Option<f32> {
+        Some(self.parameter(pointer)? - self.start)
+    }
+}
+
+/// Exact screen-space derivative at the pivot, not a projection one unit away
+/// (which may be nearer the camera, behind it, or clipped).
+fn projected_axis(projection: Mat4, rect: Rect, origin: Vec3, axis: Vec3) -> Vec2 {
+    let p = projection * origin.extend(1.0);
+    let d = projection * axis.extend(0.0);
+    let scale = p.w * p.w;
+    Vec2::new(
+        (d.x * p.w - p.x * d.w) * rect.width(),
+        -(d.y * p.w - p.y * d.w) * rect.height(),
+    ) / (2.0 * scale)
+}
+
+fn segment_distance(pointer: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let line = b - a;
+    let t = ((pointer - a).dot(line) / line.length_sq().max(0.0001)).clamp(0.0, 1.0);
+    pointer.distance(a + line * t)
+}
+
 struct RingDrag {
     segments: Vec<(Pos2, Pos2, f32)>,
     last_angle: f32,
@@ -35,27 +105,36 @@ struct GizmoAxis {
     end: Pos2,
     segments: Vec<(Pos2, Pos2, f32)>,
 }
-fn nearest_axis(axes: &[GizmoAxis], rect: Rect, pointer: Pos2) -> Option<usize> {
+fn nearest_axis(axes: &[GizmoAxis], rect: Rect, center: Pos2, pointer: Pos2) -> Option<usize> {
     if !rect.contains(pointer) {
         return None;
     }
     axes.iter()
         .filter_map(|axis| {
-            let handle = if axis.segments.is_empty() {
-                pointer.distance(axis.end)
+            let distance = if axis.segments.is_empty() {
+                if axis.axis != 3 && axis.screen.length_sq() < 1e-8 {
+                    return None;
+                }
+                let tip = pointer.distance(axis.end);
+                let shaft = if axis.axis == 3 {
+                    f32::INFINITY
+                } else {
+                    segment_distance(pointer, center + axis.screen.normalized() * 18.0, axis.end)
+                };
+                let distance = (if tip <= 14.0 { tip } else { f32::INFINITY })
+                    .min(if shaft <= 8.0 { shaft } else { f32::INFINITY });
+                if !distance.is_finite() {
+                    return None;
+                }
+                distance
             } else {
-                f32::INFINITY
+                let distance = ring_hit(&axis.segments, pointer)?.0;
+                if distance > 9.0 {
+                    return None;
+                }
+                distance
             };
-            let ring = ring_hit(&axis.segments, pointer)
-                .map(|hit| hit.0)
-                .unwrap_or(f32::INFINITY);
-            let distance = if handle <= 11.0 && (axis.screen.length() >= 2.0 || axis.axis == 3) {
-                handle
-            } else {
-                f32::INFINITY
-            }
-            .min(if ring <= 7.0 { ring } else { f32::INFINITY });
-            distance.is_finite().then_some((axis.axis, distance))
+            Some((axis.axis, distance))
         })
         .min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)))
         .map(|hit| hit.0)
@@ -90,12 +169,12 @@ fn paint_ring(painter: &egui::Painter, paths: &[Vec<Pos2>], stroke: egui::Stroke
         }
     }
 }
-// Ordinary picking edits the owning object; Alt explicitly opts into surface inspection.
+// Imported geometry selects its actual surface; Alt opts into whole-model transforms.
 fn transform_pick(
     mut pick: Option<bozzard_editor::Pick>,
-    surface: bool,
+    whole_model: bool,
 ) -> Option<bozzard_editor::Pick> {
-    if !surface && let Some(pick) = &mut pick {
+    if whole_model && let Some(pick) = &mut pick {
         pick.surface = None;
     }
     pick
@@ -215,27 +294,36 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard)
             .then_some(true);
+        theme::panel_title(
+            ui,
+            if self.editor.play.is_some() {
+                "Game"
+            } else {
+                "Scene"
+            },
+        );
         ui.horizontal_wrapped(|ui| {
-            ui.strong("Scene viewport");
-            ui.separator();
             ui.add_enabled_ui(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && !self.fly_latched, |ui| {
-                ui.selectable_value(&mut self.workspace.tool, Tool::Move, "Move · W")
+                ui.selectable_value(&mut self.workspace.tool, Tool::Move, "Move")
                     .on_hover_text("Drag an arrow to move along a parent-space axis · W over viewport");
-                ui.selectable_value(&mut self.workspace.tool, Tool::Rotate, "Rotate · E")
+                ui.selectable_value(&mut self.workspace.tool, Tool::Rotate, "Rotate")
                     .on_hover_text("Drag a colored ring to rotate · E over viewport");
-                ui.selectable_value(&mut self.workspace.tool, Tool::Scale, "Scale · R")
+                ui.selectable_value(&mut self.workspace.tool, Tool::Scale, "Scale")
                     .on_hover_text("Drag an axis square to resize; drag the white center diagonally for uniform scale · R over viewport");
                 if self.editor.selected_surface().is_some() && ui.button("Select whole model")
-                    .on_hover_text("Source surfaces have no independent transform. Select their owner to move, rotate or scale the model.")
+                    .on_hover_text("Switch from editing this surface to moving, rotating or scaling the entire model.")
                     .clicked() {
                     self.editor.finish_gesture();
                     self.editor.select_object(self.editor.selected.clone());
                 }
             });
-            ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-                self.workspace.snapping.ui(ui);
-            });
-            ui.checkbox(&mut self.workspace.colliders_visible, "Colliders");
+            ui.separator();
+            ui.selectable_value(&mut self.workspace.layer_2d, false, "3D");
+            ui.selectable_value(&mut self.workspace.layer_2d, true, "2D");
+            ui.menu_button("View", |ui| {
+                ui.checkbox(&mut self.workspace.colliders_visible, "Collider guides");
+                ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
+                ui.separator();
             ui.add_enabled_ui(self.editor.play.is_none() && self.drag.is_none(), |ui| {
                 if ui
                     .add_enabled(
@@ -246,6 +334,7 @@ impl App {
                     .clicked()
                 {
                     frame_request = Some(true);
+                    ui.close();
                 }
                 if ui
                     .button("Frame all")
@@ -253,6 +342,7 @@ impl App {
                     .clicked()
                 {
                     frame_request = Some(false);
+                    ui.close();
                 }
             });
             if ui.button("Reset view").clicked() {
@@ -260,7 +350,13 @@ impl App {
                 self.workspace.zoom = 1.0;
                 self.workspace.camera = None;
                 self.workspace.ortho_zoom = 1.0;
+                ui.close();
             }
+            });
+            ui.menu_button("Snap", |ui| {
+                ui.add_enabled_ui(self.editor.play.is_none(), |ui| self.workspace.snapping.ui(ui));
+            });
+            ui.label("?").on_hover_text("W/E/R: tools · F: frame selection · Shift+F: frame all\nClick: select surface · Alt-click: select whole model\nRight-drag: look · Tab: toggle fly · WASD: move\nSpace/Ctrl: up/down · Shift: faster · Middle-drag: pan\nScroll: dolly · Esc: release / cancel / deselect");
         });
         if let Some(state) = self.editor.play.as_ref().and_then(|play| play.gameplay()) {
             ui.label(state.feedback());
@@ -269,15 +365,11 @@ impl App {
             {
                 ui.colored_label(egui::Color32::YELLOW, hint);
             }
-            ui.weak("Hover 3D viewport: WASD move · Space jump · Right-drag orbit · Esc stop · Gold: collect · Blue: checkpoint · Green: goal");
+            ui.small("WASD move · Space jump · Right-drag orbit · Esc stop");
         } else if self.editor.play.is_some() {
-            ui.weak("Esc: stop simulation · Select a collider before Play · Hover viewport: WASD move · Space/Ctrl up/down without gravity · Shift faster · Space: jump when grounded");
-        } else {
-            ui.weak(if self.fly_latched {
-                "Fly mode · Move trackpad/mouse to look · WASD: move · Space/Ctrl: up/down · Shift: faster · Tab or Esc: release"
-            } else {
-                "W/E/R: Move/Rotate/Scale · Click: whole model · Alt-click: surface · Esc: deselect / cancel drag · Right drag: look · Tab over 3D viewport: toggle fly · WASD: move · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly"
-            });
+            ui.small("WASD move selected collider · Space jump · Esc stop");
+        } else if self.fly_latched {
+            ui.colored_label(theme::GREEN, "FLY · WASD move · Tab / Esc release");
         }
         let can_navigate = ui.is_enabled()
             && self.drag.is_none()
@@ -719,21 +811,23 @@ impl App {
         } else {
             0.0
         };
-        let stats = self.renderer.frame_stats();
-        ui.painter().text(
-            rect.left_top() + egui::vec2(8.0, 8.0 + collider_label_height),
-            egui::Align2::LEFT_TOP,
-            format!(
-                "Draws {}/{} · {} tris · {} shadow draws · CPU {:.2} ms",
-                stats.visible_surfaces,
-                stats.surfaces,
-                stats.color_triangles,
-                stats.shadow_draws,
-                stats.cpu_ms
-            ),
-            egui::FontId::monospace(11.0),
-            Color32::WHITE,
-        );
+        if self.workspace.stats_visible {
+            let stats = self.renderer.frame_stats();
+            ui.painter().text(
+                rect.left_top() + egui::vec2(8.0, 8.0 + collider_label_height),
+                egui::Align2::LEFT_TOP,
+                format!(
+                    "Draws {}/{} · {} tris · {} shadow draws · CPU {:.2} ms",
+                    stats.visible_surfaces,
+                    stats.surfaces,
+                    stats.color_triangles,
+                    stats.shadow_draws,
+                    stats.cpu_ms
+                ),
+                egui::FontId::monospace(11.0),
+                Color32::WHITE,
+            );
+        }
         if ui.is_enabled()
             && self.editor.play.is_none()
             && self.loading.is_none()
@@ -763,13 +857,32 @@ impl App {
         self.surface_overlay(ui, rect, projection)?;
         self.gi_overlay(ui, rect, projection);
         let light_pick = self.light_overlay(ui, rect, projection, response.hover_pos())?;
-        let handled = if self.editor.play.is_none() && self.editor.selected_surface().is_none() {
+        if self.smoke.is_some()
+            && self.smoke_frames >= 10
+            && !self.smoke_gizmo_verified
+            && self.drag.is_none()
+        {
+            self.smoke_gizmo_navigation(ui, rect, projection)?;
+            self.smoke_gizmo_verified = true;
+        }
+        if self.smoke.is_some()
+            && self.editor.selected_surface().is_some()
+            && !self.smoke_surface_gizmo_verified
+        {
+            self.smoke_gizmo_navigation(ui, rect, projection)?;
+            self.smoke_surface_gizmo_verified = true;
+            println!("editor_submesh_gizmo_smoke_ok visible_move_rotate_scale");
+        }
+        let handled = if self.editor.play.is_none() {
             self.gizmo(ui, rect, projection)?
         } else {
             false
         };
         if response.clicked()
             && !self.mouse_captured
+            && !self.fly_latched
+            && self.navigation_button.is_none()
+            && !egui::Popup::is_any_open(ui.ctx())
             && !handled
             && self.editor.play.is_none()
             && let Some(p) = response.interact_pointer_pos()
@@ -797,6 +910,13 @@ impl App {
                 };
                 self.editor
                     .select_pick(transform_pick(pick, ui.input(|i| i.modifiers.alt)))?;
+                if let Some(surface) = self.editor.selected_surface() {
+                    self.status = format!(
+                        "Surface {} selected · W/E/R to transform · Alt-click selects the owner",
+                        surface.index + 1
+                    );
+                    self.error = false;
+                }
             } else {
                 self.status = "Picking paused while model graphics are being replaced".into();
                 self.error = false;
@@ -804,14 +924,22 @@ impl App {
         }
         Ok(())
     }
-    fn gizmo(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Mat4) -> Result<bool> {
-        if !ui.is_enabled()
-            || self.fly_latched
-            || self.mouse_captured
-            || self.navigation_button.is_some()
-        {
-            return Ok(false);
-        }
+    pub(super) fn gizmo(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        projection: Mat4,
+    ) -> Result<bool> {
+        // Navigation disables hit testing, never drawing. Keep the pivot/axes
+        // visible while orbiting or flying so the selection stays understandable.
+        let interactive = ui.is_enabled()
+            && !self.fly_latched
+            && !self.mouse_captured
+            && self.navigation_button.is_none()
+            && self.dialog.is_none()
+            && !self.confirm_discard
+            && !egui::Popup::is_any_open(ui.ctx())
+            && ui.input(|i| i.focused);
         if self.drag.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.editor.cancel_gesture()?;
             self.drag = None;
@@ -822,14 +950,21 @@ impl App {
         let Some(object) = self.editor.selected_object().cloned() else {
             return Ok(false);
         };
-        let demo = bozzard_demo::SceneDemo::new(self.editor.scene())?;
-        let matrices = demo.instance.global_transforms(&demo.app.world)?;
-        let origin = matrices[&object.id].transform_point3(Vec3::ZERO);
-        let parent = object
-            .parent
+        let surface = self.editor.selected_surface().map(|s| s.index);
+        if surface.is_some() && !self.surface_graphics_ready() {
+            return Ok(false);
+        }
+        if self
+            .drag
             .as_ref()
-            .map(|p| matrices[p])
-            .unwrap_or(Mat4::IDENTITY);
+            .is_some_and(|d| d.id != object.id || d.surface != surface)
+        {
+            self.editor.cancel_gesture()?;
+            self.drag = None;
+        }
+        let transform = self.editor.selected_transform()?;
+        let parent = self.editor.selected_transform_parent()?;
+        let origin = parent.transform_point3(Vec3::from(transform.translation));
         let project = |point: Vec3| -> Option<Pos2> {
             let clip = projection * point.extend(1.0);
             if clip.w <= 0.0 {
@@ -851,11 +986,12 @@ impl App {
             return Ok(false);
         }
         let painter = ui.painter().with_clip_rect(rect);
-        painter.circle_stroke(center, 7.0, egui::Stroke::new(1.5, Color32::WHITE));
+        painter.circle_filled(center, 5.0, Color32::from_black_alpha(210));
+        painter.circle_stroke(center, 5.0, egui::Stroke::new(1.5, Color32::WHITE));
         let mut handled = false;
         let mut axes = Vec::new();
         for axis in 0..3 {
-            let [x, y, z] = object.transform.rotation_degrees.map(f32::to_radians);
+            let [x, y, z] = transform.rotation_degrees.map(f32::to_radians);
             let basis = parent
                 * match self.workspace.tool {
                     Tool::Scale => Mat4::from_euler(glam::EulerRot::YXZ, y, x, z),
@@ -867,28 +1003,28 @@ impl App {
                     _ => Mat4::IDENTITY,
                 };
             let world_axis = basis.transform_vector3([Vec3::X, Vec3::Y, Vec3::Z][axis]);
-            let screen = project(origin + world_axis)
-                .map(|unit| unit - center)
-                .unwrap_or(Vec2::ZERO);
-            if screen.length() < 2.0 && self.workspace.tool != Tool::Rotate {
+            let screen = projected_axis(projection, rect, origin, world_axis);
+            if screen.length_sq() < 1e-8 && self.workspace.tool != Tool::Rotate {
                 continue;
             }
             let base = [
-                Color32::from_rgb(245, 95, 105),
-                Color32::from_rgb(100, 230, 150),
-                Color32::from_rgb(100, 160, 255),
+                Color32::from_rgb(240, 76, 88),
+                Color32::from_rgb(104, 220, 111),
+                Color32::from_rgb(83, 151, 255),
             ][axis];
-            let end = center + screen.normalized() * 70.0;
+            let end = center + screen.normalized() * 88.0;
             let mut segments = Vec::new();
             if self.workspace.tool == Tool::Rotate {
                 let a = [Vec3::Y, Vec3::Z, Vec3::X][axis];
                 let b = [Vec3::Z, Vec3::X, Vec3::Y][axis];
                 let radius = [a, b]
                     .into_iter()
-                    .filter_map(|v| project(origin + basis.transform_vector3(v)))
-                    .map(|p| p.distance(center))
+                    .map(|v| {
+                        projected_axis(projection, rect, origin, basis.transform_vector3(v))
+                            .length()
+                    })
                     .fold(0.0_f32, f32::max);
-                let radius = 70.0 / radius.max(0.01);
+                let radius = 88.0 / radius.max(0.01);
                 let mut last = None;
                 for i in 0..=64 {
                     let angle = i as f32 / 64.0 * std::f32::consts::TAU;
@@ -922,36 +1058,53 @@ impl App {
                 segments: Vec::new(),
             });
         }
-        let hover_axis = ui
-            .input(|i| i.pointer.hover_pos())
-            .and_then(|p| nearest_axis(&axes, rect, p));
-        let press = ui.input(|i| {
-            i.events.iter().find_map(|event| match event {
-                egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Primary,
-                    pressed: true,
-                    ..
-                } => Some(*pos),
-                _ => None,
+        let hover_axis = interactive
+            .then(|| ui.input(|i| i.pointer.hover_pos()))
+            .flatten()
+            .and_then(|p| nearest_axis(&axes, rect, center, p));
+        let press = interactive
+            .then(|| {
+                ui.input(|i| {
+                    i.events.iter().find_map(|event| match event {
+                        egui::Event::PointerButton {
+                            pos,
+                            button: egui::PointerButton::Primary,
+                            pressed: true,
+                            ..
+                        } => Some(*pos),
+                        _ => None,
+                    })
+                })
             })
-        });
-        let press_axis = press.and_then(|p| nearest_axis(&axes, rect, p));
+            .flatten();
+        let press_axis = press.and_then(|p| nearest_axis(&axes, rect, center, p));
         // Capture before drawing so the clicked axis highlights in the same frame.
         if let (Some(pointer), Some(axis)) = (press, press_axis)
             && self.drag.is_none()
         {
             let geometry = axes.iter().find(|g| g.axis == axis).unwrap();
+            let move_axis = if self.workspace.tool == Tool::Move {
+                let world_axis = parent.transform_vector3([Vec3::X, Vec3::Y, Vec3::Z][axis]);
+                let Some(constraint) = AxisDrag::new(origin, world_axis, projection, rect, pointer)
+                else {
+                    return Ok(true);
+                };
+                Some(constraint)
+            } else {
+                None
+            };
             self.editor.begin_gesture("Transform gizmo");
             self.drag = Some(Drag {
                 id: object.id.clone(),
+                surface,
                 axis,
-                start: object.transform,
+                start: transform,
                 pointer,
                 screen_axis: geometry.screen,
                 tool: self.workspace.tool,
+                move_axis,
                 ring: ring_hit(&geometry.segments, pointer)
-                    .filter(|(d, _)| *d <= 7.0)
+                    .filter(|(d, _)| *d <= 9.0)
                     .map(|(_, angle)| RingDrag {
                         segments: geometry.segments.clone(),
                         last_angle: angle,
@@ -986,23 +1139,25 @@ impl App {
             } else if hovered {
                 Color32::from_rgb(255, 230, 135)
             } else if dragging {
-                base.gamma_multiply(0.55)
+                base.gamma_multiply(0.5)
             } else {
                 base
             };
             let line_width = if active {
-                3.5
+                4.0
             } else if hovered {
-                3.0
+                3.5
             } else {
-                2.0
+                2.5
             };
             if self.workspace.tool == Tool::Rotate
                 && let Some((point, _, _)) = segments.get(8).or_else(|| segments.first())
             {
+                painter.circle_filled(*point, 10.0, Color32::from_black_alpha(215));
+                painter.circle_stroke(*point, 10.0, egui::Stroke::new(1.0, draw));
                 painter.text(
-                    *point + Vec2::new(8.0, -8.0),
-                    egui::Align2::LEFT_BOTTOM,
+                    *point,
+                    egui::Align2::CENTER_CENTER,
                     ["X", "Y", "Z"][axis],
                     egui::FontId::proportional(12.0),
                     draw,
@@ -1016,32 +1171,44 @@ impl App {
             // apparent ring radius or obscuring nearby axes with a large glow.
             let outline = egui::Stroke::new(line_width + 2.0, Color32::from_black_alpha(160));
             paint_ring(&painter, &paths, outline);
-            if screen.length() >= 2.0 && self.workspace.tool != Tool::Rotate {
-                painter.line_segment([center, end], outline);
+            if screen.length_sq() >= 1e-8 && self.workspace.tool != Tool::Rotate {
+                painter.line_segment([center + screen.normalized() * 10.0, end], outline);
             }
             paint_ring(&painter, &paths, egui::Stroke::new(line_width, draw));
-            if (screen.length() >= 2.0 || axis == 3) && self.workspace.tool != Tool::Rotate {
-                if self.workspace.tool == Tool::Move {
-                    painter.arrow(center, end - center, egui::Stroke::new(line_width, draw));
-                } else {
-                    painter.line_segment([center, end], egui::Stroke::new(line_width, draw));
+            if (screen.length_sq() >= 1e-8 || axis == 3) && self.workspace.tool != Tool::Rotate {
+                let direction = screen.normalized();
+                if axis != 3 {
+                    painter.line_segment(
+                        [center + direction * 10.0, end],
+                        egui::Stroke::new(line_width, draw),
+                    );
                 }
-                let handle_rect = Rect::from_center_size(end, Vec2::splat(10.0));
                 if self.workspace.tool == Tool::Move {
-                    painter.circle_filled(end, 3.0, draw);
+                    let side = Vec2::new(-direction.y, direction.x) * 6.5;
+                    painter.add(egui::Shape::convex_polygon(
+                        vec![
+                            end + direction * 3.0,
+                            end - direction * 13.0 + side,
+                            end - direction * 13.0 - side,
+                        ],
+                        draw,
+                        egui::Stroke::new(1.5, Color32::from_black_alpha(210)),
+                    ));
                 } else {
-                    painter.rect_filled(handle_rect, 0.0, draw);
-                }
-                if self.workspace.tool == Tool::Scale {
+                    let handle = Rect::from_center_size(
+                        end,
+                        Vec2::splat(if axis == 3 { 14.0 } else { 12.0 }),
+                    );
+                    painter.rect_filled(handle, 1.0, draw);
                     painter.rect_stroke(
-                        handle_rect,
-                        0.0,
-                        egui::Stroke::new(1.0, Color32::from_black_alpha(180)),
+                        handle,
+                        1.0,
+                        egui::Stroke::new(1.5, Color32::from_black_alpha(210)),
                         egui::StrokeKind::Outside,
                     );
                 }
                 painter.text(
-                    end + Vec2::new(8.0, -10.0),
+                    end + Vec2::new(12.0, -12.0),
                     egui::Align2::LEFT_CENTER,
                     ["X", "Y", "Z", "All"][axis],
                     egui::FontId::proportional(12.0),
@@ -1055,33 +1222,37 @@ impl App {
                 && drag.id == object.id
             {
                 let delta = pointer - drag.pointer;
-                let mut next = self.editor.scene().clone();
-                if let Some(object) = next.objects.iter_mut().find(|o| o.id == drag.id) {
-                    let amount = delta.dot(drag.screen_axis.normalized());
-                    let amount = match drag.tool {
-                        Tool::Move => amount / drag.screen_axis.length(),
-                        Tool::Rotate => {
-                            if let Some(ring) = &mut drag.ring {
-                                if let Some((_, angle)) = ring_hit(&ring.segments, pointer) {
-                                    ring.angle += angle_delta(angle, ring.last_angle);
-                                    ring.last_angle = angle;
-                                }
-                                ring.angle.to_degrees()
-                            } else {
-                                amount
+                let amount = delta.dot(drag.screen_axis.normalized());
+                let amount = match drag.tool {
+                    Tool::Move => {
+                        let Some(delta) =
+                            drag.move_axis.as_ref().and_then(|axis| axis.delta(pointer))
+                        else {
+                            continue;
+                        };
+                        delta
+                    }
+                    Tool::Rotate => {
+                        if let Some(ring) = &mut drag.ring {
+                            if let Some((_, angle)) = ring_hit(&ring.segments, pointer) {
+                                ring.angle += angle_delta(angle, ring.last_angle);
+                                ring.last_angle = angle;
                             }
+                            ring.angle.to_degrees()
+                        } else {
+                            amount
                         }
-                        Tool::Scale => (amount * 0.01).exp().clamp(0.01, 100.0),
-                    };
-                    object.transform = self.workspace.snapping.transform(
-                        drag.start,
-                        drag.tool,
-                        drag.axis,
-                        amount,
-                        ui.input(|i| i.modifiers.ctrl),
-                    );
-                }
-                let r = self.editor.apply("Transform gizmo", next);
+                    }
+                    Tool::Scale => (amount * 0.01).exp().clamp(0.01, 100.0),
+                };
+                let transform = self.workspace.snapping.transform(
+                    drag.start,
+                    drag.tool,
+                    drag.axis,
+                    amount,
+                    ui.input(|i| i.modifiers.ctrl),
+                );
+                let r = self.editor.set_selected_transform(transform);
                 self.result(r);
             }
         }
@@ -1157,18 +1328,151 @@ mod tests {
         assert!((flat - Vec3::new(2.5, 2.5, 0.0)).length() < 0.001);
     }
     #[test]
-    fn picking_defaults_to_owner_and_surface_inspection_is_explicit() {
+    fn picking_preserves_submesh_and_alt_explicitly_selects_owner() {
         let pick = bozzard_editor::Pick {
             object: "model".into(),
             surface: Some(2),
         };
         assert_eq!(
-            transform_pick(Some(pick.clone()), false).unwrap().surface,
+            transform_pick(Some(pick.clone()), true).unwrap().surface,
             None
         );
-        assert_eq!(transform_pick(Some(pick.clone()), true), Some(pick));
+        assert_eq!(transform_pick(Some(pick.clone()), false), Some(pick));
         assert_eq!(transform_pick(None, false), None);
     }
+    #[test]
+    fn viewport_rays_select_distinct_imported_surfaces_without_editing_the_scene() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/model-lab.json");
+        let mut editor = Editor::open(&path).unwrap();
+        let original = editor.scene().clone();
+        let projection = editor.render(Layer::ThreeD, 1.5).unwrap().view_projection;
+        let mut hits = Vec::new();
+        for y in -9..=9 {
+            for x in -9..=9 {
+                if let Some(pick) = editor
+                    .pick_surface_with_projection(
+                        Layer::ThreeD,
+                        projection,
+                        [x as f32 / 10.0, y as f32 / 10.0],
+                    )
+                    .unwrap()
+                    && pick.surface.is_some()
+                    && !hits.contains(&pick)
+                {
+                    hits.push(pick);
+                }
+            }
+        }
+        assert!(
+            hits.len() >= 2,
+            "fixture must exercise more than one surface"
+        );
+        for pick in hits {
+            editor
+                .select_pick(transform_pick(Some(pick.clone()), false))
+                .unwrap();
+            assert_eq!(editor.selected.as_deref(), Some(pick.object.as_str()));
+            assert_eq!(
+                editor.selected_surface().unwrap().index,
+                pick.surface.unwrap()
+            );
+            editor
+                .select_pick(transform_pick(Some(pick), true))
+                .unwrap();
+            assert!(editor.selected_surface().is_none());
+        }
+        assert_eq!(editor.scene(), &original);
+        assert!(editor.undo_label().is_none());
+    }
+
+    #[test]
+    fn axis_drag_is_exact_in_both_projections_with_scaled_mirrored_parents() {
+        let rect = Rect::from_min_size(Pos2::new(30.0, 50.0), Vec2::new(1000.0, 700.0));
+        let view =
+            glam::camera::rh::view::look_at_mat4(Vec3::new(4.0, 3.0, 9.0), Vec3::ZERO, Vec3::Y);
+        let lenses = [
+            Camera::Perspective {
+                vertical_fov_degrees: 60.0,
+                near: 0.1,
+                far: 1000.0,
+            },
+            Camera::Orthographic {
+                vertical_size: 12.0,
+                near: 0.1,
+                far: 1000.0,
+            },
+        ];
+        let origin = Vec3::new(0.7, -0.2, 1.0);
+        let parent = Mat4::from_rotation_y(0.6) * Mat4::from_scale(Vec3::new(-2.0, 3.0, 0.5));
+        for lens in lenses {
+            let projection = lens.projection(rect.aspect_ratio()).unwrap() * view;
+            let project = |p: Vec3| {
+                let p = projection.project_point3(p);
+                Pos2::new(
+                    rect.left() + (p.x + 1.0) * rect.width() * 0.5,
+                    rect.top() + (1.0 - p.y) * rect.height() * 0.5,
+                )
+            };
+            for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+                let axis = parent.transform_vector3(axis);
+                let drag =
+                    AxisDrag::new(origin, axis, projection, rect, project(origin + axis * 0.4))
+                        .unwrap();
+                for amount in [-0.8, 0.0, 1.3] {
+                    let delta = drag.delta(project(origin + axis * (0.4 + amount))).unwrap();
+                    assert!(
+                        (delta - amount).abs() < 0.001,
+                        "{axis:?}: expected {amount}, got {delta}"
+                    );
+                }
+                let derivative = projected_axis(projection, rect, origin, axis);
+                let numerical =
+                    (project(origin + axis * 0.0005) - project(origin - axis * 0.0005)) / 0.001;
+                assert!((derivative - numerical).length() < 0.3);
+            }
+        }
+        let projection = Camera::Perspective {
+            vertical_fov_degrees: 60.0,
+            near: 0.1,
+            far: 1000.0,
+        }
+        .projection(rect.aspect_ratio())
+        .unwrap();
+        assert!(
+            AxisDrag::new(
+                Vec3::new(0.0, 0.0, -5.0),
+                Vec3::Z,
+                projection,
+                rect,
+                rect.center()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn axis_shafts_are_pickable_even_when_a_local_unit_is_subpixel() {
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(300.0));
+        let center = rect.center();
+        let axes = [GizmoAxis {
+            axis: 0,
+            screen: Vec2::new(0.1, 0.0),
+            base: Color32::RED,
+            end: center + Vec2::new(88.0, 0.0),
+            segments: Vec::new(),
+        }];
+        assert_eq!(
+            nearest_axis(&axes, rect, center, center + Vec2::new(45.0, 7.0)),
+            Some(0)
+        );
+        assert_eq!(
+            nearest_axis(&axes, rect, center, center + Vec2::new(45.0, 12.0)),
+            None
+        );
+        assert_eq!(nearest_axis(&axes, rect, center, center), None);
+    }
+
     #[test]
     fn transform_keys_ignore_modifiers_repeats_and_releases() {
         for (key, tool) in [
@@ -1200,7 +1504,12 @@ mod tests {
             segments: Vec::new(),
         };
         assert_eq!(
-            nearest_axis(&[axis], rect, Pos2::new(100.0, 100.0)),
+            nearest_axis(
+                &[axis],
+                rect,
+                Pos2::new(100.0, 100.0),
+                Pos2::new(100.0, 100.0)
+            ),
             Some(3)
         );
         axis = GizmoAxis {
@@ -1210,7 +1519,15 @@ mod tests {
             end: Pos2::new(100.0, 100.0),
             segments: vec![(Pos2::new(20.0, 20.0), Pos2::new(30.0, 20.0), 0.0)],
         };
-        assert_eq!(nearest_axis(&[axis], rect, Pos2::new(100.0, 100.0)), None);
+        assert_eq!(
+            nearest_axis(
+                &[axis],
+                rect,
+                Pos2::new(100.0, 100.0),
+                Pos2::new(100.0, 100.0)
+            ),
+            None
+        );
     }
     #[test]
     fn fly_tab_is_removed_before_focus_navigation_and_ignores_repeats() {
@@ -1298,11 +1615,26 @@ mod tests {
             axis(0, Pos2::new(30.0, 50.0), Pos2::new(170.0, 50.0)),
             axis(1, Pos2::new(80.0, 10.0), Pos2::new(80.0, 150.0)),
         ];
-        assert_eq!(nearest_axis(&axes, rect, Pos2::new(85.0, 51.0)), Some(0));
-        assert_eq!(nearest_axis(&axes, rect, Pos2::new(81.0, 55.0)), Some(1));
-        assert_eq!(nearest_axis(&axes, rect, Pos2::new(80.0, 50.0)), Some(0));
-        assert_eq!(nearest_axis(&axes, rect, Pos2::new(140.0, 140.0)), None);
-        assert_eq!(nearest_axis(&axes, rect, Pos2::new(80.0, -1.0)), None);
+        assert_eq!(
+            nearest_axis(&axes, rect, rect.center(), Pos2::new(85.0, 51.0)),
+            Some(0)
+        );
+        assert_eq!(
+            nearest_axis(&axes, rect, rect.center(), Pos2::new(81.0, 55.0)),
+            Some(1)
+        );
+        assert_eq!(
+            nearest_axis(&axes, rect, rect.center(), Pos2::new(80.0, 50.0)),
+            Some(0)
+        );
+        assert_eq!(
+            nearest_axis(&axes, rect, rect.center(), Pos2::new(140.0, 140.0)),
+            None
+        );
+        assert_eq!(
+            nearest_axis(&axes, rect, rect.center(), Pos2::new(80.0, -1.0)),
+            None
+        );
     }
     #[test]
     fn ring_paths_join_neighbors_but_do_not_bridge_clipped_gaps() {

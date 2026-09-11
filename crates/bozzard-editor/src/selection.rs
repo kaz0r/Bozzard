@@ -68,18 +68,9 @@ impl Editor {
         let AssetData::Mesh(mesh) = data.as_ref() else {
             anyhow::bail!("asset is not a mesh");
         };
-        let part = mesh.parts.get(index).context("surface no longer exists")?;
-        let mut bounds = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
-        let indices = mesh
-            .indices
-            .get(part.start as usize..part.start as usize + part.count as usize)
-            .context("invalid surface indices")?;
-        ensure!(!indices.is_empty(), "empty surface");
-        for index in indices {
-            let point = Vec3::from_slice(&mesh.vertices[*index as usize][..3]);
-            bounds[0] = bounds[0].min(point);
-            bounds[1] = bounds[1].max(point);
-        }
+        let bounds = mesh
+            .part_bounds(index)
+            .context("surface no longer exists or is empty")?;
         self.surface_selection = Some(SurfaceSelection {
             object: object.id.clone(),
             asset: asset.clone(),
@@ -125,6 +116,11 @@ impl Editor {
             part: mesh.parts.get(selection.index)?,
         })
     }
+    pub fn selected_surface_pivot(&self) -> Option<Vec3> {
+        self.selected_surface()?;
+        let bounds = self.surface_selection.as_ref()?.bounds;
+        Some(bounds[0] * 0.5 + bounds[1] * 0.5)
+    }
     pub fn selected_surface_corners(&self, layer: Layer) -> Result<Option<[Vec3; 8]>> {
         if self.selected_surface().is_none() {
             return Ok(None);
@@ -135,7 +131,10 @@ impl Editor {
         }
         let selection = self.surface_selection.as_ref().unwrap();
         let demo = SceneDemo::new(&self.scene)?;
-        let transform = demo.instance.global_transforms(&demo.app.world)?[&object.id];
+        let transform = demo.instance.global_transforms(&demo.app.world)?[&object.id]
+            * self
+                .selected_material_override()?
+                .matrix(self.selected_surface_pivot().unwrap());
         Ok(Some(std::array::from_fn(|i| {
             transform.transform_point3(Vec3::new(
                 selection.bounds[i & 1].x,
@@ -239,10 +238,59 @@ impl Editor {
                         let AssetData::Mesh(mesh) = entry.data()? else {
                             return None;
                         };
-                        let hit = if reference {
-                            entry.raycast_reference(o, d)
+                        // ponytail: reuse the immutable BVH for each moved part; per-part BVHs
+                        // are only needed if many edited surfaces make picking measurably slow.
+                        let edited: Vec<_> = drawable
+                            .material_overrides
+                            .iter()
+                            .filter_map(|v| {
+                                let part = mesh.parts.get(v.surface as usize)?;
+                                (part.source_key == v.source && v.transform != Transform::default())
+                                    .then_some((v, part))
+                            })
+                            .collect();
+                        let hit = if edited.is_empty() {
+                            if reference {
+                                entry.raycast_reference(o, d)
+                            } else {
+                                entry.raycast(o, d)
+                            }
                         } else {
-                            entry.raycast(o, d)
+                            let mut hit = entry.raycast_filtered(
+                                o,
+                                d,
+                                |triangle| {
+                                    !edited.iter().any(|(_, part)| {
+                                        (part.start..part.start + part.count)
+                                            .contains(&(triangle * 3))
+                                    })
+                                },
+                                reference,
+                            );
+                            for (value, part) in edited {
+                                let bounds = mesh.part_bounds(value.surface as usize)?;
+                                let inverse =
+                                    value.matrix(bounds[0] * 0.5 + bounds[1] * 0.5).inverse();
+                                let candidate = entry.raycast_filtered(
+                                    inverse.transform_point3(o),
+                                    inverse.transform_vector3(d),
+                                    |triangle| {
+                                        (part.start..part.start + part.count)
+                                            .contains(&(triangle * 3))
+                                    },
+                                    reference,
+                                );
+                                if let Some(candidate) = candidate
+                                    && hit.is_none_or(|old| {
+                                        candidate.distance < old.distance
+                                            || (candidate.distance == old.distance
+                                                && candidate.triangle < old.triangle)
+                                    })
+                                {
+                                    hit = Some(candidate);
+                                }
+                            }
+                            hit
                         }?;
                         let index = hit.triangle as usize * 3;
                         Some((
@@ -312,6 +360,133 @@ mod tests {
     fn projection() -> Mat4 {
         glam::camera::rh::proj::directx::orthographic(-12.0, 12.0, -8.0, 8.0, 0.1, 100.0)
             * glam::camera::rh::view::look_at_mat4(Vec3::new(0.0, 0.0, 10.0), Vec3::ZERO, Vec3::Y)
+    }
+
+    #[test]
+    fn edited_surface_pivots_bounds_and_bvh_picking_follow_parented_transforms() {
+        let fixture = Fixture::new();
+        let mut editor = fixture.editor();
+        let mut scene = editor.scene.clone();
+        let mut parent = scene.objects[0].clone();
+        parent.id = "parent".into();
+        parent.drawable = None;
+        parent.transform.rotation_degrees = [12., 27., -18.];
+        parent.transform.scale = [-2., 1.5, 0.7];
+        scene.objects[0].parent = Some(parent.id.clone());
+        scene.objects.push(parent);
+        editor.apply("Parent model", scene).unwrap();
+        editor.select_object(Some("model".into()));
+        editor.select_surface(1).unwrap();
+        let sibling = editor.selected_surface_corners(Layer::ThreeD).unwrap();
+        editor.select_surface(0).unwrap();
+        let original = editor.scene.clone();
+        let data = editor
+            .assets
+            .get(editor.assets.handle("model").unwrap())
+            .unwrap()
+            .shared_data()
+            .unwrap();
+        let pivot = editor.selected_surface_pivot().unwrap();
+        let owner = editor.scene.global_transforms().unwrap()["model"];
+        assert_eq!(
+            editor.selected_transform_parent().unwrap(),
+            owner * Mat4::from_translation(pivot)
+        );
+        let mut transform = Transform {
+            translation: [6., 2., 4.],
+            rotation_degrees: [20., 25., 35.],
+            scale: [-0.7, 1.4, 1.],
+        };
+        editor.begin_gesture("Move surface");
+        for x in [4., 5., 6.] {
+            transform.translation[0] = x;
+            editor.set_selected_transform(transform).unwrap();
+        }
+        editor.finish_gesture();
+        assert_eq!(
+            editor.selected_object().unwrap().transform,
+            original.objects[0].transform
+        );
+        let value = editor.selected_material_override().unwrap();
+        let model = owner * value.matrix(pivot);
+        let center = model.transform_point3(pivot);
+        let old_center = owner.transform_point3(pivot);
+        let old_normal = owner
+            .inverse()
+            .transpose()
+            .transform_vector3(Vec3::Z)
+            .normalize();
+        let old_view = glam::camera::rh::proj::directx::orthographic(-8., 8., -8., 8., 0.1, 100.)
+            * glam::camera::rh::view::look_at_mat4(
+                old_center + old_normal * 10.,
+                old_center,
+                Vec3::Y,
+            );
+        assert!(
+            editor
+                .pick_surface_with_projection(Layer::ThreeD, old_view, [0., 0.])
+                .unwrap()
+                .is_none(),
+            "old surface location still intercepts clicks"
+        );
+        let corners = editor
+            .selected_surface_corners(Layer::ThreeD)
+            .unwrap()
+            .unwrap();
+        assert!(((corners[0] + corners[7]) * 0.5 - center).length() < 1e-5);
+        let framing = editor
+            .frame_bounds(Layer::ThreeD, Some("model"))
+            .unwrap()
+            .unwrap();
+        assert!((0..3).all(|a| center[a] >= framing[0][a] && center[a] <= framing[1][a]));
+        let normal = model
+            .inverse()
+            .transpose()
+            .transform_vector3(Vec3::Z)
+            .normalize();
+        let projection = glam::camera::rh::proj::directx::orthographic(-8., 8., -8., 8., 0.1, 100.)
+            * glam::camera::rh::view::look_at_mat4(center + normal * 10., center, Vec3::Y);
+        assert_eq!(
+            editor
+                .pick_surface_with_projection(Layer::ThreeD, projection, [0., 0.])
+                .unwrap(),
+            Some(Pick {
+                object: "model".into(),
+                surface: Some(0)
+            })
+        );
+        for x in -8..=8 {
+            for y in -8..=8 {
+                let ndc = [x as f32 / 10., y as f32 / 10.];
+                assert_eq!(
+                    editor
+                        .pick_surface_with_projection(Layer::ThreeD, projection, ndc)
+                        .unwrap(),
+                    editor
+                        .pick_surface_reference_with_projection(Layer::ThreeD, projection, ndc)
+                        .unwrap()
+                );
+            }
+        }
+        editor.select_surface(1).unwrap();
+        assert_eq!(
+            editor.selected_surface_corners(Layer::ThreeD).unwrap(),
+            sibling
+        );
+        editor.select_surface(0).unwrap();
+        editor.undo().unwrap();
+        assert_eq!(editor.scene, original);
+        editor.redo().unwrap();
+        assert_eq!(editor.selected_transform().unwrap(), transform);
+        assert!(Arc::ptr_eq(
+            &data,
+            &editor
+                .assets
+                .get(editor.assets.handle("model").unwrap())
+                .unwrap()
+                .shared_data()
+                .unwrap()
+        ));
     }
 
     #[test]

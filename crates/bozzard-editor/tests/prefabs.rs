@@ -278,6 +278,20 @@ fn dependencies_rebase_import_bind_colliding_ids_and_are_protected_in_history() 
     let image_id = e.import(&image).unwrap();
     e.selected = Some("root".into());
     e.assign_asset_to_selected(&image_id).unwrap();
+    let model = e
+        .import(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../examples/demo/scenes/assets/courier.gltf"),
+        )
+        .unwrap();
+    e.assign_asset_to_selected(&model).unwrap();
+    e.select_surface(0).unwrap();
+    let mut surface = e.selected_material_override().unwrap();
+    surface.texture = Some(bozzard_scene::Texture::Asset(image_id.clone()));
+    surface.transform.translation = [0.5, 0.1, 0.];
+    surface.uv_scale = [2., 3.];
+    e.set_selected_material_override(surface.clone()).unwrap();
+    e.select_object(Some("root".into()));
     let asset = run(&mut e, PrefabCommand::Create);
     let definition = source_path(&e, &asset);
     let project = t.0.join("other");
@@ -313,12 +327,29 @@ fn dependencies_rebase_import_bind_colliding_ids_and_are_protected_in_history() 
         panic!("missing image")
     };
     let bound = bound.clone();
+    surface.texture = Some(bozzard_scene::Texture::Asset(bound.clone()));
+    assert_eq!(
+        object(&other, &root_id)
+            .drawable
+            .as_ref()
+            .unwrap()
+            .material_overrides,
+        vec![surface.clone()]
+    );
     assert!(other.remove_asset(&bound).is_err());
     assert!(other.remove_asset(&imported).is_err());
     other.save(&project.join("deeper/scene.json")).unwrap();
     let mut reopened = Editor::open(&other.path).unwrap();
     run(&mut reopened, PrefabCommand::Refresh { asset: imported });
     assert_eq!(reopened.scene().prefabs.len(), 1);
+    assert_eq!(
+        object(&reopened, &root_id)
+            .drawable
+            .as_ref()
+            .unwrap()
+            .material_overrides,
+        vec![surface]
+    );
 }
 
 #[test]

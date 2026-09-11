@@ -45,7 +45,7 @@ Bloom and FXAA run in the shared display path; raw diagnostics bypass them.
 
 ## Fog
 
-Open **Scene lighting → Fog (3D)** in the Inspector. Distance density controls
+Open **Scene Settings → Fog (3D)**. Distance density controls
 uniform haze after Start distance; Height density adds a ground layer below
 Base height and decays above it according to Height falloff. Both layers can
 be combined; zero densities leave surfaces unchanged. Settings save with the
@@ -59,17 +59,19 @@ and raw diagnostic rendering.
 
 ## Transform controls
 
-- Click a model to select its owner; **Alt-click** inspects a source surface.
+- Click imported geometry to inspect its surface; **Alt-click** selects its owner.
 - Hover the idle viewport and press **W / E / R** for Move / Rotate / Scale.
-- Drag arrows to move, colored rings to rotate, or axis squares to resize.
+- Drag arrow tips/shafts to move, colored rings to rotate, or axis squares/shafts to resize.
+- Gizmos stay visible while right-dragging or flying; navigation disables editing, not drawing.
 - In Scale mode, drag the white **All** center up/right to enlarge uniformly,
   down/left to shrink. Mirrored axes keep their sign.
 - **Snap** sets increments; hold **Ctrl** to invert snapping temporarily.
 - **Escape** cancels a drag; completed drags are one undoable action.
 
-Tool shortcuts do not intercept typing, Play or fly-navigation movement. Source
-surfaces remain material-selection entries, not independently editable scene
-transforms; authored child objects can be transformed normally.
+Tool shortcuts do not intercept typing, Play or fly-navigation movement. Imported
+surfaces have per-instance transforms around their source bounds center, plus texture,
+UV repeat and material overrides in Properties. Source assets stay unchanged;
+components and colliders remain attached to the owner. See [submesh editing](assets.md#editing-a-submesh).
 
 ## Validation
 

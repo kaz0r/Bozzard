@@ -7,6 +7,16 @@ use bozzard_scene::{Layer, Mesh, Texture};
 #[path = "fog_tests.rs"]
 mod fog_tests;
 
+fn render_texture(texture: Texture) -> TextureKind {
+    match texture {
+        Texture::White => TextureKind::White,
+        Texture::Checker => TextureKind::Checker,
+        Texture::Normals => TextureKind::Normals,
+        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
+        Texture::Toon => TextureKind::Toon,
+        Texture::Asset(id) => TextureKind::Imported(id),
+    }
+}
 pub fn extract(
     demo: &SceneDemo,
     assets: &bozzard_assets::AssetStore,
@@ -121,6 +131,9 @@ pub fn extract(
                         .map(|value| bozzard_render::SurfaceMaterialOverride {
                             surface: value.surface,
                             source: value.source,
+                            transform: value.transform.matrix(),
+                            texture: value.texture.map(render_texture),
+                            uv_scale: value.uv_scale,
                             tint: value.tint,
                             metallic: value.metallic,
                             roughness: value.roughness,
@@ -128,14 +141,7 @@ pub fn extract(
                         .collect(),
                     tint: drawable.color,
                     uv_scale: drawable.uv_scale,
-                    texture: match drawable.texture {
-                        Texture::White => TextureKind::White,
-                        Texture::Checker => TextureKind::Checker,
-                        Texture::Normals => TextureKind::Normals,
-                        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
-                        Texture::Toon => TextureKind::Toon,
-                        Texture::Asset(id) => TextureKind::Imported(id),
-                    },
+                    texture: render_texture(drawable.texture),
                     lit: layer == Layer::ThreeD,
                 },
             })

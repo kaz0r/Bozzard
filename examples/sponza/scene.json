@@ -1,131 +1,40 @@
 {
-  "version": 1,
-  "name": "Sponza rendering benchmark",
-  "views": {
-    "3d": "camera",
-    "2d": "camera-2d"
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6000001,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
   },
-  "assets": {
-    "sponza": {
-      "kind": "mesh",
-      "path": "../../work/sponza/glTF/Sponza.gltf"
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
     }
-  },
-  "objects": [
-    {
-      "id": "camera",
-      "name": "Atrium camera",
-      "transform": {
-        "translation": [
-          10,
-          2.4,
-          0.7
-        ],
-        "rotation_degrees": [
-          -3,
-          90,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "camera": {
-        "projection": "perspective",
-        "vertical_fov_degrees": 65,
-        "near": 0.05,
-        "far": 100
-      }
-    },
-    {
-      "id": "camera-2d",
-      "name": "Camera 2D",
-      "transform": {
-        "translation": [
-          0,
-          0,
-          10
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "camera": {
-        "projection": "orthographic",
-        "vertical_size": 10,
-        "near": 0.1,
-        "far": 100
-      }
-    },
-    {
-      "id": "sponza",
-      "name": "Sponza",
-      "transform": {
-        "translation": [
-          0,
-          0,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": {
-          "asset": "sponza"
-        },
-        "texture": "white",
-        "color": [
-          1,
-          1,
-          1
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      }
-    }
-  ],
-  "lighting": {
-    "sun_direction": [
-      0.3,
-      0.85,
-      0.25
-    ],
-    "sun_color": [
-      1.0,
-      0.93,
-      0.82
-    ],
-    "sun_intensity": 4.0,
-    "ambient_color": [
-      0.7,
-      0.8,
-      1.0
-    ],
-    "ambient_intensity": 0.02,
-    "shadows": true,
-    "shadow_resolution": 4096,
-    "shadow_bias": 0.005,
-    "shadow_normal_bias": 0.01
   },
   "environment": {
     "zenith": [
@@ -145,5 +54,239 @@
     ],
     "intensity": 0.65,
     "background": true
+  },
+  "display": {
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.15,
+      "threshold": 1.0,
+      "scatter": 0.7
+    },
+    "exposure_ev": 0.0,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 4096,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.3,
+      0.85,
+      0.25
+    ],
+    "sun_color": [
+      0.6594484,
+      0.49271068,
+      0.23069453
+    ],
+    "sun_intensity": 4.0,
+    "ambient_color": [
+      0.14649384,
+      0.31134477,
+      0.6410471
+    ],
+    "ambient_intensity": 0.02
+  },
+  "version": 1,
+  "name": "Sponza rendering benchmark",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Atrium camera",
+      "transform": {
+        "translation": [
+          5.834454,
+          1.3868582,
+          0.259669
+        ],
+        "rotation_degrees": [
+          -3.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 65.0,
+        "near": 0.05,
+        "far": 100.0
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 10.0,
+        "near": 0.1,
+        "far": 100.0
+      }
+    },
+    {
+      "id": "object-1",
+      "name": "sponza",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "sponza"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "object-2",
+      "name": "Cube",
+      "transform": {
+        "translation": [
+          -4.138049,
+          1.4412618,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          52.51439,
+          -53.797413
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.25,
+          0.8,
+          0.7
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        45.0,
+        0.0
+      ]
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.9702431,
+          0.4066752,
+          0.0
+        ],
+        "intensity": 380.0,
+        "range": 0.5,
+        "inner_angle_degrees": 20.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "object-3",
+      "name": "Cube",
+      "transform": {
+        "translation": [
+          3.9410584,
+          1.2104609,
+          1.0941253
+        ],
+        "rotation_degrees": [
+          0.0,
+          53.72944,
+          -33.662766
+        ],
+        "scale": [
+          0.10674611,
+          0.10674611,
+          0.10674611
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7894941,
+          0.26515865,
+          0.01838043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        45.0,
+        -34.0
+      ]
+    }
+  ],
+  "assets": {
+    "sponza": {
+      "kind": "mesh",
+      "path": "../../work/sponza/glTF/Sponza.gltf"
+    }
   }
 }

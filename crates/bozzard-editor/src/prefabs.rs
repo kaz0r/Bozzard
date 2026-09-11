@@ -593,6 +593,11 @@ fn remap(
                 if let Texture::Asset(id) = &mut d.texture {
                     *id = assets[id].clone();
                 }
+                for surface in &mut d.material_overrides {
+                    if let Some(Texture::Asset(id)) = &mut surface.texture {
+                        *id = assets[id].clone();
+                    }
+                }
             }
             o
         })

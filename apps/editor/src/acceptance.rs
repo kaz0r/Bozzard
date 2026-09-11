@@ -1,9 +1,65 @@
 use super::*;
 impl App {
+    pub fn smoke_gizmo_navigation(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        projection: glam::Mat4,
+    ) -> Result<()> {
+        let saved = (
+            self.workspace.tool,
+            self.fly_latched,
+            self.mouse_captured,
+            self.navigation_button,
+        );
+        let original = self.editor.scene().clone();
+        let result = (|| -> Result<()> {
+            for tool in [Tool::Move, Tool::Rotate, Tool::Scale] {
+                for button in [
+                    Some(egui::PointerButton::Secondary),
+                    Some(egui::PointerButton::Middle),
+                    None,
+                ] {
+                    self.workspace.tool = tool;
+                    self.navigation_button = button;
+                    self.fly_latched = button.is_none();
+                    self.mouse_captured = button != Some(egui::PointerButton::Middle);
+                    let ctx = ui.ctx().clone();
+                    let layer = ui.layer_id();
+                    let count =
+                        || ctx.graphics(|g| g.get(layer).map_or(0, |p| p.all_entries().len()));
+                    let before = count();
+                    self.gizmo(ui, rect, projection)?;
+                    ensure!(count() > before + 5, "navigation hid the gizmo geometry");
+                    ensure!(self.drag.is_none(), "navigation started a transform drag");
+                    ensure!(
+                        *self.editor.scene() == original,
+                        "navigation edited the scene"
+                    );
+                }
+            }
+            Ok(())
+        })();
+        (
+            self.workspace.tool,
+            self.fly_latched,
+            self.mouse_captured,
+            self.navigation_button,
+        ) = saved;
+        result?;
+        println!("editor_gizmo_smoke_ok move_rotate_scale_visible_right_middle_fly no_transform");
+        Ok(())
+    }
+
     fn smoke_material_override(&mut self, output: &Path) -> Result<()> {
         let original = self.editor.selected_material_override()?;
         let mut edited = original.clone();
         edited.tint = [1.0, 0.45, 0.4];
+        edited.transform.translation = [0.4, 0.1, 0.1];
+        edited.transform.rotation_degrees = [0., 20., 10.];
+        edited.transform.scale = [1.1, 0.9, 1.];
+        edited.texture = Some(Texture::Checker);
+        edited.uv_scale = [2.; 2];
         if self
             .editor
             .selected_surface()
@@ -36,7 +92,9 @@ impl App {
         // The initial Save As already rebased asset paths into this output directory.
         // Write a sibling document without replacing the live asset/selection identity.
         bozzard_demo::save_document(self.editor.scene(), &output.join("material-scene.json"))?;
-        println!("editor_material_override_smoke_ok undo redo shared_residency scene_save");
+        println!(
+            "editor_material_override_smoke_ok transform texture uv material undo redo shared_residency scene_save"
+        );
         Ok(())
     }
 
@@ -239,6 +297,10 @@ impl App {
                 let result = (|| -> Result<()> {
                     ensure!(!self.error, "viewport error during smoke: {}", self.status);
                     ensure!(
+                        self.smoke_gizmo_verified,
+                        "gizmo navigation check did not run"
+                    );
+                    ensure!(
                         image.size[0] >= 600 && image.size[1] >= 400,
                         "editor screenshot is too small"
                     );
@@ -316,6 +378,10 @@ impl App {
                         return Ok(());
                     }
                     if self.smoke_surface_frame.is_some() {
+                        ensure!(
+                            self.smoke_surface_gizmo_verified,
+                            "submesh gizmo check did not run"
+                        );
                         frame.write_ppm(&output.join("editor-surface.ppm"))?;
                         let surface = self
                             .editor

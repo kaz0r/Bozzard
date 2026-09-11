@@ -28,6 +28,7 @@ mod lights;
 mod loading;
 mod snapping;
 mod surfaces;
+mod theme;
 mod viewport;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,8 +41,11 @@ enum Tool {
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 struct Workspace {
+    scene_path: Option<PathBuf>,
     layer_2d: bool,
     assets_visible: bool,
+    settings_visible: bool,
+    stats_visible: bool,
     colliders_visible: bool,
     gi_visible: bool,
     tool: Tool,
@@ -54,8 +58,11 @@ struct Workspace {
 impl Default for Workspace {
     fn default() -> Self {
         Self {
+            scene_path: None,
             layer_2d: false,
             assets_visible: true,
+            settings_visible: true,
+            stats_visible: false,
             colliders_visible: true,
             gi_visible: false,
             tool: Tool::Move,
@@ -65,6 +72,19 @@ impl Default for Workspace {
             camera: None,
             ortho_zoom: 1.0,
         }
+    }
+}
+
+impl Workspace {
+    fn restore_scene(&mut self, path: &Path) {
+        if self.scene_path.as_deref() != Some(path) {
+            self.pan = [0.0; 2];
+            self.zoom = 1.0;
+            self.camera = None;
+            self.ortho_zoom = 1.0;
+            self.layer_2d = false;
+        }
+        self.scene_path = Some(path.to_owned());
     }
 }
 
@@ -115,6 +135,8 @@ struct App {
     smoke_frames: u32,
     smoke_start: Instant,
     smoke_requested: bool,
+    smoke_gizmo_verified: bool,
+    smoke_surface_gizmo_verified: bool,
     smoke_expected: Option<bozzard_scene::Scene>,
     smoke_selection: Option<String>,
     smoke_surface_frame: Option<u32>,
@@ -146,19 +168,15 @@ impl App {
             device: state.device.clone(),
             queue: state.queue.clone(),
         };
-        let mut style = (*cc.egui_ctx.style_of(egui::Theme::Dark)).clone();
-        style.spacing.item_spacing = Vec2::new(8.0, 8.0);
-        style.visuals = egui::Visuals::dark();
-        style.visuals.selection.bg_fill = Color32::from_rgb(28, 101, 119);
-        cc.egui_ctx.set_style_of(egui::Theme::Dark, style);
-        cc.egui_ctx.set_theme(egui::ThemePreference::Dark);
-        let workspace = if smoke.is_none() {
+        theme::install(&cc.egui_ctx);
+        let mut workspace: Workspace = if smoke.is_none() {
             cc.storage
                 .and_then(|s| eframe::get_value(s, "workspace"))
                 .unwrap_or_default()
         } else {
             Workspace::default()
         };
+        workspace.restore_scene(&editor.path);
         let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb);
         Ok(Self {
             editor,
@@ -201,6 +219,8 @@ impl App {
             smoke_frames: 0,
             smoke_start: Instant::now(),
             smoke_requested: false,
+            smoke_gizmo_verified: false,
+            smoke_surface_gizmo_verified: false,
             smoke_expected: None,
             smoke_selection: None,
             smoke_surface_frame: None,
@@ -357,82 +377,187 @@ impl App {
         Ok(())
     }
     fn toolbar(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("toolbar").show(ui, |ui| {
-            if self.loading.is_some() {
-                ui.disable();
-            }
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("BOZZARD")
-                        .strong()
-                        .color(Color32::from_rgb(80, 218, 198)),
-                );
-                ui.separator();
-                if ui.button("New").clicked() {
-                    self.request(Pending::New);
-                }
-                if ui.button("Open…").clicked() {
-                    self.dialog = Some(files::Dialog::new(files::Kind::Open, &self.editor.path));
-                }
-                if ui.button("Save").clicked() {
-                    self.save_scene(self.editor.path.clone());
-                }
-                if ui.button("Save As…").clicked() {
-                    self.dialog = Some(files::Dialog::new(files::Kind::Save, &self.editor.path));
-                }
-                ui.separator();
-                let editable = self.editor.play.is_none();
-                if ui
-                    .add_enabled(
-                        editable && self.editor.undo_label().is_some(),
-                        egui::Button::new("Undo"),
-                    )
-                    .on_hover_text(self.editor.undo_label().unwrap_or("Nothing to undo"))
-                    .clicked()
-                {
-                    let r = self.editor.undo();
-                    self.result(r);
-                }
-                if ui
-                    .add_enabled(
-                        editable && self.editor.redo_label().is_some(),
-                        egui::Button::new("Redo"),
-                    )
-                    .clicked()
-                {
-                    let r = self.editor.redo();
-                    self.result(r);
-                }
-                ui.separator();
-                if editable {
-                    if ui.button("▶ Play").clicked() {
+        egui::Panel::top("menu-bar")
+            .frame(
+                egui::Frame::new()
+                    .fill(Color32::from_rgb(22, 22, 24))
+                    .inner_margin(4),
+            )
+            .show(ui, |ui| {
+                ui.add_enabled_ui(self.loading.is_none(), |ui| {
+                    egui::MenuBar::new().ui(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("B")
+                                .size(20.0)
+                                .strong()
+                                .color(theme::GREEN),
+                        );
+                        ui.menu_button("File", |ui| {
+                            if ui.button("New scene").clicked() {
+                                self.request(Pending::New);
+                                ui.close();
+                            }
+                            if ui.button("Open scene…").clicked() {
+                                self.dialog =
+                                    Some(files::Dialog::new(files::Kind::Open, &self.editor.path));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui
+                                .add(egui::Button::new("Save").shortcut_text("Ctrl/Cmd+S"))
+                                .clicked()
+                            {
+                                self.save_scene(self.editor.path.clone());
+                                ui.close();
+                            }
+                            if ui.button("Save as…").clicked() {
+                                self.dialog =
+                                    Some(files::Dialog::new(files::Kind::Save, &self.editor.path));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui
+                                .add_enabled(
+                                    self.editor.play.is_none(),
+                                    egui::Button::new("Import asset…"),
+                                )
+                                .clicked()
+                            {
+                                self.dialog = Some(files::Dialog::new(
+                                    files::Kind::Import,
+                                    &self.editor.path,
+                                ));
+                                ui.close();
+                            }
+                        });
+                        ui.menu_button("Edit", |ui| {
+                            ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+                                if ui
+                                    .add_enabled(
+                                        self.editor.undo_label().is_some(),
+                                        egui::Button::new("Undo").shortcut_text("Ctrl/Cmd+Z"),
+                                    )
+                                    .on_hover_text(
+                                        self.editor.undo_label().unwrap_or("Nothing to undo"),
+                                    )
+                                    .clicked()
+                                {
+                                    let r = self.editor.undo();
+                                    self.result(r);
+                                    ui.close();
+                                }
+                                if ui
+                                    .add_enabled(
+                                        self.editor.redo_label().is_some(),
+                                        egui::Button::new("Redo").shortcut_text("Ctrl/Cmd+Shift+Z"),
+                                    )
+                                    .clicked()
+                                {
+                                    let r = self.editor.redo();
+                                    self.result(r);
+                                    ui.close();
+                                }
+                                ui.separator();
+                                ui.add_enabled_ui(
+                                    self.editor.selected_object().is_some()
+                                        && self.editor.selected_surface().is_none(),
+                                    |ui| {
+                                        if ui.button("Rename").clicked() {
+                                            self.begin_hierarchy_rename();
+                                            ui.close();
+                                        }
+                                        if ui.button("Duplicate").clicked() {
+                                            let r = self.editor.duplicate();
+                                            if r.is_ok() {
+                                                self.hierarchy_search.clear();
+                                            }
+                                            self.result(r);
+                                            ui.close();
+                                        }
+                                        if ui.button("Delete").clicked() {
+                                            let r = self.editor.delete();
+                                            self.result(r);
+                                            ui.close();
+                                        }
+                                    },
+                                );
+                            });
+                        });
+                        ui.menu_button("View", |ui| {
+                            ui.checkbox(&mut self.workspace.assets_visible, "Content Browser");
+                            ui.checkbox(&mut self.workspace.settings_visible, "Scene Settings");
+                            ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
+                        });
+                        ui.menu_button("Help", |ui| {
+                            ui.label("Bozzard · Native scene editor");
+                            ui.separator();
+                            ui.label("W / E / R   Move / Rotate / Scale");
+                            ui.label("F / Shift+F   Frame selection / all");
+                            ui.label("Right-drag or Tab   Fly camera");
+                            ui.label("WASD   Fly movement · Shift   Faster");
+                            ui.label("Space / Ctrl   Fly up / down");
+                            ui.label("Middle-drag   Pan · Scroll   Dolly");
+                            ui.label("Click   Inspect imported surface");
+                            ui.label("Alt-click   Select whole model");
+                            ui.label("Escape   Release / cancel / deselect");
+                            ui.label("Drag files into the editor to import");
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.weak("BOZZARD  /  EDITOR");
+                        });
+                    });
+                });
+            });
+        egui::Panel::top("scene-bar").show(ui, |ui| {
+            ui.add_enabled_ui(self.loading.is_none(), |ui| {
+                ui.horizontal(|ui| {
+                    let playing = self.editor.play.is_some();
+                    let left_width = (ui.available_width() * 0.5 - 46.0).max(0.0);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(left_width, 24.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.set_min_width(left_width);
+                            ui.colored_label(theme::ACCENT, "◇");
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(format!(
+                                        "{}{}",
+                                        self.editor.scene().name,
+                                        if self.editor.dirty() { " *" } else { "" }
+                                    ))
+                                    .strong(),
+                                )
+                                .truncate(),
+                            )
+                            .on_hover_text(self.editor.path.display().to_string());
+                        },
+                    );
+                    if ui
+                        .add_enabled(
+                            !playing,
+                            egui::Button::new(egui::RichText::new("▶").color(theme::GREEN)),
+                        )
+                        .on_hover_text("Play · Authored scene stays protected")
+                        .clicked()
+                    {
                         self.gameplay_controls.reset();
                         let r = self.editor.start_play();
                         self.result(r);
                     }
-                } else if ui.button("■ Stop").clicked() {
-                    self.gameplay_controls.reset();
-                    self.editor.stop_play();
-                }
-                ui.separator();
-                ui.selectable_value(&mut self.workspace.layer_2d, false, "3D");
-                ui.selectable_value(&mut self.workspace.layer_2d, true, "2D");
-                ui.checkbox(&mut self.workspace.assets_visible, "Assets");
-            });
-            ui.horizontal(|ui| {
-                let modified = if self.editor.dirty() {
-                    " • modified"
-                } else {
-                    ""
-                };
-                ui.label(format!("{}{}", self.editor.scene().name, modified));
-                ui.weak(self.editor.path.display().to_string());
-                if self.editor.play.is_some() {
-                    ui.colored_label(
-                        Color32::from_rgb(100, 220, 160),
-                        "PLAY MODE · authored scene protected",
-                    );
-                }
+                    if ui
+                        .add_enabled(playing, egui::Button::new("■"))
+                        .on_hover_text("Stop · Escape")
+                        .clicked()
+                    {
+                        self.gameplay_controls.reset();
+                        self.editor.stop_play();
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.small(if playing { "PLAY MODE" } else { "EDIT MODE" });
+                        ui.colored_label(if playing { theme::GREEN } else { theme::ACCENT }, "●");
+                    });
+                });
             });
         });
     }
@@ -463,111 +588,121 @@ impl App {
         {
             self.hierarchy_rename = None;
         }
-        egui::Panel::left("hierarchy")
-            .default_size(225.0)
-            .min_size(160.0)
-            .max_size(420.0)
-            .resizable(true)
-            .show(ui, |ui| {
-                if self.loading.is_some() { ui.disable(); }
-                ui.heading("Hierarchy");
-                ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-                    ui.horizontal(|ui| {
-                        if ui.button("+ Cube").clicked() {
-                            let r = self.editor.create(Mesh::Cube, Layer::ThreeD);
-                            if r.is_ok() {
-                                self.hierarchy_search.clear();
+        if self.loading.is_some() {
+            ui.disable();
+        }
+        theme::panel_title(ui, "Scene Hierarchy");
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
+                ui.menu_button("+ Create", |ui| {
+                    if ui.button("+ Cube").clicked() {
+                        let r = self.editor.create(Mesh::Cube, Layer::ThreeD);
+                        if r.is_ok() {
+                            self.hierarchy_search.clear();
+                            self.workspace.layer_2d = false;
+                        }
+                        self.result(r);
+                        ui.close();
+                    }
+                    if ui.button("+ Sprite").clicked() {
+                        let r = self.editor.create(Mesh::Quad, Layer::TwoD);
+                        if r.is_ok() {
+                            self.hierarchy_search.clear();
+                            self.workspace.layer_2d = true;
+                        }
+                        self.result(r);
+                        ui.close();
+                    }
+                    ui.separator();
+                    for (kind, label) in [
+                        (bozzard_scene::LightKind::Point, "Point light"),
+                        (bozzard_scene::LightKind::Spot, "Spot light"),
+                        (bozzard_scene::LightKind::Directional, "Directional light"),
+                    ] {
+                        if ui.button(label).clicked() {
+                            let result = self.editor.create_light(kind);
+                            if result.is_ok() {
                                 self.workspace.layer_2d = false;
-                            }
-                            self.result(r);
-                        }
-                        if ui.button("+ Sprite").clicked() {
-                            let r = self.editor.create(Mesh::Quad, Layer::TwoD);
-                            if r.is_ok() {
                                 self.hierarchy_search.clear();
-                                self.workspace.layer_2d = true;
                             }
-                            self.result(r);
+                            self.result(result);
+                            ui.close();
                         }
-                    });
-                    ui.menu_button("+ Light", |ui| {
-                        for (kind, label) in [(bozzard_scene::LightKind::Point, "Point light"), (bozzard_scene::LightKind::Spot, "Spot light"), (bozzard_scene::LightKind::Directional, "Directional light")] {
-                            if ui.button(label).clicked() {
-                                let result = self.editor.create_light(kind);
-                                if result.is_ok() { self.workspace.layer_2d = false; self.hierarchy_search.clear(); }
-                                self.result(result);
-                                ui.close();
-                            }
-                        }
-                    });
-                    ui.horizontal(|ui| {
-                        let selected = self.editor.selected_object().is_some() && self.editor.selected_surface().is_none();
-                        if ui.add_enabled(selected, egui::Button::new("Duplicate"))
-                            .on_hover_text("Duplicate selected object and its children · Cmd/Ctrl+D")
-                            .clicked() {
-                            let r = self.editor.duplicate();
-                            if r.is_ok() { self.hierarchy_search.clear(); }
-                            self.result(r);
-                        }
-                        if ui.add_enabled(selected, egui::Button::new("Delete"))
-                            .on_hover_text("Delete selected object and its children · Delete key · Undo to restore")
-                            .clicked() {
-                            let r = self.editor.delete();
-                            self.result(r);
-                        }
-                    });
-                });
-                if ui.add_enabled(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && self.editor.selected_object().is_some() && self.editor.selected_surface().is_none(), egui::Button::new("Rename"))
-                    .on_hover_text("Rename selected object · F2 or Cmd/Ctrl+Enter · Enter applies, Escape cancels")
-                    .clicked()
-                {
-                    self.begin_hierarchy_rename();
-                }
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.hierarchy_search)
-                            .hint_text("Search object, surface or material…")
-                            .desired_width(ui.available_width() - 28.0),
-                    );
-                    if ui.small_button("×").on_hover_text("Clear search").clicked() {
-                        self.hierarchy_search.clear();
                     }
                 });
-                let query = self.hierarchy_search.trim().to_lowercase();
-                let scene = self.editor.scene().clone();
-                self.hierarchy_state.sync_selection(&scene, self.editor.selected.as_deref());
-                self.hierarchy_state.sync_surface_selection(self.editor.selected_surface()
-                    .and_then(|s| self.editor.selected.as_deref().map(|id| (id, s.index))));
-                ui.add_enabled_ui(query.is_empty(), |ui| {
-                    ui.horizontal(|ui| {
-                        if ui.small_button("Expand all").clicked() { self.hierarchy_state.expand_all(); }
-                        if ui.small_button("Collapse all").clicked() { self.hierarchy_state.collapse_all(&scene); }
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.menu_button("···", |ui| {
+                    ui.add_enabled_ui(self.hierarchy_search.trim().is_empty(), |ui| {
+                        if ui.button("Expand all").clicked() {
+                            self.hierarchy_state.expand_all();
+                            ui.close();
+                        }
+                        if ui.button("Collapse all").clicked() {
+                            self.hierarchy_state.collapse_all(self.editor.scene());
+                            ui.close();
+                        }
                     });
-                }).response.on_hover_text("Search includes descendants even in collapsed branches");
-                let mut stack: Vec<_> = scene
-                    .objects
-                    .iter()
-                    .filter(|o| o.parent.is_none())
-                    .rev()
-                    .map(|o| (o, 0usize))
-                    .collect();
-                let mut matches = 0usize;
-                let can_reparent = ui.is_enabled() && self.editor.play.is_none()
-                    && self.drag.is_none() && !self.mouse_captured
-                    && self.hierarchy_rename.is_none() && self.dialog.is_none() && !self.confirm_discard;
-                let mut reparent_request: Option<(String, Option<String>)> = None;
-                if can_reparent {
-                    let root = ui.label("Scene root · drop here to unparent")
-                        .on_hover_text("Preserves world transform · Undo to restore parent");
-                    if root.dnd_hover_payload::<HierarchyDrag>().is_some() {
-                        ui.painter().rect_stroke(root.rect, 2.0, egui::Stroke::new(1.5, Color32::LIGHT_BLUE), egui::StrokeKind::Inside);
-                    }
-                    if let Some(id) = root.dnd_release_payload::<HierarchyDrag>() {
-                        reparent_request = Some((id.0.clone(), None));
-                    }
-                }
-                egui::ScrollArea::vertical().show(ui, |ui| {
+                })
+                .response
+                .on_hover_text("Hierarchy options");
+                ui.weak(format!("{} entities", self.editor.scene().objects.len()));
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.hierarchy_search)
+                    .hint_text("Search entities or materials…")
+                    .desired_width(ui.available_width() - 28.0),
+            );
+            if ui.small_button("×").on_hover_text("Clear search").clicked() {
+                self.hierarchy_search.clear();
+            }
+        });
+        let query = self.hierarchy_search.trim().to_lowercase();
+        let scene = self.editor.scene().clone();
+        self.hierarchy_state
+            .sync_selection(&scene, self.editor.selected.as_deref());
+        self.hierarchy_state.sync_surface_selection(
+            self.editor
+                .selected_surface()
+                .and_then(|s| self.editor.selected.as_deref().map(|id| (id, s.index))),
+        );
+
+        let mut stack: Vec<_> = scene
+            .objects
+            .iter()
+            .filter(|o| o.parent.is_none())
+            .rev()
+            .map(|o| (o, 0usize))
+            .collect();
+        let mut matches = 0usize;
+        let can_reparent = ui.is_enabled()
+            && self.editor.play.is_none()
+            && self.drag.is_none()
+            && !self.mouse_captured
+            && self.hierarchy_rename.is_none()
+            && self.dialog.is_none()
+            && !self.confirm_discard;
+        let mut reparent_request: Option<(String, Option<String>)> = None;
+        if can_reparent {
+            let root = ui.small("▼  Scene Collection").on_hover_text(
+                "Scene root · Drop here to unparent, preserving world transform · Undo to restore",
+            );
+            if root.dnd_hover_payload::<HierarchyDrag>().is_some() {
+                ui.painter().rect_stroke(
+                    root.rect,
+                    2.0,
+                    egui::Stroke::new(1.5, Color32::LIGHT_BLUE),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            if let Some(id) = root.dnd_release_payload::<HierarchyDrag>() {
+                reparent_request = Some((id.0.clone(), None));
+            }
+        }
+        egui::ScrollArea::vertical().id_salt("hierarchy-tree")
+                    .max_height((ui.available_height() - 24.0).max(1.0)).show(ui, |ui| {
                     while let Some((object, depth)) = stack.pop() {
                         let object_matches = query.is_empty()
                             || object.name.to_lowercase().contains(&query)
@@ -709,47 +844,61 @@ impl App {
                         }
                     }
                 });
-                // Use only the blank region below the rows, never the row gaps
-                // or toolbar, so dropping near a child cannot accidentally unparent it.
-                if can_reparent {
-                    let size = Vec2::new(ui.available_width(), (ui.available_height() - 26.0).max(0.0));
-                    let (_, blank) = ui.allocate_exact_size(size, Sense::hover());
-                    if blank.dnd_hover_payload::<HierarchyDrag>().is_some() {
-                        ui.painter().rect_stroke(blank.rect, 2.0, egui::Stroke::new(1.5, Color32::LIGHT_BLUE), egui::StrokeKind::Inside);
-                        ui.painter().text(blank.rect.center(), egui::Align2::CENTER_CENTER, "Drop to unparent", egui::FontId::proportional(12.0), Color32::LIGHT_BLUE);
-                    }
-                    if let Some(id) = blank.dnd_release_payload::<HierarchyDrag>() {
-                        reparent_request = Some((id.0.clone(), None));
-                    }
-                }
-                if let Some((id, parent)) = reparent_request {
-                    let result = self.editor.reparent(&id, parent.as_deref());
-                    if result.is_ok() {
-                        self.editor.select_object(Some(id));
-                        self.hierarchy_state.reveal(self.editor.scene(), self.editor.selected.as_deref());
-                        self.status = "Parent updated · World transform preserved".into();
-                        self.error = false;
-                    }
-                    self.result(result);
-                }
-                if matches == 0 {
-                    ui.weak(if query.is_empty() {
-                        "Scene is empty. Add a Cube or Sprite above."
-                    } else {
-                        "No matching objects. Clear search to see all."
-                    });
-                } else if !query.is_empty() {
-                    ui.weak(format!("{matches} of {} objects", scene.objects.len()));
-                }
+        // Use only the blank region below the rows, never the row gaps
+        // or toolbar, so dropping near a child cannot accidentally unparent it.
+        if can_reparent {
+            let size = Vec2::new(
+                ui.available_width(),
+                (ui.available_height() - 26.0).max(0.0),
+            );
+            let (_, blank) = ui.allocate_exact_size(size, Sense::hover());
+            if blank.dnd_hover_payload::<HierarchyDrag>().is_some() {
+                ui.painter().rect_stroke(
+                    blank.rect,
+                    2.0,
+                    egui::Stroke::new(1.5, Color32::LIGHT_BLUE),
+                    egui::StrokeKind::Inside,
+                );
+                ui.painter().text(
+                    blank.rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "Drop to unparent",
+                    egui::FontId::proportional(12.0),
+                    Color32::LIGHT_BLUE,
+                );
+            }
+            if let Some(id) = blank.dnd_release_payload::<HierarchyDrag>() {
+                reparent_request = Some((id.0.clone(), None));
+            }
+        }
+        if let Some((id, parent)) = reparent_request {
+            let result = self.editor.reparent(&id, parent.as_deref());
+            if result.is_ok() {
+                self.editor.select_object(Some(id));
+                self.hierarchy_state
+                    .reveal(self.editor.scene(), self.editor.selected.as_deref());
+                self.status = "Parent updated · World transform preserved".into();
+                self.error = false;
+            }
+            self.result(result);
+        }
+        if matches == 0 {
+            ui.weak(if query.is_empty() {
+                "Scene is empty. Add a Cube or Sprite above."
+            } else {
+                "No matching objects. Clear search to see all."
             });
+        } else if !query.is_empty() {
+            ui.weak(format!("{matches} of {} objects", scene.objects.len()));
+        }
     }
     fn assets_panel(&mut self, ui: &mut egui::Ui) {
         if !self.workspace.assets_visible {
             return;
         }
-        egui::Panel::bottom("assets")
-            .default_size(260.0)
-            .min_size(180.0)
+        egui::Panel::bottom("content-browser")
+            .default_size(220.0)
+            .min_size(150.0)
             .max_size(520.0)
             .resizable(true)
             .show(ui, |ui| {
@@ -1066,21 +1215,62 @@ impl eframe::App for App {
                 }
             });
         });
+        egui::Panel::left("entity-workspace")
+            .default_size(290.0)
+            .min_size(260.0)
+            .max_size(420.0)
+            .resizable(true)
+            .show(ui, |ui| {
+                egui::Panel::top("entity-tree")
+                    .default_size(280.0)
+                    .min_size(140.0)
+                    .max_size((ui.available_height() * 0.65).max(140.0))
+                    .resizable(true)
+                    .show(ui, |ui| {
+                        // Panels size to their contents; fill the requested height so the
+                        // scroll area's reserved footer cannot shrink the split each frame.
+                        ui.set_min_height(ui.available_height());
+                        self.hierarchy(ui);
+                    });
+                egui::CentralPanel::default().show(ui, |ui| self.inspector(ui));
+            });
         self.assets_panel(ui);
-        self.hierarchy(ui);
-        self.inspector(ui);
-        egui::CentralPanel::default().show(ui, |ui| {
-            if self.loading.is_some() {
-                ui.disable();
-            }
-            if let Err(error) = self.viewport(ui) {
-                self.result(Err(error));
-                ui.colored_label(
-                    Color32::LIGHT_RED,
-                    "Viewport unavailable. Check the status message.",
-                );
-            }
-        });
+        if self.workspace.settings_visible {
+            egui::Panel::right("scene-settings")
+                .default_size(280.0)
+                .min_size(250.0)
+                .max_size(400.0)
+                .resizable(true)
+                .show(ui, |ui| {
+                    if self.loading.is_some() {
+                        ui.disable();
+                    }
+                    theme::panel_title(ui, "Scene Settings");
+                    egui::ScrollArea::vertical()
+                        .id_salt("scene-settings-scroll")
+                        .show(ui, |ui| {
+                            self.lighting_inspector(ui);
+                        });
+                });
+        }
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(Color32::from_rgb(20, 20, 22))
+                    .inner_margin(4),
+            )
+            .show(ui, |ui| {
+                if self.loading.is_some() {
+                    ui.disable();
+                }
+                if let Err(error) = self.viewport(ui) {
+                    self.result(Err(error));
+                    ui.colored_label(
+                        Color32::LIGHT_RED,
+                        "Viewport unavailable. Check the status message.",
+                    );
+                }
+            });
         self.file_dialog(&ctx);
         self.discard_dialog(&ctx);
         if self.smoke_start.elapsed() > Duration::from_secs(30)
@@ -1091,6 +1281,7 @@ impl eframe::App for App {
         ctx.request_repaint_after(Duration::from_millis(16));
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        self.workspace.scene_path = Some(self.editor.path.clone());
         eframe::set_value(storage, "workspace", &self.workspace);
     }
 }
@@ -1204,6 +1395,21 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod shortcut_tests {
     use super::*;
+
+    #[test]
+    fn workspace_navigation_is_restored_only_for_the_same_scene() {
+        let mut workspace: Workspace =
+            serde_json::from_str(r#"{"zoom":4.0,"layer_2d":true}"#).unwrap();
+        workspace.restore_scene(Path::new("sponza.json"));
+        assert_eq!(workspace.zoom, 1.0);
+        assert!(!workspace.layer_2d);
+        workspace.zoom = 2.0;
+        workspace.restore_scene(Path::new("sponza.json"));
+        assert_eq!(workspace.zoom, 2.0);
+        workspace.restore_scene(Path::new("another.json"));
+        assert_eq!(workspace.zoom, 1.0);
+        assert!(workspace.camera.is_none());
+    }
 
     #[test]
     fn escape_respects_focus_before_egui_clears_it_and_ignores_repeats() {

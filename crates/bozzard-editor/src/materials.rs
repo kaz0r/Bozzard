@@ -2,6 +2,46 @@ use super::*;
 use bozzard_scene::SurfaceMaterialOverride;
 
 impl Editor {
+    /// Shared transform target for numeric controls and viewport gizmos.
+    pub fn selected_transform(&self) -> Result<Transform> {
+        if self.selected_surface().is_some() {
+            Ok(self.selected_material_override()?.transform)
+        } else {
+            Ok(self
+                .selected_object()
+                .context("select an object")?
+                .transform)
+        }
+    }
+    pub fn selected_transform_parent(&self) -> Result<Mat4> {
+        let object = self.selected_object().context("select an object")?;
+        let matrices = self.scene.global_transforms()?;
+        if let Some(pivot) = self.selected_surface_pivot() {
+            Ok(matrices[&object.id] * Mat4::from_translation(pivot))
+        } else {
+            Ok(object
+                .parent
+                .as_ref()
+                .map_or(Mat4::IDENTITY, |p| matrices[p]))
+        }
+    }
+    pub fn set_selected_transform(&mut self, transform: Transform) -> Result<()> {
+        ensure!(self.play.is_none(), "Stop Play before editing transforms");
+        if self.selected_surface().is_some() {
+            let mut value = self.selected_material_override()?;
+            value.transform = transform;
+            self.set_selected_material_override(value)
+        } else {
+            let mut scene = self.scene.clone();
+            scene
+                .objects
+                .iter_mut()
+                .find(|o| Some(&o.id) == self.selected.as_ref())
+                .context("select an object")?
+                .transform = transform;
+            self.apply("Transform", scene)
+        }
+    }
     pub fn selected_material_override(&self) -> Result<SurfaceMaterialOverride> {
         let selected = self
             .selected_surface()
@@ -54,7 +94,7 @@ impl Editor {
             values.push(value);
         }
         values.sort_by_key(|v| v.surface);
-        self.apply("Edit surface material", scene)
+        self.apply("Edit surface", scene)
     }
 }
 
@@ -173,6 +213,13 @@ mod tests {
         value.tint = [0.25, 0.5, 1.0];
         value.metallic = Some(0.6);
         value.roughness = Some(0.15);
+        value.transform = Transform {
+            translation: [2., 1., -3.],
+            rotation_degrees: [15., 45., 5.],
+            scale: [-1., 2., 0.5],
+        };
+        value.texture = Some(Texture::Asset("courier-paint".into()));
+        value.uv_scale = [2., 3.];
         editor
             .set_selected_material_override(value.clone())
             .unwrap();
@@ -220,6 +267,57 @@ mod tests {
     }
 
     #[test]
+    fn assigning_a_texture_targets_only_the_surface_and_tracks_asset_dependencies() {
+        let mut editor = editor();
+        let owner = editor.selected_object().unwrap().clone();
+        editor.assign_asset_to_selected("soft-sprite").unwrap();
+        assert_eq!(
+            editor.selected_material_override().unwrap().texture,
+            Some(Texture::Asset("soft-sprite".into()))
+        );
+        assert_eq!(
+            editor
+                .selected_object()
+                .unwrap()
+                .drawable
+                .as_ref()
+                .unwrap()
+                .texture,
+            owner.drawable.unwrap().texture
+        );
+        assert!(editor.scene.asset_users()["soft-sprite"].contains(&"courier-gltf".into()));
+        let mut repeated = editor.scene.clone();
+        let values = &mut repeated
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "courier-gltf")
+            .unwrap()
+            .drawable
+            .as_mut()
+            .unwrap()
+            .material_overrides;
+        let mut extra = values[0].clone();
+        extra.surface = 1;
+        values.push(extra);
+        assert_eq!(
+            repeated.asset_users()["soft-sprite"]
+                .iter()
+                .filter(|id| *id == "courier-gltf")
+                .count(),
+            1
+        );
+        assert!(editor.remove_asset("soft-sprite").is_err());
+        assert!(editor.assign_asset_to_selected("courier-glb").is_err());
+        editor.undo().unwrap();
+        assert!(editor.selected_material_override().unwrap().is_inherited());
+        editor.redo().unwrap();
+        let mut value = editor.selected_material_override().unwrap();
+        value.texture = Some(Texture::White);
+        editor.set_selected_material_override(value).unwrap();
+        assert!(!editor.selected_material_override().unwrap().is_inherited());
+    }
+
+    #[test]
     fn invalid_edits_are_atomic_and_changing_mesh_clears_its_overrides() {
         let mut editor = editor();
         let inherited = editor.selected_material_override().unwrap();
@@ -236,6 +334,29 @@ mod tests {
                 .set_selected_material_override(stale.clone())
                 .is_err()
         );
+        for transform in [
+            Transform {
+                translation: [f32::NAN, 0., 0.],
+                ..Default::default()
+            },
+            Transform {
+                scale: [0., 1., 1.],
+                ..Default::default()
+            },
+        ] {
+            assert!(editor.set_selected_transform(transform).is_err());
+        }
+        for texture in [
+            Texture::Asset("missing".into()),
+            Texture::Asset("courier-gltf".into()),
+        ] {
+            let mut value = inherited.clone();
+            value.texture = Some(texture);
+            assert!(editor.set_selected_material_override(value).is_err());
+        }
+        let mut bad_uv = inherited.clone();
+        bad_uv.uv_scale = [0., f32::INFINITY];
+        assert!(editor.set_selected_material_override(bad_uv).is_err());
         assert!(!editor.dirty());
         assert!(editor.undo_label().is_none());
         let mut scene = editor.scene.clone();

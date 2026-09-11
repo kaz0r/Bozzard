@@ -52,7 +52,7 @@ impl App {
                         let selected = self.editor.selected.as_deref() == Some(object)
                             && self.editor.selected_surface().is_some_and(|s| s.index == index);
                         let row = ui.selectable_label(selected, label)
-                            .on_hover_text("Imported surface · Double-click to frame · Select the model row to edit its transform or components");
+                            .on_hover_text("Editable surface · W/E/R transforms · Double-click to frame · Select the model row for components");
                         if row.clicked() || row.double_clicked() {
                             self.editor.finish_gesture();
                             let result = self.editor.select_pick(Some(bozzard_editor::Pick {
@@ -111,7 +111,7 @@ impl App {
         let mut whole = false;
         egui::CollapsingHeader::new(format!("Imported surfaces ({})", mesh.parts.len()))
             .id_salt("imported-surfaces")
-            .default_open(true)
+            .default_open(false)
             .show(ui, |ui| {
                 if inactive > 0 {
                     ui.colored_label(
@@ -190,12 +190,34 @@ impl App {
                 }
                 whole = ui.button("Select whole model").clicked();
             });
-            ui.weak("Select the whole model to edit its transform or components.");
+            ui.weak("Edit this surface here or with W / E / R gizmos. Components and physics belong to the whole model.");
             if let Some(original) = &original_override {
                 ui.separator();
                 let mut value = original.clone();
                 let has_saved = saved.iter().any(|v| v.surface as usize == index);
-                reset_material = material_controls(ui, &mut value, part, has_saved);
+                ui.push_id(index, |ui| {
+                    egui::CollapsingHeader::new("TRANSFORM")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            inspector::vector(ui, "Offset", &mut value.transform.translation, 0.05);
+                            inspector::vector(
+                                ui,
+                                "Rotation °",
+                                &mut value.transform.rotation_degrees,
+                                0.5,
+                            );
+                            inspector::vector(ui, "Scale", &mut value.transform.scale, 0.02);
+                            if ui.small_button("Reset transform").clicked() {
+                                value.transform = Transform::default();
+                            }
+                            ui.small(
+                                "Model-space offset; rotate/scale about this surface’s center.",
+                            );
+                        });
+                    ui.separator();
+                    reset_material =
+                        material_controls(ui, &mut value, part, has_saved, self.editor.scene());
+                });
                 if value != *original {
                     material_edit = Some(value);
                 }
@@ -253,15 +275,16 @@ impl App {
         if reset_material {
             self.editor.finish_gesture();
             if let Some(original) = original_override {
-                let value = bozzard_scene::SurfaceMaterialOverride::inherited(
+                let mut value = bozzard_scene::SurfaceMaterialOverride::inherited(
                     original.surface,
                     original.source,
                 );
+                value.transform = original.transform;
                 let result = self.editor.set_selected_material_override(value);
                 self.result(result);
             }
         } else if let Some(value) = material_edit {
-            self.editor.begin_gesture("Edit surface material");
+            self.editor.begin_gesture("Edit surface");
             let result = self.editor.set_selected_material_override(value);
             self.result(result);
         }
@@ -325,6 +348,7 @@ fn material_controls(
     value: &mut bozzard_scene::SurfaceMaterialOverride,
     part: &MeshPart,
     has_saved: bool,
+    scene: &bozzard_scene::Scene,
 ) -> bool {
     let mut reset = false;
     ui.horizontal(|ui| {
@@ -333,6 +357,20 @@ fn material_controls(
             .add_enabled(has_saved, egui::Button::new("Reset override"))
             .on_hover_text("Return this surface to its source material")
             .clicked();
+    });
+    let mut replace = value.texture.is_some();
+    if ui.checkbox(&mut replace, "Override texture / effect")
+        .on_hover_text("Uncheck to inherit. Import an image in Content Browser, then choose it here or Assign to selected.").changed() {
+        value.texture = replace.then_some(Texture::White);
+    }
+    if let Some(texture) = &mut value.texture {
+        inspector::texture_control(ui, texture, scene);
+    }
+    ui.horizontal(|ui| {
+        ui.label("UV repeat");
+        for uv in &mut value.uv_scale {
+            ui.add(egui::DragValue::new(uv).speed(0.05).range(0.001..=1000.0));
+        }
     });
     ui.horizontal(|ui| {
         ui.label("Tint");
@@ -352,7 +390,7 @@ fn material_controls(
             shading.material.roughness,
         );
     } else {
-        ui.weak("Diffuse surface: tint only");
+        ui.weak("Diffuse surface: texture and tint");
     }
     ui.weak("Only this object's surface. Tint and factors multiply the existing maps.");
     reset
