@@ -238,8 +238,9 @@ impl App {
                             positive_vector(ui, "Trigger size", &mut trigger.volume.size, 0.05);
                             use bozzard_scene::TriggerAction;
                             egui::ComboBox::from_id_salt("trigger-action")
-                                .selected_text(match trigger.action { TriggerAction::Collectible => "Collectible", TriggerAction::Checkpoint { .. } => "Checkpoint", TriggerAction::Goal => "Goal" })
+                                .selected_text(match trigger.action { TriggerAction::Sensor => "Sensor (Blueprints)", TriggerAction::Collectible => "Collectible", TriggerAction::Checkpoint { .. } => "Checkpoint", TriggerAction::Goal => "Goal" })
                                 .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut trigger.action, TriggerAction::Sensor, "Sensor (Blueprints)");
                                     ui.selectable_value(&mut trigger.action, TriggerAction::Collectible, "Collectible");
                                     let checkpoint = checkpoint_action(&trigger.action, checkpoint_start);
                                     ui.selectable_value(&mut trigger.action, checkpoint, "Checkpoint");

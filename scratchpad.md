@@ -2,7 +2,23 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — linked prefabs (validated)
+## Current checkpoint — Blueprint object references (validated)
+
+Implemented on `codex/blueprint-object-references` from main `228b3df`. User approved the feature and requested a new branch. Commit this validated subsystem locally; no push requested. Root implemented/reviewed code and tests; GPT-5.6 Luna drafted documentation, then root reconciled remaining old limitations. Pointer untouched throughout.
+
+- Typed Object pins and persistent document-ID references; Self defaults preserve existing action/read graphs through deserialization. New Object Reference, Self, Same Object, Is Valid Object, On Object Enter/Exit and Overlap Count nodes. Actions/read nodes accept explicit or wired targets.
+- Searchable Inspector + inline object pickers, normal history and Play protection. Per-collider events expose Other only in their execution context; old overlap events retain aggregate occupancy behavior. Contacts snapshot before actions, deterministic ID ordering, bounded overlap/event execution.
+- Duplication remaps internal references and preserves external ones. Prefab capture/place/Apply/Refresh and duplicated instance baselines preserve independent bindings. Sources must be self-contained; missing scene references reject edits transactionally. Standalone graph imports clear explicit bindings to None for reassignment. None targets report runtime errors; validity nodes can guard actions.
+- Static GI excludes fixed write targets and descendants. Event-dependent write targets conservatively exclude all static geometry. Sensor trigger mode reports Blueprint contacts without collectible/checkpoint/win effects.
+- `examples/demo/scenes/pressure-plate-lab.json`: two independent gate prefab instances, each plate bound to its own door, WASD player. Enter opens; final exit closes. Source `assets/pressure-gate.prefab.json`. Demo package includes both scene/source; package verification runs its headless simulation. Existing Blueprint Lab is now bundled too.
+
+Validation: 223 workspace tests passed across 29 nonempty suites, including native GPU tests. Four new runtime tests cover legacy normalization, target reads/writes, Other scope/type checks, multiple contacts and disabled collider exit, and independent demo gates/no accidental win/Play reset. Two new prefab integration tests exercise duplicate, Apply, baseline mapping, Undo/Redo, Save/reopen, independent runtime targets, deletion rejection, portable import clearing, and external binding capture rejection. New GI exclusion and synthetic egui Other→Target wiring tests pass. All-target denied-warning Clippy, formatting, diff check and headless dependency audit pass.
+
+Native Metal player regression suite and loaded scene rendering passed; reviewed `work/object-reference-player/loaded-3d.png`. Native editor smoke passed all prior stages plus independent-door runtime check and graph/Inspector capture; reviewed `work/object-reference-editor/editor-object-references.png`. Native screenshot required no mouse movement. Packaged ZIP extracted to a temporary folder: prefab source present, pressure-plate headless runtime passed from empty CWD. After replacing an unsupported arrow glyph in demo graph names, fixture tests and final Clippy passed again.
+
+Evidence: `/tmp/bozzard-objectrefs-{workspace,focused,final-clippy,editor,player,fixture-final}.log`. No hosted CI results for this branch because it has not been pushed. No claim of manual trackpad or Windows/Linux testing. Current first-trail controller feedback still mentions its collectible objective; Sensor plates themselves do not collect or win.
+
+## Previous checkpoint — linked prefabs (validated)
 
 Implemented on `codex/prefab-assets` from merged main `57cd6d4`, feature commit `8b60591`. The branch was pushed and PR [#4](https://github.com/kaz0r/Bozzard/pull/4) opened against `main`; hosted CI is not yet verified. Root owns code/tests/scratchpad; GPT-5.6 Luna (`prefab_docs`) updated README and docs/prefabs.md/assets.md/roadmap.md. Preserve Bozz tribute. Pointer untouched; UI drag tests used synthetic egui events, native captures used the existing smoke harness.
 
@@ -164,9 +180,9 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-User can test this validated Prefab Workshop checkpoint from [PR #4](https://github.com/kaz0r/Bozzard/pull/4); publication succeeded and hosted CI remains unverified. A useful bounded follow-up is an Inspector view of component overrides with **Revert instance**. Dedicated source-hierarchy editing, nested prefabs/variants and scripting remain later work. Point-light shadows are already merged into main at `57cd6d4`.
+User validation: `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/pressure-plate-lab.json`. Play, walk onto each teal plate with WASD, verify only its amber door opens and closes on leave. Stop; select a gate root, duplicate it, and verify the copy's plate targets its own door. Select a plate to inspect the searchable Target pickers and graph. Existing Blueprint Lab should still behave identically.
 
-Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
+Wait for an explicit push/PR request, then verify hosted Metal/Vulkan/DX12. A bounded subsequent feature would be timed/interpolated Blueprint actions so doors slide smoothly; decide with the user after this checkpoint. Nested prefabs, variants, override/revert UI, custom events and spawning remain later work.
 
 ## Completed Sponza rendering milestone
 

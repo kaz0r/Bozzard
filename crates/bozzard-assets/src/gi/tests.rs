@@ -368,3 +368,41 @@ fn dynamic_exclusion_handles_reverse_order_deep_hierarchies() {
     s.objects.reverse();
     assert!(static_objects(&s).is_empty());
 }
+
+#[test]
+fn blueprint_external_targets_and_descendants_are_not_baked_as_static() {
+    use bozzard_scene::{
+        Blueprint, BlueprintAttachment,
+        blueprint::{Node, NodeKind, ObjectRef, Socket, Value, Wire},
+    };
+    let mut s = scene();
+    for id in ["plate", "door", "handle", "wall"] {
+        s.objects.push(cube(id, [0.; 3], [1.; 3], [1.; 3]));
+    }
+    s.objects[2].parent = Some("door".into());
+    let mut n = Node::new(1, NodeKind::Translate, [0.; 2]);
+    n.inputs[2] = Value::Object(ObjectRef::Id("door".into()));
+    let g = Blueprint {
+        nodes: vec![n],
+        ..Default::default()
+    };
+    s.objects[0].blueprints.push(BlueprintAttachment {
+        enabled: true,
+        graph: g,
+    });
+    assert_eq!(static_objects(&s), BTreeSet::from(["wall".into()]));
+    s.objects[0].blueprints[0].enabled = false;
+    assert_eq!(static_objects(&s).len(), 4);
+    let b = &mut s.objects[0].blueprints[0];
+    b.enabled = true;
+    b.graph
+        .nodes
+        .push(Node::new(2, NodeKind::BodyEnter, [0.; 2]));
+    b.graph
+        .connect(Wire {
+            from: Socket { node: 2, port: 1 },
+            to: Socket { node: 1, port: 2 },
+        })
+        .unwrap();
+    assert!(static_objects(&s).is_empty());
+}

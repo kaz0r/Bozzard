@@ -1,11 +1,12 @@
 //! Bounded fixed-step graph interpreter shared by editor Play, native player and server.
 use super::*;
-use blueprint::{Blueprint, InputKey, Node, NodeKind as K, Socket, Value};
+use blueprint::{Blueprint, InputKey, Node, NodeKind as K, ObjectRef, Socket, Value};
+use std::collections::BTreeSet;
 
 #[derive(Clone, Default)]
 struct Run {
     started: bool,
-    overlap: bool,
+    overlap: BTreeSet<String>,
     held: [bool; 5],
     variables: BTreeMap<String, f32>,
 }
@@ -21,11 +22,15 @@ pub struct BlueprintHidden(pub bool);
 struct Eval<'a> {
     graph: &'a Blueprint,
     variables: &'a BTreeMap<String, f32>,
-    transform: Transform,
+    world: &'a World,
+    entities: &'a BTreeMap<String, Entity>,
+    owner: &'a str,
+    other: Option<(u32, &'a str)>,
+    overlap_count: usize,
     input: GameplayInput,
     dt: f32,
     elapsed: f32,
-    cache: BTreeMap<u32, Value>,
+    cache: BTreeMap<Socket, Value>,
 }
 impl Eval<'_> {
     fn input(&mut self, node: &Node, port: usize) -> Result<Value> {
@@ -35,13 +40,14 @@ impl Eval<'_> {
                 port,
             })
         }) {
-            self.output(w.from.node)
+            self.output(w.from)
         } else {
             Ok(node.inputs[port].clone())
         }
     }
-    fn output(&mut self, id: u32) -> Result<Value> {
-        if let Some(value) = self.cache.get(&id) {
+    fn output(&mut self, socket: Socket) -> Result<Value> {
+        let id = socket.node;
+        if let Some(value) = self.cache.get(&socket) {
             return Ok(value.clone());
         }
         let n = self.graph.node(id)?;
@@ -49,12 +55,42 @@ impl Eval<'_> {
             .map(|p| self.input(n, p))
             .collect::<Result<_>>()?;
         let value = match n.kind {
-            K::Number | K::Boolean | K::Vector => v[0].clone(),
+            K::Number | K::Boolean | K::Vector | K::Object => v[0].clone(),
+            K::SelfObject => Value::Object(ObjectRef::Id(self.owner.into())),
+            K::BodyEnter | K::BodyExit if socket.port == 1 => Value::Object(
+                self.other
+                    .filter(|(event, _)| *event == id)
+                    .map_or(ObjectRef::None, |(_, id)| ObjectRef::Id(id.into())),
+            ),
+            K::OverlapCount => Value::Number(self.overlap_count as f32),
+            K::ObjectEqual => Value::Bool(
+                reference_id(v[0].object()?, self.owner)
+                    == reference_id(v[1].object()?, self.owner),
+            ),
+            K::IsValidObject => Value::Bool(
+                reference_id(v[0].object()?, self.owner)
+                    .and_then(|id| self.entities.get(id))
+                    .is_some_and(|e| self.world.get::<Transform>(*e).is_some()),
+            ),
             K::DeltaTime => Value::Number(self.dt),
             K::ElapsedTime => Value::Number(self.elapsed),
-            K::Position => Value::Vector(self.transform.translation),
-            K::Rotation => Value::Vector(self.transform.rotation_degrees),
-            K::Scale => Value::Vector(self.transform.scale),
+            K::Position | K::Rotation | K::Scale => {
+                let id = reference_id(v[0].object()?, self.owner)
+                    .context("object read target is None")?;
+                let entity = self
+                    .entities
+                    .get(id)
+                    .context("object read target does not exist")?;
+                let transform = self
+                    .world
+                    .get::<Transform>(*entity)
+                    .context("object read target was removed")?;
+                Value::Vector(match n.kind {
+                    K::Position => transform.translation,
+                    K::Rotation => transform.rotation_degrees,
+                    _ => transform.scale,
+                })
+            }
             K::InputHeld => Value::Bool(n.key.active(self.input)),
             K::MoveX => Value::Number(self.input.movement[0]),
             K::MoveY => Value::Number(self.input.movement[1]),
@@ -83,9 +119,24 @@ impl Eval<'_> {
             _ => anyhow::bail!("node {id} has no data output"),
         };
         ensure!(value.valid(), "non-finite output at node {id}");
-        self.cache.insert(id, value.clone());
+        self.cache.insert(socket, value.clone());
         Ok(value)
     }
+}
+fn reference_id<'a>(reference: &'a ObjectRef, owner: &'a str) -> Option<&'a str> {
+    match reference {
+        ObjectRef::SelfObject => Some(owner),
+        ObjectRef::Id(id) => Some(id),
+        ObjectRef::None => None,
+    }
+}
+fn needs_overlap(graph: &Blueprint) -> bool {
+    graph.nodes.iter().any(|n| {
+        matches!(
+            n.kind,
+            K::TriggerEnter | K::TriggerExit | K::BodyEnter | K::BodyExit | K::OverlapCount
+        )
+    })
 }
 impl SceneInstance {
     pub fn has_blueprints(&self) -> bool {
@@ -109,27 +160,32 @@ impl SceneInstance {
         let result = (|| -> Result<()> {
             runtime.elapsed += dt;
             ensure!(runtime.elapsed.is_finite(), "blueprint clock overflow");
-            let needs_overlap = self
+            let query_overlaps = self
                 .document
                 .objects
                 .iter()
                 .flat_map(|o| &o.blueprints)
                 .filter(|b| b.enabled)
-                .flat_map(|b| &b.graph.nodes)
-                .any(|n| matches!(n.kind, K::TriggerEnter | K::TriggerExit));
-            let collisions = needs_overlap.then(|| self.collisions(world)).transpose()?;
-            let matrices = needs_overlap
+                .any(|b| needs_overlap(&b.graph));
+            let collisions = query_overlaps.then(|| self.collisions(world)).transpose()?;
+            let matrices = query_overlaps
                 .then(|| self.global_transforms(world))
                 .transpose()?;
-            // ponytail: bounded linear graph lookups (128 nodes); compile indices if profiling warrants it.
-            let mut budget = 100_000usize;
-            for object in &self.document.objects {
-                let entity = self.entities[&object.id];
-                let overlap = if let (Some(collisions), Some(matrices)) = (&collisions, &matrices) {
+            // Snapshot contacts once before graph actions. Order does not change this tick's events.
+            let mut contacts = BTreeMap::new();
+            let mut overlap_budget = 1_000_000usize;
+            if let (Some(collisions), Some(matrices)) = (&collisions, &matrices) {
+                for object in self.document.objects.iter().filter(|o| {
+                    o.blueprints
+                        .iter()
+                        .any(|b| b.enabled && needs_overlap(&b.graph))
+                }) {
+                    let entity = self.entities[&object.id];
                     let collider = world
                         .get::<Trigger>(entity)
                         .map(|t| t.volume)
                         .or_else(|| world.get::<BoxCollider>(entity).copied());
+                    let mut overlap = BTreeSet::new();
                     if let Some(collider) = collider.filter(|c| c.enabled) {
                         let (center, edges, corners) = collider.geometry(matrices[&object.id])?;
                         let volume = CollisionBox {
@@ -139,16 +195,24 @@ impl SceneInstance {
                             edges,
                             corners,
                         };
-                        collisions
-                            .boxes
-                            .iter()
-                            .any(|b| b.id != object.id && volume.intersects(b))
-                    } else {
-                        false
+                        for body in &collisions.boxes {
+                            ensure!(
+                                overlap_budget > 0,
+                                "blueprint overlap budget exceeded (1000000 tests/tick)"
+                            );
+                            overlap_budget -= 1;
+                            if body.id != object.id && volume.intersects(body) {
+                                overlap.insert(body.id.clone());
+                            }
+                        }
                     }
-                } else {
-                    false
-                };
+                    contacts.insert(object.id.clone(), overlap);
+                }
+            }
+            let empty = BTreeSet::new();
+            let mut budget = 100_000usize;
+            for object in &self.document.objects {
+                let overlap = contacts.get(&object.id).unwrap_or(&empty);
                 for (index, attachment) in object
                     .blueprints
                     .iter()
@@ -169,136 +233,171 @@ impl SceneInstance {
                                 event.key.active(input)
                                     && (event.key == InputKey::Jump || !run.held[key_index])
                             }
-                            K::TriggerEnter => overlap && !run.overlap,
-                            K::TriggerExit => !overlap && run.overlap,
+                            K::TriggerEnter => !overlap.is_empty() && run.overlap.is_empty(),
+                            K::TriggerExit => overlap.is_empty() && !run.overlap.is_empty(),
                             _ => false,
                         };
-                        if !fire {
-                            continue;
-                        }
-                        let mut queue = VecDeque::from([Socket {
-                            node: event.id,
-                            port: 0,
-                        }]);
-                        while let Some(output) = queue.pop_front() {
-                            for wire in graph.wires.iter().filter(|w| w.from == output) {
-                                ensure!(
-                                    budget > 0,
-                                    "blueprint execution budget exceeded (100000 actions/tick)"
-                                );
-                                budget -= 1;
-                                let node = graph.node(wire.to.node)?;
-                                let transform = *world
-                                    .get::<Transform>(entity)
-                                    .context("blueprint owner was removed")?;
-                                let mut eval = Eval {
-                                    graph,
-                                    variables: &run.variables,
-                                    transform,
-                                    input,
-                                    dt,
-                                    elapsed: runtime.elapsed,
-                                    cache: BTreeMap::new(),
-                                };
-                                let value = eval.input(node, 1).with_context(|| {
-                                    format!(
-                                        "blueprint '{}' on '{}', node {}",
-                                        graph.name, object.id, node.id
-                                    )
-                                })?;
-                                let mut port = 0;
-                                match node.kind {
-                                    K::Branch => port = usize::from(!value.boolean()?),
-                                    K::SetVariable => {
-                                        run.variables
-                                            .insert(node.variable.clone(), value.number()?);
-                                    }
-                                    K::Translate
-                                    | K::Rotate
-                                    | K::SetPosition
-                                    | K::SetRotation
-                                    | K::SetScale => {
-                                        let mut next = transform;
-                                        let v = value.vector()?;
-                                        match node.kind {
-                                            K::Translate => {
-                                                next.translation = (Vec3::from(next.translation)
-                                                    + Vec3::from(v))
-                                                .to_array()
+                        let events: Vec<Option<&str>> = match event.kind {
+                            K::BodyEnter => overlap
+                                .difference(&run.overlap)
+                                .map(|id| Some(id.as_str()))
+                                .collect(),
+                            K::BodyExit => run
+                                .overlap
+                                .difference(overlap)
+                                .map(|id| Some(id.as_str()))
+                                .collect(),
+                            _ if fire => vec![None],
+                            _ => Vec::new(),
+                        };
+                        for other in events {
+                            ensure!(
+                                budget > 0,
+                                "blueprint execution budget exceeded (100000 actions/tick)"
+                            );
+                            budget -= 1;
+                            let mut queue = VecDeque::from([Socket {
+                                node: event.id,
+                                port: 0,
+                            }]);
+                            while let Some(output) = queue.pop_front() {
+                                for wire in graph.wires.iter().filter(|w| w.from == output) {
+                                    ensure!(
+                                        budget > 0,
+                                        "blueprint execution budget exceeded (100000 actions/tick)"
+                                    );
+                                    budget -= 1;
+                                    let node = graph.node(wire.to.node)?;
+                                    let mut eval = Eval {
+                                        graph,
+                                        variables: &run.variables,
+                                        world,
+                                        entities: &self.entities,
+                                        owner: &object.id,
+                                        other: other.map(|id| (event.id, id)),
+                                        overlap_count: overlap.len(),
+                                        input,
+                                        dt,
+                                        elapsed: runtime.elapsed,
+                                        cache: BTreeMap::new(),
+                                    };
+                                    let value = eval.input(node, 1).with_context(|| {
+                                        format!(
+                                            "blueprint '{}' on '{}', node {}",
+                                            graph.name, object.id, node.id
+                                        )
+                                    })?;
+                                    let target = if let Some(port) = node.kind.target_port() {
+                                        let target = eval.input(node, port)?;
+                                        reference_id(target.object()?, &object.id).context("action target is None; choose an object or guard with Is Valid Object")?.to_owned()
+                                    } else {
+                                        object.id.clone()
+                                    };
+                                    let entity = *self
+                                        .entities
+                                        .get(&target)
+                                        .context("blueprint target does not exist")?;
+                                    let transform = *world
+                                        .get::<Transform>(entity)
+                                        .context("blueprint target was removed")?;
+                                    let mut port = 0;
+                                    match node.kind {
+                                        K::Branch => port = usize::from(!value.boolean()?),
+                                        K::SetVariable => {
+                                            run.variables
+                                                .insert(node.variable.clone(), value.number()?);
+                                        }
+                                        K::Translate
+                                        | K::Rotate
+                                        | K::SetPosition
+                                        | K::SetRotation
+                                        | K::SetScale => {
+                                            let mut next = transform;
+                                            let v = value.vector()?;
+                                            match node.kind {
+                                                K::Translate => {
+                                                    next.translation =
+                                                        (Vec3::from(next.translation)
+                                                            + Vec3::from(v))
+                                                        .to_array()
+                                                }
+                                                K::Rotate => {
+                                                    next.rotation_degrees =
+                                                        (Vec3::from(next.rotation_degrees)
+                                                            + Vec3::from(v))
+                                                        .to_array()
+                                                        .map(|r| r.rem_euclid(360.))
+                                                }
+                                                K::SetPosition => next.translation = v,
+                                                K::SetRotation => next.rotation_degrees = v,
+                                                K::SetScale => next.scale = v,
+                                                _ => unreachable!(),
                                             }
-                                            K::Rotate => {
-                                                next.rotation_degrees =
-                                                    (Vec3::from(next.rotation_degrees)
-                                                        + Vec3::from(v))
-                                                    .to_array()
-                                                    .map(|r| r.rem_euclid(360.))
+                                            next.validate()?;
+                                            world.insert(entity, next)?;
+                                            if let Err(error) = self.global_transforms(world) {
+                                                world.insert(entity, transform)?;
+                                                return Err(error);
                                             }
-                                            K::SetPosition => next.translation = v,
-                                            K::SetRotation => next.rotation_degrees = v,
-                                            K::SetScale => next.scale = v,
-                                            _ => unreachable!(),
                                         }
-                                        next.validate()?;
-                                        world.insert(entity, next)?;
-                                        if let Err(error) = self.global_transforms(world) {
-                                            world.insert(entity, transform)?;
-                                            return Err(error);
+                                        K::SetColor => {
+                                            let color = value.vector()?;
+                                            ensure!(
+                                                color.iter().all(|c| (0.0..=1.0).contains(c)),
+                                                "blueprint RGB must be in 0..1"
+                                            );
+                                            world
+                                                .get_mut::<Drawable>(entity)
+                                                .context("Set Color needs a Mesh Renderer")?
+                                                .color = color;
                                         }
-                                    }
-                                    K::SetColor => {
-                                        let color = value.vector()?;
-                                        ensure!(
-                                            color.iter().all(|c| (0.0..=1.0).contains(c)),
-                                            "blueprint RGB must be in 0..1"
-                                        );
-                                        world
-                                            .get_mut::<Drawable>(entity)
-                                            .context("Set Color needs a Mesh Renderer")?
-                                            .color = color;
-                                    }
-                                    K::SetVisible => {
-                                        world.insert(entity, BlueprintHidden(!value.boolean()?))?;
-                                    }
-                                    K::SetLightIntensity => {
-                                        let mut light = *world
-                                            .get::<Light>(entity)
-                                            .context("Set Light Intensity needs a Light")?;
-                                        light.intensity = value.number()?;
-                                        light.validate()?;
-                                        world.insert(entity, light)?;
-                                    }
-                                    K::MoveWithCollision => {
-                                        self.move_box(
-                                            world,
-                                            &object.id,
-                                            Vec3::from(value.vector()?),
-                                        )?;
-                                    }
-                                    K::Jump => {
-                                        self.jump_box(world, &object.id, value.number()?)?;
-                                    }
-                                    K::Print => {
-                                        runtime.messages.push_back(format!(
-                                            "{} / {}: {}",
-                                            object.name,
-                                            graph.name,
-                                            value.number()?
-                                        ));
-                                        while runtime.messages.len() > 64 {
-                                            runtime.messages.pop_front();
+                                        K::SetVisible => {
+                                            world.insert(
+                                                entity,
+                                                BlueprintHidden(!value.boolean()?),
+                                            )?;
                                         }
+                                        K::SetLightIntensity => {
+                                            let mut light = *world
+                                                .get::<Light>(entity)
+                                                .context("Set Light Intensity needs a Light")?;
+                                            light.intensity = value.number()?;
+                                            light.validate()?;
+                                            world.insert(entity, light)?;
+                                        }
+                                        K::MoveWithCollision => {
+                                            self.move_box(
+                                                world,
+                                                &target,
+                                                Vec3::from(value.vector()?),
+                                            )?;
+                                        }
+                                        K::Jump => {
+                                            self.jump_box(world, &target, value.number()?)?;
+                                        }
+                                        K::Print => {
+                                            runtime.messages.push_back(format!(
+                                                "{} / {}: {}",
+                                                object.name,
+                                                graph.name,
+                                                value.number()?
+                                            ));
+                                            while runtime.messages.len() > 64 {
+                                                runtime.messages.pop_front();
+                                            }
+                                        }
+                                        _ => anyhow::bail!("invalid execution node"),
                                     }
-                                    _ => anyhow::bail!("invalid execution node"),
+                                    queue.push_back(Socket {
+                                        node: node.id,
+                                        port,
+                                    });
                                 }
-                                queue.push_back(Socket {
-                                    node: node.id,
-                                    port,
-                                });
                             }
                         }
                     }
                     run.started = true;
-                    run.overlap = overlap;
+                    run.overlap = overlap.clone();
                     run.held = InputKey::ALL.map(|key| key.active(input));
                 }
             }

@@ -311,6 +311,7 @@ impl Editor {
             scene.objects.push(copy);
         }
         for object in &mut scene.objects[self.scene.objects.len()..] {
+            object.remap_blueprint_objects(&replacements);
             if let Some(parent) = &object.parent
                 && let Some(new) = replacements.get(parent)
             {
@@ -328,6 +329,7 @@ impl Editor {
                     *id = replacements[id].clone();
                 }
                 for base in &mut link.baseline {
+                    base.remap_blueprint_objects(&replacements);
                     base.id = replacements[&base.id].clone();
                     base.parent = base.parent.as_ref().map(|p| replacements[p].clone());
                 }
@@ -374,7 +376,8 @@ impl Editor {
         std::fs::File::open(path)?
             .take(1024 * 1024 + 1)
             .read_to_string(&mut json)?;
-        let graph = bozzard_scene::Blueprint::from_json(&json)?;
+        let mut graph = bozzard_scene::Blueprint::from_json(&json)?;
+        graph.clear_object_bindings();
         let mut attachments = self
             .scene
             .objects

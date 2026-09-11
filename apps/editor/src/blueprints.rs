@@ -2,7 +2,7 @@
 use super::*;
 use bozzard_scene::{
     Blueprint, BlueprintAttachment,
-    blueprint::{InputKey, Node, NodeKind, PinType, Socket, Value, Wire},
+    blueprint::{InputKey, Node, NodeKind, ObjectRef, PinType, Socket, Value, Wire},
 };
 
 pub struct BlueprintPane {
@@ -63,6 +63,13 @@ impl App {
         }
         self.blueprint_pane
             .sync(&self.editor.path, &object.id, &object.blueprints);
+        let objects: Vec<_> = self
+            .editor
+            .scene()
+            .objects
+            .iter()
+            .map(|o| (o.id.clone(), o.name.clone()))
+            .collect();
         egui::CollapsingHeader::new("BLUEPRINTS")
             .id_salt((&object.id, "blueprints"))
             .default_open(!object.blueprints.is_empty())
@@ -124,6 +131,32 @@ impl App {
                             remove = Some(i);
                         }
                     });
+                    ui.push_id((i, "bindings"), |ui| {
+                        ui.add_enabled_ui(editing, |ui| {
+                            for node in &mut attachment.graph.nodes {
+                                for (port, value) in node.inputs.iter_mut().enumerate() {
+                                    if attachment.graph.wires.iter().any(|w| {
+                                        w.to == (Socket {
+                                            node: node.id,
+                                            port,
+                                        })
+                                    }) {
+                                        continue;
+                                    }
+                                    if let Value::Object(reference) = value {
+                                        ui.push_id((node.id, port), |ui| {
+                                            ui.label(format!(
+                                                "{} · {}",
+                                                node.kind.title(),
+                                                node.kind.inputs()[port].0
+                                            ));
+                                            object_picker(ui, reference, &objects);
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                    });
                 }
                 if let Some(i) = remove {
                     attachments.remove(i);
@@ -135,7 +168,7 @@ impl App {
                     self.blueprint_pane.connecting = None;
                 }
                 object.blueprints = attachments;
-                ui.weak("Top to bottom · Independent state · Mesh owner only");
+                ui.weak("Top to bottom · Independent state · Targets default to Self");
             });
     }
     pub fn open_last_blueprint(&mut self) {
@@ -377,7 +410,16 @@ impl App {
                 self.blueprint_pane.connecting = None;
             }
         }
-        let error = self.blueprint_pane.canvas(ui, &mut graph, editing);
+        let objects: Vec<_> = self
+            .editor
+            .scene()
+            .objects
+            .iter()
+            .map(|o| (o.id.clone(), o.name.clone()))
+            .collect();
+        let error = self
+            .blueprint_pane
+            .canvas(ui, &mut graph, editing, &objects);
         if let Some(error) = error {
             self.result(Err(error));
         }
@@ -389,6 +431,44 @@ impl App {
             self.result(result);
         }
     }
+}
+fn object_picker(ui: &mut egui::Ui, reference: &mut ObjectRef, objects: &[(String, String)]) {
+    let label = match reference {
+        ObjectRef::SelfObject => "Self".to_owned(),
+        ObjectRef::None => "None".to_owned(),
+        ObjectRef::Id(id) => objects.iter().find(|(key, _)| key == id).map_or_else(
+            || format!("Missing: {id}"),
+            |(_, name)| format!("{name} ({id})"),
+        ),
+    };
+    egui::ComboBox::from_id_salt("object-reference")
+        .width(110.)
+        .truncate()
+        .selected_text(label)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(reference, ObjectRef::SelfObject, "Self");
+            ui.selectable_value(reference, ObjectRef::None, "None");
+            let search_id = ui.id().with("object-search");
+            let mut search = ui.data_mut(|d| d.get_temp::<String>(search_id).unwrap_or_default());
+            ui.add(
+                egui::TextEdit::singleline(&mut search)
+                    .hint_text("Find object…")
+                    .desired_width(180.),
+            );
+            let query = search.to_lowercase();
+            ui.data_mut(|d| d.insert_temp(search_id, search));
+            for (id, name) in objects.iter().filter(|(id, name)| {
+                query.is_empty()
+                    || id.to_lowercase().contains(&query)
+                    || name.to_lowercase().contains(&query)
+            }) {
+                ui.selectable_value(
+                    reference,
+                    ObjectRef::Id(id.clone()),
+                    format!("{name} ({id})"),
+                );
+            }
+        });
 }
 const WIDTH: f32 = 260.;
 fn node_rect(node: &Node) -> Rect {
@@ -412,6 +492,7 @@ fn color(kind: PinType) -> Color32 {
         PinType::Number => Color32::from_rgb(132, 206, 71),
         PinType::Bool => Color32::from_rgb(210, 73, 91),
         PinType::Vector => Color32::from_rgb(88, 183, 225),
+        PinType::Object => Color32::from_rgb(193, 143, 245),
     }
 }
 fn curve(painter: &egui::Painter, from: Pos2, to: Pos2, tint: Color32) {
@@ -434,6 +515,7 @@ impl BlueprintPane {
         ui: &mut egui::Ui,
         graph: &mut Blueprint,
         editing: bool,
+        objects: &[(String, String)],
     ) -> Option<anyhow::Error> {
         let mut error = None;
         let mut view = self.view;
@@ -657,6 +739,9 @@ impl BlueprintPane {
                                                     }
                                                 });
                                             }
+                                            Value::Object(v) => {
+                                                object_picker(ui, v, objects);
+                                            }
                                             Value::Exec => {}
                                         },
                                     );
@@ -752,7 +837,7 @@ mod tests {
                 ..Default::default()
             },
             |ui| {
-                pane.canvas(ui, graph, editing);
+                pane.canvas(ui, graph, editing, &[]);
                 transform = ui
                     .ctx()
                     .layer_transform_to_global(egui::LayerId::new(
@@ -775,6 +860,33 @@ mod tests {
                 modifiers: egui::Modifiers::NONE,
             },
         ]
+    }
+    #[test]
+    fn canvas_connects_other_object_to_action_target() {
+        let ctx = egui::Context::default();
+        let mut pane = BlueprintPane::default();
+        let mut graph = Blueprint {
+            nodes: vec![
+                Node::new(1, NodeKind::BodyEnter, [30., 30.]),
+                Node::new(2, NodeKind::SetPosition, [380., 30.]),
+            ],
+            ..Default::default()
+        };
+        let transform = frame(&ctx, &mut pane, &mut graph, vec![], true);
+        let from = transform * pin(graph.node(1).unwrap(), 1, true);
+        let to = transform * pin(graph.node(2).unwrap(), 2, false);
+        frame(&ctx, &mut pane, &mut graph, pointer(from, true), true);
+        frame(&ctx, &mut pane, &mut graph, pointer(from, false), true);
+        frame(&ctx, &mut pane, &mut graph, pointer(to, true), true);
+        frame(&ctx, &mut pane, &mut graph, pointer(to, false), true);
+        assert_eq!(
+            graph.wires,
+            vec![Wire {
+                from: Socket { node: 1, port: 1 },
+                to: Socket { node: 2, port: 2 }
+            }]
+        );
+        graph.validate().unwrap();
     }
     #[test]
     fn canvas_connects_typed_pins_moves_nodes_and_protects_play() {

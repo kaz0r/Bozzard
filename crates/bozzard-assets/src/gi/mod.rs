@@ -23,6 +23,14 @@ pub fn static_objects(scene: &Scene) -> BTreeSet<String> {
         })
         .map(|o| o.id.clone())
         .collect();
+    for object in &scene.objects {
+        for attachment in object.blueprints.iter().filter(|b| b.enabled) {
+            match attachment.graph.write_targets(&object.id) {
+                Some(targets) => dynamic.extend(targets),
+                None => return BTreeSet::new(),
+            }
+        }
+    }
     let mut children = BTreeMap::<&str, Vec<&str>>::new();
     for object in &scene.objects {
         if let Some(parent) = &object.parent {

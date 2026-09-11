@@ -355,6 +355,7 @@ impl Editor {
                     .map(|(a, b)| (b.clone(), a.clone()))
                     .collect();
                 for object in &mut prefab.objects {
+                    object.remap_blueprint_objects(&inverse);
                     if object.id == id {
                         object.transform =
                             link.baseline.iter().find(|o| o.id == id).unwrap().transform;
@@ -584,6 +585,7 @@ fn remap(
         .iter()
         .cloned()
         .map(|mut o| {
+            o.remap_blueprint_objects(members);
             o.id = members[&o.id].clone();
             o.parent = o.parent.map(|p| members[&p].clone());
             if let Some(d) = &mut o.drawable {

@@ -277,7 +277,8 @@ impl App {
         }
         if self.smoke_frames
             >= self
-                .smoke_blueprint_frame
+                .smoke_object_reference_frame
+                .or(self.smoke_blueprint_frame)
                 .or(self.smoke_prefab_frame)
                 .or(self.smoke_gi_frame)
                 .or(self.smoke_light_frame)
@@ -310,6 +311,28 @@ impl App {
                         height: image.size[1] as u32,
                         rgba: image.pixels.iter().flat_map(|p| p.to_array()).collect(),
                     };
+                    if self.smoke_object_reference_frame.is_some() {
+                        frame.write_ppm(&output.join("editor-object-references.ppm"))?;
+                        let plate = self
+                            .editor
+                            .selected_object()
+                            .context("pressure plate not selected")?;
+                        ensure!(
+                            plate.id == "plate-1" && self.workspace.blueprints_visible,
+                            "object-reference graph is not visible"
+                        );
+                        ensure!(
+                            plate.blueprints[0]
+                                .graph
+                                .object_references()
+                                .all(|id| id == "door-1"),
+                            "pressure plate targets wrong door"
+                        );
+                        println!(
+                            "editor_object_reference_smoke_ok typed_graph inspector_bindings independent_doors play_isolation native_ui_capture"
+                        );
+                        return Ok(());
+                    }
                     if self.smoke_blueprint_frame.is_some() {
                         frame.write_ppm(&output.join("editor-blueprints.ppm"))?;
                         ensure!(
@@ -687,6 +710,64 @@ impl App {
                                 return;
                             }
                             self.smoke_blueprint_frame = Some(self.smoke_frames + 3);
+                            self.smoke_requested = false;
+                            continue;
+                        }
+                        if self.smoke_object_reference_frame.is_none() {
+                            let result = (|| -> Result<()> {
+                                std::fs::create_dir_all(output.join("assets"))?;
+                                std::fs::write(
+                                    output.join("assets/pressure-gate.prefab.json"),
+                                    include_str!(
+                                        "../../../examples/demo/scenes/assets/pressure-gate.prefab.json"
+                                    ),
+                                )?;
+                                let scene = bozzard_scene::Scene::from_json(include_str!(
+                                    "../../../examples/demo/scenes/pressure-plate-lab.json"
+                                ))?;
+                                self.editor =
+                                    Editor::new(scene, &output.join("pressure-plate-lab.json"))?;
+                                self.editor.select_object(Some("plate-1".into()));
+                                let authored = self.editor.scene().clone();
+                                self.editor.start_play()?;
+                                let play = self.editor.play.as_mut().unwrap();
+                                let player = play.instance.entity("player").unwrap();
+                                play.app
+                                    .world
+                                    .get_mut::<bozzard_scene::Transform>(player)
+                                    .unwrap()
+                                    .translation = [-3., 0.65, 1.];
+                                play.app.step();
+                                play.check_simulation()?;
+                                for (id, height) in [("door-1", 4.5), ("door-2", 1.5)] {
+                                    let entity = play.instance.entity(id).unwrap();
+                                    ensure!(
+                                        play.app
+                                            .world
+                                            .get::<bozzard_scene::Transform>(entity)
+                                            .unwrap()
+                                            .translation[1]
+                                            == height,
+                                        "wrong door changed"
+                                    );
+                                }
+                                self.editor.stop_play();
+                                ensure!(
+                                    *self.editor.scene() == authored,
+                                    "Play modified authored gate"
+                                );
+                                self.editor.save(&output.join("pressure-plate-lab.json"))?;
+                                self.workspace.blueprints_visible = true;
+                                self.refresh = None;
+                                Ok(())
+                            })();
+                            if let Err(error) = result {
+                                eprintln!("editor_smoke_failed: {error:#}");
+                                self.allow_close = true;
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                return;
+                            }
+                            self.smoke_object_reference_frame = Some(self.smoke_frames + 3);
                             self.smoke_requested = false;
                             continue;
                         }

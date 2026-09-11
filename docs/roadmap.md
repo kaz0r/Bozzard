@@ -53,7 +53,7 @@ See [run commands and manual acceptance checklist](playable-demo.md). This is a 
 ## 6 — Simulation and content systems
 
 - Full physics, audio, animation, input actions, cascaded shadows, runtime rebaking, and production lighting/content systems.
-- Remaining prefab work: nested prefabs, variants, source-hierarchy editing, and override UI; broader scripting/Blueprint nodes and cross-object references.
+- Remaining prefab work: nested prefabs, variants, source-hierarchy editing, and override UI; broader scripting/Blueprint nodes.
 - Module dependency/lifecycle contract; evaluate runtime binary loading.
 - Profiling and evidence-driven ECS/render improvements.
 

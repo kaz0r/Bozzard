@@ -148,6 +148,7 @@ struct App {
     smoke_gi_frame: Option<u32>,
     smoke_prefab_frame: Option<u32>,
     smoke_blueprint_frame: Option<u32>,
+    smoke_object_reference_frame: Option<u32>,
 }
 #[derive(Clone)]
 struct HierarchyDrag(String);
@@ -234,6 +235,7 @@ impl App {
             smoke_gi_frame: None,
             smoke_prefab_frame: None,
             smoke_blueprint_frame: None,
+            smoke_object_reference_frame: None,
         })
     }
     fn result(&mut self, result: Result<()>) {
