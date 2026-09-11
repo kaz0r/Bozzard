@@ -8,6 +8,16 @@ pub enum PinType {
     Number,
     Bool,
     Vector,
+    Object,
+}
+/// Persistent document IDs, never ECS handles. None is distinct from the self default.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObjectRef {
+    #[default]
+    SelfObject,
+    Id(String),
+    None,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,6 +26,7 @@ pub enum Value {
     Number(f32),
     Bool(bool),
     Vector([f32; 3]),
+    Object(ObjectRef),
 }
 impl Value {
     pub fn kind(&self) -> PinType {
@@ -24,13 +35,22 @@ impl Value {
             Self::Number(_) => PinType::Number,
             Self::Bool(_) => PinType::Bool,
             Self::Vector(_) => PinType::Vector,
+            Self::Object(_) => PinType::Object,
         }
     }
     pub fn valid(&self) -> bool {
         match self {
+            Self::Object(ObjectRef::Id(id)) => !id.trim().is_empty(),
             Self::Number(n) => n.is_finite(),
             Self::Vector(v) => v.iter().all(|n| n.is_finite()),
             _ => true,
+        }
+    }
+    pub fn object(&self) -> Result<&ObjectRef> {
+        if let Self::Object(value) = self {
+            Ok(value)
+        } else {
+            anyhow::bail!("expected object reference")
         }
     }
     pub fn number(&self) -> Result<f32> {
@@ -85,6 +105,13 @@ impl InputKey {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
+    Object,
+    SelfObject,
+    ObjectEqual,
+    IsValidObject,
+    BodyEnter,
+    BodyExit,
+    OverlapCount,
     Start,
     Update,
     InputPressed,
@@ -131,7 +158,14 @@ pub enum NodeKind {
     Print,
 }
 impl NodeKind {
-    pub const ALL: [Self; 44] = [
+    pub const ALL: [Self; 51] = [
+        Self::Object,
+        Self::SelfObject,
+        Self::ObjectEqual,
+        Self::IsValidObject,
+        Self::BodyEnter,
+        Self::BodyExit,
+        Self::OverlapCount,
         Self::Start,
         Self::Update,
         Self::InputPressed,
@@ -179,6 +213,13 @@ impl NodeKind {
     ];
     pub fn title(self) -> &'static str {
         match self {
+            Self::Object => "Object Reference",
+            Self::SelfObject => "Self",
+            Self::ObjectEqual => "Same Object",
+            Self::IsValidObject => "Is Valid Object",
+            Self::BodyEnter => "On Object Enter",
+            Self::BodyExit => "On Object Exit",
+            Self::OverlapCount => "Overlap Count",
             Self::Start => "On Start",
             Self::Update => "On Update",
             Self::InputPressed => "On Input Pressed",
@@ -233,11 +274,17 @@ impl NodeKind {
                 | Self::InputPressed
                 | Self::TriggerEnter
                 | Self::TriggerExit
+                | Self::BodyEnter
+                | Self::BodyExit
         )
     }
     pub fn inputs(self) -> &'static [(&'static str, PinType)] {
         use PinType::*;
         match self {
+            Self::Object => &[("Value", Object)],
+            Self::Position | Self::Rotation | Self::Scale => &[("Target", Object)],
+            Self::ObjectEqual => &[("A", Object), ("B", Object)],
+            Self::IsValidObject => &[("Value", Object)],
             Self::Number => &[("Value", Number)],
             Self::Boolean => &[("Value", Bool)],
             Self::Vector => &[("Value", Vector)],
@@ -262,12 +309,17 @@ impl NodeKind {
             | Self::SetRotation
             | Self::SetScale
             | Self::SetColor
-            | Self::MoveWithCollision => &[("In", Exec), ("Value", Vector)],
-            Self::SetVisible => &[("In", Exec), ("Visible", Bool)],
-            Self::SetLightIntensity => &[("In", Exec), ("Intensity", Number)],
-            Self::Jump => &[("In", Exec), ("Speed", Number)],
+            | Self::MoveWithCollision => &[("In", Exec), ("Value", Vector), ("Target", Object)],
+            Self::SetVisible => &[("In", Exec), ("Visible", Bool), ("Target", Object)],
+            Self::SetLightIntensity => &[("In", Exec), ("Intensity", Number), ("Target", Object)],
+            Self::Jump => &[("In", Exec), ("Speed", Number), ("Target", Object)],
             _ => &[],
         }
+    }
+    pub fn target_port(self) -> Option<usize> {
+        self.inputs()
+            .iter()
+            .position(|(label, kind)| *label == "Target" && *kind == PinType::Object)
     }
     pub fn action(self) -> bool {
         self.inputs().first().is_some_and(|p| p.1 == PinType::Exec)
@@ -275,6 +327,9 @@ impl NodeKind {
     pub fn outputs(self) -> &'static [(&'static str, PinType)] {
         use PinType::*;
         match self {
+            Self::BodyEnter | Self::BodyExit => &[("Then", Exec), ("Other", Object)],
+            Self::Object | Self::SelfObject => &[("Value", Object)],
+            Self::ObjectEqual | Self::IsValidObject => &[("Value", Bool)],
             Self::Branch => &[("True", Exec), ("False", Exec)],
             kind if kind.event() || kind.action() => &[("Then", Exec)],
             Self::Boolean
@@ -297,7 +352,7 @@ impl NodeKind {
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, from = "StoredNode")]
 pub struct Node {
     pub id: u32,
     pub position: [f32; 2],
@@ -307,6 +362,35 @@ pub struct Node {
     pub variable: String,
     #[serde(default = "jump_key")]
     pub key: InputKey,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StoredNode {
+    id: u32,
+    position: [f32; 2],
+    kind: NodeKind,
+    inputs: Vec<Value>,
+    #[serde(default)]
+    variable: String,
+    #[serde(default = "jump_key")]
+    key: InputKey,
+}
+impl From<StoredNode> for Node {
+    fn from(mut n: StoredNode) -> Self {
+        if let Some(port) = n.kind.target_port()
+            && n.inputs.len() == port
+        {
+            n.inputs.push(Value::Object(ObjectRef::SelfObject));
+        }
+        Self {
+            id: n.id,
+            position: n.position,
+            kind: n.kind,
+            inputs: n.inputs,
+            variable: n.variable,
+            key: n.key,
+        }
+    }
 }
 fn jump_key() -> InputKey {
     InputKey::Jump
@@ -321,6 +405,11 @@ impl Node {
                 .inputs()
                 .iter()
                 .map(|(_, t)| match t {
+                    PinType::Object => Value::Object(if kind == NodeKind::Object {
+                        ObjectRef::None
+                    } else {
+                        ObjectRef::SelfObject
+                    }),
                     PinType::Exec => Value::Exec,
                     PinType::Number => Value::Number(0.),
                     PinType::Bool => Value::Bool(false),
@@ -518,5 +607,94 @@ impl Blueprint {
             },
         ];
         graph
+    }
+}
+
+impl Blueprint {
+    pub fn object_references(&self) -> impl Iterator<Item = &str> {
+        self.nodes
+            .iter()
+            .flat_map(|n| &n.inputs)
+            .filter_map(|v| match v {
+                Value::Object(ObjectRef::Id(id)) => Some(id.as_str()),
+                _ => None,
+            })
+    }
+    pub fn remap_objects(&mut self, mapping: &BTreeMap<String, String>) {
+        for value in self.nodes.iter_mut().flat_map(|n| &mut n.inputs) {
+            if let Value::Object(ObjectRef::Id(id)) = value
+                && let Some(new) = mapping.get(id)
+            {
+                *id = new.clone();
+            }
+        }
+    }
+    /// Portable graph imports must be rebound rather than accidentally targeting matching IDs.
+    pub fn clear_object_bindings(&mut self) {
+        for value in self.nodes.iter_mut().flat_map(|n| &mut n.inputs) {
+            if matches!(value, Value::Object(ObjectRef::Id(_))) {
+                *value = Value::Object(ObjectRef::None);
+            }
+        }
+    }
+    /// Known write targets for static GI. An event-dependent target may address any scene object.
+    pub fn write_targets(&self, owner: &str) -> Option<BTreeSet<String>> {
+        fn resolve(g: &Blueprint, socket: Socket, depth: usize) -> Option<ObjectRef> {
+            if depth > 128 {
+                return None;
+            }
+            if let Some(w) = g.wires.iter().find(|w| w.to == socket) {
+                let node = g.node(w.from.node).ok()?;
+                match node.kind {
+                    NodeKind::SelfObject => Some(ObjectRef::SelfObject),
+                    NodeKind::Object => resolve(
+                        g,
+                        Socket {
+                            node: node.id,
+                            port: 0,
+                        },
+                        depth + 1,
+                    ),
+                    _ => None,
+                }
+            } else {
+                g.node(socket.node)
+                    .ok()?
+                    .inputs
+                    .get(socket.port)?
+                    .object()
+                    .ok()
+                    .cloned()
+            }
+        }
+        let mut ids = BTreeSet::new();
+        for node in self.nodes.iter().filter(|n| n.kind.action()) {
+            if let Some(port) = node.kind.target_port() {
+                match resolve(
+                    self,
+                    Socket {
+                        node: node.id,
+                        port,
+                    },
+                    0,
+                )? {
+                    ObjectRef::SelfObject => {
+                        ids.insert(owner.to_owned());
+                    }
+                    ObjectRef::Id(id) => {
+                        ids.insert(id);
+                    }
+                    ObjectRef::None => {}
+                }
+            }
+        }
+        Some(ids)
+    }
+}
+impl Object {
+    pub fn remap_blueprint_objects(&mut self, mapping: &BTreeMap<String, String>) {
+        for attachment in &mut self.blueprints {
+            attachment.graph.remap_objects(mapping);
+        }
     }
 }

@@ -32,8 +32,12 @@ impl Default for PlayerController {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TriggerAction {
+    /// Reports Blueprint contacts without built-in gameplay effects.
+    Sensor,
     Collectible,
-    Checkpoint { respawn: [f32; 3] },
+    Checkpoint {
+        respawn: [f32; 3],
+    },
     Goal,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -378,6 +382,7 @@ impl SceneInstance {
                         state.respawn = *respawn;
                     }
                     TriggerAction::Goal => at_goal = true,
+                    TriggerAction::Sensor => {}
                 }
             }
             state.won = at_goal && state.collected.len() == state.total;

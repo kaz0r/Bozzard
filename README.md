@@ -140,9 +140,11 @@ Movement supports one collider at a time; movers carrying enabled child collider
 
 ## Gameplay Blueprints
 
-Use **Properties → BLUEPRINTS → + New** (or **+ Spin example**) to author gameplay without code in the dedicated **Blueprint** pane. Connect typed nodes, save/load reusable `.blueprint.json` graphs, and attach multiple ordered graphs to an object or prefab member. Mesh instances remain independent; coded behavior still works alongside graphs.
+Use **Properties → BLUEPRINTS → + New** (or **+ Spin example**) to author gameplay without code in the dedicated **Blueprint** pane. Connect typed nodes, bind object references in the Inspector or node editor, save/load reusable `.blueprint.json` graphs, and attach multiple ordered graphs to an object or prefab member. Mesh instances remain independent; coded behavior still works alongside graphs.
 
 Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/blueprint-lab.json`: select **Hero Cube**, open Blueprint, then Play. In the Scene viewport, Space toggles its visibility while another graph keeps it spinning. See [the no-code workflow, node catalog, and current limits](docs/blueprints.md).
+
+Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/pressure-plate-lab.json` for two independently bound pressure-gate prefab instances. Walk the orange player onto either teal plate to raise its amber door; leaving closes it. The scene also demonstrates **Sensor (Blueprints)** triggers without built-in gameplay effects.
 
 ## Prefabs
 

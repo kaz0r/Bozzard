@@ -68,7 +68,7 @@ def main():
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
-        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json"]:
+        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json", "blueprint-lab.json", "pressure-plate-lab.json"]:
             shutil.copy2(ROOT / "examples/demo/scenes" / scene, stage / scene)
         shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")
         (stage / "README.txt").write_text(
@@ -114,6 +114,7 @@ def main():
             if args.hardware:
                 graphics.append("--hardware")
             run(server, "--ticks", "120", cwd=cwd)
+            run(server, "--scene", str(package / "pressure-plate-lab.json"), "--ticks", "120", cwd=cwd)
             run(player, "--help", cwd=cwd)
             run(editor, "--help", cwd=cwd)
             saved = cwd / "saved-scene.json"

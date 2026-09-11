@@ -1,0 +1,2002 @@
+{
+  "version": 1,
+  "name": "Bozzard \u2014 Pressure Plate Lab",
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Follow camera",
+      "transform": {
+        "translation": [
+          0.0,
+          3.5,
+          8.0
+        ],
+        "rotation_degrees": [
+          -18.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55.0,
+        "near": 0.1,
+        "far": 150.0
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player \u2014 WASD / Space",
+      "transform": {
+        "translation": [
+          -3,
+          0.65,
+          4
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          1.2,
+          0.8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.4,
+          0.2
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "gravity": {
+        "enabled": true,
+        "acceleration": 9.81,
+        "max_speed": 50.0,
+        "jump_speed": 5.0
+      },
+      "player_controller": {
+        "camera": "camera",
+        "move_speed": 4.0,
+        "jump_speed": 6.0,
+        "camera_distance": 3.6,
+        "camera_height": 1.0,
+        "camera_radius": 0.3,
+        "orbit_sensitivity": 0.2,
+        "fall_height": -8.0
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.5,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          20,
+          1,
+          18
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.3,
+          0.36,
+          0.4
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "gate-1",
+      "name": "Pressure gate",
+      "transform": {
+        "translation": [
+          -3,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "plate-1",
+      "name": "Pressure plate \u2014 controls Door",
+      "transform": {
+        "translation": [
+          0,
+          0.12,
+          1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.8,
+          0.16,
+          1.8
+        ]
+      },
+      "parent": "gate-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.7,
+          0.55
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0,
+            3.75,
+            0
+          ],
+          "size": [
+            1,
+            6,
+            1
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "sensor"
+        }
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Pressure plate / Door",
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "body_enter",
+                "position": [
+                  30,
+                  30
+                ],
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "kind": "is_valid_object",
+                "position": [
+                  30,
+                  190
+                ],
+                "inputs": [
+                  {
+                    "object": "none"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "kind": "branch",
+                "position": [
+                  340,
+                  30
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "kind": "set_position",
+                "position": [
+                  650,
+                  30
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0,
+                      4.5,
+                      -2
+                    ]
+                  },
+                  {
+                    "object": {
+                      "id": "door-1"
+                    }
+                  }
+                ]
+              },
+              {
+                "id": 5,
+                "kind": "body_exit",
+                "position": [
+                  30,
+                  370
+                ],
+                "inputs": []
+              },
+              {
+                "id": 6,
+                "kind": "overlap_count",
+                "position": [
+                  30,
+                  560
+                ],
+                "inputs": []
+              },
+              {
+                "id": 7,
+                "kind": "equal",
+                "position": [
+                  340,
+                  530
+                ],
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0
+                  }
+                ]
+              },
+              {
+                "id": 8,
+                "kind": "branch",
+                "position": [
+                  650,
+                  370
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 9,
+                "kind": "set_position",
+                "position": [
+                  960,
+                  370
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0,
+                      1.5,
+                      -2
+                    ]
+                  },
+                  {
+                    "object": {
+                      "id": "door-1"
+                    }
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 1
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "door-1",
+      "name": "Door",
+      "transform": {
+        "translation": [
+          0,
+          1.5,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.6,
+          3,
+          0.35
+        ]
+      },
+      "parent": "gate-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.55,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "post--1-1",
+      "name": "Gate post",
+      "transform": {
+        "translation": [
+          -1.6,
+          1.75,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.35,
+          3.5,
+          0.5
+        ]
+      },
+      "parent": "gate-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.28,
+          0.35
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "post-1-1",
+      "name": "Gate post",
+      "transform": {
+        "translation": [
+          1.6,
+          1.75,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.35,
+          3.5,
+          0.5
+        ]
+      },
+      "parent": "gate-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.28,
+          0.35
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lintel-1",
+      "name": "Gate lintel",
+      "transform": {
+        "translation": [
+          0,
+          3.6,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          3.55,
+          0.3,
+          0.5
+        ]
+      },
+      "parent": "gate-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.28,
+          0.35
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gate-2",
+      "name": "Pressure gate",
+      "transform": {
+        "translation": [
+          3,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "plate-2",
+      "name": "Pressure plate \u2014 controls Door",
+      "transform": {
+        "translation": [
+          0,
+          0.12,
+          1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.8,
+          0.16,
+          1.8
+        ]
+      },
+      "parent": "gate-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.7,
+          0.55
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0,
+            3.75,
+            0
+          ],
+          "size": [
+            1,
+            6,
+            1
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "sensor"
+        }
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Pressure plate / Door",
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "body_enter",
+                "position": [
+                  30,
+                  30
+                ],
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "kind": "is_valid_object",
+                "position": [
+                  30,
+                  190
+                ],
+                "inputs": [
+                  {
+                    "object": "none"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "kind": "branch",
+                "position": [
+                  340,
+                  30
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "kind": "set_position",
+                "position": [
+                  650,
+                  30
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0,
+                      4.5,
+                      -2
+                    ]
+                  },
+                  {
+                    "object": {
+                      "id": "door-2"
+                    }
+                  }
+                ]
+              },
+              {
+                "id": 5,
+                "kind": "body_exit",
+                "position": [
+                  30,
+                  370
+                ],
+                "inputs": []
+              },
+              {
+                "id": 6,
+                "kind": "overlap_count",
+                "position": [
+                  30,
+                  560
+                ],
+                "inputs": []
+              },
+              {
+                "id": 7,
+                "kind": "equal",
+                "position": [
+                  340,
+                  530
+                ],
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0
+                  }
+                ]
+              },
+              {
+                "id": 8,
+                "kind": "branch",
+                "position": [
+                  650,
+                  370
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 9,
+                "kind": "set_position",
+                "position": [
+                  960,
+                  370
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0,
+                      1.5,
+                      -2
+                    ]
+                  },
+                  {
+                    "object": {
+                      "id": "door-2"
+                    }
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 1
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "door-2",
+      "name": "Door",
+      "transform": {
+        "translation": [
+          0,
+          1.5,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.6,
+          3,
+          0.35
+        ]
+      },
+      "parent": "gate-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.55,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "post--1-2",
+      "name": "Gate post",
+      "transform": {
+        "translation": [
+          -1.6,
+          1.75,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.35,
+          3.5,
+          0.5
+        ]
+      },
+      "parent": "gate-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.28,
+          0.35
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "post-1-2",
+      "name": "Gate post",
+      "transform": {
+        "translation": [
+          1.6,
+          1.75,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.35,
+          3.5,
+          0.5
+        ]
+      },
+      "parent": "gate-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.28,
+          0.35
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lintel-2",
+      "name": "Gate lintel",
+      "transform": {
+        "translation": [
+          0,
+          3.6,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          3.55,
+          0.3,
+          0.5
+        ]
+      },
+      "parent": "gate-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.28,
+          0.35
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "pressure-gate": {
+      "kind": "prefab",
+      "path": "assets/pressure-gate.prefab.json"
+    }
+  },
+  "prefabs": {
+    "gate-1": {
+      "asset": "pressure-gate",
+      "members": {
+        "gate": "gate-1",
+        "plate": "plate-1",
+        "door": "door-1",
+        "post--1": "post--1-1",
+        "post-1": "post-1-1",
+        "lintel": "lintel-1"
+      },
+      "baseline": [
+        {
+          "id": "gate-1",
+          "name": "Pressure gate",
+          "transform": {
+            "translation": [
+              0,
+              0,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plate-1",
+          "name": "Pressure plate \u2014 controls Door",
+          "transform": {
+            "translation": [
+              0,
+              0.12,
+              1
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.8,
+              0.16,
+              1.8
+            ]
+          },
+          "parent": "gate-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.12,
+              0.7,
+              0.55
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "trigger": {
+            "volume": {
+              "center": [
+                0,
+                3.75,
+                0
+              ],
+              "size": [
+                1,
+                6,
+                1
+              ],
+              "enabled": true
+            },
+            "action": {
+              "kind": "sensor"
+            }
+          },
+          "blueprints": [
+            {
+              "enabled": true,
+              "graph": {
+                "version": 1,
+                "name": "Pressure plate / Door",
+                "nodes": [
+                  {
+                    "id": 1,
+                    "kind": "body_enter",
+                    "position": [
+                      30,
+                      30
+                    ],
+                    "inputs": []
+                  },
+                  {
+                    "id": 2,
+                    "kind": "is_valid_object",
+                    "position": [
+                      30,
+                      190
+                    ],
+                    "inputs": [
+                      {
+                        "object": "none"
+                      }
+                    ]
+                  },
+                  {
+                    "id": 3,
+                    "kind": "branch",
+                    "position": [
+                      340,
+                      30
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "bool": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": 4,
+                    "kind": "set_position",
+                    "position": [
+                      650,
+                      30
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "vector": [
+                          0,
+                          4.5,
+                          -2
+                        ]
+                      },
+                      {
+                        "object": {
+                          "id": "door-1"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": 5,
+                    "kind": "body_exit",
+                    "position": [
+                      30,
+                      370
+                    ],
+                    "inputs": []
+                  },
+                  {
+                    "id": 6,
+                    "kind": "overlap_count",
+                    "position": [
+                      30,
+                      560
+                    ],
+                    "inputs": []
+                  },
+                  {
+                    "id": 7,
+                    "kind": "equal",
+                    "position": [
+                      340,
+                      530
+                    ],
+                    "inputs": [
+                      {
+                        "number": 0
+                      },
+                      {
+                        "number": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": 8,
+                    "kind": "branch",
+                    "position": [
+                      650,
+                      370
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "bool": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": 9,
+                    "kind": "set_position",
+                    "position": [
+                      960,
+                      370
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "vector": [
+                          0,
+                          1.5,
+                          -2
+                        ]
+                      },
+                      {
+                        "object": {
+                          "id": "door-1"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "wires": [
+                  {
+                    "from": {
+                      "node": 1,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 3,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 1,
+                      "port": 1
+                    },
+                    "to": {
+                      "node": 2,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 2,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 3,
+                      "port": 1
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 3,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 4,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 5,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 8,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 6,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 7,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 7,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 8,
+                      "port": 1
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 8,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 9,
+                      "port": 0
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "door-1",
+          "name": "Door",
+          "transform": {
+            "translation": [
+              0,
+              1.5,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              2.6,
+              3,
+              0.35
+            ]
+          },
+          "parent": "gate-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.9,
+              0.55,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "collider": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              1,
+              1,
+              1
+            ],
+            "enabled": true
+          }
+        },
+        {
+          "id": "post--1-1",
+          "name": "Gate post",
+          "transform": {
+            "translation": [
+              -1.6,
+              1.75,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.35,
+              3.5,
+              0.5
+            ]
+          },
+          "parent": "gate-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.22,
+              0.28,
+              0.35
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "post-1-1",
+          "name": "Gate post",
+          "transform": {
+            "translation": [
+              1.6,
+              1.75,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.35,
+              3.5,
+              0.5
+            ]
+          },
+          "parent": "gate-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.22,
+              0.28,
+              0.35
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "lintel-1",
+          "name": "Gate lintel",
+          "transform": {
+            "translation": [
+              0,
+              3.6,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              3.55,
+              0.3,
+              0.5
+            ]
+          },
+          "parent": "gate-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.22,
+              0.28,
+              0.35
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    "gate-2": {
+      "asset": "pressure-gate",
+      "members": {
+        "gate": "gate-2",
+        "plate": "plate-2",
+        "door": "door-2",
+        "post--1": "post--1-2",
+        "post-1": "post-1-2",
+        "lintel": "lintel-2"
+      },
+      "baseline": [
+        {
+          "id": "gate-2",
+          "name": "Pressure gate",
+          "transform": {
+            "translation": [
+              0,
+              0,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plate-2",
+          "name": "Pressure plate \u2014 controls Door",
+          "transform": {
+            "translation": [
+              0,
+              0.12,
+              1
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.8,
+              0.16,
+              1.8
+            ]
+          },
+          "parent": "gate-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.12,
+              0.7,
+              0.55
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "trigger": {
+            "volume": {
+              "center": [
+                0,
+                3.75,
+                0
+              ],
+              "size": [
+                1,
+                6,
+                1
+              ],
+              "enabled": true
+            },
+            "action": {
+              "kind": "sensor"
+            }
+          },
+          "blueprints": [
+            {
+              "enabled": true,
+              "graph": {
+                "version": 1,
+                "name": "Pressure plate / Door",
+                "nodes": [
+                  {
+                    "id": 1,
+                    "kind": "body_enter",
+                    "position": [
+                      30,
+                      30
+                    ],
+                    "inputs": []
+                  },
+                  {
+                    "id": 2,
+                    "kind": "is_valid_object",
+                    "position": [
+                      30,
+                      190
+                    ],
+                    "inputs": [
+                      {
+                        "object": "none"
+                      }
+                    ]
+                  },
+                  {
+                    "id": 3,
+                    "kind": "branch",
+                    "position": [
+                      340,
+                      30
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "bool": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": 4,
+                    "kind": "set_position",
+                    "position": [
+                      650,
+                      30
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "vector": [
+                          0,
+                          4.5,
+                          -2
+                        ]
+                      },
+                      {
+                        "object": {
+                          "id": "door-2"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": 5,
+                    "kind": "body_exit",
+                    "position": [
+                      30,
+                      370
+                    ],
+                    "inputs": []
+                  },
+                  {
+                    "id": 6,
+                    "kind": "overlap_count",
+                    "position": [
+                      30,
+                      560
+                    ],
+                    "inputs": []
+                  },
+                  {
+                    "id": 7,
+                    "kind": "equal",
+                    "position": [
+                      340,
+                      530
+                    ],
+                    "inputs": [
+                      {
+                        "number": 0
+                      },
+                      {
+                        "number": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": 8,
+                    "kind": "branch",
+                    "position": [
+                      650,
+                      370
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "bool": false
+                      }
+                    ]
+                  },
+                  {
+                    "id": 9,
+                    "kind": "set_position",
+                    "position": [
+                      960,
+                      370
+                    ],
+                    "inputs": [
+                      "exec",
+                      {
+                        "vector": [
+                          0,
+                          1.5,
+                          -2
+                        ]
+                      },
+                      {
+                        "object": {
+                          "id": "door-2"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "wires": [
+                  {
+                    "from": {
+                      "node": 1,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 3,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 1,
+                      "port": 1
+                    },
+                    "to": {
+                      "node": 2,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 2,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 3,
+                      "port": 1
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 3,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 4,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 5,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 8,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 6,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 7,
+                      "port": 0
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 7,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 8,
+                      "port": 1
+                    }
+                  },
+                  {
+                    "from": {
+                      "node": 8,
+                      "port": 0
+                    },
+                    "to": {
+                      "node": 9,
+                      "port": 0
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "door-2",
+          "name": "Door",
+          "transform": {
+            "translation": [
+              0,
+              1.5,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              2.6,
+              3,
+              0.35
+            ]
+          },
+          "parent": "gate-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.9,
+              0.55,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "collider": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              1,
+              1,
+              1
+            ],
+            "enabled": true
+          }
+        },
+        {
+          "id": "post--1-2",
+          "name": "Gate post",
+          "transform": {
+            "translation": [
+              -1.6,
+              1.75,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.35,
+              3.5,
+              0.5
+            ]
+          },
+          "parent": "gate-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.22,
+              0.28,
+              0.35
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "post-1-2",
+          "name": "Gate post",
+          "transform": {
+            "translation": [
+              1.6,
+              1.75,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.35,
+              3.5,
+              0.5
+            ]
+          },
+          "parent": "gate-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.22,
+              0.28,
+              0.35
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "lintel-2",
+          "name": "Gate lintel",
+          "transform": {
+            "translation": [
+              0,
+              3.6,
+              -2
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              3.55,
+              0.3,
+              0.5
+            ]
+          },
+          "parent": "gate-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.22,
+              0.28,
+              0.35
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

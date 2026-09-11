@@ -589,3 +589,156 @@ fn blueprint_files_history_and_play_are_isolated_from_authoring() {
     assert!(e.load_blueprint("root", &file).is_err());
     assert_eq!(*e.scene(), authored);
 }
+
+#[test]
+fn blueprint_references_remap_through_prefab_duplicate_apply_and_save() {
+    use bozzard_scene::{
+        Blueprint, BlueprintAttachment,
+        blueprint::{Node, NodeKind as K, ObjectRef, Socket, Value, Wire},
+    };
+    let t = Temp::new();
+    let mut e = t.editor();
+    let mut graph = Blueprint {
+        nodes: vec![
+            Node::new(1, K::Start, [0.; 2]),
+            Node::new(2, K::Translate, [300., 0.]),
+        ],
+        ..Default::default()
+    };
+    graph.nodes[1].inputs[1] = Value::Vector([0., 1., 0.]);
+    graph.nodes[1].inputs[2] = Value::Object(ObjectRef::Id("child".into()));
+    graph
+        .connect(Wire {
+            from: Socket { node: 1, port: 0 },
+            to: Socket { node: 2, port: 0 },
+        })
+        .unwrap();
+    edit(&mut e, "root", |o| {
+        o.blueprints.push(BlueprintAttachment {
+            enabled: true,
+            graph,
+        })
+    });
+    let asset = run(&mut e, PrefabCommand::Create);
+    run(
+        &mut e,
+        PrefabCommand::Instantiate {
+            asset: asset.clone(),
+            position: Some([8., 0., 0.]),
+        },
+    );
+    let second = e.selected.clone().unwrap();
+    e.duplicate().unwrap();
+    let third = e.selected.clone().unwrap();
+    for root in ["root", second.as_str(), third.as_str()] {
+        let child = &e.scene().prefabs[root].members["child"];
+        assert_eq!(
+            object(&e, root).blueprints[0]
+                .graph
+                .object_references()
+                .collect::<Vec<_>>(),
+            vec![child.as_str()]
+        );
+        assert_eq!(
+            e.scene().prefabs[root]
+                .baseline
+                .iter()
+                .find(|o| o.id == root)
+                .unwrap()
+                .blueprints,
+            object(&e, root).blueprints
+        );
+    }
+    edit(&mut e, &second, |o| {
+        o.blueprints[0].graph.nodes[1].inputs[1] = Value::Vector([0., 2., 0.])
+    });
+    e.selected = Some(second.clone());
+    run(&mut e, PrefabCommand::Apply);
+    assert_eq!(
+        source(&e, &asset).objects[0].blueprints[0]
+            .graph
+            .object_references()
+            .collect::<Vec<_>>(),
+        vec!["child"]
+    );
+    for root in ["root", second.as_str(), third.as_str()] {
+        let child = &e.scene().prefabs[root].members["child"];
+        assert_eq!(
+            object(&e, root).blueprints[0]
+                .graph
+                .object_references()
+                .collect::<Vec<_>>(),
+            vec![child.as_str()]
+        );
+        assert_eq!(
+            object(&e, root).blueprints[0].graph.nodes[1].inputs[1],
+            Value::Vector([0., 2., 0.])
+        );
+    }
+    let before = e.scene().clone();
+    e.undo().unwrap();
+    e.redo().unwrap();
+    assert_eq!(e.scene(), &before);
+    let saved = t.0.join("saved.json");
+    e.save(&saved).unwrap();
+    let reopened = Editor::open(&saved).unwrap();
+    let mut demo = bozzard_demo::SceneDemo::new(reopened.scene()).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    for root in ["root", second.as_str(), third.as_str()] {
+        let child = &reopened.scene().prefabs[root].members["child"];
+        let entity = demo.instance.entity(child).unwrap();
+        assert_eq!(
+            demo.app
+                .world
+                .get::<bozzard_scene::Transform>(entity)
+                .unwrap()
+                .translation[1],
+            4.
+        );
+    }
+    e.selected = Some("child".into());
+    assert!(e.delete().is_err());
+    assert_eq!(e.scene(), reopened.scene());
+    let portable = t.0.join("portable.blueprint.json");
+    e.save_blueprint("root", 0, &portable).unwrap();
+    e.load_blueprint("root", &portable).unwrap();
+    assert_eq!(
+        object(&e, "root").blueprints[1].graph.nodes[1].inputs[2],
+        Value::Object(ObjectRef::None)
+    );
+}
+
+#[test]
+fn duplicating_only_owner_preserves_external_reference_but_prefab_capture_rejects_it() {
+    use bozzard_scene::{
+        Blueprint, BlueprintAttachment,
+        blueprint::{Node, NodeKind, ObjectRef, Value},
+    };
+    let t = Temp::new();
+    let mut e = t.editor();
+    let mut n = Node::new(1, NodeKind::Object, [0.; 2]);
+    n.inputs[0] = Value::Object(ObjectRef::Id("root".into()));
+    edit(&mut e, "child", |o| {
+        o.blueprints.push(BlueprintAttachment {
+            enabled: true,
+            graph: Blueprint {
+                nodes: vec![n],
+                ..Default::default()
+            },
+        })
+    });
+    e.selected = Some("child".into());
+    e.duplicate().unwrap();
+    assert_eq!(
+        e.selected_object().unwrap().blueprints[0]
+            .graph
+            .object_references()
+            .collect::<Vec<_>>(),
+        vec!["root"]
+    );
+    let before = e.scene().clone();
+    let job = e.prefab_job(PrefabCommand::Create).unwrap();
+    assert!(wait(&job).is_err());
+    assert_eq!(e.scene(), &before);
+}

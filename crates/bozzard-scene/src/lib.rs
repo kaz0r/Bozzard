@@ -447,6 +447,19 @@ impl Scene {
                 );
             }
         }
+        for object in &self.objects {
+            for attachment in &object.blueprints {
+                for target in attachment.graph.object_references() {
+                    ensure!(
+                        ids.contains_key(target),
+                        "blueprint '{}' on '{}' references missing object '{}'; clear or reassign the reference first",
+                        attachment.graph.name,
+                        object.id,
+                        target
+                    );
+                }
+            }
+        }
         for camera in self.views.values() {
             let index = *ids
                 .get(camera.as_str())
