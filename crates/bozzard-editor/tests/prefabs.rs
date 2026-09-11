@@ -74,10 +74,23 @@ fn source(e: &Editor, asset: &str) -> Prefab {
 fn create_place_history_save_play_and_headless_expansion() {
     let t = Temp::new();
     let mut e = t.editor();
+    edit(&mut e, "root", |o| {
+        o.blueprints = vec![
+            bozzard_scene::BlueprintAttachment {
+                enabled: true,
+                graph: bozzard_scene::Blueprint::spinning(),
+            },
+            bozzard_scene::BlueprintAttachment {
+                enabled: false,
+                graph: bozzard_scene::Blueprint::default(),
+            },
+        ]
+    });
     let before = e.scene().clone();
     let asset = run(&mut e, PrefabCommand::Create);
     let p = source(&e, &asset);
     assert_eq!(p.objects.len(), 2);
+    assert_eq!(p.objects[0].blueprints, before.objects[0].blueprints);
     assert_eq!(p.objects[0].transform.translation, [0.0; 3]);
     assert_eq!(object(&e, "root").transform, before.objects[0].transform);
     assert_eq!(e.scene().assets[&asset].kind, AssetKind::Prefab);
@@ -95,6 +108,10 @@ fn create_place_history_save_play_and_headless_expansion() {
     let second = e.selected.clone().unwrap();
     let state = e.scene().clone();
     assert_ne!(second, "root");
+    assert_eq!(
+        object(&e, &second).blueprints,
+        object(&e, "root").blueprints
+    );
     assert_eq!(object(&e, &second).transform.translation, [-4.0, 0.0, 1.0]);
     assert_eq!(e.scene().prefabs.len(), 2);
     assert_eq!(e.scene().objects.len(), 4);
@@ -134,13 +151,25 @@ fn apply_updates_siblings_preserves_component_overrides_placement_and_source_his
     let second = e.selected.clone().unwrap();
     let second_child = e.scene().prefabs[&second].members["child"].clone();
     edit(&mut e, &second, |o| {
-        o.drawable.as_mut().unwrap().color = [1.0, 0.0, 0.0]
+        o.drawable.as_mut().unwrap().color = [1.0, 0.0, 0.0];
+        o.blueprints.push(bozzard_scene::BlueprintAttachment {
+            enabled: true,
+            graph: bozzard_scene::Blueprint::spinning(),
+        });
     });
     edit(&mut e, "root", |o| {
-        o.drawable.as_mut().unwrap().color = [0.0, 0.0, 1.0]
+        o.drawable.as_mut().unwrap().color = [0.0, 0.0, 1.0];
+        o.blueprints.push(bozzard_scene::BlueprintAttachment {
+            enabled: true,
+            graph: bozzard_scene::Blueprint::default(),
+        });
     });
     edit(&mut e, "child", |o| {
-        o.light.as_mut().unwrap().intensity = 30.0
+        o.light.as_mut().unwrap().intensity = 30.0;
+        o.blueprints.push(bozzard_scene::BlueprintAttachment {
+            enabled: true,
+            graph: bozzard_scene::Blueprint::default(),
+        });
     });
     e.selected = Some("root".into());
     let before = e.scene().clone();
@@ -149,7 +178,15 @@ fn apply_updates_siblings_preserves_component_overrides_placement_and_source_his
         object(&e, &second).drawable.as_ref().unwrap().color,
         [1.0, 0.0, 0.0]
     );
+    assert_eq!(
+        object(&e, &second).blueprints[0].graph,
+        bozzard_scene::Blueprint::spinning()
+    );
     assert_eq!(object(&e, &second_child).light.unwrap().intensity, 30.0);
+    assert_eq!(
+        object(&e, &second_child).blueprints,
+        object(&e, "child").blueprints
+    );
     assert_eq!(object(&e, &second).transform.translation, [8.0, 0.0, 0.0]);
     let published = source(&e, &asset);
     assert_eq!(published.objects[0].transform.translation, [0.0; 3]);
@@ -509,4 +546,46 @@ fn malformed_metadata_and_nested_prefabs_are_rejected() {
         e.scene().assets.values().next().unwrap().clone(),
     );
     assert!(p.validate().is_err());
+}
+
+#[test]
+fn blueprint_files_history_and_play_are_isolated_from_authoring() {
+    let t = Temp::new();
+    let mut e = t.editor();
+    let graph = bozzard_scene::Blueprint::spinning();
+    let attachments = vec![bozzard_scene::BlueprintAttachment {
+        enabled: true,
+        graph,
+    }];
+    let before = e.scene().clone();
+    e.set_blueprints("root", attachments.clone()).unwrap();
+    e.undo().unwrap();
+    assert_eq!(*e.scene(), before);
+    e.redo().unwrap();
+    assert_eq!(object(&e, "root").blueprints, attachments);
+    let file = t.0.join("spin.blueprint.json");
+    e.save_blueprint("root", 0, &file).unwrap();
+    e.load_blueprint("root", &file).unwrap();
+    assert_eq!(object(&e, "root").blueprints.len(), 2);
+    assert!(
+        e.save_blueprint("root", 0, &t.0.join("scene.json"))
+            .is_err()
+    );
+    let authored = e.scene().clone();
+    e.start_play().unwrap();
+    e.advance(Duration::from_secs(1));
+    let play = e.play.as_ref().unwrap();
+    play.check_simulation().unwrap();
+    assert_ne!(
+        play.instance.capture(&play.app.world).unwrap().objects[0].transform,
+        authored.objects[0].transform
+    );
+    assert_eq!(*e.scene(), authored);
+    assert!(e.set_blueprints("root", vec![]).is_err());
+    e.stop_play();
+    e.save(&t.0.join("saved/scene.json")).unwrap();
+    assert_eq!(Editor::open(&e.path).unwrap().scene(), &authored);
+    std::fs::write(&file, "broken").unwrap();
+    assert!(e.load_blueprint("root", &file).is_err());
+    assert_eq!(*e.scene(), authored);
 }

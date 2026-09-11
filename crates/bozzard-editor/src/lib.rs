@@ -223,6 +223,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "object");
         scene.objects.push(Object {
+            blueprints: Vec::new(),
             light: None,
             id: id.clone(),
             name: match mesh {
@@ -257,6 +258,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "light");
         scene.objects.push(Object {
+            blueprints: Vec::new(),
             id: id.clone(),
             name: match kind {
                 bozzard_scene::LightKind::Point => "Point light",
@@ -352,6 +354,58 @@ impl Editor {
         scene.prefabs.retain(|root, _| !ids.contains(root));
         self.apply("Delete subtree", scene)
     }
+    pub fn set_blueprints(
+        &mut self,
+        object: &str,
+        blueprints: Vec<bozzard_scene::BlueprintAttachment>,
+    ) -> Result<()> {
+        let mut scene = self.scene.clone();
+        scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == object)
+            .context("blueprint owner no longer exists")?
+            .blueprints = blueprints;
+        self.apply("Edit blueprints", scene)
+    }
+    pub fn load_blueprint(&mut self, object: &str, path: &Path) -> Result<()> {
+        use std::io::Read;
+        let mut json = String::new();
+        std::fs::File::open(path)?
+            .take(1024 * 1024 + 1)
+            .read_to_string(&mut json)?;
+        let graph = bozzard_scene::Blueprint::from_json(&json)?;
+        let mut attachments = self
+            .scene
+            .objects
+            .iter()
+            .find(|o| o.id == object)
+            .context("blueprint owner no longer exists")?
+            .blueprints
+            .clone();
+        attachments.push(bozzard_scene::BlueprintAttachment {
+            enabled: true,
+            graph,
+        });
+        self.finish_gesture();
+        self.set_blueprints(object, attachments)
+    }
+    pub fn save_blueprint(&self, object: &str, index: usize, path: &Path) -> Result<()> {
+        ensure!(
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with(".blueprint.json")),
+            "use a .blueprint.json filename"
+        );
+        let attachment = self
+            .scene
+            .objects
+            .iter()
+            .find(|o| o.id == object)
+            .and_then(|o| o.blueprints.get(index))
+            .context("blueprint no longer exists")?;
+        bozzard_demo::save_json(&attachment.graph.to_json()?, path)
+    }
     pub fn start_play(&mut self) -> Result<()> {
         self.surface_selection = None;
         self.finish_gesture();
@@ -419,6 +473,7 @@ impl Editor {
             transform.scale[0] = image.width as f32 / image.height as f32;
         }
         scene.objects.push(Object {
+            blueprints: Vec::new(),
             light: None,
             id: id.clone(),
             name: asset_id.into(),

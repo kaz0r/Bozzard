@@ -1,0 +1,721 @@
+{
+  "version": 1,
+  "name": "Blueprint Playground",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "Camera 3D",
+      "transform": {
+        "translation": [
+          4,
+          3,
+          6
+        ],
+        "rotation_degrees": [
+          -22,
+          34,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "hero-cube",
+      "name": "Hero Cube",
+      "transform": {
+        "translation": [
+          0,
+          0.15,
+          0
+        ],
+        "rotation_degrees": [
+          12,
+          25,
+          0
+        ],
+        "scale": [
+          1.6,
+          1.6,
+          1.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "checker",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Spin",
+            "variables": {
+              "value": 0
+            },
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "update",
+                "position": [
+                  40,
+                  40
+                ],
+                "inputs": [],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 2,
+                "kind": "delta_time",
+                "position": [
+                  40,
+                  240
+                ],
+                "inputs": [],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 3,
+                "kind": "scale_vector",
+                "position": [
+                  360,
+                  210
+                ],
+                "inputs": [
+                  {
+                    "vector": [
+                      0,
+                      45,
+                      0
+                    ]
+                  },
+                  {
+                    "number": 0
+                  }
+                ],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 4,
+                "kind": "rotate",
+                "position": [
+                  680,
+                  40
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                ],
+                "variable": "value",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 1
+                }
+              }
+            ]
+          }
+        },
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Space toggles visibility",
+            "variables": {
+              "value": 1
+            },
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "input_pressed",
+                "position": [
+                  40,
+                  40
+                ],
+                "inputs": [],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 2,
+                "kind": "get_variable",
+                "position": [
+                  40,
+                  230
+                ],
+                "inputs": [],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 3,
+                "kind": "equal",
+                "position": [
+                  340,
+                  230
+                ],
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0
+                  }
+                ],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 4,
+                "kind": "set_visible",
+                "position": [
+                  640,
+                  40
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  }
+                ],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 5,
+                "kind": "subtract",
+                "position": [
+                  640,
+                  300
+                ],
+                "inputs": [
+                  {
+                    "number": 1
+                  },
+                  {
+                    "number": 0
+                  }
+                ],
+                "variable": "value",
+                "key": "jump"
+              },
+              {
+                "id": 6,
+                "kind": "set_variable",
+                "position": [
+                  940,
+                  40
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0
+                  }
+                ],
+                "variable": "value",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0,
+          -1.05,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          8,
+          0.1,
+          8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "checker",
+        "color": [
+          0.32,
+          0.42,
+          0.5
+        ],
+        "uv_scale": [
+          8,
+          8
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "orbit-pivot",
+      "name": "Orbit Pivot",
+      "transform": {
+        "translation": [
+          0,
+          0.2,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "spin": [
+        0,
+        35,
+        0
+      ]
+    },
+    {
+      "id": "satellite",
+      "name": "Satellite",
+      "transform": {
+        "translation": [
+          2.2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.55,
+          0.55,
+          0.55
+        ]
+      },
+      "parent": "orbit-pivot",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.85,
+          0.65
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "spin": [
+        20,
+        10,
+        15
+      ]
+    },
+    {
+      "id": "coral-cube",
+      "name": "Coral Cube",
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Bounce Z",
+            "variables": {},
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "update",
+                "position": [40, 40],
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "kind": "elapsed_time",
+                "position": [40, 220],
+                "inputs": []
+              },
+              {
+                "id": 3,
+                "kind": "multiply",
+                "position": [350, 220],
+                "inputs": [{"number": 0}, {"number": 3.141592653589793}]
+              },
+              {
+                "id": 4,
+                "kind": "sine",
+                "position": [660, 220],
+                "inputs": [{"number": 0}]
+              },
+              {
+                "id": 5,
+                "kind": "add",
+                "position": [660, 420],
+                "inputs": [{"number": 0}, {"number": -1}]
+              },
+              {
+                "id": 6,
+                "kind": "make_vector",
+                "position": [970, 400],
+                "inputs": [{"number": -2}, {"number": -0.45}, {"number": 0}]
+              },
+              {
+                "id": 7,
+                "kind": "set_position",
+                "position": [1280, 40],
+                "inputs": ["exec", {"vector": [0, 0, 0]}]
+              }
+            ],
+            "wires": [
+              {"from": {"node": 1, "port": 0}, "to": {"node": 7, "port": 0}},
+              {"from": {"node": 2, "port": 0}, "to": {"node": 3, "port": 0}},
+              {"from": {"node": 3, "port": 0}, "to": {"node": 4, "port": 0}},
+              {"from": {"node": 4, "port": 0}, "to": {"node": 5, "port": 0}},
+              {"from": {"node": 5, "port": 0}, "to": {"node": 6, "port": 2}},
+              {"from": {"node": 6, "port": 0}, "to": {"node": 7, "port": 1}}
+            ]
+          }
+        }
+      ],
+      "transform": {
+        "translation": [
+          -2,
+          -0.45,
+          -1
+        ],
+        "rotation_degrees": [
+          0,
+          20,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.2,
+          0.12
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "sprite-left",
+      "name": "Sprite Left",
+      "transform": {
+        "translation": [
+          -2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2,
+          2,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "checker",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "spin": [
+        0,
+        0,
+        12
+      ]
+    },
+    {
+      "id": "sprite-right",
+      "name": "Sprite Right",
+      "transform": {
+        "translation": [
+          1.4,
+          0.4,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          -12
+        ],
+        "scale": [
+          2.4,
+          1.4,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "checker",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "id": "sprite-accent",
+      "name": "Sprite Accent",
+      "transform": {
+        "translation": [
+          1.4,
+          -1.35,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.4,
+          0.15,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "white",
+        "color": [
+          0.05,
+          0.8,
+          0.65
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

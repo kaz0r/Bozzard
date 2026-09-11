@@ -102,7 +102,7 @@ impl GameplayControls {
             self.reset();
             return;
         };
-        if cancelled || play.gameplay().is_none() {
+        if cancelled || !play.accepts_gameplay_input() {
             self.reset();
             play.clear_gameplay_input();
         }
@@ -151,6 +151,35 @@ mod tests {
             events,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn blueprints_receive_viewport_input_without_a_player_controller() {
+        let scene = bozzard_scene::Scene::from_json(include_str!(
+            "../../../examples/demo/scenes/blueprint-lab.json"
+        ))
+        .unwrap();
+        let mut demo = SceneDemo::new(&scene).unwrap();
+        let mut controls = GameplayControls::default();
+        controls.prepare(
+            &raw(vec![key(Key::Space, Key::Space, false)]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        demo.set_gameplay_input(controls.take_input([0.; 2]));
+        demo.app.step();
+        demo.check_simulation().unwrap();
+        let entity = demo.instance.entity("hero-cube").unwrap();
+        assert!(
+            demo.app
+                .world
+                .get::<bozzard_scene::BlueprintHidden>(entity)
+                .unwrap()
+                .0
+        );
+        controls.prepare(&raw(vec![]), Modifiers::NONE, false, Some(&mut demo));
+        assert!(!controls.take_input([0.; 2]).jump);
     }
 
     #[test]

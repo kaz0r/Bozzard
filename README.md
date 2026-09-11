@@ -138,6 +138,12 @@ Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/response-la
 
 Movement supports one collider at a time; movers carrying enabled child colliders are rejected. Deep initial penetration is recovered within a bounded budget or returns an error without changing the world. Pair scanning remains unaccelerated, suitable for these initial demo scenes.
 
+## Gameplay Blueprints
+
+Use **Properties → BLUEPRINTS → + New** (or **+ Spin example**) to author gameplay without code in the dedicated **Blueprint** pane. Connect typed nodes, save/load reusable `.blueprint.json` graphs, and attach multiple ordered graphs to an object or prefab member. Mesh instances remain independent; coded behavior still works alongside graphs.
+
+Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/blueprint-lab.json`: select **Hero Cube**, open Blueprint, then Play. In the Scene viewport, Space toggles its visibility while another graph keeps it spinning. See [the no-code workflow, node catalog, and current limits](docs/blueprints.md).
+
 ## Prefabs
 
 The prefab authoring workflow saves a selected hierarchy as a linked JSON asset, places linked instances, and supports component-level overrides with refresh, apply, and unpack operations. See the [prefab workflow and current limits](docs/prefabs.md).

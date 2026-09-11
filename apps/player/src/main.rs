@@ -269,6 +269,10 @@ impl Player {
                 state.checkpoint.as_deref().unwrap_or("start"),
                 state.respawns
             )
+        } else if self.demo.instance.has_blueprints() {
+            format!(
+                "Bozzard | {status}Blueprints running | WASD / Space: input | R: restart | F5: save"
+            )
         } else {
             let layer = if self.options.layer == Layer::TwoD {
                 "2D"
@@ -291,12 +295,12 @@ impl Player {
         repeat: bool,
         synthetic: bool,
     ) -> Result<()> {
-        if self.demo.gameplay().is_some() {
+        if self.demo.accepts_gameplay_input() {
             if !synthetic && let PhysicalKey::Code(code) = physical {
                 let input =
                     self.gameplay_controls
                         .key(code, state == ElementState::Pressed, repeat);
-                if self.options.layer == Layer::ThreeD {
+                if self.options.layer == Layer::ThreeD || self.demo.instance.has_blueprints() {
                     self.demo.set_gameplay_input(input);
                 } else {
                     self.demo.clear_gameplay_input();
@@ -322,7 +326,7 @@ impl Player {
                 return Ok(());
             }
         }
-        if state == ElementState::Pressed && (!synthetic || self.demo.gameplay().is_none()) {
+        if state == ElementState::Pressed && (!synthetic || !self.demo.accepts_gameplay_input()) {
             self.handle_key(logical, repeat)?;
         }
         Ok(())
@@ -343,7 +347,7 @@ impl Player {
 
     fn execute_key(&mut self, key: &Key, repeat: bool) -> Result<bool> {
         match key {
-            Key::Named(NamedKey::Space) if !repeat && self.demo.gameplay().is_none() => {
+            Key::Named(NamedKey::Space) if !repeat && !self.demo.accepts_gameplay_input() => {
                 self.paused = !self.paused
             }
             Key::Character(value) if !repeat && (value == "1" || value == "2") => {
@@ -376,7 +380,7 @@ impl Player {
                 self.assets = assets;
                 self.demo = next;
                 self.gameplay_controls.reset();
-                if self.demo.gameplay().is_some() {
+                if self.demo.accepts_gameplay_input() {
                     self.paused = false;
                 }
                 self.last_frame = Instant::now();
@@ -455,9 +459,9 @@ impl ApplicationHandler for Player {
         if self.view.as_ref().is_none_or(|v| id != v.window.id()) {
             return;
         }
-        if self.demo.gameplay().is_some() {
+        if self.demo.accepts_gameplay_input() {
             if let Some(input) = self.gameplay_controls.event(&event)
-                && self.options.layer == Layer::ThreeD
+                && (self.options.layer == Layer::ThreeD || self.demo.instance.has_blueprints())
             {
                 self.demo.set_gameplay_input(input);
             } else {
@@ -620,6 +624,45 @@ mod controls_tests {
             frames: 0,
             error: None,
             command_error: None,
+        }
+    }
+
+    #[test]
+    fn blueprint_input_without_player_controller_toggles_rendered_mesh() {
+        let mut player = authored_player();
+        let scene = bozzard_scene::Scene::from_json(include_str!(
+            "../../../examples/demo/scenes/blueprint-lab.json"
+        ))
+        .unwrap();
+        player.demo = SceneDemo::new(&scene).unwrap();
+        player.gameplay_controls.event(&WindowEvent::Focused(true));
+        let visible = |p: &Player| {
+            p.demo
+                .instance
+                .view(&p.demo.app.world, Layer::ThreeD, 1.)
+                .unwrap()
+                .objects
+                .len()
+        };
+        let count = visible(&player);
+        for (pressed, expected) in [(true, count - 1), (false, count - 1), (true, count)] {
+            player
+                .dispatch_keyboard(
+                    PhysicalKey::Code(KeyCode::Space),
+                    &Key::Named(NamedKey::Space),
+                    if pressed {
+                        ElementState::Pressed
+                    } else {
+                        ElementState::Released
+                    },
+                    false,
+                    false,
+                )
+                .unwrap();
+            player.demo.app.step();
+            player.demo.check_simulation().unwrap();
+            assert!(!player.paused);
+            assert_eq!(visible(&player), expected);
         }
     }
 

@@ -4,6 +4,10 @@ mod gi;
 pub use gi::{BakedGi, GI_PROBE_STRIDE, GI_VISIBILITY_SIZE, GiSettings, GiVolumeSettings};
 mod surface;
 pub use surface::SurfaceMaterialOverride;
+pub mod blueprint;
+mod blueprint_runtime;
+pub use blueprint::{Blueprint, BlueprintAttachment};
+pub use blueprint_runtime::{BlueprintHidden, BlueprintRuntime};
 mod fog;
 pub use fog::FogSettings;
 mod environment;
@@ -217,6 +221,8 @@ pub struct Spin(pub [f32; 3]);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blueprints: Vec<BlueprintAttachment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<Light>,
     pub id: String,
@@ -356,6 +362,16 @@ impl Scene {
         }
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
+            ensure!(
+                object.blueprints.len() <= 16,
+                "at most 16 blueprints per object"
+            );
+            for attachment in &object.blueprints {
+                attachment
+                    .graph
+                    .validate()
+                    .with_context(|| format!("blueprint on '{}'", object.id))?;
+            }
             ensure!(!object.id.trim().is_empty(), "object ID is empty");
             ensure!(
                 ids.insert(object.id.as_str(), index).is_none(),
@@ -600,6 +616,7 @@ impl SceneInstance {
         for (id, entity) in &self.entities {
             if let Some(drawable) = world.get::<Drawable>(*entity)
                 && drawable.layer == layer
+                && !world.get::<BlueprintHidden>(*entity).is_some_and(|h| h.0)
                 && !world
                     .resource::<GameplayState>()
                     .is_some_and(|s| s.collected.contains(id))
@@ -745,6 +762,7 @@ mod tests {
     use super::*;
     fn object(id: &str) -> Object {
         Object {
+            blueprints: Vec::new(),
             light: None,
             id: id.into(),
             name: id.into(),

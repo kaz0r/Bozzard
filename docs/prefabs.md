@@ -29,4 +29,6 @@ Prefab preparation and acceptance use the editor's asynchronous job path. Cancel
 
 Prefab files can be imported through the asset browser as `.prefab.json`. Import registers a relative link to the existing prefab definition, preserving one shared source across scenes; it does not copy the definition. Importing the same prefab again in one scene reuses its catalog entry. Save As rebases the prefab link for the new scene location. No prefab definition or source dependency is copied, so keep the prefab file and its referenced image or mesh files together when sharing the project. This workflow is a source-file link and dependency rebase, not a full exporter.
 
+[Gameplay Blueprint](blueprints.md) attachments are captured per prefab member, including their order, enabled flags, and graph data. The attachment list is one component-level override: unchanged lists receive Apply/Refresh updates, while locally edited lists are preserved. Every placed instance has independent runtime variables; graphs target their own member, not the shared mesh asset.
+
 Nested prefabs, prefab variants, and `Player Controller` prefabs are not supported yet. A hierarchy containing a `Player Controller` must be unpacked or authored at scene level. The editor also requires Play to be stopped before prefab authoring operations.

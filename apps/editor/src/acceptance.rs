@@ -277,7 +277,8 @@ impl App {
         }
         if self.smoke_frames
             >= self
-                .smoke_prefab_frame
+                .smoke_blueprint_frame
+                .or(self.smoke_prefab_frame)
                 .or(self.smoke_gi_frame)
                 .or(self.smoke_light_frame)
                 .or(self.smoke_surface_frame)
@@ -285,7 +286,7 @@ impl App {
             && self.loading.is_none()
             && !self.smoke_requested
             && !self.error
-            && self.viewport_rect.is_some()
+            && (self.viewport_rect.is_some() || self.smoke_blueprint_frame.is_some())
             && self.target.is_some()
             && self.residency.has_all(&self.editor.assets)
         {
@@ -309,6 +310,25 @@ impl App {
                         height: image.size[1] as u32,
                         rgba: image.pixels.iter().flat_map(|p| p.to_array()).collect(),
                     };
+                    if self.smoke_blueprint_frame.is_some() {
+                        frame.write_ppm(&output.join("editor-blueprints.ppm"))?;
+                        ensure!(
+                            self.workspace.blueprints_visible
+                                && self
+                                    .editor
+                                    .selected_object()
+                                    .is_some_and(|o| o.blueprints.len() == 2),
+                            "blueprint pane or attachments missing"
+                        );
+                        ensure!(
+                            self.editor.play.is_none(),
+                            "blueprint authoring is still in Play"
+                        );
+                        println!(
+                            "editor_blueprint_smoke_ok dedicated_node_pane multiple_graphs runtime_play_isolation portable_save native_ui_capture"
+                        );
+                        return Ok(());
+                    }
                     if self.smoke_prefab_frame.is_some() {
                         frame.write_ppm(&output.join("editor-prefabs.ppm"))?;
                         ensure!(
@@ -621,6 +641,52 @@ impl App {
                                 return;
                             }
                             self.smoke_prefab_frame = Some(self.smoke_frames + 3);
+                            self.smoke_requested = false;
+                            continue;
+                        }
+                        if self.smoke_blueprint_frame.is_none() {
+                            let result = (|| -> Result<()> {
+                                let scene = bozzard_scene::Scene::from_json(include_str!(
+                                    "../../../examples/demo/scenes/blueprint-lab.json"
+                                ))?;
+                                self.editor =
+                                    Editor::new(scene, &output.join("blueprint-scene.json"))?;
+                                self.editor.select_object(Some("hero-cube".into()));
+                                let authored = self.editor.scene().clone();
+                                self.editor.start_play()?;
+                                let play = self.editor.play.as_mut().unwrap();
+                                for _ in 0..120 {
+                                    play.app.step();
+                                }
+                                play.check_simulation()?;
+                                ensure!(
+                                    play.instance.capture(&play.app.world)? != authored,
+                                    "blueprint did not execute"
+                                );
+                                self.editor.stop_play();
+                                ensure!(
+                                    *self.editor.scene() == authored,
+                                    "Play modified authored blueprints"
+                                );
+                                self.editor.save(&output.join("blueprint-scene.json"))?;
+                                self.editor.save_blueprint(
+                                    "hero-cube",
+                                    0,
+                                    &output.join("spin.blueprint.json"),
+                                )?;
+                                self.workspace.blueprints_visible = true;
+                                self.workspace.settings_visible = false;
+                                self.workspace.assets_visible = false;
+                                self.refresh = None;
+                                Ok(())
+                            })();
+                            if let Err(error) = result {
+                                eprintln!("editor_smoke_failed: {error:#}");
+                                self.allow_close = true;
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                return;
+                            }
+                            self.smoke_blueprint_frame = Some(self.smoke_frames + 3);
                             self.smoke_requested = false;
                             continue;
                         }
