@@ -759,6 +759,12 @@ pub fn extract(
             .lights
             .iter()
             .map(|world| bozzard_render::LocalLight {
+                shadows: world.light.requests_shadow_map().then_some(
+                    bozzard_render::SpotShadowSettings {
+                        bias: world.light.shadow_bias,
+                        normal_bias: world.light.shadow_normal_bias,
+                    },
+                ),
                 position: world.position,
                 direction: world.direction,
                 color: world.light.color,
@@ -919,6 +925,10 @@ mod tests {
         let mut e = editor();
         let initial = e.scene().clone();
         e.create_light(LightKind::Spot).unwrap();
+        assert_eq!(
+            bozzard_scene::MAX_SHADOWED_SPOT_LIGHTS,
+            bozzard_render::MAX_SHADOWED_SPOT_LIGHTS
+        );
         let id = e.selected.clone().unwrap();
         assert_eq!(e.render(Layer::ThreeD, 1.).unwrap().lights.len(), 1);
         assert!(e.render(Layer::TwoD, 1.).unwrap().lights.is_empty());
@@ -934,22 +944,30 @@ mod tests {
         e.begin_gesture("Light slider");
         for intensity in [120., 150.] {
             let mut scene = e.scene().clone();
-            scene
+            let light = scene
                 .objects
                 .iter_mut()
                 .find(|o| o.id == id)
                 .unwrap()
                 .light
                 .as_mut()
-                .unwrap()
-                .intensity = intensity;
+                .unwrap();
+            light.intensity = intensity;
+            light.shadows = true;
+            light.shadow_bias = 0.02;
+            light.shadow_normal_bias = 0.04;
             e.apply("Light slider", scene).unwrap();
         }
         e.finish_gesture();
         e.undo().unwrap();
         assert_eq!(e.selected_object().unwrap().light.unwrap().intensity, 100.);
+        assert!(!e.selected_object().unwrap().light.unwrap().shadows);
         e.redo().unwrap();
         assert_eq!(e.selected_object().unwrap().light.unwrap().intensity, 150.);
+        let shadow = e.render(Layer::ThreeD, 1.).unwrap().lights[0]
+            .shadows
+            .unwrap();
+        assert_eq!((shadow.bias, shadow.normal_bias), (0.02, 0.04));
         e.duplicate().unwrap();
         let copy = e.selected.clone().unwrap();
         assert_ne!(copy, id);
@@ -980,6 +998,14 @@ mod tests {
         let play = e.play.as_mut().unwrap();
         let entity = play.instance.entity(&id).unwrap();
         play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+        play.app.world.get_mut::<Light>(entity).unwrap().shadows = false;
+        assert!(
+            e.render(Layer::ThreeD, 1.)
+                .unwrap()
+                .lights
+                .iter()
+                .any(|l| l.shadows.is_none())
+        );
         assert!(
             e.render(Layer::ThreeD, 1.)
                 .unwrap()

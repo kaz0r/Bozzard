@@ -1,6 +1,7 @@
 use super::*;
 
 pub(super) struct Shadows {
+    pub spots: spot_shadows::SpotShadows,
     pub gi_uniform: wgpu::Buffer,
     pub gi_data: wgpu::Buffer,
     pub gi_snapshot: Option<std::sync::Arc<Vec<[f32; 4]>>>,
@@ -8,7 +9,7 @@ pub(super) struct Shadows {
     pub sample_layout: wgpu::BindGroupLayout,
     pub sample_binding: wgpu::BindGroup,
     caster_binding: wgpu::BindGroup,
-    pipeline: wgpu::RenderPipeline,
+    pub pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     sampler: wgpu::Sampler,
     depth: wgpu::TextureView,
@@ -56,6 +57,26 @@ impl Shadows {
                 label: Some("shadow receiver frame"),
                 entries: &[
                     uniform_entry,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(spot_shadows::UNIFORM_SIZE),
+                        },
+                        count: None,
+                    },
                     wgpu::BindGroupLayoutEntry {
                         binding: 4,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -144,13 +165,14 @@ impl Shadows {
             mapped_at_creation: false,
         });
         let depth = target(gpu, 1);
+        let spots = spot_shadows::SpotShadows::new(gpu, &caster_layout);
         let sample_binding = Self::binding(
             gpu,
             &sample_layout,
             &uniform,
-            &depth,
+            [&depth, &spots.depth],
             &sampler,
-            &[&local_lights, &gi_uniform, &gi_data],
+            &[&local_lights, &gi_uniform, &gi_data, &spots.uniform],
         );
         let layout = gpu
             .device
@@ -174,6 +196,7 @@ impl Shadows {
             multisample: Default::default(), multiview_mask: None, cache: None,
         });
         Self {
+            spots,
             gi_uniform,
             gi_data,
             gi_snapshot: None,
@@ -193,23 +216,36 @@ impl Shadows {
             gpu,
             &self.sample_layout,
             &self.uniform,
-            &self.depth,
+            [&self.depth, &self.spots.depth],
             &self.sampler,
-            &[&self.local_lights, &self.gi_uniform, &self.gi_data],
+            &[
+                &self.local_lights,
+                &self.gi_uniform,
+                &self.gi_data,
+                &self.spots.uniform,
+            ],
         );
     }
     fn binding(
         gpu: &Gpu,
         layout: &wgpu::BindGroupLayout,
         uniform: &wgpu::Buffer,
-        depth: &wgpu::TextureView,
+        depths: [&wgpu::TextureView; 2],
         sampler: &wgpu::Sampler,
-        buffers: &[&wgpu::Buffer; 3],
+        buffers: &[&wgpu::Buffer; 4],
     ) -> wgpu::BindGroup {
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("shadow receiver frame"),
             layout,
             entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::TextureView(depths[1]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: buffers[3].as_entire_binding(),
+                },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: buffers[1].as_entire_binding(),
@@ -228,7 +264,7 @@ impl Shadows {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(depth),
+                    resource: wgpu::BindingResource::TextureView(depths[0]),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -365,14 +401,28 @@ impl SceneRenderer {
         if !scene.lighting.shadows || self.shadows.resolution == 1 {
             return (0, 0);
         }
-        let mut counts = (0, 0);
         pass.set_pipeline(&self.shadows.pipeline);
         pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
+        self.draw_shadow_casters(&mut pass, draws, None)
+    }
+    pub(super) fn draw_shadow_casters(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        draws: &[PreparedDraw],
+        projection: Option<Mat4>,
+    ) -> (usize, u64) {
+        let mut counts = (0, 0);
         for (draw, binding) in draws.iter().zip(&self.objects) {
             if draw.transparent || !draw.object.material.lit {
                 continue;
             }
             let mesh = self.mesh_for(&draw.object.mesh);
+            if self.culling
+                && projection
+                    .is_some_and(|p| !visibility::visible(mesh.bounds, p * draw.object.model))
+            {
+                continue;
+            }
             pass.set_bind_group(0, &binding.binding, &[]);
             pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
             pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);

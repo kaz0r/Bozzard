@@ -272,6 +272,7 @@ fn local_light_checks(gpu: &Gpu, renderer: &mut SceneRenderer, f: &mut Fixture<'
         intensity: 1.,
         range: 100.,
         spot_angles: None,
+        shadows: None,
     };
     f.lighting.sun_intensity = 0.;
     f.lighting.ambient_intensity = 0.;

@@ -75,7 +75,7 @@ struct VertexOutput {
         let light = local_lights.lights[i];
         let offset = light.position_range.xyz - in.world;
         let l = offset / max(length(offset), 0.000001);
-        direct += direct_brdf(base, metallic, roughness, n, v, l) * local_radiance(light, offset);
+        direct += direct_brdf(base, metallic, roughness, n, v, l) * local_radiance(light, offset) * local_visibility(light, in.world, shadow_normal);
     }
     let ibl_diffuse = gi_diffuse(in.world,n)*base*(1.0-f0)*(1.0-metallic);
     let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);

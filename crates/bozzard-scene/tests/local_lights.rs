@@ -20,6 +20,7 @@ fn lights_roundtrip_transform_live_ecs_and_layer_isolation() {
     assert!((Vec3::from(light.direction) - Vec3::NEG_X).length() < 1e-5);
     assert_eq!(light.light.range, 10.); // Parent scale affects position, not range.
     assert_eq!(light.light.kind, LightKind::Spot);
+    assert!(!light.light.shadows); // Old scene files keep the previous appearance.
     assert!(
         instance
             .view(&world, Layer::TwoD, 1.)
@@ -57,6 +58,18 @@ fn lights_roundtrip_transform_live_ecs_and_layer_isolation() {
 #[test]
 fn rejects_invalid_light_data_and_excess_without_spawning() {
     for light in [
+        Light {
+            shadow_bias: f32::NAN,
+            ..Default::default()
+        },
+        Light {
+            shadow_normal_bias: -0.1,
+            ..Default::default()
+        },
+        Light {
+            shadow_bias: 1.01,
+            ..Default::default()
+        },
         Light {
             range: 0.,
             ..Default::default()
@@ -102,4 +115,48 @@ fn rejects_invalid_light_data_and_excess_without_spawning() {
     let mut world = World::default();
     assert!(s.spawn(&mut world).is_err());
     assert!(world.is_empty());
+}
+
+#[test]
+fn shadowed_spot_budget_counts_disabled_spots_and_validates_live_components() {
+    use bozzard_scene::MAX_SHADOWED_SPOT_LIGHTS;
+    let mut s = scene();
+    let light = s.objects[2].light.as_mut().unwrap();
+    light.shadows = true;
+    light.shadow_bias = 0.02;
+    light.shadow_normal_bias = 0.04;
+    let template = s.objects[2].clone();
+    for i in 1..MAX_SHADOWED_SPOT_LIGHTS {
+        let mut o = template.clone();
+        o.id = format!("shadow-{i}");
+        s.objects.push(o);
+    }
+    let mut point = template.clone();
+    point.id = "point".into();
+    point.light.as_mut().unwrap().kind = LightKind::Point;
+    s.objects.push(point);
+    assert_eq!(s, Scene::from_json(&s.to_json().unwrap()).unwrap());
+    let mut world = World::default();
+    let instance = s.spawn(&mut world).unwrap();
+    let view = instance.view(&world, Layer::ThreeD, 1.).unwrap();
+    assert_eq!(
+        view.lights
+            .iter()
+            .filter(|l| l.light.requests_shadow_map())
+            .count(),
+        MAX_SHADOWED_SPOT_LIGHTS
+    );
+    assert_eq!(view.lights[0].light.shadow_bias, 0.02);
+    let entity = instance.entity("point").unwrap();
+    let point = world.get_mut::<Light>(entity).unwrap();
+    point.kind = LightKind::Spot;
+    point.enabled = false;
+    assert!(instance.view(&world, Layer::ThreeD, 1.).is_err());
+    assert!(instance.capture(&world).is_err());
+    let point = s.objects.last_mut().unwrap().light.as_mut().unwrap();
+    point.kind = LightKind::Spot;
+    point.enabled = false;
+    let mut empty = World::default();
+    assert!(s.spawn(&mut empty).is_err());
+    assert!(empty.is_empty());
 }

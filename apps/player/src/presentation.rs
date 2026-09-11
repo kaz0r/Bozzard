@@ -36,6 +36,12 @@ pub fn extract(
             .lights
             .iter()
             .map(|world| bozzard_render::LocalLight {
+                shadows: world.light.requests_shadow_map().then_some(
+                    bozzard_render::SpotShadowSettings {
+                        bias: world.light.shadow_bias,
+                        normal_bias: world.light.shadow_normal_bias,
+                    },
+                ),
                 position: world.position,
                 direction: world.direction,
                 color: world.light.color,
