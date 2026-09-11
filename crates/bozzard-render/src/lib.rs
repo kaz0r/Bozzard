@@ -7,7 +7,7 @@ pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
     DisplaySettings, DrawItem, EnvironmentSettings, FrameStats, Lighting, Material, MeshKind,
     ModelImage, ModelPart, ModelUploadStats, PendingUpload, RenderScene, SceneRenderer,
-    TextureKind, UploadContext, UploadData, UploadProgress, UploadSource,
+    SurfaceMaterialOverride, TextureKind, UploadContext, UploadData, UploadProgress, UploadSource,
 };
 
 use anyhow::{Context, Result, ensure};

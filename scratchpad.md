@@ -2,7 +2,28 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — imported surface inspection
+## Current checkpoint — editable surface materials
+
+Implemented and validated tint/metallic/roughness overrides. This checkpoint commits the subsystem after `e6b3085`; **do not push**. User is at work and will announce when home to test; no scheduled reminder. Latest verified CI still covers pushed `0469807`, not these two local commits. Root owns implementation/scratchpad; Luna updated documentation. Pointer never moved.
+
+### Implementation
+
+- `bozzard-scene::Drawable.material_overrides`: optional sparse entries (surface index, source signature, linear RGB tint, optional metallic/roughness). Legacy scenes default to none. Validation rejects duplicates, malformed signatures, invalid factors, excessive indices/counts, and overrides on built-in geometry.
+- Importer assigns deterministic source keys from structural node/mesh/primitive/material-slot identity, bounded names and indexed geometry; source pixels/factors are excluded. Saved mismatches stay stored but inactive, with an inspector warning. Geometry-changing reimports require explicit new edits; no automatic remapping.
+- Renderer applies per-draw tint and PBR factor uniforms while retaining shared source textures/materials/geometry. Metallic/roughness replace source constants and still multiply the source map channels. Both editor and player extraction support overrides. Shared Arc override lists avoid per-surface list copies. Uniform layout/shaders agree at 368 bytes.
+- Inspector exposes compact tint/metallic/roughness controls, reset, and indicators on edited surface rows. Edits use normal gesture history; duplicate owns an independent copy, Save/Open and Play retain authored values. Changing the owning mesh clears its old overrides; assigning the same mesh preserves them. OBJ material parts support tint only; unpartitioned OBJ remains whole-object-only.
+- Limits: no per-surface texture replacement or alpha/emissive/normal-factor overrides; no global/shared material editing or independent primitive transforms. Source details remain read-only.
+
+### Validation
+
+- Full workspace tests and denied-warning Clippy passed. Subsequent same-mesh-assignment regression passed; final editor UI Clippy, formatting, headless dependency audit and diff whitespace check passed.
+- CPU tests cover one-step drag Undo/Redo/cancel/reset, immutable asset identity, duplicate independence, Save As/reopen, Play isolation, invalid edits, stale keys and mesh reassignment. Import tests cover source-factor stability versus geometry/material-slot changes; schema tests cover optional/invalid data.
+- Native Metal pixel tests passed surface/instance isolation, tint, reset, stale-source rejection, separate/combined metallic/roughness and exact parity with authored factors using a real metallic-roughness map. Shared source upload statistics remain unchanged. Existing PBR/shadow/environment/display/culling/staged-upload suites passed.
+- Native editor smoke passed normal authored commands/Play/async save/open/import/cancel plus material Undo/Redo, shared residency and saved scene. Final compact controls visually reviewed at `work/editor-material-overrides-final/editor-surface.ppm`; saved sample `work/editor-material-overrides-final/material-scene.json`.
+- Actual Sponza example picked surface 37, edited tint/metallic/roughness, validated Undo/Redo, Save As/reopen/source identity and Play. Ignored output: `work/sponza/material-override-scene.json`. Native player loaded/rendered this scene successfully (103 surfaces,69 images); visually reviewed blue-tinted wall at `work/sponza/material-overrides-gpu/loaded-3d.ppm`.
+- Logs: `/tmp/bozzard-overrides-tests.log`, `/tmp/bozzard-overrides-clippy.log`, `/tmp/bozzard-overrides-ui-clippy.log`, `/tmp/bozzard-materials-final-test.log`, `/tmp/bozzard-editor-material-overrides-final.log`, `/tmp/bozzard-sponza-overrides.log`, `/tmp/bozzard-sponza-overrides-gpu.log`. Reproduction/checklist: `docs/sponza.md`.
+
+## Previous checkpoint — imported surface inspection (`e6b3085`)
 
 User asked to check CI and, on success, implement selection of imported surfaces, material inspection and F framing. **CI passed for pushed `0469807`**: [run 34555701299](https://github.com/kaz0r/Bozzard/actions/runs/34555701299), macos-15/Metal, ubuntu-24.04/Vulkan, windows-2025/DX12. The new inspection subsystem is implemented and validated; this checkpoint commits it. No new push requested.
 
@@ -29,9 +50,9 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-Let the user try selecting surfaces in Sponza and inspect materials; obtain direction before another subsystem. A useful follow-up is per-surface material overrides (editable tint/roughness with scene persistence and Undo), which is not implemented. New checkpoint has not been pushed; run CI when a push is requested.
+Wait for the user's home test of surface selection and material controls; obtain direction before another subsystem. Local commits remain unpushed. Run cross-platform CI only when a push is requested. Possible later subsystem: per-surface texture replacement with managed asset dependencies, after this override workflow is accepted.
 
-Launch: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/sponza/scene.json`. Click geometry or choose Imported surfaces; F over viewport / double-click a row frames it. Shift+F frames all; Select whole model returns to transforms.
+Launch: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/sponza/scene.json`. Click geometry or choose Imported surfaces; edit Tint, enable Metallic/Roughness, Undo/Redo, Reset override, Save As/reopen, Play/Stop. Duplicate via Select whole model and verify independent edits on the copy. Use Save As into `work/sponza/` to keep the tracked sample view clean. F over viewport / double-click a row frames a surface; Shift+F frames all.
 
 ## Completed Sponza rendering milestone
 

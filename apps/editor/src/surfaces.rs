@@ -20,7 +20,7 @@ impl App {
                 _ => true,
             })
     }
-    /// Returns true while inspecting an imported surface instead of editing its owner.
+    /// Returns true while editing an imported surface instead of its owner's components.
     pub fn surface_inspector(&mut self, ui: &mut egui::Ui) -> bool {
         let Some(mesh) = self.editor.selected_mesh() else {
             return false;
@@ -29,6 +29,25 @@ impl App {
             return false;
         }
         let selected = self.editor.selected_surface().map(|s| s.index);
+        let original_override = self.editor.selected_material_override().ok();
+        let saved = &self
+            .editor
+            .selected_object()
+            .unwrap()
+            .drawable
+            .as_ref()
+            .unwrap()
+            .material_overrides;
+        let inactive = saved
+            .iter()
+            .filter(|value| {
+                mesh.parts
+                    .get(value.surface as usize)
+                    .is_none_or(|part| part.source_key != value.source)
+            })
+            .count();
+        let mut material_edit = None;
+        let mut reset_material = false;
         let mut choose = None;
         let mut frame = false;
         let mut whole = false;
@@ -36,6 +55,12 @@ impl App {
             .id_salt("imported-surfaces")
             .default_open(true)
             .show(ui, |ui| {
+                if inactive > 0 {
+                    ui.colored_label(
+                        Color32::YELLOW,
+                        format!("{inactive} saved overrides no longer match this source."),
+                    );
+                }
                 ui.horizontal(|ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.surface_search)
@@ -72,7 +97,17 @@ impl App {
                                 let row = ui
                                     .selectable_label(
                                         selected == Some(index),
-                                        surface_label(index, part),
+                                        format!(
+                                            "{}{}",
+                                            surface_label(index, part),
+                                            if saved.iter().any(|v| v.surface as usize == index
+                                                && v.source == part.source_key)
+                                            {
+                                                " •"
+                                            } else {
+                                                ""
+                                            }
+                                        ),
                                     )
                                     .on_hover_text(&part.name);
                                 if row.clicked() || row.double_clicked() {
@@ -101,9 +136,16 @@ impl App {
                 }
                 whole = ui.button("Select whole model").clicked();
             });
-            ui.weak(
-                "Inspecting imported geometry. Select the whole model to transform or edit it.",
-            );
+            ui.weak("Select the whole model to edit its transform or components.");
+            if let Some(original) = &original_override {
+                ui.separator();
+                let mut value = original.clone();
+                let has_saved = saved.iter().any(|v| v.surface as usize == index);
+                reset_material = material_controls(ui, &mut value, part, has_saved);
+                if value != *original {
+                    material_edit = Some(value);
+                }
+            }
             ui.separator();
             ui.strong("Source material");
             ui.label(format!("Base color: {:.3?}", part.color));
@@ -154,7 +196,23 @@ impl App {
                 }
             }
         }
+        if reset_material {
+            self.editor.finish_gesture();
+            if let Some(original) = original_override {
+                let value = bozzard_scene::SurfaceMaterialOverride::inherited(
+                    original.surface,
+                    original.source,
+                );
+                let result = self.editor.set_selected_material_override(value);
+                self.result(result);
+            }
+        } else if let Some(value) = material_edit {
+            self.editor.begin_gesture("Edit surface material");
+            let result = self.editor.set_selected_material_override(value);
+            self.result(result);
+        }
         if whole {
+            self.editor.finish_gesture();
             self.editor.select_object(self.editor.selected.clone());
         } else if let Some(index) = choose {
             self.editor.finish_gesture();
@@ -206,6 +264,61 @@ impl App {
         );
         Ok(())
     }
+}
+
+fn material_controls(
+    ui: &mut egui::Ui,
+    value: &mut bozzard_scene::SurfaceMaterialOverride,
+    part: &MeshPart,
+    has_saved: bool,
+) -> bool {
+    let mut reset = false;
+    ui.horizontal(|ui| {
+        ui.strong("Material override");
+        reset = ui
+            .add_enabled(has_saved, egui::Button::new("Reset override"))
+            .on_hover_text("Return this surface to its source material")
+            .clicked();
+    });
+    ui.horizontal(|ui| {
+        ui.label("Tint");
+        ui.color_edit_button_rgb(&mut value.tint);
+    });
+    if let Some(shading) = &part.shading {
+        factor_control(
+            ui,
+            "Metallic",
+            &mut value.metallic,
+            shading.material.metallic,
+        );
+        factor_control(
+            ui,
+            "Roughness",
+            &mut value.roughness,
+            shading.material.roughness,
+        );
+    } else {
+        ui.weak("Diffuse surface: tint only");
+    }
+    ui.weak("Only this object's surface. Tint and factors multiply the existing maps.");
+    reset
+}
+
+fn factor_control(ui: &mut egui::Ui, label: &str, factor: &mut Option<f32>, source: f32) {
+    ui.horizontal(|ui| {
+        let mut enabled = factor.is_some();
+        if ui.checkbox(&mut enabled, label)
+            .on_hover_text("Override this factor for this object's surface. Uncheck to inherit the source material.")
+            .changed()
+        {
+            *factor = enabled.then_some(source);
+        }
+        let mut value = factor.unwrap_or(source);
+        ui.spacing_mut().slider_width = (ui.available_width() - 55.0).clamp(50.0, 120.0);
+        if ui.add_enabled(enabled, egui::Slider::new(&mut value, 0.0..=1.0)).changed() {
+            *factor = Some(value);
+        }
+    });
 }
 
 fn map_details(

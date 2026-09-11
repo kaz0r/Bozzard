@@ -34,10 +34,20 @@ pub enum TextureKind {
 
 #[derive(Clone, Debug)]
 pub struct Material {
+    pub surface_overrides: std::sync::Arc<[SurfaceMaterialOverride]>,
     pub tint: [f32; 3],
     pub uv_scale: [f32; 2],
     pub texture: TextureKind,
     pub lit: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct SurfaceMaterialOverride {
+    pub surface: u32,
+    pub source: String,
+    pub tint: [f32; 3],
+    pub metallic: Option<f32>,
+    pub roughness: Option<f32>,
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +69,7 @@ pub struct RenderScene {
 
 /// CPU-side material surface uploaded as part of a static model.
 pub struct ModelPart<'a> {
+    pub source_key: &'a str,
     pub start: u32,
     pub count: u32,
     pub color: [f32; 4],
@@ -84,6 +95,7 @@ pub struct ModelUploadStats {
     pub max_slice_cpu_ms: f64,
 }
 struct UploadedPart {
+    source_key: String,
     mesh: MeshBuffers,
     texture: Option<wgpu::TextureView>,
     color: [f32; 4],
@@ -94,6 +106,7 @@ struct UploadedPart {
     shading: Option<crate::pbr::UploadedShading>,
 }
 struct PreparedDraw {
+    pbr_override: [f32; 2],
     object: DrawItem,
     opacity: f32,
     cutoff: f32,
@@ -313,7 +326,7 @@ impl SceneRenderer {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(352),
+                            min_binding_size: wgpu::BufferSize::new(368),
                         },
                         count: None,
                     },
@@ -442,7 +455,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 352,
+            size: 368,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -804,6 +817,7 @@ impl SceneRenderer {
                 max = max.max(p);
             }
             uploaded.push(UploadedPart {
+                source_key: part.source_key.to_owned(),
                 mesh: MeshBuffers {
                     bounds: [min, max],
                     vertices: shared.vertices.clone(),
@@ -900,12 +914,14 @@ impl SceneRenderer {
                        opacity: f32,
                        cutoff: Option<f32>,
                        translucent: bool,
-                       center: Vec3| {
+                       center: Vec3,
+                       pbr_override: [f32; 2]| {
             let depth = scene
                 .view_projection
                 .project_point3(object.model.transform_point3(center))
                 .z;
             draws.push(PreparedDraw {
+                pbr_override,
                 object,
                 opacity,
                 cutoff: cutoff.unwrap_or(0.0),
@@ -917,6 +933,12 @@ impl SceneRenderer {
             if let MeshKind::Imported(id) = &object.mesh
                 && let Some(parts) = self.models.get(id)
             {
+                let overrides: BTreeMap<_, _> = object
+                    .material
+                    .surface_overrides
+                    .iter()
+                    .map(|v| (v.surface as usize, v))
+                    .collect();
                 for (index, part) in parts.iter().enumerate() {
                     let mut item = object.clone();
                     item.mesh = MeshKind::ModelPart(id.clone(), index);
@@ -932,11 +954,29 @@ impl SceneRenderer {
                         part.color[3] < 1.0
                             || matches!(&item.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
                     };
-                    add(item, part.color[3], part.cutoff, translucent, part.center);
+                    let override_value = overrides
+                        .get(&index)
+                        .filter(|value| value.source == part.source_key);
+                    if let Some(value) = override_value {
+                        for (tint, multiplier) in item.material.tint.iter_mut().zip(value.tint) {
+                            *tint *= multiplier;
+                        }
+                    }
+                    let factors = override_value.map_or([-1.; 2], |v| {
+                        [v.metallic.unwrap_or(-1.), v.roughness.unwrap_or(-1.)]
+                    });
+                    add(
+                        item,
+                        part.color[3],
+                        part.cutoff,
+                        translucent,
+                        part.center,
+                        factors,
+                    );
                 }
             } else {
                 let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id));
-                add(object.clone(), 1.0, None, transparent, Vec3::ZERO);
+                add(object.clone(), 1.0, None, transparent, Vec3::ZERO, [-1.; 2]);
             }
         }
         // Opaque first; translucent surfaces back-to-front by projected center.
@@ -990,6 +1030,36 @@ impl SceneRenderer {
             scene.view_projection.is_finite() && scene.view_projection.inverse().is_finite(),
             "invalid view/projection matrix"
         );
+        for item in &scene.items {
+            ensure!(
+                item.material.surface_overrides.len() <= 4096,
+                "too many material overrides"
+            );
+            let mut surfaces = BTreeSet::new();
+            for value in item.material.surface_overrides.iter() {
+                ensure!(
+                    value.surface < 4096 && surfaces.insert(value.surface),
+                    "invalid or duplicate material override surface"
+                );
+                ensure!(
+                    value.source.len() == 16
+                        && value
+                            .source
+                            .bytes()
+                            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)),
+                    "invalid override source signature"
+                );
+                ensure!(
+                    value
+                        .tint
+                        .iter()
+                        .chain(value.metallic.iter())
+                        .chain(value.roughness.iter())
+                        .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                    "invalid material override factors"
+                );
+            }
+        }
         self.environment
             .prepare(gpu, scene.environment, scene.view_projection.inverse())?;
         self.display.prepare(gpu, size, scene.display, raw)?;
@@ -1083,7 +1153,8 @@ impl SceneRenderer {
                                 0.
                             },
                         ])
-                        .chain(scene.lighting.uniform()),
+                        .chain(scene.lighting.uniform())
+                        .chain([draw.pbr_override[0], draw.pbr_override[1], 0., 0.]),
                 ),
             );
         }

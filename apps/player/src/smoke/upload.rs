@@ -13,6 +13,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             model: Mat4::from_translation(Vec3::new(0., 0., 0.5)),
             mesh: MeshKind::Imported("staged".into()),
             material: Material {
+                surface_overrides: Default::default(),
                 tint: [1.; 3],
                 uv_scale: [128.; 2],
                 texture: TextureKind::White,
@@ -32,6 +33,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             parts: [0, 6]
                 .into_iter()
                 .map(|start| MeshPart {
+                    source_key: format!("{start:016x}"),
                     name: format!("Surface {start}"),
                     material_name: None,
                     start,

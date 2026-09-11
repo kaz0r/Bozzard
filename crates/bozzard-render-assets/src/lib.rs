@@ -68,6 +68,7 @@ pub fn model_parts(mesh: &MeshData) -> Vec<ModelPart<'_>> {
     mesh.parts
         .iter()
         .map(|part| ModelPart {
+            source_key: &part.source_key,
             start: part.start,
             count: part.count,
             color: part.color,

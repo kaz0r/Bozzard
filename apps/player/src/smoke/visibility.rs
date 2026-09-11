@@ -6,6 +6,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         model: Mat4::from_translation(position),
         mesh: MeshKind::Cube,
         material: Material {
+            surface_overrides: Default::default(),
             tint: [0.3, 0.8, 0.7],
             texture: TextureKind::White,
             uv_scale: [1.; 2],

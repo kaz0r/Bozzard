@@ -1,5 +1,45 @@
 use super::*;
 impl App {
+    fn smoke_material_override(&mut self, output: &Path) -> Result<()> {
+        let original = self.editor.selected_material_override()?;
+        let mut edited = original.clone();
+        edited.tint = [1.0, 0.45, 0.4];
+        if self
+            .editor
+            .selected_surface()
+            .unwrap()
+            .part
+            .shading
+            .is_some()
+        {
+            edited.metallic = Some(0.6);
+            edited.roughness = Some(0.25);
+        }
+        let revision = self.editor.asset_revision();
+        self.editor.begin_gesture("Edit surface material");
+        self.editor.set_selected_material_override(edited.clone())?;
+        self.editor.finish_gesture();
+        self.editor.undo()?;
+        ensure!(
+            self.editor.selected_material_override()? == original,
+            "material Undo mismatch"
+        );
+        self.editor.redo()?;
+        ensure!(
+            self.editor.selected_material_override()? == edited,
+            "material Redo mismatch"
+        );
+        ensure!(
+            self.editor.asset_revision() == revision && self.surface_graphics_ready(),
+            "material edit reloaded shared graphics"
+        );
+        // The initial Save As already rebased asset paths into this output directory.
+        // Write a sibling document without replacing the live asset/selection identity.
+        bozzard_demo::save_document(self.editor.scene(), &output.join("material-scene.json"))?;
+        println!("editor_material_override_smoke_ok undo redo shared_residency scene_save");
+        Ok(())
+    }
+
     pub fn smoke_step(&mut self, ctx: &egui::Context) {
         let Some(output) = self.smoke.clone() else {
             return;
@@ -295,23 +335,41 @@ impl App {
                 match result {
                     Ok(()) => {
                         if self.smoke_surface_frame.is_none() {
-                            let model = self.editor.scene().objects.iter().find_map(|object| {
-                                let Mesh::Asset(id) = &object.drawable.as_ref()?.mesh else {
-                                    return None;
-                                };
-                                let bozzard_assets::AssetData::Mesh(mesh) = self
-                                    .editor
-                                    .assets
-                                    .get(self.editor.assets.handle(id)?)?
-                                    .data()?
-                                else {
-                                    return None;
-                                };
-                                (!mesh.parts.is_empty()).then(|| object.id.clone())
-                            });
-                            if let Some(model) = model {
+                            let model = self
+                                .editor
+                                .scene()
+                                .objects
+                                .iter()
+                                .filter_map(|object| {
+                                    let Mesh::Asset(id) = &object.drawable.as_ref()?.mesh else {
+                                        return None;
+                                    };
+                                    let bozzard_assets::AssetData::Mesh(mesh) = self
+                                        .editor
+                                        .assets
+                                        .get(self.editor.assets.handle(id)?)?
+                                        .data()?
+                                    else {
+                                        return None;
+                                    };
+                                    // Prefer a PBR part so the native capture covers all controls.
+                                    let index = mesh
+                                        .parts
+                                        .iter()
+                                        .position(|p| p.shading.is_some())
+                                        .unwrap_or(0);
+                                    mesh.parts.get(index).map(|part| {
+                                        (part.shading.is_some(), object.id.clone(), index)
+                                    })
+                                })
+                                .max_by_key(|(pbr, _, _)| *pbr);
+                            if let Some((_, model, index)) = model {
                                 self.editor.select_object(Some(model));
-                                if let Err(error) = self.editor.select_surface(0) {
+                                if let Err(error) = self
+                                    .editor
+                                    .select_surface(index)
+                                    .and_then(|()| self.smoke_material_override(&output))
+                                {
                                     eprintln!("editor_smoke_failed: {error:#}");
                                     self.allow_close = true;
                                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);

@@ -15,14 +15,28 @@ Validation rejects missing parents, cycles, duplicate/empty IDs, invalid camera 
 ## Optional components
 
 - `camera`: `orthographic` with `vertical_size`, or `perspective` with `vertical_fov_degrees`; both have positive `near` and `far > near`. A scene's `views` maps `2d`/`3d` to camera object IDs. Either view may be omitted.
-- `drawable`: a `2d`/`3d` layer, `quad`/`cube` mesh, `white`/`checker` texture, linear RGB tint, and positive UV scale. Either mesh or texture can instead be `{"asset":"stable-id"}` referencing the document’s `assets` catalog; the referenced kind must match.
+- `drawable`: a `2d`/`3d` layer, `quad`/`cube` mesh, `white`/`checker` texture, linear RGB tint, and positive UV scale. Either mesh or texture can instead be `{"asset":"stable-id"}` referencing the document’s `assets` catalog; the referenced kind must match. Imported model drawables may include optional `material_overrides` entries keyed by surface index and source signature, with tint and opt-in metallic/roughness replacements; mismatched signatures remain inactive.
 - `player_controller`: optional single-player movement/jump/follow-camera settings with a validated active 3D camera ID.
 - `trigger`: optional local box `volume` plus collectible/checkpoint/goal `action`; separate from solid colliders. See [gameplay format, constraints and runtime-state rules](playable-demo.md#authoring-contract). Both additions remain optional in schema v1.
 - `spin`: X/Y/Z angular rates in degrees per second. The demo registers a fixed-step system that updates local rotation, so children inherit parent motion.
 
+An override uses a zero-based surface index and an importer-generated 16-character lowercase hexadecimal source signature. The signature is not an authored asset ID and includes structural node/mesh/primitive/material-slot identity, names, and indexed geometry; texture pixels and material factors are excluded. Tint is linear RGB and defaults to `[1, 1, 1]`; optional metallic and roughness values replace the source factors while retaining the source maps. Values are finite and constrained to 0..1:
+
+```json
+"material_overrides": [
+  {
+    "surface": 0,
+    "source": "0123456789abcdef",
+    "tint": [1.0, 0.9, 0.8],
+    "metallic": 0.65,
+    "roughness": 0.35
+  }
+]
+```
+
 Quads and cubes have unit dimensions centered at the origin; scale determines their size. Quad UVs start at the top-left. Both geometry types use indexed buffers. The renderer has per-object uniform buffers and a recreated-on-resize depth target. Nearer surfaces win using a strict less-than depth test. Equal-depth overlap has no stable layering promise: give overlapping sprites distinct Z positions.
 
-Materials are opaque. The checker palette is procedural linear color data sampled with nearest/repeat filtering; imported PNG/JPEG images use sRGB decoding. Mipmaps, transparency sorting, and texture streaming are not implemented. 3D uses ambient plus a fixed directional diffuse light and inverse-transpose normal transforms; 2D is unlit. There are no shadows or PBR materials yet.
+Materials support opaque, masked, and blended alpha modes where the imported format provides them; transparent surfaces are sorted and blended without depth writes. The checker palette is procedural linear color data sampled with nearest/repeat filtering; imported PNG/JPEG images use sRGB decoding. Imported glTF/GLB materials support the renderer's PBR, lighting, shadow, environment, and display paths; per-object surface overrides multiply authored maps and are not global material edits. 2D is unlit. See [asset imports](assets.md) for supported formats and rendering limits.
 
 ## Save and reload contract
 

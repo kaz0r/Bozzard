@@ -49,6 +49,7 @@ fn surface(
         &vertices,
         &[0, 1, 2, 0, 2, 3],
         &[ModelPart {
+            source_key: "",
             start: 0,
             count: 6,
             color: [1.; 4],
@@ -86,6 +87,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             model: Mat4::IDENTITY,
             mesh: MeshKind::Imported("environment-fixture".into()),
             material: Material {
+                surface_overrides: Default::default(),
                 tint: [1.; 3],
                 uv_scale: [1.; 2],
                 texture: TextureKind::White,

@@ -324,6 +324,7 @@ impl UploadContext {
                             max = max.max(p);
                         }
                         uploaded.push(UploadedPart {
+                            source_key: part.source_key.to_owned(),
                             mesh: MeshBuffers {
                                 bounds: [min, max],
                                 vertices: shared.clone(),

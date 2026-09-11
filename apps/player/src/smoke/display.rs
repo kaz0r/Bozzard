@@ -22,6 +22,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             model: Mat4::IDENTITY,
             mesh: MeshKind::Quad,
             material: Material {
+                surface_overrides: Default::default(),
                 tint: [1.; 3],
                 texture: TextureKind::White,
                 uv_scale: [1.; 2],
@@ -98,6 +99,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         &vertices,
         &[0, 1, 2, 0, 2, 3],
         &[ModelPart {
+            source_key: "",
             start: 0,
             count: 6,
             color: [0., 1., 0., 0.5],

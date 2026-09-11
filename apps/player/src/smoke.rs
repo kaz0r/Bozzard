@@ -6,6 +6,7 @@ use glam::{Mat4, Vec3};
 mod benchmark;
 mod display;
 mod environment;
+mod overrides;
 mod pbr;
 mod shadows;
 mod upload;
@@ -60,6 +61,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     let green = [0, 255, 0, 255];
     let parts = [
         ModelPart {
+            source_key: "",
             shading: None,
             start: 0,
             count: 6,
@@ -68,6 +70,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             image: None,
         },
         ModelPart {
+            source_key: "",
             shading: None,
             start: 6,
             count: 6,
@@ -84,6 +87,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     let shared_parts: Vec<_> = [0, 6]
         .into_iter()
         .map(|start| ModelPart {
+            source_key: "",
             shading: None,
             start,
             count: 6,
@@ -105,6 +109,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         "shared model texture was uploaded more than once: {stats:?}"
     );
     let material = Material {
+        surface_overrides: Default::default(),
         tint: [1.; 3],
         uv_scale: [1.; 2],
         texture: TextureKind::White,
@@ -135,6 +140,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             &vertices,
             &indices,
             &[ModelPart {
+                source_key: "",
                 shading: None,
                 start: 0,
                 count: 12,
@@ -156,6 +162,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
                 model: Mat4::IDENTITY,
                 mesh: MeshKind::Imported("mip-test".into()),
                 material: Material {
+                    surface_overrides: Default::default(),
                     uv_scale: [128.; 2],
                     ..material.clone()
                 },
@@ -181,6 +188,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     pixel(&image, 16, 32, [255, 0, 0])?;
     pixel(&image, 48, 32, [0, 255, 0])?;
     let invalid = [ModelPart {
+        source_key: "",
         shading: None,
         start: 0,
         count: 999,
@@ -209,6 +217,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
                 model: Mat4::from_translation(Vec3::new(0., 0., 0.2)),
                 mesh: MeshKind::Quad,
                 material: Material {
+                    surface_overrides: Default::default(),
                     texture: TextureKind::Imported("half-red".into()),
                     ..material.clone()
                 },
@@ -217,6 +226,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
                 model: Mat4::from_translation(Vec3::new(0., 0., 0.8)),
                 mesh: MeshKind::Quad,
                 material: Material {
+                    surface_overrides: Default::default(),
                     tint: [0., 0., 1.],
                     ..material.clone()
                 },
@@ -230,6 +240,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         [128, 0, 127],
     )?;
     let masked = [ModelPart {
+        source_key: "",
         shading: None,
         start: 0,
         count: 12,
@@ -255,6 +266,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let projection = glam::camera::rh::proj::directx::orthographic(-2.0, 2.0, -1.5, 1.5, 0.1, 10.0);
     let view_projection = projection * Mat4::from_translation(Vec3::new(0.0, 0.0, -3.0));
     let material = Material {
+        surface_overrides: Default::default(),
         tint: [1.0; 3],
         uv_scale: [1.0; 2],
         texture: TextureKind::Checker,
@@ -291,6 +303,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
                 model: Mat4::from_translation(Vec3::new(0.0, 0.0, 0.5)),
                 mesh: MeshKind::Cube,
                 material: Material {
+                    surface_overrides: Default::default(),
                     tint: [0.9, 0.1, 0.2],
                     texture: TextureKind::White,
                     ..material.clone()
@@ -301,6 +314,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
                     * Mat4::from_scale(Vec3::splat(2.0)),
                 mesh: MeshKind::Cube,
                 material: Material {
+                    surface_overrides: Default::default(),
                     tint: [0.1, 0.3, 0.9],
                     texture: TextureKind::White,
                     ..material.clone()
@@ -389,6 +403,7 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
             model: Mat4::from_scale(Vec3::new(2.0, 2.0, 1.0)),
             mesh: MeshKind::Imported("test-quad".into()),
             material: Material {
+                surface_overrides: Default::default(),
                 tint: [1.0; 3],
                 uv_scale: [1.0; 2],
                 texture: TextureKind::Imported("test-palette".into()),
@@ -628,6 +643,7 @@ pub fn run(options: &Options) -> Result<()> {
     environment::checks(&gpu)?;
     display::checks(&gpu)?;
     pbr::checks(&gpu)?;
+    overrides::checks(&gpu)?;
     shadows::checks(&gpu)?;
     upload::checks(&gpu)?;
     let renderer = TriangleRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);

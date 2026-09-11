@@ -40,6 +40,7 @@ impl Fixture<'_> {
             &vertices,
             &indices,
             &[ModelPart {
+                source_key: "",
                 start: 0,
                 count: 6,
                 color: self.color,
@@ -59,6 +60,7 @@ impl Fixture<'_> {
                 model: self.model,
                 mesh: MeshKind::Imported("pbr-fixture".into()),
                 material: Material {
+                    surface_overrides: Default::default(),
                     tint: [1.; 3],
                     uv_scale: [1.; 2],
                     texture: TextureKind::White,

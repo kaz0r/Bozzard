@@ -5,6 +5,7 @@ struct ObjectUniform {
     parameters: vec4<f32>, // UV scale, lighting enabled, alpha cutoff
     model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
     sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
+    surface_factors: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;

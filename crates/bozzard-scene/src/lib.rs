@@ -1,5 +1,7 @@
 //! Versioned scene documents and ECS instances, with no graphics dependencies.
 //! IDs are document-local persistent strings, never runtime entity handles.
+mod surface;
+pub use surface::SurfaceMaterialOverride;
 mod environment;
 pub use environment::EnvironmentSettings;
 mod display;
@@ -178,6 +180,8 @@ pub enum Texture {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Drawable {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub material_overrides: Vec<SurfaceMaterialOverride>,
     pub layer: Layer,
     pub mesh: Mesh,
     pub texture: Texture,
@@ -313,6 +317,20 @@ impl Scene {
                 camera.validate()?;
             }
             if let Some(drawable) = &object.drawable {
+                ensure!(
+                    drawable.material_overrides.is_empty()
+                        || matches!(drawable.mesh, Mesh::Asset(_)),
+                    "surface overrides need an imported model"
+                );
+                ensure!(
+                    drawable.material_overrides.len() <= 4096,
+                    "too many surface overrides"
+                );
+                let mut surfaces = std::collections::BTreeSet::new();
+                for value in &drawable.material_overrides {
+                    value.validate()?;
+                    ensure!(surfaces.insert(value.surface), "duplicate surface override");
+                }
                 for (id, kind) in drawable.asset_dependencies() {
                     let source = self
                         .assets

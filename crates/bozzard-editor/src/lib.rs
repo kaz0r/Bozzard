@@ -16,6 +16,7 @@ use std::{
 mod framing;
 mod hierarchy;
 mod loading;
+mod materials;
 mod selection;
 pub use loading::{LoadedScene, PreparedImport, PreparedSave};
 pub use selection::{Pick, SelectedSurface};
@@ -234,6 +235,7 @@ impl Editor {
             player_controller: None,
             trigger: None,
             drawable: Some(Drawable {
+                material_overrides: Vec::new(),
                 layer,
                 mesh,
                 texture: Texture::White,
@@ -369,6 +371,7 @@ impl Editor {
             player_controller: None,
             trigger: None,
             drawable: Some(Drawable {
+                material_overrides: Vec::new(),
                 layer,
                 mesh,
                 texture,
@@ -411,7 +414,13 @@ impl Editor {
             .as_mut()
             .context("selected object has no drawable")?;
         match source.kind {
-            AssetKind::Mesh => drawable.mesh = Mesh::Asset(asset_id.into()),
+            AssetKind::Mesh => {
+                let mesh = Mesh::Asset(asset_id.into());
+                if drawable.mesh != mesh {
+                    drawable.mesh = mesh;
+                    drawable.material_overrides.clear();
+                }
+            }
             AssetKind::Image => drawable.texture = Texture::Asset(asset_id.into()),
         }
         self.finish_gesture();
@@ -754,6 +763,17 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
                     Mesh::Asset(id) => MeshKind::Imported(id),
                 },
                 material: Material {
+                    surface_overrides: d
+                        .material_overrides
+                        .into_iter()
+                        .map(|value| bozzard_render::SurfaceMaterialOverride {
+                            surface: value.surface,
+                            source: value.source,
+                            tint: value.tint,
+                            metallic: value.metallic,
+                            roughness: value.roughness,
+                        })
+                        .collect(),
                     tint: d.color,
                     uv_scale: d.uv_scale,
                     lit: layer == Layer::ThreeD,

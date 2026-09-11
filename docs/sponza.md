@@ -26,6 +26,23 @@ cargo run -p bozzard-editor --example inspect_surfaces --locked --offline -- \
 
 Picking and outline/framing are held until the CPU model identity matches the GPU resident last-good data. The native Model Workshop inspector capture is written to `work/editor-surfaces-smoke/editor-surface.ppm`.
 
+Manual surface-override checklist:
+
+- [ ] Open `examples/sponza/scene.json` and click imported geometry.
+- [ ] Choose a row in **Imported surfaces**, change Tint, and confirm only that object's surface changes.
+- [ ] Enable and adjust Metallic or Roughness; confirm the value multiplies the existing map, then use **Reset override**.
+- [ ] Select the whole model, duplicate the owning object, select a surface on the copy, change its Tint, and confirm the original remains unchanged; Undo/redo the edit.
+- [ ] Save, reopen, enter Play, and Stop; confirm overrides persist with the authored document and Play remains isolated.
+
+For a reproducible CPU-only override round trip, choose a nonexistent output path:
+
+```sh
+cargo run -p bozzard-editor --example material_override --locked --offline -- \
+  examples/sponza/scene.json work/sponza/material-override-scene.json
+```
+
+The example picks a camera-center PBR surface and exercises Undo/Redo, save/reopen, and Play isolation. A source-signature mismatch from changed geometry or names leaves an override stored but inactive with an inspector warning; unchanged reloads preserve overrides.
+
 To package a model into a new scene, use the editor crate's import example and choose a destination that does not already exist:
 
 ```sh

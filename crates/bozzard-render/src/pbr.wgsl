@@ -2,6 +2,7 @@ struct ObjectUniform {
     mvp: mat4x4<f32>, normal: mat4x4<f32>, tint: vec4<f32>, parameters: vec4<f32>,
     model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
     sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
+    surface_factors: vec4<f32>,
 };
 struct MaterialUniform { factors: vec4<f32>, emissive: vec4<f32> };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
@@ -69,8 +70,8 @@ struct VertexOutput {
     let nv = max(dot(n,v),0.0001);
     let nh = max(dot(n,h),0.0);
     let vh = max(dot(v,h),0.0);
-    let metallic = clamp(material.factors.x * mr.b,0.0,1.0);
-    let roughness = clamp(material.factors.y * mr.g,0.045,1.0);
+    let metallic = clamp(select(material.factors.x, object.surface_factors.x, object.surface_factors.x >= 0.0) * mr.b,0.0,1.0);
+    let roughness = clamp(select(material.factors.y, object.surface_factors.y, object.surface_factors.y >= 0.0) * mr.g,0.045,1.0);
     let a2 = pow(roughness,4.0);
     let denominator = nh*nh*(a2-1.0)+1.0;
     let distribution = a2 / max(3.14159265*denominator*denominator,0.000001);

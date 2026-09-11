@@ -56,6 +56,7 @@ impl App {
                         if ui.checkbox(&mut drawable, "Renderable").changed() {
                             object.drawable = if drawable {
                                 Some(bozzard_scene::Drawable {
+                                    material_overrides: Vec::new(),
                                     layer: self.layer(),
                                     mesh: Mesh::Cube,
                                     texture: Texture::White,
@@ -71,6 +72,7 @@ impl App {
                                 ui.selectable_value(&mut d.layer, Layer::TwoD, "2D");
                                 ui.selectable_value(&mut d.layer, Layer::ThreeD, "3D");
                             });
+                            let original_mesh = d.mesh.clone();
                             egui::ComboBox::from_id_salt("mesh")
                                 .selected_text(match &d.mesh {
                                     Mesh::Cube => "Cube",
@@ -90,6 +92,7 @@ impl App {
                                         }
                                     }
                                 });
+                            if d.mesh != original_mesh { d.material_overrides.clear(); }
                             egui::ComboBox::from_id_salt("texture")
                                 .selected_text(match &d.texture {
                                     Texture::White => "White",

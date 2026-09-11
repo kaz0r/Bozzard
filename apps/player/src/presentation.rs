@@ -49,6 +49,17 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
                     Mesh::Asset(id) => MeshKind::Imported(id),
                 },
                 material: Material {
+                    surface_overrides: drawable
+                        .material_overrides
+                        .into_iter()
+                        .map(|value| bozzard_render::SurfaceMaterialOverride {
+                            surface: value.surface,
+                            source: value.source,
+                            tint: value.tint,
+                            metallic: value.metallic,
+                            roughness: value.roughness,
+                        })
+                        .collect(),
                     tint: drawable.color,
                     uv_scale: drawable.uv_scale,
                     texture: match drawable.texture {

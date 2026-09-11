@@ -60,6 +60,8 @@ pub struct MeshData {
 
 #[derive(Clone, Debug)]
 pub struct MeshPart {
+    /// Persistent source/geometry signature used to guard scene overrides.
+    pub source_key: String,
     /// Source node/mesh/primitive label, for editor inspection only.
     pub name: String,
     pub material_name: Option<String>,
@@ -71,6 +73,40 @@ pub struct MeshPart {
     /// Present for glTF `alphaMode: MASK`.
     pub alpha_cutoff: Option<f32>,
     pub shading: Option<SurfaceShading>,
+}
+
+impl MeshData {
+    fn with_surface_keys(mut self) -> Self {
+        for part in &mut self.parts {
+            // Deterministic FNV-1a over source labels and indexed geometry. Deliberately
+            // excludes image pixels and material factors so those can be reloaded.
+            let mut hash = 0xcbf29ce484222325u64;
+            let mut feed = |b: u8| {
+                hash = (hash ^ u64::from(b)).wrapping_mul(0x100000001b3);
+            };
+            for b in part.source_key.bytes().chain([0]) {
+                feed(b);
+            }
+            for b in part
+                .name
+                .bytes()
+                .chain([0])
+                .chain(part.material_name.as_deref().unwrap_or("").bytes())
+                .chain([0])
+            {
+                feed(b);
+            }
+            for index in &self.indices[part.start as usize..(part.start + part.count) as usize] {
+                for value in self.vertices[*index as usize] {
+                    for byte in value.to_le_bytes() {
+                        feed(byte);
+                    }
+                }
+            }
+            part.source_key = format!("{hash:016x}");
+        }
+        self
+    }
 }
 
 // Names are copied per surface, so cap display metadata independently of source size.
@@ -564,6 +600,7 @@ fn import(
                         "decoded OBJ images exceed 128 MiB"
                     );
                     parts.push(MeshPart {
+                        source_key: format!("obj-material:{:?}", mesh.material_id),
                         name: inspection_name(&model.name),
                         material_name: material.map(|m| inspection_name(&m.name)),
                         start,
@@ -580,12 +617,15 @@ fn import(
                 !vertices.is_empty() && !indices.is_empty() && indices.len() <= 3_000_000,
                 "empty or oversized triangle mesh"
             );
-            Ok(AssetData::Mesh(MeshData {
-                vertices,
-                indices,
-                parts,
-                warnings,
-            }))
+            Ok(AssetData::Mesh(
+                MeshData {
+                    vertices,
+                    indices,
+                    parts,
+                    warnings,
+                }
+                .with_surface_keys(),
+            ))
         }
     }
 }
@@ -831,7 +871,8 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
         indices,
         parts,
         warnings,
-    })
+    }
+    .with_surface_keys())
 }
 
 // Shared accumulators keep recursive traversal allocation bounded.
@@ -884,11 +925,20 @@ fn append_node(
                     .unwrap_or_else(|| format!("Mesh {}", mesh.index())),
                 primitive.index() + 1,
             );
+            let source_identity = format!(
+                "gltf-node:{}-mesh:{}-primitive:{}-material:{:?}",
+                node.index(),
+                mesh.index(),
+                primitive.index(),
+                primitive.material().index()
+            );
             append_primitive(
                 primitive, transform, buffers, path, snapshot, vertices, indices, parts, warnings,
                 images,
             )?;
-            parts.last_mut().expect("appended primitive").name = name;
+            let part = parts.last_mut().expect("appended primitive");
+            part.name = name;
+            part.source_key = source_identity;
         }
     }
     for child in node.children() {
@@ -1055,6 +1105,7 @@ fn append_primitive(
         .transpose()?;
     ensure!(parts.len() < MAX_PARTS, "glTF has too many primitive parts");
     parts.push(MeshPart {
+        source_key: String::new(),
         name: String::new(),
         material_name: material.name().map(inspection_name),
         start,
@@ -1221,6 +1272,7 @@ fn portable_mesh_gltf(mesh: &MeshData) -> Result<Vec<u8>> {
     let mut views = Vec::new();
     let mut accessors = Vec::new();
     let fallback = MeshPart {
+        source_key: String::new(),
         name: "Mesh".into(),
         material_name: None,
         start: 0,
@@ -1620,6 +1672,45 @@ mod tests {
         };
         assert_eq!(unnamed.parts[0].name, "Node 0 / Mesh 0 / Surface 1");
         assert!(unnamed.parts[0].material_name.is_none());
+    }
+
+    #[test]
+    fn surface_signatures_allow_material_edits_but_reject_geometry_or_slot_changes() {
+        let uri = format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(triangle_bytes())
+        );
+        let mut doc: serde_json::Value =
+            serde_json::from_slice(&gltf_document(&uri, None)).unwrap();
+        let key = |doc: &serde_json::Value| {
+            let AssetData::Mesh(mesh) = import(
+                AssetKind::Mesh,
+                Path::new("keys.gltf"),
+                &serde_json::to_vec(doc).unwrap(),
+                &no_dependencies(),
+            )
+            .unwrap() else {
+                panic!();
+            };
+            mesh.parts[0].source_key.clone()
+        };
+        let original = key(&doc);
+        assert_eq!(original.len(), 16);
+        doc["materials"][0]["pbrMetallicRoughness"]["roughnessFactor"] = 0.2.into();
+        doc["materials"][0]["pbrMetallicRoughness"]["baseColorFactor"] =
+            serde_json::json!([0.1, 0.2, 0.3, 1.0]);
+        assert_eq!(key(&doc), original);
+        doc["nodes"][0]["translation"] = serde_json::json!([3.0, 0.0, 0.0]);
+        assert_ne!(key(&doc), original);
+        doc["nodes"][0]["translation"] = serde_json::json!([2.0, 0.0, 0.0]);
+        let same = doc["materials"][0].clone();
+        doc["materials"].as_array_mut().unwrap().push(same);
+        doc["meshes"][0]["primitives"][0]["material"] = 1.into();
+        assert_ne!(
+            key(&doc),
+            original,
+            "coincident geometry cannot inherit a different material slot's override"
+        );
     }
 
     fn gltf_document(buffer_uri: &str, image_uri: Option<&str>) -> Vec<u8> {
