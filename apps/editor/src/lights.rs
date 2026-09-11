@@ -58,9 +58,15 @@ pub fn inspector(ui: &mut egui::Ui, value: &mut Option<Light>) {
                     .text("Inner angle °"),
                 );
                 ui.weak("Angles from the center. Rotate the object to aim local −Z.");
+            }
+            if light.kind != LightKind::Directional {
                 ui.checkbox(&mut light.shadows, "Cast shadows");
                 if light.shadows {
-                    ui.weak("1024 px · Up to 8 shadowed spotlights per scene.");
+                    ui.weak(if light.kind == LightKind::Spot {
+                        "1024 px · Up to 8 shadowed spotlights per scene."
+                    } else {
+                        "6 × 512 px · Up to 4 shadowed point lights per scene."
+                    });
                     ui.add(
                         egui::DragValue::new(&mut light.shadow_bias)
                             .speed(0.001)
@@ -78,10 +84,10 @@ pub fn inspector(ui: &mut egui::Ui, value: &mut Option<Light>) {
                     )
                     .on_hover_text("World units. Large offsets can detach shadows from objects.");
                 }
+                ui.weak("Range ignores scale.");
             } else {
-                ui.weak("Point and object-directional shadows are not available yet.");
+                ui.weak("Object-directional shadows are not available yet. Scene sun shadows remain supported.");
             }
-            ui.weak("Range ignores scale.");
         });
         ui.separator();
     }

@@ -34,7 +34,9 @@ the shader sculptures. Expand a pedestal in the Hierarchy to select its child.
 Toggle each light's **Enabled** control to isolate its contribution. Directional
 lights aim down local −Z and ignore distance; point/spot lights have finite range.
 The scene sun casts shadows; spotlights can opt into **Cast shadows** (up to eight
-1024 px maps). Point and object-directional lights remain unshadowed.
+1024 px maps), and point lights can opt in independently (up to four six-face
+512 px maps). Object-directional lights remain unshadowed. The Neon preset keeps
+point-light shadows opt-in unless its scene JSON enables them.
 
 The demonstration effects deliberately replace full material shading: normals
 show orientation, checker shows UVs, and toon uses scene sun direction/shadows.

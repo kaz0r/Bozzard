@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub const MAX_LOCAL_LIGHTS: usize = 32;
 pub const MAX_SHADOWED_SPOT_LIGHTS: usize = 8;
+pub const MAX_SHADOWED_POINT_LIGHTS: usize = 4;
 
 fn no_shadows(value: &bool) -> bool {
     !value
@@ -38,7 +39,7 @@ pub struct Light {
     pub range: f32,
     pub inner_angle_degrees: f32,
     pub outer_angle_degrees: f32,
-    /// Only spotlights cast local shadows. Disabled spots still reserve the authored budget.
+    /// Opt-in local shadows. Disabled lights still reserve their kind's authored budget.
     #[serde(skip_serializing_if = "no_shadows")]
     pub shadows: bool,
     /// World-space receiver offsets, independent of the object's scale.
@@ -69,7 +70,7 @@ impl Light {
             [self.shadow_bias, self.shadow_normal_bias]
                 .iter()
                 .all(|v| v.is_finite() && (0.0..=1.).contains(v)),
-            "spotlight shadow bias must be finite and in 0..1 world units"
+            "local light shadow bias must be finite and in 0..1 world units"
         );
         ensure!(
             self.color
@@ -96,7 +97,7 @@ impl Light {
         Ok(())
     }
     pub fn requests_shadow_map(&self) -> bool {
-        self.kind == LightKind::Spot && self.shadows
+        self.kind != LightKind::Directional && self.shadows
     }
     pub fn at(&self, transform: Mat4) -> Result<WorldLight> {
         self.validate()?;

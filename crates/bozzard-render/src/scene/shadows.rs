@@ -1,7 +1,8 @@
 use super::*;
 
 pub(super) struct Shadows {
-    pub spots: spot_shadows::SpotShadows,
+    pub spots: local_shadow_maps::ShadowMaps,
+    pub points: local_shadow_maps::ShadowMaps,
     pub gi_uniform: wgpu::Buffer,
     pub gi_data: wgpu::Buffer,
     pub gi_snapshot: Option<std::sync::Arc<Vec<[f32; 4]>>>,
@@ -10,6 +11,7 @@ pub(super) struct Shadows {
     pub sample_binding: wgpu::BindGroup,
     caster_binding: wgpu::BindGroup,
     pub pipeline: wgpu::RenderPipeline,
+    pub point_pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     sampler: wgpu::Sampler,
     depth: wgpu::TextureView,
@@ -57,6 +59,26 @@ impl Shadows {
                 label: Some("shadow receiver frame"),
                 entries: &[
                     uniform_entry,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 9,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(point_shadows::UNIFORM_SIZE),
+                        },
+                        count: None,
+                    },
                     wgpu::BindGroupLayoutEntry {
                         binding: 6,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -165,14 +187,31 @@ impl Shadows {
             mapped_at_creation: false,
         });
         let depth = target(gpu, 1);
-        let spots = spot_shadows::SpotShadows::new(gpu, &caster_layout);
+        let spots = local_shadow_maps::ShadowMaps::new(
+            gpu,
+            &caster_layout,
+            MAX_SHADOWED_SPOT_LIGHTS,
+            spot_shadows::RESOLUTION,
+        );
+        let points = local_shadow_maps::ShadowMaps::new(
+            gpu,
+            &caster_layout,
+            MAX_SHADOWED_POINT_LIGHTS * point_shadows::FACES,
+            point_shadows::RESOLUTION,
+        );
         let sample_binding = Self::binding(
             gpu,
             &sample_layout,
             &uniform,
-            [&depth, &spots.depth],
+            [&depth, &spots.depth, &points.depth],
             &sampler,
-            &[&local_lights, &gi_uniform, &gi_data, &spots.uniform],
+            &[
+                &local_lights,
+                &gi_uniform,
+                &gi_data,
+                &spots.uniform,
+                &points.uniform,
+            ],
         );
         let layout = gpu
             .device
@@ -187,16 +226,23 @@ impl Shadows {
                 label: Some("sun depth caster"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shadow_cast.wgsl").into()),
             });
-        let pipeline = gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("sun shadow pass"), layout: Some(&layout),
+        let make_pipeline = |label, slope_scale| {
+            gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label), layout: Some(&layout),
             vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x2] })] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[] }),
             primitive: Default::default(),
-            depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Less), stencil: Default::default(), bias: wgpu::DepthBiasState { constant: 0, slope_scale: 1., clamp: 0. } }),
+            depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Less), stencil: Default::default(), bias: wgpu::DepthBiasState { constant: 0, slope_scale, clamp: 0. } }),
             multisample: Default::default(), multiview_mask: None, cache: None,
-        });
+        })
+        };
+        let pipeline = make_pipeline("sun/spot shadow pass", 1.);
+        // Cube faces can see grazing receivers in every direction. Cover the 3x3
+        // bilinear kernel's maximum L1 footprint (1.5 texels along each axis).
+        let point_pipeline = make_pipeline("point shadow pass", 3.);
         Self {
             spots,
+            points,
             gi_uniform,
             gi_data,
             gi_snapshot: None,
@@ -205,6 +251,7 @@ impl Shadows {
             sample_binding,
             caster_binding,
             pipeline,
+            point_pipeline,
             uniform,
             sampler,
             depth,
@@ -216,13 +263,14 @@ impl Shadows {
             gpu,
             &self.sample_layout,
             &self.uniform,
-            [&self.depth, &self.spots.depth],
+            [&self.depth, &self.spots.depth, &self.points.depth],
             &self.sampler,
             &[
                 &self.local_lights,
                 &self.gi_uniform,
                 &self.gi_data,
                 &self.spots.uniform,
+                &self.points.uniform,
             ],
         );
     }
@@ -230,14 +278,22 @@ impl Shadows {
         gpu: &Gpu,
         layout: &wgpu::BindGroupLayout,
         uniform: &wgpu::Buffer,
-        depths: [&wgpu::TextureView; 2],
+        depths: [&wgpu::TextureView; 3],
         sampler: &wgpu::Sampler,
-        buffers: &[&wgpu::Buffer; 4],
+        buffers: &[&wgpu::Buffer; 5],
     ) -> wgpu::BindGroup {
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("shadow receiver frame"),
             layout,
             entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::TextureView(depths[2]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: buffers[4].as_entire_binding(),
+                },
                 wgpu::BindGroupEntry {
                     binding: 6,
                     resource: wgpu::BindingResource::TextureView(depths[1]),

@@ -771,7 +771,7 @@ pub fn extract(
             .map(|world| bozzard_render::LocalLight {
                 directional: world.light.kind == bozzard_scene::LightKind::Directional,
                 shadows: world.light.requests_shadow_map().then_some(
-                    bozzard_render::SpotShadowSettings {
+                    bozzard_render::LocalShadowSettings {
                         bias: world.light.shadow_bias,
                         normal_bias: world.light.shadow_normal_bias,
                     },
@@ -950,11 +950,21 @@ mod tests {
 
     #[test]
     fn local_light_history_duplicate_save_and_play_isolation() {
-        use bozzard_scene::{Light, LightKind};
+        use bozzard_scene::LightKind;
+        for kind in [LightKind::Point, LightKind::Spot] {
+            local_light_history_for_kind(kind);
+        }
+    }
+    fn local_light_history_for_kind(kind: bozzard_scene::LightKind) {
+        use bozzard_scene::Light;
         let dir = Temp::new();
         let mut e = editor();
         let initial = e.scene().clone();
-        e.create_light(LightKind::Spot).unwrap();
+        e.create_light(kind).unwrap();
+        assert_eq!(
+            bozzard_scene::MAX_SHADOWED_POINT_LIGHTS,
+            bozzard_render::MAX_SHADOWED_POINT_LIGHTS
+        );
         assert_eq!(
             bozzard_scene::MAX_SHADOWED_SPOT_LIGHTS,
             bozzard_render::MAX_SHADOWED_SPOT_LIGHTS

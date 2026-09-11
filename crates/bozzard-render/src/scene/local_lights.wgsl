@@ -8,19 +8,19 @@ struct SpotShadows { maps: array<ShadowUniform, 8> };
 @group(2) @binding(6) var spot_shadow_maps: texture_depth_2d_array;
 @group(2) @binding(7) var<uniform> spot_shadows: SpotShadows;
 
-fn local_visibility(light: LocalLight, world: vec3<f32>, geometric_normal: vec3<f32>) -> f32 {
-    // cone.z stores layer + 1; zero denotes an unshadowed light.
-    if light.cone.z < 0.5 { return 1.0; }
-    let offset = light.position_range.xyz - world;
-    let distance = length(offset);
-    let to_light = offset / max(distance, 0.000001);
-    if distance >= light.position_range.w || dot(-to_light, light.direction_outer.xyz) < light.direction_outer.w { return 1.0; }
-    let slot = u32(light.cone.z) - 1u;
-    let map = spot_shadows.maps[slot];
-    let normal_offset = geometric_normal * map.settings.y * (1.0 - max(dot(geometric_normal, to_light), 0.0));
-    // Offset in world space before perspective projection: constant depth-buffer bias
-    // would grow dramatically with distance for a perspective shadow map.
-    let projected = map.matrix * vec4<f32>(world + normal_offset + to_light * map.settings.x, 1.0);
+struct PointShadows { maps: array<ShadowUniform, 24> };
+@group(2) @binding(8) var point_shadow_maps: texture_depth_2d_array;
+@group(2) @binding(9) var<uniform> point_shadows: PointShadows;
+
+fn point_shadow_face(ray: vec3<f32>) -> u32 {
+    let a = abs(ray);
+    if a.x >= a.y && a.x >= a.z { return select(1u, 0u, ray.x >= 0.0); }
+    if a.y >= a.z { return select(3u, 2u, ray.y >= 0.0); }
+    return select(5u, 4u, ray.z >= 0.0);
+}
+fn filtered_local_visibility(maps: texture_depth_2d_array, map: ShadowUniform,
+    slot: u32, world: vec3<f32>) -> f32 {
+    let projected = map.matrix * vec4<f32>(world, 1.0);
     if projected.w <= 0.0 { return 1.0; }
     let p = projected.xyz / projected.w;
     let uv = p.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);
@@ -28,11 +28,33 @@ fn local_visibility(light: LocalLight, world: vec3<f32>, geometric_normal: vec3<
     var visibility = 0.0;
     for (var y = -1; y <= 1; y++) {
         for (var x = -1; x <= 1; x++) {
-            visibility += textureSampleCompareLevel(spot_shadow_maps, shadow_sampler,
+            visibility += textureSampleCompareLevel(maps, shadow_sampler,
                 uv + vec2<f32>(f32(x), f32(y)) * map.settings.w, i32(slot), p.z);
         }
     }
     return visibility / 9.0;
+}
+fn local_visibility(light: LocalLight, world: vec3<f32>, geometric_normal: vec3<f32>) -> f32 {
+    // cone.z stores shadow-light slot + 1, independently for each light kind.
+    if light.cone.z < 0.5 { return 1.0; }
+    let offset = light.position_range.xyz - world;
+    let distance = length(offset);
+    let to_light = offset / max(distance, 0.000001);
+    if distance >= light.position_range.w { return 1.0; }
+    let slot = u32(light.cone.z) - 1u;
+    if light.cone.y > 0.5 {
+        if dot(-to_light, light.direction_outer.xyz) < light.direction_outer.w { return 1.0; }
+        let map = spot_shadows.maps[slot];
+        let normal_offset = geometric_normal * map.settings.y * (1.0 - max(dot(geometric_normal, to_light), 0.0));
+        return filtered_local_visibility(spot_shadow_maps, map, slot,
+            world + normal_offset + to_light * map.settings.x);
+    }
+    let base = slot * 6u;
+    let settings = point_shadows.maps[base].settings;
+    // Select after world-space bias, so offsets across an edge use the correct face.
+    let biased_world = world + geometric_normal * settings.y * (1.0 - max(dot(geometric_normal, to_light), 0.0)) + to_light * settings.x;
+    let face = base + point_shadow_face(biased_world - light.position_range.xyz);
+    return filtered_local_visibility(point_shadow_maps, point_shadows.maps[face], face, biased_world);
 }
 
 // cone.y: 0 = point, 1 = spot, 2 = directional.
