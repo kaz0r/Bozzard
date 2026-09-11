@@ -26,6 +26,7 @@ The current import slice supports static OBJ and glTF/GLB geometry, material dep
 - Implemented: validated document commands with bounded, gesture-coalescing undo/redo.
 - Implemented: separate edit/play worlds; save, Save As, play, stop, unsaved-change prompts.
 - Implemented: project-local PNG/JPEG/OBJ/glTF/GLB imports with catalog assignment, background preparation, sun/display, point/spot light, and baked GI controls, and staged GPU uploads.
+- Implemented: first linked prefab workflow with expanded scene instances, component overrides, apply, refresh, and unpack; see [prefab workflow and limits](prefabs.md).
 
 Remaining editor extensions: generic component reflection, arbitrary tab docking, and production gizmo ergonomics.
 
@@ -50,7 +51,7 @@ See [run commands and manual acceptance checklist](playable-demo.md). This is a 
 ## 6 — Simulation and content systems
 
 - Full physics, audio, animation, input actions, cascaded shadows, runtime rebaking, and production lighting/content systems.
-- Scene/prefab composition and scripting design.
+- Remaining prefab work: nested prefabs, variants, source-hierarchy editing, and override UI; scripting design.
 - Module dependency/lifecycle contract; evaluate runtime binary loading.
 - Profiling and evidence-driven ECS/render improvements.
 

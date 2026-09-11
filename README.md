@@ -134,6 +134,12 @@ Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/response-la
 
 Movement supports one collider at a time; movers carrying enabled child colliders are rejected. Deep initial penetration is recovered within a bounded budget or returns an error without changing the world. Pair scanning remains unaccelerated, suitable for these initial demo scenes.
 
+## Prefabs
+
+The prefab authoring workflow saves a selected hierarchy as a linked JSON asset, places linked instances, and supports component-level overrides with refresh, apply, and unpack operations. See the [prefab workflow and current limits](docs/prefabs.md).
+
+Try the linked-instance fixture with `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/prefab-lab.json`. Select the first **Body**, change its tint, and choose **Apply to prefab**: the second body follows, the orange third body keeps its local override, and all three root placements stay unchanged. This applies to the example's source asset; use your own Save-as-prefab copy for experiments or restore the example with Git afterward.
+
 ## Workspace
 
 | Package | Responsibility |

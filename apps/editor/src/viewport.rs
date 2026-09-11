@@ -734,6 +734,32 @@ impl App {
             egui::FontId::monospace(11.0),
             Color32::WHITE,
         );
+        if ui.is_enabled()
+            && self.editor.play.is_none()
+            && self.loading.is_none()
+            && !self.mouse_captured
+        {
+            if response
+                .dnd_hover_payload::<asset_browser::PrefabDrag>()
+                .is_some()
+            {
+                ui.painter().rect_stroke(
+                    rect.shrink(2.0),
+                    0.0,
+                    egui::Stroke::new(2.0, Color32::from_rgb(178, 155, 244)),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            if let Some(payload) = response.dnd_release_payload::<asset_browser::PrefabDrag>() {
+                let position = ui
+                    .input(|i| i.pointer.latest_pos())
+                    .map(|p| prefab_drop_position(projection, rect, p, self.layer()));
+                self.start_prefab(bozzard_editor::PrefabCommand::Instantiate {
+                    asset: payload.0.clone(),
+                    position,
+                });
+            }
+        }
         self.surface_overlay(ui, rect, projection)?;
         self.gi_overlay(ui, rect, projection);
         let light_pick = self.light_overlay(ui, rect, projection, response.hover_pos())?;
@@ -1067,9 +1093,69 @@ impl App {
     }
 }
 
+/// Use the editor construction plane; a near-parallel/behind-camera ray places five units ahead.
+fn prefab_drop_position(projection: Mat4, rect: Rect, pointer: Pos2, layer: Layer) -> [f32; 3] {
+    let ndc = Vec3::new(
+        2.0 * (pointer.x - rect.left()) / rect.width() - 1.0,
+        1.0 - 2.0 * (pointer.y - rect.top()) / rect.height(),
+        0.0,
+    );
+    let inverse = projection.inverse();
+    let origin = inverse.project_point3(ndc);
+    let direction =
+        (inverse.project_point3(Vec3::new(ndc.x, ndc.y, 1.0)) - origin).normalize_or_zero();
+    let axis = if layer == Layer::TwoD { 2 } else { 1 };
+    let distance = -origin[axis] / direction[axis];
+    let distance = if direction[axis].abs() > 0.001 && (0.0..10000.0).contains(&distance) {
+        distance
+    } else {
+        5.0
+    };
+    (origin + direction * distance).to_array()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prefab_drop_follows_construction_plane_and_has_finite_parallel_fallback() {
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(500.0));
+        let lens =
+            glam::camera::rh::proj::directx::perspective(60f32.to_radians(), 1.0, 0.1, 100.0);
+        let projection = lens
+            * glam::camera::rh::view::look_at_mat4(Vec3::new(0.0, 5.0, 5.0), Vec3::ZERO, Vec3::Y);
+        let ground = Vec3::from(prefab_drop_position(
+            projection,
+            rect,
+            rect.center(),
+            Layer::ThreeD,
+        ));
+        assert!(ground.length() < 0.001);
+        let projection = lens
+            * glam::camera::rh::view::look_at_mat4(
+                Vec3::new(0.0, 5.0, 5.0),
+                Vec3::new(0.0, 5.0, 0.0),
+                Vec3::Y,
+            );
+        let parallel = Vec3::from(prefab_drop_position(
+            projection,
+            rect,
+            rect.center(),
+            Layer::ThreeD,
+        ));
+        assert!(parallel.is_finite());
+        assert!((parallel.y - 5.0).abs() < 0.001);
+        let projection =
+            glam::camera::rh::proj::directx::orthographic(-5.0, 5.0, -5.0, 5.0, 0.1, 100.0)
+                * Mat4::from_translation(Vec3::new(0.0, 0.0, -10.0));
+        let flat = Vec3::from(prefab_drop_position(
+            projection,
+            rect,
+            Pos2::new(375.0, 125.0),
+            Layer::TwoD,
+        ));
+        assert!((flat - Vec3::new(2.5, 2.5, 0.0)).length() < 0.001);
+    }
     #[test]
     fn picking_defaults_to_owner_and_surface_inspection_is_explicit() {
         let pick = bozzard_editor::Pick {

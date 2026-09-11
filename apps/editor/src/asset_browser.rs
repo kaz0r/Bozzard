@@ -20,6 +20,7 @@ enum AssetFilter {
     All,
     Images,
     Models,
+    Prefabs,
 }
 
 struct Thumbnail {
@@ -29,6 +30,7 @@ struct Thumbnail {
 
 #[derive(Default)]
 pub struct AssetBrowserOutput {
+    pub prefab_requested: Option<bozzard_editor::PrefabCommand>,
     pub import_requested: bool,
     pub reload_requested: bool,
     pub added_layer: Option<Layer>,
@@ -41,6 +43,9 @@ pub struct BrowserStatus {
 }
 
 #[derive(Clone)]
+pub struct PrefabDrag(pub String);
+
+#[derive(Clone)]
 struct AssetSnapshot {
     id: String,
     kind: AssetKind,
@@ -50,6 +55,7 @@ struct AssetSnapshot {
     users: usize,
     image: Option<(u32, u32)>,
     mesh: Option<MeshPreview>,
+    prefab_objects: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -65,6 +71,7 @@ enum AssetCommand {
     Add(String),
     Assign(String),
     Remove(String),
+    RefreshPrefab(String),
 }
 
 impl AssetBrowser {
@@ -100,7 +107,7 @@ impl AssetBrowser {
             ui.heading("Assets");
             if ui
                 .add_enabled(editing, egui::Button::new("Import…"))
-                .on_hover_text("Import PNG, JPEG, OBJ, glTF, or GLB")
+                .on_hover_text("Import PNG, JPEG, OBJ, glTF, GLB, or .prefab.json")
                 .clicked()
             {
                 output.import_requested = true;
@@ -129,6 +136,7 @@ impl AssetBrowser {
             filter_button(ui, &mut self.filter, AssetFilter::All, "All");
             filter_button(ui, &mut self.filter, AssetFilter::Images, "Images");
             filter_button(ui, &mut self.filter, AssetFilter::Models, "Models");
+            filter_button(ui, &mut self.filter, AssetFilter::Prefabs, "Prefabs");
         });
 
         let query = self.search.trim().to_ascii_lowercase();
@@ -220,6 +228,15 @@ impl AssetBrowser {
 
         if let Some(command) = command {
             match command {
+                AssetCommand::RefreshPrefab(asset) => {
+                    output.prefab_requested = Some(bozzard_editor::PrefabCommand::Refresh { asset })
+                }
+                AssetCommand::Add(id) if editor.scene().assets[&id].kind == AssetKind::Prefab => {
+                    output.prefab_requested = Some(bozzard_editor::PrefabCommand::Instantiate {
+                        asset: id,
+                        position: None,
+                    });
+                }
                 AssetCommand::Add(id) => match editor.add_asset_to_scene(&id) {
                     Ok(layer) => {
                         output.added_layer = Some(layer);
@@ -288,9 +305,16 @@ impl AssetBrowser {
                 ui.vertical(|ui| {
                     ui.set_width(TILE.x);
                     ui.set_min_height(TILE.y);
-                    let preview = ui.allocate_exact_size(Vec2::new(120.0, 82.0), Sense::click());
+                    let preview =
+                        ui.allocate_exact_size(Vec2::new(120.0, 82.0), Sense::click_and_drag());
                     let thumbnail = self.thumbnail(ui.ctx(), editor, asset);
                     draw_preview(ui, preview.0, asset, thumbnail);
+                    if editing
+                        && asset.kind == AssetKind::Prefab
+                        && matches!(asset.state, LoadState::Ready)
+                    {
+                        preview.1.dnd_set_drag_payload(PrefabDrag(asset.id.clone()));
+                    }
                     if preview.1.clicked() {
                         self.selected = Some(asset.id.clone());
                     }
@@ -302,6 +326,7 @@ impl AssetBrowser {
                         self.selected = Some(asset.id.clone());
                     }
                     ui.weak(match asset.kind {
+                        AssetKind::Prefab => "Prefab",
                         AssetKind::Image => "Image",
                         AssetKind::Mesh => "Model",
                     });
@@ -339,7 +364,7 @@ impl AssetBrowser {
             .and_then(|entry| entry.data())
             .and_then(|data| match data {
                 AssetData::Image(image) => Some(image),
-                AssetData::Mesh(_) => None,
+                AssetData::Mesh(_) | AssetData::Prefab(_) => None,
             })?;
         let texture = ctx.load_texture(
             format!("asset-thumbnail-{}-{}", asset.id, asset.revision),
@@ -368,6 +393,10 @@ impl AssetBrowser {
         ui.add(egui::Label::new(&asset.path).wrap());
         ui.weak(format!("Used by {} object(s)", asset.users));
         match asset.kind {
+            AssetKind::Prefab => ui.label(format!(
+                "Prefab · {} objects",
+                asset.prefab_objects.unwrap_or(0)
+            )),
             AssetKind::Image => match &asset.image {
                 Some((width, height)) => ui.label(format!("Image · {width} × {height} px")),
                 None => ui.label("Image"),
@@ -404,6 +433,16 @@ impl AssetBrowser {
             }
         };
         ui.vertical(|ui| {
+            if asset.kind == AssetKind::Prefab
+                && ui
+                    .add_enabled(
+                        editing && asset.users > 0,
+                        egui::Button::new("Refresh instances"),
+                    )
+                    .clicked()
+            {
+                *command = Some(AssetCommand::RefreshPrefab(asset.id.clone()));
+            }
             if ui
                 .add_enabled(
                     editing && matches!(asset.state, LoadState::Ready),
@@ -415,7 +454,10 @@ impl AssetBrowser {
             }
             if ui
                 .add_enabled(
-                    editing && selected_drawable && matches!(asset.state, LoadState::Ready),
+                    editing
+                        && selected_drawable
+                        && asset.kind != AssetKind::Prefab
+                        && matches!(asset.state, LoadState::Ready),
                     egui::Button::new("Assign to selected"),
                 )
                 .clicked()
@@ -450,7 +492,7 @@ fn snapshots(editor: &Editor) -> Vec<AssetSnapshot> {
             let (image, mesh) = match entry.data() {
                 Some(AssetData::Image(image)) => (Some((image.width, image.height)), None),
                 Some(AssetData::Mesh(mesh)) => (None, Some(sample_mesh(mesh))),
-                None => (None, None),
+                Some(AssetData::Prefab(_)) | None => (None, None),
             };
             Some(AssetSnapshot {
                 id: entry.id.clone(),
@@ -461,6 +503,10 @@ fn snapshots(editor: &Editor) -> Vec<AssetSnapshot> {
                 users: users.get(&entry.id).map_or(0, Vec::len),
                 image,
                 mesh,
+                prefab_objects: match entry.data() {
+                    Some(AssetData::Prefab(p)) => Some(p.objects.len()),
+                    _ => None,
+                },
             })
         })
         .collect()
@@ -534,6 +580,7 @@ fn matches_filter(filter: AssetFilter, kind: AssetKind) -> bool {
     matches!(filter, AssetFilter::All)
         || matches!((filter, kind), (AssetFilter::Images, AssetKind::Image))
         || matches!((filter, kind), (AssetFilter::Models, AssetKind::Mesh))
+        || matches!((filter, kind), (AssetFilter::Prefabs, AssetKind::Prefab))
 }
 
 fn draw_preview(
@@ -545,6 +592,21 @@ fn draw_preview(
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 4.0, Color32::from_gray(28));
     match (asset.kind, thumbnail, asset.mesh.as_ref()) {
+        (AssetKind::Prefab, _, _) => {
+            let c = rect.center();
+            let color = Color32::from_rgb(178, 155, 244);
+            for (dx, dy, size) in [(0.0, -12.0, 22.0), (-22.0, 18.0, 14.0), (22.0, 18.0, 14.0)] {
+                let center = c + Vec2::new(dx, dy);
+                if dy > 0.0 {
+                    painter.line_segment([c, center], egui::Stroke::new(1.5, color));
+                }
+                painter.rect_filled(
+                    Rect::from_center_size(center, Vec2::splat(size)),
+                    3.0,
+                    color,
+                );
+            }
+        }
         (AssetKind::Image, Some(texture), _) => {
             let size = texture.size_vec2();
             let scale = (rect.width() / size.x).min(rect.height() / size.y).min(1.0);
@@ -633,5 +695,76 @@ fn draw_mesh_preview(painter: &egui::Painter, rect: Rect, vertices: &[[f32; 8]],
             ),
             Stroke::new(0.35, Color32::from_rgb(99, 184, 196)),
         ));
+    }
+}
+
+#[cfg(test)]
+mod prefab_tests {
+    use super::*;
+    #[test]
+    fn prefab_thumbnail_drag_delivers_one_payload_and_is_disabled_in_play() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/prefab-lab.json");
+        let mut editor = Editor::open(&path).unwrap();
+        let asset = snapshots(&editor)
+            .into_iter()
+            .find(|a| a.kind == AssetKind::Prefab)
+            .unwrap();
+        assert_eq!(asset.prefab_objects, Some(5));
+        assert!(matches_filter(AssetFilter::Prefabs, asset.kind));
+        assert!(!matches_filter(AssetFilter::Models, asset.kind));
+        let ctx = egui::Context::default();
+        let mut browser = AssetBrowser::default();
+        let mut delivered = Vec::new();
+        let mut source = Pos2::ZERO;
+        let mut target = Pos2::ZERO;
+        let mut frame = |events: Vec<egui::Event>, editing: bool| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(640.0, 400.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    ui.horizontal_top(|ui| {
+                        source = ui.cursor().min + Vec2::new(30.0, 30.0);
+                        browser.tile(ui, &asset, &editor, editing, &mut None);
+                        let (_, response) =
+                            ui.allocate_exact_size(Vec2::splat(180.0), Sense::click_and_drag());
+                        target = response.rect.center();
+                        if let Some(payload) = response.dnd_release_payload::<PrefabDrag>() {
+                            delivered.push(payload.0.clone());
+                        }
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            (source, target)
+        };
+        let (source, target) = frame(vec![], true);
+        let press = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(
+            vec![egui::Event::PointerMoved(source), press(source, true)],
+            true,
+        );
+        frame(
+            vec![egui::Event::PointerMoved(source + Vec2::new(15.0, 15.0))],
+            true,
+        );
+        frame(vec![egui::Event::PointerMoved(target)], true);
+        frame(vec![press(target, false)], true);
+        frame(
+            vec![egui::Event::PointerMoved(source), press(source, true)],
+            false,
+        );
+        frame(vec![egui::Event::PointerMoved(target)], false);
+        frame(vec![press(target, false)], false);
+        assert_eq!(delivered, vec![asset.id]);
+        editor.start_play().unwrap();
     }
 }

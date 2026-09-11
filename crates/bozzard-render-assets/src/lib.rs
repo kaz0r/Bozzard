@@ -83,6 +83,7 @@ struct SharedSource(Arc<AssetData>);
 impl bozzard_render::UploadSource for SharedSource {
     fn data(&self) -> bozzard_render::UploadData<'_> {
         match self.0.as_ref() {
+            AssetData::Prefab(_) => unreachable!("prefabs are excluded by upload_source"),
             AssetData::Image(data) => bozzard_render::UploadData::Image(image(data)),
             AssetData::Mesh(mesh) => bozzard_render::UploadData::Model {
                 vertices: &mesh.vertices,
@@ -92,8 +93,14 @@ impl bozzard_render::UploadSource for SharedSource {
         }
     }
 }
-pub fn upload_source(data: Arc<AssetData>) -> Arc<dyn bozzard_render::UploadSource> {
-    Arc::new(SharedSource(data))
+pub fn upload_source(
+    data: Arc<AssetData>,
+) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
+    anyhow::ensure!(
+        !matches!(data.as_ref(), AssetData::Prefab(_)),
+        "prefabs have no GPU resources"
+    );
+    Ok(Arc::new(SharedSource(data)))
 }
 pub fn upload(
     gpu: &Gpu,
@@ -102,6 +109,7 @@ pub fn upload(
     data: &AssetData,
 ) -> anyhow::Result<()> {
     match data {
+        AssetData::Prefab(_) => Ok(()),
         AssetData::Image(image) => {
             renderer.upload_image(gpu, id, image.width, image.height, &image.rgba)
         }

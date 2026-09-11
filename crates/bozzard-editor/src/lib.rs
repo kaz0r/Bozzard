@@ -17,6 +17,8 @@ mod gi;
 pub use gi::PreparedGi;
 mod framing;
 mod hierarchy;
+mod prefabs;
+pub use prefabs::{PrefabCommand, PreparedPrefab};
 mod loading;
 mod materials;
 mod selection;
@@ -300,7 +302,9 @@ impl Editor {
         for object in self.scene.objects.iter().filter(|o| ids.contains(&o.id)) {
             let mut copy = object.clone();
             copy.id = unique_id(&scene, "copy");
-            copy.name.push_str(" copy");
+            if object.id == selected || !self.scene.prefabs.contains_key(&selected) {
+                copy.name.push_str(" copy");
+            }
             replacements.insert(object.id.clone(), copy.id.clone());
             scene.objects.push(copy);
         }
@@ -312,6 +316,20 @@ impl Editor {
             }
             if object.id == replacements[&selected] {
                 object.transform.translation[0] += 0.5;
+            }
+        }
+        // Duplicating a full instance keeps its source link and independent baseline.
+        for (root, link) in &self.scene.prefabs {
+            if let Some(new_root) = replacements.get(root) {
+                let mut link = link.clone();
+                for id in link.members.values_mut() {
+                    *id = replacements[id].clone();
+                }
+                for base in &mut link.baseline {
+                    base.id = replacements[&base.id].clone();
+                    base.parent = base.parent.as_ref().map(|p| replacements[p].clone());
+                }
+                scene.prefabs.insert(new_root.clone(), link);
             }
         }
         self.apply("Duplicate subtree", scene)?;
@@ -331,6 +349,7 @@ impl Editor {
         );
         let mut scene = self.scene.clone();
         scene.objects.retain(|o| !ids.contains(&o.id));
+        scene.prefabs.retain(|root, _| !ids.contains(root));
         self.apply("Delete subtree", scene)
     }
     pub fn start_play(&mut self) -> Result<()> {
@@ -387,6 +406,9 @@ impl Editor {
             "repair or reload this asset before adding it"
         );
         let (layer, mesh, texture) = match source.kind {
+            AssetKind::Prefab => {
+                anyhow::bail!("Place prefabs using the background prefab operation")
+            }
             AssetKind::Mesh => (Layer::ThreeD, Mesh::Asset(asset_id.into()), Texture::White),
             AssetKind::Image => (Layer::TwoD, Mesh::Quad, Texture::Asset(asset_id.into())),
         };
@@ -453,6 +475,9 @@ impl Editor {
             .as_mut()
             .context("selected object has no drawable")?;
         match source.kind {
+            AssetKind::Prefab => anyhow::bail!(
+                "Place a prefab as a linked hierarchy instead of assigning it to a drawable"
+            ),
             AssetKind::Mesh => {
                 let mesh = Mesh::Asset(asset_id.into());
                 if drawable.mesh != mesh {
@@ -472,10 +497,10 @@ impl Editor {
             "asset is no longer in the catalog"
         );
         ensure!(
-            !self.scene.objects.iter().any(|object| object
-                .drawable
-                .as_ref()
-                .is_some_and(|d| d.asset_dependencies().iter().any(|(id, _)| *id == asset_id))),
+            self.scene
+                .asset_users()
+                .get(asset_id)
+                .is_none_or(Vec::is_empty),
             "asset is used by scene objects"
         );
         let mut scene = self.scene.clone();
@@ -500,8 +525,19 @@ impl Editor {
         let kind = match extension.as_str() {
             "png" | "jpg" | "jpeg" => AssetKind::Image,
             "obj" | "gltf" | "glb" => AssetKind::Mesh,
-            _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, or GLB"),
+            "json"
+                if source
+                    .file_name()
+                    .and_then(|p| p.to_str())
+                    .is_some_and(|n| n.ends_with(".prefab.json")) =>
+            {
+                AssetKind::Prefab
+            }
+            _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, GLB, or .prefab.json"),
         };
+        if kind == AssetKind::Prefab {
+            return self.link_prefab(source, progress);
+        }
         progress.stage("Reading model and packing textures")?;
         let package = if matches!(extension.as_str(), "gltf" | "glb") {
             Some(bozzard_assets::package_gltf(source, progress)?)

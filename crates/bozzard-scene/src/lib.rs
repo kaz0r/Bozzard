@@ -26,6 +26,8 @@ use std::collections::{BTreeMap, VecDeque};
 
 mod collision;
 mod gameplay;
+mod prefab;
+pub use prefab::{Prefab, PrefabInstance};
 mod gravity;
 pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot, MoveResult};
 pub use gameplay::{GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction};
@@ -241,6 +243,8 @@ pub struct Object {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scene {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub prefabs: BTreeMap<String, PrefabInstance>,
     #[serde(default)]
     pub fog: FogSettings,
     #[serde(default)]
@@ -264,6 +268,7 @@ pub struct Scene {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetKind {
+    Prefab,
     Image,
     Mesh,
 }
@@ -334,6 +339,7 @@ impl Scene {
             "scene supports at most {MAX_LOCAL_LIGHTS} local lights"
         );
         gameplay::validate(self)?;
+        prefab::validate(self)?;
         for (kind, limit) in [
             (LightKind::Spot, MAX_SHADOWED_SPOT_LIGHTS),
             (LightKind::Point, MAX_SHADOWED_POINT_LIGHTS),
@@ -702,6 +708,22 @@ impl Scene {
                 }
             }
         }
+        for (root, link) in &self.prefabs {
+            users
+                .entry(link.asset.clone())
+                .or_default()
+                .push(root.clone());
+            for object in &link.baseline {
+                if let Some(drawable) = &object.drawable {
+                    for (id, _) in drawable.asset_dependencies() {
+                        let users = users.entry(id.into()).or_default();
+                        if !users.contains(root) {
+                            users.push(root.clone());
+                        }
+                    }
+                }
+            }
+        }
         users
     }
 }
@@ -741,6 +763,7 @@ mod tests {
             views: BTreeMap::new(),
             objects: vec![object("child"), object("parent")],
             assets: BTreeMap::new(),
+            prefabs: BTreeMap::new(),
         }
     }
 
