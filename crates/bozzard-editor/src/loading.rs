@@ -118,11 +118,15 @@ impl Editor {
             let mut worker = Self::from_loaded(scene, path.clone(), assets);
             let id = worker.import_with(&source, &progress)?;
             let source = worker.scene.assets[&id].clone();
-            let created = Some(if source.path == format!("assets/{id}/model.gltf") {
-                root(&path).join(format!("assets/{id}"))
+            let created = if source.kind == AssetKind::Prefab {
+                None
             } else {
-                root(&path).join(&source.path)
-            });
+                Some(if source.path == format!("assets/{id}/model.gltf") {
+                    root(&path).join(format!("assets/{id}"))
+                } else {
+                    root(&path).join(&source.path)
+                })
+            };
             Ok(PreparedImport {
                 path,
                 catalog,

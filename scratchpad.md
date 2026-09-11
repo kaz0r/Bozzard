@@ -2,7 +2,26 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — point-light shadows (merge resolved, ready to publish)
+## Current checkpoint — linked prefabs (validated)
+
+Implemented on `codex/prefab-assets` from merged main `57cd6d4`. User approved prefabs and has requested committing validated subsystems. **This checkpoint contains the validated subsystem; no push requested.** Root owns code/tests/scratchpad; GPT-5.6 Luna (`prefab_docs`) updated README and docs/prefabs.md/assets.md/roadmap.md. Preserve Bozz tribute. Pointer untouched; UI drag tests used synthetic egui events, native captures used the existing smoke harness.
+
+- CPU-only `Prefab` schema v1 and optional scene `prefabs` metadata: expanded objects, stable source→scene member IDs, saved component baselines. Existing scenes remain compatible. Scene validation guards missing/overlapping members, invalid baselines, external hierarchy edits and dependencies. Baseline validation copies only referenced assets per instance.
+- Inspector **Save as prefab** writes a fresh `assets/<name>-prefab-N.prefab.json` and links the selected hierarchy. Assets has a **Prefabs** filter, hierarchy thumbnail, Add to scene and thumbnail drag to viewport. 3D drops use y=0, 2D z=0, parallel/behind-plane rays fall back five units ahead. Add chooses the prefab drawable layer. Inspector exposes **Apply to prefab**, **Refresh instances**, and **Unpack**.
+- Three-way component merge keeps local overrides and root placement. Source additions/reparenting supported; deletion of edited children or active cameras fails transactionally. Duplicate/delete/Undo/Redo/Save As/Play preserve links; local child structural edits require Unpack. Apply updates all instances of that asset in the current scene. Source writes are explicit and **not undone by scene Undo**. Refresh is explicit, so the watcher cannot silently modify scenes or flood history.
+- Prefab import registers a relative link to the existing definition (no copies); importing the same source reuses the catalog entry. Different scenes can share the source and Refresh after another scene applies changes. Dependency IDs are remapped without collisions; paths rebase on Save As. Cancellation/stale scene/asset/source checks happen before file publication. Prepared source edits validate and stage CPU assets in the worker; existing source replacement uses sibling-temp rename. Unaccepted imports never delete linked user files.
+- Prefab metadata never uploads to GPU; residency ignores CPU-only definitions and retains normal image/model behavior. Headless simulation uses expanded objects without source reads. Graphical player loads its catalog and still requires declared prefab files. Development package includes `prefab-lab.json` and its source asset; this remains a demo bundler, not a finished game exporter.
+- First-stage limits: no nested prefabs, variants, Player Controller prefabs, dedicated source-hierarchy editor, or override/revert UI. Transform is one override field (child position/rotation/scale together); Drawable is one component (local tint also preserves that drawable's other local settings). Root transform is always instance placement.
+
+Validation: full workspace tests passed (198 tests across37 suites, including existing GPU tests). Final focused scene/editor/UI pass after baseline-validation cleanup:132 tests; denied-warning workspace all-target Clippy, fmt, diff check, and headless dependency audit passed. Nine prefab integration tests cover shared-source cross-scene updates, overrides/placement, schema corruption, hierarchy conflicts, dependency ID collisions, Save As/reopen, duplicate/delete/history, Play/headless, source races and cancellation. Two egui tests verify actual thumbnail payload delivery/disabled editing and construction-plane placement.
+
+Release native Metal player full smoke passed all existing PBR/environment/shadow/GI/display/upload/residency oracles plus loaded Prefab Workshop render/roundtrip. Native editor smoke passed existing authored/Play/async import/save/open/cancel/GI checks plus prefab hierarchy, Assets/Inspector, and CPU-only residency capture. Viewed `work/editor-prefabs-final/editor-prefabs.png`: three crates and local orange override, complete prefab controls and asset tile are visible. The smoke fixture is embedded and written only into its output folder, independent of the build checkout. Headless fixture ran3ticks and saved. Packaged release server and Metal player ran the prefab fixture from an empty working directory after ZIP extraction.
+
+Logs: `/tmp/bozzard-prefab-{workspace-tests,final-cpu,clippy,build,ui-tests,tests,editor,metal,package}.log`. Native output `work/prefabs-metal/`; editor output `work/editor-prefabs-final/`. Hosted CI not run for this branch because it has not been pushed.
+
+Manual test: `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/prefab-lab.json`. Select the first crate's **Body**, edit tint, **Apply to prefab**: the second teal body follows, the orange third keeps its Drawable override, and root placements stay fixed. This edits `examples/demo/scenes/assets/cargo.prefab.json`. To create your own asset, select an ordinary hierarchy (or Unpack first), Save as prefab, then Add/drag more instances. Detailed semantics: `docs/prefabs.md`.
+
+## Previous checkpoint — point-light shadows (merged)
 
 Implemented on user-requested feature branch `codex/point-light-shadows`, from pushed `ac33742`. Root resolved the merge with `origin/main` at `3ed2e49` for already-open PR #1, preserving both the point-shadow work and main's fog, FXAA, object-directional-light, showcase, and gizmo histories. **The user authorized fixing the merge and pushing the resolution to PR #1; root owns that git/PR work.** Merged-result validation passed locally; root is ready to publish the resolution. Root owns implementation/tests/scratchpad; GPT-5.6 Luna (`point_shadow_docs`) updated README and lighting/Sponza/showcase documentation. Preserve Bozz tribute. No mouse movement.
 
@@ -145,7 +164,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-Point-light shadows are locally validated and committed on `codex/point-light-shadows`; the merge with `origin/main` at `3ed2e49` for already-open PR #1 is resolved and locally validated. The user visually approved them and authorized pushing the resolution. Hosted Metal/Vulkan/DX12 CI remains pending publication. A possible next subsystem is better baked-GI probe visibility around thin walls; await user direction. Path tracing remains a later renderer project.
+User can test this validated Prefab Workshop checkpoint; wait for a requested push. then a useful bounded follow-up is an Inspector view of component overrides with **Revert instance**. Dedicated source-hierarchy editing, nested prefabs/variants and scripting remain later work. Point-light shadows are already merged into main at `57cd6d4`.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 

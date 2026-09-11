@@ -37,7 +37,7 @@ impl App {
         let title = match dialog.kind {
             Kind::Open => "Open scene",
             Kind::Save => "Save scene as",
-            Kind::Import => "Import image or model",
+            Kind::Import => "Import image, model or prefab",
         };
         egui::Window::new(title)
             .collapsible(false)
@@ -78,10 +78,15 @@ impl App {
                                     .to_ascii_lowercase();
                                 let valid = folder
                                     || match dialog.kind {
-                                        Kind::Import => matches!(
-                                            ext.as_str(),
-                                            "png" | "jpg" | "jpeg" | "obj" | "gltf" | "glb"
-                                        ),
+                                        Kind::Import => {
+                                            matches!(
+                                                ext.as_str(),
+                                                "png" | "jpg" | "jpeg" | "obj" | "gltf" | "glb"
+                                            ) || path
+                                                .file_name()
+                                                .and_then(|p| p.to_str())
+                                                .is_some_and(|p| p.ends_with(".prefab.json"))
+                                        }
                                         _ => ext == "json",
                                     };
                                 if !valid {

@@ -39,9 +39,11 @@ impl Residency {
                 && self.preparing.is_none()
                 && store.entries().all(|entry| {
                     entry.shared_data().is_none_or(|data| {
-                        self.current
-                            .get(&entry.id)
-                            .is_some_and(|old| Arc::ptr_eq(old, &data))
+                        matches!(data.as_ref(), AssetData::Prefab(_))
+                            || self
+                                .current
+                                .get(&entry.id)
+                                .is_some_and(|old| Arc::ptr_eq(old, &data))
                             || self
                                 .failed
                                 .get(&entry.id)
@@ -73,9 +75,10 @@ impl Residency {
             .map(|(id, _, job)| (id.as_str(), job.cancelled()))
     }
     pub fn has_all(&self, store: &AssetStore) -> bool {
-        store
-            .entries()
-            .all(|entry| entry.data().is_some() && self.current.contains_key(&entry.id))
+        store.entries().all(|entry| {
+            matches!(entry.data(), Some(AssetData::Prefab(_)))
+                || (entry.data().is_some() && self.current.contains_key(&entry.id))
+        })
     }
     /// Whether picking/inspection geometry matches the version currently on the GPU.
     /// `has_all` also accepts last-good resources during a staged replacement.
@@ -108,7 +111,12 @@ impl Residency {
     ) -> Result<ResidencyReport> {
         let desired: BTreeMap<_, _> = store
             .entries()
-            .filter_map(|entry| entry.shared_data().map(|data| (entry.id.clone(), data)))
+            .filter_map(|entry| {
+                entry
+                    .shared_data()
+                    .filter(|d| !matches!(d.as_ref(), AssetData::Prefab(_)))
+                    .map(|data| (entry.id.clone(), data))
+            })
             .collect();
         let mut report = ResidencyReport::default();
         if let Some((id, data, job)) = &self.preparing
@@ -163,7 +171,7 @@ impl Residency {
                 }
                 let context = renderer.upload_context();
                 let gpu = gpu.clone();
-                let source = crate::upload_source(data.clone());
+                let source = crate::upload_source(data.clone())?;
                 match bozzard_assets::job::Job::start("Preparing GPU resources", move |progress| {
                     progress.check()?;
                     let upload = context.begin_upload(&gpu, source)?;

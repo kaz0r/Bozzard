@@ -80,7 +80,9 @@ Importers: [`image` ImageReader](https://docs.rs/image/0.25.10/image/struct.Imag
 
 ## Editor asset browser
 
-The native editor's Assets panel searches and filters the catalog by All, Images, or Models. Image thumbnails are bounded to 192 pixels per edge; models show a bounded geometry sample. Selecting an entry shows its path, load state or error, image dimensions or model vertex/triangle counts, importer warnings, and object usage count. The panel can import, reload, add an asset to the scene, assign it to the selected drawable, or remove an unused catalog entry. Removing an entry supports undo and never deletes its source file. Imported model additions use a white tint; imported images can be added as aspect-ratio-preserving quads.
+The native editor's Assets panel searches and filters the catalog by All, Images, Models, or Prefabs. Image thumbnails are bounded to 192 pixels per edge; models show a bounded geometry sample. Selecting an entry shows its path, load state or error, image dimensions or model vertex/triangle counts, importer warnings, and object usage count. The panel can import, reload, add an asset to the scene, assign it to the selected drawable, or remove an unused catalog entry. Prefab cards support adding a linked hierarchy to the scene; the same card can be dragged into the viewport when that control is available. Removing an entry supports undo and never deletes its source file. Imported model additions use a white tint; imported images can be added as aspect-ratio-preserving quads.
+
+For the linked hierarchy workflow, including prefab source files, refresh/apply behavior, and dependency path rules, see [prefabs](prefabs.md).
 
 The generated courier glTF/GLB models, buffers, PNG textures, and OBJ geometry under `examples/demo/scenes/assets/` are original Bozzard test fixtures, dedicated to the public domain under CC0. They intentionally emphasize testable colors and shapes rather than production artwork.
 

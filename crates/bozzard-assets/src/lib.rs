@@ -129,6 +129,7 @@ fn inspection_name(name: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum AssetData {
+    Prefab(bozzard_scene::Prefab),
     Image(ImageData),
     Mesh(MeshData),
 }
@@ -232,6 +233,29 @@ impl AssetStore {
         })
     }
 
+    /// Stage validated prefab bytes before the editor atomically publishes the file.
+    pub fn stage_prefab(&mut self, id: &str, json: &str) -> Result<()> {
+        let data = bozzard_scene::Prefab::from_json(json)?;
+        let handle = self
+            .handle(id)
+            .context("prefab asset is not in the catalog")?;
+        let entry = &mut self.entries[handle.index];
+        ensure!(
+            entry.source.kind == AssetKind::Prefab,
+            "asset is not a prefab"
+        );
+        let snapshot = SourceSnapshot {
+            primary: Ok(json.as_bytes().to_vec()),
+            dependencies: Vec::new(),
+        };
+        entry.content_fingerprint = Some(fingerprint_snapshot(&snapshot));
+        entry.observed = Some(Arc::new(snapshot));
+        entry.data = Some(Arc::new(AssetData::Prefab(data)));
+        entry.state = LoadState::Ready;
+        entry.revision += 1;
+        Ok(())
+    }
+
     pub fn handle(&self, id: &str) -> Option<Handle> {
         self.handles.get(id).copied()
     }
@@ -272,6 +296,9 @@ impl AssetStore {
     }
 
     pub fn load_pending(&mut self) -> Result<()> {
+        self.load_pending_with(&job::Progress::default())
+    }
+    pub fn load_pending_with(&mut self, progress: &job::Progress) -> Result<()> {
         let mut pending = Self::new(
             &self.root,
             &self
@@ -281,7 +308,7 @@ impl AssetStore {
                 .map(|entry| (entry.id.clone(), entry.source.clone()))
                 .collect(),
         )?;
-        pending.refresh();
+        pending.refresh_with(progress)?;
         pending.require_ready()?;
         for entry in &mut self.entries {
             if let Some(loaded) = pending.handle(&entry.id).and_then(|h| pending.get(h)) {
@@ -487,6 +514,9 @@ fn import(
         .unwrap_or("")
         .to_ascii_lowercase();
     match kind {
+        AssetKind::Prefab => Ok(AssetData::Prefab(bozzard_scene::Prefab::from_json(
+            std::str::from_utf8(bytes)?,
+        )?)),
         AssetKind::Image => {
             ensure!(
                 matches!(extension.as_str(), "png" | "jpg" | "jpeg"),
