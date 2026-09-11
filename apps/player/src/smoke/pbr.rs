@@ -51,6 +51,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            gi: None,
             lights: self.lights.clone(),
             environment: bozzard_render::EnvironmentSettings::disabled(),
             display: Default::default(),

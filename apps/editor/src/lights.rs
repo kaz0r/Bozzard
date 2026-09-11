@@ -16,7 +16,7 @@ pub fn inspector(ui: &mut egui::Ui, value: &mut Option<Light>) {
             });
             ui.horizontal(|ui| {
                 ui.label("Color");
-                ui.color_edit_button_rgb(&mut light.color);
+                inspector::color_edit_button_rgb(ui, &mut light.color);
             });
             ui.horizontal(|ui| {
                 ui.label("Intensity (cd)");

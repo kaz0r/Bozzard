@@ -15,6 +15,14 @@ pub struct Assets {
 }
 
 impl Assets {
+    pub fn store(&self) -> &AssetStore {
+        &self.store
+    }
+    pub fn current(&self) -> bool {
+        self.store
+            .entries()
+            .all(|e| self.residency.is_current(&self.store, &e.id))
+    }
     pub fn load(scene: &Scene, source: Option<&Path>) -> Result<Self> {
         let root = source
             .and_then(Path::parent)

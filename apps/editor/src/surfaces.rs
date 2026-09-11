@@ -282,7 +282,7 @@ fn material_controls(
     });
     ui.horizontal(|ui| {
         ui.label("Tint");
-        ui.color_edit_button_rgb(&mut value.tint);
+        inspector::color_edit_button_rgb(ui, &mut value.tint);
     });
     if let Some(shading) = &part.shading {
         factor_control(

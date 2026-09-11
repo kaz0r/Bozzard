@@ -2,13 +2,13 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — local lights, bloom, baked GI (active goal)
+## Current checkpoint — local lights, bloom, baked GI (validated)
 
 User approved implementing all three subsystems and committing each after validation. Root owns code and this scratchpad; GPT-5.6 Luna (`lighting_docs`) owns the light documentation. No push requested for this goal. Escape and prior four commits were pushed through `db5295c`; user confirmed Escape works.
 
-1. Point/spot lights: IMPLEMENTED; CPU and offscreen GPU validation passed. Native editor window capture pending unlock. Authored object component, ECS/transforms, bounded shared renderer light list, PBR+Lambert lighting, editor creation/inspector/guides, save/history/Play, CPU and native GPU validation. Local-light shadows remain future work as discussed; sun shadows unchanged.
-2. Bloom: IMPLEMENTED and CPU/Metal validated; committing next. HDR threshold/downsample/upsample composite before display mapping, editor controls and persistence, disabled/2D/raw parity and resize/GPU checks.
-3. Baked GI: PENDING. Implement scene-dependent indirect light (occlusion and bounced color), bake workflow, saved data/invalidation, renderer/editor integration and reference tests. Do not substitute ambient/AO for GI. Choose concrete bake representation after lighting/bloom are verified.
+1. Point/spot lights: IMPLEMENTED and committed `e12b983`; CPU, native Metal and native editor capture passed. Authored object component, ECS/transforms, bounded shared renderer light list, PBR+Lambert lighting, editor creation/inspector/guides, save/history/Play, CPU and native GPU validation. Local-light shadows remain future work as discussed; sun shadows unchanged.
+2. Bloom: IMPLEMENTED and CPU/Metal validated, committed `b61b545`. HDR threshold/downsample/upsample composite before display mapping, editor controls and persistence, disabled/2D/raw parity and resize/GPU checks.
+3. Baked GI: IMPLEMENTED and validated; this checkpoint commits it. CPU diffuse transport with occlusion/color bounce, saved probe data and source invalidation, async editor workflow, renderer integration and CPU/native GPU/native editor tests. All three local subsystems are complete; hosted cross-platform CI remains pending a user-requested push.
 
 Validation: run meaningful scene/editor tests, native Metal pixel/smoke checks, formatting/Clippy/headless boundary and visual review for each subsystem. CI workflow must exercise new GPU fixtures on Metal/Vulkan/DX12; actual hosted CI requires a later push. Preserve Bozz artwork. Avoid moving pointer.
 
@@ -18,7 +18,7 @@ Validation: run meaningful scene/editor tests, native Metal pixel/smoke checks, 
 - Editor + Light creation, component controls, history/duplicate/save/Play isolation, fixed-size clickable markers (including disabled), selected sphere/cone guides. New asset-free `examples/demo/scenes/lighting-lab.json` demonstrates colored points and warm spot.
 - Full workspace tests, all-target Clippy, headless boundary passed. Native Metal fixture suite passed existing rendering regressions plus local color, inverse-square falloff, smooth range cutoff, cone penumbra/equal-angle edge/direction, multiple/removal/lastslot32/overflow/invalid values/unlit. Logs `/tmp/bozzard-local-lights-{tests,clippy,final-gpu,ui-tests,final-clippy}.log`.
 - Release Lighting Lab 30frames800×500: optimizedCPUmedian0.068ms, synchronizedwall0.497ms,5draws60triangles; exact reference/culling/cache pixels. `work/lighting-lab/loaded-3d.png` visually reviewed. Full viewport/compositor cost not measured.
-- Native editor smoke added a final light-inspector/guide capture, but current local run timed out waiting for screenshots. `ioreg` confirmed `CGSSessionScreenIsLocked=Yes`; `/tmp/bozzard-editor-local-lights.log`. CPU authored workflow ran and files exist; do not claim native UI capture passed. Async unlock request pending. Retry with fresh output directory after unlock. Pointer never moved. Hosted CI for new changes also pending push; same fixtures run in existing Metal/Vulkan/DX12 workflow.
+- Native editor capture now passed after Mac unlock, including light inspector/guides and GI bake controls/save. Final log `/tmp/bozzard-editor-gi-final-validation.log`; captures under `work/editor-gi-final-validation/`. Earlier locked-screen attempt was superseded. Pointer never moved. Hosted CI remains pending push; existing Metal/Vulkan/DX12 workflow runs all new smoke fixtures.
 
 ### Bloom subsystem evidence
 
@@ -26,7 +26,7 @@ Validation: run meaningful scene/editor tests, native Metal pixel/smoke checks, 
 - Max6 half-resolution RGBA16Float levels, normalized bilinear downsample + tent upsample, 50% soft knee, convex broad-level blend to preserve constant energy across sizes. Add to HDR before exposure/Reinhard/sRGB; preserve alpha. Disabled/zero intensity/raw release pyramid resources and produce original pixels. No geometry illumination claim.
 - Full workspace tests/Clippy/headless audit/fmt passed. Native Metal suites pass halo/intensity/threshold/spread, disable/raw exactpixel parity, alpha, known HDR arithmetic, hardware/shader sRGB parity, constant energy at64×64/97×53/1×1/1×17/3×5, invalid input, and all previous render fixtures. `work/bloom-gpu/bloom-{off,on}.png` visually reviewed; `work/bloom-lab/loaded-3d.png` shows soft highlight glow. Save/reload actual Lighting Lab produces identical pixels.
 - Release Lighting Lab30frames800×500 bloom on: optimized CPU0.200ms/synchronizedwall0.978ms. Bloom-off comparison in `/tmp/bozzard-bloom-lab-off.log`; hardware/compositor/fullviewport timings not implied.
-- Logs `/tmp/bozzard-bloom-{tests,clippy,gpu,lab,lab-off}.log`. Tests automatically execute in existing hosted smoke matrix but hosted CI pending push. Native UI capture still waiting for Mac unlock; no pointer movement.
+- Logs `/tmp/bozzard-bloom-{tests,clippy,gpu,lab,lab-off}.log`. Tests automatically execute in existing hosted smoke matrix but hosted CI pending push. Native editor capture subsequently passed after unlock; no pointer movement.
 
 ## Previous checkpoint — Escape deselection
 
@@ -102,7 +102,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-Finish bloom and baked GI, validating and separately committing each. Retry native editor capture after Mac unlock. Do not mark the active goal complete until all three subsystems and required checks have authoritative evidence. Latest pushed baseline is `db5295c`; this goal requests local subsystem commits only.
+All three agreed subsystems are validated and locally committed with this checkpoint. Await a user-requested push, then watch the existing Metal/Vulkan/DX12 hosted CI. Suggested next rendering subsystem: local-light shadows (spot first), followed by probe-quality improvements around thin walls. Path tracing remains a later renderer project. Latest pushed baseline is `db5295c`; do not push without a new request.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 
@@ -135,3 +135,22 @@ python3 tools/check_headless.py
 cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/model-lab.json --smoke work/editor-surfaces-smoke --hardware --backend metal
 git diff --check
 ```
+
+
+### Baked GI subsystem evidence (this checkpoint)
+
+- CPU background static diffuse bake:9 cosine-convolved SH coefficients plus8×8 directional distance moments per probe;41vec4/probe;2..16probes/axis(max4096),64..1024 power-of-two rays/probe,1..4 diffuse bounces. At most1024staticinstances/1Mstatictriangles. Trace reuses immutable mesh BVHs; Fit transforms cached bounds without scanning vertices on UI thread. Cancellation checked throughout CPU transport; codecs/BVH retain their existing cancellation boundaries.
+- Texture/material transport includes source sRGB/base color, UV sets/wrap/filter, alpha cutouts, emissive and metallic factors/maps, per-surface overrides and explicit whole-object base texture. Alpha-blended surfaces do not transport light; >128 cutout layers terminate conservatively. No glossy/caustic/normal-map bounce transport; CPU samples mip0. Runtime diffuse response uses receiving normals, retains direct lights and specular sky. Low-frequency probes/moment maps can leave mottling/leaks/extra darkness around thin walls; bias and volume placement/resolution matter. Local direct lights still have no realtime shadows.
+- Known moving objects (Spin/enabled Gravity/PlayerController) and descendants are excluded from casters; other drawables opt out with `gi_static`. A queue handles arbitrarily ordered deep hierarchies without repeated full scans. Dynamic receivers still sample GI. Content-only last-good asset hashes plus static transforms/materials/lights/sky/volume expire stale bakes; camera/display/name/intensity/bias changes preserve them. Changed static components during Play disable GI until Stop restores authored state. CPU/GPU asset-generation mismatch also disables stale GI until residency is current.
+- Inline serialized Arc bake data survives Undo/Redo/Play/Save As. Validation retains the immutable data allocation, so unchanged data is not scanned each frame; Arc mutation gets a new identity and is revalidated. GPU data upload cached by retained Arc identity; metadata validated each draw. Max packed data2.5625MiB. One current GPU volume retained; no streaming/multivolume.
+- Editor Scene lighting → Baked global illumination:Enable,Show volume/probes,Fit/Bake/Clear,intensity,bias,grid/samples/bounces,bounds. Async bake/cancel, revision/path/content publication guard, one-step Undo/Redo and saved result. Cyan current/amber stale-or-unbaked/gray invalid probes, editor-only; overlay absent in Play/2D. Native verification caught idle egui RGB↔HSV roundoff expiring bakes: all scene/light/surface color pickers now publish only intentional edits; exact no-input color regression passes.
+- Full workspace tests, denied-warning all-target Clippy, formatting, whitespace and headless dependency audit passed. Additional final focused CPU tests include1000-level reverse hierarchy exclusion, source asset corruption/replacement/rebase, constant-environment energy, deterministic bake, red diffuse bounce, second-bounce gain, roof occlusion, invalid solid probes, schema/identity mutation, alpha/PBR/UV/emission/override behavior. Editor tests cover cancellation, stale revision/path/Play rejection, history/Save/reopen/current source, runtime static movement and material invalidation.
+- Final native Metal full suite passes all prior lighting/bloom/render/upload regressions plus numeric GI tests:SH constant/direction, visibility, PBR/diffuse/metallic/unlit,intensity/disable/outside bounds,max grid,data replacement,invalid inputs and resize. CPU bake→JSON→player extraction→GPU oracle:14984 affected pixels,683 previously neutral pixels gain red/green. Actual room and Sponza save/reload/render pass; reference/culling/cache pixels identical. Final logs `/tmp/bozzard-gi-final-validation.log`, `/tmp/bozzard-gi-{workspace-tests,cpu,clippy,editor-tests}.log`.
+- Native Model Workshop editor acceptance passed light controls/guides, material controls, GI async bake/current source/extraction/volume guides/save plus existing authored commands/Play/import/save/open/cancel workflows. Final `/tmp/bozzard-editor-gi-final-validation.log`, captures `work/editor-gi-final-validation/`; final layout visually reviewed at `work/editor-gi-final-validation/editor-gi.png`. Mac unlocked during final runs. Pointer untouched. Hosted CI not run; all fixtures are included in existing cross-platform smoke workflow.
+
+### Reproduce and inspect
+
+- Asset-free room:`examples/demo/scenes/gi-lab.json`. Bake `cargo run --release -p bozzard-editor --example bake_gi --locked --offline -- examples/demo/scenes/gi-lab.json work/gi-lab/baked.json`; optional `--fit` computes bounds. Open resulting JSON in editor. Toggle Enable baked GI to compare; change a source material/light to see stale status, Bake then Save. Documentation:`docs/lighting.md`.
+- Room384probes/251904packedbytes; final CPU release bake109.7ms M2Pro. Native room comparison `work/gi-lab/final-on/loaded-3d.png`, tuned bias0.2 review `work/gi-lab/bias/loaded-3d.png`; final smoke under `work/gi-final-validation/`. Release editor extraction50samples median0.014583ms; log `/tmp/bozzard-gi-extract-final.log`.
+- Actual Sponza ignored artifacts:`work/sponza/{gi-source,gi-baked,gi-off}.json`; source references untouched `glTF/Sponza.gltf`. Grid[12,8,8],min[-12,-.3,-5],max[12,10,5],256rays/3bounces;768probes/503808bytes,4258ms release bake, Save/reopen current. `work/sponza/gi-final-{on,off}/loaded-3d.png` reviewed: covered corridor becomes darker than unoccluded diffuse sky, as expected. All downloaded assets/bakes remain ignored.
+- Same release binary Metal30frame800×500 Sponza on:CPUmedian0.667ms,synchronizedwall5.652ms;off:CPU0.887ms,wall3.827ms. Same89visible/14culled/257752colortriangles/103shadowdraws/262267shadowtriangles. No CPU speedup/FPS/GPU-timestamp claim. Logs `/tmp/bozzard-sponza-gi-{bake,final-on,final-off}.log`. Thin-wall and low-resolution interpolation quality remain explicit limitations.

@@ -7,6 +7,7 @@ mod benchmark;
 mod bloom;
 mod display;
 mod environment;
+mod gi;
 mod overrides;
 mod pbr;
 mod shadows;
@@ -155,6 +156,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             }],
         )?;
         let mip_scene = RenderScene {
+            gi: None,
             lights: Vec::new(),
             environment: bozzard_render::EnvironmentSettings::disabled(),
             display: Default::default(),
@@ -176,6 +178,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         }
     }
     let scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
@@ -211,6 +214,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     );
     renderer.upload_image(gpu, "half-red", 1, 1, &[255, 0, 0, 128])?;
     let alpha_scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
@@ -277,6 +281,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         lit: false,
     };
     let scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
@@ -299,6 +304,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let wide = capture(gpu, &mut renderer, &scene, [2053, 129])?;
     pixel(&wide, 767, 42, [240, 180, 70])?;
     let mut depth_scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
@@ -342,12 +348,30 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let panned = capture(gpu, &mut renderer, &depth_scene, [257, 193])?;
     pixel(&panned, 128, 96, [5, 6, 10])?;
     let document = bozzard_demo::scene_document()?;
-    check_document(gpu, &mut renderer, &document, options, "demo", true)?;
+    let empty_assets =
+        bozzard_assets::AssetStore::new(std::path::Path::new("."), &document.assets)?;
+    check_document(
+        gpu,
+        &mut renderer,
+        &document,
+        &empty_assets,
+        options,
+        "demo",
+        true,
+    )?;
     if let Some(path) = &options.scene {
         let document = load_document(Some(path))?;
         let mut assets = assets::Assets::load(&document, Some(path))?;
         assets.upload(gpu, &mut renderer)?;
-        check_document(gpu, &mut renderer, &document, options, "loaded", false)?;
+        check_document(
+            gpu,
+            &mut renderer,
+            &document,
+            assets.store(),
+            options,
+            "loaded",
+            false,
+        )?;
     }
     asset_checks(gpu, &mut renderer, options)?;
     println!("scene_gpu_ok texture_quadrants depth_order camera_pan resize scene_roundtrip");
@@ -399,6 +423,7 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         "unchanged catalog snapshot re-uploaded assets"
     );
     let scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
@@ -577,6 +602,7 @@ fn check_document(
     gpu: &Gpu,
     renderer: &mut SceneRenderer,
     document: &Scene,
+    assets: &bozzard_assets::AssetStore,
     options: &Options,
     prefix: &str,
     animated: bool,
@@ -590,16 +616,23 @@ fn check_document(
             continue;
         }
         let aspect = size[0] as f32 / size[1] as f32;
-        let initial = capture_display(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
+        let initial =
+            capture_display(gpu, renderer, &extract(&demo, assets, layer, aspect)?, size)?;
         if layer == Layer::ThreeD
             && prefix == "loaded"
             && let Some(frames) = options.benchmark_frames
         {
-            benchmark::run(gpu, renderer, &extract(&demo, layer, aspect)?, size, frames)?;
+            benchmark::run(
+                gpu,
+                renderer,
+                &extract(&demo, assets, layer, aspect)?,
+                size,
+                frames,
+            )?;
         }
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
         if layer == Layer::ThreeD && document.lighting.shadows {
-            let mut without = extract(&demo, layer, aspect)?;
+            let mut without = extract(&demo, assets, layer, aspect)?;
             without.lighting.shadows = false;
             let unshadowed = capture_display(gpu, renderer, &without, size)?;
             unshadowed.write_ppm(
@@ -618,7 +651,7 @@ fn check_document(
         for _ in 0..120 {
             demo.app.step();
         }
-        let moved = capture_display(gpu, renderer, &extract(&demo, layer, aspect)?, size)?;
+        let moved = capture_display(gpu, renderer, &extract(&demo, assets, layer, aspect)?, size)?;
         moved.write_ppm(
             &options
                 .output
@@ -629,7 +662,12 @@ fn check_document(
         }
         let saved = demo.instance.capture(&demo.app.world)?;
         let restored = SceneDemo::new(&Scene::from_json(&saved.to_json()?)?)?;
-        let reloaded = capture_display(gpu, renderer, &extract(&restored, layer, aspect)?, size)?;
+        let reloaded = capture_display(
+            gpu,
+            renderer,
+            &extract(&restored, assets, layer, aspect)?,
+            size,
+        )?;
         ensure!(
             moved.rgba == reloaded.rgba,
             "{label} save/reload changed the image"
@@ -650,6 +688,8 @@ pub fn run(options: &Options) -> Result<()> {
     environment::checks(&gpu)?;
     display::checks(&gpu)?;
     bloom::checks(&gpu, &options.output)?;
+    gi::checks(&gpu)?;
+    gi::baked_room(&gpu, &options.output)?;
     pbr::checks(&gpu)?;
     overrides::checks(&gpu)?;
     shadows::checks(&gpu)?;

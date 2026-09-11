@@ -14,6 +14,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         },
     };
     let scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         display: Default::default(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -54,6 +55,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         "batching or shadow counters incorrect"
     );
     let mut shadow_scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         display: Default::default(),
         environment: bozzard_render::EnvironmentSettings::disabled(),

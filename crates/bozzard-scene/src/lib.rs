@@ -1,5 +1,7 @@
 //! Versioned scene documents and ECS instances, with no graphics dependencies.
 //! IDs are document-local persistent strings, never runtime entity handles.
+mod gi;
+pub use gi::{BakedGi, GI_PROBE_STRIDE, GI_VISIBILITY_SIZE, GiSettings, GiVolumeSettings};
 mod surface;
 pub use surface::SurfaceMaterialOverride;
 mod environment;
@@ -182,6 +184,9 @@ pub enum Texture {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Drawable {
+    /// Contribute to a static GI bake. Known moving objects/ancestors are excluded.
+    #[serde(default = "default_true")]
+    pub gi_static: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub material_overrides: Vec<SurfaceMaterialOverride>,
     pub layer: Layer,
@@ -226,6 +231,8 @@ pub struct Object {
 #[serde(deny_unknown_fields)]
 pub struct Scene {
     #[serde(default)]
+    pub gi: GiSettings,
+    #[serde(default)]
     pub environment: EnvironmentSettings,
     #[serde(default)]
     pub display: DisplaySettings,
@@ -265,12 +272,27 @@ impl Scene {
         self.validate()?;
         Ok(serde_json::to_string_pretty(self)? + "\n")
     }
+    pub fn global_transforms(&self) -> Result<BTreeMap<String, Mat4>> {
+        let order = self.order()?;
+        let mut result = BTreeMap::new();
+        for index in order {
+            let object = &self.objects[index];
+            let parent = object
+                .parent
+                .as_ref()
+                .map(|p| result[p])
+                .unwrap_or(Mat4::IDENTITY);
+            result.insert(object.id.clone(), parent * object.transform.matrix());
+        }
+        Ok(result)
+    }
     pub fn validate(&self) -> Result<()> {
         self.order().map(|_| ())
     }
 
     /// Iterative topological sort: arbitrary document order, no recursive stack limit.
     fn order(&self) -> Result<Vec<usize>> {
+        self.gi.validate()?;
         self.lighting.validate()?;
         self.display.validate()?;
         self.environment.validate()?;
@@ -489,6 +511,9 @@ pub struct SceneInstance {
 }
 
 impl SceneInstance {
+    pub fn document(&self) -> &Scene {
+        &self.document
+    }
     pub fn entity(&self, id: &str) -> Option<Entity> {
         self.entities.get(id).copied()
     }
@@ -634,6 +659,10 @@ impl Scene {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -655,6 +684,7 @@ mod tests {
     }
     fn scene() -> Scene {
         Scene {
+            gi: Default::default(),
             environment: EnvironmentSettings::default(),
             display: DisplaySettings::default(),
             lighting: Lighting::default(),

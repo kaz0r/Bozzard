@@ -124,10 +124,11 @@ impl PbrRenderer {
                 label: Some("metallic roughness PBR"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}\n{}\n{}",
+                        "{}\n{}\n{}\n{}\n{}",
                         include_str!("scene/environment_sample.wgsl"),
                         include_str!("scene/shadow_sample.wgsl"),
                         include_str!("scene/local_lights.wgsl"),
+                        include_str!("scene/gi.wgsl"),
                         include_str!("pbr.wgsl")
                     )
                     .into(),

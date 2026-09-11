@@ -14,7 +14,7 @@ Direct light uses the renderer's shared PBR GGX plus Lambert contribution. Point
 max(1 - (distance / range)^4, 0)^2
 ```
 
-Sun lighting and its existing camera-independent shadows remain available. Point and spot lights currently have no local shadow maps. Bloom is available as a separate post-process display effect; baked GI remains a separate pending subsystem.
+Sun lighting and its existing camera-independent shadows remain available. Point and spot lights currently have no local shadow maps. Bloom and baked GI are available as separate display and static diffuse-transport systems.
 
 In the editor, the Hierarchy **+ Light** menu creates a point or spot light. Selecting any object also exposes the **Light (3D)** component checkbox in the inspector, which adds or removes the component. The inspector edits `enabled`, kind, color, intensity, range, and (for spots) both angles. Light changes are undoable and are disabled while Play is running, consistent with other authored component edits.
 
@@ -38,11 +38,9 @@ The release Lighting Lab can be launched with:
 cargo run -p bozzard-player --release -- --scene examples/demo/scenes/lighting-lab.json
 ```
 
-Native Metal smoke validation passed the existing fixtures plus `local_lights_gpu_ok`, covering PBR and diffuse color response, inverse-square falloff, range cutoff, spot cones and penumbra, equal-angle hard cones, multiple lights, removal, the 32-component limit, invalid inputs, and unlit surfaces. The release Lighting Lab also rendered a colored point light and warm spotlight. A 30-frame 800×500 M2 Pro measurement reported 0.068 ms optimized renderer CPU median and 0.497 ms synchronized CPU+GPU+wait wall median; this is a debug measurement and does not claim FPS.
+Native Metal smoke validation passed the existing fixtures plus `local_lights_gpu_ok`, covering PBR and diffuse color response, inverse-square falloff, range cutoff, spot cones and penumbra, equal-angle hard cones, multiple lights, removal, the 32-component limit, invalid inputs, and unlit surfaces. The release Lighting Lab also rendered a colored point light and warm spotlight. A 30-frame 800×500 M2 Pro measurement reported 0.068 ms optimized renderer CPU median and 0.497 ms synchronized CPU+GPU+wait wall median; this is a renderer measurement and does not claim FPS.
 
-Workspace CPU tests, all-target Clippy, and headless boundary checks passed. The new fixtures are included in the existing cross-platform `--smoke` CI coverage. Native editor-window capture remains unverified because the macOS screen was locked during the attempted capture; hosted CI validation for this subsystem remains pending.
-
-The practical checks above describe the remaining hands-on editor workflow and are not a claim that the locked-screen UI check has passed.
+Workspace CPU tests, all-target Clippy, and headless boundary checks passed. The new fixtures are included in the existing cross-platform `--smoke` CI coverage. Native light-inspector and guide capture also passed; see the editor validation in the GI section below.
 
 ## Bloom
 
@@ -50,10 +48,33 @@ Bloom is an optional 3D display effect configured under the scene's **Display (3
 
 The renderer extracts bright HDR scene color, builds up to six half-resolution `Rgba16Float` pyramid levels, then combines normalized linear downsample/tent-upsample levels. The result is added to HDR scene color before exposure, Reinhard tone mapping, and sRGB encoding. Constant fields therefore do not change brightness when the pyramid depth changes, and the composite preserves alpha. Bloom changes do not illuminate geometry.
 
-Bloom is bypassed when disabled or when intensity is zero, by raw `draw_linear` diagnostics, and for 2D extraction. Disabling it releases the pyramid resources. Display controls follow normal Undo/Redo, save/reopen, and Play isolation rules; **Reset display** restores the defaults. Baked GI remains a separate pending subsystem.
+Bloom is bypassed when disabled or when intensity is zero, by raw `draw_linear` diagnostics, and for 2D extraction. Disabling it releases the pyramid resources. Display controls follow normal Undo/Redo, save/reopen, and Play isolation rules; **Reset display** restores the defaults. Baked GI remains limited to the static diffuse workflow described below.
 
 Bloom validation passed the workspace CPU tests, Clippy, headless checks, and formatting. Native Metal full smoke passed `bloom_gpu_ok`, covering halo formation, threshold, intensity, spread, disable, raw readback, alpha preservation, HDR-before-display ordering, constant-energy normalization, odd/tiny resize handling, and sRGB parity. The numeric oracle for a constant HDR-4 field with threshold 1 and intensity 1 produced HDR-7 before exposure, then the expected −3 EV exposure, Reinhard, and sRGB result across 64×64, 97×53, 1×1, 1×17, and 3×5 targets.
 
 Visual review compared `work/bloom-gpu/bloom-off.png` and `work/bloom-gpu/bloom-on.png`; the saved Lighting Lab also rendered with bloom enabled at intensity `0.4`, threshold `0.6`, and scatter `0.8` in `work/bloom-lab/loaded-3d.png`. Save/reload pixel parity passed. A release 30-frame 800×500 M2 Pro measurement reported 0.200 ms CPU median and 0.978 ms synchronized CPU+GPU+wait wall median with bloom enabled; the same binary with bloom disabled measured 0.074 ms and 0.526 ms. These are renderer measurements, not FPS claims.
 
-The cross-platform fixtures are included in the existing `--smoke` CI coverage. Native editor-window capture remains unverified because the macOS screen was locked, and hosted CI validation remains pending. Logs are retained at `/tmp/bozzard-bloom-tests.log`, `/tmp/bozzard-bloom-clippy.log`, `/tmp/bozzard-bloom-gpu.log`, `/tmp/bozzard-bloom-lab.log`, and `/tmp/bozzard-bloom-lab-off.log`.
+The cross-platform fixtures are included in the existing `--smoke` CI coverage. Logs are retained at `/tmp/bozzard-bloom-tests.log`, `/tmp/bozzard-bloom-clippy.log`, `/tmp/bozzard-bloom-gpu.log`, `/tmp/bozzard-bloom-lab.log`, and `/tmp/bozzard-bloom-lab-off.log`.
+
+## Baked global illumination
+
+Baked GI is an optional, static diffuse irradiance volume for 3D scenes. A scene has one bounded probe volume with `min` and `max` world-space corners, a `resolution` of 2–16 probes per axis, 64–1024 power-of-two rays per probe, and 1–4 diffuse bounces. **Fit scene** derives bounds from eligible static geometry; **Bake GI** runs the CPU bake asynchronously; **Clear bake** removes the saved result. The editor exposes GI enable, intensity `0..=10`, normal bias `0..=1`, volume bounds, grid resolution, ray count, and diffuse bounce count under **Scene lighting → Baked global illumination**.
+
+The bake stores nine diffuse spherical-harmonic coefficients plus directional visibility moments per probe. It is serialized inline with the scene through shared `Arc` data, so save/reopen, Undo/Redo, and Play isolation preserve the authored bake. Runtime rendering evaluates the probe SH coefficients and trilinear visibility weights, then applies the configured intensity and normal bias to diffuse indirect light on receiving surfaces. CPU transport samples source textures at mip level zero.
+
+Only eligible static 3D drawables contribute transport. A drawable's **Contribute to GI bake (static)** flag controls eligibility. Objects with spin, enabled gravity, or a player controller, together with their descendants, are excluded automatically; moving objects may still receive baked light. Alpha-blended transport is excluded. Enabled authored sun, point/spot lights, procedural sky inputs, static transforms, materials, volume settings, and loaded asset content contribute to the bake source fingerprint.
+
+Changing a source asset, static scene input, light, or volume expires the fingerprint and disables the stale bake until it is rebuilt. A failed asset reload retains the last-good asset identity, so a valid existing bake is not invalidated by an unsuccessful replacement. There is no runtime rebaking. The current system supports one volume and diffuse transport only: no glossy or specular GI, caustics, alpha-blend transport, probe streaming, or multiple volumes.
+
+Enable **Show volume and probes** to draw the editor-only volume and probe overlay. Cyan indicates a current bake, amber indicates an outdated or unbaked volume, and gray marks invalid probe data. The overlay is disabled in 2D and during Play. Baked indirect visibility does not create realtime local shadow maps; point and spot lights still have no local shadows.
+
+The CPU bake example command is:
+
+```sh
+cargo run --release -p bozzard-editor --example bake_gi --locked --offline -- \
+  examples/demo/scenes/gi-lab.json work/gi-lab/baked.json
+```
+
+The command produces the GI Lab bake with 384 probes and 251,904 packed probe bytes. The saved demo uses normal bias `0.2` to reduce near-wall artifacts; a release M2 Pro run took approximately 109.7 ms. Source, CPU transport, native Metal, and editor async/history/save/Play checks have passed for the focused GI paths, including constant-energy, directional SH, visibility, material, invalid-data, resize, background-bake, current-fingerprint, guides, and save coverage. The native editor capture at `work/editor-gi-complete` covers the lights, surface, and GI panels, a background bake, the current fingerprint, guides, and save. The final tuned-bias end-to-end Metal fixture (CPU bake → JSON round trip → extraction → render) changed 14,984 pixels, including 683 pixels that gained red/green from previously neutral values. These fixtures run in the existing hosted Metal/Vulkan/DX12 workflow; hosted CI has not been run for this revision because it has not been pushed.
+
+The GI room and Sponza examples show the intended low-frequency approximation. Coarse grids and the 8×8 directional moment maps can produce mottling, light leaks, or excess darkness near thin walls, so volume placement, ray count, and normal bias affect quality. For the tuned Sponza bake, ignored artifacts are `work/sponza/gi-source.json`, `work/sponza/gi-baked.json`, and `work/sponza/gi-off.json`; the bake uses 768 probes, 256 rays, 3 diffuse bounces, bounds `[-12, -0.3, -5]` to `[12, 10, 5]`, and grid `[12, 8, 8]`. It baked in approximately 4,258 ms and passed save/reopen. Reviewed captures are `work/sponza/gi-final-on/loaded-3d.png` and `work/sponza/gi-final-off/loaded-3d.png`; GI darkens the covered corridor compared with the unoccluded sky lighting used when it is disabled. With GI enabled, the release binary measured 0.667 ms CPU and 5.652 ms synchronized CPU+GPU+wait wall over 30 frames at 800×500 on an M2 Pro; with GI disabled, the same binary measured 0.887 ms and 3.827 ms. Both had 89 visible surfaces, 14 culled surfaces, 257,752 color triangles, 103 shadow draws, and 262,267 shadow triangles. These are renderer measurements, not FPS claims or evidence of a CPU speedup.

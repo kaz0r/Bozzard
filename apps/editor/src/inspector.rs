@@ -57,6 +57,7 @@ impl App {
                         if ui.checkbox(&mut drawable, "Renderable").changed() {
                             object.drawable = if drawable {
                                 Some(bozzard_scene::Drawable {
+                                    gi_static: true,
                                     material_overrides: Vec::new(),
                                     layer: self.layer(),
                                     mesh: Mesh::Cube,
@@ -69,6 +70,7 @@ impl App {
                             };
                         }
                         if let Some(d) = &mut object.drawable {
+                            ui.checkbox(&mut d.gi_static,"Contribute to GI bake (static)").on_hover_text("Moving components and their descendants are excluded automatically. Objects can still receive baked light.");
                             ui.horizontal(|ui| {
                                 ui.selectable_value(&mut d.layer, Layer::TwoD, "2D");
                                 ui.selectable_value(&mut d.layer, Layer::ThreeD, "3D");
@@ -120,7 +122,7 @@ impl App {
                             ui.horizontal(|ui| {
                                 ui.label("Tint");
                                 let mut color = d.color;
-                                if ui.color_edit_button_rgb(&mut color).changed() {
+                                if color_edit_button_rgb(ui, &mut color).changed() {
                                     d.color = color;
                                 }
                             });
@@ -374,63 +376,79 @@ impl App {
     }
     fn lighting_inspector(&mut self, ui: &mut egui::Ui) {
         let mut scene = self.editor.scene().clone();
+        let mut bake_gi = false;
+        let mut fit_gi = false;
+        let gi_current = self.editor.gi_current();
         ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
-            ui.collapsing("Scene lighting", |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("lighting-controls")
-                    .max_height(360.0)
-                    .show(ui, |ui| {
-                        let light = &mut scene.lighting;
-                        let direction = Vec3::from(light.sun_direction).normalize();
-                        let mut azimuth = direction.z.atan2(direction.x).to_degrees();
-                        let mut elevation = direction.y.clamp(-1., 1.).asin().to_degrees();
-                        let changed = ui
-                            .add(
-                                egui::Slider::new(&mut azimuth, -180.0..=180.0)
-                                    .text("Sun azimuth °"),
-                            )
-                            .changed();
-                        let changed = ui
-                            .add(
-                                egui::Slider::new(&mut elevation, -90.0..=90.0)
-                                    .text("Sun elevation °"),
-                            )
-                            .changed()
-                            || changed;
-                        if changed {
-                            let a = azimuth.to_radians();
-                            let e = elevation.to_radians();
-                            light.sun_direction = [e.cos() * a.cos(), e.sin(), e.cos() * a.sin()];
-                        }
-                        ui.label("Sun color (linear RGB)");
-                        ui.color_edit_button_rgb(&mut light.sun_color);
-                        ui.add(
-                            egui::DragValue::new(&mut light.sun_intensity)
-                                .speed(0.05)
-                                .range(0.0..=100000.0)
-                                .prefix("Sun intensity "),
-                        );
-                        ui.label("Ambient color (linear RGB)");
-                        ui.color_edit_button_rgb(&mut light.ambient_color);
-                        ui.add(
-                            egui::DragValue::new(&mut light.ambient_intensity)
-                                .speed(0.005)
-                                .range(0.0..=100000.0)
-                                .prefix("Ambient intensity "),
-                        );
-                        ui.checkbox(&mut light.shadows, "Sun shadows");
-                        egui::ComboBox::from_id_salt("shadow-resolution")
-                            .selected_text(format!("{} px", light.shadow_resolution))
-                            .show_ui(ui, |ui| {
-                                for resolution in [512, 1024, 2048, 4096] {
-                                    ui.selectable_value(
-                                        &mut light.shadow_resolution,
-                                        resolution,
-                                        format!("{resolution} px"),
-                                    );
-                                }
-                            });
-                        ui.add(
+            egui::CollapsingHeader::new("Scene lighting")
+                .open(self.smoke_gi_frame.map(|_| true))
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("lighting-controls")
+                        .max_height(360.0)
+                        .show(ui, |ui| {
+                            let actions = gi::controls(
+                                ui,
+                                &mut scene.gi,
+                                &mut self.workspace.gi_visible,
+                                gi_current,
+                                self.smoke_gi_frame.is_some(),
+                            );
+                            fit_gi = actions.0;
+                            bake_gi = actions.1;
+                            ui.separator();
+                            let light = &mut scene.lighting;
+                            let direction = Vec3::from(light.sun_direction).normalize();
+                            let mut azimuth = direction.z.atan2(direction.x).to_degrees();
+                            let mut elevation = direction.y.clamp(-1., 1.).asin().to_degrees();
+                            let changed = ui
+                                .add(
+                                    egui::Slider::new(&mut azimuth, -180.0..=180.0)
+                                        .text("Sun azimuth °"),
+                                )
+                                .changed();
+                            let changed = ui
+                                .add(
+                                    egui::Slider::new(&mut elevation, -90.0..=90.0)
+                                        .text("Sun elevation °"),
+                                )
+                                .changed()
+                                || changed;
+                            if changed {
+                                let a = azimuth.to_radians();
+                                let e = elevation.to_radians();
+                                light.sun_direction =
+                                    [e.cos() * a.cos(), e.sin(), e.cos() * a.sin()];
+                            }
+                            ui.label("Sun color (linear RGB)");
+                            color_edit_button_rgb(ui, &mut light.sun_color);
+                            ui.add(
+                                egui::DragValue::new(&mut light.sun_intensity)
+                                    .speed(0.05)
+                                    .range(0.0..=100000.0)
+                                    .prefix("Sun intensity "),
+                            );
+                            ui.label("Ambient color (linear RGB)");
+                            color_edit_button_rgb(ui, &mut light.ambient_color);
+                            ui.add(
+                                egui::DragValue::new(&mut light.ambient_intensity)
+                                    .speed(0.005)
+                                    .range(0.0..=100000.0)
+                                    .prefix("Ambient intensity "),
+                            );
+                            ui.checkbox(&mut light.shadows, "Sun shadows");
+                            egui::ComboBox::from_id_salt("shadow-resolution")
+                                .selected_text(format!("{} px", light.shadow_resolution))
+                                .show_ui(ui, |ui| {
+                                    for resolution in [512, 1024, 2048, 4096] {
+                                        ui.selectable_value(
+                                            &mut light.shadow_resolution,
+                                            resolution,
+                                            format!("{resolution} px"),
+                                        );
+                                    }
+                                });
+                            ui.add(
                             egui::DragValue::new(&mut light.shadow_bias)
                                 .speed(0.001)
                                 .range(0.0..=1.0)
@@ -439,75 +457,78 @@ impl App {
                         .on_hover_text(
                             "World units. Increase only enough to remove surface shadow speckling.",
                         );
-                        ui.add(
-                            egui::DragValue::new(&mut light.shadow_normal_bias)
-                                .speed(0.001)
-                                .range(0.0..=1.0)
-                                .prefix("Normal bias "),
-                        )
-                        .on_hover_text(
-                            "World units. Large values can detach shadows from objects.",
-                        );
-                        ui.separator();
-                        ui.strong("Environment (3D)");
-                        ui.add(
-                            egui::DragValue::new(&mut scene.environment.intensity)
-                                .speed(0.01)
-                                .range(0.0..=1000.0)
-                                .prefix("Sky intensity "),
-                        );
-                        ui.checkbox(&mut scene.environment.background, "Show sky background");
-                        for (name, color) in [
-                            ("Zenith", &mut scene.environment.zenith),
-                            ("Horizon", &mut scene.environment.horizon),
-                            ("Ground", &mut scene.environment.ground),
-                        ] {
-                            ui.horizontal(|ui| {
-                                ui.label(name);
-                                ui.color_edit_button_rgb(color);
-                            });
-                        }
-                        if ui.button("Reset environment").clicked() {
-                            scene.environment = Default::default();
-                        }
-                        ui.separator();
-                        ui.strong("Display (3D)");
-                        ui.add(
-                            egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
-                                .text("Exposure EV"),
-                        );
-                        ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
-                        let bloom = &mut scene.display.bloom;
-                        ui.checkbox(&mut bloom.enabled, "Bloom");
-                        ui.add_enabled_ui(bloom.enabled, |ui| {
                             ui.add(
-                                egui::Slider::new(&mut bloom.intensity, 0.0..=10.0)
-                                    .logarithmic(true)
-                                    .text("Glow intensity"),
+                                egui::DragValue::new(&mut light.shadow_normal_bias)
+                                    .speed(0.001)
+                                    .range(0.0..=1.0)
+                                    .prefix("Normal bias "),
+                            )
+                            .on_hover_text(
+                                "World units. Large values can detach shadows from objects.",
                             );
-                            ui.horizontal(|ui| {
-                                ui.label("Threshold");
+                            ui.separator();
+                            ui.strong("Environment (3D)");
+                            ui.add(
+                                egui::DragValue::new(&mut scene.environment.intensity)
+                                    .speed(0.01)
+                                    .range(0.0..=1000.0)
+                                    .prefix("Sky intensity "),
+                            );
+                            ui.checkbox(&mut scene.environment.background, "Show sky background");
+                            for (name, color) in [
+                                ("Zenith", &mut scene.environment.zenith),
+                                ("Horizon", &mut scene.environment.horizon),
+                                ("Ground", &mut scene.environment.ground),
+                            ] {
+                                ui.horizontal(|ui| {
+                                    ui.label(name);
+                                    color_edit_button_rgb(ui, color);
+                                });
+                            }
+                            if ui.button("Reset environment").clicked() {
+                                scene.environment = Default::default();
+                            }
+                            ui.separator();
+                            ui.strong("Display (3D)");
+                            ui.add(
+                                egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
+                                    .text("Exposure EV"),
+                            );
+                            ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
+                            let bloom = &mut scene.display.bloom;
+                            ui.checkbox(&mut bloom.enabled, "Bloom");
+                            ui.add_enabled_ui(bloom.enabled, |ui| {
                                 ui.add(
-                                    egui::DragValue::new(&mut bloom.threshold)
-                                        .speed(0.05)
-                                        .range(0.0..=60000.),
+                                    egui::Slider::new(&mut bloom.intensity, 0.0..=10.0)
+                                        .logarithmic(true)
+                                        .text("Glow intensity"),
                                 );
+                                ui.horizontal(|ui| {
+                                    ui.label("Threshold");
+                                    ui.add(
+                                        egui::DragValue::new(&mut bloom.threshold)
+                                            .speed(0.05)
+                                            .range(0.0..=60000.),
+                                    );
+                                });
+                                ui.add(
+                                    egui::Slider::new(&mut bloom.scatter, 0.0..=1.0).text("Spread"),
+                                );
+                                ui.weak("Threshold is scene brightness before exposure.");
                             });
-                            ui.add(egui::Slider::new(&mut bloom.scatter, 0.0..=1.0).text("Spread"));
-                            ui.weak("Threshold is scene brightness before exposure.");
+                            if ui.button("Reset display").clicked() {
+                                scene.display = Default::default();
+                            }
+                            if ui.button("Reset lighting").clicked() {
+                                *light = Default::default();
+                            }
                         });
-                        if ui.button("Reset display").clicked() {
-                            scene.display = Default::default();
-                        }
-                        if ui.button("Reset lighting").clicked() {
-                            *light = Default::default();
-                        }
-                    });
-            });
+                });
         });
         if ui.is_enabled()
             && self.editor.play.is_none()
-            && (scene.lighting != self.editor.scene().lighting
+            && (scene.gi != self.editor.scene().gi
+                || scene.lighting != self.editor.scene().lighting
                 || scene.display != self.editor.scene().display
                 || scene.environment != self.editor.scene().environment)
         {
@@ -515,9 +536,20 @@ impl App {
             let result = self.editor.apply("Edit scene lighting", scene);
             self.result(result);
         }
+        if fit_gi {
+            self.workspace.gi_visible = true;
+            let result = self.editor.fit_gi_volume();
+            self.result(result);
+        }
+        if bake_gi && self.loading.is_none() {
+            let result = self.editor.bake_gi_job().map(|job| {
+                self.loading = Some(loading::Loading::BakeGi(job));
+            });
+            self.result(result);
+        }
     }
 }
-fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {
+pub(super) fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {
     ui.label(label);
     ui.horizontal(|ui| {
         for (index, v) in value.iter_mut().enumerate() {
@@ -737,5 +769,38 @@ mod tests {
         assert_eq!(editor.scene(), &original);
         editor.redo().unwrap();
         assert_eq!(editor.scene(), &next);
+    }
+}
+
+/// egui converts RGB through HSV even when idle; publish only an intentional edit.
+pub(super) fn color_edit_button_rgb(ui: &mut egui::Ui, color: &mut [f32; 3]) -> egui::Response {
+    let mut candidate = *color;
+    let response = ui.color_edit_button_rgb(&mut candidate);
+    if response.changed() {
+        *color = candidate;
+    }
+    response
+}
+#[cfg(test)]
+mod color_tests {
+    use super::*;
+    #[test]
+    fn idle_picker_keeps_exact_scene_color_and_bake_fingerprint_inputs() {
+        let ctx = egui::Context::default();
+        for original in [
+            [0.15, 0.32, 0.65],
+            [0.65, 0.7, 0.8],
+            [0.12, 0.1, 0.08],
+            [0.75, 0.04, 0.02],
+        ] {
+            let mut color = original;
+            for _ in 0..3 {
+                let mut output = ctx.run_ui(Default::default(), |ui| {
+                    assert!(!color_edit_button_rgb(ui, &mut color).changed());
+                });
+                output.textures_delta.clear();
+                assert_eq!(color, original);
+            }
+        }
     }
 }

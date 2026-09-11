@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 
+mod gi;
+pub use gi::PreparedGi;
 mod framing;
 mod hierarchy;
 mod loading;
@@ -236,6 +238,7 @@ impl Editor {
             player_controller: None,
             trigger: None,
             drawable: Some(Drawable {
+                gi_static: true,
                 material_overrides: Vec::new(),
                 layer,
                 mesh,
@@ -405,6 +408,7 @@ impl Editor {
             player_controller: None,
             trigger: None,
             drawable: Some(Drawable {
+                gi_static: true,
                 material_overrides: Vec::new(),
                 layer,
                 mesh,
@@ -634,7 +638,7 @@ impl Editor {
             edit = SceneDemo::new(&self.scene)?;
             &edit
         };
-        extract(demo, layer, aspect)
+        extract(demo, &self.assets, layer, aspect)
     }
     /// Translate the selected Play-world collider without touching the authored scene.
     pub fn move_selected_box(&mut self, delta: Vec3) -> Result<bozzard_scene::MoveResult> {
@@ -722,10 +726,35 @@ fn subtree(scene: &Scene, id: &str) -> BTreeSet<String> {
         }
     }
 }
-pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScene> {
+pub fn extract(
+    demo: &SceneDemo,
+    assets: &bozzard_assets::AssetStore,
+    layer: Layer,
+    aspect: f32,
+) -> Result<RenderScene> {
     demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
+    let mut gi = None;
+    if layer == Layer::ThreeD
+        && demo.instance.document().gi.enabled
+        && demo.instance.document().gi.baked.is_some()
+    {
+        let scene = demo.instance.capture(&demo.app.world)?;
+        if bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false) {
+            let baked = scene.gi.baked.as_ref().unwrap();
+            gi = Some(bozzard_render::IrradianceVolume {
+                min: baked.volume.min,
+                max: baked.volume.max,
+                resolution: baked.volume.resolution,
+                intensity: scene.gi.intensity,
+                normal_bias: scene.gi.normal_bias,
+                probes: baked.probes.clone(),
+            });
+        }
+    }
+
     Ok(RenderScene {
+        gi,
         lights: view
             .lights
             .iter()

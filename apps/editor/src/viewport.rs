@@ -487,6 +487,14 @@ impl App {
         }
         let aspect = size[0] as f32 / size[1] as f32;
         let mut scene = self.editor.render(self.layer(), aspect)?;
+        if !self
+            .editor
+            .assets
+            .entries()
+            .all(|e| self.residency.is_current(&self.editor.assets, &e.id))
+        {
+            scene.gi = None;
+        }
         if self.editor.play.is_none() {
             ui.input(|i| {
                 for event in &i.events {
@@ -671,6 +679,7 @@ impl App {
             Color32::WHITE,
         );
         self.surface_overlay(ui, rect, projection)?;
+        self.gi_overlay(ui, rect, projection);
         let light_pick = self.light_overlay(ui, rect, projection, response.hover_pos())?;
         let handled = if self.editor.play.is_none() && self.editor.selected_surface().is_none() {
             self.gizmo(ui, rect, projection)?

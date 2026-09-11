@@ -77,7 +77,7 @@ struct VertexOutput {
         let l = offset / max(length(offset), 0.000001);
         direct += direct_brdf(base, metallic, roughness, n, v, l) * local_radiance(light, offset);
     }
-    let ibl_diffuse = diffuse_environment(n)*base*(1.0-f0)*(1.0-metallic);
+    let ibl_diffuse = gi_diffuse(in.world,n)*base*(1.0-f0)*(1.0-metallic);
     let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);
     let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao + (ibl_diffuse+ibl_specular)*ao;
     return vec4<f32>(min(direct+indirect+emissive, vec3<f32>(60000.0)),alpha);

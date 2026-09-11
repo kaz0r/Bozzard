@@ -3,10 +3,35 @@ use bozzard_demo::SceneDemo;
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_scene::{Layer, Mesh, Texture};
 
-pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScene> {
+pub fn extract(
+    demo: &SceneDemo,
+    assets: &bozzard_assets::AssetStore,
+    layer: Layer,
+    aspect: f32,
+) -> Result<RenderScene> {
     demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
+    let mut gi = None;
+    if layer == Layer::ThreeD
+        && demo.instance.document().gi.enabled
+        && demo.instance.document().gi.baked.is_some()
+    {
+        let scene = demo.instance.capture(&demo.app.world)?;
+        if bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false) {
+            let baked = scene.gi.baked.as_ref().unwrap();
+            gi = Some(bozzard_render::IrradianceVolume {
+                min: baked.volume.min,
+                max: baked.volume.max,
+                resolution: baked.volume.resolution,
+                intensity: scene.gi.intensity,
+                normal_bias: scene.gi.normal_bias,
+                probes: baked.probes.clone(),
+            });
+        }
+    }
+
     Ok(RenderScene {
+        gi,
         lights: view
             .lights
             .iter()

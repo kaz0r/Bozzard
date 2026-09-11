@@ -5,6 +5,7 @@ use std::sync::Arc;
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),

@@ -219,9 +219,11 @@ impl App {
         }
         if self.smoke_frames
             >= self
-                .smoke_light_frame
+                .smoke_gi_frame
+                .or(self.smoke_light_frame)
                 .or(self.smoke_surface_frame)
                 .unwrap_or(12)
+            && self.loading.is_none()
             && !self.smoke_requested
             && !self.error
             && self.viewport_rect.is_some()
@@ -244,6 +246,33 @@ impl App {
                         height: image.size[1] as u32,
                         rgba: image.pixels.iter().flat_map(|p| p.to_array()).collect(),
                     };
+                    if self.smoke_gi_frame.is_some() {
+                        frame.write_ppm(&output.join("editor-gi.ppm"))?;
+                        std::fs::write(
+                            output.join("gi-inspection.json"),
+                            self.editor.scene().to_json()?,
+                        )?;
+                        ensure!(
+                            self.editor.gi_current(),
+                            "native bake failed to publish: status={}; loading={}; baked={}; current={:?}",
+                            self.status,
+                            self.loading.is_some(),
+                            self.editor.scene().gi.baked.is_some(),
+                            bozzard_assets::gi::is_current(
+                                self.editor.scene(),
+                                &self.editor.assets
+                            )
+                        );
+                        ensure!(
+                            self.editor.render(Layer::ThreeD, 1.)?.gi.is_some(),
+                            "native bake not extracted"
+                        );
+                        self.editor.save(&output.join("gi-scene.json"))?;
+                        println!(
+                            "editor_gi_smoke_ok background_bake source_current extraction guides save native_ui_capture"
+                        );
+                        return Ok(());
+                    }
                     if self.smoke_light_frame.is_some() {
                         frame.write_ppm(&output.join("editor-light.ppm"))?;
                         ensure!(
@@ -416,6 +445,33 @@ impl App {
                             self.workspace.ortho_zoom = 1.;
                             self.workspace.layer_2d = false;
                             self.smoke_light_frame = Some(self.smoke_frames + 3);
+                            self.smoke_requested = false;
+                            continue;
+                        }
+                        if self.smoke_gi_frame.is_none() {
+                            let result = (|| -> Result<()> {
+                                let mut scene = bozzard_scene::Scene::from_json(include_str!(
+                                    "../../../examples/demo/scenes/gi-lab.json"
+                                ))?;
+                                scene.gi.volume.resolution = [4; 3];
+                                scene.gi.volume.samples = 64;
+                                scene.gi.volume.bounces = 2;
+                                self.editor = Editor::new(scene, &output.join("gi-scene.json"))?;
+                                self.refresh = None;
+                                self.workspace.camera = None;
+                                self.workspace.gi_visible = true;
+                                self.workspace.colliders_visible = false;
+                                self.loading =
+                                    Some(loading::Loading::BakeGi(self.editor.bake_gi_job()?));
+                                Ok(())
+                            })();
+                            if let Err(error) = result {
+                                eprintln!("editor_smoke_failed: {error:#}");
+                                self.allow_close = true;
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                return;
+                            }
+                            self.smoke_gi_frame = Some(self.smoke_frames + 3);
                             self.smoke_requested = false;
                             continue;
                         }

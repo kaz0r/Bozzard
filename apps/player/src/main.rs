@@ -210,15 +210,20 @@ impl View {
             wgpu::CurrentSurfaceTexture::Lost => bail!("graphics surface lost; restart the player"),
             wgpu::CurrentSurfaceTexture::Validation => bail!("graphics surface validation failed"),
         };
+        let mut scene = extract(
+            demo,
+            assets.store(),
+            layer,
+            self.config.width as f32 / self.config.height as f32,
+        )?;
+        if !assets.current() {
+            scene.gi = None;
+        }
         self.renderer.draw(
             &self.gpu,
             &frame.texture.create_view(&Default::default()),
             [self.config.width, self.config.height],
-            &extract(
-                demo,
-                layer,
-                self.config.width as f32 / self.config.height as f32,
-            )?,
+            &scene,
         )?;
         self.window.pre_present_notify();
         self.gpu.queue.present(frame);

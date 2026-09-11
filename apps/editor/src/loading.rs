@@ -2,6 +2,7 @@ use super::*;
 use bozzard_assets::{AssetStore, Handle, job::Job};
 
 pub enum Loading {
+    BakeGi(Job<bozzard_editor::PreparedGi>),
     Import(Job<bozzard_editor::PreparedImport>),
     Open(Job<bozzard_editor::LoadedScene>),
     Save(Job<bozzard_editor::PreparedSave>),
@@ -9,6 +10,7 @@ pub enum Loading {
 impl Loading {
     pub fn label(&self) -> String {
         match self {
+            Self::BakeGi(job) => job.label(),
             Self::Import(job) => job.label(),
             Self::Open(job) => job.label(),
             Self::Save(job) => job.label(),
@@ -16,6 +18,7 @@ impl Loading {
     }
     pub fn cancel(&self) {
         match self {
+            Self::BakeGi(job) => job.cancel(),
             Self::Import(job) => job.cancel(),
             Self::Open(job) => job.cancel(),
             Self::Save(job) => job.cancel(),
@@ -23,6 +26,7 @@ impl Loading {
     }
     pub fn cancelled(&self) -> bool {
         match self {
+            Self::BakeGi(job) => job.cancelled(),
             Self::Import(job) => job.cancelled(),
             Self::Open(job) => job.cancelled(),
             Self::Save(job) => job.cancelled(),
@@ -58,6 +62,13 @@ impl App {
     pub fn poll_loading(&mut self) {
         let cancelled = self.loading.as_ref().is_some_and(Loading::cancelled);
         let completion = match self.loading.as_ref() {
+            Some(Loading::BakeGi(job)) => job.poll().map(|result| {
+                result.and_then(|prepared| {
+                    self.editor.accept_gi(prepared)?;
+                    self.status = "Global illumination baked. Save the scene to keep it.".into();
+                    Ok(())
+                })
+            }),
             Some(Loading::Save(job)) => job.poll().map(|result| {
                 result.and_then(|prepared| {
                     self.editor.accept_save(prepared)?;

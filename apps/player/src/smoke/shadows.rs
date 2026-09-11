@@ -62,6 +62,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         material: receiver.material.clone(),
     };
     let mut scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),

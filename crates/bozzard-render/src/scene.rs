@@ -11,6 +11,8 @@ mod bloom;
 pub use bloom::BloomSettings;
 mod display;
 pub use display::DisplaySettings;
+mod gi;
+pub use gi::IrradianceVolume;
 mod lighting;
 mod local_lights;
 pub use local_lights::{LocalLight, MAX_LOCAL_LIGHTS};
@@ -64,6 +66,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub gi: Option<IrradianceVolume>,
     pub lights: Vec<LocalLight>,
     pub environment: EnvironmentSettings,
     pub display: DisplaySettings,
@@ -372,10 +375,11 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}\n{}\n{}",
+                        "{}\n{}\n{}\n{}\n{}",
                         include_str!("scene/environment_sample.wgsl"),
                         include_str!("scene/shadow_sample.wgsl"),
                         include_str!("scene/local_lights.wgsl"),
+                        include_str!("scene/gi.wgsl"),
                         include_str!("scene.wgsl")
                     )
                     .into(),
@@ -1089,6 +1093,7 @@ impl SceneRenderer {
                 size,
             });
         }
+        self.prepare_gi(gpu, scene.gi.as_ref())?;
         scene.lighting.validate()?;
         let lights = local_lights::uniform(&scene.lights)?;
         gpu.queue

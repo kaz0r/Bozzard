@@ -20,6 +20,7 @@ mod colliders;
 mod files;
 mod framing;
 mod gameplay_input;
+mod gi;
 mod hierarchy;
 mod inspector;
 mod lights;
@@ -41,6 +42,7 @@ struct Workspace {
     layer_2d: bool,
     assets_visible: bool,
     colliders_visible: bool,
+    gi_visible: bool,
     tool: Tool,
     snapping: snapping::Snapping,
     pan: [f32; 2],
@@ -54,6 +56,7 @@ impl Default for Workspace {
             layer_2d: false,
             assets_visible: true,
             colliders_visible: true,
+            gi_visible: false,
             tool: Tool::Move,
             snapping: snapping::Snapping::default(),
             pan: [0.0; 2],
@@ -115,6 +118,7 @@ struct App {
     smoke_selection: Option<String>,
     smoke_surface_frame: Option<u32>,
     smoke_light_frame: Option<u32>,
+    smoke_gi_frame: Option<u32>,
 }
 #[derive(Clone)]
 struct HierarchyDrag(String);
@@ -199,6 +203,7 @@ impl App {
             smoke_selection: None,
             smoke_surface_frame: None,
             smoke_light_frame: None,
+            smoke_gi_frame: None,
         })
     }
     fn result(&mut self, result: Result<()>) {

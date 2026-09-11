@@ -5,6 +5,7 @@ use std::path::Path;
 pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: EnvironmentSettings::disabled(),
         lighting: Lighting {

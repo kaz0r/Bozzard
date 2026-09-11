@@ -34,7 +34,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let alpha = texel.a * object.tint.a;
     if alpha <= 0.00001 || alpha < object.parameters.w { discard; }
     let base = texel.rgb * object.tint.rgb;
-    let diffuse = local_diffuse(in.world, normalize(in.normal)) + object.sun_color.w * object.ambient_color.rgb + diffuse_environment(normalize(in.normal))
+    let diffuse = local_diffuse(in.world, normalize(in.normal)) + object.sun_color.w * object.ambient_color.rgb + gi_diffuse(in.world,normalize(in.normal))
         + object.sun_color.rgb * object.sun.w * max(dot(normalize(in.normal), object.sun.xyz), 0.0) / 3.14159265 * sun_visibility(in.world, normalize(in.normal));
     let light = mix(vec3<f32>(1.0), diffuse, object.parameters.z);
     return vec4<f32>(min(base * light, vec3<f32>(60000.0)), alpha);

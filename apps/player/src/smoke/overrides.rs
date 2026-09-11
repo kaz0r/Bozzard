@@ -69,6 +69,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         .cpu_upload_ms
         .to_bits();
     let mut scene = RenderScene {
+        gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),

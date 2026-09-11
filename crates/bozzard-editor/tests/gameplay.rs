@@ -153,12 +153,13 @@ fn display_exposure_is_3d_only() {
     let mut scene = bozzard_demo::scene_document().unwrap();
     scene.display.exposure_ev = 3.;
     let demo = bozzard_demo::SceneDemo::new(&scene).unwrap();
-    let two = bozzard_editor::extract(&demo, bozzard_scene::Layer::TwoD, 1.).unwrap();
+    let assets = bozzard_assets::AssetStore::new(std::path::Path::new("."), &scene.assets).unwrap();
+    let two = bozzard_editor::extract(&demo, &assets, bozzard_scene::Layer::TwoD, 1.).unwrap();
     assert_eq!(two.display.exposure_ev, 0.);
     assert!(!two.display.tone_mapping);
     assert_eq!(two.environment.intensity, 0.);
     assert!(!two.environment.background);
-    let three = bozzard_editor::extract(&demo, bozzard_scene::Layer::ThreeD, 1.).unwrap();
+    let three = bozzard_editor::extract(&demo, &assets, bozzard_scene::Layer::ThreeD, 1.).unwrap();
     assert_eq!(three.display.exposure_ev, 3.);
     assert!(three.display.tone_mapping);
     assert_eq!(

@@ -128,6 +128,9 @@ impl MeshIndex {
         self.split(child, start, left, progress)?;
         self.split(child + 1, start + mid, right, progress)
     }
+    pub(super) fn bounds(&self) -> Option<[Vec3; 2]> {
+        self.nodes.first().map(|node| node.bounds)
+    }
     pub(super) fn stats(&self) -> MeshPickStats {
         MeshPickStats {
             triangles: self.triangle_order.len(),
@@ -199,7 +202,12 @@ impl MeshIndex {
 fn valid_ray(origin: Vec3, direction: Vec3) -> bool {
     origin.is_finite() && direction.is_finite() && direction != Vec3::ZERO
 }
-fn box_entry(bounds: [Vec3; 2], origin: Vec3, direction: Vec3, limit: f32) -> Option<f64> {
+pub(super) fn box_entry(
+    bounds: [Vec3; 2],
+    origin: Vec3,
+    direction: Vec3,
+    limit: f32,
+) -> Option<f64> {
     let mut near = 0.0_f64;
     let mut far = f64::from(limit) * (1.0 + 8.0 * f64::from(f32::EPSILON)) + 1e-6;
     for axis in 0..3 {

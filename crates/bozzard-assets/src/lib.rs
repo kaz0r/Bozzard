@@ -1,4 +1,5 @@
 //! CPU imports and background loading. No GPU or window dependencies.
+pub mod gi;
 pub mod job;
 mod package;
 mod pbr;
@@ -140,6 +141,7 @@ pub struct Entry {
     data: Option<Arc<AssetData>>,
     mesh_index: Option<Arc<picking::MeshIndex>>,
     revision: u64,
+    content_fingerprint: Option<u64>,
     // Compare bytes, so same-size edits and coarse filesystem timestamps cannot hide changes.
     observed: Option<Arc<SourceSnapshot>>,
 }
@@ -151,6 +153,10 @@ struct SourceSnapshot {
 }
 
 impl Entry {
+    /// Digest of the last successfully decoded source bytes and dependencies.
+    pub fn content_fingerprint(&self) -> Option<u64> {
+        self.content_fingerprint
+    }
     pub fn state(&self) -> &LoadState {
         &self.state
     }
@@ -177,6 +183,10 @@ impl Entry {
             return None;
         };
         picking::cast_linear(mesh, origin, direction)
+    }
+    /// Cached bounds of indexed triangles, available without scanning source vertices.
+    pub fn mesh_bounds(&self) -> Option<[Vec3; 2]> {
+        self.mesh_index.as_ref()?.bounds()
     }
     pub fn mesh_pick_stats(&self) -> Option<MeshPickStats> {
         self.mesh_index.as_ref().map(|index| index.stats())
@@ -209,6 +219,7 @@ impl AssetStore {
                     data: None,
                     mesh_index: None,
                     revision: 0,
+                    content_fingerprint: None,
                     observed: None,
                 }
             })
@@ -319,9 +330,11 @@ impl AssetStore {
                 Ok((data, mesh_index))
             });
             progress.check()?;
+            let fingerprint = fingerprint_snapshot(&snapshot);
             entry.observed = Some(Arc::new(snapshot));
             match loaded {
                 Ok((data, mesh_index)) => {
+                    entry.content_fingerprint = Some(fingerprint);
                     entry.data = Some(Arc::new(data));
                     entry.mesh_index = mesh_index;
                     entry.revision += 1;
@@ -1438,6 +1451,20 @@ fn mime_for_uri(uri: &str) -> &'static str {
         Some("jpg" | "jpeg") => "image/jpeg",
         _ => "application/octet-stream",
     }
+}
+
+fn fingerprint_snapshot(snapshot: &SourceSnapshot) -> u64 {
+    // Content only: Save As and root rebasing must not invalidate the bake.
+    let mut hash = 0xcbf29ce484222325_u64;
+    for bytes in std::iter::once(&snapshot.primary)
+        .chain(snapshot.dependencies.iter().map(|(_, bytes)| bytes))
+        .flatten()
+    {
+        for byte in (bytes.len() as u64).to_le_bytes().iter().chain(bytes) {
+            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
+        }
+    }
+    hash
 }
 
 #[cfg(test)]
