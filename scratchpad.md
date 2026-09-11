@@ -2,15 +2,23 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — local lights, bloom, baked GI (validated)
+## Current checkpoint — Windows material-save CI fixture fix
 
-User approved implementing all three subsystems and committing each after validation. Root owns code and this scratchpad; GPT-5.6 Luna (`lighting_docs`) owns the light documentation. No push requested for this goal. Escape and prior four commits were pushed through `db5295c`; user confirmed Escape works.
+All three rendering subsystems were pushed to `main` through `f50fe42`. [CI run 34594913733](https://github.com/kaz0r/Bozzard/actions/runs/34594913733) passed Linux/Vulkan and macOS/Metal, but Windows failed CPU tests before reaching DX12 verification. The same material-save failure also occurred on the preceding `db5295c` run, before the new rendering subsystems.
+
+Cause: `materials::tests::overrides_save_reopen_duplicate_and_play_without_mutating_source` loads assets from the repository checkout and saves into the system temp directory. On Windows CI these are on different filesystem roots, so Save As correctly rejects relative references across drives. The test now allocates its temporary output under ignored `work/material-tests/` on the checkout filesystem, preserving collision-safe allocation, cleanup, and all save/reopen assertions. Production asset-path validation is unchanged.
+
+Validation passed: all 38 editor CPU tests (32 unit + 6 integration), editor all-target Clippy with warnings denied, formatting and diff checks. Logs: `/tmp/bozzard-windows-material-fixture-{tests,clippy}.log`. User requested committing/pushing the correction and watching CI; this checkpoint records the validated fix. Hosted verification is pending the push, including Windows DX12 steps that the failing test prevented from running. Pointer untouched.
+
+## Previous checkpoint — local lights, bloom, baked GI (validated)
+
+User approved implementing all three subsystems and committing each after validation. Root owns code and this scratchpad; GPT-5.6 Luna (`lighting_docs`) owns the light documentation. Subsequently pushed through `f50fe42` at the user's request; see the current CI checkpoint above. User confirmed Escape works.
 
 1. Point/spot lights: IMPLEMENTED and committed `e12b983`; CPU, native Metal and native editor capture passed. Authored object component, ECS/transforms, bounded shared renderer light list, PBR+Lambert lighting, editor creation/inspector/guides, save/history/Play, CPU and native GPU validation. Local-light shadows remain future work as discussed; sun shadows unchanged.
 2. Bloom: IMPLEMENTED and CPU/Metal validated, committed `b61b545`. HDR threshold/downsample/upsample composite before display mapping, editor controls and persistence, disabled/2D/raw parity and resize/GPU checks.
-3. Baked GI: IMPLEMENTED and validated; this checkpoint commits it. CPU diffuse transport with occlusion/color bounce, saved probe data and source invalidation, async editor workflow, renderer integration and CPU/native GPU/native editor tests. All three local subsystems are complete; hosted cross-platform CI remains pending a user-requested push.
+3. Baked GI: IMPLEMENTED and validated, committed `f50fe42`. CPU diffuse transport with occlusion/color bounce, saved probe data and source invalidation, async editor workflow, renderer integration and CPU/native GPU/native editor tests. All three subsystems are complete; hosted results are recorded above.
 
-Validation: run meaningful scene/editor tests, native Metal pixel/smoke checks, formatting/Clippy/headless boundary and visual review for each subsystem. CI workflow must exercise new GPU fixtures on Metal/Vulkan/DX12; actual hosted CI requires a later push. Preserve Bozz artwork. Avoid moving pointer.
+Validation: meaningful scene/editor tests, native Metal pixel/smoke checks, formatting/Clippy/headless boundary and visual review for each subsystem. CI workflow exercises new GPU fixtures on Metal/Vulkan/DX12. Preserve Bozz artwork. Avoid moving pointer.
 
 ### Light subsystem evidence (`e12b983`)
 
@@ -102,7 +110,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-All three agreed subsystems are validated and locally committed with this checkpoint. Await a user-requested push, then watch the existing Metal/Vulkan/DX12 hosted CI. Suggested next rendering subsystem: local-light shadows (spot first), followed by probe-quality improvements around thin walls. Path tracing remains a later renderer project. Latest pushed baseline is `db5295c`; do not push without a new request.
+The lighting, bloom and baked-GI commits are pushed through `f50fe42`; resolve and validate the Windows test-fixture issue described at the top before starting another rendering subsystem. Suggested next rendering subsystem: local-light shadows (spot first), followed by probe-quality improvements around thin walls. Path tracing remains a later renderer project.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 

@@ -90,8 +90,12 @@ mod tests {
     impl Temp {
         fn new() -> Self {
             static NEXT: AtomicU64 = AtomicU64::new(0);
+            // Save As retains relative references to the repository's fixture assets.
+            // Windows CI can put the system temp directory on a different drive.
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../work/material-tests");
+            std::fs::create_dir_all(&root).unwrap();
             loop {
-                let path = std::env::temp_dir().join(format!(
+                let path = root.join(format!(
                     "bozzard-materials-{}-{}",
                     std::process::id(),
                     NEXT.fetch_add(1, Ordering::Relaxed)
