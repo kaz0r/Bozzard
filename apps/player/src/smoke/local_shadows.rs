@@ -71,15 +71,20 @@ fn read(frame: &Frame, x: f32) -> [u8; 3] {
     frame.rgba[index..index + 3].try_into().unwrap()
 }
 pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
+    checks_for_kind(gpu, output, false).context("spot shadow regression")?;
+    checks_for_kind(gpu, output, true).context("point shadow regression")
+}
+fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
+    let kind = if point { "point" } else { "spot" };
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     upload(gpu, &mut renderer, "receiver", None, false, 1.)?;
-    let spot = LocalLight {
+    let light = LocalLight {
         position: [3., 0., 3.],
         direction: [-1., 0., -1.],
         color: [1.; 3],
         intensity: 40.,
         range: 20.,
-        spot_angles: Some([25., 35.]),
+        spot_angles: (!point).then_some([25., 35.]),
         shadows: Some(SpotShadowSettings::default()),
     };
     let receiver = DrawItem {
@@ -101,7 +106,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     };
     let mut scene = RenderScene {
         gi: None,
-        lights: vec![spot],
+        lights: vec![light],
         environment: bozzard_render::EnvironmentSettings::disabled(),
         display: Default::default(),
         lighting: Lighting {
@@ -120,7 +125,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         (24..=27).contains(&shadow[0]) && (75..=79).contains(&shadow[1]),
         "spot shadow lost ambient/emissive or coverage: {shadow:?}"
     );
-    shadowed.write_ppm(&output.join("spot-shadow-on.ppm"))?;
+    shadowed.write_ppm(&output.join(format!("{kind}-shadow-on.ppm")))?;
     let resized = capture(gpu, &mut renderer, &scene, [97, 73])?;
     ensure!(
         read(&resized, -0.6) == shadow,
@@ -147,7 +152,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     scene.lighting.shadows = false;
     scene.lights[0].shadows = None;
     let clear = capture(gpu, &mut renderer, &scene, [128, 128])?;
-    clear.write_ppm(&output.join("spot-shadow-off.ppm"))?;
+    clear.write_ppm(&output.join(format!("{kind}-shadow-off.ppm")))?;
     ensure!(
         read(&clear, -0.6)[0] > shadow[0] + 40,
         "spot shadow toggle did not restore direct light"
@@ -156,11 +161,19 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         renderer.frame_stats().shadow_draws == 0,
         "disabled spot still draws shadows"
     );
-    scene.lights[0] = spot;
+    scene.lights[0] = light;
     ensure!(
         capture(gpu, &mut renderer, &scene, [128, 128])?.rgba == shadowed.rgba,
         "reenabling spot lost shadow map"
     );
+    scene.items[1].material.lit = false;
+    let unlit = read(&capture(gpu, &mut renderer, &scene, [128, 128])?, -0.6);
+    ensure!(
+        unlit == read(&clear, -0.6),
+        "{kind} unlit caster blocked direct light: actual={unlit:?} clear={:?}",
+        read(&clear, -0.6)
+    );
+    scene.items[1].material.lit = true;
     ensure!(
         shadowed
             .rgba
@@ -189,18 +202,19 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
             * Mat4::from_translation(Vec3::new(0., 0., -3.));
     let offscreen = capture(gpu, &mut renderer, &scene, [128, 128])?;
     ensure!(
-        renderer.frame_stats().culled_surfaces == 1 && renderer.frame_stats().shadow_draws == 2,
+        renderer.frame_stats().culled_surfaces == 1 && renderer.frame_stats().shadow_draws >= 2,
         "camera culling removed an offscreen spot caster"
     );
     pixel(&offscreen, 64, 64, shadow)?;
+    let shadow_draws = renderer.frame_stats().shadow_draws;
     // A third caster outside the light cone must be culled by the light, not the camera.
     let mut outside = scene.items[1].clone();
     outside.model = Mat4::from_translation(Vec3::new(100., 0., 1.));
     scene.items.push(outside);
     let culled = capture(gpu, &mut renderer, &scene, [128, 128])?;
     ensure!(
-        renderer.frame_stats().shadow_draws == 2,
-        "spot frustum did not cull distant geometry"
+        renderer.frame_stats().shadow_draws == shadow_draws,
+        "{kind} frustum did not cull distant geometry"
     );
     renderer.set_culling_enabled(false);
     ensure!(
@@ -208,7 +222,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         "spot culling differs from reference pixels"
     );
     ensure!(
-        renderer.frame_stats().shadow_draws == 3,
+        renderer.frame_stats().shadow_draws == if point { 18 } else { 3 },
         "unculled shadow reference skipped a caster"
     );
     renderer.set_culling_enabled(true);
@@ -255,17 +269,17 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     scene.lights = vec![
         LocalLight {
             color: [1., 0., 0.],
-            ..spot
+            ..light
         },
         LocalLight {
             position: [-3., 0., 3.],
             direction: [1., 0., -1.],
             color: [0., 0., 1.],
-            ..spot
+            ..light
         },
     ];
     let multiple = capture(gpu, &mut renderer, &scene, [128, 128])?;
-    multiple.write_ppm(&output.join("spot-shadows-multiple.ppm"))?;
+    multiple.write_ppm(&output.join(format!("{kind}-shadows-multiple.ppm")))?;
     let left = read(&multiple, -1.5);
     let right = read(&multiple, 1.5);
     ensure!(
@@ -296,13 +310,17 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         "removing all lights left a stale shadow"
     );
 
-    // Exercise the final slot, 8->0->8 resource transitions and point lights between spots.
+    // Exercise the final slot and resource growth, with unshadowed lights interleaved.
     scene.lights = vec![
         LocalLight {
             intensity: 0.1,
-            ..spot
+            ..light
         };
-        bozzard_render::MAX_SHADOWED_SPOT_LIGHTS
+        if point {
+            bozzard_render::MAX_SHADOWED_POINT_LIGHTS
+        } else {
+            bozzard_render::MAX_SHADOWED_SPOT_LIGHTS
+        }
     ];
     scene.lights.last_mut().unwrap().intensity = 40.;
     scene.lights.insert(
@@ -311,15 +329,15 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
             spot_angles: None,
             shadows: None,
             intensity: 0.,
-            ..spot
+            ..light
         },
     );
     let full = capture(gpu, &mut renderer, &scene, [128, 128])?;
     ensure!(
         read(&full, -1.5)[0] < 3 && read(&full, 1.5)[0] > 60,
-        "last spotlight shadow slot is missing"
+        "last local shadow slot is missing"
     );
-    scene.lights.push(spot);
+    scene.lights.push(light);
     ensure!(
         capture(gpu, &mut renderer, &scene, [128, 128]).is_err(),
         "excess shadow maps accepted"
@@ -335,15 +353,15 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         "invalid spot bias accepted"
     );
     scene.lights = vec![LocalLight {
-        spot_angles: None,
-        ..spot
+        spot_angles: point.then_some([25., 35.]),
+        ..light
     }];
     ensure!(
-        capture(gpu, &mut renderer, &scene, [128, 128]).is_err(),
-        "point shadow settings accepted"
+        read(&capture(gpu, &mut renderer, &scene, [128, 128])?, -1.5)[0] < 3,
+        "switching local light kind lost its shadow"
     );
     println!(
-        "spot_shadow_gpu_ok pbr lambert toggle resize pcf ambient_emissive gi_sun_rebinding unlit offscreen_casters light_frustum reference_parity cutout mirror sidedness blend multiple reorder inactive removal last_slot validation"
+        "{kind}_shadow_gpu_ok pbr lambert toggle resize pcf ambient_emissive gi_sun_rebinding unlit offscreen_casters light_frustum reference_parity cutout mirror sidedness blend multiple reorder inactive removal last_slot validation"
     );
     Ok(())
 }

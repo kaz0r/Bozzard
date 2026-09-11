@@ -165,12 +165,20 @@ fn fingerprint_excludes_display_and_camera_but_tracks_static_transport() {
     assert!(fit_volume(&s, &a).is_err());
 }
 #[test]
-fn realtime_spot_shadows_do_not_expire_baked_transport() {
+fn realtime_local_shadows_do_not_expire_baked_transport() {
+    for kind in [
+        bozzard_scene::LightKind::Point,
+        bozzard_scene::LightKind::Spot,
+    ] {
+        realtime_shadow_fingerprint(kind);
+    }
+}
+fn realtime_shadow_fingerprint(kind: bozzard_scene::LightKind) {
     let mut s = scene();
     let mut lamp = cube("lamp", [0., 2., 0.], [1.; 3], [1.; 3]);
     lamp.drawable = None;
     lamp.light = Some(bozzard_scene::Light {
-        kind: bozzard_scene::LightKind::Spot,
+        kind,
         ..Default::default()
     });
     s.objects.push(lamp);

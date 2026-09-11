@@ -265,7 +265,8 @@
         "intensity": 18,
         "range": 9,
         "inner_angle_degrees": 16,
-        "outer_angle_degrees": 30
+        "outer_angle_degrees": 30,
+        "shadows": true
       }
     },
     {
@@ -298,7 +299,8 @@
         "intensity": 24,
         "range": 9,
         "inner_angle_degrees": 16,
-        "outer_angle_degrees": 30
+        "outer_angle_degrees": 30,
+        "shadows": true
       }
     },
     {

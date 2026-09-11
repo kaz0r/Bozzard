@@ -8,10 +8,11 @@ mod bloom;
 mod display;
 mod environment;
 mod gi;
+mod local_shadows;
 mod overrides;
 mod pbr;
+mod point_shadows;
 mod shadows;
-mod spot_shadows;
 mod upload;
 mod visibility;
 
@@ -694,7 +695,8 @@ pub fn run(options: &Options) -> Result<()> {
     pbr::checks(&gpu)?;
     overrides::checks(&gpu)?;
     shadows::checks(&gpu)?;
-    spot_shadows::checks(&gpu, &options.output)?;
+    local_shadows::checks(&gpu, &options.output)?;
+    point_shadows::checks(&gpu, &options.output)?;
     upload::checks(&gpu)?;
     let renderer = TriangleRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let (mut app, entity) = demo();

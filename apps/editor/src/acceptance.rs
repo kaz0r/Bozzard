@@ -276,18 +276,19 @@ impl App {
                     if self.smoke_light_frame.is_some() {
                         frame.write_ppm(&output.join("editor-light.ppm"))?;
                         ensure!(
-                            self.editor
-                                .selected_object()
-                                .is_some_and(|o| o.light.is_some_and(|l| l.requests_shadow_map())),
-                            "shadowed spotlight selection lost"
+                            self.editor.selected_object().is_some_and(|o| o
+                                .light
+                                .is_some_and(|l| l.kind == bozzard_scene::LightKind::Point
+                                    && l.requests_shadow_map())),
+                            "shadowed point-light selection lost"
                         );
                         ensure!(
                             self.editor
                                 .render(Layer::ThreeD, 1.)?
                                 .lights
                                 .iter()
-                                .any(|l| l.shadows.is_some()),
-                            "spotlight shadow extraction missing"
+                                .any(|l| l.spot_angles.is_none() && l.shadows.is_some()),
+                            "point-light shadow extraction missing"
                         );
                         println!(
                             "editor_light_smoke_ok authored_component shadow_settings extraction inspector guides native_ui_capture"
@@ -438,12 +439,12 @@ impl App {
                         }
                         if self.smoke_light_frame.is_none() {
                             let result = (|| -> Result<()> {
-                                self.editor.create_light(bozzard_scene::LightKind::Spot)?;
+                                self.editor.create_light(bozzard_scene::LightKind::Point)?;
                                 let selected = self
                                     .editor
                                     .selected
                                     .as_ref()
-                                    .context("missing new spotlight")?;
+                                    .context("missing new point light")?;
                                 let mut scene = self.editor.scene().clone();
                                 scene
                                     .objects
@@ -454,7 +455,7 @@ impl App {
                                     .as_mut()
                                     .unwrap()
                                     .shadows = true;
-                                self.editor.apply("Enable spotlight shadows", scene)?;
+                                self.editor.apply("Enable point-light shadows", scene)?;
                                 Ok(())
                             })();
                             if let Err(error) = result {

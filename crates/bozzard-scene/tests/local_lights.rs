@@ -118,23 +118,44 @@ fn rejects_invalid_light_data_and_excess_without_spawning() {
 }
 
 #[test]
-fn shadowed_spot_budget_counts_disabled_spots_and_validates_live_components() {
-    use bozzard_scene::MAX_SHADOWED_SPOT_LIGHTS;
+fn independent_shadow_budgets_count_disabled_lights_and_validate_live_components() {
+    use bozzard_scene::{MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS};
+    for (kind, limit, other_kind, other_limit) in [
+        (
+            LightKind::Spot,
+            MAX_SHADOWED_SPOT_LIGHTS,
+            LightKind::Point,
+            MAX_SHADOWED_POINT_LIGHTS,
+        ),
+        (
+            LightKind::Point,
+            MAX_SHADOWED_POINT_LIGHTS,
+            LightKind::Spot,
+            MAX_SHADOWED_SPOT_LIGHTS,
+        ),
+    ] {
+        shadow_budget(kind, limit, other_kind, other_limit);
+    }
+}
+fn shadow_budget(kind: LightKind, limit: usize, other_kind: LightKind, other_limit: usize) {
     let mut s = scene();
     let light = s.objects[2].light.as_mut().unwrap();
+    light.kind = kind;
     light.shadows = true;
     light.shadow_bias = 0.02;
     light.shadow_normal_bias = 0.04;
     let template = s.objects[2].clone();
-    for i in 1..MAX_SHADOWED_SPOT_LIGHTS {
+    for i in 1..limit {
         let mut o = template.clone();
         o.id = format!("shadow-{i}");
         s.objects.push(o);
     }
-    let mut point = template.clone();
-    point.id = "point".into();
-    point.light.as_mut().unwrap().kind = LightKind::Point;
-    s.objects.push(point);
+    for i in 0..other_limit {
+        let mut point = template.clone();
+        point.id = format!("other-{i}");
+        point.light.as_mut().unwrap().kind = other_kind;
+        s.objects.push(point);
+    }
     assert_eq!(s, Scene::from_json(&s.to_json().unwrap()).unwrap());
     let mut world = World::default();
     let instance = s.spawn(&mut world).unwrap();
@@ -144,17 +165,17 @@ fn shadowed_spot_budget_counts_disabled_spots_and_validates_live_components() {
             .iter()
             .filter(|l| l.light.requests_shadow_map())
             .count(),
-        MAX_SHADOWED_SPOT_LIGHTS
+        limit + other_limit
     );
     assert_eq!(view.lights[0].light.shadow_bias, 0.02);
-    let entity = instance.entity("point").unwrap();
+    let entity = instance.entity("other-0").unwrap();
     let point = world.get_mut::<Light>(entity).unwrap();
-    point.kind = LightKind::Spot;
+    point.kind = kind;
     point.enabled = false;
     assert!(instance.view(&world, Layer::ThreeD, 1.).is_err());
     assert!(instance.capture(&world).is_err());
     let point = s.objects.last_mut().unwrap().light.as_mut().unwrap();
-    point.kind = LightKind::Spot;
+    point.kind = kind;
     point.enabled = false;
     let mut empty = World::default();
     assert!(s.spawn(&mut empty).is_err());
