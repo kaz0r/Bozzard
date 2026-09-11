@@ -32,6 +32,8 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             parts: [0, 6]
                 .into_iter()
                 .map(|start| MeshPart {
+                    name: format!("Surface {start}"),
+                    material_name: None,
                     start,
                     count: 6,
                     color: [1.; 4],

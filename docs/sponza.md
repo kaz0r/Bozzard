@@ -15,6 +15,17 @@ Inspect the complete CPU import with:
 cargo run -p bozzard-assets --example inspect --locked --offline -- work/sponza/glTF/Sponza.gltf
 ```
 
+In the editor, click imported geometry in the viewport or choose a row in **Imported surfaces**. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
+
+The CPU-only surface reproduction is:
+
+```sh
+cargo run -p bozzard-editor --example inspect_surfaces --locked --offline -- \
+  examples/sponza/scene.json
+```
+
+Picking and outline/framing are held until the CPU model identity matches the GPU resident last-good data. The native Model Workshop inspector capture is written to `work/editor-surfaces-smoke/editor-surface.ppm`.
+
 To package a model into a new scene, use the editor crate's import example and choose a destination that does not already exist:
 
 ```sh

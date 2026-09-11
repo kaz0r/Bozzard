@@ -93,7 +93,8 @@ impl AssetBrowser {
         let editing = editor.play.is_none();
         let selected_drawable = editor
             .selected_object()
-            .is_some_and(|object| object.drawable.is_some());
+            .is_some_and(|object| object.drawable.is_some())
+            && editor.selected_surface().is_none();
 
         ui.horizontal(|ui| {
             ui.heading("Assets");

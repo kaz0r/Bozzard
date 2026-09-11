@@ -305,19 +305,18 @@ impl App {
             frame_request = Some(!ui.input(|i| i.modifiers.shift));
         }
         let frame_bounds = if let Some(selected) = frame_request {
-            let result = (|| -> Result<Option<[Vec3; 2]>> {
-                let id = if selected {
-                    Some(
-                        self.editor
-                            .selected
-                            .as_deref()
-                            .context("select an object to frame")?,
-                    )
-                } else {
-                    None
-                };
-                self.editor.frame_bounds(self.layer(), id)
-            })();
+            let result = if selected
+                && self.editor.selected_surface().is_some()
+                && !self.surface_graphics_ready()
+            {
+                Err(anyhow::anyhow!(
+                    "Wait for this model's graphics upload before framing a surface"
+                ))
+            } else if selected {
+                self.editor.frame_selection_bounds(self.layer())
+            } else {
+                self.editor.frame_bounds(self.layer(), None)
+            };
             match result {
                 Ok(Some(bounds)) => Some(bounds),
                 Ok(None) => {
@@ -650,9 +649,15 @@ impl App {
             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
             Color32::WHITE,
         );
+        let collider_label_height = if self.workspace.colliders_visible && !self.workspace.layer_2d
+        {
+            self.collider_overlay(ui, rect, projection)?
+        } else {
+            0.0
+        };
         let stats = self.renderer.frame_stats();
         ui.painter().text(
-            rect.left_top() + egui::vec2(8.0, 8.0),
+            rect.left_top() + egui::vec2(8.0, 8.0 + collider_label_height),
             egui::Align2::LEFT_TOP,
             format!(
                 "Draws {}/{} · {} tris · {} shadow draws · CPU {:.2} ms",
@@ -665,10 +670,8 @@ impl App {
             egui::FontId::monospace(11.0),
             Color32::WHITE,
         );
-        if self.workspace.colliders_visible && !self.workspace.layer_2d {
-            self.collider_overlay(ui, rect, projection)?;
-        }
-        let handled = if self.editor.play.is_none() {
+        self.surface_overlay(ui, rect, projection)?;
+        let handled = if self.editor.play.is_none() && self.editor.selected_surface().is_none() {
             self.gizmo(ui, rect, projection)?
         } else {
             false
@@ -684,9 +687,21 @@ impl App {
                 1.0 - 2.0 * (p.y - rect.top()) / rect.height(),
             ];
             self.editor.finish_gesture();
-            self.editor.selected =
-                self.editor
-                    .pick_with_projection(self.layer(), projection, ndc)?;
+            let current = self
+                .editor
+                .assets
+                .entries()
+                .filter(|e| matches!(e.data(), Some(bozzard_assets::AssetData::Mesh(_))))
+                .all(|e| self.residency.is_current(&self.editor.assets, &e.id));
+            if current {
+                let pick =
+                    self.editor
+                        .pick_surface_with_projection(self.layer(), projection, ndc)?;
+                self.editor.select_pick(pick)?;
+            } else {
+                self.status = "Picking paused while model graphics are being replaced".into();
+                self.error = false;
+            }
         }
         Ok(())
     }

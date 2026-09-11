@@ -100,7 +100,7 @@ impl App {
                 );
                 self.editor.redo()?;
                 self.editor.redo()?;
-                self.editor.selected = Some(id);
+                self.editor.select_object(Some(id));
                 self.smoke_selection = self.editor.selected.clone();
                 let path = std::path::absolute(output.join("edited-scene.json"))?;
                 self.save_scene(path);
@@ -177,7 +177,13 @@ impl App {
                 return;
             }
         }
-        if self.smoke_frames >= 12 && !self.smoke_requested && !self.error {
+        if self.smoke_frames >= self.smoke_surface_frame.unwrap_or(12)
+            && !self.smoke_requested
+            && !self.error
+            && self.viewport_rect.is_some()
+            && self.target.is_some()
+            && self.residency.has_all(&self.editor.assets)
+        {
             self.smoke_requested = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
@@ -194,6 +200,30 @@ impl App {
                         height: image.size[1] as u32,
                         rgba: image.pixels.iter().flat_map(|p| p.to_array()).collect(),
                     };
+                    if self.smoke_surface_frame.is_some() {
+                        frame.write_ppm(&output.join("editor-surface.ppm"))?;
+                        let surface = self
+                            .editor
+                            .selected_surface()
+                            .context("surface selection lost")?;
+                        ensure!(surface.part.count > 0, "empty inspected surface");
+                        let target = self.target.as_ref().context("missing framed viewport")?;
+                        bozzard_render::read_texture(
+                            &self.gpu,
+                            &target.texture,
+                            target.size[0],
+                            target.size[1],
+                        )?
+                        .write_ppm(&output.join("surface-viewport.ppm"))?;
+                        ensure!(
+                            self.editor.frame_selection_bounds(self.layer())?.is_some(),
+                            "surface bounds missing"
+                        );
+                        println!(
+                            "editor_surface_smoke_ok material_inspector source_names framed_selection native_ui_capture"
+                        );
+                        return Ok(());
+                    }
                     frame.write_ppm(&output.join("editor.ppm"))?;
                     let target = self.target.as_ref().context("missing viewport target")?;
                     let viewport = bozzard_render::read_texture(
@@ -264,6 +294,36 @@ impl App {
                 })();
                 match result {
                     Ok(()) => {
+                        if self.smoke_surface_frame.is_none() {
+                            let model = self.editor.scene().objects.iter().find_map(|object| {
+                                let Mesh::Asset(id) = &object.drawable.as_ref()?.mesh else {
+                                    return None;
+                                };
+                                let bozzard_assets::AssetData::Mesh(mesh) = self
+                                    .editor
+                                    .assets
+                                    .get(self.editor.assets.handle(id)?)?
+                                    .data()?
+                                else {
+                                    return None;
+                                };
+                                (!mesh.parts.is_empty()).then(|| object.id.clone())
+                            });
+                            if let Some(model) = model {
+                                self.editor.select_object(Some(model));
+                                if let Err(error) = self.editor.select_surface(0) {
+                                    eprintln!("editor_smoke_failed: {error:#}");
+                                    self.allow_close = true;
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                    return;
+                                } else {
+                                    self.hierarchy_frame_requested = true;
+                                    self.smoke_surface_frame = Some(self.smoke_frames + 2);
+                                    self.smoke_requested = false;
+                                    continue;
+                                }
+                            }
+                        }
                         self.smoke_passed.store(true, Ordering::Relaxed);
                         println!(
                             "editor_smoke_ok authored_commands play_isolation collision_response gravity_landing background_save_open queued_imports cancellation native_ui_capture viewport_pixel_oracle"

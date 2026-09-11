@@ -2,7 +2,7 @@ use super::*;
 use glam::{Mat4, Vec4};
 
 // Clip the wire segment before perspective division (WebGPU depth: 0 <= z <= w).
-fn clip_edge(a: Vec4, b: Vec4) -> Option<(Vec4, Vec4)> {
+pub(super) fn clip_edge(a: Vec4, b: Vec4) -> Option<(Vec4, Vec4)> {
     let planes = |v: Vec4| [v.w + v.x, v.w - v.x, v.w + v.y, v.w - v.y, v.z, v.w - v.z];
     let mut start = 0.0_f32;
     let mut end = 1.0_f32;
@@ -25,7 +25,7 @@ fn clip_edge(a: Vec4, b: Vec4) -> Option<(Vec4, Vec4)> {
     (from.w > 0.0 && to.w > 0.0).then_some((from, to))
 }
 impl App {
-    pub fn collider_overlay(&self, ui: &egui::Ui, rect: Rect, projection: Mat4) -> Result<()> {
+    pub fn collider_overlay(&self, ui: &egui::Ui, rect: Rect, projection: Mat4) -> Result<f32> {
         let snapshot = self.editor.collisions()?;
         let painter = ui.painter().with_clip_rect(rect);
         let colliding: std::collections::BTreeSet<_> = snapshot
@@ -91,8 +91,9 @@ impl App {
             3.0,
             Color32::from_black_alpha(180),
         );
+        let height = galley.size().y + 12.0;
         painter.galley(position, galley, Color32::WHITE);
-        Ok(())
+        Ok(height)
     }
 }
 #[cfg(test)]

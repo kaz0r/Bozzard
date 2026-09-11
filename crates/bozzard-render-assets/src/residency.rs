@@ -77,6 +77,19 @@ impl Residency {
             .entries()
             .all(|entry| entry.data().is_some() && self.current.contains_key(&entry.id))
     }
+    /// Whether picking/inspection geometry matches the version currently on the GPU.
+    /// `has_all` also accepts last-good resources during a staged replacement.
+    pub fn is_current(&self, store: &AssetStore, id: &str) -> bool {
+        store
+            .handle(id)
+            .and_then(|h| store.get(h))
+            .and_then(|e| e.shared_data())
+            .is_some_and(|data| {
+                self.current
+                    .get(id)
+                    .is_some_and(|current| Arc::ptr_eq(current, &data))
+            })
+    }
     pub fn cancel(&mut self) {
         if let Some((id, data, _)) = self.pending.take() {
             self.failed.insert(id, data);

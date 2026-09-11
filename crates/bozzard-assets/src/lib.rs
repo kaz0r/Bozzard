@@ -52,7 +52,7 @@ pub struct MeshData {
     /// Position, normal, UV. Right handed, Y up; UV origin at the top left.
     pub vertices: Vec<[f32; 8]>,
     pub indices: Vec<u32>,
-    /// glTF primitive material slices. Empty for OBJ, which uses the scene material.
+    /// glTF primitive / OBJ material slices. Empty for an unpartitioned OBJ.
     pub parts: Vec<MeshPart>,
     /// Material features present in the source but outside the current renderer.
     pub warnings: Vec<String>,
@@ -60,6 +60,9 @@ pub struct MeshData {
 
 #[derive(Clone, Debug)]
 pub struct MeshPart {
+    /// Source node/mesh/primitive label, for editor inspection only.
+    pub name: String,
+    pub material_name: Option<String>,
     pub start: u32,
     pub count: u32,
     /// glTF baseColorFactor, including alpha.
@@ -68,6 +71,21 @@ pub struct MeshPart {
     /// Present for glTF `alphaMode: MASK`.
     pub alpha_cutoff: Option<f32>,
     pub shading: Option<SurfaceShading>,
+}
+
+// Names are copied per surface, so cap display metadata independently of source size.
+// Source files remain unchanged; controls/newlines cannot distort virtual list rows.
+fn inspection_name(name: &str) -> String {
+    let mut chars = name.chars();
+    let mut label: String = chars
+        .by_ref()
+        .take(128)
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    if chars.next().is_some() {
+        label.push('…');
+    }
+    label
 }
 
 #[derive(Clone, Debug)]
@@ -546,6 +564,8 @@ fn import(
                         "decoded OBJ images exceed 128 MiB"
                     );
                     parts.push(MeshPart {
+                        name: inspection_name(&model.name),
+                        material_name: material.map(|m| inspection_name(&m.name)),
                         start,
                         count: u32::try_from(indices.len()).context("mesh index count overflow")?
                             - start,
@@ -854,10 +874,21 @@ fn append_node(
             "static glTF import does not support mesh morph weights"
         );
         for primitive in mesh.primitives() {
+            let name = format!(
+                "{} / {} / Surface {}",
+                node.name()
+                    .map(inspection_name)
+                    .unwrap_or_else(|| format!("Node {}", node.index())),
+                mesh.name()
+                    .map(inspection_name)
+                    .unwrap_or_else(|| format!("Mesh {}", mesh.index())),
+                primitive.index() + 1,
+            );
             append_primitive(
                 primitive, transform, buffers, path, snapshot, vertices, indices, parts, warnings,
                 images,
             )?;
+            parts.last_mut().expect("appended primitive").name = name;
         }
     }
     for child in node.children() {
@@ -1024,6 +1055,8 @@ fn append_primitive(
         .transpose()?;
     ensure!(parts.len() < MAX_PARTS, "glTF has too many primitive parts");
     parts.push(MeshPart {
+        name: String::new(),
+        material_name: material.name().map(inspection_name),
         start,
         count: u32::try_from(indices.len()).context("mesh index count overflow")? - start,
         color,
@@ -1188,6 +1221,8 @@ fn portable_mesh_gltf(mesh: &MeshData) -> Result<Vec<u8>> {
     let mut views = Vec::new();
     let mut accessors = Vec::new();
     let fallback = MeshPart {
+        name: "Mesh".into(),
+        material_name: None,
         start: 0,
         count: u32::try_from(mesh.indices.len()).context("mesh index count overflow")?,
         color: [1.0; 4],
@@ -1293,6 +1328,9 @@ fn portable_mesh_gltf(mesh: &MeshData) -> Result<Vec<u8>> {
                 .as_ref()
                 .is_some_and(|image| image.rgba.chunks_exact(4).any(|pixel| pixel[3] != 255));
         let mut material = serde_json::json!({"pbrMetallicRoughness":pbr});
+        if let Some(name) = &part.material_name {
+            material["name"] = serde_json::json!(name);
+        }
         if let Some(cutoff) = part.alpha_cutoff {
             material["alphaMode"] = serde_json::json!("MASK");
             material["alphaCutoff"] = serde_json::json!(cutoff);
@@ -1538,6 +1576,50 @@ mod tests {
             .flatten()
             .flat_map(f32::to_le_bytes)
             .collect()
+    }
+
+    #[test]
+    fn imported_surface_labels_preserve_names_and_distinguish_primitives() {
+        let uri = format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(triangle_bytes())
+        );
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&gltf_document(&uri, None)).unwrap();
+        document["nodes"][0]["name"] = "Archway".into();
+        document["meshes"][0]["name"] = "Stonework".into();
+        document["materials"][0]["name"] = "Weathered stone".into();
+        let primitive = document["meshes"][0]["primitives"][0].clone();
+        document["meshes"][0]["primitives"]
+            .as_array_mut()
+            .unwrap()
+            .push(primitive);
+        let AssetData::Mesh(mesh) = import(
+            AssetKind::Mesh,
+            Path::new("names.gltf"),
+            &serde_json::to_vec(&document).unwrap(),
+            &no_dependencies(),
+        )
+        .unwrap() else {
+            panic!();
+        };
+        assert_eq!(mesh.parts[0].name, "Archway / Stonework / Surface 1");
+        assert_eq!(mesh.parts[1].name, "Archway / Stonework / Surface 2");
+        assert_eq!(
+            mesh.parts[0].material_name.as_deref(),
+            Some("Weathered stone")
+        );
+        let AssetData::Mesh(unnamed) = import(
+            AssetKind::Mesh,
+            Path::new("names.gltf"),
+            &gltf_document(&uri, None),
+            &no_dependencies(),
+        )
+        .unwrap() else {
+            panic!();
+        };
+        assert_eq!(unnamed.parts[0].name, "Node 0 / Mesh 0 / Surface 1");
+        assert!(unnamed.parts[0].material_name.is_none());
     }
 
     fn gltf_document(buffer_uri: &str, image_uri: Option<&str>) -> Vec<u8> {

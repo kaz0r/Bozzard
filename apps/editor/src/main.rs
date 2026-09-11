@@ -24,6 +24,7 @@ mod hierarchy;
 mod inspector;
 mod loading;
 mod snapping;
+mod surfaces;
 mod viewport;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +79,7 @@ struct App {
     workspace: Workspace,
     status: String,
     hierarchy_search: String,
+    surface_search: String,
     hierarchy_state: hierarchy::HierarchyState,
     hierarchy_frame_requested: bool,
     hierarchy_rename: Option<(String, String, bool)>,
@@ -109,6 +111,7 @@ struct App {
     smoke_requested: bool,
     smoke_expected: Option<bozzard_scene::Scene>,
     smoke_selection: Option<String>,
+    smoke_surface_frame: Option<u32>,
 }
 #[derive(Clone)]
 struct HierarchyDrag(String);
@@ -158,6 +161,7 @@ impl App {
             workspace,
             status: "Ready · Select an object to begin".into(),
             hierarchy_search: String::new(),
+            surface_search: String::new(),
             hierarchy_state: hierarchy::HierarchyState::default(),
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
@@ -189,6 +193,7 @@ impl App {
             smoke_requested: false,
             smoke_expected: None,
             smoke_selection: None,
+            smoke_surface_frame: None,
         })
     }
     fn result(&mut self, result: Result<()>) {
@@ -419,6 +424,10 @@ impl App {
         });
     }
     fn begin_hierarchy_rename(&mut self) {
+        if self.editor.selected_surface().is_some() {
+            self.status = "Select the whole model before renaming it".into();
+            return;
+        }
         if let Some(object) = self.editor.selected_object() {
             self.hierarchy_rename = Some((object.id.clone(), object.name.clone(), true));
             self.hierarchy_search.clear();
@@ -469,7 +478,7 @@ impl App {
                         }
                     });
                     ui.horizontal(|ui| {
-                        let selected = self.editor.selected_object().is_some();
+                        let selected = self.editor.selected_object().is_some() && self.editor.selected_surface().is_none();
                         if ui.add_enabled(selected, egui::Button::new("Duplicate"))
                             .on_hover_text("Duplicate selected object and its children · Cmd/Ctrl+D")
                             .clicked() {
@@ -485,7 +494,7 @@ impl App {
                         }
                     });
                 });
-                if ui.add_enabled(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && self.editor.selected_object().is_some(), egui::Button::new("Rename"))
+                if ui.add_enabled(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && self.editor.selected_object().is_some() && self.editor.selected_surface().is_none(), egui::Button::new("Rename"))
                     .on_hover_text("Rename selected object · F2 or Cmd/Ctrl+Enter · Enter applies, Escape cancels")
                     .clicked()
                 {
@@ -605,7 +614,7 @@ impl App {
                                 }
                                 if response.clicked() || response.double_clicked() || response.secondary_clicked() {
                                     self.editor.finish_gesture();
-                                    self.editor.selected = Some(object.id.clone());
+                                    self.editor.select_object(Some(object.id.clone()));
                                 }
                                 if response.double_clicked()
                                     && self.editor.play.is_none()
@@ -621,20 +630,20 @@ impl App {
                                     ui.add_enabled_ui(self.editor.play.is_none() && self.loading.is_none()
                                         && self.drag.is_none() && !self.mouse_captured, |ui| {
                                         if ui.add(egui::Button::new("Rename").shortcut_text(if mac { "Cmd+Return" } else { "F2" })).clicked() {
-                                            self.editor.selected = Some(object.id.clone());
+                                            self.editor.select_object(Some(object.id.clone()));
                                             self.begin_hierarchy_rename();
                                             ui.close();
                                         }
                                         if ui.add(egui::Button::new("Duplicate").shortcut_text(if mac { "Cmd+D" } else { "Ctrl+D" })).clicked() {
                                             self.editor.finish_gesture();
-                                            self.editor.selected = Some(object.id.clone());
+                                            self.editor.select_object(Some(object.id.clone()));
                                             let result = self.editor.duplicate();
                                             if result.is_ok() { self.hierarchy_search.clear(); }
                                             self.result(result);
                                             ui.close();
                                         }
                                         if ui.add(egui::Button::new("Frame Selection").shortcut_text(if mac { "Cmd+Shift+F" } else { "Ctrl+Shift+F" })).clicked() {
-                                            self.editor.selected = Some(object.id.clone());
+                                            self.editor.select_object(Some(object.id.clone()));
                                             self.hierarchy_frame_requested = true;
                                             ui.close();
                                         }
@@ -648,7 +657,7 @@ impl App {
                                         ui.separator();
                                         if ui.add(egui::Button::new("Delete").shortcut_text(if mac { "Cmd+Backspace" } else { "Delete" })).clicked() {
                                             self.editor.finish_gesture();
-                                            self.editor.selected = Some(object.id.clone());
+                                            self.editor.select_object(Some(object.id.clone()));
                                             let result = self.editor.delete();
                                             self.result(result);
                                             ui.close();
@@ -686,7 +695,7 @@ impl App {
                 if let Some((id, parent)) = reparent_request {
                     let result = self.editor.reparent(&id, parent.as_deref());
                     if result.is_ok() {
-                        self.editor.selected = Some(id);
+                        self.editor.select_object(Some(id));
                         self.hierarchy_state.reveal(self.editor.scene(), self.editor.selected.as_deref());
                         self.status = "Parent updated · World transform preserved".into();
                         self.error = false;
@@ -873,6 +882,7 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.poll_loading();
+        self.editor.repair_surface_selection();
         let now = Instant::now();
         self.editor.advance(now.duration_since(self.last_frame));
         self.last_frame = now;

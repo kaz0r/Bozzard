@@ -19,6 +19,7 @@ impl App {
                 let mut scene = self.editor.scene().clone();
                 let checkpoint_start = checkpoint_respawn(&scene, &original);
                 egui::ScrollArea::vertical().show(ui, |ui| {
+                    if self.surface_inspector(ui) { return; }
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                         ui.label("Name");
                         ui.text_edit_singleline(&mut object.name);

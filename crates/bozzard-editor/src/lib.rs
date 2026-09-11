@@ -16,7 +16,9 @@ use std::{
 mod framing;
 mod hierarchy;
 mod loading;
+mod selection;
 pub use loading::{LoadedScene, PreparedImport, PreparedSave};
+pub use selection::{Pick, SelectedSurface};
 
 const HISTORY_LIMIT: usize = 100;
 struct Change {
@@ -30,6 +32,7 @@ pub struct Editor {
     saved: Scene,
     pub path: PathBuf,
     pub selected: Option<String>,
+    surface_selection: Option<selection::SurfaceSelection>,
     past: Vec<Change>,
     future: Vec<Change>,
     gesture: Option<Change>,
@@ -59,6 +62,7 @@ impl Editor {
             scene,
             path,
             selected: None,
+            surface_selection: None,
             past: Vec::new(),
             future: Vec::new(),
             gesture: None,
@@ -161,6 +165,9 @@ impl Editor {
         Ok(())
     }
     fn repair_selection(&mut self) {
+        if self.selected_surface().is_none() {
+            self.surface_selection = None;
+        }
         if self.selected_object().is_none() {
             self.selected = None;
         }
@@ -239,6 +246,10 @@ impl Editor {
         Ok(())
     }
     pub fn duplicate(&mut self) -> Result<()> {
+        ensure!(
+            self.selected_surface().is_none(),
+            "Select the whole model before duplicating it"
+        );
         let selected = self
             .selected
             .as_ref()
@@ -269,6 +280,10 @@ impl Editor {
         Ok(())
     }
     pub fn delete(&mut self) -> Result<()> {
+        ensure!(
+            self.selected_surface().is_none(),
+            "Select the whole model before deleting it"
+        );
         let id = self.selected.as_ref().context("Select an object first")?;
         let ids = subtree(&self.scene, id);
         ensure!(
@@ -280,6 +295,7 @@ impl Editor {
         self.apply("Delete subtree", scene)
     }
     pub fn start_play(&mut self) -> Result<()> {
+        self.surface_selection = None;
         self.finish_gesture();
         if self.play.is_none() {
             self.play = Some(SceneDemo::new(&self.scene)?);
@@ -366,6 +382,10 @@ impl Editor {
         Ok(layer)
     }
     pub fn assign_asset_to_selected(&mut self, asset_id: &str) -> Result<()> {
+        ensure!(
+            self.selected_surface().is_none(),
+            "Select the whole model before assigning an asset"
+        );
         let source = self
             .scene
             .assets
@@ -604,71 +624,6 @@ impl Editor {
             let demo = SceneDemo::new(&self.scene)?;
             demo.instance.collisions(&demo.app.world)
         }
-    }
-    /// Ray selection against actual triangle geometry, including imported meshes.
-    pub fn pick(&self, layer: Layer, aspect: f32, ndc: [f32; 2]) -> Result<Option<String>> {
-        let projection = self.render(layer, aspect)?.view_projection;
-        self.pick_with_projection(layer, projection, ndc)
-    }
-    pub fn pick_with_projection(
-        &self,
-        layer: Layer,
-        projection: Mat4,
-        ndc: [f32; 2],
-    ) -> Result<Option<String>> {
-        let demo = SceneDemo::new(&self.scene)?;
-        let inv = projection.inverse();
-        let origin = inv.project_point3(Vec3::new(ndc[0], ndc[1], 0.0));
-        let direction = (inv.project_point3(Vec3::new(ndc[0], ndc[1], 1.0)) - origin).normalize();
-        let matrices = demo.instance.global_transforms(&demo.app.world)?;
-        let mut best: Option<(f32, String)> = None;
-        for object in &self.scene.objects {
-            let Some(drawable) = &object.drawable else {
-                continue;
-            };
-            if drawable.layer != layer {
-                continue;
-            }
-            let inverse = matrices[&object.id].inverse();
-            let o = inverse.transform_point3(origin);
-            let d = inverse.transform_vector3(direction);
-            let hit = match &drawable.mesh {
-                Mesh::Quad => {
-                    if d.z.abs() < 1e-8 {
-                        None
-                    } else {
-                        let t = -o.z / d.z;
-                        let p = o + d * t;
-                        if t > 0.0 && p.x.abs() <= 0.5 && p.y.abs() <= 0.5 {
-                            Some(t)
-                        } else {
-                            None
-                        }
-                    }
-                }
-                Mesh::Cube => ray_box(o, d),
-                Mesh::Asset(id) => self
-                    .assets
-                    .handle(id)
-                    .and_then(|h| self.assets.get(h))
-                    .and_then(|e| e.data())
-                    .and_then(|data| {
-                        let AssetData::Mesh(mesh) = data else {
-                            return None;
-                        };
-                        mesh.indices
-                            .chunks_exact(3)
-                            .filter_map(|tri| ray_triangle(o, d, tri.map_vertices(&mesh.vertices)))
-                            .min_by(f32::total_cmp)
-                    }),
-            };
-            if let Some(t) = hit
-                && best.as_ref().is_none_or(|(distance, _)| t < *distance)
-            {
-                best = Some((t, object.id.clone()));
-            }
-        }
-        Ok(best.map(|(_, id)| id))
     }
 }
 

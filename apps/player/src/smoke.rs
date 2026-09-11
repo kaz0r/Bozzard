@@ -371,6 +371,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         "initial residency upload missing"
     );
     ensure!(
+        residency.is_current(&store, "test-quad") && !residency.is_current(&store, "missing"),
+        "resident identity missing"
+    );
+    ensure!(
         residency.sync(gpu, renderer, &store.clone())?.uploaded == 0,
         "unchanged catalog snapshot re-uploaded assets"
     );
@@ -415,6 +419,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
     ensure!(
         residency.sync(gpu, renderer, &store)?.uploaded == 0,
         "failed CPU reload re-uploaded last-good data"
+    );
+    ensure!(
+        residency.is_current(&store, "test-palette"),
+        "failed reload lost current identity"
     );
     ensure!(
         capture(gpu, renderer, &scene, [257, 193])?.rgba == first.rgba,
@@ -462,6 +470,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
     };
     wait_staged(&mut residency, renderer, &store)?;
     ensure!(
+        residency.has_all(&store) && !residency.is_current(&store, "test-quad"),
+        "staged CPU geometry was treated as rendered geometry"
+    );
+    ensure!(
         capture(gpu, renderer, &scene, [257, 193])?.rgba == updated.rgba,
         "partial replacement changed the old model"
     );
@@ -495,6 +507,10 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
     ensure!(
         residency.sync(gpu, renderer, &store)?.uploaded == 1,
         "new generation did not replace stale upload"
+    );
+    ensure!(
+        residency.is_current(&store, "test-quad"),
+        "published geometry identity not current"
     );
     ensure!(
         capture(gpu, renderer, &scene, [257, 193])?.rgba == updated.rgba,
