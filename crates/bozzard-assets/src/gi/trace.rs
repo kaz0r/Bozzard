@@ -265,6 +265,14 @@ impl TraceScene {
                 direct += self.sun_radiance * cosine;
             }
             for world in &self.lights {
+                if world.light.kind == LightKind::Directional {
+                    let l = -Vec3::from(world.direction);
+                    let nl = hit.normal.dot(l).max(0.);
+                    if nl > 0. && self.hit(offset, l, self.distance_limit).is_none() {
+                        direct += Vec3::from(world.light.color) * world.light.intensity * nl;
+                    }
+                    continue;
+                }
                 let to = Vec3::from(world.position) - hit.position;
                 let distance = to.length();
                 if distance <= self.epsilon || distance >= world.light.range {
@@ -572,6 +580,37 @@ mod tests {
     fn sample(s: &Instance) -> Option<Hit> {
         s.sample(0, Vec3::new(0.2, -0.1, 0.), Vec3::NEG_Z)
     }
+    #[test]
+    fn directional_bounce_ignores_position_and_range_but_respects_direction() {
+        let light = bozzard_scene::Light {
+            kind: LightKind::Directional,
+            intensity: 2.,
+            ..Default::default()
+        }
+        .at(Mat4::IDENTITY)
+        .unwrap();
+        let mut scene = TraceScene {
+            instances: vec![surface(mesh(), drawable())],
+            lights: vec![light],
+            sun: Vec3::Z,
+            sun_radiance: Vec3::ZERO,
+            environment: bozzard_scene::EnvironmentSettings {
+                intensity: 0.,
+                ..Default::default()
+            },
+            epsilon: 0.001,
+            distance_limit: 100.,
+        };
+        let sample = |scene: &TraceScene| scene.radiance(Vec3::Z, Vec3::NEG_Z, 1, &mut 42);
+        let lit = sample(&scene);
+        assert!(lit.max_element() > 0.);
+        scene.lights[0].position = [1000.; 3];
+        scene.lights[0].light.range = 0.001;
+        assert_eq!(sample(&scene), lit);
+        scene.lights[0].direction = Vec3::Z.to_array();
+        assert_eq!(sample(&scene), Vec3::ZERO);
+    }
+
     #[test]
     fn cpu_transport_uses_srgb_tints_cutouts_and_explicit_texture_override() {
         let m = mesh();

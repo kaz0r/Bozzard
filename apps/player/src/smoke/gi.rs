@@ -64,6 +64,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     model(gpu, &mut renderer, false, 0.)?;
     let mut scene = RenderScene {
+        fog: Default::default(),
         gi: Some(volume([0.2, 0.4, 0.6], [2; 3])),
         lights: vec![],
         environment: bozzard_render::EnvironmentSettings::disabled(),

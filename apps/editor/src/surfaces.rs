@@ -10,7 +10,65 @@ fn surface_label(index: usize, part: &MeshPart) -> String {
     )
 }
 
+pub(super) fn surface_matches(index: usize, part: &MeshPart, query: &str) -> bool {
+    query.is_empty()
+        || part.name.to_lowercase().contains(query)
+        || surface_label(index, part).to_lowercase().contains(query)
+}
+
 impl App {
+    /// Imported parts are inspection targets, not scene objects or reparent targets.
+    pub fn hierarchy_surfaces(
+        &mut self,
+        ui: &mut egui::Ui,
+        object: &str,
+        depth: usize,
+        query: &str,
+    ) {
+        let rows: Vec<_> = self
+            .editor
+            .object_mesh(object)
+            .into_iter()
+            .flat_map(|mesh| mesh.parts.iter().enumerate())
+            .filter(|(index, part)| surface_matches(*index, part, query))
+            .map(|(index, part)| {
+                (
+                    index,
+                    format!("{} · {}", part.name, surface_label(index, part)),
+                )
+            })
+            .collect();
+        let enabled = self.editor.play.is_none()
+            && self.drag.is_none()
+            && !self.mouse_captured
+            && self.hierarchy_rename.is_none()
+            && self.dialog.is_none()
+            && !self.confirm_discard;
+        ui.add_enabled_ui(enabled, |ui| {
+            for (index, label) in rows {
+                ui.push_id(("hierarchy-surface", object, index), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add_space((depth.min(12) * 12 + 18) as f32);
+                        let selected = self.editor.selected.as_deref() == Some(object)
+                            && self.editor.selected_surface().is_some_and(|s| s.index == index);
+                        let row = ui.selectable_label(selected, label)
+                            .on_hover_text("Imported surface · Double-click to frame · Select the model row to edit its transform or components");
+                        if row.clicked() || row.double_clicked() {
+                            self.editor.finish_gesture();
+                            let result = self.editor.select_pick(Some(bozzard_editor::Pick {
+                                object: object.to_owned(), surface: Some(index),
+                            }));
+                            self.result(result);
+                        }
+                        if row.double_clicked() {
+                            self.hierarchy_frame_requested = true;
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     pub fn surface_graphics_ready(&self) -> bool {
         self.editor
             .selected_object()
@@ -76,11 +134,7 @@ impl App {
                     .parts
                     .iter()
                     .enumerate()
-                    .filter(|(index, part)| {
-                        query.is_empty()
-                            || part.name.to_lowercase().contains(&query)
-                            || surface_label(*index, part).to_lowercase().contains(&query)
-                    })
+                    .filter(|(index, part)| surface_matches(*index, part, &query))
                     .collect();
                 if visible.is_empty() {
                     ui.weak("No matching surfaces");
@@ -337,5 +391,32 @@ fn map_details(
         }
     } else {
         ui.weak(format!("{label}: none"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hierarchy_and_inspector_search_source_mesh_or_material() {
+        let mut part = MeshPart {
+            source_key: "source".into(),
+            name: "Car / Wheel / Surface 1".into(),
+            material_name: Some("Rubber".into()),
+            start: 0,
+            count: 3,
+            color: [1.0; 4],
+            image: None,
+            alpha_cutoff: None,
+            shading: None,
+        };
+        for query in ["", "wheel", "rubber", "surface 1"] {
+            assert!(surface_matches(0, &part, query));
+        }
+        assert!(!surface_matches(0, &part, "glass"));
+        part.material_name = None;
+        assert!(surface_matches(0, &part, "wheel"));
+        assert!(!surface_matches(0, &part, "rubber"));
     }
 }

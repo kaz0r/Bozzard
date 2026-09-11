@@ -53,7 +53,11 @@ impl Snapping {
                 // Quantize the multiplier change, not the signed scale. Preserve mirrored axes
                 // and avoid introducing a singular transform when dragging toward zero.
                 let factor = 1.0 + quantize(amount - 1.0, self.scale, active);
-                next.scale[axis] *= factor.clamp(0.01, 100.0);
+                for (index, scale) in next.scale.iter_mut().enumerate() {
+                    if axis == 3 || axis == index {
+                        *scale *= factor.clamp(0.01, 100.0);
+                    }
+                }
             }
         }
         next
@@ -143,6 +147,23 @@ mod tests {
         assert_eq!(scaled.scale[1], 3.0);
         assert!(settings.transform(start, Tool::Scale, 0, 0.01, false).scale[0] < 0.0);
         assert_eq!(settings.transform(start, Tool::Scale, 0, 1.0, false), start);
+    }
+    #[test]
+    fn uniform_scaling_snaps_one_factor_and_preserves_proportions() {
+        let settings = Snapping {
+            enabled: true,
+            ..Default::default()
+        };
+        let start = Transform {
+            scale: [-2.0, 3.0, 0.5],
+            ..Default::default()
+        };
+        let next = settings.transform(start, Tool::Scale, 3, 1.24, false);
+        for axis in 0..3 {
+            assert!((next.scale[axis] / start.scale[axis] - 1.2).abs() < 1e-6);
+        }
+        assert_eq!(settings.transform(start, Tool::Scale, 3, 1.0, false), start);
+        assert!(settings.transform(start, Tool::Scale, 3, 0.01, false).scale[0] < 0.0);
     }
     #[test]
     fn old_workspace_defaults_and_invalid_increments_are_safe() {

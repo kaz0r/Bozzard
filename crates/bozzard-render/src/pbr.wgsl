@@ -3,6 +3,7 @@ struct ObjectUniform {
     model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
     sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
     surface_factors: vec4<f32>,
+    fog_color: vec4<f32>, fog_density: vec4<f32>, fog_height: vec4<f32>,
 };
 struct MaterialUniform { factors: vec4<f32>, emissive: vec4<f32> };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
@@ -51,7 +52,13 @@ struct VertexOutput {
     let alpha = texel.a * object.tint.a;
     if alpha <= 0.00001 || alpha < object.parameters.w { discard; }
     let base = texel.rgb * object.tint.rgb;
-    if object.parameters.z < 0.5 { return vec4<f32>(base,alpha); }
+    if object.surface_factors.z > 0.5 {
+        let effect_normal = in.normal * select(-1.0, 1.0, facing);
+        let effect = demo_effect(base, effect_normal, in.uv, in.world);
+        if object.surface_factors.z < 1.5 { return vec4<f32>(effect, alpha); }
+        return vec4<f32>(apply_fog(effect, in.world, in.position.xy), alpha);
+    }
+    if object.parameters.z < 0.5 { return vec4<f32>(apply_fog(base, in.world, in.position.xy),alpha); }
     var n = normalize(in.normal);
     let t = normalize(in.tangent.xyz - n * dot(n,in.tangent.xyz));
     let b = cross(n,t) * in.tangent.w;
@@ -74,13 +81,13 @@ struct VertexOutput {
     for (var i = 0u; i < u32(local_lights.count.x); i++) {
         let light = local_lights.lights[i];
         let offset = light.position_range.xyz - in.world;
-        let l = offset / max(length(offset), 0.000001);
+        let l = local_direction(light, offset);
         direct += direct_brdf(base, metallic, roughness, n, v, l) * local_radiance(light, offset) * local_visibility(light, in.world, shadow_normal);
     }
     let ibl_diffuse = gi_diffuse(in.world,n)*base*(1.0-f0)*(1.0-metallic);
     let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);
     let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao + (ibl_diffuse+ibl_specular)*ao;
-    return vec4<f32>(min(direct+indirect+emissive, vec3<f32>(60000.0)),alpha);
+    return vec4<f32>(apply_fog(min(direct+indirect+emissive, vec3<f32>(60000.0)), in.world, in.position.xy),alpha);
 }
 
 fn direct_brdf(base: vec3<f32>, metallic: f32, roughness: f32, n: vec3<f32>, v: vec3<f32>, l: vec3<f32>) -> vec3<f32> {

@@ -74,6 +74,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     upload(gpu, &mut renderer, "receiver", None, false, 1.)?;
     let spot = LocalLight {
+        directional: false,
         position: [3., 0., 3.],
         direction: [-1., 0., -1.],
         color: [1.; 3],
@@ -100,6 +101,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
         material: receiver.material.clone(),
     };
     let mut scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: vec![spot],
         environment: bozzard_render::EnvironmentSettings::disabled(),

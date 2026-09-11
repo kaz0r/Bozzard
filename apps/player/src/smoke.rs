@@ -157,6 +157,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
             }],
         )?;
         let mip_scene = RenderScene {
+            fog: Default::default(),
             gi: None,
             lights: Vec::new(),
             environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -179,6 +180,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
         }
     }
     let scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -215,6 +217,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
     );
     renderer.upload_image(gpu, "half-red", 1, 1, &[255, 0, 0, 128])?;
     let alpha_scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -282,6 +285,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         lit: false,
     };
     let scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -305,6 +309,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let wide = capture(gpu, &mut renderer, &scene, [2053, 129])?;
     pixel(&wide, 767, 42, [240, 180, 70])?;
     let mut depth_scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),
@@ -424,6 +429,7 @@ fn asset_checks(gpu: &Gpu, renderer: &mut SceneRenderer, options: &Options) -> R
         "unchanged catalog snapshot re-uploaded assets"
     );
     let scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         environment: bozzard_render::EnvironmentSettings::disabled(),

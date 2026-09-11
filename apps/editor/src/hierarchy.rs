@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 pub struct HierarchyState {
     collapsed: BTreeSet<String>,
     selection_path: Vec<String>,
+    surface_selection: Option<(String, usize)>,
 }
 impl HierarchyState {
     pub fn is_collapsed(&self, id: &str) -> bool {
@@ -23,7 +24,14 @@ impl HierarchyState {
         self.collapsed = scene
             .objects
             .iter()
-            .filter_map(|o| o.parent.clone())
+            .flat_map(|o| {
+                o.parent.clone().into_iter().chain(
+                    o.drawable
+                        .as_ref()
+                        .filter(|d| matches!(d.mesh, bozzard_scene::Mesh::Asset(_)))
+                        .map(|_| o.id.clone()),
+                )
+            })
             .collect();
     }
     pub fn sync_selection(&mut self, scene: &Scene, selected: Option<&str>) {
@@ -47,6 +55,17 @@ impl HierarchyState {
                 self.collapsed.remove(id);
             }
             self.selection_path = path;
+        }
+    }
+    pub fn sync_surface_selection(&mut self, selected: Option<(&str, usize)>) {
+        let selected = selected.map(|(id, index)| (id.to_owned(), index));
+        if selected != self.surface_selection {
+            if let Some((id, _)) = &selected {
+                for id in self.selection_path.iter().chain(std::iter::once(id)) {
+                    self.collapsed.remove(id);
+                }
+            }
+            self.surface_selection = selected;
         }
     }
     pub fn reveal(&mut self, scene: &Scene, selected: Option<&str>) {
@@ -97,6 +116,38 @@ mod tests {
         tree.reveal(&scene, Some("leaf"));
         assert!(!tree.is_collapsed("root"));
         assert!(!tree.is_collapsed("branch"));
+    }
+    #[test]
+    fn imported_leaf_collapses_and_surface_selection_reveals_owner_once() {
+        let mut scene = scene();
+        let drawable = Scene::from_json(r#"{"version":1,"name":"Model","views":{},"assets":{"mesh":{"kind":"mesh","path":"mesh.obj"}},"objects":[
+          {"id":"model","name":"Model","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"drawable":{"layer":"3d","mesh":{"asset":"mesh"},"texture":"white","color":[1,1,1],"uv_scale":[1,1]}}
+        ]}"#).unwrap().objects.remove(0).drawable;
+        scene.objects[2].drawable = drawable;
+        let before = scene.clone();
+        let mut tree = HierarchyState::default();
+        tree.collapse_all(&scene);
+        assert!(!tree.visit_children("leaf", false));
+        assert!(tree.visit_children("leaf", true));
+        tree.sync_selection(&scene, Some("leaf"));
+        tree.sync_surface_selection(Some(("leaf", 0)));
+        for id in ["root", "branch", "leaf"] {
+            assert!(tree.visit_children(id, false));
+        }
+        tree.toggle("leaf");
+        tree.sync_surface_selection(Some(("leaf", 0)));
+        assert!(tree.is_collapsed("leaf"), "manual collapse must stick");
+        tree.collapse_all(&scene);
+        tree.sync_selection(&scene, Some("leaf"));
+        tree.sync_surface_selection(Some(("leaf", 1)));
+        for id in ["root", "branch", "leaf"] {
+            assert!(!tree.is_collapsed(id));
+        }
+        tree.toggle("leaf");
+        tree.sync_surface_selection(None);
+        tree.sync_surface_selection(Some(("leaf", 1)));
+        assert!(!tree.is_collapsed("leaf"));
+        assert_eq!(scene, before);
     }
     #[test]
     fn reparented_selection_is_revealed_and_deleted_ids_pruned() {
