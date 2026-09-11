@@ -1,199 +1,40 @@
 {
-  "version": 1,
-  "name": "Sponza spotlight shadows",
-  "views": {
-    "3d": "camera",
-    "2d": "camera-2d"
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
   },
-  "assets": {
-    "sponza": {
-      "kind": "mesh",
-      "path": "../../work/sponza/glTF/Sponza.gltf"
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
     }
-  },
-  "objects": [
-    {
-      "id": "camera",
-      "name": "Atrium camera",
-      "transform": {
-        "translation": [
-          10,
-          2.4,
-          0.7
-        ],
-        "rotation_degrees": [
-          -3,
-          90,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "camera": {
-        "projection": "perspective",
-        "vertical_fov_degrees": 65,
-        "near": 0.05,
-        "far": 100
-      }
-    },
-    {
-      "id": "camera-2d",
-      "name": "Camera 2D",
-      "transform": {
-        "translation": [
-          0,
-          0,
-          10
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "camera": {
-        "projection": "orthographic",
-        "vertical_size": 10,
-        "near": 0.1,
-        "far": 100
-      }
-    },
-    {
-      "id": "sponza",
-      "name": "Sponza",
-      "transform": {
-        "translation": [
-          0,
-          0,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": {
-          "asset": "sponza"
-        },
-        "texture": "white",
-        "color": [
-          1,
-          1,
-          1
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      }
-    },
-    {
-      "id": "warm-spot",
-      "name": "Warm spot",
-      "transform": {
-        "translation": [
-          6,
-          3,
-          2
-        ],
-        "rotation_degrees": [
-          -50,
-          90,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "light": {
-        "kind": "spot",
-        "color": [
-          1,
-          0.8,
-          0.45
-        ],
-        "intensity": 150,
-        "range": 15,
-        "inner_angle_degrees": 30,
-        "outer_angle_degrees": 45,
-        "shadows": true
-      }
-    },
-    {
-      "id": "cool-spot",
-      "name": "Cool spot",
-      "transform": {
-        "translation": [
-          0,
-          3,
-          -2
-        ],
-        "rotation_degrees": [
-          -50,
-          -90,
-          0
-        ],
-        "scale": [
-          1,
-          1,
-          1
-        ]
-      },
-      "light": {
-        "kind": "spot",
-        "color": [
-          0.3,
-          0.5,
-          1
-        ],
-        "intensity": 110,
-        "range": 15,
-        "inner_angle_degrees": 30,
-        "outer_angle_degrees": 45,
-        "shadows": true
-      }
-    }
-  ],
-  "lighting": {
-    "sun_direction": [
-      0.3,
-      0.85,
-      0.25
-    ],
-    "sun_color": [
-      1.0,
-      0.93,
-      0.82
-    ],
-    "sun_intensity": 0,
-    "ambient_color": [
-      0.7,
-      0.8,
-      1.0
-    ],
-    "ambient_intensity": 0.01,
-    "shadows": false,
-    "shadow_resolution": 4096,
-    "shadow_bias": 0.005,
-    "shadow_normal_bias": 0.01
   },
   "environment": {
     "zenith": [
@@ -213,5 +54,214 @@
     ],
     "intensity": 0.02,
     "background": true
+  },
+  "display": {
+    "bloom": {
+      "enabled": false,
+      "intensity": 0.15,
+      "threshold": 1.0,
+      "scatter": 0.7
+    },
+    "exposure_ev": 0.0,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": false,
+    "shadow_resolution": 4096,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.3,
+      0.85,
+      0.25
+    ],
+    "sun_color": [
+      1.0,
+      0.93,
+      0.82
+    ],
+    "sun_intensity": 0.0,
+    "ambient_color": [
+      0.7,
+      0.8,
+      1.0
+    ],
+    "ambient_intensity": 0.01
+  },
+  "version": 1,
+  "name": "Sponza spotlight shadows",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Atrium camera",
+      "transform": {
+        "translation": [
+          10.0,
+          2.4,
+          0.7
+        ],
+        "rotation_degrees": [
+          -3.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 65.0,
+        "near": 0.05,
+        "far": 100.0
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 10.0,
+        "near": 0.1,
+        "far": 100.0
+      }
+    },
+    {
+      "id": "sponza",
+      "name": "Sponza",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "sponza"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "spot",
+        "color": [
+          1.0,
+          0.8,
+          0.45
+        ],
+        "intensity": 150.0,
+        "range": 15.0,
+        "inner_angle_degrees": 30.0,
+        "outer_angle_degrees": 45.0,
+        "shadows": true
+      },
+      "id": "warm-spot",
+      "name": "Warm spot",
+      "transform": {
+        "translation": [
+          6.0,
+          3.0,
+          2.0
+        ],
+        "rotation_degrees": [
+          -50.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "spot",
+        "color": [
+          0.3,
+          0.5,
+          1.0
+        ],
+        "intensity": 110.0,
+        "range": 15.0,
+        "inner_angle_degrees": 30.0,
+        "outer_angle_degrees": 45.0,
+        "shadows": true
+      },
+      "id": "cool-spot",
+      "name": "Cool spot",
+      "transform": {
+        "translation": [
+          0.0,
+          3.0,
+          -2.0
+        ],
+        "rotation_degrees": [
+          -50.0,
+          -90.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "sponza": {
+      "kind": "mesh",
+      "path": "../../work/sponza/glTF/Sponza.gltf"
+    }
   }
 }

@@ -4,9 +4,12 @@ pub enum Kind {
     Open,
     Save,
     Import,
+    LoadBlueprint,
+    SaveBlueprint,
 }
 pub struct Dialog {
     pub kind: Kind,
+    pub blueprint_target: Option<(PathBuf, u64, String, usize)>,
     directory: PathBuf,
     path: String,
     overwrite: bool,
@@ -21,6 +24,7 @@ impl Dialog {
         };
         Self {
             kind,
+            blueprint_target: None,
             directory,
             path: path.display().to_string(),
             overwrite: false,
@@ -38,6 +42,8 @@ impl App {
             Kind::Open => "Open scene",
             Kind::Save => "Save scene as",
             Kind::Import => "Import image, model or prefab",
+            Kind::LoadBlueprint => "Load and attach Blueprint copy",
+            Kind::SaveBlueprint => "Save Blueprint graph",
         };
         egui::Window::new(title)
             .collapsible(false)
@@ -87,6 +93,10 @@ impl App {
                                                 .and_then(|p| p.to_str())
                                                 .is_some_and(|p| p.ends_with(".prefab.json"))
                                         }
+                                        Kind::LoadBlueprint | Kind::SaveBlueprint => path
+                                            .file_name()
+                                            .and_then(|n| n.to_str())
+                                            .is_some_and(|n| n.ends_with(".blueprint.json")),
                                         _ => ext == "json",
                                     };
                                 if !valid {
@@ -127,7 +137,10 @@ impl App {
                         .clicked()
                     {
                         let path = PathBuf::from(&dialog.path);
-                        if matches!(dialog.kind, Kind::Save) && path.exists() && !dialog.overwrite {
+                        if matches!(dialog.kind, Kind::Save | Kind::SaveBlueprint)
+                            && path.exists()
+                            && !dialog.overwrite
+                        {
                             dialog.overwrite = true;
                         } else {
                             chosen = Some(path);
@@ -148,6 +161,37 @@ impl App {
                     Kind::Save => self.save_scene(path),
                     Kind::Import => {
                         self.start_import(path);
+                    }
+                    Kind::LoadBlueprint | Kind::SaveBlueprint => {
+                        let result = (|| {
+                            let (scene_path, revision, object, index) = dialog
+                                .blueprint_target
+                                .as_ref()
+                                .context("missing blueprint target")?;
+                            ensure!(
+                                *scene_path == self.editor.path
+                                    && *revision == self.editor.revision(),
+                                "Scene changed while choosing a blueprint file; try again"
+                            );
+                            ensure!(self.loading.is_none(), "Wait for loading to finish");
+                            if matches!(dialog.kind, Kind::SaveBlueprint) {
+                                self.editor.save_blueprint(object, *index, &path)
+                            } else {
+                                self.editor.load_blueprint(object, &path)
+                            }
+                        })();
+                        if result.is_ok() {
+                            if matches!(dialog.kind, Kind::LoadBlueprint)
+                                && let Some((_, _, object, _)) = &dialog.blueprint_target
+                            {
+                                self.editor.select_object(Some(object.clone()));
+                                self.open_last_blueprint();
+                            }
+                            self.workspace.blueprints_visible = true;
+                            self.status =
+                                "Blueprint file ready · Attachments are independent copies".into();
+                        }
+                        self.result(result);
                     }
                 },
             }

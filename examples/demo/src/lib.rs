@@ -73,8 +73,12 @@ pub fn prepare_document_from(
 
 /// Validate first, then replace through a sibling temporary file so failed saves keep the old file.
 pub fn save_document(scene: &Scene, path: &Path) -> anyhow::Result<()> {
+    save_json(&scene.to_json()?, path)
+}
+
+/// Atomic replacement shared by scene and portable blueprint exports.
+pub fn save_json(json: &str, path: &Path) -> anyhow::Result<()> {
     static NEXT_SAVE: AtomicU64 = AtomicU64::new(0);
-    let json = scene.to_json()?;
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -117,6 +121,9 @@ pub struct SceneDemo {
 }
 
 impl SceneDemo {
+    pub fn accepts_gameplay_input(&self) -> bool {
+        self.gameplay().is_some() || self.instance.has_blueprints()
+    }
     pub fn gameplay(&self) -> Option<&GameplayState> {
         self.app.world.resource::<GameplayState>()
     }
@@ -183,12 +190,21 @@ impl SceneDemo {
                 return;
             }
             let dt = tick.delta.as_secs_f32();
+            let input = world
+                .resource::<GameplayInput>()
+                .copied()
+                .unwrap_or_default();
             let error = gravity_instance
                 .gameplay_motion(world, dt)
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
                 .and_then(|()| gravity_instance.gameplay_interactions(world))
+                .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
                 .err()
                 .map(|error| format!("{error:#}"));
+            world.insert_resource(GameplayInput {
+                movement: input.movement,
+                ..Default::default()
+            });
             world.insert_resource(SimulationStatus { error });
         });
         Ok(Self { app, instance })

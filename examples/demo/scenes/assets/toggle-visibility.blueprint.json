@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "name": "Space toggles visibility",
+  "variables": {
+    "value": 1
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "input_pressed",
+      "position": [
+        40,
+        40
+      ],
+      "inputs": [],
+      "variable": "value",
+      "key": "jump"
+    },
+    {
+      "id": 2,
+      "kind": "get_variable",
+      "position": [
+        40,
+        230
+      ],
+      "inputs": [],
+      "variable": "value",
+      "key": "jump"
+    },
+    {
+      "id": 3,
+      "kind": "equal",
+      "position": [
+        340,
+        230
+      ],
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ],
+      "variable": "value",
+      "key": "jump"
+    },
+    {
+      "id": 4,
+      "kind": "set_visible",
+      "position": [
+        640,
+        40
+      ],
+      "inputs": [
+        "exec",
+        {
+          "bool": true
+        }
+      ],
+      "variable": "value",
+      "key": "jump"
+    },
+    {
+      "id": 5,
+      "kind": "subtract",
+      "position": [
+        640,
+        300
+      ],
+      "inputs": [
+        {
+          "number": 1
+        },
+        {
+          "number": 0
+        }
+      ],
+      "variable": "value",
+      "key": "jump"
+    },
+    {
+      "id": 6,
+      "kind": "set_variable",
+      "position": [
+        940,
+        40
+      ],
+      "inputs": [
+        "exec",
+        {
+          "number": 0
+        }
+      ],
+      "variable": "value",
+      "key": "jump"
+    }
+  ],
+  "wires": [
+    {
+      "from": {
+        "node": 1,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 2,
+        "port": 0
+      },
+      "to": {
+        "node": 3,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 3,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 4,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 2,
+        "port": 0
+      },
+      "to": {
+        "node": 5,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 5,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 1
+      }
+    }
+  ]
+}

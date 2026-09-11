@@ -18,6 +18,7 @@ impl App {
         ui.push_id(&original.id, |ui| {
         egui::ScrollArea::vertical().id_salt("entity-properties").show(ui, |ui| {
                     if self.surface_inspector(ui) { return; }
+                    self.blueprint_inspector(ui, &mut object);
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                         ui.add(egui::TextEdit::singleline(&mut object.name).desired_width(f32::INFINITY))
                             .on_hover_text(format!("Entity name · ID: {}", object.id));

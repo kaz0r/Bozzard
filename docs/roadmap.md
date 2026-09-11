@@ -28,6 +28,8 @@ The current import slice supports static OBJ and glTF/GLB geometry, material dep
 - Implemented: project-local PNG/JPEG/OBJ/glTF/GLB imports with catalog assignment, background preparation, sun/display, point/spot light, and baked GI controls, and staged GPU uploads.
 - Implemented: first linked prefab workflow with expanded scene instances, component overrides, apply, refresh, and unpack; see [prefab workflow and limits](prefabs.md).
 
+- Implemented: optional typed gameplay Blueprints with a dedicated node pane, portable graph files, ordered object/prefab attachments, and a shared headless runtime; see [Blueprints](blueprints.md).
+
 Remaining editor extensions: generic component reflection, arbitrary tab docking, and production gizmo ergonomics.
 
 ## 4 — First playable third-person demo (implemented locally)
@@ -38,7 +40,7 @@ Remaining editor extensions: generic component reflection, arbitrary tab docking
 - First Trail: ready-to-play authored level with obstacles and reused local static-model scenery, shared by editor Play and standalone player.
 - Shared headless fixed-step runtime, inspector authoring, validated references/settings and deterministic route/Play isolation regressions.
 
-See [run commands and manual acceptance checklist](playable-demo.md). This is a single kinematic box character, not skeletal animation, full physics, scripting or a game export pipeline. Manual pointer/platform verification remains separate from automated simulation/rendering checks.
+See [run commands and manual acceptance checklist](playable-demo.md). This is a single kinematic box character, not skeletal animation, full physics or a game export pipeline. Optional gameplay Blueprints now complement the coded controller. Manual pointer/platform verification remains separate from automated simulation/rendering checks.
 
 ## 5 — First user-game export
 
@@ -51,7 +53,7 @@ See [run commands and manual acceptance checklist](playable-demo.md). This is a 
 ## 6 — Simulation and content systems
 
 - Full physics, audio, animation, input actions, cascaded shadows, runtime rebaking, and production lighting/content systems.
-- Remaining prefab work: nested prefabs, variants, source-hierarchy editing, and override UI; scripting design.
+- Remaining prefab work: nested prefabs, variants, source-hierarchy editing, and override UI; broader scripting/Blueprint nodes and cross-object references.
 - Module dependency/lifecycle contract; evaluate runtime binary loading.
 - Profiling and evidence-driven ECS/render improvements.
 

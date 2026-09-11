@@ -16,6 +16,7 @@ use std::{
 };
 mod acceptance;
 mod asset_browser;
+mod blueprints;
 mod colliders;
 mod files;
 mod fog;
@@ -45,6 +46,7 @@ struct Workspace {
     layer_2d: bool,
     assets_visible: bool,
     settings_visible: bool,
+    blueprints_visible: bool,
     stats_visible: bool,
     colliders_visible: bool,
     gi_visible: bool,
@@ -62,6 +64,7 @@ impl Default for Workspace {
             layer_2d: false,
             assets_visible: true,
             settings_visible: true,
+            blueprints_visible: false,
             stats_visible: false,
             colliders_visible: true,
             gi_visible: false,
@@ -109,6 +112,7 @@ struct App {
     hierarchy_frame_requested: bool,
     hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
+    blueprint_pane: blueprints::BlueprintPane,
     loading: Option<loading::Loading>,
     import_queue: std::collections::VecDeque<PathBuf>,
     refresh: Option<loading::Refresh>,
@@ -143,6 +147,7 @@ struct App {
     smoke_light_frame: Option<u32>,
     smoke_gi_frame: Option<u32>,
     smoke_prefab_frame: Option<u32>,
+    smoke_blueprint_frame: Option<u32>,
 }
 #[derive(Clone)]
 struct HierarchyDrag(String);
@@ -193,6 +198,7 @@ impl App {
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),
+            blueprint_pane: blueprints::BlueprintPane::default(),
             loading: None,
             import_queue: std::collections::VecDeque::new(),
             refresh: None,
@@ -227,6 +233,7 @@ impl App {
             smoke_light_frame: None,
             smoke_gi_frame: None,
             smoke_prefab_frame: None,
+            smoke_blueprint_frame: None,
         })
     }
     fn result(&mut self, result: Result<()>) {
@@ -484,6 +491,7 @@ impl App {
                             });
                         });
                         ui.menu_button("View", |ui| {
+                            ui.checkbox(&mut self.workspace.blueprints_visible, "Blueprint Editor");
                             ui.checkbox(&mut self.workspace.assets_visible, "Content Browser");
                             ui.checkbox(&mut self.workspace.settings_visible, "Scene Settings");
                             ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
@@ -941,6 +949,7 @@ impl App {
             return;
         }
         if self.editor.play.is_none()
+            && !self.workspace.blueprints_visible
             && !self.mouse_captured
             && !ctx.egui_wants_keyboard_input()
             && ctx.input_mut(|i| {
@@ -969,6 +978,7 @@ impl App {
             // Active navigation and popup editors own Escape before selection does.
             // Drag/rename/dialog handling is already guarded above.
             if self.escape_deselect_requested
+                && !self.workspace.blueprints_visible
                 && self.editor.selected.is_some()
                 && !self.fly_latched
                 && self.navigation_button.is_none()
@@ -1005,7 +1015,8 @@ impl App {
                 let r = self.editor.undo();
                 self.result(r);
             }
-            if self.editor.selected_object().is_some()
+            if !self.workspace.blueprints_visible
+                && self.editor.selected_object().is_some()
                 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::D))
             {
                 let r = self.editor.duplicate();
@@ -1014,7 +1025,8 @@ impl App {
                 }
                 self.result(r);
             }
-            if self.editor.selected_object().is_some()
+            if !self.workspace.blueprints_visible
+                && self.editor.selected_object().is_some()
                 && ctx.input_mut(|i| {
                     i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
                         || (cfg!(target_os = "macos")
@@ -1065,7 +1077,13 @@ impl eframe::App for App {
                 && self.loading.is_none()
                 && self.dialog.is_none()
                 && !self.confirm_discard
-                && !self.workspace.layer_2d,
+                && !self.workspace.blueprints_visible
+                && (!self.workspace.layer_2d
+                    || self
+                        .editor
+                        .play
+                        .as_ref()
+                        .is_some_and(|p| p.instance.has_blueprints())),
             self.editor.play.as_mut(),
         );
         let eligible = input.focused
@@ -1097,6 +1115,11 @@ impl eframe::App for App {
         self.editor.repair_surface_selection();
         let now = Instant::now();
         self.editor.advance(now.duration_since(self.last_frame));
+        if let Some(play) = &self.editor.play
+            && let Err(error) = play.check_simulation()
+        {
+            self.result(Err(error));
+        }
         self.last_frame = now;
         if !self.mouse_captured {
             self.shortcuts(&ctx);
@@ -1129,7 +1152,34 @@ impl eframe::App for App {
         for file in drops {
             {
                 let path = file.path().to_path_buf();
-                if path.extension().is_some_and(|e| e == "json") {
+                if path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.ends_with(".blueprint.json"))
+                {
+                    let result = (|| {
+                        ensure!(
+                            self.loading.is_none()
+                                && self.dialog.is_none()
+                                && !self.confirm_discard,
+                            "Finish the current operation before loading a blueprint"
+                        );
+                        ensure!(
+                            self.editor.selected_surface().is_none(),
+                            "Select the mesh owner first"
+                        );
+                        let id = self
+                            .editor
+                            .selected
+                            .clone()
+                            .context("Select an object before loading a blueprint")?;
+                        self.editor.load_blueprint(&id, &path)
+                    })();
+                    if result.is_ok() {
+                        self.open_last_blueprint();
+                    }
+                    self.result(result);
+                } else if path.extension().is_some_and(|e| e == "json") {
                     self.request(Pending::Open(path));
                 } else {
                     self.start_import(path);
@@ -1263,7 +1313,16 @@ impl eframe::App for App {
                 if self.loading.is_some() {
                     ui.disable();
                 }
-                if let Err(error) = self.viewport(ui) {
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.workspace.blueprints_visible, false, "Scene");
+                    ui.selectable_value(&mut self.workspace.blueprints_visible, true, "Blueprint");
+                });
+                if self.workspace.blueprints_visible {
+                    if let Err(error) = self.sync_assets() {
+                        self.result(Err(error));
+                    }
+                    self.blueprint_ui(ui);
+                } else if let Err(error) = self.viewport(ui) {
                     self.result(Err(error));
                     ui.colored_label(
                         Color32::LIGHT_RED,

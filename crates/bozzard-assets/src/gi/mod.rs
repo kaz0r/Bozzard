@@ -17,6 +17,7 @@ pub fn static_objects(scene: &Scene) -> BTreeSet<String> {
         .iter()
         .filter(|o| {
             o.spin.is_some()
+                || o.blueprints.iter().any(|b| b.enabled)
                 || o.gravity.is_some_and(|g| g.enabled)
                 || o.player_controller.is_some()
         })

@@ -485,10 +485,15 @@ impl App {
             .editor
             .play
             .as_ref()
-            .is_some_and(|play| play.gameplay().is_some());
+            .is_some_and(|play| play.accepts_gameplay_input());
         if authored_player {
             let eligible = ui.is_enabled()
-                && !self.workspace.layer_2d
+                && (!self.workspace.layer_2d
+                    || self
+                        .editor
+                        .play
+                        .as_ref()
+                        .is_some_and(|p| p.instance.has_blueprints()))
                 && (response.hovered() || response.dragged_by(egui::PointerButton::Secondary))
                 && self.dialog.is_none()
                 && !self.confirm_discard
