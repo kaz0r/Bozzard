@@ -15,7 +15,7 @@ Inspect the complete CPU import with:
 cargo run -p bozzard-assets --example inspect --locked --offline -- work/sponza/glTF/Sponza.gltf
 ```
 
-In the editor, click imported geometry in the viewport or choose a row in **Imported surfaces**. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
+In the editor, click imported geometry in the viewport or choose a row in **Imported surfaces**. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. Press **Escape** to clear the whole-object or inspected-surface selection and its outline after higher-priority editing or navigation actions have finished. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
 
 The CPU-only surface reproduction is:
 

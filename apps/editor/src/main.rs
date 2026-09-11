@@ -100,6 +100,7 @@ struct App {
     drag: Option<viewport::Drag>,
     navigation_button: Option<egui::PointerButton>,
     mouse_captured: bool,
+    escape_deselect_requested: bool,
     fly_latched: bool,
     fly_tab_down: bool,
     viewport_rect: Option<Rect>,
@@ -182,6 +183,7 @@ impl App {
             drag: None,
             navigation_button: None,
             mouse_captured: false,
+            escape_deselect_requested: false,
             fly_latched: false,
             fly_tab_down: false,
             viewport_rect: None,
@@ -784,6 +786,24 @@ impl App {
             self.save_scene(self.editor.path.clone());
         }
         if !ctx.egui_wants_keyboard_input() && self.editor.play.is_none() && !self.mouse_captured {
+            // Active navigation and popup editors own Escape before selection does.
+            // Drag/rename/dialog handling is already guarded above.
+            if self.escape_deselect_requested
+                && self.editor.selected.is_some()
+                && !self.fly_latched
+                && self.navigation_button.is_none()
+                && !egui::Popup::is_any_open(ctx)
+                && ctx.input(|i| i.focused && !i.pointer.any_down())
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+            {
+                self.escape_deselect_requested = false;
+                self.editor.finish_gesture();
+                self.editor.select_object(None);
+                self.hierarchy_frame_requested = false;
+                self.status = "Selection cleared".into();
+                self.error = false;
+                return;
+            }
             if ctx.input_mut(|i| {
                 i.consume_key(
                     egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
@@ -827,8 +847,20 @@ impl App {
         }
     }
 }
+fn requests_escape_deselect(ctx: &egui::Context, input: &egui::RawInput) -> bool {
+    // Read focus before egui's begin_pass clears it on Escape. A held key must not
+    // deselect on a later repeat after first cancelling navigation or another edit.
+    !ctx.egui_wants_keyboard_input() && input.events.iter().any(|event| {
+        matches!(event,
+            egui::Event::Key { key: egui::Key::Escape, pressed: true, repeat: false, modifiers, .. }
+                if *modifiers == egui::Modifiers::NONE
+        )
+    })
+}
+
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+        self.escape_deselect_requested = requests_escape_deselect(ctx, input);
         let pointer = input
             .events
             .iter()
@@ -1136,4 +1168,45 @@ fn main() -> Result<()> {
         "editor smoke run did not complete"
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+
+    #[test]
+    fn escape_respects_focus_before_egui_clears_it_and_ignores_repeats() {
+        let ctx = egui::Context::default();
+        let mut text = String::from("Editing a material value");
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.text_edit_singleline(&mut text).request_focus();
+        });
+        output.textures_delta.clear();
+        assert!(ctx.egui_wants_keyboard_input());
+        let escape = |repeat| egui::RawInput {
+            focused: true,
+            events: vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: Some(egui::Key::Escape),
+                pressed: true,
+                repeat,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        assert!(!requests_escape_deselect(&ctx, &escape(false)));
+        ctx.begin_pass(escape(false));
+        assert!(
+            !ctx.egui_wants_keyboard_input(),
+            "egui drops focus before App::shortcuts runs"
+        );
+        let mut output = ctx.end_pass();
+        output.textures_delta.clear();
+        assert!(!requests_escape_deselect(&ctx, &escape(true)));
+        assert!(
+            requests_escape_deselect(&ctx, &escape(false)),
+            "a new press can deselect after editing ends"
+        );
+        assert_eq!(text, "Editing a material value");
+    }
 }

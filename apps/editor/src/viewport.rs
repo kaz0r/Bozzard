@@ -234,7 +234,7 @@ impl App {
             ui.weak(if self.fly_latched {
                 "Fly mode · Move trackpad/mouse to look · WASD: move · Space/Ctrl: up/down · Shift: faster · Tab or Esc: release"
             } else {
-                "Drag rings/handles · Esc: cancel drag · Right drag: look · Tab over 3D viewport: toggle fly · WASD: move · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly"
+                "Drag rings/handles · Esc: deselect / cancel drag · Right drag: look · Tab over 3D viewport: toggle fly · WASD: move · Space/Ctrl: up/down · Shift: faster · Middle drag: pan · Scroll: dolly"
             });
         }
         let can_navigate = ui.is_enabled()

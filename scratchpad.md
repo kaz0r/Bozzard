@@ -2,7 +2,13 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — release profiling and accelerated picking
+## Current checkpoint — Escape deselection
+
+User is now home and manually confirmed Sponza navigation, picking and material/color editing. Implemented Escape to clear both object/surface selection and the yellow outline without changing the scene. Existing Play stop, gizmo drag cancellation, fly/navigation release, text editing, popup and dialog interactions retain priority. Read keyboard focus in the raw input hook before egui clears it on Escape; key repeats cannot deselect after the first press cancels another action. Viewport hint and Luna's README/Sponza docs updated.
+
+Validated with focused editor/core tests (including an actual egui focus-loss regression), editor all-target denied-warning Clippy, formatting and diff checks. Logs: `/tmp/bozzard-escape-deselect-{tests,clippy}.log`. This checkpoint commits after `5358ec5`; **do not push**. User should restart/rebuild the editor to try Escape. No native windows launched and pointer untouched.
+
+## Previous checkpoint — release profiling and accelerated picking (`5358ec5`)
 
 Release-mode Sponza performance pass implemented and validated; this checkpoint commits after `d489ca3`. **Do not push.** User is at work and will announce when home to test. No pointer movement or user interaction used. Latest CI still covers pushed `0469807`, not the local surface/material/picking commits. Root owns implementation/scratchpad; Luna wrote `docs/performance.md` and linked it from `docs/sponza.md`.
 
@@ -70,7 +76,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-Wait for the user's home test of surface selection and material controls; obtain direction before another subsystem. Local commits remain unpushed. Run cross-platform CI only when a push is requested. Picking optimization is complete. Further frame-performance work should start with GPU pass timings/full viewport profiling; another possible feature is per-surface texture replacement with managed asset dependencies.
+User's home test of surface selection and material controls passed. Await a quick check of the new Escape deselection behavior after restarting the editor; obtain direction before another subsystem. Local commits remain unpushed. Run cross-platform CI only when a push is requested. Picking optimization is complete. Further frame-performance work should start with GPU pass timings/full viewport profiling; another possible feature is per-surface texture replacement with managed asset dependencies.
 
 Launch: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/sponza/scene.json`. Click geometry or choose Imported surfaces; edit Tint, enable Metallic/Roughness, Undo/Redo, Reset override, Save As/reopen, Play/Stop. Duplicate via Select whole model and verify independent edits on the copy. Use Save As into `work/sponza/` to keep the tracked sample view clean. F over viewport / double-click a row frames a surface; Shift+F frames all.
 
