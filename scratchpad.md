@@ -2,7 +2,13 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — spotlight shadows (validated)
+## Current checkpoint — make the Sponza lighting example easy to find
+
+User tested Sponza and reported little visible improvement from the recent lighting work. The stock `examples/sponza/scene.json` uses its existing sun/sky setup with no punctual lights, no bloom, and no GI bake, so the new opt-in capabilities do not change it automatically. User did not identify an exact scene path; this diagnosis applies to the stock fixture. Promoted the previously rendered `work/spot-shadows-scenes/sponza-on.json` into `examples/sponza/spotlights.json`, with the same asset path as the stock fixture. This adds a discoverable two-spotlight example without editing the original scene or imported assets. GPT-5.6 Luna (`sponza_lighting_docs`) updated only `docs/sponza.md` to explain the example and correct stale capability wording.
+
+Validation passed: full native Metal smoke, Sponza asset load and scene roundtrip under the new durable path. `work/sponza-spotlights-example/loaded-3d.ppm` is byte-identical to the previously visually reviewed `work/spot-shadows-sponza/loaded-3d.ppm`. Log: `/tmp/bozzard-sponza-spotlights-example.log`. Diff whitespace check passed. User requested committing and pushing this follow-up together with spotlight-shadow commit `8767e58`; this checkpoint records the validated example. New hosted CI has not yet been verified. User can open `cargo run -p bozzard-editor-app -- --scene examples/sponza/spotlights.json`, select Warm spot or Cool spot and toggle Cast shadows. This preset demonstrates local light/shadow authoring; bloom and baked GI remain separate opt-in work for the scene. Pointer untouched.
+
+## Previous checkpoint — spotlight shadows (validated, `8767e58`)
 
 User approved the next subsystem: realtime spotlight shadows. Implemented and validated; this checkpoint commits after `d2ee004`. **Do not push without a new request.** Root owns implementation, tests and this scratchpad; GPT-5.6 Luna (`spotlight_docs`) updated only `docs/lighting.md` and `README.md`. The latest hosted result still covers prior code `d66d2e1` (green Metal/Vulkan/DX12), not this subsystem.
 
@@ -124,7 +130,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-Spotlight shadows are now locally validated and committed with the current checkpoint. Await user testing and a requested push, then verify hosted CI. Point-light shadows are a possible next subsystem; probe-quality improvements around thin walls remain another option. Await user direction before starting either. Path tracing remains a later renderer project.
+Spotlight shadows and the Sponza spotlight example are locally validated; user requested committing and pushing both. Hosted CI for the delivered revision remains to be verified. Point-light shadows are a possible next subsystem; probe-quality improvements around thin walls remain another option. Await user direction before starting either. Path tracing remains a later renderer project.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 
