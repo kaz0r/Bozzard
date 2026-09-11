@@ -219,6 +219,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "object");
         scene.objects.push(Object {
+            light: None,
             id: id.clone(),
             name: match mesh {
                 Mesh::Quad => "Sprite",
@@ -245,6 +246,38 @@ impl Editor {
         });
         self.apply("Create object", scene)?;
         self.selected = Some(id);
+        Ok(())
+    }
+    pub fn create_light(&mut self, kind: bozzard_scene::LightKind) -> Result<()> {
+        let mut scene = self.scene.clone();
+        let id = unique_id(&scene, "light");
+        scene.objects.push(Object {
+            id: id.clone(),
+            name: match kind {
+                bozzard_scene::LightKind::Point => "Point light",
+                bozzard_scene::LightKind::Spot => "Spot light",
+            }
+            .into(),
+            light: Some(bozzard_scene::Light {
+                kind,
+                ..Default::default()
+            }),
+            transform: Transform {
+                translation: [0., 2., 2.],
+                ..Default::default()
+            },
+            parent: None,
+            camera: None,
+            drawable: None,
+            spin: None,
+            collider: None,
+            gravity: None,
+            player_controller: None,
+            trigger: None,
+        });
+        self.finish_gesture();
+        self.apply("Create light", scene)?;
+        self.select_object(Some(id));
         Ok(())
     }
     pub fn duplicate(&mut self) -> Result<()> {
@@ -360,6 +393,7 @@ impl Editor {
             transform.scale[0] = image.width as f32 / image.height as f32;
         }
         scene.objects.push(Object {
+            light: None,
             id: id.clone(),
             name: asset_id.into(),
             parent: None,
@@ -692,6 +726,21 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
     demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
+        lights: view
+            .lights
+            .iter()
+            .map(|world| bozzard_render::LocalLight {
+                position: world.position,
+                direction: world.direction,
+                color: world.light.color,
+                intensity: world.light.intensity,
+                range: world.light.range,
+                spot_angles: (world.light.kind == bozzard_scene::LightKind::Spot).then_some([
+                    world.light.inner_angle_degrees,
+                    world.light.outer_angle_degrees,
+                ]),
+            })
+            .collect(),
         environment: bozzard_render::EnvironmentSettings {
             zenith: view.environment.zenith,
             horizon: view.environment.horizon,
@@ -788,6 +837,103 @@ mod tests {
             Path::new("work/editor-test/scene.json"),
         )
         .unwrap()
+    }
+    #[test]
+    fn local_light_history_duplicate_save_and_play_isolation() {
+        use bozzard_scene::{Light, LightKind};
+        let dir = Temp::new();
+        let mut e = editor();
+        let initial = e.scene().clone();
+        e.create_light(LightKind::Spot).unwrap();
+        let id = e.selected.clone().unwrap();
+        assert_eq!(e.render(Layer::ThreeD, 1.).unwrap().lights.len(), 1);
+        assert!(e.render(Layer::TwoD, 1.).unwrap().lights.is_empty());
+        let position = Vec3::from(e.selected_object().unwrap().transform.translation);
+        assert_eq!(
+            e.frame_bounds(Layer::ThreeD, Some(&id)).unwrap(),
+            Some([position; 2])
+        );
+        e.undo().unwrap();
+        assert_eq!(e.scene(), &initial);
+        e.redo().unwrap();
+        e.select_object(Some(id.clone()));
+        e.begin_gesture("Light slider");
+        for intensity in [120., 150.] {
+            let mut scene = e.scene().clone();
+            scene
+                .objects
+                .iter_mut()
+                .find(|o| o.id == id)
+                .unwrap()
+                .light
+                .as_mut()
+                .unwrap()
+                .intensity = intensity;
+            e.apply("Light slider", scene).unwrap();
+        }
+        e.finish_gesture();
+        e.undo().unwrap();
+        assert_eq!(e.selected_object().unwrap().light.unwrap().intensity, 100.);
+        e.redo().unwrap();
+        assert_eq!(e.selected_object().unwrap().light.unwrap().intensity, 150.);
+        e.duplicate().unwrap();
+        let copy = e.selected.clone().unwrap();
+        assert_ne!(copy, id);
+        let mut scene = e.scene().clone();
+        scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == copy)
+            .unwrap()
+            .light
+            .as_mut()
+            .unwrap()
+            .color = [0., 0., 1.];
+        e.apply("Blue copy", scene).unwrap();
+        assert_eq!(
+            e.scene()
+                .objects
+                .iter()
+                .find(|o| o.id == id)
+                .unwrap()
+                .light
+                .unwrap()
+                .color,
+            [1.; 3]
+        );
+        let authored = e.scene().clone();
+        e.start_play().unwrap();
+        let play = e.play.as_mut().unwrap();
+        let entity = play.instance.entity(&id).unwrap();
+        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+        assert!(
+            e.render(Layer::ThreeD, 1.)
+                .unwrap()
+                .lights
+                .iter()
+                .any(|l| l.intensity == 0.)
+        );
+        let save = dir.0.join("lights.json");
+        e.save(&save).unwrap();
+        assert_eq!(Editor::open(&save).unwrap().scene(), &authored);
+        e.stop_play();
+        assert_eq!(e.scene(), &authored);
+        let mut invalid = e.scene().clone();
+        invalid
+            .objects
+            .iter_mut()
+            .find(|o| o.id == id)
+            .unwrap()
+            .light
+            .as_mut()
+            .unwrap()
+            .range = 0.;
+        assert!(e.apply("Invalid light", invalid).is_err());
+        assert_eq!(e.scene(), &authored);
+        e.delete().unwrap();
+        assert_eq!(e.render(Layer::ThreeD, 1.).unwrap().lights.len(), 1);
+        e.undo().unwrap();
+        assert_eq!(e.render(Layer::ThreeD, 1.).unwrap().lights.len(), 2);
     }
     #[test]
     fn play_jump_uses_configured_speed_without_changing_authoring() {

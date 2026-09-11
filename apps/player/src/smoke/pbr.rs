@@ -19,6 +19,7 @@ struct Fixture<'a> {
     pbr: bool,
     reversed: bool,
     model: Mat4,
+    lights: Vec<bozzard_render::LocalLight>,
     lighting: bozzard_render::Lighting,
 }
 impl Fixture<'_> {
@@ -50,6 +51,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            lights: self.lights.clone(),
             environment: bozzard_render::EnvironmentSettings::disabled(),
             display: Default::default(),
             lighting: self.lighting,
@@ -103,8 +105,10 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         pbr: true,
         reversed: false,
         model: Mat4::IDENTITY,
+        lights: Vec::new(),
         lighting: Default::default(),
     };
+    local_light_checks(gpu, &mut renderer, &mut f)?;
     for pbr in [true, false] {
         f.pbr = pbr;
         f.lighting.ambient_intensity = 0.;
@@ -256,4 +260,112 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         "pbr_gpu_ok normal_scale metallic_roughness linear_ao srgb_emissive double_sided mirrored_tangents sampler_uv color_space_sharing"
     );
     Ok(())
+}
+
+fn local_light_checks(gpu: &Gpu, renderer: &mut SceneRenderer, f: &mut Fixture<'_>) -> Result<()> {
+    use bozzard_render::LocalLight;
+    let point = LocalLight {
+        position: [0., 0., 1.],
+        direction: [0., 0., -1.],
+        color: [1., 0., 0.],
+        intensity: 1.,
+        range: 100.,
+        spot_angles: None,
+    };
+    f.lighting.sun_intensity = 0.;
+    f.lighting.ambient_intensity = 0.;
+    f.lighting.shadows = false;
+    for pbr in [true, false] {
+        f.pbr = pbr;
+        f.lights = vec![point];
+        let red = center(&f.draw(gpu, renderer)?);
+        ensure!(
+            red[0] > 65 && red[1] == 0 && red[2] == 0,
+            "local light color missing: {red:?}"
+        );
+        f.lights[0].position[2] = 2.;
+        let far = center(&f.draw(gpu, renderer)?);
+        ensure!(
+            (i32::from(far[0]) * 4 - i32::from(red[0])).abs() <= 4,
+            "inverse-square falloff failed: {red:?}/{far:?}"
+        );
+        f.lights[0] = point;
+        f.lights[0].intensity = 0.5;
+        let half = center(&f.draw(gpu, renderer)?);
+        ensure!(
+            (i32::from(half[0]) * 2 - i32::from(red[0])).abs() <= 2,
+            "local intensity nonlinear"
+        );
+        f.lights[0] = point;
+        f.lights[0].range = 1.;
+        pixel(&f.draw(gpu, renderer)?, 32, 32, [0, 0, 0])?;
+        f.lights[0].range = 2.;
+        let cutoff = center(&f.draw(gpu, renderer)?);
+        ensure!(
+            cutoff[0] < red[0] && cutoff[0] > red[0] / 2,
+            "range edge not smoothly faded"
+        );
+        f.lights[0] = LocalLight {
+            spot_angles: Some([10., 20.]),
+            ..point
+        };
+        let spot = f.draw(gpu, renderer)?;
+        pixel(&spot, 32, 32, red)?;
+        pixel(&spot, 54, 32, [0, 0, 0])?;
+        // At the cone edge the same surface receives less light than a point light.
+        let penumbra = center_at(&spot, 40, 32);
+        ensure!(
+            penumbra[0] > 0 && penumbra[0] < red[0],
+            "spot penumbra missing: {penumbra:?}"
+        );
+        f.lights[0].direction = [0., 0., 1.];
+        pixel(&f.draw(gpu, renderer)?, 32, 32, [0, 0, 0])?;
+        f.lights[0] = LocalLight {
+            spot_angles: Some([20., 20.]),
+            ..point
+        };
+        pixel(&f.draw(gpu, renderer)?, 32, 32, red)?;
+        f.lights = vec![
+            point,
+            LocalLight {
+                color: [0., 1., 0.],
+                ..point
+            },
+        ];
+        pixel(&f.draw(gpu, renderer)?, 32, 32, [red[0], red[0], 0])?;
+        f.lights.clear();
+        pixel(&f.draw(gpu, renderer)?, 32, 32, [0, 0, 0])?;
+        f.lights = vec![point; bozzard_render::MAX_LOCAL_LIGHTS];
+        // Isolate the last slot so an off-by-one count/upload bug cannot pass.
+        for light in &mut f.lights[..bozzard_render::MAX_LOCAL_LIGHTS - 1] {
+            light.intensity = 0.;
+        }
+        pixel(&f.draw(gpu, renderer)?, 32, 32, red)?;
+        f.lights.push(point);
+        ensure!(
+            f.draw(gpu, renderer).is_err(),
+            "over-limit lights silently accepted"
+        );
+        f.lights = vec![LocalLight {
+            range: f32::NAN,
+            ..point
+        }];
+        ensure!(f.draw(gpu, renderer).is_err(), "invalid light reached GPU");
+        f.lights = vec![point];
+        f.lit = false;
+        pixel(&f.draw(gpu, renderer)?, 32, 32, [255; 3])?;
+        f.lit = true;
+    }
+    f.lights.clear();
+    f.pbr = true;
+    f.lighting = Default::default();
+    println!(
+        "local_lights_gpu_ok pbr diffuse colors inverse_square range cone penumbra rotation equal_angles multiple removal limit validation unlit"
+    );
+    Ok(())
+}
+fn center_at(frame: &Frame, x: usize, y: usize) -> [u8; 3] {
+    frame.rgba[(y * 64 + x) * 4..(y * 64 + x) * 4 + 3]
+        .try_into()
+        .unwrap()
 }

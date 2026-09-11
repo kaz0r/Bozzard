@@ -52,6 +52,7 @@ impl App {
                             object.transform = Transform::default();
                         }
                         ui.separator();
+                        crate::lights::inspector(ui, &mut object.light);
                         let mut drawable = object.drawable.is_some();
                         if ui.checkbox(&mut drawable, "Renderable").changed() {
                             object.drawable = if drawable {

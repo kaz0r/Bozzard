@@ -6,6 +6,8 @@ mod environment;
 pub use environment::EnvironmentSettings;
 mod display;
 pub use display::DisplaySettings;
+mod light;
+pub use light::{Light, LightKind, MAX_LOCAL_LIGHTS, WorldLight};
 mod lighting;
 pub use lighting::Lighting;
 
@@ -197,6 +199,8 @@ pub struct Spin(pub [f32; 3]);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub light: Option<Light>,
     pub id: String,
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -289,6 +293,10 @@ impl Scene {
                 "asset '{id}' needs a relative path using forward slashes"
             );
         }
+        ensure!(
+            self.objects.iter().filter(|o| o.light.is_some()).count() <= MAX_LOCAL_LIGHTS,
+            "scene supports at most {MAX_LOCAL_LIGHTS} local lights"
+        );
         gameplay::validate(self)?;
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
@@ -312,6 +320,9 @@ impl Scene {
             }
             if let Some(collider) = object.collider {
                 collider.validate()?;
+            }
+            if let Some(light) = object.light {
+                light.validate()?;
             }
             if let Some(camera) = object.camera {
                 camera.validate()?;
@@ -415,6 +426,9 @@ impl Scene {
             if let Some(trigger) = &object.trigger {
                 trigger.volume.geometry(global)?;
             }
+            if let Some(light) = object.light {
+                light.at(global)?;
+            }
             matrices.insert(object.id.as_str(), global);
         }
         gameplay::validate_respawns(self, &matrices)?;
@@ -428,6 +442,9 @@ impl Scene {
         for object in &self.objects {
             let entity = world.spawn();
             world.insert(entity, object.transform)?;
+            if let Some(value) = object.light {
+                world.insert(entity, value)?;
+            }
             if let Some(value) = object.camera {
                 world.insert(entity, value)?;
             }
@@ -531,7 +548,20 @@ impl SceneInstance {
                 objects.push((matrices[id], drawable.clone()));
             }
         }
+        let mut lights = Vec::new();
+        if layer == Layer::ThreeD {
+            for (id, entity) in &self.entities {
+                if let Some(light) = world.get::<Light>(*entity) {
+                    light.validate()?;
+                    if light.enabled {
+                        lights.push(light.at(matrices[id])?);
+                    }
+                }
+            }
+        }
+        ensure!(lights.len() <= MAX_LOCAL_LIGHTS, "too many runtime lights");
         Ok(SceneView {
+            lights,
             environment: self.document.environment,
             display: self.document.display,
             lighting: self.document.lighting,
@@ -549,6 +579,7 @@ impl SceneInstance {
             object.transform = *world
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
+            object.light = world.get::<Light>(entity).copied();
             object.camera = world.get::<Camera>(entity).copied();
             object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
@@ -563,6 +594,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub lights: Vec<WorldLight>,
     pub environment: EnvironmentSettings,
     pub display: DisplaySettings,
     pub lighting: Lighting,
@@ -607,6 +639,7 @@ mod tests {
     use super::*;
     fn object(id: &str) -> Object {
         Object {
+            light: None,
             id: id.into(),
             name: id.into(),
             parent: None,

@@ -10,6 +10,8 @@ pub use environment::EnvironmentSettings;
 mod display;
 pub use display::DisplaySettings;
 mod lighting;
+mod local_lights;
+pub use local_lights::{LocalLight, MAX_LOCAL_LIGHTS};
 mod shadows;
 mod upload;
 pub use lighting::Lighting;
@@ -60,6 +62,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub lights: Vec<LocalLight>,
     pub environment: EnvironmentSettings,
     pub display: DisplaySettings,
     pub lighting: Lighting,
@@ -367,9 +370,10 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}\n{}",
+                        "{}\n{}\n{}\n{}",
                         include_str!("scene/environment_sample.wgsl"),
                         include_str!("scene/shadow_sample.wgsl"),
+                        include_str!("scene/local_lights.wgsl"),
                         include_str!("scene.wgsl")
                     )
                     .into(),
@@ -1084,6 +1088,9 @@ impl SceneRenderer {
             });
         }
         scene.lighting.validate()?;
+        let lights = local_lights::uniform(&scene.lights)?;
+        gpu.queue
+            .write_buffer(&self.shadows.local_lights, 0, &lights);
         let draws = self.prepare(scene);
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {

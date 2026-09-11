@@ -671,6 +671,7 @@ impl App {
             Color32::WHITE,
         );
         self.surface_overlay(ui, rect, projection)?;
+        let light_pick = self.light_overlay(ui, rect, projection, response.hover_pos())?;
         let handled = if self.editor.play.is_none() && self.editor.selected_surface().is_none() {
             self.gizmo(ui, rect, projection)?
         } else {
@@ -694,9 +695,15 @@ impl App {
                 .filter(|e| matches!(e.data(), Some(bozzard_assets::AssetData::Mesh(_))))
                 .all(|e| self.residency.is_current(&self.editor.assets, &e.id));
             if current {
-                let pick =
+                let pick = if let Some(object) = light_pick {
+                    Some(bozzard_editor::Pick {
+                        object,
+                        surface: None,
+                    })
+                } else {
                     self.editor
-                        .pick_surface_with_projection(self.layer(), projection, ndc)?;
+                        .pick_surface_with_projection(self.layer(), projection, ndc)?
+                };
                 self.editor.select_pick(pick)?;
             } else {
                 self.status = "Picking paused while model graphics are being replaced".into();

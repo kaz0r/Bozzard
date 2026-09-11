@@ -2,7 +2,25 @@
 
 Live handoff. Replace superseded status; use Git history for completed narratives.
 
-## Current checkpoint — Escape deselection
+## Current checkpoint — local lights, bloom, baked GI (active goal)
+
+User approved implementing all three subsystems and committing each after validation. Root owns code and this scratchpad; GPT-5.6 Luna (`lighting_docs`) owns the light documentation. No push requested for this goal. Escape and prior four commits were pushed through `db5295c`; user confirmed Escape works.
+
+1. Point/spot lights: IMPLEMENTED; CPU and offscreen GPU validation passed. Native editor window capture pending unlock. Authored object component, ECS/transforms, bounded shared renderer light list, PBR+Lambert lighting, editor creation/inspector/guides, save/history/Play, CPU and native GPU validation. Local-light shadows remain future work as discussed; sun shadows unchanged.
+2. Bloom: NEXT / implementation starting after light commit. HDR threshold/downsample/upsample composite before display mapping, editor controls and persistence, disabled/2D/raw parity and resize/GPU checks.
+3. Baked GI: PENDING. Implement scene-dependent indirect light (occlusion and bounced color), bake workflow, saved data/invalidation, renderer/editor integration and reference tests. Do not substitute ambient/AO for GI. Choose concrete bake representation after lighting/bloom are verified.
+
+Validation: run meaningful scene/editor tests, native Metal pixel/smoke checks, formatting/Clippy/headless boundary and visual review for each subsystem. CI workflow must exercise new GPU fixtures on Metal/Vulkan/DX12; actual hosted CI requires a later push. Preserve Bozz artwork. Avoid moving pointer.
+
+### Light subsystem evidence
+
+- Scene `Object.light` and ECS capture/view, max32 validated authored components, 3D-only extraction; inherited transforms, world-unit range, local −Z spotlight cones. Renderer uses shared bounded 2064-byte frame uniform (group2binding3), no hardware ray features; same GGX/direct Lambert responses and unchanged sun-shadow policy.
+- Editor + Light creation, component controls, history/duplicate/save/Play isolation, fixed-size clickable markers (including disabled), selected sphere/cone guides. New asset-free `examples/demo/scenes/lighting-lab.json` demonstrates colored points and warm spot.
+- Full workspace tests, all-target Clippy, headless boundary passed. Native Metal fixture suite passed existing rendering regressions plus local color, inverse-square falloff, smooth range cutoff, cone penumbra/equal-angle edge/direction, multiple/removal/lastslot32/overflow/invalid values/unlit. Logs `/tmp/bozzard-local-lights-{tests,clippy,final-gpu,ui-tests,final-clippy}.log`.
+- Release Lighting Lab 30frames800×500: optimizedCPUmedian0.068ms, synchronizedwall0.497ms,5draws60triangles; exact reference/culling/cache pixels. `work/lighting-lab/loaded-3d.png` visually reviewed. Full viewport/compositor cost not measured.
+- Native editor smoke added a final light-inspector/guide capture, but current local run timed out waiting for screenshots. `ioreg` confirmed `CGSSessionScreenIsLocked=Yes`; `/tmp/bozzard-editor-local-lights.log`. CPU authored workflow ran and files exist; do not claim native UI capture passed. Async unlock request pending. Retry with fresh output directory after unlock. Pointer never moved. Hosted CI for new changes also pending push; same fixtures run in existing Metal/Vulkan/DX12 workflow.
+
+## Previous checkpoint — Escape deselection
 
 User is now home and manually confirmed Sponza navigation, picking and material/color editing. Implemented Escape to clear both object/surface selection and the yellow outline without changing the scene. Existing Play stop, gizmo drag cancellation, fly/navigation release, text editing, popup and dialog interactions retain priority. Read keyboard focus in the raw input hook before egui clears it on Escape; key repeats cannot deselect after the first press cancels another action. Viewport hint and Luna's README/Sponza docs updated.
 
@@ -76,9 +94,9 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-User's home test of surface selection and material controls passed. Await a quick check of the new Escape deselection behavior after restarting the editor; obtain direction before another subsystem. Local commits remain unpushed. Run cross-platform CI only when a push is requested. Picking optimization is complete. Further frame-performance work should start with GPU pass timings/full viewport profiling; another possible feature is per-surface texture replacement with managed asset dependencies.
+Finish bloom and baked GI, validating and separately committing each. Retry native editor capture after Mac unlock. Do not mark the active goal complete until all three subsystems and required checks have authoritative evidence. Latest pushed baseline is `db5295c`; this goal requests local subsystem commits only.
 
-Launch: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/sponza/scene.json`. Click geometry or choose Imported surfaces; edit Tint, enable Metallic/Roughness, Undo/Redo, Reset override, Save As/reopen, Play/Stop. Duplicate via Select whole model and verify independent edits on the copy. Use Save As into `work/sponza/` to keep the tracked sample view clean. F over viewport / double-click a row frames a surface; Shift+F frames all.
+Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 
 ## Completed Sponza rendering milestone
 

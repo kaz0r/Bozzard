@@ -217,7 +217,11 @@ impl App {
                 return;
             }
         }
-        if self.smoke_frames >= self.smoke_surface_frame.unwrap_or(12)
+        if self.smoke_frames
+            >= self
+                .smoke_light_frame
+                .or(self.smoke_surface_frame)
+                .unwrap_or(12)
             && !self.smoke_requested
             && !self.error
             && self.viewport_rect.is_some()
@@ -240,6 +244,23 @@ impl App {
                         height: image.size[1] as u32,
                         rgba: image.pixels.iter().flat_map(|p| p.to_array()).collect(),
                     };
+                    if self.smoke_light_frame.is_some() {
+                        frame.write_ppm(&output.join("editor-light.ppm"))?;
+                        ensure!(
+                            self.editor
+                                .selected_object()
+                                .is_some_and(|o| o.light.is_some()),
+                            "light selection lost"
+                        );
+                        ensure!(
+                            !self.editor.render(Layer::ThreeD, 1.)?.lights.is_empty(),
+                            "light extraction missing"
+                        );
+                        println!(
+                            "editor_light_smoke_ok authored_component extraction inspector guides native_ui_capture"
+                        );
+                        return Ok(());
+                    }
                     if self.smoke_surface_frame.is_some() {
                         frame.write_ppm(&output.join("editor-surface.ppm"))?;
                         let surface = self
@@ -334,7 +355,7 @@ impl App {
                 })();
                 match result {
                     Ok(()) => {
-                        if self.smoke_surface_frame.is_none() {
+                        if self.smoke_surface_frame.is_none() && self.smoke_light_frame.is_none() {
                             let model = self
                                 .editor
                                 .scene()
@@ -381,6 +402,22 @@ impl App {
                                     continue;
                                 }
                             }
+                        }
+                        if self.smoke_light_frame.is_none() {
+                            if let Err(error) =
+                                self.editor.create_light(bozzard_scene::LightKind::Spot)
+                            {
+                                eprintln!("editor_smoke_failed: {error:#}");
+                                self.allow_close = true;
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                return;
+                            }
+                            self.workspace.camera = None;
+                            self.workspace.ortho_zoom = 1.;
+                            self.workspace.layer_2d = false;
+                            self.smoke_light_frame = Some(self.smoke_frames + 3);
+                            self.smoke_requested = false;
+                            continue;
                         }
                         self.smoke_passed.store(true, Ordering::Relaxed);
                         println!(

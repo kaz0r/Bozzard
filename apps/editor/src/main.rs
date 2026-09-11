@@ -22,6 +22,7 @@ mod framing;
 mod gameplay_input;
 mod hierarchy;
 mod inspector;
+mod lights;
 mod loading;
 mod snapping;
 mod surfaces;
@@ -113,6 +114,7 @@ struct App {
     smoke_expected: Option<bozzard_scene::Scene>,
     smoke_selection: Option<String>,
     smoke_surface_frame: Option<u32>,
+    smoke_light_frame: Option<u32>,
 }
 #[derive(Clone)]
 struct HierarchyDrag(String);
@@ -196,6 +198,7 @@ impl App {
             smoke_expected: None,
             smoke_selection: None,
             smoke_surface_frame: None,
+            smoke_light_frame: None,
         })
     }
     fn result(&mut self, result: Result<()>) {
@@ -477,6 +480,16 @@ impl App {
                                 self.workspace.layer_2d = true;
                             }
                             self.result(r);
+                        }
+                    });
+                    ui.menu_button("+ Light", |ui| {
+                        for (kind, label) in [(bozzard_scene::LightKind::Point, "Point light"), (bozzard_scene::LightKind::Spot, "Spot light")] {
+                            if ui.button(label).clicked() {
+                                let result = self.editor.create_light(kind);
+                                if result.is_ok() { self.workspace.layer_2d = false; self.hierarchy_search.clear(); }
+                                self.result(result);
+                                ui.close();
+                            }
                         }
                     });
                     ui.horizontal(|ui| {

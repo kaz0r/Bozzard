@@ -1,6 +1,7 @@
 use super::*;
 
 pub(super) struct Shadows {
+    pub local_lights: wgpu::Buffer,
     pub sample_layout: wgpu::BindGroupLayout,
     pub sample_binding: wgpu::BindGroup,
     caster_binding: wgpu::BindGroup,
@@ -53,6 +54,16 @@ impl Shadows {
                 entries: &[
                     uniform_entry,
                     wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(local_lights::UNIFORM_SIZE),
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
@@ -91,8 +102,21 @@ impl Shadows {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        let local_lights = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("local lights"),
+            size: local_lights::UNIFORM_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let depth = target(gpu, 1);
-        let sample_binding = Self::binding(gpu, &sample_layout, &uniform, &depth, &sampler);
+        let sample_binding = Self::binding(
+            gpu,
+            &sample_layout,
+            &uniform,
+            &depth,
+            &sampler,
+            &local_lights,
+        );
         let layout = gpu
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -115,6 +139,7 @@ impl Shadows {
             multisample: Default::default(), multiview_mask: None, cache: None,
         });
         Self {
+            local_lights,
             sample_layout,
             sample_binding,
             caster_binding,
@@ -131,11 +156,16 @@ impl Shadows {
         uniform: &wgpu::Buffer,
         depth: &wgpu::TextureView,
         sampler: &wgpu::Sampler,
+        local_lights: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("shadow receiver frame"),
             layout,
             entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: local_lights.as_entire_binding(),
+                },
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: uniform.as_entire_binding(),
@@ -247,6 +277,7 @@ impl SceneRenderer {
                 &self.shadows.uniform,
                 &self.shadows.depth,
                 &self.shadows.sampler,
+                &self.shadows.local_lights,
             );
             self.shadows.resolution = resolution;
         }

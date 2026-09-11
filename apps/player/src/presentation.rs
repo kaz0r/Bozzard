@@ -7,6 +7,21 @@ pub fn extract(demo: &SceneDemo, layer: Layer, aspect: f32) -> Result<RenderScen
     demo.check_simulation()?;
     let view = demo.instance.view(&demo.app.world, layer, aspect)?;
     Ok(RenderScene {
+        lights: view
+            .lights
+            .iter()
+            .map(|world| bozzard_render::LocalLight {
+                position: world.position,
+                direction: world.direction,
+                color: world.light.color,
+                intensity: world.light.intensity,
+                range: world.light.range,
+                spot_angles: (world.light.kind == bozzard_scene::LightKind::Spot).then_some([
+                    world.light.inner_angle_degrees,
+                    world.light.outer_angle_degrees,
+                ]),
+            })
+            .collect(),
         environment: bozzard_render::EnvironmentSettings {
             zenith: view.environment.zenith,
             horizon: view.environment.horizon,

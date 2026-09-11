@@ -64,14 +64,31 @@ struct VertexOutput {
     let near = object.inverse_view_projection * vec4<f32>(ndc,0.0,1.0);
     let view_ray = near.xyz / near.w - in.world;
     let v = view_ray / max(length(view_ray),0.000001);
-    let l = object.sun.xyz;
+    let metallic = clamp(select(material.factors.x, object.surface_factors.x, object.surface_factors.x >= 0.0) * mr.b,0.0,1.0);
+    let roughness = clamp(select(material.factors.y, object.surface_factors.y, object.surface_factors.y >= 0.0) * mr.g,0.045,1.0);
+    let nv = max(dot(n,v),0.0001);
+    let f0 = mix(vec3<f32>(0.04),base,metallic);
+    let shadow_normal = normalize(in.normal) * select(-1.0, 1.0, facing);
+    let visibility_sun = sun_visibility(in.world, shadow_normal);
+    var direct = direct_brdf(base, metallic, roughness, n, v, object.sun.xyz) * object.sun.w * object.sun_color.rgb * visibility_sun;
+    for (var i = 0u; i < u32(local_lights.count.x); i++) {
+        let light = local_lights.lights[i];
+        let offset = light.position_range.xyz - in.world;
+        let l = offset / max(length(offset), 0.000001);
+        direct += direct_brdf(base, metallic, roughness, n, v, l) * local_radiance(light, offset);
+    }
+    let ibl_diffuse = diffuse_environment(n)*base*(1.0-f0)*(1.0-metallic);
+    let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);
+    let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao + (ibl_diffuse+ibl_specular)*ao;
+    return vec4<f32>(min(direct+indirect+emissive, vec3<f32>(60000.0)),alpha);
+}
+
+fn direct_brdf(base: vec3<f32>, metallic: f32, roughness: f32, n: vec3<f32>, v: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
     let h = (v+l) / max(length(v+l),0.000001);
     let nl = max(dot(n,l),0.0);
     let nv = max(dot(n,v),0.0001);
     let nh = max(dot(n,h),0.0);
     let vh = max(dot(v,h),0.0);
-    let metallic = clamp(select(material.factors.x, object.surface_factors.x, object.surface_factors.x >= 0.0) * mr.b,0.0,1.0);
-    let roughness = clamp(select(material.factors.y, object.surface_factors.y, object.surface_factors.y >= 0.0) * mr.g,0.045,1.0);
     let a2 = pow(roughness,4.0);
     let denominator = nh*nh*(a2-1.0)+1.0;
     let distribution = a2 / max(3.14159265*denominator*denominator,0.000001);
@@ -79,11 +96,5 @@ struct VertexOutput {
     let f0 = mix(vec3<f32>(0.04),base,metallic);
     let fresnel = f0 + (1.0-f0)*pow(1.0-vh,5.0);
     let diffuse = (1.0-fresnel)*(1.0-metallic)*base/3.14159265;
-    let shadow_normal = normalize(in.normal) * select(-1.0, 1.0, facing);
-    let visibility_sun = sun_visibility(in.world, shadow_normal);
-    let direct = (diffuse + distribution*visibility*fresnel)*nl*object.sun.w*object.sun_color.rgb*visibility_sun;
-    let ibl_diffuse = diffuse_environment(n)*base*(1.0-f0)*(1.0-metallic);
-    let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);
-    let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao + (ibl_diffuse+ibl_specular)*ao;
-    return vec4<f32>(min(direct+indirect+emissive, vec3<f32>(60000.0)),alpha);
+    return (diffuse + distribution*visibility*fresnel)*nl;
 }
