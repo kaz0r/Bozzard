@@ -14,6 +14,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         },
     };
     let scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         display: Default::default(),
@@ -55,6 +56,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         "batching or shadow counters incorrect"
     );
     let mut shadow_scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: Vec::new(),
         display: Default::default(),

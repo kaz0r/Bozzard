@@ -57,6 +57,7 @@ mod tests {
                     // A tiny cone/range at a large origin would exceed f32 world precision.
                     let position = Vec3::new(0.2, -0.1, 0.3) * range.min(10.);
                     let light = LocalLight {
+                        directional: false,
                         position: position.to_array(),
                         direction: direction.to_array(),
                         color: [1.; 3],

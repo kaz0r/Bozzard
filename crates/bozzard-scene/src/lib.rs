@@ -4,6 +4,8 @@ mod gi;
 pub use gi::{BakedGi, GI_PROBE_STRIDE, GI_VISIBILITY_SIZE, GiSettings, GiVolumeSettings};
 mod surface;
 pub use surface::SurfaceMaterialOverride;
+mod fog;
+pub use fog::FogSettings;
 mod environment;
 pub use environment::EnvironmentSettings;
 mod display;
@@ -181,6 +183,12 @@ pub enum Mesh {
 pub enum Texture {
     White,
     Checker,
+    /// Unlit world-space normal visualization.
+    Normals,
+    /// UV checker shader; UV repeat controls the number of cells.
+    ProceduralChecker,
+    /// Three-band sun shading, multiplied by the drawable tint.
+    Toon,
     Asset(String),
 }
 
@@ -233,6 +241,8 @@ pub struct Object {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scene {
+    #[serde(default)]
+    pub fog: FogSettings,
     #[serde(default)]
     pub gi: GiSettings,
     #[serde(default)]
@@ -295,6 +305,7 @@ impl Scene {
 
     /// Iterative topological sort: arbitrary document order, no recursive stack limit.
     fn order(&self) -> Result<Vec<usize>> {
+        self.fog.validate()?;
         self.gi.validate()?;
         self.lighting.validate()?;
         self.display.validate()?;
@@ -601,6 +612,7 @@ impl SceneInstance {
                         match light.kind {
                             LightKind::Spot => shadowed_spots += 1,
                             LightKind::Point => shadowed_points += 1,
+                            LightKind::Directional => {}
                         }
                     }
                     if light.enabled {
@@ -619,6 +631,7 @@ impl SceneInstance {
             "too many runtime shadowed point lights"
         );
         Ok(SceneView {
+            fog: self.document.fog,
             lights,
             environment: self.document.environment,
             display: self.document.display,
@@ -652,6 +665,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub fog: FogSettings,
     pub lights: Vec<WorldLight>,
     pub environment: EnvironmentSettings,
     pub display: DisplaySettings,
@@ -717,6 +731,7 @@ mod tests {
     }
     fn scene() -> Scene {
         Scene {
+            fog: Default::default(),
             gi: Default::default(),
             environment: EnvironmentSettings::default(),
             display: DisplaySettings::default(),

@@ -23,12 +23,14 @@ impl Default for LocalShadowSettings {
 /// Compatibility name for the original spotlight-only API.
 pub type SpotShadowSettings = LocalShadowSettings;
 
-/// World-space punctual light; a missing cone denotes an omnidirectional point.
+/// World-space object light. Directional lights ignore position and range.
 #[derive(Clone, Copy, Debug)]
 pub struct LocalLight {
+    pub directional: bool,
     pub position: [f32; 3],
     pub direction: [f32; 3],
     pub color: [f32; 3],
+    /// Candela for point/spot, lux for directional lights.
     pub intensity: f32,
     pub range: f32,
     /// Inner and outer half angles, in degrees.
@@ -38,6 +40,10 @@ pub struct LocalLight {
 impl LocalLight {
     pub fn validate(&self) -> Result<()> {
         if let Some(shadow) = self.shadows {
+            ensure!(
+                !self.directional,
+                "object-directional lights do not support shadow maps"
+            );
             ensure!(
                 [shadow.bias, shadow.normal_bias]
                     .iter()
@@ -68,6 +74,10 @@ impl LocalLight {
             self.range.is_finite() && (0.001..=100_000.).contains(&self.range),
             "invalid local light range"
         );
+        ensure!(
+            !self.directional || self.spot_angles.is_none(),
+            "directional lights cannot have a spot cone"
+        );
         if let Some([inner, outer]) = self.spot_angles {
             ensure!(
                 inner.is_finite()
@@ -81,7 +91,10 @@ impl LocalLight {
         Ok(())
     }
     pub(super) fn casts_shadow(&self) -> bool {
-        self.shadows.is_some() && self.intensity > 0. && self.color.iter().any(|v| *v > 0.)
+        !self.directional
+            && self.shadows.is_some()
+            && self.intensity > 0.
+            && self.color.iter().any(|v| *v > 0.)
     }
 }
 
@@ -94,7 +107,7 @@ pub(super) fn uniform(lights: &[LocalLight]) -> Result<Vec<u8>> {
     ensure!(
         lights
             .iter()
-            .filter(|l| l.shadows.is_some() && l.spot_angles.is_some())
+            .filter(|l| !l.directional && l.shadows.is_some() && l.spot_angles.is_some())
             .count()
             <= MAX_SHADOWED_SPOT_LIGHTS,
         "renderer supports at most {MAX_SHADOWED_SPOT_LIGHTS} shadowed spotlights"
@@ -102,7 +115,7 @@ pub(super) fn uniform(lights: &[LocalLight]) -> Result<Vec<u8>> {
     ensure!(
         lights
             .iter()
-            .filter(|l| l.shadows.is_some() && l.spot_angles.is_none())
+            .filter(|l| !l.directional && l.shadows.is_some() && l.spot_angles.is_none())
             .count()
             <= MAX_SHADOWED_POINT_LIGHTS,
         "renderer supports at most {MAX_SHADOWED_POINT_LIGHTS} shadowed point lights"
@@ -137,10 +150,75 @@ pub(super) fn uniform(lights: &[LocalLight]) -> Result<Vec<u8>> {
             direction.z,
             outer,
             inner,
-            if light.spot_angles.is_some() { 1. } else { 0. },
+            if light.directional {
+                2.
+            } else if light.spot_angles.is_some() {
+                1.
+            } else {
+                0.
+            },
             slot,
             0.,
         ]);
     }
     Ok(float_bytes(values))
+}
+
+#[test]
+fn directional_uniform_and_validation() {
+    let mut light = LocalLight {
+        directional: true,
+        position: [100., 200., 300.],
+        direction: [0., 0., -5.],
+        color: [1., 0.5, 0.],
+        intensity: 2.,
+        range: 0.001,
+        spot_angles: None,
+        shadows: None,
+    };
+    let bytes = uniform(&[light]).unwrap();
+    let values: Vec<_> = bytes
+        .chunks_exact(4)
+        .map(|v| f32::from_le_bytes(v.try_into().unwrap()))
+        .collect();
+    assert_eq!(values[0], 1.);
+    assert_eq!(&values[12..15], &[0., 0., -1.]);
+    assert_eq!(values[17], 2.);
+    let spot = LocalLight {
+        directional: false,
+        spot_angles: Some([10., 20.]),
+        shadows: Some(Default::default()),
+        ..light
+    };
+    let point = LocalLight {
+        spot_angles: None,
+        ..spot
+    };
+    let mixed = uniform(&[light, spot, point, light, point, spot]).unwrap();
+    let mixed: Vec<_> = mixed
+        .chunks_exact(4)
+        .map(|v| f32::from_le_bytes(v.try_into().unwrap()))
+        .collect();
+    for (row, kind, slot) in [
+        (0, 2., 0.),
+        (1, 1., 1.),
+        (2, 0., 1.),
+        (3, 2., 0.),
+        (4, 0., 2.),
+        (5, 1., 2.),
+    ] {
+        assert_eq!(mixed[4 + row * 16 + 13], kind);
+        assert_eq!(mixed[4 + row * 16 + 14], slot);
+    }
+    light.shadows = Some(Default::default());
+    assert!(uniform(&[light]).is_err());
+    light.shadows = None;
+    light.spot_angles = Some([10., 20.]);
+    assert!(uniform(&[light]).is_err());
+    light.spot_angles = None;
+    light.direction = [0.; 3];
+    assert!(uniform(&[light]).is_err());
+    light.direction = [0., 0., -1.];
+    light.intensity = f32::NAN;
+    assert!(uniform(&[light]).is_err());
 }

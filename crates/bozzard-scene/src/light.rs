@@ -22,17 +22,19 @@ pub enum LightKind {
     #[default]
     Point,
     Spot,
+    Directional,
 }
 
-/// Punctual light attached to an object's transform. Spotlights face local -Z.
-/// Range is in world units, independent of object scale; angles are half angles.
+/// Object-attached light. Spot and directional lights shine along local -Z.
+/// Range is in world units, independent of scale; angles are half angles.
+/// Directional lights ignore position, range and cone angles and have no falloff.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Light {
     pub enabled: bool,
     pub kind: LightKind,
     pub color: [f32; 3],
-    /// Luminous intensity in candela, with inverse-square distance falloff.
+    /// Candela for point/spot; illuminance in lux for directional lights.
     pub intensity: f32,
     pub range: f32,
     pub inner_angle_degrees: f32,
@@ -78,7 +80,7 @@ impl Light {
         );
         ensure!(
             self.intensity.is_finite() && (0.0..=100_000.).contains(&self.intensity),
-            "light intensity must be in 0..100000 cd"
+            "light intensity must be in 0..100000 (cd for point/spot, lux for directional)"
         );
         ensure!(
             self.range.is_finite() && (0.001..=100_000.).contains(&self.range),
@@ -95,7 +97,7 @@ impl Light {
         Ok(())
     }
     pub fn requests_shadow_map(&self) -> bool {
-        self.shadows
+        self.kind != LightKind::Directional && self.shadows
     }
     pub fn at(&self, transform: Mat4) -> Result<WorldLight> {
         self.validate()?;

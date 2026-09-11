@@ -56,6 +56,29 @@ fn lights_roundtrip_transform_live_ecs_and_layer_isolation() {
     assert!(instance.capture(&world).is_err());
 }
 #[test]
+fn directional_roundtrip_parent_rotation_and_runtime_capture() {
+    let mut scene = scene();
+    scene.objects[2].light.as_mut().unwrap().kind = LightKind::Directional;
+    let scene = Scene::from_json(&scene.to_json().unwrap()).unwrap();
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    let light = instance.view(&world, Layer::ThreeD, 1.).unwrap().lights[0];
+    assert_eq!(light.light.kind, LightKind::Directional);
+    assert!((Vec3::from(light.direction) - Vec3::NEG_X).length() < 1e-5);
+    let entity = instance.entity("light").unwrap();
+    world.get_mut::<Light>(entity).unwrap().intensity = 7.;
+    assert_eq!(
+        instance.capture(&world).unwrap().objects[2]
+            .light
+            .unwrap()
+            .intensity,
+        7.
+    );
+    world.get_mut::<Light>(entity).unwrap().intensity = f32::INFINITY;
+    assert!(instance.view(&world, Layer::ThreeD, 1.).is_err());
+}
+
+#[test]
 fn rejects_invalid_light_data_and_excess_without_spawning() {
     for light in [
         Light {
@@ -156,6 +179,14 @@ fn shadow_budget(kind: LightKind, limit: usize, other_kind: LightKind, other_lim
         point.light.as_mut().unwrap().kind = other_kind;
         s.objects.push(point);
     }
+    // Switching a previously shadowed light to directional retains its authored
+    // settings without consuming either local shadow budget.
+    for i in 0..9 {
+        let mut directional = template.clone();
+        directional.id = format!("directional-{i}");
+        directional.light.as_mut().unwrap().kind = LightKind::Directional;
+        s.objects.push(directional);
+    }
     assert_eq!(s, Scene::from_json(&s.to_json().unwrap()).unwrap());
     let mut world = World::default();
     let instance = s.spawn(&mut world).unwrap();
@@ -174,7 +205,14 @@ fn shadow_budget(kind: LightKind, limit: usize, other_kind: LightKind, other_lim
     point.enabled = false;
     assert!(instance.view(&world, Layer::ThreeD, 1.).is_err());
     assert!(instance.capture(&world).is_err());
-    let point = s.objects.last_mut().unwrap().light.as_mut().unwrap();
+    let point = s
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "other-0")
+        .unwrap()
+        .light
+        .as_mut()
+        .unwrap();
     point.kind = kind;
     point.enabled = false;
     let mut empty = World::default();

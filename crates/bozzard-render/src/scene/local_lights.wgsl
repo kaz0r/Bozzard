@@ -57,7 +57,13 @@ fn local_visibility(light: LocalLight, world: vec3<f32>, geometric_normal: vec3<
     return filtered_local_visibility(point_shadow_maps, point_shadows.maps[face], face, biased_world);
 }
 
+// cone.y: 0 = point, 1 = spot, 2 = directional.
+fn local_direction(light: LocalLight, offset: vec3<f32>) -> vec3<f32> {
+    if light.cone.y > 1.5 { return -light.direction_outer.xyz; }
+    return offset / max(length(offset), 0.000001);
+}
 fn local_radiance(light: LocalLight, offset: vec3<f32>) -> vec3<f32> {
+    if light.cone.y > 1.5 { return light.color_intensity.rgb * light.color_intensity.w; }
     let distance2 = dot(offset, offset);
     let ratio2 = distance2 / (light.position_range.w * light.position_range.w);
     let window = max(1.0 - ratio2 * ratio2, 0.0);
@@ -78,7 +84,7 @@ fn local_diffuse(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     for (var i = 0u; i < u32(local_lights.count.x); i++) {
         let light = local_lights.lights[i];
         let offset = light.position_range.xyz - world;
-        let direction = offset / max(length(offset), 0.000001);
+        let direction = local_direction(light, offset);
         result += local_radiance(light, offset) * max(dot(normal, direction), 0.0) / 3.14159265 * local_visibility(light, world, normal);
     }
     return result;

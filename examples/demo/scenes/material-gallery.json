@@ -1,0 +1,1963 @@
+{
+  "version": 1,
+  "name": "Material Gallery / Form & Finish",
+  "views": {
+    "3d": "camera",
+    "2d": "camera-2d"
+  },
+  "lighting": {
+    "sun_direction": [
+      -0.45,
+      0.85,
+      0.6
+    ],
+    "sun_color": [
+      1,
+      0.94,
+      0.83
+    ],
+    "sun_intensity": 2.5,
+    "ambient_intensity": 0.025,
+    "shadows": true,
+    "shadow_resolution": 2048
+  },
+  "environment": {
+    "zenith": [
+      0.25,
+      0.38,
+      0.55
+    ],
+    "horizon": [
+      0.85,
+      0.82,
+      0.73
+    ],
+    "ground": [
+      0.14,
+      0.12,
+      0.1
+    ],
+    "intensity": 0.65,
+    "background": true
+  },
+  "fog": {
+    "enabled": true,
+    "color": [
+      0.28,
+      0.34,
+      0.42
+    ],
+    "distance_density": 0.008,
+    "start_distance": 4,
+    "height_density": 0.035,
+    "base_height": 0.3,
+    "height_falloff": 1.5
+  },
+  "display": {
+    "exposure_ev": 0,
+    "tone_mapping": true
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Gallery / overview",
+      "transform": {
+        "translation": [
+          7.8,
+          8,
+          14.8
+        ],
+        "rotation_degrees": [
+          -24,
+          28,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 43,
+        "near": 0.1,
+        "far": 80
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Plan / 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 12,
+        "near": 0.1,
+        "far": 80
+      }
+    },
+    {
+      "id": "stage",
+      "name": "Architecture / floating graphite stage",
+      "transform": {
+        "translation": [
+          0,
+          -0.22,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          11,
+          0.44,
+          8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "graphite"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "backdrop",
+      "name": "Architecture / charcoal backdrop",
+      "transform": {
+        "translation": [
+          0,
+          2.1,
+          -3.7
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          10.8,
+          4.2,
+          0.24
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "graphite"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "horizon-inlay",
+      "name": "Architecture / brass horizon",
+      "transform": {
+        "translation": [
+          0,
+          3.55,
+          -3.54
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          9.4,
+          0.035,
+          0.03
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-polished-plinth",
+      "name": "Display 01 / limestone plinth",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          0.625,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          1.25,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-polished-trim",
+      "name": "Display 01 / brass foot",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          0.06,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-polished",
+      "name": "01 / Gold \u2014 polished / roughness 0.08",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          2.0,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "gold-polished"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-polished-index-0",
+      "name": "Display 01 / index tick 1",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-satin-plinth",
+      "name": "Display 02 / limestone plinth",
+      "transform": {
+        "translation": [
+          -1.2,
+          0.625,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          1.25,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-satin-trim",
+      "name": "Display 02 / brass foot",
+      "transform": {
+        "translation": [
+          -1.2,
+          0.06,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-satin",
+      "name": "02 / Gold \u2014 satin / roughness 0.32",
+      "transform": {
+        "translation": [
+          -1.2,
+          2.0,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "gold-satin"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-satin-index-0",
+      "name": "Display 02 / index tick 1",
+      "transform": {
+        "translation": [
+          -1.26,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-satin-index-1",
+      "name": "Display 02 / index tick 2",
+      "transform": {
+        "translation": [
+          -1.14,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-matte-plinth",
+      "name": "Display 03 / limestone plinth",
+      "transform": {
+        "translation": [
+          1.2,
+          0.625,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          1.25,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-matte-trim",
+      "name": "Display 03 / brass foot",
+      "transform": {
+        "translation": [
+          1.2,
+          0.06,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-matte",
+      "name": "03 / Gold \u2014 matte / roughness 0.72",
+      "transform": {
+        "translation": [
+          1.2,
+          2.0,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "gold-matte"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-matte-index-0",
+      "name": "Display 03 / index tick 1",
+      "transform": {
+        "translation": [
+          1.08,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-matte-index-1",
+      "name": "Display 03 / index tick 2",
+      "transform": {
+        "translation": [
+          1.2,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gold-matte-index-2",
+      "name": "Display 03 / index tick 3",
+      "transform": {
+        "translation": [
+          1.3199999999999998,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-plinth",
+      "name": "Display 04 / limestone plinth",
+      "transform": {
+        "translation": [
+          3.5999999999999996,
+          0.625,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          1.25,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-trim",
+      "name": "Display 04 / brass foot",
+      "transform": {
+        "translation": [
+          3.5999999999999996,
+          0.06,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper",
+      "name": "04 / Copper \u2014 burnished / roughness 0.20",
+      "transform": {
+        "translation": [
+          3.5999999999999996,
+          2.0,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "copper"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-index-0",
+      "name": "Display 04 / index tick 1",
+      "transform": {
+        "translation": [
+          3.4199999999999995,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-index-1",
+      "name": "Display 04 / index tick 2",
+      "transform": {
+        "translation": [
+          3.5399999999999996,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-index-2",
+      "name": "Display 04 / index tick 3",
+      "transform": {
+        "translation": [
+          3.6599999999999997,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-index-3",
+      "name": "Display 04 / index tick 4",
+      "transform": {
+        "translation": [
+          3.78,
+          0.625,
+          -0.548
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "walnut-plinth",
+      "name": "Display 05 / limestone plinth",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          0.325,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          0.65,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "walnut-trim",
+      "name": "Display 05 / brass foot",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          0.06,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "walnut",
+      "name": "05 / Walnut \u2014 oiled grain / textured PBR",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          1.4,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          -15,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "walnut"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "walnut-index-0",
+      "name": "Display 05 / index tick 1",
+      "transform": {
+        "translation": [
+          -3.5999999999999996,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "marble-plinth",
+      "name": "Display 06 / limestone plinth",
+      "transform": {
+        "translation": [
+          -1.2,
+          0.325,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          0.65,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "marble-trim",
+      "name": "Display 06 / brass foot",
+      "transform": {
+        "translation": [
+          -1.2,
+          0.06,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "marble",
+      "name": "06 / Marble \u2014 honed veins / textured PBR",
+      "transform": {
+        "translation": [
+          -1.2,
+          1.4,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          -15,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "marble"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "marble-index-0",
+      "name": "Display 06 / index tick 1",
+      "transform": {
+        "translation": [
+          -1.26,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "marble-index-1",
+      "name": "Display 06 / index tick 2",
+      "transform": {
+        "translation": [
+          -1.14,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lacquer-plinth",
+      "name": "Display 07 / limestone plinth",
+      "transform": {
+        "translation": [
+          1.2,
+          0.325,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          0.65,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lacquer-trim",
+      "name": "Display 07 / brass foot",
+      "transform": {
+        "translation": [
+          1.2,
+          0.06,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lacquer",
+      "name": "07 / Vermilion \u2014 lacquered polymer / roughness 0.12",
+      "transform": {
+        "translation": [
+          1.2,
+          1.4,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          -15,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lacquer"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lacquer-index-0",
+      "name": "Display 07 / index tick 1",
+      "transform": {
+        "translation": [
+          1.08,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lacquer-index-1",
+      "name": "Display 07 / index tick 2",
+      "transform": {
+        "translation": [
+          1.2,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lacquer-index-2",
+      "name": "Display 07 / index tick 3",
+      "transform": {
+        "translation": [
+          1.3199999999999998,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer-plinth",
+      "name": "Display 08 / limestone plinth",
+      "transform": {
+        "translation": [
+          3.5999999999999996,
+          0.325,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.9,
+          0.65,
+          1.9
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "plinth"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer-trim",
+      "name": "Display 08 / brass foot",
+      "transform": {
+        "translation": [
+          3.5999999999999996,
+          0.06,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.92,
+          0.07,
+          1.92
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer",
+      "name": "08 / Petrol \u2014 soft-touch plastic / roughness 0.58",
+      "transform": {
+        "translation": [
+          3.5999999999999996,
+          1.4,
+          1.5
+        ],
+        "rotation_degrees": [
+          0,
+          -15,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "polymer"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer-index-0",
+      "name": "Display 08 / index tick 1",
+      "transform": {
+        "translation": [
+          3.4199999999999995,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer-index-1",
+      "name": "Display 08 / index tick 2",
+      "transform": {
+        "translation": [
+          3.5399999999999996,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer-index-2",
+      "name": "Display 08 / index tick 3",
+      "transform": {
+        "translation": [
+          3.6599999999999997,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "polymer-index-3",
+      "name": "Display 08 / index tick 4",
+      "transform": {
+        "translation": [
+          3.78,
+          0.325,
+          2.452
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.05,
+          0.13,
+          0.015
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "brass"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "warm-key",
+      "name": "Lighting / warm softbox",
+      "transform": {
+        "translation": [
+          -4,
+          5,
+          4
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.84,
+          0.66
+        ],
+        "intensity": 170,
+        "range": 16
+      }
+    },
+    {
+      "id": "cool-rim",
+      "name": "Lighting / cool rim",
+      "transform": {
+        "translation": [
+          4,
+          4,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          0.6,
+          0.78,
+          1
+        ],
+        "intensity": 120,
+        "range": 13
+      }
+    }
+  ],
+  "assets": {
+    "graphite": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/graphite.gltf"
+    },
+    "brass": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/brass.gltf"
+    },
+    "plinth": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/plinth.gltf"
+    },
+    "gold-polished": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/gold-polished.gltf"
+    },
+    "gold-satin": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/gold-satin.gltf"
+    },
+    "gold-matte": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/gold-matte.gltf"
+    },
+    "copper": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/copper.gltf"
+    },
+    "walnut": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/walnut.gltf"
+    },
+    "marble": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/marble.gltf"
+    },
+    "lacquer": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/lacquer.gltf"
+    },
+    "polymer": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/polymer.gltf"
+    }
+  }
+}

@@ -4,6 +4,7 @@ use std::path::Path;
 
 fn point(position: Vec3) -> LocalLight {
     LocalLight {
+        directional: false,
         position: position.to_array(),
         direction: [0., 0., -1.],
         color: [1.; 3],
@@ -50,6 +51,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
                 let receiver = origin + forward * 4.;
                 // Large enough to cover seam pixels, small enough to leave a lit edge.
                 let mut scene = RenderScene {
+                    fog: Default::default(),
                     view_projection: glam::camera::rh::proj::directx::orthographic(
                         -0.8, 0.8, -0.8, 0.8, 0.1, 10.,
                     ) * camera,
@@ -126,7 +128,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     }
     mixed_lights(gpu, &mut renderer)?;
     println!(
-        "point_faces_gpu_ok six_axes twelve_edges eight_corners pcf_overlap translated_light offcamera rotation reference_culling mixed_spots"
+        "point_faces_gpu_ok six_axes twelve_edges eight_corners pcf_overlap translated_light offcamera rotation reference_culling mixed_spots directional_isolation"
     );
     Ok(())
 }
@@ -139,7 +141,18 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
     blue.intensity = 40.;
     blue.spot_angles = Some([25., 35.]);
     blue.direction = [1., 0., -1.];
+    let directional = LocalLight {
+        directional: true,
+        position: [100., 200., 300.],
+        range: 0.001,
+        direction: [0., 0., -1.],
+        color: [0., 1., 0.],
+        intensity: 0.25,
+        spot_angles: None,
+        shadows: None,
+    };
     let mut scene = RenderScene {
+        fog: Default::default(),
         view_projection: glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 10.)
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),
         lighting: Lighting {
@@ -151,7 +164,7 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
         environment: EnvironmentSettings::disabled(),
         display: Default::default(),
         gi: None,
-        lights: vec![red, blue],
+        lights: vec![red, directional, blue],
         items: vec![
             quad(Mat4::from_scale(Vec3::new(4., 4., 1.))),
             quad(Mat4::from_translation(Vec3::Z) * Mat4::from_scale(Vec3::new(0.6, 0.6, 1.))),
@@ -164,13 +177,21 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
         mixed.rgba[left] < 3
             && mixed.rgba[left + 2] > 60
             && mixed.rgba[right] > 60
-            && mixed.rgba[right + 2] < 3,
-        "point/spot shadow layers leaked"
+            && mixed.rgba[right + 2] < 3
+            && mixed.rgba[left + 1] > 15
+            && mixed.rgba[right + 1] > 15,
+        "point/spot shadow layers leaked or shadowed directional illumination"
     );
-    scene.lights.swap(0, 1);
+    scene.lights.swap(0, 2);
     ensure!(
         capture(gpu, renderer, &scene, [128, 128])?.rgba == mixed.rgba,
         "mixed light order changed shadows"
+    );
+    scene.lights[1].position = [-300., -200., -100.];
+    scene.lights[1].range = 100_000.;
+    ensure!(
+        capture(gpu, renderer, &scene, [128, 128])?.rgba == mixed.rgba,
+        "directional illumination changed with position/range among shadowed lights"
     );
     // Grow both independent arrays to their final slots at once.
     scene.lights = vec![
@@ -189,12 +210,14 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
         bozzard_render::MAX_SHADOWED_SPOT_LIGHTS
     ]);
     scene.lights.last_mut().unwrap().intensity = 40.;
+    scene.lights.insert(2, directional);
     let full = capture(gpu, renderer, &scene, [128, 128])?;
     ensure!(
         full.rgba[left] < 3 && full.rgba[right + 2] < 3,
         "mixed final shadow slots failed"
     );
     scene.lights.push(LocalLight {
+        directional: false,
         intensity: 0.,
         ..red
     });

@@ -61,6 +61,7 @@ mod tests {
         for range in [0.001_f32, 10., 100_000.] {
             let origin = Vec3::new(0.2, -0.1, 0.3) * range.min(10.);
             let light = LocalLight {
+                directional: false,
                 position: origin.to_array(),
                 direction: [0., 0., -1.],
                 color: [1.; 3],

@@ -79,6 +79,7 @@ fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     upload(gpu, &mut renderer, "receiver", None, false, 1.)?;
     let light = LocalLight {
+        directional: false,
         position: [3., 0., 3.],
         direction: [-1., 0., -1.],
         color: [1.; 3],
@@ -105,6 +106,7 @@ fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
         material: receiver.material.clone(),
     };
     let mut scene = RenderScene {
+        fog: Default::default(),
         gi: None,
         lights: vec![light],
         environment: bozzard_render::EnvironmentSettings::disabled(),

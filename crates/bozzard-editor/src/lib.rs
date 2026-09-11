@@ -259,6 +259,7 @@ impl Editor {
             name: match kind {
                 bozzard_scene::LightKind::Point => "Point light",
                 bozzard_scene::LightKind::Spot => "Spot light",
+                bozzard_scene::LightKind::Directional => "Directional light",
             }
             .into(),
             light: Some(bozzard_scene::Light {
@@ -754,11 +755,21 @@ pub fn extract(
     }
 
     Ok(RenderScene {
+        fog: bozzard_render::FogSettings {
+            enabled: layer == Layer::ThreeD && view.fog.enabled,
+            color: view.fog.color,
+            distance_density: view.fog.distance_density,
+            start_distance: view.fog.start_distance,
+            height_density: view.fog.height_density,
+            base_height: view.fog.base_height,
+            height_falloff: view.fog.height_falloff,
+        },
         gi,
         lights: view
             .lights
             .iter()
             .map(|world| bozzard_render::LocalLight {
+                directional: world.light.kind == bozzard_scene::LightKind::Directional,
                 shadows: world.light.requests_shadow_map().then_some(
                     bozzard_render::LocalShadowSettings {
                         bias: world.light.shadow_bias,
@@ -841,6 +852,9 @@ pub fn extract(
                     texture: match d.texture {
                         Texture::White => TextureKind::White,
                         Texture::Checker => TextureKind::Checker,
+                        Texture::Normals => TextureKind::Normals,
+                        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
+                        Texture::Toon => TextureKind::Toon,
                         Texture::Asset(id) => TextureKind::Imported(id),
                     },
                 },
@@ -918,6 +932,22 @@ mod tests {
         e.undo().unwrap();
         assert_eq!(e.scene(), &authored);
     }
+    #[test]
+    fn directional_light_creation_and_extraction() {
+        let mut e = editor();
+        e.create_light(bozzard_scene::LightKind::Directional)
+            .unwrap();
+        assert_eq!(e.selected_object().unwrap().name, "Directional light");
+        let view = e.render(Layer::ThreeD, 1.).unwrap();
+        assert!(view.lights[0].directional);
+        assert_eq!(view.lights[0].spot_angles, None);
+        assert_eq!(view.lights[0].direction, [0., 0., -1.]);
+        e.undo().unwrap();
+        assert!(e.render(Layer::ThreeD, 1.).unwrap().lights.is_empty());
+        e.redo().unwrap();
+        assert!(e.render(Layer::ThreeD, 1.).unwrap().lights[0].directional);
+    }
+
     #[test]
     fn local_light_history_duplicate_save_and_play_isolation() {
         use bozzard_scene::LightKind;

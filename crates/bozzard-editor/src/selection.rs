@@ -35,7 +35,12 @@ impl Editor {
         self.selected = id;
     }
     pub fn selected_mesh(&self) -> Option<&MeshData> {
-        let Mesh::Asset(id) = &self.selected_object()?.drawable.as_ref()?.mesh else {
+        self.object_mesh(self.selected.as_deref()?)
+    }
+    /// Loaded imported geometry for hierarchy rows, without changing selection.
+    pub fn object_mesh(&self, object: &str) -> Option<&MeshData> {
+        let object = self.scene.objects.iter().find(|o| o.id == object)?;
+        let Mesh::Asset(id) = &object.drawable.as_ref()?.mesh else {
             return None;
         };
         match self.assets.get(self.assets.handle(id)?)?.data()? {
@@ -307,6 +312,90 @@ mod tests {
     fn projection() -> Mat4 {
         glam::camera::rh::proj::directx::orthographic(-12.0, 12.0, -8.0, 8.0, 0.1, 100.0)
             * glam::camera::rh::view::look_at_mat4(Vec3::new(0.0, 0.0, 10.0), Vec3::ZERO, Vec3::Y)
+    }
+
+    #[test]
+    fn imported_hierarchy_parts_reuse_surface_selection_without_editing_owner() {
+        let fixture = Fixture::new();
+        let mut editor = fixture.editor();
+        // Exercise the portable import and instantiation path, not just a catalog OBJ.
+        let asset = editor.import(&fixture.0.join("parts.obj")).unwrap();
+        editor.add_asset_to_scene(&asset).unwrap();
+        let owner = editor.selected.clone().unwrap();
+        editor.select_object(None);
+        let mesh = editor.object_mesh(&owner).unwrap();
+        assert_eq!(mesh.parts.len(), 2);
+        assert!(mesh.parts[0].name.contains("Surface 1"));
+        assert_eq!(mesh.parts[0].material_name.as_deref(), Some("LeftPaint"));
+        assert_eq!(mesh.parts[1].material_name.as_deref(), Some("RightPaint"));
+        assert!(
+            editor.selected.is_none(),
+            "listing rows must not select their owner"
+        );
+        assert!(editor.object_mesh("missing").is_none());
+        let before = editor.scene().clone();
+        let history = editor.undo_label().map(str::to_owned);
+        editor
+            .select_pick(Some(Pick {
+                object: owner.clone(),
+                surface: Some(1),
+            }))
+            .unwrap();
+        assert_eq!(editor.selected_surface().unwrap().index, 1);
+        assert!(editor.delete().is_err());
+        assert!(editor.duplicate().is_err());
+        assert!(editor.assign_asset_to_selected(&asset).is_err());
+        assert_eq!(editor.scene(), &before);
+        assert_eq!(editor.undo_label(), history.as_deref());
+        editor.select_object(Some(owner));
+        assert!(editor.selected_surface().is_none());
+        assert_eq!(editor.selected_mesh().unwrap().parts.len(), 2);
+    }
+
+    #[test]
+    fn whole_imported_model_transform_gesture_preserves_parent_and_history() {
+        let fixture = Fixture::new();
+        let mut editor = fixture.editor();
+        let mut scene = editor.scene().clone();
+        let mut parent = scene.objects[0].clone();
+        parent.id = "parent".into();
+        parent.drawable = None;
+        parent.transform.translation = [3.0, 4.0, 5.0];
+        parent.transform.rotation_degrees = [10.0, 30.0, 0.0];
+        parent.transform.scale = [-2.0, 3.0, 1.0];
+        scene.objects[0].parent = Some(parent.id.clone());
+        scene.objects.push(parent);
+        editor.apply("Parent", scene).unwrap();
+        editor
+            .select_pick(Some(Pick {
+                object: "model".into(),
+                surface: Some(1),
+            }))
+            .unwrap();
+        editor.select_object(editor.selected.clone());
+        assert!(editor.selected_surface().is_none());
+        let before = editor.scene().clone();
+        editor.begin_gesture("Transform gizmo");
+        for amount in [15.0, 30.0] {
+            let mut next = editor.scene().clone();
+            next.objects[0].transform.rotation_degrees[1] = amount;
+            next.objects[0].transform.scale = [-2.0, 2.0, 2.0];
+            editor.apply("Transform gizmo", next).unwrap();
+        }
+        editor.finish_gesture();
+        let after = editor.scene().clone();
+        assert_eq!(after.objects[1], before.objects[1]);
+        assert_eq!(after.objects[0].parent, before.objects[0].parent);
+        assert_eq!(after.objects[0].drawable, before.objects[0].drawable);
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &before);
+        editor.redo().unwrap();
+        assert_eq!(editor.scene(), &after);
+        editor.begin_gesture("Transform gizmo");
+        editor.apply("Transform gizmo", before).unwrap();
+        editor.cancel_gesture().unwrap();
+        assert_eq!(editor.scene(), &after);
+        assert_eq!(editor.selected_mesh().unwrap().parts.len(), 2);
     }
 
     #[test]

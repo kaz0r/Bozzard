@@ -31,7 +31,7 @@ Inspect the complete CPU import with:
 cargo run -p bozzard-assets --example inspect --locked --offline -- work/sponza/glTF/Sponza.gltf
 ```
 
-In the editor, click imported geometry in the viewport or choose a row in **Imported surfaces**. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. Press **Escape** to clear the whole-object or inspected-surface selection and its outline after higher-priority editing or navigation actions have finished. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
+In the editor, Alt-click imported geometry in the viewport or choose a surface row in the Hierarchy or **Imported surfaces** inspector. Ordinary clicks select the whole model for Move/Rotate/Scale. Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. Press **Escape** to clear the whole-object or inspected-surface selection and its outline after higher-priority editing or navigation actions have finished. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
 
 The CPU-only surface reproduction is:
 
@@ -44,7 +44,7 @@ Picking and outline/framing are held until the CPU model identity matches the GP
 
 Manual surface-override checklist:
 
-- [ ] Open `examples/sponza/scene.json` and click imported geometry.
+- [ ] Open `examples/sponza/scene.json` and Alt-click imported geometry.
 - [ ] Choose a row in **Imported surfaces**, change Tint, and confirm only that object's surface changes.
 - [ ] Enable and adjust Metallic or Roughness; confirm the value multiplies the existing map, then use **Reset override**.
 - [ ] Select the whole model, duplicate the owning object, select a surface on the copy, change its Tint, and confirm the original remains unchanged; Undo/redo the edit.
@@ -87,7 +87,7 @@ These debug figures are retained as historical context. The current release pick
 
 The benchmark was run on an Apple M2 Pro at 800×500 with a 4096 shadow map for 30 debug frames. The associated validation scope includes workspace formatting/tests/Clippy/headless checks, native editor validation, and the Metal Sponza rendering checks; this page records the reproduction and measurements rather than a new run.
 
-The standard fixtures use the current authored sun and ambient lighting, one camera-independent directional shadow map, procedural diffuse/specular environment lighting, PBR materials, HDR display encoding, staged GPU uploads, and conservative color-pass culling. The corridor, atrium, and overview captures were visually inspected at their durable viewpoints. `spotlights.json` uses the same Sponza asset path and adds the authored **Warm spot** and **Cool spot** local lights for testing spotlight shadow maps. `point-lights.json` uses the same asset path and adds **Warm point** and **Cool point** for testing six-face point-light shadow maps; its local Metal validation covered clear occlusion by arches, pillars, and foliage. These local-light fixtures exercise direct lighting and shadows, not a GI bake or bloom, which are absent from them. Cascaded shadows, HDR panorama import, local reflection probes, scene environment occlusion, atmospheric simulation, GPU timestamps, multidraw, instancing, and occlusion culling remain outside this reproduction scope.
+The standard fixtures use the current authored sun and ambient lighting, one camera-independent directional shadow map, procedural diffuse/specular environment lighting, PBR materials, HDR display encoding, staged GPU uploads, and conservative color-pass culling. The corridor, atrium, and overview captures were visually inspected at their durable viewpoints. `spotlights.json` uses the same Sponza asset path and adds the authored **Warm spot** and **Cool spot** local lights for testing spotlight shadow maps. `point-lights.json` uses the same asset path and adds **Warm point** and **Cool point** for testing six-face point-light shadow maps; its merged-result Metal validation covered clear occlusion by arches, pillars, and foliage. The merged Sponza capture is `work/pr1-merge-sponza/loaded-3d.png`. These local-light fixtures exercise direct lighting and shadows, not a GI bake or bloom, which are absent from them. Cascaded shadows, HDR panorama import, local reflection probes, scene environment occlusion, atmospheric simulation, GPU timestamps, multidraw, instancing, and occlusion culling remain outside this reproduction scope.
 
 Final native Metal validation also ran directly from `examples/sponza/scene.json` (`work/sponza/final-durable`). All graphics fixtures and exact scene save/reload passed. Shadow-enabled versus disabled captures differed at 158,181 corridor pixels, 144,930 atrium pixels, and 168,284 overview pixels. The checked-in views reference the ignored dataset; they contain no downloaded model or textures. These local commits have not been pushed or validated by Linux/Windows CI.
 
