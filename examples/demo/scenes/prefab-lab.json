@@ -1,0 +1,1211 @@
+{
+  "version": 1,
+  "name": "Bozzard Prefab Workshop",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "Camera 3D",
+      "transform": {
+        "translation": [
+          6,
+          5,
+          9
+        ],
+        "rotation_degrees": [
+          -25,
+          34,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.2,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          0.3,
+          8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.2,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "cargo-1",
+      "name": "Cargo crate",
+      "transform": {
+        "translation": [
+          -2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -10,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "body-1",
+      "name": "Body",
+      "transform": {
+        "translation": [
+          0,
+          0.65,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          1.2,
+          1.3
+        ]
+      },
+      "parent": "cargo-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.18,
+          0.55,
+          0.46
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "enabled": true,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lid-1",
+      "name": "Lid",
+      "transform": {
+        "translation": [
+          0,
+          1.3,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.75,
+          0.18,
+          1.45
+        ]
+      },
+      "parent": "cargo-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.15,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "strap-0-1",
+      "name": "Strap 1",
+      "transform": {
+        "translation": [
+          -0.55,
+          0.68,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.12,
+          1.34,
+          1.48
+        ]
+      },
+      "parent": "cargo-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7,
+          0.48,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "strap-1-1",
+      "name": "Strap 2",
+      "transform": {
+        "translation": [
+          0.55,
+          0.68,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.12,
+          1.34,
+          1.48
+        ]
+      },
+      "parent": "cargo-1",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7,
+          0.48,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "cargo-2",
+      "name": "Cargo crate",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          15,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "body-2",
+      "name": "Body",
+      "transform": {
+        "translation": [
+          0,
+          0.65,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          1.2,
+          1.3
+        ]
+      },
+      "parent": "cargo-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.18,
+          0.55,
+          0.46
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "enabled": true,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lid-2",
+      "name": "Lid",
+      "transform": {
+        "translation": [
+          0,
+          1.3,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.75,
+          0.18,
+          1.45
+        ]
+      },
+      "parent": "cargo-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.15,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "strap-0-2",
+      "name": "Strap 1",
+      "transform": {
+        "translation": [
+          -0.55,
+          0.68,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.12,
+          1.34,
+          1.48
+        ]
+      },
+      "parent": "cargo-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7,
+          0.48,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "strap-1-2",
+      "name": "Strap 2",
+      "transform": {
+        "translation": [
+          0.55,
+          0.68,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.12,
+          1.34,
+          1.48
+        ]
+      },
+      "parent": "cargo-2",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7,
+          0.48,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "cargo-3",
+      "name": "Cargo crate",
+      "transform": {
+        "translation": [
+          2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -15,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "body-3",
+      "name": "Body",
+      "transform": {
+        "translation": [
+          0,
+          0.65,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          1.2,
+          1.3
+        ]
+      },
+      "parent": "cargo-3",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.6,
+          0.25,
+          0.14
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {
+        "enabled": true,
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lid-3",
+      "name": "Lid",
+      "transform": {
+        "translation": [
+          0,
+          1.3,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.75,
+          0.18,
+          1.45
+        ]
+      },
+      "parent": "cargo-3",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.15,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "strap-0-3",
+      "name": "Strap 1",
+      "transform": {
+        "translation": [
+          -0.55,
+          0.68,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.12,
+          1.34,
+          1.48
+        ]
+      },
+      "parent": "cargo-3",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7,
+          0.48,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "strap-1-3",
+      "name": "Strap 2",
+      "transform": {
+        "translation": [
+          0.55,
+          0.68,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.12,
+          1.34,
+          1.48
+        ]
+      },
+      "parent": "cargo-3",
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.7,
+          0.48,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "cargo-prefab": {
+      "kind": "prefab",
+      "path": "assets/cargo.prefab.json"
+    }
+  },
+  "prefabs": {
+    "cargo-1": {
+      "asset": "cargo-prefab",
+      "members": {
+        "cargo": "cargo-1",
+        "body": "body-1",
+        "lid": "lid-1",
+        "strap-0": "strap-0-1",
+        "strap-1": "strap-1-1"
+      },
+      "baseline": [
+        {
+          "id": "cargo-1",
+          "name": "Cargo crate",
+          "transform": {
+            "translation": [
+              0,
+              0,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "body-1",
+          "name": "Body",
+          "transform": {
+            "translation": [
+              0,
+              0.65,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.6,
+              1.2,
+              1.3
+            ]
+          },
+          "parent": "cargo-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.18,
+              0.55,
+              0.46
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "collider": {
+            "enabled": true,
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "lid-1",
+          "name": "Lid",
+          "transform": {
+            "translation": [
+              0,
+              1.3,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.75,
+              0.18,
+              1.45
+            ]
+          },
+          "parent": "cargo-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.075,
+              0.15,
+              0.17
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-1",
+          "name": "Strap 1",
+          "transform": {
+            "translation": [
+              -0.55,
+              0.68,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.12,
+              1.34,
+              1.48
+            ]
+          },
+          "parent": "cargo-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.7,
+              0.48,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-1",
+          "name": "Strap 2",
+          "transform": {
+            "translation": [
+              0.55,
+              0.68,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.12,
+              1.34,
+              1.48
+            ]
+          },
+          "parent": "cargo-1",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.7,
+              0.48,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    "cargo-2": {
+      "asset": "cargo-prefab",
+      "members": {
+        "cargo": "cargo-2",
+        "body": "body-2",
+        "lid": "lid-2",
+        "strap-0": "strap-0-2",
+        "strap-1": "strap-1-2"
+      },
+      "baseline": [
+        {
+          "id": "cargo-2",
+          "name": "Cargo crate",
+          "transform": {
+            "translation": [
+              0,
+              0,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "body-2",
+          "name": "Body",
+          "transform": {
+            "translation": [
+              0,
+              0.65,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.6,
+              1.2,
+              1.3
+            ]
+          },
+          "parent": "cargo-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.18,
+              0.55,
+              0.46
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "collider": {
+            "enabled": true,
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "lid-2",
+          "name": "Lid",
+          "transform": {
+            "translation": [
+              0,
+              1.3,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.75,
+              0.18,
+              1.45
+            ]
+          },
+          "parent": "cargo-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.075,
+              0.15,
+              0.17
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-2",
+          "name": "Strap 1",
+          "transform": {
+            "translation": [
+              -0.55,
+              0.68,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.12,
+              1.34,
+              1.48
+            ]
+          },
+          "parent": "cargo-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.7,
+              0.48,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-2",
+          "name": "Strap 2",
+          "transform": {
+            "translation": [
+              0.55,
+              0.68,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.12,
+              1.34,
+              1.48
+            ]
+          },
+          "parent": "cargo-2",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.7,
+              0.48,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    "cargo-3": {
+      "asset": "cargo-prefab",
+      "members": {
+        "cargo": "cargo-3",
+        "body": "body-3",
+        "lid": "lid-3",
+        "strap-0": "strap-0-3",
+        "strap-1": "strap-1-3"
+      },
+      "baseline": [
+        {
+          "id": "cargo-3",
+          "name": "Cargo crate",
+          "transform": {
+            "translation": [
+              0,
+              0,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "body-3",
+          "name": "Body",
+          "transform": {
+            "translation": [
+              0,
+              0.65,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.6,
+              1.2,
+              1.3
+            ]
+          },
+          "parent": "cargo-3",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.18,
+              0.55,
+              0.46
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          },
+          "collider": {
+            "enabled": true,
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "size": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "lid-3",
+          "name": "Lid",
+          "transform": {
+            "translation": [
+              0,
+              1.3,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1.75,
+              0.18,
+              1.45
+            ]
+          },
+          "parent": "cargo-3",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.075,
+              0.15,
+              0.17
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-3",
+          "name": "Strap 1",
+          "transform": {
+            "translation": [
+              -0.55,
+              0.68,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.12,
+              1.34,
+              1.48
+            ]
+          },
+          "parent": "cargo-3",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.7,
+              0.48,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-3",
+          "name": "Strap 2",
+          "transform": {
+            "translation": [
+              0.55,
+              0.68,
+              0
+            ],
+            "rotation_degrees": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              0.12,
+              1.34,
+              1.48
+            ]
+          },
+          "parent": "cargo-3",
+          "drawable": {
+            "layer": "3d",
+            "mesh": "cube",
+            "texture": "white",
+            "color": [
+              0.7,
+              0.48,
+              0.2
+            ],
+            "uv_scale": [
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

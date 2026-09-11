@@ -142,6 +142,7 @@ struct App {
     smoke_surface_frame: Option<u32>,
     smoke_light_frame: Option<u32>,
     smoke_gi_frame: Option<u32>,
+    smoke_prefab_frame: Option<u32>,
 }
 #[derive(Clone)]
 struct HierarchyDrag(String);
@@ -225,6 +226,7 @@ impl App {
             smoke_surface_frame: None,
             smoke_light_frame: None,
             smoke_gi_frame: None,
+            smoke_prefab_frame: None,
         })
     }
     fn result(&mut self, result: Result<()>) {
@@ -904,6 +906,9 @@ impl App {
                     ui.disable();
                 }
                 let output = self.asset_browser.ui(ui, &mut self.editor);
+                if let Some(command) = output.prefab_requested {
+                    self.start_prefab(command);
+                }
                 if output.import_requested {
                     self.dialog = Some(files::Dialog::new(files::Kind::Import, &self.editor.path));
                 }

@@ -277,7 +277,8 @@ impl App {
         }
         if self.smoke_frames
             >= self
-                .smoke_gi_frame
+                .smoke_prefab_frame
+                .or(self.smoke_gi_frame)
                 .or(self.smoke_light_frame)
                 .or(self.smoke_surface_frame)
                 .unwrap_or(12)
@@ -308,6 +309,25 @@ impl App {
                         height: image.size[1] as u32,
                         rgba: image.pixels.iter().flat_map(|p| p.to_array()).collect(),
                     };
+                    if self.smoke_prefab_frame.is_some() {
+                        frame.write_ppm(&output.join("editor-prefabs.ppm"))?;
+                        ensure!(
+                            self.editor.scene().prefabs.len() == 3,
+                            "prefab links missing"
+                        );
+                        ensure!(
+                            self.editor.selected_prefab_root() == Some("cargo-1"),
+                            "prefab selection missing"
+                        );
+                        ensure!(
+                            self.residency.has_all(&self.editor.assets),
+                            "CPU-only prefab blocks GPU residency"
+                        );
+                        println!(
+                            "editor_prefab_smoke_ok linked_hierarchy asset_panel inspector shared_source native_ui_capture"
+                        );
+                        return Ok(());
+                    }
                     if self.smoke_gi_frame.is_some() {
                         frame.write_ppm(&output.join("editor-gi.ppm"))?;
                         std::fs::write(
@@ -563,6 +583,44 @@ impl App {
                                 return;
                             }
                             self.smoke_gi_frame = Some(self.smoke_frames + 3);
+                            self.smoke_requested = false;
+                            continue;
+                        }
+                        if self.smoke_prefab_frame.is_none() {
+                            let result = (|| -> Result<()> {
+                                // Embedded fixtures keep packaged smoke independent of the build checkout.
+                                std::fs::create_dir_all(output.join("prefab-assets"))?;
+                                std::fs::write(
+                                    output.join("prefab-assets/cargo.prefab.json"),
+                                    include_bytes!(
+                                        "../../../examples/demo/scenes/assets/cargo.prefab.json"
+                                    ),
+                                )?;
+                                let mut scene = bozzard_scene::Scene::from_json(include_str!(
+                                    "../../../examples/demo/scenes/prefab-lab.json"
+                                ))?;
+                                scene.assets.get_mut("cargo-prefab").unwrap().path =
+                                    "prefab-assets/cargo.prefab.json".into();
+                                self.editor =
+                                    Editor::new(scene, &output.join("prefab-scene.json"))?;
+                                self.editor.save(&output.join("prefab-scene.json"))?;
+                                self.editor.selected = Some("cargo-1".into());
+                                self.asset_browser.reveal("cargo-prefab".into());
+                                self.workspace.assets_visible = true;
+                                self.workspace.camera = None;
+                                self.workspace.gi_visible = false;
+                                self.workspace.colliders_visible = false;
+                                self.workspace.layer_2d = false;
+                                self.refresh = None;
+                                Ok(())
+                            })();
+                            if let Err(error) = result {
+                                eprintln!("editor_smoke_failed: {error:#}");
+                                self.allow_close = true;
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                return;
+                            }
+                            self.smoke_prefab_frame = Some(self.smoke_frames + 3);
                             self.smoke_requested = false;
                             continue;
                         }

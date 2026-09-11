@@ -5,6 +5,7 @@ impl App {
             ui.disable();
         }
         theme::panel_title(ui, "Properties");
+        self.prefab_inspector(ui);
         let Some(original) = self.editor.selected_object().cloned() else {
             ui.add_space(16.0);
             ui.weak("No entity selected");
@@ -376,7 +377,11 @@ impl App {
         let gi_current = self.editor.gi_current();
         ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
             egui::CollapsingHeader::new("GLOBAL ILLUMINATION")
-                .open(self.smoke_gi_frame.map(|_| true))
+                .open(if self.smoke_prefab_frame.is_some() {
+                    Some(false)
+                } else {
+                    self.smoke_gi_frame.map(|_| true)
+                })
                 .show(ui, |ui| {
                     let actions = gi::controls(
                         ui,
@@ -835,5 +840,37 @@ mod color_tests {
                 assert_eq!(color, original);
             }
         }
+    }
+}
+
+impl App {
+    fn prefab_inspector(&mut self, ui: &mut egui::Ui) {
+        use bozzard_editor::PrefabCommand;
+        if self.editor.selected_object().is_none() || self.editor.selected_surface().is_some() {
+            return;
+        }
+        let asset = self
+            .editor
+            .selected_prefab_root()
+            .map(|root| self.editor.scene().prefabs[root].asset.clone());
+        ui.add_enabled_ui(self.editor.play.is_none() && self.loading.is_none(), |ui| {
+            if let Some(asset) = asset {
+                ui.colored_label(Color32::from_rgb(178, 155, 244), format!("Prefab · {asset}"));
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("Apply to prefab").on_hover_text("Writes this instance's component edits to the source file and updates linked instances in this scene. Placement stays local. Scene Undo does not undo the source file write.").clicked() {
+                        self.start_prefab(PrefabCommand::Apply);
+                    }
+                    if ui.button("Refresh instances").on_hover_text("Read the source again and update instances in this scene, preserving local component overrides. Undoable.").clicked() {
+                        self.start_prefab(PrefabCommand::Refresh { asset });
+                    }
+                    if ui.button("Unpack").on_hover_text("Keep these objects and detach their prefab link. Unpack before adding, removing, or reparenting children. Undoable.").clicked() {
+                        let result = self.editor.unpack_prefab(); self.result(result);
+                    }
+                });
+            } else if ui.button("Save as prefab").on_hover_text("Save this hierarchy into assets/ and link it to a reusable prefab. Scene Undo keeps the source file for reuse.").clicked() {
+                self.start_prefab(PrefabCommand::Create);
+            }
+        });
+        ui.separator();
     }
 }

@@ -77,14 +77,14 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     })));
     let weak = Arc::downgrade(&source);
     let mut cancelled =
-        renderer.begin_upload(gpu, bozzard_render_assets::upload_source(source.clone()))?;
+        renderer.begin_upload(gpu, bozzard_render_assets::upload_source(source.clone())?)?;
     cancelled.advance(gpu, &renderer, 256)?;
     drop(cancelled);
     ensure!(
         capture(gpu, &mut renderer, &scene, [64, 64])?.rgba == old.rgba,
         "cancelled upload changed visible GPU data"
     );
-    let mut pending = renderer.begin_upload(gpu, bozzard_render_assets::upload_source(source))?;
+    let mut pending = renderer.begin_upload(gpu, bozzard_render_assets::upload_source(source)?)?;
     let mut slices = 0;
     while !pending.progress().complete {
         let before = pending.progress().bytes_done;
@@ -134,7 +134,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     }));
     ensure!(
         renderer
-            .begin_upload(gpu, bozzard_render_assets::upload_source(invalid))
+            .begin_upload(gpu, bozzard_render_assets::upload_source(invalid)?)
             .is_err(),
         "invalid staged model accepted"
     );
