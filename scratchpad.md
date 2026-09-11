@@ -4,7 +4,7 @@ Live handoff. Replace superseded status; use Git history for completed narrative
 
 ## Current checkpoint — linked prefabs (validated)
 
-Implemented on `codex/prefab-assets` from merged main `57cd6d4`. User approved prefabs and has requested committing validated subsystems. **This checkpoint contains the validated subsystem; no push requested.** Root owns code/tests/scratchpad; GPT-5.6 Luna (`prefab_docs`) updated README and docs/prefabs.md/assets.md/roadmap.md. Preserve Bozz tribute. Pointer untouched; UI drag tests used synthetic egui events, native captures used the existing smoke harness.
+Implemented on `codex/prefab-assets` from merged main `57cd6d4`, feature commit `8b60591`. The branch was pushed and PR [#4](https://github.com/kaz0r/Bozzard/pull/4) opened against `main`; hosted CI is not yet verified. Root owns code/tests/scratchpad; GPT-5.6 Luna (`prefab_docs`) updated README and docs/prefabs.md/assets.md/roadmap.md. Preserve Bozz tribute. Pointer untouched; UI drag tests used synthetic egui events, native captures used the existing smoke harness.
 
 - CPU-only `Prefab` schema v1 and optional scene `prefabs` metadata: expanded objects, stable source→scene member IDs, saved component baselines. Existing scenes remain compatible. Scene validation guards missing/overlapping members, invalid baselines, external hierarchy edits and dependencies. Baseline validation copies only referenced assets per instance.
 - Inspector **Save as prefab** writes a fresh `assets/<name>-prefab-N.prefab.json` and links the selected hierarchy. Assets has a **Prefabs** filter, hierarchy thumbnail, Add to scene and thumbnail drag to viewport. 3D drops use y=0, 2D z=0, parallel/behind-plane rays fall back five units ahead. Add chooses the prefab drawable layer. Inspector exposes **Apply to prefab**, **Refresh instances**, and **Unpack**.
@@ -17,7 +17,7 @@ Validation: full workspace tests passed (198 tests across37 suites, including ex
 
 Release native Metal player full smoke passed all existing PBR/environment/shadow/GI/display/upload/residency oracles plus loaded Prefab Workshop render/roundtrip. Native editor smoke passed existing authored/Play/async import/save/open/cancel/GI checks plus prefab hierarchy, Assets/Inspector, and CPU-only residency capture. Viewed `work/editor-prefabs-final/editor-prefabs.png`: three crates and local orange override, complete prefab controls and asset tile are visible. The smoke fixture is embedded and written only into its output folder, independent of the build checkout. Headless fixture ran3ticks and saved. Packaged release server and Metal player ran the prefab fixture from an empty working directory after ZIP extraction.
 
-Logs: `/tmp/bozzard-prefab-{workspace-tests,final-cpu,clippy,build,ui-tests,tests,editor,metal,package}.log`. Native output `work/prefabs-metal/`; editor output `work/editor-prefabs-final/`. Hosted CI not run for this branch because it has not been pushed.
+Logs: `/tmp/bozzard-prefab-{workspace-tests,final-cpu,clippy,build,ui-tests,tests,editor,metal,package}.log`. Native output `work/prefabs-metal/`; editor output `work/editor-prefabs-final/`. Publication succeeded; hosted CI is not yet verified.
 
 Manual test: `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/prefab-lab.json`. Select the first crate's **Body**, edit tint, **Apply to prefab**: the second teal body follows, the orange third keeps its Drawable override, and root placements stay fixed. This edits `examples/demo/scenes/assets/cargo.prefab.json`. To create your own asset, select an ordinary hierarchy (or Unpack first), Save as prefab, then Add/drag more instances. Detailed semantics: `docs/prefabs.md`.
 
@@ -164,7 +164,7 @@ User asked to check CI and, on success, implement selection of imported surfaces
 
 ## Next step
 
-User can test this validated Prefab Workshop checkpoint; wait for a requested push. then a useful bounded follow-up is an Inspector view of component overrides with **Revert instance**. Dedicated source-hierarchy editing, nested prefabs/variants and scripting remain later work. Point-light shadows are already merged into main at `57cd6d4`.
+User can test this validated Prefab Workshop checkpoint from [PR #4](https://github.com/kaz0r/Bozzard/pull/4); publication succeeded and hosted CI remains unverified. A useful bounded follow-up is an Inspector view of component overrides with **Revert instance**. Dedicated source-hierarchy editing, nested prefabs/variants and scripting remain later work. Point-light shadows are already merged into main at `57cd6d4`.
 
 Light demo: `cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scenes/lighting-lab.json`. CPU/GPU commands and honest current limits: `docs/lighting.md`.
 
