@@ -107,6 +107,7 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
             trigger.volume.validate()?;
             ensure!(
                 object.collider.is_none()
+                    && object.mesh_collider.is_none()
                     && object.gravity.is_none()
                     && object.player_controller.is_none(),
                 "trigger '{}' must not also be a solid collider, gravity body or player",
@@ -167,6 +168,7 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
                 && camera.spin.is_none()
                 && camera.gravity.is_none()
                 && camera.collider.is_none()
+                && camera.mesh_collider.is_none()
                 && camera.trigger.is_none()
                 && matches!(camera.camera, Some(Camera::Perspective { .. })),
             "follow camera needs a separate root perspective camera without Spin/Gravity/collider/trigger"
@@ -181,7 +183,9 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
             for _ in 0..scene.objects.len() {
                 let Some(id) = parent else { break };
                 ensure!(
-                    id != player.id || !object.collider.is_some_and(|c| c.enabled),
+                    id != player.id
+                        || !(object.collider.is_some_and(|c| c.enabled)
+                            || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)),
                     "Player Controller cannot carry child colliders"
                 );
                 parent = scene
@@ -223,6 +227,29 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
                 .map(|c| make_box(&o.id, c, matrices[o.id.as_str()]))
         })
         .collect::<Result<_>>()?;
+    let meshes: Vec<_> = scene
+        .objects
+        .iter()
+        .filter(|o| o.id != player.id)
+        .filter_map(|o| {
+            o.mesh_collider
+                .as_ref()
+                .filter(|c| c.enabled)
+                .map(|c| -> Result<_> {
+                    Ok(CollisionMesh {
+                        id: o.id.clone(),
+                        entity,
+                        mesh: if o.gravity.is_some_and(|g| g.enabled) {
+                            c.mesh.convex_hull()?
+                        } else {
+                            c.mesh.clone()
+                        },
+                        matrix: matrices[o.id.as_str()],
+                        solid: o.gravity.is_some_and(|g| g.enabled),
+                    })
+                })
+        })
+        .collect::<Result<_>>()?;
     let mut points = vec![(player.id.as_str(), player.transform.translation)];
     for object in &scene.objects {
         if let Some(Trigger {
@@ -239,7 +266,10 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
         transform.translation = point;
         let bounds = make_box(&player.id, player.collider.unwrap(), transform.matrix())?;
         ensure!(
-            !solids.iter().any(|solid| bounds.penetrates(solid)),
+            !solids.iter().any(|solid| bounds.penetrates(solid))
+                && !meshes
+                    .iter()
+                    .any(|m| m.penetration(&bounds).is_some_and(|(d, _)| d > 1e-5)),
             "spawn point '{id}' intersects a solid collider; move it to a clear position"
         );
     }
@@ -445,6 +475,38 @@ impl SceneInstance {
         for (id, &entity) in &self.entities {
             if id == player {
                 continue;
+            }
+            if let Some(collider) = world.get::<MeshCollider>(entity).filter(|c| c.enabled) {
+                collider.geometry(matrices[id])?;
+                let mesh = CollisionMesh {
+                    id: id.clone(),
+                    entity,
+                    mesh: if world.get::<Gravity>(entity).is_some_and(|g| g.enabled) {
+                        collider.mesh.convex_hull()?
+                    } else {
+                        collider.mesh.clone()
+                    },
+                    matrix: matrices[id],
+                    solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
+                };
+                // Conservative cube around the camera sphere also protects triangle edges/corners.
+                let (center, edges, corners) = BoxCollider {
+                    size: [radius * 2.; 3],
+                    ..Default::default()
+                }
+                .geometry(Mat4::from_translation(target))?;
+                let probe = CollisionBox {
+                    id: String::new(),
+                    entity,
+                    center,
+                    edges,
+                    corners,
+                };
+                if mesh.penetration(&probe).is_some() {
+                    fraction = 0.;
+                } else if let Some((time, _)) = mesh.sweep(&probe, (desired - target).as_dvec3()) {
+                    fraction = fraction.min((time as f32 - 0.001).max(0.));
+                }
             }
             let Some(collider) = world.get::<BoxCollider>(entity).filter(|c| c.enabled) else {
                 continue;

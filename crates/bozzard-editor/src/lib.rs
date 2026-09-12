@@ -236,6 +236,20 @@ impl Editor {
         }
         Ok(())
     }
+    pub fn create_empty(&mut self) -> Result<()> {
+        let mut scene = self.scene.clone();
+        let id = unique_id(&scene, "object");
+        scene.objects.push(Object {
+            id: id.clone(),
+            name: "Empty Object".into(),
+            ..Default::default()
+        });
+        self.finish_gesture();
+        self.apply("Create empty object", scene)?;
+        self.select_object(Some(id));
+        Ok(())
+    }
+
     pub fn create(&mut self, mesh: Mesh, layer: Layer) -> Result<()> {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "object");
@@ -245,6 +259,8 @@ impl Editor {
             light: None,
             id: id.clone(),
             material: None,
+            mesh_collider: None,
+            text_rendering: None,
             name: match mesh {
                 Mesh::Quad => "Sprite",
                 Mesh::Cube => "Cube",
@@ -285,6 +301,8 @@ impl Editor {
             blueprints: Vec::new(),
             id: id.clone(),
             material: None,
+            mesh_collider: None,
+            text_rendering: None,
             name: match kind {
                 bozzard_scene::LightKind::Point => "Point light",
                 bozzard_scene::LightKind::Spot => "Spot light",
@@ -518,6 +536,8 @@ impl Editor {
             light: None,
             id: id.clone(),
             material: None,
+            mesh_collider: None,
+            text_rendering: None,
             name: asset_id.into(),
             parent: None,
             transform,
@@ -1013,6 +1033,11 @@ pub fn extract(
                     texture: render_texture(d.texture),
                 },
             })
+            .chain(
+                view.texts
+                    .into_iter()
+                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text)),
+            )
             .collect(),
     })
 }

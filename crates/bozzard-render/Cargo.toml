@@ -10,6 +10,7 @@ anyhow.workspace = true
 pollster.workspace = true
 wgpu.workspace = true
 glam.workspace = true
+epaint = { version = "0.36.1", default-features = false, features = ["default_fonts"] }
 
 [lints]
 workspace = true

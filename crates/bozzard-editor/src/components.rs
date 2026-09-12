@@ -86,6 +86,8 @@ impl Editor {
                 camera: None,
                 spin: None,
                 collider: None,
+                mesh_collider: None,
+                text_rendering: None,
                 gravity: None,
                 player_controller: None,
                 trigger: None,

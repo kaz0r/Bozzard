@@ -118,10 +118,29 @@ struct PreviousFrame {
     signature: u64,
     taa: bool,
 }
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum MotionMesh {
+    Quad,
+    Cube,
+    Imported(String),
+    ModelPart(String, usize),
+    Text,
+}
+impl From<&MeshKind> for MotionMesh {
+    fn from(mesh: &MeshKind) -> Self {
+        match mesh {
+            MeshKind::Quad => Self::Quad,
+            MeshKind::Cube => Self::Cube,
+            MeshKind::Imported(id) => Self::Imported(id.clone()),
+            MeshKind::ModelPart(id, part) => Self::ModelPart(id.clone(), *part),
+            MeshKind::Text(_) => Self::Text,
+        }
+    }
+}
 #[derive(Default)]
 pub(super) struct MotionHistory {
     previous: Option<PreviousFrame>,
-    poses: BTreeMap<(u64, MeshKind), Mat4>,
+    poses: BTreeMap<(u64, MotionMesh), Mat4>,
     sample: u32,
 }
 fn halton(mut index: u32, base: u32) -> f32 {
@@ -222,7 +241,7 @@ impl MotionHistory {
             Some(item.model)
         } else {
             self.poses
-                .get(&(item.motion_id, item.mesh.clone()))
+                .get(&(item.motion_id, MotionMesh::from(&item.mesh)))
                 .copied()
         }
     }
@@ -231,7 +250,12 @@ impl MotionHistory {
             self.poses = draws
                 .iter()
                 .filter(|d| d.object.motion_id != 0)
-                .map(|d| ((d.object.motion_id, d.object.mesh.clone()), d.object.model))
+                .map(|d| {
+                    (
+                        (d.object.motion_id, MotionMesh::from(&d.object.mesh)),
+                        d.object.model,
+                    )
+                })
                 .collect();
         }
     }
@@ -255,7 +279,14 @@ fn frame_signature(scene: &RenderScene) -> u64 {
     .hash(&mut hash);
     for item in &scene.items {
         item.motion_id.hash(&mut hash);
-        item.mesh.hash(&mut hash);
+        MotionMesh::from(&item.mesh).hash(&mut hash);
+        if let MeshKind::Text(text) = &item.mesh {
+            text.text.hash(&mut hash);
+            text.monospace.hash(&mut hash);
+            std::mem::discriminant(&text.alignment).hash(&mut hash);
+            text.max_width.map(f32::to_bits).hash(&mut hash);
+            floats([text.font_size, text.opacity], &mut hash);
+        }
         item.material.texture.hash(&mut hash);
         item.material.lit.hash(&mut hash);
         floats(

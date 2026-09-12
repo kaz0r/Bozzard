@@ -23,6 +23,12 @@ Validation ran on native Metal, Apple M2 Pro, in a debug build.
 - Short 800×500 Atmosphere Lab benchmark, 12 synchronized frames per configuration: optimized CPU median **25.704 ms**, CPU+GPU+wait median **33.981 ms**; reference/culling/cached configurations had identical pixels. This is a static-view debug-build sample, not a windowed FPS or GPU-timestamp measurement. It preceded the final velocity-tile silhouette refinement; that refinement was validated separately with the temporal GPU tests.
 - Clippy with `-D warnings`, formatting and the headless dependency check passed. No dependencies were added.
 
+## Integration with main
+
+After merging main at `1d89d36` (text rendering and Rapier physics), the full workspace suite passed: **296 passed, 0 failed, 4 ignored**. The hardware text test was then run explicitly and passed atlas growth, opacity, depth, bounded edits, and cleanup. A new temporal regression test verifies that paused text/content and opacity edits refresh the image without stale history.
+
+Clippy with warnings denied, formatting, the headless dependency check, native editor smoke, and the Atmosphere Lab player smoke all passed on Metal. The combined animated frame contains 61 particles; removing particles changes 8,256 pixels and removing reflections changes 848 pixels. These checks use `work/pr-editor` and `work/pr-atmosphere`.
+
 ## Reproduce and inspect
 
 ```sh

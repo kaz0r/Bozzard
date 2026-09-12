@@ -69,11 +69,62 @@ impl App {
                 }
             }
         }
+        let mut sampled = false;
+        for mesh in &snapshot.meshes {
+            let selected = self.editor.selected.as_deref() == Some(&mesh.id);
+            let color = if colliding.contains(mesh.id.as_str()) {
+                Color32::from_rgb(255, 155, 60)
+            } else {
+                Color32::from_rgb(150, 220, 100)
+            };
+            let draw = |a: glam::Vec3, b: glam::Vec3| {
+                if let Some((a, b)) =
+                    clip_edge(projection * a.extend(1.), projection * b.extend(1.))
+                {
+                    painter.line_segment(
+                        [project(a), project(b)],
+                        egui::Stroke::new(if selected { 1.5 } else { 1. }, color),
+                    );
+                }
+            };
+            let bounds = mesh.mesh.bounds();
+            let corners: [glam::Vec3; 8] = std::array::from_fn(|i| {
+                mesh.matrix.transform_point3(glam::Vec3::new(
+                    bounds[i & 1].x,
+                    bounds[(i >> 1) & 1].y,
+                    bounds[(i >> 2) & 1].z,
+                ))
+            });
+            for i in 0..8 {
+                for axis in 0..3 {
+                    let j = i ^ (1 << axis);
+                    if j > i {
+                        draw(corners[i], corners[j]);
+                    }
+                }
+            }
+            if selected {
+                // ponytail: cap debug wire work, not collision accuracy; GPU wire rendering if needed.
+                let step = mesh.mesh.triangles().len().div_ceil(2048).max(1);
+                sampled |= step > 1;
+                for triangle in mesh.mesh.triangles().iter().step_by(step) {
+                    let p =
+                        triangle.map(|p| mesh.matrix.transform_point3(glam::Vec3::from_array(p)));
+                    for i in 0..3 {
+                        draw(p[i], p[(i + 1) % 3]);
+                    }
+                }
+            }
+        }
         let mut label = format!(
-            "Colliders: {}  ·  Overlaps: {}",
+            "Colliders: {} boxes + {} meshes  ·  Overlaps: {}",
             snapshot.boxes.len(),
+            snapshot.meshes.len(),
             snapshot.overlaps.len()
         );
+        if sampled {
+            label.push_str("\nSelected mesh wires sampled (2048 triangles max)");
+        }
         for (a, b) in snapshot.overlaps.iter().take(4) {
             label.push_str(&format!("\n{a} ↔ {b}"));
         }

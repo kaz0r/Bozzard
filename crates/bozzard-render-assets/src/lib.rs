@@ -8,6 +8,41 @@ use bozzard_render::{Gpu, MaterialMap, ModelImage, ModelPart, ModelShading, Scen
 pub use residency::{Residency, ResidencyReport};
 use std::sync::Arc;
 
+/// The same text settings feed rendering, editor bounds, and picking.
+pub fn text_mesh(text: &bozzard_scene::TextRendering) -> bozzard_render::TextMesh {
+    bozzard_render::TextMesh {
+        text: text.text.clone(),
+        font_size: text.font_size,
+        max_width: text.max_width,
+        monospace: text.font == bozzard_scene::TextFont::Monospace,
+        alignment: match text.alignment {
+            bozzard_scene::TextAlignment::Left => bozzard_render::TextAlignment::Left,
+            bozzard_scene::TextAlignment::Center => bozzard_render::TextAlignment::Center,
+            bozzard_scene::TextAlignment::Right => bozzard_render::TextAlignment::Right,
+        },
+        opacity: text.color[3],
+    }
+}
+pub fn text_item(
+    model: glam::Mat4,
+    text: &bozzard_scene::TextRendering,
+) -> bozzard_render::DrawItem {
+    bozzard_render::DrawItem {
+        motion_id: 0,
+        model,
+        mesh: bozzard_render::MeshKind::Text(text_mesh(text)),
+        material: bozzard_render::Material {
+            metallic: None,
+            roughness: None,
+            surface_overrides: Default::default(),
+            tint: [text.color[0], text.color[1], text.color[2]],
+            uv_scale: [1.; 2],
+            texture: bozzard_render::TextureKind::Text,
+            lit: false,
+        },
+    }
+}
+
 fn image(source: &ImageData) -> ModelImage<'_> {
     ModelImage {
         width: source.width,

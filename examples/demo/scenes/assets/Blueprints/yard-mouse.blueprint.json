@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "name": "Gold - mouse delta demo",
+  "variables": {},
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "update",
+      "position": [
+        520,
+        300
+      ],
+      "inputs": []
+    },
+    {
+      "id": 2,
+      "kind": "mouse_x",
+      "position": [
+        0,
+        180
+      ],
+      "inputs": []
+    },
+    {
+      "id": 3,
+      "kind": "mouse_y",
+      "position": [
+        0,
+        0
+      ],
+      "inputs": []
+    },
+    {
+      "id": 4,
+      "kind": "make_vector",
+      "position": [
+        260,
+        30
+      ],
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "kind": "scale_vector",
+      "position": [
+        520,
+        30
+      ],
+      "inputs": [
+        {
+          "vector": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "number": 0.3
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "kind": "rotate",
+      "position": [
+        800,
+        70
+      ],
+      "inputs": [
+        "exec",
+        {
+          "vector": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "object": "self_object"
+        }
+      ]
+    }
+  ],
+  "wires": [
+    {
+      "from": {
+        "node": 1,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 2,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 3,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 4,
+        "port": 0
+      },
+      "to": {
+        "node": 5,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 5,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 1
+      }
+    }
+  ]
+}

@@ -63,6 +63,56 @@ fn diagnostic(name: &str, frame: &Frame) -> anyhow::Result<()> {
     Ok(())
 }
 #[test]
+fn paused_text_edits_refresh_temporal_history() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let mut scene = scene();
+    let size = [320, 240];
+    scene.display.temporal_aa.enabled = true;
+    let empty = capture(&gpu, &mut renderer, &scene, size)?;
+    let mut label = item(0, Vec3::new(-2., 1., -3.), Vec3::ONE, [1., 0.1, 0.05]);
+    label.mesh = MeshKind::Text(TextMesh {
+        text: "Hello!".into(),
+        ..Default::default()
+    });
+    label.material.texture = TextureKind::Text;
+    scene.items.push(label);
+    let original = capture(&gpu, &mut renderer, &scene, size)?;
+    assert!(
+        changed(&empty, &original) > 100,
+        "text must render with TAA enabled"
+    );
+    assert_eq!(
+        original.rgba,
+        capture(&gpu, &mut renderer, &scene, size)?.rgba
+    );
+    if let MeshKind::Text(text) = &mut scene.items[0].mesh {
+        text.text = "World?".into();
+    }
+    let edited = capture(&gpu, &mut renderer, &scene, size)?;
+    assert!(
+        changed(&original, &edited) > 100,
+        "paused text edits must refresh history"
+    );
+    assert_eq!(
+        edited.rgba,
+        capture(&gpu, &mut renderer, &scene, size)?.rgba
+    );
+    if let MeshKind::Text(text) = &mut scene.items[0].mesh {
+        text.opacity = 0.;
+    }
+    let hidden = capture(&gpu, &mut renderer, &scene, size)?;
+    assert!(
+        changed(&edited, &hidden) > 100,
+        "paused opacity edits must refresh history"
+    );
+    assert!(
+        changed(&empty, &hidden) < 10,
+        "hidden text must not leave a history trail"
+    );
+    Ok(())
+}
+#[test]
 fn material_reflections_trace_hits_preserve_misses_and_fade_rough_surfaces() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
     let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);

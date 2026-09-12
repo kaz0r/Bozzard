@@ -10,6 +10,8 @@ mod particles;
 mod reflections;
 mod temporal;
 pub use particles::{Particle, ParticleKind};
+mod text;
+pub use text::{TextAlignment, TextMesh, text_bounds};
 mod visibility;
 pub use visibility::FrameStats;
 mod fog;
@@ -49,8 +51,9 @@ pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MeshKind {
+    Text(TextMesh),
     Quad,
     Cube,
     Imported(String),
@@ -59,6 +62,7 @@ pub enum MeshKind {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TextureKind {
+    Text,
     White,
     Checker,
     Normals,
@@ -183,6 +187,7 @@ pub struct SceneRenderer {
     geometry: Option<geometry::GeometryBuffers>,
     motion_history: geometry::MotionHistory,
     particles: Option<particles::Particles>,
+    text: Option<text::TextRenderer>,
     stats: FrameStats,
     culling: bool,
     state_caching: bool,
@@ -466,6 +471,7 @@ impl SceneRenderer {
             geometry: None,
             motion_history: Default::default(),
             particles: None,
+            text: None,
             stats: Default::default(),
             culling: true,
             state_caching: true,
@@ -534,6 +540,8 @@ impl SceneRenderer {
                         resource: wgpu::BindingResource::Sampler(
                             if let TextureKind::ModelPart(id, index) = key {
                                 &self.models[id][*index].sampler
+                            } else if *key == TextureKind::Text {
+                                &self.model_sampler
                             } else {
                                 &self.sampler
                             },
@@ -543,6 +551,11 @@ impl SceneRenderer {
             })
         };
         let texture = match key {
+            TextureKind::Text => self
+                .text
+                .as_ref()
+                .and_then(|t| t.view.as_ref())
+                .context("text atlas is not uploaded")?,
             TextureKind::White
             | TextureKind::Normals
             | TextureKind::ProceduralChecker
@@ -990,6 +1003,19 @@ impl SceneRenderer {
             });
         };
         for object in &scene.items {
+            if let MeshKind::Text(text) = &object.mesh {
+                if let Some(mesh) = self.text.as_ref().and_then(|t| t.mesh(text)) {
+                    add(
+                        object.clone(),
+                        text.opacity,
+                        None,
+                        true,
+                        (mesh.bounds[0] + mesh.bounds[1]) * 0.5,
+                        [-1.; 2],
+                    );
+                }
+                continue;
+            }
             if let MeshKind::Imported(id) | MeshKind::ModelPart(id, _) = &object.mesh
                 && let Some(parts) = self.models.get(id)
             {
@@ -1229,6 +1255,7 @@ impl SceneRenderer {
         let lights = local_lights::uniform(&scene.lights)?;
         gpu.queue
             .write_buffer(&self.shadows.local_lights, 0, &lights);
+        self.prepare_text(gpu, scene)?;
         let draws = self.prepare(scene);
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {
@@ -1425,6 +1452,7 @@ impl SceneRenderer {
                     last_pipeline = Some(key);
                 }
                 let mesh = match &object.mesh {
+                    MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
                     MeshKind::Quad => &self.quad,
                     MeshKind::Cube => &self.cube,
                     MeshKind::Imported(id) => &self.imported_meshes[id],

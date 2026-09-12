@@ -206,15 +206,41 @@ impl Editor {
         let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let mut best: Option<(f32, Pick)> = None;
         for object in &self.scene.objects {
+            let inverse = matrices[&object.id].inverse();
+            let o = inverse.transform_point3(origin);
+            let d = inverse.transform_vector3(direction);
+            if let Some(text) = &object.text_rendering
+                && text.enabled
+                && text.color[3] > 0.
+                && text.layer == layer
+                && d.z.abs() >= 1e-8
+                && let Some([min, max]) =
+                    bozzard_render::text_bounds(&bozzard_render_assets::text_mesh(text))?
+            {
+                let t = -o.z / d.z;
+                let p = o + d * t;
+                if t > 0.
+                    && p.x >= min.x
+                    && p.x <= max.x
+                    && p.y >= min.y
+                    && p.y <= max.y
+                    && best.as_ref().is_none_or(|(distance, _)| t < *distance)
+                {
+                    best = Some((
+                        t,
+                        Pick {
+                            object: object.id.clone(),
+                            surface: None,
+                        },
+                    ));
+                }
+            }
             let Some(drawable) = &object.drawable else {
                 continue;
             };
             if drawable.layer != layer {
                 continue;
             }
-            let inverse = matrices[&object.id].inverse();
-            let o = inverse.transform_point3(origin);
-            let d = inverse.transform_vector3(direction);
             let hit = match &drawable.mesh {
                 Mesh::Quad => {
                     if d.z.abs() < 1e-8 {

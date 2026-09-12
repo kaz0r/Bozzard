@@ -626,6 +626,14 @@ impl App {
         ui.horizontal(|ui| {
             ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                 ui.menu_button("+ Create", |ui| {
+                    if ui.button("+ Empty Object").clicked() {
+                        let r = self.editor.create_empty();
+                        if r.is_ok() {
+                            self.hierarchy_search.clear();
+                        }
+                        self.result(r);
+                        ui.close();
+                    }
                     if ui.button("+ Cube").clicked() {
                         let r = self.editor.create(Mesh::Cube, Layer::ThreeD);
                         if r.is_ok() {
@@ -928,7 +936,7 @@ impl App {
         }
         if matches == 0 {
             ui.weak(if query.is_empty() {
-                "Scene is empty. Add a Cube or Sprite above."
+                "Scene is empty. Use Create above to add an object."
             } else {
                 "No matching objects. Clear search to see all."
             });

@@ -37,6 +37,7 @@ fn gravity_free_fall_accelerates_downward_and_caps_speed() {
             acceleration: 9.81,
             max_speed: 50.0,
             jump_speed: 5.0,
+            ..Default::default()
         }
     );
     let scene = collision_scene(
@@ -53,7 +54,8 @@ fn gravity_free_fall_accelerates_downward_and_caps_speed() {
     instance.step_gravity(&mut world, 0.1).unwrap();
     assert!((state(&instance, &world, "mover").vertical_velocity + 1.0).abs() <= EPSILON);
     assert!(!state(&instance, &world, "mover").grounded);
-    assert!((center(&instance, &world, "mover").y - 9.9).abs() <= EPSILON);
+    // Substeps approximate s = 1/2 a t², not one large semi-implicit Euler step.
+    assert!((center(&instance, &world, "mover").y - 9.95).abs() < 0.01);
 
     instance.step_gravity(&mut world, 1.0).unwrap();
     assert!((state(&instance, &world, "mover").vertical_velocity + 3.0).abs() <= EPSILON);
@@ -79,7 +81,7 @@ fn gravity_lands_and_stays_grounded_without_drifting() {
 
     instance.step_gravity(&mut world, 1.0).unwrap();
     let landed_y = center(&instance, &world, "mover").y;
-    assert!((landed_y - 1.0).abs() <= EPSILON);
+    assert!((landed_y - 1.0).abs() <= EPSILON, "landing {landed_y}");
     assert!(state(&instance, &world, "mover").grounded);
     assert_eq!(state(&instance, &world, "mover").vertical_velocity, 0.0);
 
@@ -184,6 +186,7 @@ fn gravity_config_captures_but_runtime_velocity_starts_fresh_after_spawning() {
             acceleration: 12.5,
             max_speed: 7.0,
             jump_speed: 8.0,
+            ..Default::default()
         })
     );
     let saved = Scene::from_json(&saved.to_json().unwrap()).unwrap();
@@ -298,8 +301,9 @@ fn jumping_into_ceiling_cancels_ascent_and_starts_falling() {
     assert!(instance.jump_box(&mut world, "mover", 10.0).unwrap());
     instance.step_gravity(&mut world, 0.2).unwrap();
     let height = center(&instance, &world, "mover").y;
-    assert!((height - 1.0).abs() < EPSILON);
-    assert_eq!(state(&instance, &world, "mover").vertical_velocity, 0.0);
+    // With substeps the body hits the ceiling, then starts falling within this call.
+    assert!((0.8..=1.002).contains(&height), "ceiling height {height}");
+    assert!(state(&instance, &world, "mover").vertical_velocity <= 0.0);
     assert!(!state(&instance, &world, "mover").grounded);
     instance.step_gravity(&mut world, 0.1).unwrap();
     assert!(center(&instance, &world, "mover").y < height);

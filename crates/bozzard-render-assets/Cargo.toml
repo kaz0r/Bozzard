@@ -9,6 +9,7 @@ publish.workspace = true
 bozzard-assets.workspace = true
 bozzard-scene.workspace = true
 bozzard-render.workspace = true
+glam.workspace = true
 anyhow.workspace = true
 
 [lints]

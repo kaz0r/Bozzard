@@ -143,6 +143,11 @@ pub fn extract(
                     lit: layer == Layer::ThreeD,
                 },
             })
+            .chain(
+                view.texts
+                    .into_iter()
+                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text)),
+            )
             .collect(),
     })
 }

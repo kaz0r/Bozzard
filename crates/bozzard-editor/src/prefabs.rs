@@ -659,6 +659,8 @@ fn merge_instances(
                     material,
                     spin,
                     collider,
+                    mesh_collider,
+                    text_rendering,
                     gravity,
                     trigger,
                     light,

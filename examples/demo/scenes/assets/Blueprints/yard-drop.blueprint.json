@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "name": "Blue pad - drop a physics block",
+  "variables": {
+    "last_drop": -2
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "kind": "body_enter",
+      "position": [
+        0,
+        0
+      ],
+      "inputs": []
+    },
+    {
+      "id": 2,
+      "kind": "object_equal",
+      "position": [
+        260,
+        130
+      ],
+      "inputs": [
+        {
+          "object": "self_object"
+        },
+        {
+          "object": {
+            "id": "player"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "kind": "branch",
+      "position": [
+        520,
+        0
+      ],
+      "inputs": [
+        "exec",
+        {
+          "bool": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "kind": "elapsed_time",
+      "position": [
+        0,
+        480
+      ],
+      "inputs": []
+    },
+    {
+      "id": 5,
+      "kind": "get_variable",
+      "position": [
+        0,
+        650
+      ],
+      "inputs": [],
+      "variable": "last_drop"
+    },
+    {
+      "id": 6,
+      "kind": "subtract",
+      "position": [
+        260,
+        480
+      ],
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "kind": "greater",
+      "position": [
+        520,
+        480
+      ],
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 1
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "kind": "branch",
+      "position": [
+        780,
+        0
+      ],
+      "inputs": [
+        "exec",
+        {
+          "bool": false
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "kind": "set_variable",
+      "position": [
+        1040,
+        0
+      ],
+      "inputs": [
+        "exec",
+        {
+          "number": 0
+        }
+      ],
+      "variable": "last_drop"
+    },
+    {
+      "id": 10,
+      "kind": "spawn_prefab",
+      "position": [
+        1300,
+        0
+      ],
+      "inputs": [
+        "exec",
+        {
+          "vector": [
+            4,
+            5,
+            -3.5
+          ]
+        }
+      ],
+      "prefab": "yard-drop"
+    }
+  ],
+  "wires": [
+    {
+      "from": {
+        "node": 1,
+        "port": 1
+      },
+      "to": {
+        "node": 2,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 1,
+        "port": 0
+      },
+      "to": {
+        "node": 3,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 2,
+        "port": 0
+      },
+      "to": {
+        "node": 3,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 3,
+        "port": 0
+      },
+      "to": {
+        "node": 8,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 4,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 5,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 6,
+        "port": 0
+      },
+      "to": {
+        "node": 7,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 7,
+        "port": 0
+      },
+      "to": {
+        "node": 8,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 8,
+        "port": 0
+      },
+      "to": {
+        "node": 9,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 4,
+        "port": 0
+      },
+      "to": {
+        "node": 9,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 9,
+        "port": 0
+      },
+      "to": {
+        "node": 10,
+        "port": 0
+      }
+    }
+  ]
+}

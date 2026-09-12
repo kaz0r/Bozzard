@@ -198,10 +198,20 @@ impl SceneDemo {
             {
                 return;
             }
-            for (_, transform, spin) in world
+            let dynamic: std::collections::HashSet<_> = world
+                .query::<bozzard_scene::Gravity>()
+                .filter(|(e, g)| {
+                    g.enabled && world.get::<bozzard_scene::PlayerController>(*e).is_none()
+                })
+                .map(|(e, _)| e)
+                .collect();
+            for (entity, transform, spin) in world
                 .query_pair_mut::<Transform, Spin>()
                 .expect("distinct components")
             {
+                if dynamic.contains(&entity) {
+                    continue;
+                }
                 for axis in 0..3 {
                     transform.rotation_degrees[axis] = (transform.rotation_degrees[axis]
                         + spin.0[axis] * tick.delta.as_secs_f32())
