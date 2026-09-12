@@ -1,4 +1,5 @@
 use super::BloomSettings;
+use super::VolumetricFog;
 use anyhow::{Result, ensure};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -12,6 +13,7 @@ pub struct DisplaySettings {
     pub heat_distortion: HeatDistortion,
     pub grain: FilmGrain,
     pub vignette: Vignette,
+    pub volumetric_fog: VolumetricFog,
     /// Stops applied to HDR radiance before display mapping. +1 doubles exposure.
     pub exposure_ev: f32,
     /// Enable the selected tone mapper. Legacy scenes default to Reinhard.
@@ -28,6 +30,7 @@ impl Default for DisplaySettings {
             heat_distortion: HeatDistortion::default(),
             grain: FilmGrain::default(),
             vignette: Vignette::default(),
+            volumetric_fog: VolumetricFog::default(),
             exposure_ev: 0.,
             tone_mapping: true,
         }
@@ -42,6 +45,7 @@ impl DisplaySettings {
         self.heat_distortion.validate()?;
         self.grain.validate()?;
         self.vignette.validate()?;
+        self.volumetric_fog.validate()?;
         ensure!(
             self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
             "exposure must be finite and within -16..16 stops"

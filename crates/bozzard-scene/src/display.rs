@@ -1,3 +1,4 @@
+use crate::VolumetricFog;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +12,7 @@ pub struct DisplaySettings {
     pub heat_distortion: HeatDistortion,
     pub grain: FilmGrain,
     pub vignette: Vignette,
+    pub volumetric_fog: VolumetricFog,
     /// Stops applied to HDR radiance before display mapping. +1 doubles exposure.
     pub exposure_ev: f32,
     /// Enable the selected tone mapper. Legacy scenes default to Reinhard.
@@ -26,6 +28,7 @@ impl Default for DisplaySettings {
             heat_distortion: HeatDistortion::default(),
             grain: FilmGrain::default(),
             vignette: Vignette::default(),
+            volumetric_fog: VolumetricFog::default(),
             exposure_ev: 0.,
             tone_mapping: true,
         }
@@ -39,6 +42,7 @@ impl DisplaySettings {
         self.heat_distortion.validate()?;
         self.grain.validate()?;
         self.vignette.validate()?;
+        self.volumetric_fog.validate()?;
         ensure!(
             self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
             "exposure must be finite and within -16..16 stops"
@@ -305,6 +309,7 @@ impl DisplaySettings {
                 value.heat_distortion.enabled = true;
                 value.heat_distortion.strength = 4.;
                 value.vignette.intensity = 0.4;
+                value.volumetric_fog.enabled = true;
             }
             DisplayPreset::Neon => {
                 value.bloom.intensity = 0.4;
@@ -339,6 +344,7 @@ impl DisplaySettings {
         let rgb = |a: [f32; 3], b: [f32; 3]| std::array::from_fn(|i| mix(a[i], b[i]));
         let strength = |enabled, value| if enabled { value } else { 0. };
         Self {
+            volumetric_fog: self.volumetric_fog.blend(other.volumetric_fog, t),
             exposure_ev: mix(self.exposure_ev, other.exposure_ev),
             tone_mapping: if t < 0.5 {
                 self.tone_mapping
@@ -491,6 +497,8 @@ pub(crate) struct DisplayOverrides {
     pub heat: Option<f32>,
     pub grain: Option<f32>,
     pub vignette: Option<f32>,
+    pub fog_density: Option<f32>,
+    pub fog_light: Option<f32>,
 }
 impl DisplayOverrides {
     pub fn apply(&self, mut display: DisplaySettings) -> DisplaySettings {
@@ -513,6 +521,13 @@ impl DisplayOverrides {
         }
         if let Some(value) = self.vignette {
             display.vignette.intensity = value;
+        }
+        if let Some(value) = self.fog_density {
+            display.volumetric_fog.enabled = true;
+            display.volumetric_fog.density = value;
+        }
+        if let Some(value) = self.fog_light {
+            display.volumetric_fog.light_intensity = value;
         }
         display
     }
@@ -552,6 +567,8 @@ impl crate::SceneInstance {
         use crate::blueprint::NodeKind as K;
         let mut next = self.display_overrides.clone();
         match kind {
+            K::SetFogDensity => next.fog_density = Some(value),
+            K::SetFogLightIntensity => next.fog_light = Some(value),
             K::SetExposure => next.exposure = Some(value),
             K::SetBloomIntensity => next.bloom = Some(value),
             K::SetSaturation => next.saturation = Some(value),

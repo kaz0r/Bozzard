@@ -1,43 +1,21 @@
 use super::*;
+use post_process::FrameInput;
 
-pub(super) struct FrameInput<'a> {
-    pub size: [u32; 2],
-    pub raw: bool,
-    pub view_projection: Mat4,
-    pub depth: Option<&'a wgpu::TextureView>,
-    pub lighting: Lighting,
-    pub environment: EnvironmentSettings,
-    pub shadows: Option<&'a shadows::Shadows>,
-}
-impl Default for FrameInput<'_> {
-    fn default() -> Self {
-        Self {
-            size: [1, 1],
-            raw: false,
-            view_projection: Mat4::IDENTITY,
-            depth: None,
-            lighting: Lighting::default(),
-            environment: EnvironmentSettings::disabled(),
-            shadows: None,
-        }
-    }
-}
 struct Targets {
     size: [u32; 2],
-    ao: wgpu::TextureView,
+    scattering: wgpu::TextureView,
     color: wgpu::TextureView,
-    ao_binding: wgpu::BindGroup,
+    trace_binding: wgpu::BindGroup,
     composite_binding: wgpu::BindGroup,
 }
-pub(super) struct PostProcess {
-    ao_pipeline: wgpu::RenderPipeline,
-    composite_pipeline: wgpu::RenderPipeline,
+/// Lazily constructed; disabled fog owns no frame-sized intermediate textures.
+pub(super) struct Volumetric {
+    trace: wgpu::RenderPipeline,
+    composite: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     uniform: wgpu::Buffer,
-    sampler: wgpu::Sampler,
     dummy: wgpu::TextureView,
     targets: Option<Targets>,
-    ao_enabled: bool,
 }
 fn texture(gpu: &Gpu, size: [u32; 2], label: &'static str) -> wgpu::TextureView {
     gpu.device
@@ -57,8 +35,16 @@ fn texture(gpu: &Gpu, size: [u32; 2], label: &'static str) -> wgpu::TextureView 
         })
         .create_view(&Default::default())
 }
-impl PostProcess {
-    pub fn new(gpu: &Gpu) -> Self {
+fn shader_source() -> String {
+    [
+        include_str!("shadow_sample.wgsl"),
+        include_str!("local_lights.wgsl"),
+        include_str!("volumetric.wgsl"),
+    ]
+    .join("\n")
+}
+impl Volumetric {
+    pub fn new(gpu: &Gpu, shadow_layout: &wgpu::BindGroupLayout) -> Self {
         let texture_binding = |binding, sample_type| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::FRAGMENT,
@@ -72,7 +58,7 @@ impl PostProcess {
         let layout = gpu
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("depth post-process inputs"),
+                label: Some("volumetric inputs"),
                 entries: &[
                     texture_binding(0, wgpu::TextureSampleType::Float { filterable: true }),
                     texture_binding(1, wgpu::TextureSampleType::Depth),
@@ -82,37 +68,38 @@ impl PostProcess {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(112),
+                            min_binding_size: wgpu::BufferSize::new(192),
                         },
                         count: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    texture_binding(4, wgpu::TextureSampleType::Float { filterable: true }),
+                    texture_binding(3, wgpu::TextureSampleType::Float { filterable: true }),
                 ],
             });
-        let pipeline_layout = gpu
+        let trace_layout = gpu
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("depth post-process layout"),
-                bind_group_layouts: &[Some(&layout)],
+                label: Some("volumetric light and shadow layout"),
+                bind_group_layouts: &[Some(&layout), None, Some(shadow_layout)],
+                immediate_size: 0,
+            });
+        let composite_layout = gpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("volumetric composite layout"),
+                bind_group_layouts: &[Some(&layout), None, Some(shadow_layout)],
                 immediate_size: 0,
             });
         let shader = gpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("SSAO and heat shimmer"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("post_process.wgsl").into()),
+                label: Some("shadowed volumetric scattering"),
+                source: wgpu::ShaderSource::Wgsl(shader_source().into()),
             });
-        let pipeline = |entry| {
+        let pipeline = |entry, layout: &wgpu::PipelineLayout| {
             gpu.device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some(entry),
-                    layout: Some(&pipeline_layout),
+                    layout: Some(layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: Some("vs_main"),
@@ -137,24 +124,17 @@ impl PostProcess {
                 })
         };
         Self {
-            ao_pipeline: pipeline("ao_main"),
-            composite_pipeline: pipeline("composite_main"),
+            trace: pipeline("trace_main", &trace_layout),
+            composite: pipeline("composite_main", &composite_layout),
             layout,
             uniform: gpu.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("depth post settings"),
-                size: 112,
+                label: Some("volumetric settings"),
+                size: 192,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
-            sampler: gpu.device.create_sampler(&wgpu::SamplerDescriptor {
-                label: Some("post linear clamp"),
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                ..Default::default()
-            }),
-            dummy: texture(gpu, [1, 1], "unused AO input"),
+            dummy: texture(gpu, [1, 1], "unused volume input"),
             targets: None,
-            ao_enabled: false,
         }
     }
     fn binding(
@@ -162,10 +142,10 @@ impl PostProcess {
         gpu: &Gpu,
         color: &wgpu::TextureView,
         depth: &wgpu::TextureView,
-        ao: &wgpu::TextureView,
+        scatter: &wgpu::TextureView,
     ) -> wgpu::BindGroup {
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("post-process textures"),
+            label: Some("volumetric textures"),
             layout: &self.layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -182,53 +162,51 @@ impl PostProcess {
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::TextureView(ao),
+                    resource: wgpu::BindingResource::TextureView(scatter),
                 },
             ],
         })
     }
-    /// True when the HDR source for downstream bloom/display has changed.
     pub fn prepare(
         &mut self,
         gpu: &Gpu,
         hdr: &wgpu::TextureView,
-        settings: DisplaySettings,
+        display: DisplaySettings,
         frame: &FrameInput<'_>,
+        source_changed: bool,
     ) -> Result<bool> {
-        self.ao_enabled = !frame.raw
-            && settings.ambient_occlusion.enabled
-            && settings.ambient_occlusion.intensity > 0.;
-        let heat_enabled = !frame.raw
-            && settings.heat_distortion.enabled
-            && settings.heat_distortion.strength > 0.;
-        if !self.ao_enabled && !heat_enabled {
+        let fog = display.volumetric_fog;
+        if frame.raw || !fog.enabled || fog.density == 0. {
             return Ok(self.targets.take().is_some());
         }
-        let depth = frame
-            .depth
-            .context("depth post-processing requires a scene depth texture")?;
-        let changed = self.targets.as_ref().is_none_or(|t| t.size != frame.size);
+        let depth = frame.depth.context("volumetric fog requires scene depth")?;
+        ensure!(
+            frame.shadows.is_some(),
+            "volumetric fog requires scene light bindings"
+        );
+        let changed = source_changed || self.targets.as_ref().is_none_or(|t| t.size != frame.size);
         if changed {
-            let ao = texture(
+            let scattering = texture(
                 gpu,
                 frame.size.map(|d| d.div_ceil(2)),
-                "half resolution SSAO",
+                "half resolution scattering and transmittance",
             );
-            let color = texture(gpu, frame.size, "HDR after depth effects");
+            let color = texture(gpu, frame.size, "HDR after volumetric scattering");
             self.targets = Some(Targets {
                 size: frame.size,
-                ao_binding: self.binding(gpu, hdr, depth, &self.dummy),
-                composite_binding: self.binding(gpu, hdr, depth, &ao),
-                ao,
+                trace_binding: self.binding(gpu, hdr, depth, &self.dummy),
+                composite_binding: self.binding(gpu, hdr, depth, &scattering),
+                scattering,
                 color,
             });
         }
-        let ao = settings.ambient_occlusion;
-        let heat = settings.heat_distortion;
+        let light = frame.lighting;
+        let direction = Vec3::from(light.sun_direction).normalize();
+        let ambient: [f32; 3] = std::array::from_fn(|i| {
+            (light.ambient_color[i] * light.ambient_intensity
+                + frame.environment.horizon[i] * frame.environment.intensity * 0.25)
+                * fog.ambient
+        });
         gpu.queue.write_buffer(
             &self.uniform,
             0,
@@ -239,17 +217,37 @@ impl PostProcess {
                     .to_cols_array()
                     .into_iter()
                     .chain([
-                        ao.intensity,
-                        ao.radius,
-                        ao.bias,
-                        if self.ao_enabled { 1. } else { 0. },
-                        if heat_enabled { heat.strength } else { 0. },
-                        heat.threshold,
-                        heat.speed,
-                        heat.rise,
-                        settings.time_seconds % 4096.,
+                        fog.density,
+                        fog.base_height,
+                        fog.height_falloff,
+                        fog.start_distance,
+                        fog.albedo[0],
+                        fog.albedo[1],
+                        fog.albedo[2],
+                        fog.anisotropy,
+                        fog.max_distance,
+                        fog.noise_amount,
+                        fog.noise_scale,
+                        fog.light_intensity,
+                        fog.wind[0],
+                        fog.wind[1],
+                        fog.wind[2],
+                        display.time_seconds % 4096.,
+                        direction.x,
+                        direction.y,
+                        direction.z,
+                        light.sun_intensity,
+                        light.sun_color[0],
+                        light.sun_color[1],
+                        light.sun_color[2],
+                        0.,
+                        ambient[0],
+                        ambient[1],
+                        ambient[2],
+                        0.,
                         frame.size[0] as f32,
                         frame.size[1] as f32,
+                        fog.steps as f32,
                         0.,
                     ]),
             ),
@@ -259,22 +257,32 @@ impl PostProcess {
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.targets.as_ref().map(|t| &t.color)
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, shadows: Option<&wgpu::BindGroup>) {
         let Some(targets) = &self.targets else {
             return;
         };
-        let pass = |encoder: &mut wgpu::CommandEncoder,
-                    target: &wgpu::TextureView,
-                    pipeline: &wgpu::RenderPipeline,
-                    binding: &wgpu::BindGroup| {
+        for (target, pipeline, binding, shadow_binding) in [
+            (
+                &targets.scattering,
+                &self.trace,
+                &targets.trace_binding,
+                Some(shadows.expect("prepared volumetric light bindings")),
+            ),
+            (
+                &targets.color,
+                &self.composite,
+                &targets.composite_binding,
+                Some(shadows.expect("prepared volumetric light bindings")),
+            ),
+        ] {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("depth post-process"),
+                label: Some("volumetric fog and light shafts"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -282,25 +290,20 @@ impl PostProcess {
             });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, binding, &[]);
+            if let Some(binding) = shadow_binding {
+                pass.set_bind_group(2, binding, &[]);
+            }
             pass.draw(0..3, 0..1);
-        };
-        if self.ao_enabled {
-            pass(encoder, &targets.ao, &self.ao_pipeline, &targets.ao_binding);
         }
-        pass(
-            encoder,
-            &targets.color,
-            &self.composite_pipeline,
-            &targets.composite_binding,
-        );
     }
 }
-
 #[cfg(test)]
 mod tests {
     #[test]
-    fn depth_effects_shader_validates() {
-        let module = wgpu::naga::front::wgsl::parse_str(include_str!("post_process.wgsl")).unwrap();
+    fn volumetric_shader_validates() {
+        let source = super::shader_source();
+        let module = wgpu::naga::front::wgsl::parse_str(&source)
+            .unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
         wgpu::naga::valid::Validator::new(
             wgpu::naga::valid::ValidationFlags::all(),
             wgpu::naga::valid::Capabilities::empty(),

@@ -3,6 +3,7 @@ use super::*;
 pub(super) struct Display {
     bloom: bloom::Bloom,
     post: post_process::PostProcess,
+    volume: Option<volumetric::Volumetric>,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     target: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
@@ -52,6 +53,7 @@ impl Display {
         Self {
             bloom: bloom::Bloom::new(gpu),
             post: post_process::PostProcess::new(gpu),
+            volume: None,
             pipeline,
             uniform,
             target: None,
@@ -93,8 +95,29 @@ impl Display {
         let hdr = replacement
             .as_ref()
             .unwrap_or_else(|| &self.target.as_ref().unwrap().0);
-        let source_changed = self.post.prepare(gpu, hdr, settings, &frame)? || resized;
+        let depth_changed = self.post.prepare(gpu, hdr, settings, &frame)? || resized;
         let source = self.post.output().unwrap_or(hdr);
+        if !raw
+            && settings.volumetric_fog.enabled
+            && settings.volumetric_fog.density > 0.
+            && self.volume.is_none()
+        {
+            let shadows = frame
+                .shadows
+                .context("volumetric fog requires scene light bindings")?;
+            self.volume = Some(volumetric::Volumetric::new(gpu, &shadows.sample_layout));
+        }
+        let volume_changed = if let Some(volume) = &mut self.volume {
+            volume.prepare(gpu, source, settings, &frame, depth_changed)?
+        } else {
+            false
+        };
+        let source_changed = depth_changed || volume_changed;
+        let source = self
+            .volume
+            .as_ref()
+            .and_then(|v| v.output())
+            .unwrap_or(source);
         if source_changed {
             self.bloom.invalidate();
         }
@@ -189,8 +212,16 @@ impl Display {
     pub fn hdr(&self) -> &wgpu::TextureView {
         &self.target.as_ref().unwrap().0
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+    pub fn draw(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        shadows: Option<&wgpu::BindGroup>,
+    ) {
         self.post.draw(encoder);
+        if let Some(volume) = &self.volume {
+            volume.draw(encoder, shadows);
+        }
         self.bloom.draw(encoder);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("exposure tone mapping and display encoding"),
@@ -324,7 +355,7 @@ mod tests {
                 pass.set_pipeline(&fixture);
                 pass.draw(0..3, 0..1);
             }
-            display.draw(&mut encoder, &output.create_view(&Default::default()));
+            display.draw(&mut encoder, &output.create_view(&Default::default()), None);
             gpu.queue.submit([encoder.finish()]);
             crate::read_texture(&gpu, &output, size[0], size[1])
         };

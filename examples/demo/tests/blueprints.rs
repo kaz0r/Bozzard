@@ -360,3 +360,42 @@ fn post_processing_graph_rejects_out_of_range_without_partial_write() {
         authored.display
     );
 }
+
+#[test]
+fn volumetric_graph_controls_are_transient() {
+    use bozzard_scene::Layer;
+    let authored = scene(vec![
+        action(K::Start, K::SetFogDensity, Value::Number(0.12)),
+        action(K::Start, K::SetFogLightIntensity, Value::Number(2.5)),
+    ]);
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    let display = demo.instance().display_at([0.; 3].into(), Layer::ThreeD);
+    assert!(display.volumetric_fog.enabled);
+    assert_eq!(display.volumetric_fog.density, 0.12);
+    assert_eq!(display.volumetric_fog.light_intensity, 2.5);
+    assert!(
+        !demo
+            .instance()
+            .display_at([0.; 3].into(), Layer::TwoD)
+            .volumetric_fog
+            .enabled
+    );
+    assert_eq!(demo.instance().capture(&demo.app.world).unwrap(), authored);
+    let mut invalid = SceneDemo::new(&scene(vec![action(
+        K::Start,
+        K::SetFogDensity,
+        Value::Number(-1.),
+    )]))
+    .unwrap();
+    invalid.app.step();
+    assert!(invalid.check_simulation().is_err());
+    assert!(
+        !invalid
+            .instance()
+            .display_at([0.; 3].into(), Layer::ThreeD)
+            .volumetric_fog
+            .enabled
+    );
+}

@@ -649,6 +649,12 @@ fn check_document(
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
         if layer == Layer::ThreeD && prefix == "loaded" {
             let mut before = extract(&demo, assets, layer, aspect)?;
+            if before.display.volumetric_fog.enabled {
+                before.display.volumetric_fog.enabled = false;
+                capture_display(gpu, renderer, &before, size)?
+                    .write_ppm(&options.output.join("loaded-3d-before-volumetrics.ppm"))?;
+            }
+
             before.display = bozzard_render::DisplaySettings {
                 bloom: bozzard_render::BloomSettings {
                     anamorphic: 0.,

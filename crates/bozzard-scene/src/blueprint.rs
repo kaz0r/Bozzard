@@ -153,6 +153,8 @@ pub enum NodeKind {
     SetColor,
     SetVisible,
     SetLightIntensity,
+    SetFogDensity,
+    SetFogLightIntensity,
     SetExposure,
     SetBloomIntensity,
     SetSaturation,
@@ -167,7 +169,7 @@ pub enum NodeKind {
     DestroyPrefab,
 }
 impl NodeKind {
-    pub const ALL: [Self; 59] = [
+    pub const ALL: [Self; 61] = [
         Self::Object,
         Self::SelfObject,
         Self::ObjectEqual,
@@ -216,6 +218,8 @@ impl NodeKind {
         Self::SetColor,
         Self::SetVisible,
         Self::SetLightIntensity,
+        Self::SetFogDensity,
+        Self::SetFogLightIntensity,
         Self::SetExposure,
         Self::SetBloomIntensity,
         Self::SetSaturation,
@@ -278,6 +282,8 @@ impl NodeKind {
             Self::SetColor => "Set Color (RGB)",
             Self::SetVisible => "Set Visible",
             Self::SetLightIntensity => "Set Light Intensity",
+            Self::SetFogDensity => "Set Volumetric Fog Density",
+            Self::SetFogLightIntensity => "Set Volumetric Light Intensity",
             Self::SetExposure => "Set Exposure (EV)",
             Self::SetBloomIntensity => "Set Bloom Intensity",
             Self::SetSaturation => "Set Saturation",
@@ -328,7 +334,9 @@ impl NodeKind {
             Self::ScaleVector => &[("Vector", Vector), ("Factor", Number)],
             Self::AddVector => &[("A", Vector), ("B", Vector)],
             Self::Branch => &[("In", Exec), ("Condition", Bool)],
-            Self::SetExposure
+            Self::SetFogDensity
+            | Self::SetFogLightIntensity
+            | Self::SetExposure
             | Self::SetBloomIntensity
             | Self::SetSaturation
             | Self::SetHeatStrength

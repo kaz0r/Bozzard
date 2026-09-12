@@ -1,5 +1,7 @@
 # Scene fog
 
+For light-scattering haze, drifting density, and shadowed beams, see [volumetric fog and light shafts](volumetrics.md). This page describes the separate, inexpensive analytic surface fog.
+
 Add this optional top-level object to a version-1 scene. The [material and neon galleries](showcases.md) include tuned examples:
 
 ```json

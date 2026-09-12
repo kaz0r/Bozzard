@@ -105,6 +105,9 @@ pub fn controls(ui: &mut egui::Ui, display: &mut DisplaySettings) {
                     ui.weak("Bright surfaces drive rising shimmer. Play animates it.");
                 });
             });
+            egui::CollapsingHeader::new("Volumetric fog & light shafts").show(ui, |ui| {
+                fog_controls(ui, &mut display.volumetric_fog);
+            });
             egui::CollapsingHeader::new("Film grain & vignette").show(ui, |ui| {
                 slider(ui, &mut display.grain.intensity, 0.0..=0.25, "Grain");
                 slider(ui, &mut display.grain.size, 1.0..=4.0, "Grain size");
@@ -175,5 +178,58 @@ pub fn volumes(ui: &mut egui::Ui, volumes: &mut Vec<PostProcessVolume>) {
                 ..Default::default()
             });
         }
+    });
+}
+
+fn fog_controls(ui: &mut egui::Ui, fog: &mut bozzard_scene::VolumetricFog) {
+    ui.checkbox(&mut fog.enabled, "Volumetric fog");
+    ui.add_enabled_ui(fog.enabled, |ui| {
+        ui.add(
+            egui::Slider::new(&mut fog.density, 0.0..=2.0)
+                .logarithmic(true)
+                .text("Density"),
+        );
+        ui.horizontal(|ui| {
+            ui.label("Scattering color");
+            crate::inspector::color_edit_button_rgb(ui, &mut fog.albedo);
+        });
+        slider(ui, &mut fog.anisotropy, -0.8..=0.8, "Forward scattering");
+        slider(ui, &mut fog.light_intensity, 0.0..=4.0, "Light scattering");
+        slider(ui, &mut fog.ambient, 0.0..=1.0, "Ambient scattering");
+        ui.add(
+            egui::DragValue::new(&mut fog.base_height)
+                .speed(0.1)
+                .range(-100_000.0..=100_000.0)
+                .prefix("Base height "),
+        );
+        slider(ui, &mut fog.height_falloff, 0.0..=10.0, "Height falloff");
+        ui.add(
+            egui::Slider::new(&mut fog.max_distance, 1.0..=1000.0)
+                .logarithmic(true)
+                .text("View distance"),
+        );
+        fog.start_distance = fog.start_distance.min(fog.max_distance);
+        slider(
+            ui,
+            &mut fog.start_distance,
+            0.0..=fog.max_distance,
+            "Start distance",
+        );
+        slider(ui, &mut fog.noise_amount, 0.0..=1.0, "Density variation");
+        slider(ui, &mut fog.noise_scale, 0.01..=4.0, "Noise scale");
+        ui.horizontal(|ui| {
+            ui.label("Wind");
+            for (axis, value) in fog.wind.iter_mut().enumerate() {
+                ui.add(
+                    egui::DragValue::new(value)
+                        .speed(0.01)
+                        .range(-100.0..=100.0)
+                        .prefix(["X ", "Y ", "Z "][axis]),
+                );
+            }
+        });
+        ui.add(egui::Slider::new(&mut fog.steps, 16..=96).text("Ray steps"));
+        ui.weak("Scene lights illuminate the haze. Enable their shadows to cast light shafts.");
+        ui.weak("Play animates the wind.");
     });
 }

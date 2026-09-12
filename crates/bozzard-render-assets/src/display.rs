@@ -12,6 +12,22 @@ pub fn display_settings(
         };
     }
     r::DisplaySettings {
+        volumetric_fog: r::VolumetricFog {
+            enabled: source.volumetric_fog.enabled,
+            density: source.volumetric_fog.density,
+            albedo: source.volumetric_fog.albedo,
+            anisotropy: source.volumetric_fog.anisotropy,
+            base_height: source.volumetric_fog.base_height,
+            height_falloff: source.volumetric_fog.height_falloff,
+            start_distance: source.volumetric_fog.start_distance,
+            max_distance: source.volumetric_fog.max_distance,
+            noise_amount: source.volumetric_fog.noise_amount,
+            noise_scale: source.volumetric_fog.noise_scale,
+            wind: source.volumetric_fog.wind,
+            light_intensity: source.volumetric_fog.light_intensity,
+            ambient: source.volumetric_fog.ambient,
+            steps: source.volumetric_fog.steps,
+        },
         time_seconds,
         exposure_ev: source.exposure_ev,
         tone_mapping: source.tone_mapping,

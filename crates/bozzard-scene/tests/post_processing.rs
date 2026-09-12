@@ -109,3 +109,85 @@ fn malformed_and_excessive_volumes_are_rejected() {
     scene.post_process_volumes[0].center[0] = f32::NAN;
     assert!(scene.validate().is_err());
 }
+
+#[test]
+fn volumetric_defaults_validation_and_volume_blending() {
+    use bozzard_scene::VolumetricFog;
+    let mut scene = legacy();
+    assert!(!scene.display.volumetric_fog.enabled);
+    let fields: &[fn(&mut VolumetricFog) -> &mut f32] = &[
+        |v| &mut v.density,
+        |v| &mut v.albedo[0],
+        |v| &mut v.anisotropy,
+        |v| &mut v.base_height,
+        |v| &mut v.height_falloff,
+        |v| &mut v.start_distance,
+        |v| &mut v.max_distance,
+        |v| &mut v.noise_amount,
+        |v| &mut v.noise_scale,
+        |v| &mut v.wind[1],
+        |v| &mut v.light_intensity,
+        |v| &mut v.ambient,
+    ];
+    for field in fields {
+        for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, f32::MAX] {
+            let mut value = VolumetricFog::default();
+            *field(&mut value) = invalid;
+            assert!(value.validate().is_err());
+        }
+    }
+    for steps in [0, 15, 97, u32::MAX] {
+        assert!(
+            VolumetricFog {
+                steps,
+                ..Default::default()
+            }
+            .validate()
+            .is_err()
+        );
+    }
+    assert!(
+        VolumetricFog {
+            start_distance: 50.,
+            max_distance: 20.,
+            ..Default::default()
+        }
+        .validate()
+        .is_err()
+    );
+    let target = DisplaySettings {
+        volumetric_fog: VolumetricFog {
+            enabled: true,
+            density: 0.2,
+            wind: [1., 2., 3.],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    scene.post_process_volumes = vec![PostProcessVolume {
+        half_size: [1.; 3],
+        blend_distance: 2.,
+        display: target,
+        ..Default::default()
+    }];
+    assert_eq!(
+        scene.display_at(Vec3::ZERO).volumetric_fog,
+        target.volumetric_fog
+    );
+    assert!(
+        (scene
+            .display_at(Vec3::new(2., 0., 0.))
+            .volumetric_fog
+            .density
+            - 0.1)
+            .abs()
+            < 1e-6
+    );
+    assert!(
+        !scene
+            .display_at(Vec3::new(4., 0., 0.))
+            .volumetric_fog
+            .enabled
+    );
+    assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
+}

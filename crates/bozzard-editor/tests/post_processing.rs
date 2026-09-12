@@ -20,6 +20,7 @@ fn post_processing_history_save_play_and_2d_isolation() {
     let view = editor.render(Layer::ThreeD, 1.).unwrap();
     assert_eq!(view.display.tone_mapper, bozzard_render::ToneMapper::Filmic);
     assert!(view.display.heat_distortion.enabled && view.display.ambient_occlusion.enabled);
+    assert!(view.display.volumetric_fog.enabled);
     assert_eq!(
         editor.render(Layer::TwoD, 1.).unwrap().display,
         bozzard_render::DisplaySettings {

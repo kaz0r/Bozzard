@@ -14,10 +14,13 @@ pub use bloom::BloomSettings;
 mod display;
 mod display_settings;
 mod post_process;
+mod volumetric;
+mod volumetric_settings;
 pub use display_settings::{
     AmbientOcclusion, ColorGrading, DisplaySettings, FilmGrain, HeatDistortion, ToneMapper,
     Vignette,
 };
+pub use volumetric_settings::VolumetricFog;
 mod gi;
 pub use gi::IrradianceVolume;
 mod lighting;
@@ -1155,6 +1158,9 @@ impl SceneRenderer {
                 raw,
                 view_projection: scene.view_projection,
                 depth: Some(&self.depth.as_ref().unwrap().view),
+                lighting: scene.lighting,
+                environment: scene.environment,
+                shadows: Some(&self.shadows),
             },
         )?;
         self.prepare_gi(gpu, scene.gi.as_ref())?;
@@ -1339,7 +1345,8 @@ impl SceneRenderer {
                 self.stats.color_triangles += u64::from(mesh.count / 3);
             }
         }
-        self.display.draw(&mut encoder, target);
+        self.display
+            .draw(&mut encoder, target, Some(&self.shadows.sample_binding));
         let commands = encoder.finish();
         self.stats.encode_ms = encode_started.elapsed().as_secs_f64() * 1000.;
         let submit_started = std::time::Instant::now();

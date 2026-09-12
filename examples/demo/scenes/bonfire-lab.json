@@ -108,6 +108,30 @@
       "intensity": 0.4,
       "roundness": 0.7,
       "feather": 0.6
+    },
+    "volumetric_fog": {
+      "enabled": true,
+      "density": 0.028,
+      "albedo": [
+        0.88,
+        0.92,
+        1.0
+      ],
+      "anisotropy": 0.3,
+      "base_height": 0.0,
+      "height_falloff": 0.3,
+      "start_distance": 0.25,
+      "max_distance": 32.0,
+      "noise_amount": 0.8,
+      "noise_scale": 0.45,
+      "wind": [
+        0.16,
+        0.035,
+        0.08
+      ],
+      "light_intensity": 0.6,
+      "ambient": 0.15,
+      "steps": 48
     }
   },
   "lighting": {

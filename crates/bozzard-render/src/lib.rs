@@ -10,7 +10,7 @@ pub use scene::{
     LocalShadowSettings, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS,
     Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, PendingUpload, RenderScene,
     SceneRenderer, SpotShadowSettings, SurfaceMaterialOverride, TextureKind, ToneMapper,
-    UploadContext, UploadData, UploadProgress, UploadSource, Vignette,
+    UploadContext, UploadData, UploadProgress, UploadSource, Vignette, VolumetricFog,
 };
 
 use anyhow::{Context, Result, ensure};
