@@ -1,7 +1,9 @@
 //! Box overlap queries and swept single-box translation against static colliders.
 use super::*;
 use glam::DVec3;
+mod mesh;
 mod response;
+pub use mesh::{CollisionMesh, MeshCollider, TriangleMesh};
 pub use response::MoveResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -104,6 +106,8 @@ impl CollisionBox {
 pub struct CollisionSnapshot {
     /// Enabled colliders in stable object-ID order.
     pub boxes: Vec<CollisionBox>,
+    /// Static triangle surfaces; mesh/mesh overlap is not queried.
+    pub meshes: Vec<CollisionMesh>,
     /// Unique, sorted object-ID pairs. Re-query after changing runtime transforms/components.
     pub overlaps: Vec<(String, String)>,
 }
@@ -112,6 +116,20 @@ impl SceneInstance {
         let matrices = self.global_transforms(world)?;
         let mut snapshot = CollisionSnapshot::default();
         for (id, &entity) in &self.entities {
+            if let Some(collider) = world.get::<MeshCollider>(entity).filter(|c| c.enabled) {
+                ensure!(
+                    world.get::<BoxCollider>(entity).is_none()
+                        && world.get::<Gravity>(entity).is_none(),
+                    "Mesh Collider cannot also be a box or Rigidbody"
+                );
+                collider.geometry(matrices[id])?;
+                snapshot.meshes.push(CollisionMesh {
+                    id: id.clone(),
+                    entity,
+                    mesh: collider.mesh.clone(),
+                    matrix: matrices[id],
+                });
+            }
             if let Some(collider) = world.get::<BoxCollider>(entity) {
                 collider.validate()?;
                 if !collider.enabled {
@@ -135,6 +153,18 @@ impl SceneInstance {
                 }
             }
         }
+        for a in &snapshot.boxes {
+            for b in &snapshot.meshes {
+                if b.intersects(a) {
+                    snapshot.overlaps.push(if a.id < b.id {
+                        (a.id.clone(), b.id.clone())
+                    } else {
+                        (b.id.clone(), a.id.clone())
+                    });
+                }
+            }
+        }
+        snapshot.overlaps.sort();
         Ok(snapshot)
     }
 }

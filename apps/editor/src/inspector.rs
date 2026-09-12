@@ -133,6 +133,21 @@ impl App {
                         }
                         });
                         }
+                        if object.mesh_collider.is_some() {
+                            component_section(ui, "MESH COLLIDER", &mut remove, |ui| {
+                                let collider = object.mesh_collider.as_mut().unwrap();
+                                ui.checkbox(&mut collider.enabled, "Enabled");
+                                ui.label(format!("{} triangles · Static / two-sided", collider.mesh.triangles().len()));
+                                ui.weak("Blocks box Rigidbody / player movement. No dynamic or convex mesh bodies.");
+                                ui.weak("Baked geometry follows Transform, but not later renderer/source edits.");
+                                if ui.add_enabled(object.drawable.is_some(), egui::Button::new("Rebuild from Mesh Renderer")).clicked() {
+                                    match self.editor.assets.cook_mesh_collider(object.drawable.as_ref().unwrap()) {
+                                        Ok(mut rebuilt) => { rebuilt.enabled = collider.enabled; *collider = rebuilt; }
+                                        Err(error) => self.result(Err(error)),
+                                    }
+                                }
+                            });
+                        }
                         if object.gravity.is_some() {
                         component_section(ui, "RIGIDBODY", &mut remove, |ui| {
                         let mut gravity = object.gravity.is_some();
@@ -335,7 +350,7 @@ impl App {
                         }
                         });
                         }
-                        add_component_menu(ui, &mut object, &scene, self.layer(), &self.editor.assets);
+                        if let Some(error) = add_component_menu(ui, &mut object, &scene, self.layer(), &self.editor.assets) { self.result(Err(error)); }
                     });
                 });
         });
@@ -567,7 +582,8 @@ fn add_component_menu(
     scene: &bozzard_scene::Scene,
     layer: Layer,
     assets: &bozzard_assets::AssetStore,
-) {
+) -> Option<anyhow::Error> {
+    let mut error = None;
     ui.separator();
     ui.menu_button("Add Component", |ui| {
         let id = ui.id().with("component-search");
@@ -582,7 +598,7 @@ fn add_component_menu(
             }
             matches += 1;
             if ui.button(label).clicked() {
-                add_component(object, label, scene, layer, assets);
+                error = add_component(object, label, scene, layer, assets).err();
                 ui.close();
             }
         }
@@ -590,6 +606,7 @@ fn add_component_menu(
             ui.weak("No matching components available");
         }
     });
+    error
 }
 
 fn component_section(
@@ -631,6 +648,7 @@ fn remove_component(
             object.material = None;
         }
         "MATERIAL" => object.material = None,
+        "MESH COLLIDER" => object.mesh_collider = None,
         "BOX COLLIDER" => {
             object.collider = None;
             object.gravity = None;
@@ -652,7 +670,7 @@ fn remove_component(
     }
 }
 
-fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 10] {
+fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 11] {
     [
         ("Mesh Renderer", object.drawable.is_none()),
         (
@@ -661,22 +679,35 @@ fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 1
         ),
         (
             "Rigidbody",
-            object.gravity.is_none() && object.trigger.is_none(),
+            object.gravity.is_none() && object.trigger.is_none() && object.mesh_collider.is_none(),
         ),
         (
             "Box Collider",
-            object.collider.is_none() && object.trigger.is_none(),
+            object.collider.is_none() && object.trigger.is_none() && object.mesh_collider.is_none(),
+        ),
+        (
+            "Mesh Collider",
+            object.mesh_collider.is_none()
+                && object.drawable.is_some()
+                && object.collider.is_none()
+                && object.gravity.is_none()
+                && object.player_controller.is_none()
+                && object.trigger.is_none(),
         ),
         (
             "Player Controller",
             object.player_controller.is_none()
+                && object.mesh_collider.is_none()
                 && object.trigger.is_none()
                 && object.parent.is_none()
                 && object.spin.is_none(),
         ),
         (
             "Trigger",
-            object.trigger.is_none() && object.collider.is_none() && object.gravity.is_none(),
+            object.trigger.is_none()
+                && object.collider.is_none()
+                && object.gravity.is_none()
+                && object.mesh_collider.is_none(),
         ),
         ("Light", object.light.is_none()),
         ("Camera", object.camera.is_none()),
@@ -694,8 +725,14 @@ fn add_component(
     scene: &bozzard_scene::Scene,
     layer: Layer,
     assets: &bozzard_assets::AssetStore,
-) {
+) -> Result<()> {
     use bozzard_scene::*;
+    anyhow::ensure!(
+        component_choices(object)
+            .iter()
+            .any(|(name, available)| *name == label && *available),
+        "Component is unavailable or incompatible"
+    );
     let collider = object
         .drawable
         .as_ref()
@@ -719,6 +756,10 @@ fn add_component(
         }
         "Material" => object.material = object.drawable.as_ref().map(Material::from_drawable),
         "Box Collider" => object.collider = Some(collider),
+        "Mesh Collider" => {
+            object.mesh_collider =
+                Some(assets.cook_mesh_collider(object.drawable.as_ref().unwrap())?)
+        }
         "Rigidbody" => {
             object.collider.get_or_insert(collider);
             object.gravity = Some(Gravity::default());
@@ -752,6 +793,7 @@ fn add_component(
         }),
         _ => {}
     }
+    Ok(())
 }
 
 pub(super) fn texture_control(
@@ -844,6 +886,7 @@ fn eligible_follow_camera(object: &bozzard_scene::Object) -> bool {
         && object.spin.is_none()
         && object.gravity.is_none()
         && object.collider.is_none()
+        && object.mesh_collider.is_none()
         && object.trigger.is_none()
         && object.player_controller.is_none()
         && matches!(object.camera, Some(Camera::Perspective { .. }))
@@ -919,7 +962,8 @@ mod tests {
                 editor.scene(),
                 Layer::ThreeD,
                 &editor.assets,
-            );
+            )
+            .unwrap();
         }
         assert!(object.material.is_some() && object.gravity.is_some() && object.collider.is_some());
         assert_eq!(object.blueprints.len(), 1);
@@ -935,6 +979,33 @@ mod tests {
     }
 
     #[test]
+    fn mesh_collider_rejects_dynamic_components_and_survives_renderer_removal() {
+        let mut editor = editor();
+        editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let mut object = editor.selected_object().unwrap().clone();
+        let mut scene = editor.scene().clone();
+        add_component(
+            &mut object,
+            "Mesh Collider",
+            &scene,
+            Layer::ThreeD,
+            &editor.assets,
+        )
+        .unwrap();
+        let before = object.clone();
+        for name in ["Rigidbody", "Box Collider", "Player Controller", "Trigger"] {
+            assert!(
+                add_component(&mut object, name, &scene, Layer::ThreeD, &editor.assets).is_err()
+            );
+            assert_eq!(object, before);
+        }
+        remove_component(&mut object, &mut scene, "MESH RENDERER");
+        assert_eq!(object.mesh_collider, before.mesh_collider);
+        assert!(object.drawable.is_none());
+        assert_eq!(object.transform, before.transform);
+    }
+
+    #[test]
     fn removal_keeps_transform_and_cascades_required_components_undoably() {
         let mut editor = editor();
         editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
@@ -942,6 +1013,7 @@ mod tests {
         let mut scene = editor.scene().clone();
         for (add, remove) in [
             ("Material", "MATERIAL"),
+            ("Mesh Collider", "MESH COLLIDER"),
             ("Rigidbody", "BOX COLLIDER"),
             ("Light", "LIGHT"),
             ("Spin", "SPIN"),
@@ -949,7 +1021,7 @@ mod tests {
             ("Camera", "CAMERA"),
         ] {
             let mut object = fresh.clone();
-            add_component(&mut object, add, &scene, Layer::ThreeD, &editor.assets);
+            add_component(&mut object, add, &scene, Layer::ThreeD, &editor.assets).unwrap();
             remove_component(&mut object, &mut scene, remove);
             assert_eq!(object, fresh, "{remove}");
         }
@@ -960,7 +1032,8 @@ mod tests {
             &scene,
             Layer::ThreeD,
             &editor.assets,
-        );
+        )
+        .unwrap();
         remove_component(&mut object, &mut scene, "BOX COLLIDER");
         assert_eq!(object, fresh);
         remove_component(&mut object, &mut scene, "TRANSFORM");

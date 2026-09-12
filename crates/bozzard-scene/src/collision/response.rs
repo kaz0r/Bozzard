@@ -85,24 +85,29 @@ fn sweep(a: &CollisionBox, b: &CollisionBox, delta: DVec3) -> Option<(f64, DVec3
 }
 impl SceneInstance {
     /// Move one enabled box by a world displacement, stopping/sliding against other
-    /// enabled boxes held static during this query. No gravity, rotation sweep or pushing.
+    /// enabled boxes and triangle meshes held static during this query. No rotation sweep or pushing.
     /// Deep initial overlap is recovered within eight iterations or fails without mutation.
     /// A mover cannot carry enabled child colliders; compound-body motion is not supported.
     pub fn move_box(&self, world: &mut World, id: &str, displacement: Vec3) -> Result<MoveResult> {
         ensure!(displacement.is_finite(), "movement must be finite");
         let snapshot = self.collisions(world)?;
+        let meshes = snapshot.meshes;
         let mut boxes = snapshot.boxes;
         let index = boxes
             .iter()
             .position(|b| b.id == id)
             .context("mover needs an enabled box collider")?;
         let mut mover = boxes.remove(index);
-        for other in &boxes {
+        for other in boxes
+            .iter()
+            .map(|b| &b.id)
+            .chain(meshes.iter().map(|m| &m.id))
+        {
             let mut parent = self
                 .document
                 .objects
                 .iter()
-                .find(|o| o.id == other.id)
+                .find(|o| o.id == *other)
                 .and_then(|o| o.parent.as_deref());
             while let Some(ancestor) = parent {
                 ensure!(
@@ -123,17 +128,23 @@ impl SceneInstance {
         for _ in 0..MAX_CONTACTS {
             let deepest = boxes
                 .iter()
-                .filter_map(|b| penetration(&mover, b).map(|hit| (b, hit)))
+                .filter_map(|b| penetration(&mover, b).map(|hit| (b.id.as_str(), hit)))
+                .chain(
+                    meshes
+                        .iter()
+                        .filter_map(|m| m.penetration(&mover).map(|hit| (m.id.as_str(), hit))),
+                )
                 .max_by(|a, b| a.1.0.total_cmp(&b.1.0));
             let Some((other, (depth, normal))) = deepest else {
                 break;
             };
             mover.center += normal * (depth + SKIN);
-            contacts.insert(other.id.clone());
+            contacts.insert(other.to_owned());
             contact_normals.push(normal.as_vec3());
         }
         ensure!(
-            boxes.iter().all(|b| penetration(&mover, b).is_none()),
+            boxes.iter().all(|b| penetration(&mover, b).is_none())
+                && meshes.iter().all(|m| m.penetration(&mover).is_none()),
             "cannot recover initial box penetration"
         );
         let mut remaining = displacement.as_dvec3();
@@ -143,7 +154,12 @@ impl SceneInstance {
             }
             let first = boxes
                 .iter()
-                .filter_map(|b| sweep(&mover, b, remaining).map(|hit| (b, hit)))
+                .filter_map(|b| sweep(&mover, b, remaining).map(|hit| (b.id.as_str(), hit)))
+                .chain(
+                    meshes
+                        .iter()
+                        .filter_map(|m| m.sweep(&mover, remaining).map(|hit| (m.id.as_str(), hit))),
+                )
                 .min_by(|a, b| a.1.0.total_cmp(&b.1.0));
             let Some((other, (time, normal))) = first else {
                 mover.center += remaining;
@@ -154,7 +170,7 @@ impl SceneInstance {
             mover.center += remaining * travel;
             remaining *= 1.0 - travel;
             remaining -= normal * remaining.dot(normal).min(0.0);
-            contacts.insert(other.id.clone());
+            contacts.insert(other.to_owned());
             contact_normals.push(normal.as_vec3());
         }
         let applied = (mover.center - original_center).as_vec3();
@@ -187,7 +203,11 @@ impl SceneInstance {
                     .boxes
                     .iter()
                     .filter(|b| b.id != id)
-                    .all(|b| penetration(actual, b).is_none()),
+                    .all(|b| penetration(actual, b).is_none())
+                    && result
+                        .meshes
+                        .iter()
+                        .all(|m| m.penetration(actual).is_none()),
                 "movement cannot be represented without penetration at this world scale"
             );
             Ok((actual.center - original_center).as_vec3())

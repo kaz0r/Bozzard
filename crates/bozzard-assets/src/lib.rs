@@ -1,4 +1,5 @@
 //! CPU imports and background loading. No GPU or window dependencies.
+mod collision;
 pub mod gi;
 pub mod job;
 mod package;

@@ -33,8 +33,12 @@ mod collision;
 mod gameplay;
 mod prefab;
 pub use prefab::{Prefab, PrefabInstance};
+pub mod bvh;
 mod gravity;
-pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot, MoveResult};
+pub use collision::{
+    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, MeshCollider, MoveResult,
+    TriangleMesh,
+};
 pub use gameplay::{GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction};
 pub use gravity::{Gravity, GravityState};
 
@@ -307,6 +311,8 @@ pub struct Object {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collider: Option<BoxCollider>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mesh_collider: Option<MeshCollider>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gravity: Option<Gravity>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_controller: Option<PlayerController>,
@@ -460,6 +466,16 @@ impl Scene {
             }
             if let Some(collider) = object.collider {
                 collider.validate()?;
+            }
+            if object.mesh_collider.is_some() {
+                ensure!(
+                    object.collider.is_none()
+                        && object.gravity.is_none()
+                        && object.player_controller.is_none()
+                        && object.trigger.is_none(),
+                    "Mesh Collider is a static triangle surface; remove Box Collider, Rigidbody, Player Controller and Trigger on '{}' first",
+                    object.id
+                );
             }
             if let Some(light) = object.light {
                 light.validate()?;
@@ -615,6 +631,9 @@ impl Scene {
                 object.id
             );
             if let Some(collider) = object.collider {
+                collider.geometry(global)?;
+            }
+            if let Some(collider) = &object.mesh_collider {
                 collider.geometry(global)?;
             }
             if let Some(trigger) = &object.trigger {
@@ -826,6 +845,7 @@ impl SceneInstance {
             object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
             object.collider = world.get::<BoxCollider>(entity).copied();
+            object.mesh_collider = world.get::<MeshCollider>(entity).cloned();
             object.gravity = world.get::<Gravity>(entity).copied();
             object.player_controller = world.get::<PlayerController>(entity).cloned();
             object.trigger = world.get::<Trigger>(entity).cloned();
@@ -857,6 +877,7 @@ impl Object {
             drawable,
             gravity,
             collider,
+            mesh_collider,
             player_controller,
             trigger,
             spin
@@ -997,6 +1018,7 @@ mod tests {
             drawable: None,
             spin: None,
             collider: None,
+            mesh_collider: None,
             gravity: None,
             player_controller: None,
             trigger: None,

@@ -4,8 +4,6 @@ use anyhow::{Context, Result, ensure};
 use glam::Vec3;
 use std::time::Instant;
 
-const LEAF_TRIANGLES: usize = 8;
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MeshHit {
     /// Ray parameter: direction need not be unit length (preserves transformed-ray distance).
@@ -23,22 +21,10 @@ pub struct MeshPickStats {
     pub build_ms: f64,
 }
 
-#[derive(Clone, Copy, Default)]
-struct Node {
-    bounds: [Vec3; 2],
-    // Leaf: range in triangle_order. Branch (count == 0): adjacent child nodes.
-    first: u32,
-    count: u32,
-}
-struct Primitive {
-    bounds: [Vec3; 2],
-    center: Vec3,
-    triangle: u32,
-}
+use bozzard_scene::bvh::{BvhNode, TriangleBvh};
 
 pub(super) struct MeshIndex {
-    nodes: Vec<Node>,
-    triangle_order: Vec<u32>,
+    tree: TriangleBvh,
     build_ms: f64,
 }
 impl MeshIndex {
@@ -48,7 +34,7 @@ impl MeshIndex {
             mesh.indices.len().is_multiple_of(3) && mesh.indices.len() <= 3_000_000,
             "invalid picking index count"
         );
-        let mut primitives = Vec::with_capacity(mesh.indices.len() / 3);
+        let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
         for (triangle, indices) in mesh.indices.chunks_exact(3).enumerate() {
             if triangle.is_multiple_of(1024) {
                 progress.check()?;
@@ -63,80 +49,22 @@ impl MeshIndex {
                 ensure!(p.is_finite(), "non-finite picking vertex");
                 bounds = [bounds[0].min(p), bounds[1].max(p)];
             }
-            primitives.push(Primitive {
-                bounds,
-                center: bounds[0] * 0.5 + bounds[1] * 0.5,
-                triangle: triangle as u32,
-            });
+            triangles.push(bounds);
         }
-        let mut index = Self {
-            nodes: Vec::new(),
-            triangle_order: Vec::new(),
-            build_ms: 0.0,
-        };
-        if !primitives.is_empty() {
-            index.nodes.push(Node::default());
-            index.split(0, 0, &mut primitives, progress)?;
-            index.triangle_order = primitives.iter().map(|p| p.triangle).collect();
-        }
-        progress.check()?;
-        index.nodes.shrink_to_fit();
-        index.build_ms = started.elapsed().as_secs_f64() * 1000.0;
-        Ok(index)
-    }
-    fn split(
-        &mut self,
-        node: usize,
-        start: usize,
-        primitives: &mut [Primitive],
-        progress: &Progress,
-    ) -> Result<()> {
-        // Median splits bound recursion by log2(import limit), including coincident triangles.
-        progress.check()?;
-        let mut bounds = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
-        let mut centers = bounds;
-        for p in primitives.iter() {
-            bounds = [bounds[0].min(p.bounds[0]), bounds[1].max(p.bounds[1])];
-            centers = [centers[0].min(p.center), centers[1].max(p.center)];
-        }
-        if primitives.len() <= LEAF_TRIANGLES {
-            self.nodes[node] = Node {
-                bounds,
-                first: start as u32,
-                count: primitives.len() as u32,
-            };
-            return Ok(());
-        }
-        let extent = centers[1] - centers[0];
-        let axis = (0..3)
-            .max_by(|&a, &b| extent[a].total_cmp(&extent[b]))
-            .unwrap();
-        let mid = primitives.len() / 2;
-        primitives.select_nth_unstable_by(mid, |a, b| {
-            a.center[axis]
-                .total_cmp(&b.center[axis])
-                .then(a.triangle.cmp(&b.triangle))
-        });
-        let child = self.nodes.len();
-        self.nodes.extend([Node::default(); 2]);
-        self.nodes[node] = Node {
-            bounds,
-            first: child as u32,
-            count: 0,
-        };
-        let (left, right) = primitives.split_at_mut(mid);
-        self.split(child, start, left, progress)?;
-        self.split(child + 1, start + mid, right, progress)
+        Ok(Self {
+            tree: TriangleBvh::build(triangles, &|| progress.check())?,
+            build_ms: started.elapsed().as_secs_f64() * 1000.0,
+        })
     }
     pub(super) fn bounds(&self) -> Option<[Vec3; 2]> {
-        self.nodes.first().map(|node| node.bounds)
+        self.tree.nodes.first().map(|node| node.bounds)
     }
     pub(super) fn stats(&self) -> MeshPickStats {
         MeshPickStats {
-            triangles: self.triangle_order.len(),
-            nodes: self.nodes.len(),
-            bytes: self.nodes.capacity() * std::mem::size_of::<Node>()
-                + self.triangle_order.capacity() * std::mem::size_of::<u32>(),
+            triangles: self.tree.triangle_order.len(),
+            nodes: self.tree.nodes.len(),
+            bytes: self.tree.nodes.capacity() * std::mem::size_of::<BvhNode>()
+                + self.tree.triangle_order.capacity() * std::mem::size_of::<u32>(),
             build_ms: self.build_ms,
         }
     }
@@ -150,7 +78,7 @@ impl MeshIndex {
         direction: Vec3,
         accept: &impl Fn(u32) -> bool,
     ) -> Option<MeshHit> {
-        if self.nodes.is_empty() || !valid_ray(origin, direction) {
+        if self.tree.nodes.is_empty() || !valid_ray(origin, direction) {
             return None;
         }
         let mut best = None;
@@ -167,14 +95,14 @@ impl MeshIndex {
         best: &mut Option<MeshHit>,
         accept: &impl Fn(u32) -> bool,
     ) {
-        let node = self.nodes[node];
+        let node = self.tree.nodes[node];
         let limit = best.map_or(f32::INFINITY, |hit| hit.distance);
         if box_entry(node.bounds, origin, direction, limit).is_none() {
             return;
         }
         if node.count > 0 {
             for triangle in
-                &self.triangle_order[node.first as usize..(node.first + node.count) as usize]
+                &self.tree.triangle_order[node.first as usize..(node.first + node.count) as usize]
             {
                 if accept(*triangle)
                     && let Some(distance) = triangle_hit(mesh, *triangle, origin, direction)
@@ -194,8 +122,8 @@ impl MeshIndex {
         } else {
             let left = node.first as usize;
             let right = left + 1;
-            let a = box_entry(self.nodes[left].bounds, origin, direction, limit);
-            let b = box_entry(self.nodes[right].bounds, origin, direction, limit);
+            let a = box_entry(self.tree.nodes[left].bounds, origin, direction, limit);
+            let b = box_entry(self.tree.nodes[right].bounds, origin, direction, limit);
             // Visit the nearer box first, then prune against the actual nearest triangle.
             match (a, b) {
                 (Some(a), Some(b)) => {
