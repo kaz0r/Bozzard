@@ -1,0 +1,4236 @@
+{
+  "fog": {
+    "enabled": true,
+    "color": [
+      0.004,
+      0.006,
+      0.012
+    ],
+    "distance_density": 0.03,
+    "start_distance": 8.0,
+    "height_density": 0.014,
+    "base_height": 0.0,
+    "height_falloff": 0.6
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -10.0,
+        -1.0,
+        -30.0
+      ],
+      "max": [
+        10.0,
+        5.0,
+        4.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.003,
+      0.005,
+      0.012
+    ],
+    "horizon": [
+      0.007,
+      0.011,
+      0.022
+    ],
+    "ground": [
+      0.002,
+      0.002,
+      0.004
+    ],
+    "intensity": 0.18,
+    "background": true
+  },
+  "display": {
+    "temporal_aa": {
+      "enabled": true,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": false,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": false,
+      "strength": 0.5,
+      "max_distance": 25.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.6,
+      "steps": 64
+    },
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.5,
+      "threshold": 0.4,
+      "scatter": 0.8,
+      "anamorphic": 0.0
+    },
+    "tone_mapper": "filmic",
+    "color_grading": {
+      "temperature": -0.28,
+      "tint": 0.0,
+      "saturation": 0.6,
+      "contrast": 1.15,
+      "lift": [
+        0.0,
+        0.0,
+        0.004
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": true,
+      "intensity": 0.8,
+      "radius": 0.6,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": false,
+      "strength": 4.0,
+      "threshold": 0.6,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.05,
+      "size": 1.4
+    },
+    "vignette": {
+      "intensity": 0.55,
+      "roundness": 0.75,
+      "feather": 0.5
+    },
+    "depth_of_field": {
+      "enabled": false,
+      "focus_distance": 4.3,
+      "focal_length_mm": 85.0,
+      "aperture": 1.8,
+      "max_blur_radius": 20.0
+    },
+    "auto_exposure": {
+      "enabled": true,
+      "strength": 1.0,
+      "min_ev": -1.5,
+      "max_ev": 0.4,
+      "target_gray": 0.02,
+      "speed_up": 1.0,
+      "speed_down": 3.0,
+      "center_weight": 0.7
+    },
+    "volumetric_fog": {
+      "enabled": true,
+      "density": 0.035,
+      "albedo": [
+        0.7,
+        0.78,
+        0.9
+      ],
+      "anisotropy": 0.25,
+      "base_height": 0.0,
+      "height_falloff": 0.3,
+      "start_distance": 0.25,
+      "max_distance": 30.0,
+      "noise_amount": 0.85,
+      "noise_scale": 0.45,
+      "wind": [
+        0.1,
+        0.02,
+        0.05
+      ],
+      "light_intensity": 0.6,
+      "ambient": 0.12,
+      "steps": 48
+    },
+    "exposure_ev": -0.4,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": false,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      -0.4,
+      0.8,
+      -0.2
+    ],
+    "sun_color": [
+      0.1,
+      0.14,
+      0.25
+    ],
+    "sun_intensity": 0.02,
+    "ambient_color": [
+      0.07,
+      0.09,
+      0.13
+    ],
+    "ambient_intensity": 0.012
+  },
+  "version": 1,
+  "name": "The Hollow Walk",
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Follow camera",
+      "transform": {
+        "translation": [
+          0.0,
+          3.5,
+          8.0
+        ],
+        "rotation_degrees": [
+          -18.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 62.0,
+        "near": 0.1,
+        "far": 150.0
+      }
+    },
+    {
+      "id": "player",
+      "name": "Lost one — WASD / Space",
+      "transform": {
+        "translation": [
+          0.0,
+          0.65,
+          2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          1.2,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.32,
+          0.35,
+          0.42
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "gravity": {
+        "enabled": true,
+        "acceleration": 9.81,
+        "max_speed": 50.0,
+        "jump_speed": 5.0,
+        "mass": 1.0,
+        "friction": 0.6,
+        "restitution": 0.0,
+        "angular_damping": 0.1
+      },
+      "player_controller": {
+        "camera": "camera",
+        "move_speed": 3.6,
+        "jump_speed": 6.0,
+        "camera_distance": 3.6,
+        "camera_height": 1.0,
+        "camera_radius": 0.3,
+        "orbit_sensitivity": 0.2,
+        "fall_height": -8.0
+      }
+    },
+    {
+      "id": "ground",
+      "name": "Dead forest earth",
+      "transform": {
+        "translation": [
+          0.0,
+          -0.2,
+          -13.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          44.0,
+          0.4,
+          74.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.055,
+          0.058,
+          0.05
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "text_rendering": {
+        "enabled": true,
+        "layer": "3d",
+        "text": "THE HOLLOW WALK",
+        "font": "sans",
+        "font_size": 0.8,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          0.7,
+          0.78,
+          0.92,
+          1.0
+        ]
+      },
+      "id": "title",
+      "name": "Title",
+      "transform": {
+        "translation": [
+          -3.4162543,
+          3.4,
+          -2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "text_rendering": {
+        "enabled": true,
+        "layer": "3d",
+        "text": "Gather the five souls. Reach the moon gate.",
+        "font": "sans",
+        "font_size": 0.4,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          0.45,
+          0.5,
+          0.62,
+          1.0
+        ]
+      },
+      "id": "hint",
+      "name": "Hint",
+      "transform": {
+        "translation": [
+          -3.3301582,
+          2.6,
+          -2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-0",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -3.6,
+          1.6,
+          6.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -4.0
+        ],
+        "scale": [
+          0.5,
+          3.6,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "branch-0",
+      "name": "Broken branch",
+      "parent": "tree-0",
+      "transform": {
+        "translation": [
+          0.3,
+          1.98,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -38.0
+        ],
+        "scale": [
+          0.14,
+          1.4,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.026,
+          0.024
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-1",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          4.2,
+          1.95,
+          8.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          4.3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-2",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -5.5,
+          2.3,
+          4.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          74.0,
+          4.0
+        ],
+        "scale": [
+          0.5,
+          5.0,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-3",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          3.4,
+          2.65,
+          1.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          111.0,
+          -4.0
+        ],
+        "scale": [
+          0.5,
+          5.7,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "branch-3",
+      "name": "Broken branch",
+      "parent": "tree-3",
+      "transform": {
+        "translation": [
+          0.3,
+          3.135,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -38.0
+        ],
+        "scale": [
+          0.14,
+          1.4,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.026,
+          0.024
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-4",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -4.4,
+          1.6,
+          -5.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          148.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          3.6,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-5",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          5.6,
+          1.95,
+          -9.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          185.0,
+          4.0
+        ],
+        "scale": [
+          0.5,
+          4.3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-6",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -3.8,
+          2.3,
+          -11.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          222.0,
+          -4.0
+        ],
+        "scale": [
+          0.5,
+          5.0,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "branch-6",
+      "name": "Broken branch",
+      "parent": "tree-6",
+      "transform": {
+        "translation": [
+          0.3,
+          2.75,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -38.0
+        ],
+        "scale": [
+          0.14,
+          1.4,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.026,
+          0.024
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-7",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          4.0,
+          2.65,
+          -16.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          259.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          5.7,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-8",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -5.8,
+          1.6,
+          -17.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          296.0,
+          4.0
+        ],
+        "scale": [
+          0.5,
+          3.6,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-9",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          3.6,
+          1.95,
+          -21.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          333.0,
+          -4.0
+        ],
+        "scale": [
+          0.5,
+          4.3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "branch-9",
+      "name": "Broken branch",
+      "parent": "tree-9",
+      "transform": {
+        "translation": [
+          0.3,
+          2.365,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -38.0
+        ],
+        "scale": [
+          0.14,
+          1.4,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.026,
+          0.024
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-10",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -4.2,
+          2.3,
+          -26.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          10.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          5.0,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-11",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          5.2,
+          2.65,
+          -27.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          47.0,
+          4.0
+        ],
+        "scale": [
+          0.5,
+          5.7,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-12",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -3.4,
+          1.6,
+          -31.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          84.0,
+          -4.0
+        ],
+        "scale": [
+          0.5,
+          3.6,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "branch-12",
+      "name": "Broken branch",
+      "parent": "tree-12",
+      "transform": {
+        "translation": [
+          0.3,
+          1.98,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -38.0
+        ],
+        "scale": [
+          0.14,
+          1.4,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.026,
+          0.024
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-13",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          4.6,
+          1.95,
+          -33.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          121.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          4.3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-14",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          -6.0,
+          2.3,
+          -1.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          158.0,
+          4.0
+        ],
+        "scale": [
+          0.5,
+          5.0,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-15",
+      "name": "Dead tree",
+      "parent": "ground",
+      "transform": {
+        "translation": [
+          6.2,
+          2.65,
+          -14.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          195.0,
+          -4.0
+        ],
+        "scale": [
+          0.5,
+          5.7,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.024,
+          0.022
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "branch-15",
+      "name": "Broken branch",
+      "parent": "tree-15",
+      "transform": {
+        "translation": [
+          0.3,
+          3.135,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          -38.0
+        ],
+        "scale": [
+          0.14,
+          1.4,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.026,
+          0.024
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "log",
+      "name": "Fallen log",
+      "transform": {
+        "translation": [
+          1.5,
+          0.35,
+          -14.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          20.0,
+          0.0
+        ],
+        "scale": [
+          3.0,
+          0.7,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.065,
+          0.045
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "lantern-1",
+      "name": "Lantern",
+      "transform": {
+        "translation": [
+          -2.4,
+          0.0,
+          -6.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-1-pole",
+      "name": "Pole",
+      "parent": "lantern-1",
+      "transform": {
+        "translation": [
+          0.0,
+          1.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          2.2,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.028,
+          0.026
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-1-head",
+      "name": "Lantern head",
+      "parent": "lantern-1",
+      "transform": {
+        "translation": [
+          0.0,
+          2.35,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.32,
+          0.34,
+          0.32
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.62,
+          0.22
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Lantern / flicker",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  0.0,
+                  200.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  300.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 8.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  600.0,
+                  180.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  900.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 5.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  300.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 17.7
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  600.0,
+                  420.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  900.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 3.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  1200.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 10,
+                "position": [
+                  1200.0,
+                  420.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "brightness",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 11,
+                "position": [
+                  1500.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 12,
+                "position": [
+                  1800.0,
+                  0.0
+                ],
+                "kind": "set_light_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 26.0
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 10,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 11,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {
+              "brightness": 26.0
+            }
+          }
+        }
+      ],
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          1.0,
+          0.55,
+          0.18
+        ],
+        "intensity": 26.0,
+        "range": 12.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "lantern-1-light",
+      "name": "Lantern light",
+      "parent": "lantern-1",
+      "transform": {
+        "translation": [
+          0.0,
+          2.35,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-2",
+      "name": "Lantern",
+      "transform": {
+        "translation": [
+          2.4,
+          0.0,
+          -12.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-2-pole",
+      "name": "Pole",
+      "parent": "lantern-2",
+      "transform": {
+        "translation": [
+          0.0,
+          1.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          2.2,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.028,
+          0.026
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-2-head",
+      "name": "Lantern head",
+      "parent": "lantern-2",
+      "transform": {
+        "translation": [
+          0.0,
+          2.35,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.32,
+          0.34,
+          0.32
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.62,
+          0.22
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Lantern / flicker",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  0.0,
+                  200.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  300.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 6.1
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  600.0,
+                  180.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  900.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 4.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  300.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 13.9
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  600.0,
+                  420.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  900.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 2.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  1200.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 10,
+                "position": [
+                  1200.0,
+                  420.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "brightness",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 11,
+                "position": [
+                  1500.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 12,
+                "position": [
+                  1800.0,
+                  0.0
+                ],
+                "kind": "set_light_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 20.0
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 10,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 11,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {
+              "brightness": 20.0
+            }
+          }
+        }
+      ],
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          1.0,
+          0.55,
+          0.18
+        ],
+        "intensity": 20.0,
+        "range": 12.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "lantern-2-light",
+      "name": "Lantern light",
+      "parent": "lantern-2",
+      "transform": {
+        "translation": [
+          0.0,
+          2.35,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-3",
+      "name": "Lantern",
+      "transform": {
+        "translation": [
+          -2.4,
+          0.0,
+          -22.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-3-pole",
+      "name": "Pole",
+      "parent": "lantern-3",
+      "transform": {
+        "translation": [
+          0.0,
+          1.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          2.2,
+          0.14
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.028,
+          0.026
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lantern-3-head",
+      "name": "Lantern head",
+      "parent": "lantern-3",
+      "transform": {
+        "translation": [
+          0.0,
+          2.35,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.32,
+          0.34,
+          0.32
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.62,
+          0.22
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Lantern / flicker",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  0.0,
+                  200.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  300.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 9.7
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  600.0,
+                  180.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  900.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 5.5
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  300.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 21.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  600.0,
+                  420.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  900.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 3.5
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  1200.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 10,
+                "position": [
+                  1200.0,
+                  420.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "brightness",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 11,
+                "position": [
+                  1500.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 12,
+                "position": [
+                  1800.0,
+                  0.0
+                ],
+                "kind": "set_light_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 28.0
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 10,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 11,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {
+              "brightness": 28.0
+            }
+          }
+        }
+      ],
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          1.0,
+          0.55,
+          0.18
+        ],
+        "intensity": 28.0,
+        "range": 12.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "lantern-3-light",
+      "name": "Lantern light",
+      "parent": "lantern-3",
+      "transform": {
+        "translation": [
+          0.0,
+          2.35,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "soul-1",
+      "name": "Soul light",
+      "transform": {
+        "translation": [
+          1.6,
+          0.9,
+          -4.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          0.4
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.92,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        80.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.5,
+          0.85,
+          1.0
+        ],
+        "intensity": 7.0,
+        "range": 6.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "soul-1-glow",
+      "name": "Soul glow",
+      "parent": "soul-1",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "soul-2",
+      "name": "Soul light",
+      "transform": {
+        "translation": [
+          -1.9,
+          0.9,
+          -9.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          0.4
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.92,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        80.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.5,
+          0.85,
+          1.0
+        ],
+        "intensity": 7.0,
+        "range": 6.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "soul-2-glow",
+      "name": "Soul glow",
+      "parent": "soul-2",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "soul-3",
+      "name": "Soul light",
+      "transform": {
+        "translation": [
+          1.4,
+          1.35,
+          -14.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          0.4
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.92,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        80.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.5,
+          0.85,
+          1.0
+        ],
+        "intensity": 7.0,
+        "range": 6.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "soul-3-glow",
+      "name": "Soul glow",
+      "parent": "soul-3",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "soul-4",
+      "name": "Soul light",
+      "transform": {
+        "translation": [
+          -2.2,
+          0.9,
+          -19.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          0.4
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.92,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        80.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.5,
+          0.85,
+          1.0
+        ],
+        "intensity": 7.0,
+        "range": 6.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "soul-4-glow",
+      "name": "Soul glow",
+      "parent": "soul-4",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "soul-5",
+      "name": "Soul light",
+      "transform": {
+        "translation": [
+          1.2,
+          0.9,
+          -27.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          0.4
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.92,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "spin": [
+        0.0,
+        80.0,
+        0.0
+      ],
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.5,
+          0.85,
+          1.0
+        ],
+        "intensity": 7.0,
+        "range": 6.0,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "soul-5-glow",
+      "name": "Soul glow",
+      "parent": "soul-5",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "checkpoint",
+      "name": "Pale shrine — respawn",
+      "transform": {
+        "translation": [
+          0.0,
+          0.1,
+          -16.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.0,
+          0.2,
+          1.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.3,
+          0.42
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            3.0,
+            0.0
+          ],
+          "size": [
+            1.0,
+            8.0,
+            1.0
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "checkpoint",
+          "respawn": [
+            0.0,
+            0.65,
+            -16.0
+          ]
+        }
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Haunt zone / dread spike + wraith",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "body_enter",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  0.0,
+                  180.0
+                ],
+                "kind": "is_valid_object",
+                "inputs": [
+                  {
+                    "object": "none"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  300.0,
+                  0.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  600.0,
+                  0.0
+                ],
+                "kind": "set_vignette_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.88
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  900.0,
+                  0.0
+                ],
+                "kind": "set_grain_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.08
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "hollow-apparition",
+                "id": 6,
+                "position": [
+                  1200.0,
+                  0.0
+                ],
+                "kind": "spawn_prefab",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      2.6,
+                      1.2,
+                      -8.5
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 1
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              }
+            ],
+            "variables": {}
+          }
+        }
+      ],
+      "id": "haunt-1",
+      "name": "Haunt zone I",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          -7.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "size": [
+            7.0,
+            3.0,
+            3.0
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "sensor"
+        }
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Haunt zone / dread spike + wraith",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "body_enter",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  0.0,
+                  180.0
+                ],
+                "kind": "is_valid_object",
+                "inputs": [
+                  {
+                    "object": "none"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  300.0,
+                  0.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  600.0,
+                  0.0
+                ],
+                "kind": "set_vignette_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.88
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  900.0,
+                  0.0
+                ],
+                "kind": "set_grain_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.08
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "hollow-apparition",
+                "id": 6,
+                "position": [
+                  1200.0,
+                  0.0
+                ],
+                "kind": "spawn_prefab",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      -2.6,
+                      1.2,
+                      -26.5
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 1
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              }
+            ],
+            "variables": {}
+          }
+        }
+      ],
+      "id": "haunt-2",
+      "name": "Haunt zone II",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          -25.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "size": [
+            7.0,
+            3.0,
+            3.0
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "sensor"
+        }
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Watcher / pace across the clearing",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  0.0,
+                  200.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  300.0,
+                  200.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.22
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  600.0,
+                  200.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  900.0,
+                  200.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 5.5
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  1200.0,
+                  200.0
+                ],
+                "kind": "make_vector",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  1500.0,
+                  0.0
+                ],
+                "kind": "set_position",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {}
+          }
+        }
+      ],
+      "id": "watcher",
+      "name": "The Watcher",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          -30.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "watcher-body",
+      "name": "Watcher body",
+      "parent": "watcher",
+      "transform": {
+        "translation": [
+          0.0,
+          1.5,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          2.6,
+          0.45
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.012,
+          0.012,
+          0.016
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "watcher-eye-l",
+      "name": "Watcher eye L",
+      "parent": "watcher",
+      "transform": {
+        "translation": [
+          -0.14,
+          2.05,
+          0.24
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.1,
+          0.1,
+          0.06
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.05,
+          0.02
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "watcher-eye-r",
+      "name": "Watcher eye R",
+      "parent": "watcher",
+      "transform": {
+        "translation": [
+          0.14,
+          2.05,
+          0.24
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.1,
+          0.1,
+          0.06
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.05,
+          0.02
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          0.9,
+          0.06,
+          0.03
+        ],
+        "intensity": 5.0,
+        "range": 4.5,
+        "inner_angle_degrees": 16.0,
+        "outer_angle_degrees": 30.0
+      },
+      "id": "watcher-light",
+      "name": "Watcher aura",
+      "parent": "watcher",
+      "transform": {
+        "translation": [
+          0.0,
+          1.6,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "gate-post-l",
+      "name": "Gate post L",
+      "transform": {
+        "translation": [
+          -1.6,
+          2.0,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          4.0,
+          0.6
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.62,
+          0.68,
+          0.8
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "gate-post-r",
+      "name": "Gate post R",
+      "transform": {
+        "translation": [
+          1.6,
+          2.0,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          4.0,
+          0.6
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.62,
+          0.68,
+          0.8
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "gate-lintel",
+      "name": "Gate lintel",
+      "transform": {
+        "translation": [
+          0.0,
+          4.2,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          3.9,
+          0.5,
+          0.6
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.62,
+          0.68,
+          0.8
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "goal",
+      "name": "Moon gate — bring all five souls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.12,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          0.24,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.75,
+          0.85,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            3.0,
+            0.0
+          ],
+          "size": [
+            1.0,
+            8.0,
+            1.0
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "goal"
+        }
+      }
+    },
+    {
+      "text_rendering": {
+        "enabled": true,
+        "layer": "3d",
+        "text": "THE MOON GATE",
+        "font": "sans",
+        "font_size": 0.5,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          0.8,
+          0.88,
+          1.0,
+          1.0
+        ]
+      },
+      "id": "gate-label",
+      "name": "Gate label",
+      "transform": {
+        "translation": [
+          -1.9315324,
+          5.2,
+          -32.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "hollow-apparition": {
+      "kind": "prefab",
+      "path": "assets/hollow-walk/apparition.prefab.json"
+    }
+  }
+}

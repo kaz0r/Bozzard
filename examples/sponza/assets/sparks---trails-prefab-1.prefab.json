@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "name": "Sparks & trails",
+  "root": "particles-2",
+  "objects": [
+    {
+      "particle_emitter": {
+        "enabled": true,
+        "kind": "sparks",
+        "rate": 10.0,
+        "lifetime": 2.5,
+        "radius": 0.04,
+        "speed": 2.0,
+        "spread": 0.8,
+        "start_size": 0.11,
+        "end_size": 0.0015,
+        "color": [
+          1.0,
+          0.36,
+          0.055
+        ],
+        "opacity": 1.0,
+        "wind": [
+          0.15,
+          0.0,
+          0.05
+        ],
+        "turbulence": 0.4,
+        "gravity": -0.9,
+        "drag": 6.0,
+        "softness": 0.1,
+        "trail_length": 0.12,
+        "max_particles": 512,
+        "seed": 1
+      },
+      "id": "particles-2",
+      "name": "Sparks & trails",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ]
+}
