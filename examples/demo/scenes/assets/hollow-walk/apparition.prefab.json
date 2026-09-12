@@ -1,0 +1,556 @@
+{
+ "version": 1,
+ "name": "Hollow Wraith (rises and fades)",
+ "root": "apparition",
+ "objects": [
+  {
+   "id": "apparition",
+   "name": "Wraith",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     0.5,
+     2.4,
+     0.5
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": "cube",
+    "texture": "white",
+    "color": [
+     0.72,
+     0.82,
+     0.95
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   },
+   "blueprints": [
+    {
+     "enabled": true,
+     "graph": {
+      "version": 1,
+      "name": "Wraith / rise, swell, fade after lifetime",
+      "nodes": [
+       {
+        "prefab": "",
+        "id": 1,
+        "position": [
+         0,
+         0
+        ],
+        "kind": "update",
+        "inputs": [],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 2,
+        "position": [
+         300,
+         0
+        ],
+        "kind": "set_variable",
+        "inputs": [
+         "exec",
+         {
+          "number": 0
+         }
+        ],
+        "variable": "age"
+       },
+       {
+        "prefab": "",
+        "id": 3,
+        "position": [
+         0,
+         300
+        ],
+        "kind": "get_variable",
+        "inputs": [],
+        "variable": "age"
+       },
+       {
+        "prefab": "",
+        "id": 4,
+        "position": [
+         0,
+         460
+        ],
+        "kind": "delta_time",
+        "inputs": [],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 5,
+        "position": [
+         300,
+         300
+        ],
+        "kind": "add",
+        "inputs": [
+         {
+          "number": 0
+         },
+         {
+          "number": 0
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 6,
+        "position": [
+         300,
+         640
+        ],
+        "kind": "get_variable",
+        "inputs": [],
+        "variable": "lifetime"
+       },
+       {
+        "prefab": "",
+        "id": 7,
+        "position": [
+         600,
+         300
+        ],
+        "kind": "greater",
+        "inputs": [
+         {
+          "number": 0
+         },
+         {
+          "number": 0
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 8,
+        "position": [
+         700,
+         0
+        ],
+        "kind": "branch",
+        "inputs": [
+         "exec",
+         {
+          "bool": false
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 9,
+        "position": [
+         1000,
+         -160
+        ],
+        "kind": "destroy_prefab",
+        "inputs": [
+         "exec",
+         {
+          "object": "self_object"
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 10,
+        "position": [
+         1000,
+         140
+        ],
+        "kind": "translate",
+        "inputs": [
+         "exec",
+         {
+          "vector": [
+           0,
+           0.45,
+           0
+          ]
+         },
+         {
+          "object": "self_object"
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 11,
+        "position": [
+         700,
+         360
+        ],
+        "kind": "scale_vector",
+        "inputs": [
+         {
+          "vector": [
+           0,
+           0.45,
+           0
+          ]
+         },
+         {
+          "number": 0
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 12,
+        "position": [
+         0,
+         640
+        ],
+        "kind": "divide",
+        "inputs": [
+         {
+          "number": 0
+         },
+         {
+          "number": 1
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 13,
+        "position": [
+         300,
+         760
+        ],
+        "kind": "multiply",
+        "inputs": [
+         {
+          "number": 0
+         },
+         {
+          "number": 0.8
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 14,
+        "position": [
+         600,
+         760
+        ],
+        "kind": "add",
+        "inputs": [
+         {
+          "number": 0
+         },
+         {
+          "number": 1
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 15,
+        "position": [
+         900,
+         640
+        ],
+        "kind": "scale_vector",
+        "inputs": [
+         {
+          "vector": [
+           0.5,
+           2.4,
+           0.5
+          ]
+         },
+         {
+          "number": 0
+         }
+        ],
+        "variable": ""
+       },
+       {
+        "prefab": "",
+        "id": 16,
+        "position": [
+         1300,
+         140
+        ],
+        "kind": "set_scale",
+        "inputs": [
+         "exec",
+         {
+          "vector": [
+           0.5,
+           2.4,
+           0.5
+          ]
+         },
+         {
+          "object": "self_object"
+         }
+        ],
+        "variable": ""
+       }
+      ],
+      "wires": [
+       {
+        "from": {
+         "node": 1,
+         "port": 0
+        },
+        "to": {
+         "node": 2,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 3,
+         "port": 0
+        },
+        "to": {
+         "node": 5,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 4,
+         "port": 0
+        },
+        "to": {
+         "node": 5,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 5,
+         "port": 0
+        },
+        "to": {
+         "node": 2,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 3,
+         "port": 0
+        },
+        "to": {
+         "node": 7,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 6,
+         "port": 0
+        },
+        "to": {
+         "node": 7,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 7,
+         "port": 0
+        },
+        "to": {
+         "node": 8,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 2,
+         "port": 0
+        },
+        "to": {
+         "node": 8,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 8,
+         "port": 0
+        },
+        "to": {
+         "node": 9,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 8,
+         "port": 1
+        },
+        "to": {
+         "node": 10,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 11,
+         "port": 0
+        },
+        "to": {
+         "node": 10,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 4,
+         "port": 0
+        },
+        "to": {
+         "node": 11,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 10,
+         "port": 0
+        },
+        "to": {
+         "node": 16,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 15,
+         "port": 0
+        },
+        "to": {
+         "node": 16,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 3,
+         "port": 0
+        },
+        "to": {
+         "node": 12,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 6,
+         "port": 0
+        },
+        "to": {
+         "node": 12,
+         "port": 1
+        }
+       },
+       {
+        "from": {
+         "node": 12,
+         "port": 0
+        },
+        "to": {
+         "node": 13,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 13,
+         "port": 0
+        },
+        "to": {
+         "node": 14,
+         "port": 0
+        }
+       },
+       {
+        "from": {
+         "node": 14,
+         "port": 0
+        },
+        "to": {
+         "node": 15,
+         "port": 1
+        }
+       }
+      ],
+      "variables": {
+       "age": 0,
+       "lifetime": 2.6
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "wraith-light",
+   "name": "Wraith chill",
+   "parent": "apparition",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "light": {
+    "kind": "point",
+    "color": [
+     0.55,
+     0.75,
+     1.0
+    ],
+    "intensity": 12,
+    "range": 7.0,
+    "inner_angle_degrees": 16,
+    "outer_angle_degrees": 30,
+    "shadows": false
+   }
+  }
+ ]
+}
