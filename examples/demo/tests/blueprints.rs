@@ -305,3 +305,58 @@ fn malformed_graphs_reject_atomically_and_bad_runtime_values_freeze_safely() {
     demo.app.step();
     assert_eq!(transform(&demo), before);
 }
+
+#[test]
+fn post_processing_graph_controls_animate_without_changing_authored_settings() {
+    use bozzard_scene::{Layer, PostProcessVolume};
+    let graphs = vec![
+        action(K::Start, K::SetExposure, Value::Number(1.5)),
+        action(K::Start, K::SetBloomIntensity, Value::Number(0.6)),
+        action(K::Start, K::SetSaturation, Value::Number(0.4)),
+        action(K::Start, K::SetHeatStrength, Value::Number(5.)),
+        action(K::Start, K::SetGrainIntensity, Value::Number(0.1)),
+        action(K::Start, K::SetVignetteIntensity, Value::Number(0.7)),
+    ];
+    let mut authored = scene(graphs);
+    authored.post_process_volumes = vec![PostProcessVolume::default()];
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    let display = demo.instance().display_at([0.; 3].into(), Layer::ThreeD);
+    assert_eq!(display.exposure_ev, 1.5);
+    assert_eq!(display.bloom.intensity, 0.6);
+    assert_eq!(display.color_grading.saturation, 0.4);
+    assert_eq!(display.heat_distortion.strength, 5.);
+    assert_eq!(display.grain.intensity, 0.1);
+    assert_eq!(display.vignette.intensity, 0.7);
+    assert!(
+        !demo
+            .instance()
+            .display_at([0.; 3].into(), Layer::TwoD)
+            .heat_distortion
+            .enabled
+    );
+    assert_eq!(demo.instance().capture(&demo.app.world).unwrap(), authored);
+    let reset = SceneDemo::new(&authored).unwrap();
+    assert_eq!(
+        reset.instance().display_at([0.; 3].into(), Layer::ThreeD),
+        authored.display_at([0.; 3].into())
+    );
+}
+
+#[test]
+fn post_processing_graph_rejects_out_of_range_without_partial_write() {
+    let authored = scene(vec![action(
+        K::Start,
+        K::SetHeatStrength,
+        Value::Number(31.),
+    )]);
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    assert!(demo.check_simulation().is_err());
+    assert_eq!(
+        demo.instance()
+            .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD),
+        authored.display
+    );
+}

@@ -14,7 +14,10 @@ pub use fog::FogSettings;
 mod environment;
 pub use environment::EnvironmentSettings;
 mod display;
-pub use display::{BloomSettings, DisplaySettings};
+pub use display::{
+    AmbientOcclusion, BloomSettings, ColorGrading, DisplayPreset, DisplaySettings, FilmGrain,
+    HeatDistortion, PostProcessVolume, ToneMapper, Vignette,
+};
 mod light;
 pub use light::{
     Light, LightKind, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS,
@@ -327,6 +330,8 @@ pub struct Scene {
     pub environment: EnvironmentSettings,
     #[serde(default)]
     pub display: DisplaySettings,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub post_process_volumes: Vec<PostProcessVolume>,
     #[serde(default)]
     pub lighting: Lighting,
     pub version: u32,
@@ -388,6 +393,13 @@ impl Scene {
         self.gi.validate()?;
         self.lighting.validate()?;
         self.display.validate()?;
+        ensure!(
+            self.post_process_volumes.len() <= 32,
+            "at most 32 post-process volumes"
+        );
+        for volume in &self.post_process_volumes {
+            volume.validate()?;
+        }
         self.environment.validate()?;
         ensure!(
             self.version == SCENE_VERSION,
@@ -663,6 +675,8 @@ impl Scene {
             order,
             templates,
             next_spawn: 0,
+            display_time: 0.,
+            display_overrides: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -672,6 +686,8 @@ impl Scene {
 /// Runtime scene membership and live ECS components. Authored documents remain independent.
 #[derive(Clone)]
 pub struct SceneInstance {
+    display_time: f32,
+    display_overrides: display::DisplayOverrides,
     templates: BTreeMap<String, Prefab>,
     next_spawn: u64,
     document: Scene,
@@ -804,7 +820,11 @@ impl SceneInstance {
             fog: self.document.fog,
             lights,
             environment: self.document.environment,
-            display: self.document.display,
+            display: self.display_at(
+                matrices[camera_id].transform_point3(glam::Vec3::ZERO),
+                layer,
+            ),
+            display_time: self.display_time,
             lighting: self.document.lighting,
             view_projection,
             objects,
@@ -836,6 +856,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub display_time: f32,
     pub fog: FogSettings,
     pub lights: Vec<WorldLight>,
     pub environment: EnvironmentSettings,
@@ -1008,6 +1029,7 @@ mod tests {
             gi: Default::default(),
             environment: EnvironmentSettings::default(),
             display: DisplaySettings::default(),
+            post_process_volumes: Vec::new(),
             lighting: Lighting::default(),
             version: 1,
             name: "test".into(),

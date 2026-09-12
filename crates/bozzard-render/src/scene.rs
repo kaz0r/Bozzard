@@ -12,7 +12,12 @@ pub use environment::EnvironmentSettings;
 mod bloom;
 pub use bloom::BloomSettings;
 mod display;
-pub use display::DisplaySettings;
+mod display_settings;
+mod post_process;
+pub use display_settings::{
+    AmbientOcclusion, ColorGrading, DisplaySettings, FilmGrain, HeatDistortion, ToneMapper,
+    Vignette,
+};
 mod gi;
 pub use gi::IrradianceVolume;
 mod lighting;
@@ -1121,7 +1126,6 @@ impl SceneRenderer {
         scene.fog.validate()?;
         self.environment
             .prepare(gpu, scene.environment, scene.view_projection.inverse())?;
-        self.display.prepare(gpu, size, scene.display, raw)?;
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("scene depth target"),
@@ -1134,7 +1138,8 @@ impl SceneRenderer {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Depth32Float,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             });
             self.depth = Some(DepthTarget {
@@ -1142,6 +1147,16 @@ impl SceneRenderer {
                 size,
             });
         }
+        self.display.prepare(
+            gpu,
+            scene.display,
+            post_process::FrameInput {
+                size,
+                raw,
+                view_projection: scene.view_projection,
+                depth: Some(&self.depth.as_ref().unwrap().view),
+            },
+        )?;
         self.prepare_gi(gpu, scene.gi.as_ref())?;
         scene.lighting.validate()?;
         let lights = local_lights::uniform(&scene.lights)?;

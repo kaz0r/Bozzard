@@ -88,20 +88,7 @@ pub fn extract(
             },
             background: layer == Layer::ThreeD && view.environment.background,
         },
-        display: bozzard_render::DisplaySettings {
-            bloom: bozzard_render::BloomSettings {
-                enabled: layer == Layer::ThreeD && view.display.bloom.enabled,
-                intensity: view.display.bloom.intensity,
-                threshold: view.display.bloom.threshold,
-                scatter: view.display.bloom.scatter,
-            },
-            exposure_ev: if layer == Layer::ThreeD {
-                view.display.exposure_ev
-            } else {
-                0.
-            },
-            tone_mapping: layer == Layer::ThreeD && view.display.tone_mapping,
-        },
+        display: bozzard_render_assets::display_settings(view.display, layer, view.display_time),
         lighting: bozzard_render::Lighting {
             shadows: view.lighting.shadows,
             shadow_resolution: view.lighting.shadow_resolution,

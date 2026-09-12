@@ -74,6 +74,7 @@ fn document(objects: Vec<Object>, assets: BTreeMap<String, AssetSource>) -> Scen
         gi: Default::default(),
         environment: Default::default(),
         display: Default::default(),
+        post_process_volumes: Vec::new(),
         lighting: Default::default(),
     }
 }

@@ -87,6 +87,7 @@ fn bloom_roundtrip_defaults_and_invalid_values() {
         intensity: 0.4,
         threshold: 2.,
         scatter: 0.6,
+        anamorphic: 0.,
     };
     assert_eq!(scene, Scene::from_json(&scene.to_json().unwrap()).unwrap());
     for invalid in [

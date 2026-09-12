@@ -504,43 +504,15 @@ impl App {
             ui.separator();
             crate::fog::controls(ui, &mut scene.fog);
             ui.separator();
-            egui::CollapsingHeader::new("DISPLAY & BLOOM")
-                .default_open(true)
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
-                            .text("Exposure EV"),
-                    );
-                    ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
-                    let bloom = &mut scene.display.bloom;
-                    ui.checkbox(&mut bloom.enabled, "Bloom");
-                    ui.add_enabled_ui(bloom.enabled, |ui| {
-                        ui.add(
-                            egui::Slider::new(&mut bloom.intensity, 0.0..=10.0)
-                                .logarithmic(true)
-                                .text("Glow intensity"),
-                        );
-                        ui.horizontal(|ui| {
-                            ui.label("Threshold");
-                            ui.add(
-                                egui::DragValue::new(&mut bloom.threshold)
-                                    .speed(0.05)
-                                    .range(0.0..=60000.),
-                            );
-                        });
-                        ui.add(egui::Slider::new(&mut bloom.scatter, 0.0..=1.0).text("Spread"));
-                        ui.weak("Threshold is scene brightness before exposure.");
-                    });
-                    if ui.button("Reset display").clicked() {
-                        scene.display = Default::default();
-                    }
-                });
+            crate::post_processing::controls(ui, &mut scene.display);
+            crate::post_processing::volumes(ui, &mut scene.post_process_volumes);
         });
         if ui.is_enabled()
             && self.editor.play.is_none()
             && (scene.fog != self.editor.scene().fog
                 || scene.gi != self.editor.scene().gi
                 || scene.lighting != self.editor.scene().lighting
+                || scene.post_process_volumes != self.editor.scene().post_process_volumes
                 || scene.display != self.editor.scene().display
                 || scene.environment != self.editor.scene().environment)
         {

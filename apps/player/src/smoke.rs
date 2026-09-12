@@ -647,6 +647,21 @@ fn check_document(
             )?;
         }
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
+        if layer == Layer::ThreeD && prefix == "loaded" {
+            let mut before = extract(&demo, assets, layer, aspect)?;
+            before.display = bozzard_render::DisplaySettings {
+                bloom: bozzard_render::BloomSettings {
+                    anamorphic: 0.,
+                    ..before.display.bloom
+                },
+                exposure_ev: before.display.exposure_ev,
+                tone_mapping: before.display.tone_mapping,
+                ..Default::default()
+            };
+            capture_display(gpu, renderer, &before, size)?
+                .write_ppm(&options.output.join("loaded-3d-before-post.ppm"))?;
+        }
+
         if layer == Layer::ThreeD && document.lighting.shadows {
             let mut without = extract(&demo, assets, layer, aspect)?;
             without.lighting.shadows = false;
@@ -668,7 +683,8 @@ fn check_document(
             demo.app.step();
             demo.check_simulation()?;
         }
-        let moved = capture_display(gpu, renderer, &extract(&demo, assets, layer, aspect)?, size)?;
+        let moved_scene = extract(&demo, assets, layer, aspect)?;
+        let moved = capture_display(gpu, renderer, &moved_scene, size)?;
         moved.write_ppm(
             &options
                 .output
@@ -679,12 +695,11 @@ fn check_document(
         }
         let saved = demo.instance().capture(&demo.app.world)?;
         let restored = SceneDemo::new(&Scene::from_json(&saved.to_json()?)?)?;
-        let reloaded = capture_display(
-            gpu,
-            renderer,
-            &extract(&restored, assets, layer, aspect)?,
-            size,
-        )?;
+        let mut restored_scene = extract(&restored, assets, layer, aspect)?;
+        // Grain and shimmer use runtime time, which is intentionally not serialized.
+        // Compare save/reload at the same visual phase.
+        restored_scene.display.time_seconds = moved_scene.display.time_seconds;
+        let reloaded = capture_display(gpu, renderer, &restored_scene, size)?;
         ensure!(
             moved.rgba == reloaded.rgba,
             "{label} save/reload changed the image"

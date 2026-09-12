@@ -28,6 +28,7 @@ mod hierarchy;
 mod inspector;
 mod lights;
 mod loading;
+mod post_processing;
 mod snapping;
 mod surfaces;
 mod theme;

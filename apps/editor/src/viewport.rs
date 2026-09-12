@@ -793,6 +793,12 @@ impl App {
                     );
                 }
                 scene.view_projection = lens * camera.pose().inverse();
+                let position = camera.pose().transform_point3(Vec3::ZERO);
+                scene.display = bozzard_render_assets::display_settings(
+                    doc.display_at(position),
+                    bozzard_scene::Layer::ThreeD,
+                    scene.display.time_seconds,
+                );
             }
         }
         if self

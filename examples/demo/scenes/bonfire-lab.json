@@ -60,10 +60,55 @@
       "enabled": true,
       "intensity": 0.4,
       "threshold": 0.5,
-      "scatter": 0.78
+      "scatter": 0.78,
+      "anamorphic": 0.65
     },
     "exposure_ev": -0.2,
-    "tone_mapping": true
+    "tone_mapping": true,
+    "tone_mapper": "filmic",
+    "color_grading": {
+      "temperature": 0.12,
+      "tint": 0.0,
+      "saturation": 1.05,
+      "contrast": 1.05,
+      "lift": [
+        0.0,
+        0.0,
+        0.001
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": true,
+      "intensity": 0.7,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": true,
+      "strength": 4.0,
+      "threshold": 0.6,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.025,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.4,
+      "roundness": 0.7,
+      "feather": 0.6
+    }
   },
   "lighting": {
     "shadows": false,

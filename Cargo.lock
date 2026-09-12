@@ -250,6 +250,7 @@ dependencies = [
  "bozzard-assets",
  "bozzard-demo",
  "bozzard-render",
+ "bozzard-render-assets",
  "bozzard-scene",
  "glam",
  "serde",
@@ -307,6 +308,7 @@ dependencies = [
  "anyhow",
  "bozzard-assets",
  "bozzard-render",
+ "bozzard-scene",
 ]
 
 [[package]]

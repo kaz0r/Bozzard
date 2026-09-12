@@ -1,32 +1,8 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug)]
-pub struct DisplaySettings {
-    pub bloom: BloomSettings,
-    pub exposure_ev: f32,
-    pub tone_mapping: bool,
-}
-impl Default for DisplaySettings {
-    fn default() -> Self {
-        Self {
-            bloom: BloomSettings::default(),
-            exposure_ev: 0.,
-            tone_mapping: true,
-        }
-    }
-}
-impl DisplaySettings {
-    pub fn validate(&self) -> Result<()> {
-        self.bloom.validate()?;
-        ensure!(
-            self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
-            "invalid exposure"
-        );
-        Ok(())
-    }
-}
 pub(super) struct Display {
     bloom: bloom::Bloom,
+    post: post_process::PostProcess,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     target: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
@@ -69,12 +45,13 @@ impl Display {
             });
         let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("display settings"),
-            size: 32,
+            size: 128,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         Self {
             bloom: bloom::Bloom::new(gpu),
+            post: post_process::PostProcess::new(gpu),
             pipeline,
             uniform,
             target: None,
@@ -84,18 +61,18 @@ impl Display {
     pub fn prepare(
         &mut self,
         gpu: &Gpu,
-        size: [u32; 2],
         settings: DisplaySettings,
-        raw: bool,
+        frame: post_process::FrameInput<'_>,
     ) -> Result<()> {
         settings.validate()?;
+        let post_process::FrameInput { size, raw, .. } = frame;
         ensure!(
             !raw || !self.srgb_target,
             "raw linear diagnostics need a non-sRGB output target"
         );
-        if self.target.as_ref().is_none_or(|(_, _, old)| *old != size) {
-            let view = gpu
-                .device
+        let resized = self.target.as_ref().is_none_or(|(_, _, old)| *old != size);
+        let replacement = resized.then(|| {
+            gpu.device
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some("linear HDR scene"),
                     size: wgpu::Extent3d {
@@ -111,35 +88,41 @@ impl Display {
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     view_formats: &[],
                 })
-                .create_view(&Default::default());
-            self.bloom.prepare(
-                gpu,
-                &view,
-                size,
-                settings.bloom,
-                !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
-            );
-            let binding = self.binding(gpu, &view);
-            self.target = Some((view, binding, size));
-        } else if self.bloom.prepare(
+                .create_view(&Default::default())
+        });
+        let hdr = replacement
+            .as_ref()
+            .unwrap_or_else(|| &self.target.as_ref().unwrap().0);
+        let source_changed = self.post.prepare(gpu, hdr, settings, &frame)? || resized;
+        let source = self.post.output().unwrap_or(hdr);
+        if source_changed {
+            self.bloom.invalidate();
+        }
+        let bloom_changed = self.bloom.prepare(
             gpu,
-            &self.target.as_ref().unwrap().0,
+            source,
             size,
             settings.bloom,
             !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
-        ) {
-            let binding = self.binding(gpu, &self.target.as_ref().unwrap().0);
+        );
+        let binding = (source_changed || bloom_changed).then(|| self.binding(gpu, source));
+        if let Some(view) = replacement {
+            self.target = Some((view, binding.unwrap(), size));
+        } else if let Some(binding) = binding {
             self.target.as_mut().unwrap().1 = binding;
         }
+        let grade = settings.color_grading;
         gpu.queue.write_buffer(
             &self.uniform,
             0,
             &float_bytes([
                 if raw { 1. } else { settings.exposure_ev.exp2() },
-                if !raw && settings.tone_mapping {
-                    1.
-                } else {
+                if raw || !settings.tone_mapping {
                     0.
+                } else if settings.tone_mapper == ToneMapper::Filmic {
+                    2.
+                } else {
+                    1.
                 },
                 if !raw && !self.srgb_target { 1. } else { 0. },
                 if !raw && settings.bloom.enabled {
@@ -147,8 +130,32 @@ impl Display {
                 } else {
                     0.
                 },
-                if raw { 0. } else { 1. }, // FXAA is display-only, never diagnostic.
+                if raw { 0. } else { 1. },
+                settings.time_seconds % 4096.,
                 0.,
+                0.,
+                grade.temperature,
+                grade.tint,
+                grade.saturation,
+                grade.contrast,
+                grade.lift[0],
+                grade.lift[1],
+                grade.lift[2],
+                0.,
+                grade.gamma[0],
+                grade.gamma[1],
+                grade.gamma[2],
+                0.,
+                grade.gain[0],
+                grade.gain[1],
+                grade.gain[2],
+                0.,
+                settings.vignette.intensity,
+                settings.vignette.roundness,
+                settings.vignette.feather,
+                0.,
+                settings.grain.intensity,
+                settings.grain.size,
                 0.,
                 0.,
             ]),
@@ -183,6 +190,7 @@ impl Display {
         &self.target.as_ref().unwrap().0
     }
     pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.post.draw(encoder);
         self.bloom.draw(encoder);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("exposure tone mapping and display encoding"),
@@ -276,7 +284,15 @@ mod tests {
                        raw,
                        format|
          -> Result<crate::Frame> {
-            display.prepare(&gpu, size, settings, raw)?;
+            display.prepare(
+                &gpu,
+                settings,
+                post_process::FrameInput {
+                    size,
+                    raw,
+                    ..Default::default()
+                },
+            )?;
             let output = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("FXAA readback"),
                 size: wgpu::Extent3d {

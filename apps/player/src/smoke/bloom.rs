@@ -22,9 +22,11 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
                 intensity: 1.,
                 threshold: 1.,
                 scatter: 0.7,
+                anamorphic: 0.,
             },
             exposure_ev: 0.,
             tone_mapping: true,
+            ..Default::default()
         },
         view_projection: glam::camera::rh::proj::directx::orthographic(-1., 1., -1., 1., 0.1, 10.)
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),

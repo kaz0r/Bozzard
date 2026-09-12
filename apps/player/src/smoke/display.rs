@@ -12,6 +12,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             bloom: Default::default(),
             exposure_ev: -2.,
             tone_mapping: true,
+            ..Default::default()
         },
         lighting: Lighting {
             shadows: false,

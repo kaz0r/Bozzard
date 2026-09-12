@@ -153,6 +153,13 @@ pub enum NodeKind {
     SetColor,
     SetVisible,
     SetLightIntensity,
+    SetExposure,
+    SetBloomIntensity,
+    SetSaturation,
+    SetHeatStrength,
+    SetGrainIntensity,
+    SetVignetteIntensity,
+
     MoveWithCollision,
     Jump,
     Print,
@@ -160,7 +167,7 @@ pub enum NodeKind {
     DestroyPrefab,
 }
 impl NodeKind {
-    pub const ALL: [Self; 53] = [
+    pub const ALL: [Self; 59] = [
         Self::Object,
         Self::SelfObject,
         Self::ObjectEqual,
@@ -209,6 +216,12 @@ impl NodeKind {
         Self::SetColor,
         Self::SetVisible,
         Self::SetLightIntensity,
+        Self::SetExposure,
+        Self::SetBloomIntensity,
+        Self::SetSaturation,
+        Self::SetHeatStrength,
+        Self::SetGrainIntensity,
+        Self::SetVignetteIntensity,
         Self::MoveWithCollision,
         Self::Jump,
         Self::Print,
@@ -265,6 +278,13 @@ impl NodeKind {
             Self::SetColor => "Set Color (RGB)",
             Self::SetVisible => "Set Visible",
             Self::SetLightIntensity => "Set Light Intensity",
+            Self::SetExposure => "Set Exposure (EV)",
+            Self::SetBloomIntensity => "Set Bloom Intensity",
+            Self::SetSaturation => "Set Saturation",
+            Self::SetHeatStrength => "Set Heat Strength",
+            Self::SetGrainIntensity => "Set Grain Intensity",
+            Self::SetVignetteIntensity => "Set Vignette Intensity",
+
             Self::MoveWithCollision => "Move With Collision",
             Self::Jump => "Jump",
             Self::Print => "Print Number",
@@ -308,6 +328,12 @@ impl NodeKind {
             Self::ScaleVector => &[("Vector", Vector), ("Factor", Number)],
             Self::AddVector => &[("A", Vector), ("B", Vector)],
             Self::Branch => &[("In", Exec), ("Condition", Bool)],
+            Self::SetExposure
+            | Self::SetBloomIntensity
+            | Self::SetSaturation
+            | Self::SetHeatStrength
+            | Self::SetGrainIntensity
+            | Self::SetVignetteIntensity => &[("In", Exec), ("Value", Number)],
             Self::SetVariable | Self::Print => &[("In", Exec), ("Value", Number)],
             Self::Translate
             | Self::Rotate
