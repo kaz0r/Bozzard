@@ -40,6 +40,18 @@ impl Editor {
             if selection.is_some() && !included.contains(&object.id) {
                 continue;
             }
+            if let Some(text) = &object.text_rendering
+                && text.enabled
+                && text.layer == layer
+                && let Some([min, max]) =
+                    bozzard_render::text_bounds(&bozzard_render_assets::text_mesh(text))?
+            {
+                for x in [min.x, max.x] {
+                    for y in [min.y, max.y] {
+                        include(matrices[&object.id].transform_point3(Vec3::new(x, y, 0.)))?;
+                    }
+                }
+            }
             let Some(drawable) = &object.drawable else {
                 continue;
             };

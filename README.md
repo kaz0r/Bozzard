@@ -53,6 +53,10 @@ cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/material-gallery
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/neon-gallery.json
 ```
 
+## Text Rendering
+
+**Add Component → Text Rendering** adds editable, transformable text in **3D or 2D**: multiline text, Sans/Monospace, color/opacity, alignment and word wrapping. Try `examples/demo/scenes/text-lab.json`. See [authoring, runtime behavior and initial limits](docs/text-rendering.md).
+
 ## Material effect demo
 
 Open `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/shader-lab.json` (or use `bozzard-player`). Select a whole object and choose **Texture / material effect** in the Inspector: **World normals**, **Procedural checker**, or **Toon (3 bands)**. Tint colors checker/toon; UV repeat controls checker density (8 cells per repeat); rotating an object changes its world-normal colors. Toon uses the sun direction and shadow visibility, not full PBR/local lighting. Effects replace the texture slot and apply to every surface, including imported models; choose White to restore imported textures. They are view effects, not GI bake materials; the examples opt out of contributing to GI.

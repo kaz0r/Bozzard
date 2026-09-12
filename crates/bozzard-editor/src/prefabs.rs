@@ -660,6 +660,7 @@ fn merge_instances(
                     spin,
                     collider,
                     mesh_collider,
+                    text_rendering,
                     gravity,
                     trigger,
                     light,

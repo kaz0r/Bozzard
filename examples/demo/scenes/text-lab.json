@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "Camera 3D",
+      "transform": {
+        "translation": [
+          0,
+          0.5,
+          9
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "world-heading",
+      "name": "World Heading",
+      "transform": {
+        "translation": [
+          -3.5,
+          2.7,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "TEXT IN SPACE",
+        "font_size": 0.65,
+        "layer": "3d",
+        "color": [
+          0.3,
+          0.8,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "world-body",
+      "name": "World Body",
+      "transform": {
+        "translation": [
+          -3.5,
+          1.7,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "A real scene component.\nMove, rotate, scale, or parent it.\nThis text wraps without a UI canvas.",
+        "font_size": 0.3,
+        "layer": "3d",
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "max_width": 5
+      }
+    },
+    {
+      "id": "rotated-label",
+      "name": "Rotated Label",
+      "transform": {
+        "translation": [
+          -3.5,
+          -0.2,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          -25,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "Local XY / world Transform",
+        "font_size": 0.35,
+        "layer": "3d",
+        "color": [
+          1,
+          0.6,
+          0.2,
+          1
+        ]
+      }
+    },
+    {
+      "id": "depth-label",
+      "name": "Depth Label",
+      "transform": {
+        "translation": [
+          2.25,
+          1.35,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "DEPTH\nTEST",
+        "font_size": 0.38,
+        "layer": "3d",
+        "color": [
+          0.5,
+          1,
+          0.5,
+          1
+        ],
+        "alignment": "center"
+      }
+    },
+    {
+      "id": "world-footer",
+      "name": "World Footer",
+      "transform": {
+        "translation": [
+          -3.5,
+          -1.2,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "Select text, then edit its Text Rendering component.\nSwitch to 2D for orthographic labels.",
+        "font_size": 0.22,
+        "layer": "3d",
+        "color": [
+          0.65,
+          0.7,
+          0.8,
+          1
+        ],
+        "max_width": 6.6
+      }
+    },
+    {
+      "id": "sign-board",
+      "name": "Sign Board",
+      "transform": {
+        "translation": [
+          0,
+          0.45,
+          -0.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          8,
+          5,
+          0.2
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.035,
+          0.055,
+          0.09
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "depth-occluder",
+      "name": "Depth Occluder",
+      "transform": {
+        "translation": [
+          2.2,
+          0.55,
+          0.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.35,
+          1.8,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.65,
+          0.32
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "screen-heading",
+      "name": "Screen Heading",
+      "transform": {
+        "translation": [
+          0,
+          2.6,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "2D TEXT",
+        "font_size": 0.65,
+        "layer": "2d",
+        "color": [
+          0.3,
+          0.8,
+          1,
+          1
+        ],
+        "alignment": "center"
+      }
+    },
+    {
+      "id": "screen-body",
+      "name": "Screen Body",
+      "transform": {
+        "translation": [
+          0,
+          1.3,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "Orthographic scene text\nCentered, wrapped, and resolution independent in placement.",
+        "font_size": 0.34,
+        "layer": "2d",
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "max_width": 5.5,
+        "alignment": "center"
+      }
+    },
+    {
+      "id": "screen-score",
+      "name": "Screen Score",
+      "transform": {
+        "translation": [
+          -3,
+          -0.8,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "SCORE  001 / 100\nHP     100%",
+        "font_size": 0.36,
+        "layer": "2d",
+        "color": [
+          0.35,
+          1,
+          0.55,
+          1
+        ],
+        "font": "monospace"
+      }
+    },
+    {
+      "id": "screen-footer",
+      "name": "Screen Footer",
+      "transform": {
+        "translation": [
+          3,
+          -2.2,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "text_rendering": {
+        "text": "Right aligned / 65% opacity",
+        "font_size": 0.27,
+        "layer": "2d",
+        "color": [
+          1,
+          1,
+          1,
+          0.65
+        ],
+        "alignment": "right"
+      }
+    }
+  ],
+  "name": "Text Lab - 3D signs and 2D labels",
+  "environment": {
+    "intensity": 0.2,
+    "background": false
+  }
+}

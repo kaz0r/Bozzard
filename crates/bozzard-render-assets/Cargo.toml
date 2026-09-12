@@ -8,6 +8,8 @@ publish.workspace = true
 [dependencies]
 bozzard-assets.workspace = true
 bozzard-render.workspace = true
+bozzard-scene.workspace = true
+glam.workspace = true
 anyhow.workspace = true
 
 [lints]

@@ -9,7 +9,8 @@ pub use scene::{
     IrradianceVolume, Lighting, LocalLight, LocalShadowSettings, MAX_LOCAL_LIGHTS,
     MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart,
     ModelUploadStats, PendingUpload, RenderScene, SceneRenderer, SpotShadowSettings,
-    SurfaceMaterialOverride, TextureKind, UploadContext, UploadData, UploadProgress, UploadSource,
+    SurfaceMaterialOverride, TextAlignment, TextMesh, TextureKind, UploadContext, UploadData,
+    UploadProgress, UploadSource, text_bounds,
 };
 
 use anyhow::{Context, Result, ensure};

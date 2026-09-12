@@ -14,6 +14,7 @@ Validation rejects missing parents, cycles, duplicate/empty IDs, invalid camera 
 
 ## Optional components
 
+- `text_rendering`: optional flat text in either scene layer, with text, font size, Sans/Monospace font, alignment, wrapping, linear RGBA and Enabled. Independent of `drawable`/Material; inherits Transform. See [Text Rendering format and limits](text-rendering.md).
 - `camera`: `orthographic` with `vertical_size`, or `perspective` with `vertical_fov_degrees`; both have positive `near` and `far > near`. A scene's `views` maps `2d`/`3d` to camera object IDs. Either view may be omitted.
 - `drawable`: a `2d`/`3d` layer, `quad`/`cube` mesh, `white`/`checker` texture, linear RGB tint, and positive UV scale. Either mesh or texture can instead be `{"asset":"stable-id"}` referencing the document’s `assets` catalog; the referenced kind must match. Imported model drawables may include optional `material_overrides` entries keyed by surface index and source signature, with tint and opt-in metallic/roughness replacements; mismatched signatures remain inactive.
 - `mesh_collider`: `{ "enabled": true, "mesh": [[[x,y,z], [x,y,z], [x,y,z]], ...] }`. Cooked local-space triangle surfaces, independent of the renderer/source assets; adding enabled `gravity` (Rigidbody) uses its solid convex hull. No Box Collider, Player Controller or Trigger on the same object. See [Mesh Collider](mesh-colliders.md) for authoring, limits and runtime behavior.

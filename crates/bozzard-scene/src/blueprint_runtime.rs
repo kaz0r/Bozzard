@@ -426,16 +426,28 @@ impl SceneInstance {
                                                 color.iter().all(|c| (0.0..=1.0).contains(c)),
                                                 "blueprint RGB must be in 0..1"
                                             );
+                                            let has_text = if let Some(text) =
+                                                world.get_mut::<TextRendering>(entity)
+                                            {
+                                                text.color[..3].copy_from_slice(&color);
+                                                true
+                                            } else {
+                                                false
+                                            };
                                             if let Some(material) =
                                                 world.get_mut::<Material>(entity)
                                             {
                                                 material.color = color;
-                                            } else {
+                                            } else if let Some(drawable) =
+                                                world.get_mut::<Drawable>(entity)
+                                            {
                                                 // Legacy graphs also work on meshes using their source material.
-                                                world
-                                                    .get_mut::<Drawable>(entity)
-                                                    .context("Set Color needs a mesh or Material")?
-                                                    .color = color;
+                                                drawable.color = color;
+                                            } else {
+                                                ensure!(
+                                                    has_text,
+                                                    "Set Color needs a mesh, Material or Text Rendering"
+                                                );
                                             }
                                         }
                                         K::SetVisible => {
