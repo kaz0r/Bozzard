@@ -13,6 +13,10 @@ mod fog;
 pub use fog::FogSettings;
 mod environment;
 pub use environment::EnvironmentSettings;
+mod temporal;
+pub use temporal::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
+mod particles;
+pub use particles::{MAX_PARTICLES, Particle, ParticleEmitter, ParticleKind};
 mod volumetric;
 pub use volumetric::VolumetricFog;
 mod optics;
@@ -215,6 +219,10 @@ pub enum Texture {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Drawable {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metallic: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roughness: Option<f32>,
     /// Contribute to a static GI bake. Known moving objects/ancestors are excluded.
     #[serde(default = "default_true")]
     pub gi_static: bool,
@@ -256,6 +264,8 @@ impl Material {
         if let Some(texture) = &self.texture {
             drawable.texture = texture.clone();
         }
+        drawable.metallic = self.metallic.or(drawable.metallic);
+        drawable.roughness = self.roughness.or(drawable.roughness);
         drawable.color = self.color;
         drawable.uv_scale = self.uv_scale;
         if let Mesh::Surface { index, source, .. } = &drawable.mesh
@@ -294,6 +304,8 @@ pub struct Spin(pub [f32; 3]);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particle_emitter: Option<ParticleEmitter>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<Material>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -477,6 +489,9 @@ impl Scene {
             if let Some(collider) = object.collider {
                 collider.validate()?;
             }
+            if let Some(emitter) = object.particle_emitter {
+                emitter.validate()?;
+            }
             if let Some(light) = object.light {
                 light.validate()?;
             }
@@ -490,19 +505,21 @@ impl Scene {
                     object.id
                 );
             }
+            if let Some(drawable) = &object.drawable {
+                ensure!(
+                    drawable
+                        .metallic
+                        .iter()
+                        .chain(drawable.roughness.iter())
+                        .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                    "invalid mesh surface factors"
+                );
+            }
             if let Some(material) = &object.material {
                 ensure!(
                     object.drawable.is_some(),
                     "Material needs a mesh on '{}'",
                     object.id
-                );
-                ensure!(
-                    (material.metallic.is_none() && material.roughness.is_none())
-                        || object
-                            .drawable
-                            .as_ref()
-                            .is_some_and(|d| matches!(d.mesh, Mesh::Surface { .. })),
-                    "PBR factor overrides need an imported surface entity"
                 );
                 ensure!(
                     material
@@ -636,6 +653,9 @@ impl Scene {
             if let Some(trigger) = &object.trigger {
                 trigger.volume.geometry(global)?;
             }
+            if let Some(emitter) = object.particle_emitter {
+                emitter.validate()?;
+            }
             if let Some(light) = object.light {
                 light.at(global)?;
             }
@@ -679,6 +699,7 @@ impl Scene {
             order,
             templates,
             next_spawn: 0,
+            particle_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
         };
@@ -690,6 +711,7 @@ impl Scene {
 /// Runtime scene membership and live ECS components. Authored documents remain independent.
 #[derive(Clone)]
 pub struct SceneInstance {
+    particle_state: particles::ParticleSystem,
     display_time: f32,
     display_overrides: display::DisplayOverrides,
     templates: BTreeMap<String, Prefab>,
@@ -776,6 +798,7 @@ impl SceneInstance {
         let camera_id = &self.document.views[&layer];
         let view_projection = projection * matrices[camera_id].inverse();
         let mut objects = Vec::new();
+        let mut object_ids = Vec::new();
         for (id, entity) in &self.entities {
             if let Some(drawable) = world.get::<Drawable>(*entity)
                 && drawable.layer == layer
@@ -788,6 +811,10 @@ impl SceneInstance {
                 if let Some(material) = world.get::<Material>(*entity) {
                     material.apply(&mut drawable);
                 }
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                entity.hash(&mut hasher);
+                object_ids.push(hasher.finish().max(1));
                 objects.push((matrices[id], drawable));
             }
         }
@@ -821,6 +848,11 @@ impl SceneInstance {
             "too many runtime shadowed point lights"
         );
         Ok(SceneView {
+            particles: if layer == Layer::ThreeD {
+                self.particle_state.frame()
+            } else {
+                Vec::new()
+            },
             fog: self.document.fog,
             lights,
             environment: self.document.environment,
@@ -832,6 +864,7 @@ impl SceneInstance {
             lighting: self.document.lighting,
             view_projection,
             objects,
+            object_ids,
         })
     }
 
@@ -844,6 +877,7 @@ impl SceneInstance {
             object.transform = *world
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
+            object.particle_emitter = world.get::<ParticleEmitter>(entity).copied();
             object.material = world.get::<Material>(entity).cloned();
             object.light = world.get::<Light>(entity).copied();
             object.camera = world.get::<Camera>(entity).copied();
@@ -860,6 +894,9 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    /// Runtime identities in the same order as objects; never serialized.
+    pub object_ids: Vec<u64>,
+    pub particles: Vec<Particle>,
     pub display_time: f32,
     pub fog: FogSettings,
     pub lights: Vec<WorldLight>,
@@ -876,6 +913,7 @@ impl Object {
         world.insert(entity, self.transform)?;
         macro_rules! insert { ($($field:ident),*) => { $(if let Some(value) = &self.$field { world.insert(entity, value.clone())?; })* }; }
         insert!(
+            particle_emitter,
             material,
             light,
             camera,
@@ -1011,6 +1049,7 @@ mod tests {
     use super::*;
     fn object(id: &str) -> Object {
         Object {
+            particle_emitter: None,
             material: None,
             blueprints: Vec::new(),
             light: None,

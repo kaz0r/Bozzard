@@ -45,7 +45,7 @@ Bloom and FXAA run in the shared display path; raw diagnostics bypass them.
 
 ## Light Shafts Lab
 
-Open `examples/demo/scenes/light-shafts-lab.json` for warm, shadowed beams entering a stone room through tall windows. Play moves the density field. Use **Scene Settings → Post Processing → Volumetric fog & light shafts** to tune it; see [volumetric fog](volumetrics.md) for controls and limitations.
+Open `examples/demo/scenes/light-shafts-lab.json` for warm, shadowed beams entering a stone room through tall windows. Play moves the density field. Use **Effects → Fine tuning → Post Processing → Volumetric fog & light shafts** to tune it; see [volumetric fog](volumetrics.md) for controls and limitations.
 
 ## Lens Lab
 
@@ -91,3 +91,7 @@ cargo run -p bozzard-player -- --scene examples/demo/scenes/material-gallery.jso
 
 On Linux a working Vulkan driver is required. For Arch with Intel graphics,
 install `vulkan-intel`; `vulkaninfo --summary` from `vulkan-tools` checks discovery.
+
+## Atmosphere and motion
+
+Open `examples/demo/scenes/atmosphere-lab.json` for the bonfire clearing with curling smoke, windblown ash and sparks, temporal anti-aliasing, motion blur, and wet ground reflections. The Effects panel has live preview, common controls and application shortcuts. See [atmosphere effects](atmosphere-effects.md).

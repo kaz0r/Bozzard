@@ -197,7 +197,7 @@ impl Dof {
             return Ok(self.targets.take().is_some());
         }
         let depth = frame.depth.context("depth of field requires scene depth")?;
-        let changed = source_changed || self.targets.as_ref().is_none_or(|t| t.size != frame.size);
+        let changed = self.targets.as_ref().is_none_or(|t| t.size != frame.size);
         if changed {
             let half = frame.size.map(|v| v.div_ceil(2));
             let prefiltered = texture(gpu, half, "half-resolution color and circle of confusion");
@@ -217,6 +217,15 @@ impl Dof {
                 color,
                 bindings,
             });
+        }
+        if source_changed && !changed {
+            let t = self.targets.as_ref().unwrap();
+            let bindings = [
+                self.binding(gpu, hdr, depth, [&self.dummy; 3]),
+                self.binding(gpu, hdr, depth, [&t.prefiltered, &self.dummy, &self.dummy]),
+                self.binding(gpu, hdr, depth, [&self.dummy, &t.far, &t.near]),
+            ];
+            self.targets.as_mut().unwrap().bindings = bindings;
         }
         let inverse = frame.view_projection.inverse();
         let origin = inverse.project_point3(Vec3::ZERO);

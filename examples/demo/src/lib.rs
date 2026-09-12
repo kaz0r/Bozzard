@@ -233,6 +233,7 @@ impl SceneDemo {
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
                 .and_then(|()| gravity_instance.gameplay_interactions(world))
                 .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
+                .and_then(|()| gravity_instance.step_particles(world, dt))
                 .err()
                 .map(|error| format!("{error:#}"));
             world.insert_resource(GameplayInput {

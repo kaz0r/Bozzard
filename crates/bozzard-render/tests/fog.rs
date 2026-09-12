@@ -96,6 +96,7 @@ fn fog_gpu_basic_pbr_distance_height_alpha_and_bypass() -> anyhow::Result<()> {
     ];
     let attributes = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 4];
     let mut scene = RenderScene {
+        particles: Vec::new(),
         fog: FogSettings {
             enabled: true,
             color: [1., 0., 0.],
@@ -117,9 +118,12 @@ fn fog_gpu_basic_pbr_distance_height_alpha_and_bypass() -> anyhow::Result<()> {
         },
         view_projection: Mat4::IDENTITY,
         items: vec![DrawItem {
+            motion_id: 0,
             model: Mat4::IDENTITY,
             mesh: MeshKind::Imported("fog".into()),
             material: Material {
+                metallic: None,
+                roughness: None,
                 surface_overrides: Default::default(),
                 tint: [0.; 3],
                 uv_scale: [1.; 2],

@@ -5,6 +5,8 @@ pub(super) struct Display {
     post: post_process::PostProcess,
     volume: Option<volumetric::Volumetric>,
     dof: Option<depth_of_field::Dof>,
+    temporal: Option<temporal::Temporal>,
+    reflections: Option<reflections::Reflections>,
     exposure: auto_exposure::Exposure,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
@@ -57,6 +59,8 @@ impl Display {
             post: post_process::PostProcess::new(gpu),
             volume: None,
             dof: None,
+            temporal: None,
+            reflections: None,
             exposure: auto_exposure::Exposure::new(gpu),
             pipeline,
             uniform,
@@ -99,8 +103,29 @@ impl Display {
         let hdr = replacement
             .as_ref()
             .unwrap_or_else(|| &self.target.as_ref().unwrap().0);
-        let depth_changed = self.post.prepare(gpu, hdr, settings, &frame)? || resized;
-        let source = self.post.output().unwrap_or(hdr);
+        if !raw
+            && settings.reflections.enabled
+            && self.reflections.is_none()
+            && let Some(environment) = frame.environment_gpu
+        {
+            self.reflections = Some(reflections::Reflections::new(gpu, &environment.layout));
+        }
+        let reflection_changed = if let Some(reflections) = &mut self.reflections {
+            reflections.prepare(gpu, hdr, settings.reflections, &frame, resized)
+        } else {
+            false
+        };
+        let reflected = self
+            .reflections
+            .as_ref()
+            .and_then(|r| r.output())
+            .unwrap_or(hdr);
+        if reflection_changed {
+            self.post.invalidate();
+        }
+        let depth_changed =
+            self.post.prepare(gpu, reflected, settings, &frame)? || resized || reflection_changed;
+        let source = self.post.output().unwrap_or(reflected);
         if !raw
             && settings.volumetric_fog.enabled
             && settings.volumetric_fog.density > 0.
@@ -122,6 +147,23 @@ impl Display {
             .as_ref()
             .and_then(|v| v.output())
             .unwrap_or(source);
+        if !raw
+            && (settings.temporal_aa.enabled || settings.motion_blur.enabled)
+            && self.temporal.is_none()
+        {
+            self.temporal = Some(temporal::Temporal::new(gpu));
+        }
+        let temporal_changed = if let Some(temporal) = &mut self.temporal {
+            temporal.prepare(gpu, source, settings, &frame)
+        } else {
+            false
+        };
+        let source_changed = source_changed || temporal_changed;
+        let source = self
+            .temporal
+            .as_ref()
+            .and_then(|v| v.output())
+            .unwrap_or(source);
         self.exposure
             .prepare(gpu, source, settings, raw, source_changed);
         if !raw
@@ -136,7 +178,8 @@ impl Display {
         } else {
             false
         };
-        let source_changed = source_changed || dof_changed;
+        let source_changed =
+            dof_changed || (self.dof.as_ref().and_then(|d| d.output()).is_none() && source_changed);
         let source = self
             .dof
             .as_ref()
@@ -179,7 +222,11 @@ impl Display {
                 },
                 if raw { 0. } else { 1. },
                 settings.time_seconds % 4096.,
-                0.,
+                if settings.temporal_aa.enabled && frame.geometry.is_some() {
+                    1.
+                } else {
+                    0.
+                },
                 0.,
                 grade.temperature,
                 grade.tint,
@@ -239,6 +286,9 @@ impl Display {
     }
     pub fn reset_history(&mut self) {
         self.exposure.reset();
+        if let Some(temporal) = &mut self.temporal {
+            temporal.reset();
+        }
     }
     pub fn hdr(&self) -> &wgpu::TextureView {
         &self.target.as_ref().unwrap().0
@@ -248,10 +298,17 @@ impl Display {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         shadows: Option<&wgpu::BindGroup>,
+        environment: Option<&wgpu::BindGroup>,
     ) {
+        if let Some(reflections) = &self.reflections {
+            reflections.draw(encoder, environment);
+        }
         self.post.draw(encoder);
         if let Some(volume) = &self.volume {
             volume.draw(encoder, shadows);
+        }
+        if let Some(temporal) = &self.temporal {
+            temporal.draw(encoder);
         }
         self.exposure.draw(encoder);
         if let Some(dof) = &self.dof {
@@ -390,7 +447,12 @@ mod tests {
                 pass.set_pipeline(&fixture);
                 pass.draw(0..3, 0..1);
             }
-            display.draw(&mut encoder, &output.create_view(&Default::default()), None);
+            display.draw(
+                &mut encoder,
+                &output.create_view(&Default::default()),
+                None,
+                None,
+            );
             gpu.queue.submit([encoder.finish()]);
             crate::read_texture(&gpu, &output, size[0], size[1])
         };

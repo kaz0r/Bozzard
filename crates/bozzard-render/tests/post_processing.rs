@@ -8,9 +8,12 @@ fn object(
     lit: bool,
 ) -> DrawItem {
     DrawItem {
+        motion_id: 0,
         mesh,
         model: Mat4::from_translation(translation.into()) * Mat4::from_scale(scale.into()),
         material: Material {
+            metallic: None,
+            roughness: None,
             tint,
             lit,
             texture: TextureKind::White,
@@ -21,6 +24,7 @@ fn object(
 }
 fn scene() -> RenderScene {
     RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![],

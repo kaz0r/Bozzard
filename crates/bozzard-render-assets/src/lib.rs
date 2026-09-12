@@ -120,4 +120,4 @@ pub fn upload(
 }
 
 mod display;
-pub use display::display_settings;
+pub use display::{display_settings, particle_frame};

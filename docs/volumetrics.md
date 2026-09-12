@@ -1,6 +1,6 @@
 # Volumetric fog and light shafts
 
-Open `examples/demo/scenes/light-shafts-lab.json` for warm sunlight passing through stone windows, or `bonfire-lab.json` for orange firelight in drifting haze. **Scene Settings → Post Processing → Volumetric fog & light shafts** controls the medium. Press **Play** to animate wind; pause freezes it.
+Open `examples/demo/scenes/light-shafts-lab.json` for warm sunlight passing through stone windows, or `bonfire-lab.json` for orange firelight in drifting haze. **Effects → Fine tuning → Post Processing → Volumetric fog & light shafts** controls the medium. Press **Play** to animate wind; pause freezes it.
 
 ```sh
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/light-shafts-lab.json

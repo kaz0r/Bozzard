@@ -4,6 +4,7 @@ use bozzard_render::{DisplaySettings, Lighting, ModelPart};
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),
@@ -24,9 +25,12 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         view_projection: glam::camera::rh::proj::directx::orthographic(-1., 1., -1., 1., 0.1, 10.)
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),
         items: vec![DrawItem {
+            motion_id: 0,
             model: Mat4::IDENTITY,
             mesh: MeshKind::Quad,
             material: Material {
+                metallic: None,
+                roughness: None,
                 surface_overrides: Default::default(),
                 tint: [1.; 3],
                 texture: TextureKind::White,

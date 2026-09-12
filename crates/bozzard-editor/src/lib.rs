@@ -14,6 +14,8 @@ use std::{
 };
 
 mod components;
+mod effects;
+pub use effects::EffectsPreview;
 mod deletion;
 mod gi;
 pub use gi::PreparedGi;
@@ -238,6 +240,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "object");
         scene.objects.push(Object {
+            particle_emitter: None,
             blueprints: Vec::new(),
             light: None,
             id: id.clone(),
@@ -258,6 +261,8 @@ impl Editor {
             player_controller: None,
             trigger: None,
             drawable: Some(Drawable {
+                metallic: None,
+                roughness: None,
                 gi_static: true,
                 material_overrides: Vec::new(),
                 layer,
@@ -276,6 +281,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "light");
         scene.objects.push(Object {
+            particle_emitter: None,
             blueprints: Vec::new(),
             id: id.clone(),
             material: None,
@@ -507,6 +513,7 @@ impl Editor {
             transform.scale[0] = image.width as f32 / image.height as f32;
         }
         scene.objects.push(Object {
+            particle_emitter: None,
             blueprints: Vec::new(),
             light: None,
             id: id.clone(),
@@ -521,6 +528,8 @@ impl Editor {
             player_controller: None,
             trigger: None,
             drawable: Some(Drawable {
+                metallic: None,
+                roughness: None,
                 gi_static: true,
                 material_overrides: Vec::new(),
                 layer,
@@ -906,6 +915,7 @@ pub fn extract(
     }
 
     Ok(RenderScene {
+        particles: bozzard_render_assets::particle_frame(&view.particles),
         fog: bozzard_render::FogSettings {
             enabled: layer == Layer::ThreeD && view.fog.enabled,
             color: view.fog.color,
@@ -965,10 +975,12 @@ pub fn extract(
         items: view
             .objects
             .into_iter()
-            .filter(|(_, d)| {
+            .zip(view.object_ids)
+            .filter(|((_, d), _)| {
                 !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
             })
-            .map(|(model, d)| DrawItem {
+            .map(|((model, d), motion_id)| DrawItem {
+                motion_id,
                 model,
                 mesh: match d.mesh {
                     Mesh::Quad => MeshKind::Quad,
@@ -979,6 +991,8 @@ pub fn extract(
                     }
                 },
                 material: Material {
+                    metallic: d.metallic,
+                    roughness: d.roughness,
                     surface_overrides: d
                         .material_overrides
                         .into_iter()

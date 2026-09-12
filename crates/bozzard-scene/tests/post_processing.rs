@@ -263,3 +263,86 @@ fn optics_defaults_validation_roundtrip_and_camera_volumes() {
     json["display"]["depth_of_field"]["unknown"] = true.into();
     assert!(Scene::from_json(&json.to_string()).is_err());
 }
+
+#[test]
+fn temporal_controls_validate_blend_roundtrip_and_reject_unknown_fields() {
+    use bozzard_scene::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
+    let mut scene = legacy();
+    assert!(
+        !scene.display.temporal_aa.enabled
+            && !scene.display.motion_blur.enabled
+            && !scene.display.reflections.enabled
+    );
+    let target = DisplaySettings {
+        temporal_aa: TemporalAntiAliasing {
+            enabled: true,
+            history_weight: 0.92,
+        },
+        motion_blur: MotionBlur {
+            enabled: true,
+            shutter_angle: 240.,
+            max_radius: 48.,
+            samples: 16,
+        },
+        reflections: ScreenSpaceReflections {
+            enabled: true,
+            strength: 0.8,
+            max_distance: 45.,
+            thickness: 0.1,
+            roughness_cutoff: 0.5,
+            steps: 96,
+        },
+        ..Default::default()
+    };
+    target.validate().unwrap();
+    scene.display = target;
+    assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
+    let half = DisplaySettings::default().blend(target, 0.5);
+    assert_eq!(half.motion_blur.shutter_angle, 120.);
+    assert_eq!(half.reflections.strength, 0.4);
+    half.validate().unwrap();
+    assert!(
+        TemporalAntiAliasing {
+            history_weight: f32::NAN,
+            ..Default::default()
+        }
+        .validate()
+        .is_err()
+    );
+    for samples in [0, 3, 33, u32::MAX] {
+        assert!(
+            MotionBlur {
+                samples,
+                ..Default::default()
+            }
+            .validate()
+            .is_err()
+        );
+    }
+    for steps in [0, 15, 129, u32::MAX] {
+        assert!(
+            ScreenSpaceReflections {
+                steps,
+                ..Default::default()
+            }
+            .validate()
+            .is_err()
+        );
+    }
+    for (effect, field) in [
+        ("temporal_aa", "history_weight"),
+        ("motion_blur", "shutter_angle"),
+        ("motion_blur", "max_radius"),
+        ("reflections", "strength"),
+        ("reflections", "thickness"),
+        ("reflections", "max_distance"),
+        ("reflections", "roughness_cutoff"),
+    ] {
+        let mut json = serde_json::to_value(&scene).unwrap();
+        json["display"][effect][field] = (-1).into();
+        assert!(Scene::from_json(&json.to_string()).is_err());
+    }
+    let mut json = serde_json::to_value(&scene).unwrap();
+    json["display"]["reflections"]["unknown"] = true.into();
+    assert!(Scene::from_json(&json.to_string()).is_err());
+}

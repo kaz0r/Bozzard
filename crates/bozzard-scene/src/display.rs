@@ -1,11 +1,15 @@
 use crate::VolumetricFog;
 use crate::{AutoExposure, DepthOfField};
+use crate::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DisplaySettings {
+    pub temporal_aa: TemporalAntiAliasing,
+    pub motion_blur: MotionBlur,
+    pub reflections: ScreenSpaceReflections,
     pub bloom: BloomSettings,
     pub tone_mapper: ToneMapper,
     pub color_grading: ColorGrading,
@@ -24,6 +28,9 @@ pub struct DisplaySettings {
 impl Default for DisplaySettings {
     fn default() -> Self {
         Self {
+            temporal_aa: TemporalAntiAliasing::default(),
+            motion_blur: MotionBlur::default(),
+            reflections: ScreenSpaceReflections::default(),
             bloom: BloomSettings::default(),
             tone_mapper: ToneMapper::default(),
             color_grading: ColorGrading::default(),
@@ -41,6 +48,9 @@ impl Default for DisplaySettings {
 }
 impl DisplaySettings {
     pub fn validate(&self) -> Result<()> {
+        self.temporal_aa.validate()?;
+        self.motion_blur.validate()?;
+        self.reflections.validate()?;
         self.bloom.validate()?;
         self.color_grading.validate()?;
         self.ambient_occlusion.validate()?;
@@ -295,6 +305,9 @@ impl DisplaySettings {
         if preset == DisplayPreset::Neutral {
             return value;
         }
+        value.temporal_aa.enabled = true;
+        value.motion_blur.enabled = true;
+        value.reflections.enabled = true;
         value.tone_mapper = ToneMapper::Filmic;
         value.bloom.enabled = true;
         value.bloom.intensity = 0.2;
@@ -351,6 +364,9 @@ impl DisplaySettings {
         let rgb = |a: [f32; 3], b: [f32; 3]| std::array::from_fn(|i| mix(a[i], b[i]));
         let strength = |enabled, value| if enabled { value } else { 0. };
         Self {
+            temporal_aa: self.temporal_aa.blend(other.temporal_aa, t),
+            motion_blur: self.motion_blur.blend(other.motion_blur, t),
+            reflections: self.reflections.blend(other.reflections, t),
             depth_of_field: self.depth_of_field.blend(other.depth_of_field, t),
             auto_exposure: self.auto_exposure.blend(other.auto_exposure, t),
             volumetric_fog: self.volumetric_fog.blend(other.volumetric_fog, t),

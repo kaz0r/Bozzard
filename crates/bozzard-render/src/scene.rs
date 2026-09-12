@@ -3,6 +3,13 @@ use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 use wgpu::util::DeviceExt;
+mod temporal_settings;
+pub use temporal_settings::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
+pub(crate) mod geometry;
+mod particles;
+mod reflections;
+mod temporal;
+pub use particles::{Particle, ParticleKind};
 mod visibility;
 pub use visibility::FrameStats;
 mod fog;
@@ -42,7 +49,7 @@ pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MeshKind {
     Quad,
     Cube,
@@ -50,7 +57,7 @@ pub enum MeshKind {
     ModelPart(String, usize),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TextureKind {
     White,
     Checker,
@@ -63,6 +70,8 @@ pub enum TextureKind {
 
 #[derive(Clone, Debug)]
 pub struct Material {
+    pub metallic: Option<f32>,
+    pub roughness: Option<f32>,
     pub surface_overrides: std::sync::Arc<[SurfaceMaterialOverride]>,
     pub tint: [f32; 3],
     pub uv_scale: [f32; 2],
@@ -84,6 +93,8 @@ pub struct SurfaceMaterialOverride {
 
 #[derive(Clone, Debug)]
 pub struct DrawItem {
+    /// Stable runtime identity. Zero disables object motion tracking.
+    pub motion_id: u64,
     pub model: Mat4,
     pub mesh: MeshKind,
     pub material: Material,
@@ -92,6 +103,7 @@ pub struct DrawItem {
 /// Render data only: does not borrow an ECS world or know about scene serialization.
 #[derive(Clone, Debug)]
 pub struct RenderScene {
+    pub particles: Vec<Particle>,
     pub fog: FogSettings,
     pub gi: Option<IrradianceVolume>,
     pub lights: Vec<LocalLight>,
@@ -168,6 +180,9 @@ struct DepthTarget {
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
 /// HDR opaque/transparent passes. Imported color images are sRGB; procedural colors are linear.
 pub struct SceneRenderer {
+    geometry: Option<geometry::GeometryBuffers>,
+    motion_history: geometry::MotionHistory,
+    particles: Option<particles::Particles>,
     stats: FrameStats,
     culling: bool,
     state_caching: bool,
@@ -361,7 +376,7 @@ impl SceneRenderer {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(416),
+                            min_binding_size: wgpu::BufferSize::new(480),
                         },
                         count: None,
                     },
@@ -420,7 +435,7 @@ impl SceneRenderer {
             vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(),
                 buffers: &[Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] })] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format, blend: transparent.then_some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })] }),
+                targets: &geometry::color_targets(format, transparent) }),
             primitive: Default::default(),
             depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: Some(!transparent), depth_compare: Some(wgpu::CompareFunction::Less),
@@ -448,6 +463,9 @@ impl SceneRenderer {
             &[0, 1, 2, 0, 2, 3],
         );
         Self {
+            geometry: None,
+            motion_history: Default::default(),
+            particles: None,
             stats: Default::default(),
             culling: true,
             state_caching: true,
@@ -494,7 +512,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 416,
+            size: 480,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -1024,9 +1042,16 @@ impl SceneRenderer {
                             *tint *= multiplier;
                         }
                     }
-                    let factors = override_value.map_or([-1.; 2], |v| {
-                        [v.metallic.unwrap_or(-1.), v.roughness.unwrap_or(-1.)]
-                    });
+                    let factors = [
+                        override_value
+                            .and_then(|v| v.metallic)
+                            .or(item.material.metallic)
+                            .unwrap_or(-1.),
+                        override_value
+                            .and_then(|v| v.roughness)
+                            .or(item.material.roughness)
+                            .unwrap_or(-1.),
+                    ];
                     add(
                         item,
                         part.color[3],
@@ -1038,7 +1063,17 @@ impl SceneRenderer {
                 }
             } else {
                 let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id));
-                add(object.clone(), 1.0, None, transparent, Vec3::ZERO, [-1.; 2]);
+                add(
+                    object.clone(),
+                    1.0,
+                    None,
+                    transparent,
+                    Vec3::ZERO,
+                    [
+                        object.material.metallic.unwrap_or(-1.),
+                        object.material.roughness.unwrap_or(-1.),
+                    ],
+                );
             }
         }
         // Opaque first; translucent surfaces back-to-front by projected center.
@@ -1094,6 +1129,14 @@ impl SceneRenderer {
         );
         for item in &scene.items {
             ensure!(
+                item.material
+                    .metallic
+                    .iter()
+                    .chain(item.material.roughness.iter())
+                    .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                "invalid surface factors"
+            );
+            ensure!(
                 item.material.surface_overrides.len() <= 4096,
                 "too many material overrides"
             );
@@ -1131,9 +1174,19 @@ impl SceneRenderer {
             }
         }
         scene.fog.validate()?;
-        self.environment
-            .prepare(gpu, scene.environment, scene.view_projection.inverse())?;
+        scene.display.validate()?;
+        let (view_projection, temporal_frame) = self.motion_history.begin(scene, size, raw);
+        self.environment.prepare(
+            gpu,
+            scene.environment,
+            view_projection.inverse(),
+            !raw && scene.display.reflections.enabled,
+        )?;
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
+            self.geometry = Some(geometry::GeometryBuffers::new(gpu, size));
+            if let Some(particles) = &mut self.particles {
+                particles.invalidate_depth();
+            }
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("scene depth target"),
                 size: wgpu::Extent3d {
@@ -1160,7 +1213,11 @@ impl SceneRenderer {
             post_process::FrameInput {
                 size,
                 raw,
-                view_projection: scene.view_projection,
+                view_projection,
+                geometry: self.geometry.as_ref(),
+                environment_gpu: Some(&self.environment),
+                fog: scene.fog,
+                temporal: temporal_frame,
                 depth: Some(&self.depth.as_ref().unwrap().view),
                 lighting: scene.lighting,
                 environment: scene.environment,
@@ -1204,7 +1261,9 @@ impl SceneRenderer {
         self.stats.culled_surfaces = draws.len() - self.stats.visible_surfaces;
         for (draw, binding) in draws.iter().zip(&self.objects) {
             let object = &draw.object;
-            let mvp = scene.view_projection * object.model;
+            let mvp = view_projection * object.model;
+            let previous_model = self.motion_history.previous_model(object);
+            let previous_mvp = temporal_frame.previous_vp * previous_model.unwrap_or(object.model);
             let normal = object.model.inverse().transpose();
             ensure!(
                 mvp.is_finite() && normal.is_finite(),
@@ -1230,7 +1289,7 @@ impl SceneRenderer {
                         .chain(normal.to_cols_array())
                         .chain(tail)
                         .chain(object.model.to_cols_array())
-                        .chain(scene.view_projection.inverse().to_cols_array())
+                        .chain(view_projection.inverse().to_cols_array())
                         .chain([
                             size[0] as f32,
                             size[1] as f32,
@@ -1251,15 +1310,39 @@ impl SceneRenderer {
                                 TextureKind::Toon => 3.,
                                 _ => 0.,
                             },
-                            0.,
+                            if draw.transparent || previous_model.is_none() {
+                                1.
+                            } else {
+                                0.
+                            },
                         ])
-                        .chain(scene.fog.uniform(raw)),
+                        .chain(scene.fog.uniform(raw))
+                        .chain(previous_mvp.to_cols_array()),
                 ),
             );
         }
         self.update_shadows(gpu, scene, &draws)?;
         self.update_spot_shadows(gpu, scene)?;
         self.update_point_shadows(gpu, scene)?;
+        if !raw && !scene.particles.is_empty() {
+            self.stats.particles = scene.particles.len();
+            self.stats.particle_triangles = scene.particles.len() as u64 * 2;
+            let particles = self.particles.get_or_insert_with(|| {
+                particles::Particles::new(
+                    gpu,
+                    &self.shadows.sample_layout,
+                    &self.depth.as_ref().unwrap().view,
+                    size,
+                )
+            });
+            particles.prepare(
+                gpu,
+                scene,
+                view_projection,
+                &self.depth.as_ref().unwrap().view,
+                size,
+            )?;
+        }
         self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
         let encode_started = std::time::Instant::now();
         let mut encoder = gpu
@@ -1284,20 +1367,29 @@ impl SceneRenderer {
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: self.display.hdr(),
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                color_attachments: &[
+                    geometry::attachment(
+                        self.display.hdr(),
+                        wgpu::Color {
                             r: 0.018,
                             g: 0.025,
                             b: 0.04,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
+                            a: 1.,
+                        },
+                    ),
+                    geometry::attachment(
+                        &self.geometry.as_ref().unwrap().normal,
+                        wgpu::Color::TRANSPARENT,
+                    ),
+                    geometry::attachment(
+                        &self.geometry.as_ref().unwrap().motion,
+                        wgpu::Color::TRANSPARENT,
+                    ),
+                    geometry::attachment(
+                        &self.geometry.as_ref().unwrap().specular,
+                        wgpu::Color::TRANSPARENT,
+                    ),
+                ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth.as_ref().unwrap().view,
                     depth_ops: Some(wgpu::Operations {
@@ -1349,13 +1441,26 @@ impl SceneRenderer {
                 self.stats.color_triangles += u64::from(mesh.count / 3);
             }
         }
-        self.display
-            .draw(&mut encoder, target, Some(&self.shadows.sample_binding));
+        if !raw && !scene.particles.is_empty() {
+            self.particles.as_ref().unwrap().draw(
+                &mut encoder,
+                self.display.hdr(),
+                &self.geometry.as_ref().unwrap().motion,
+                &self.shadows.sample_binding,
+            );
+        }
+        self.display.draw(
+            &mut encoder,
+            target,
+            Some(&self.shadows.sample_binding),
+            Some(&self.environment.binding),
+        );
         let commands = encoder.finish();
         self.stats.encode_ms = encode_started.elapsed().as_secs_f64() * 1000.;
         let submit_started = std::time::Instant::now();
         gpu.queue.submit([commands]);
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
+        self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())
     }
@@ -1366,5 +1471,6 @@ impl SceneRenderer {
     /// The next enabled auto-exposure frame starts from its current metered target.
     pub fn reset_display_history(&mut self) {
         self.display.reset_history();
+        self.motion_history.reset();
     }
 }

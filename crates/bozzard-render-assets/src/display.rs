@@ -12,6 +12,24 @@ pub fn display_settings(
         };
     }
     r::DisplaySettings {
+        temporal_aa: r::TemporalAntiAliasing {
+            enabled: source.temporal_aa.enabled,
+            history_weight: source.temporal_aa.history_weight,
+        },
+        motion_blur: r::MotionBlur {
+            enabled: source.motion_blur.enabled,
+            shutter_angle: source.motion_blur.shutter_angle,
+            max_radius: source.motion_blur.max_radius,
+            samples: source.motion_blur.samples,
+        },
+        reflections: r::ScreenSpaceReflections {
+            enabled: source.reflections.enabled,
+            strength: source.reflections.strength,
+            max_distance: source.reflections.max_distance,
+            thickness: source.reflections.thickness,
+            roughness_cutoff: source.reflections.roughness_cutoff,
+            steps: source.reflections.steps,
+        },
         depth_of_field: r::DepthOfField {
             enabled: source.depth_of_field.enabled,
             focus_distance: source.depth_of_field.focus_distance,
@@ -90,5 +108,58 @@ pub fn display_settings(
             roundness: source.vignette.roundness,
             feather: source.vignette.feather,
         },
+    }
+}
+
+/// Convert transient particle frame data without coupling the renderer to the simulation.
+pub fn particle_frame(source: &[bozzard_scene::Particle]) -> Vec<bozzard_render::Particle> {
+    source
+        .iter()
+        .map(|p| bozzard_render::Particle {
+            id: p.id,
+            position: p.position,
+            velocity: p.velocity,
+            size: p.size,
+            rotation: p.rotation,
+            color: p.color,
+            opacity: p.opacity,
+            kind: match p.kind {
+                bozzard_scene::ParticleKind::Smoke => bozzard_render::ParticleKind::Smoke,
+                bozzard_scene::ParticleKind::Ash => bozzard_render::ParticleKind::Ash,
+                bozzard_scene::ParticleKind::Sparks => bozzard_render::ParticleKind::Sparks,
+            },
+            softness: p.softness,
+            trail_length: p.trail_length,
+            seed: p.seed,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn temporal_effects_share_adapter_and_stay_out_of_2d() {
+        let source =
+            bozzard_scene::DisplaySettings::preset(bozzard_scene::DisplayPreset::Cinematic);
+        let three = super::display_settings(source, bozzard_scene::Layer::ThreeD, 4.);
+        assert!(
+            three.temporal_aa.enabled && three.motion_blur.enabled && three.reflections.enabled
+        );
+        assert_eq!(
+            three.temporal_aa.history_weight,
+            source.temporal_aa.history_weight
+        );
+        assert_eq!(three.reflections.steps, source.reflections.steps);
+        assert_eq!(three.time_seconds, 4.);
+        three.validate().unwrap();
+        let two = super::display_settings(source, bozzard_scene::Layer::TwoD, 4.);
+        assert!(
+            !two.temporal_aa.enabled
+                && !two.motion_blur.enabled
+                && !two.reflections.enabled
+                && !two.depth_of_field.enabled
+                && !two.volumetric_fog.enabled
+        );
+        assert_eq!(two.time_seconds, 0.);
     }
 }

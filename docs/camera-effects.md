@@ -7,7 +7,7 @@ cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/lens-lab.json
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/bonfire-lab.json
 ```
 
-Both effects live under **Scene Settings → Post Processing**. They are disabled when absent from older scene files and support ordinary Undo/Redo, saving, Play isolation, and camera-driven effect volumes. Applying existing named presets resets them to their disabled defaults; the bonfire scene's authored lens is tuned to its camera position.
+Both effects live under **Effects → Fine tuning → Post Processing**. They are disabled when absent from older scene files and support ordinary Undo/Redo, saving, Play isolation, and camera-driven effect volumes. Applying existing named presets resets them to their disabled defaults; the bonfire scene's authored lens is tuned to its camera position.
 
 ## Focus and bokeh
 
@@ -52,13 +52,13 @@ Place this object inside `display`. All defaults are shown except `enabled` defa
 
 A fixed 128×128 grid builds a 256-bin log-luminance histogram spanning −12…16 stops, with optional center weighting. The darkest and brightest 2% of weighted samples are trimmed, then the mean log luminance determines the target EV. This limits the influence of tiny sparks and black borders. Metering runs after volumetrics and before depth of field/bloom, so lens blur and bloom do not feed back into adaptation.
 
-The GPU stores the current EV and approaches the target using `1 - exp(-rate * dt)`. Brightening and darkening can use different rates. Rendering the same nonzero simulation time freezes adaptation, so paused and repeated draws do not keep changing brightness. First use, rewinding the simulation clock, and an explicit history reset meter immediately. Edit previews at time zero meter immediately on every draw. Resize preserves history. Disabling the effect or raw/2D rendering clears its history.
+The GPU stores the current EV and approaches the target using `1 - exp(-rate * dt)`. Brightening and darkening can use different rates. Rendering the same nonzero simulation time freezes adaptation, so paused and repeated draws do not keep changing brightness. First use, rewinding the simulation clock, and an explicit history reset meter immediately. Independent stills at time zero meter immediately on every draw. The editor’s Live preview advances its own effects clock and can be paused. Resize preserves history. Disabling the effect or raw/2D rendering clears its history.
 
 `SceneRenderer::reset_display_history()` starts fresh on a camera cut, scene replacement, or independent capture. Hosts that switch cameras during continuous nonzero simulation time should call it. Ordinary camera movement retains adaptation. History belongs to the renderer's view and is not scene data; hosts rendering independent views should use separate renderer instances or reset between views. Auto exposure performs no GPU-to-CPU readback or frame stall.
 
 ## Pipeline and checks
 
-Order: scene HDR → SSAO/heat → volumetric fog → exposure metering → depth of field → bloom → exposure/grade/tone mapping → FXAA/grain/vignette. Overlays and UI render afterward. `draw_linear` and 2D extraction bypass both effects. Disabled DOF releases its frame-sized intermediate textures; disabled auto exposure skips its compute dispatches. Enabled DOF costs three render passes and three half-resolution RGBA16Float targets plus its full-resolution HDR output. Auto exposure uses a fixed 1024-byte histogram and 16-byte persistent state.
+Order: scene HDR/particles → reflections → SSAO/heat → volumetric fog → TAA/motion blur → exposure metering → depth of field → bloom → exposure/grade/tone mapping → optional FXAA/grain/vignette. Overlays and UI render afterward. `draw_linear` and 2D extraction bypass both effects. Disabled DOF releases its frame-sized intermediate textures; disabled auto exposure skips its compute dispatches. Enabled DOF costs three render passes and three half-resolution RGBA16Float targets plus its full-resolution HDR output. Auto exposure uses a fixed 1024-byte histogram and 16-byte persistent state.
 
 ```sh
 BOZZARD_OPTICS_CAPTURE_DIR="$PWD/work/optics-tests" cargo test -p bozzard-render --test optics --offline --locked

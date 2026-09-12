@@ -653,7 +653,16 @@ fn merge_instances(
                     .context("prefab baseline missing")?;
                 macro_rules! merge { ($($field:ident),*) => { $(if current.$field == old.$field { current.$field = source.$field.clone(); })* }; }
                 merge!(
-                    name, camera, drawable, material, spin, collider, gravity, trigger, light,
+                    name,
+                    camera,
+                    drawable,
+                    material,
+                    spin,
+                    collider,
+                    gravity,
+                    trigger,
+                    light,
+                    particle_emitter,
                     blueprints
                 );
                 if current.id != root {

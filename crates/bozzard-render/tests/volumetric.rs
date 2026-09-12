@@ -2,6 +2,7 @@ use bozzard_render::*;
 use glam::{Mat4, Vec3};
 fn scene() -> RenderScene {
     RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![],
@@ -36,9 +37,12 @@ fn scene() -> RenderScene {
 }
 fn object(mesh: MeshKind, scale: [f32; 3], position: [f32; 3]) -> DrawItem {
     DrawItem {
+        motion_id: 0,
         mesh,
         model: Mat4::from_translation(position.into()) * Mat4::from_scale(scale.into()),
         material: Material {
+            metallic: None,
+            roughness: None,
             surface_overrides: Default::default(),
             tint: [0.15; 3],
             uv_scale: [1.; 2],

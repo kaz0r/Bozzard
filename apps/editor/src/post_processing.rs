@@ -16,7 +16,11 @@ fn presets(ui: &mut egui::Ui, display: &mut DisplaySettings) {
     );
 }
 fn slider(ui: &mut egui::Ui, value: &mut f32, range: std::ops::RangeInclusive<f32>, label: &str) {
-    ui.add(egui::Slider::new(value, range).text(label));
+    ui.add(
+        egui::Slider::new(value, range)
+            .clamping(egui::SliderClamping::Edits)
+            .text(label),
+    );
 }
 pub fn controls(ui: &mut egui::Ui, display: &mut DisplaySettings) {
     egui::CollapsingHeader::new("POST PROCESSING")
@@ -30,6 +34,63 @@ pub fn controls(ui: &mut egui::Ui, display: &mut DisplaySettings) {
                     ui.selectable_value(&mut display.tone_mapper, ToneMapper::Reinhard, "Reinhard");
                     ui.selectable_value(&mut display.tone_mapper, ToneMapper::Filmic, "Filmic");
                 });
+            });
+            egui::CollapsingHeader::new("Temporal anti-aliasing").show(ui, |ui| {
+                ui.checkbox(&mut display.temporal_aa.enabled, "Smooth edges (TAA)");
+                slider(
+                    ui,
+                    &mut display.temporal_aa.history_weight,
+                    0.0..=0.97,
+                    "History weight",
+                );
+                ui.weak(
+                    "Higher values stabilize thin detail. Camera cuts reset history automatically.",
+                );
+            });
+            egui::CollapsingHeader::new("Motion blur").show(ui, |ui| {
+                ui.checkbox(&mut display.motion_blur.enabled, "Motion blur");
+                slider(
+                    ui,
+                    &mut display.motion_blur.shutter_angle,
+                    0.0..=360.0,
+                    "Shutter angle",
+                );
+                slider(
+                    ui,
+                    &mut display.motion_blur.max_radius,
+                    0.0..=128.0,
+                    "Maximum pixels at 1080p",
+                );
+                ui.add(egui::Slider::new(&mut display.motion_blur.samples, 4..=32).text("Samples"));
+                ui.weak("Camera and moving meshes contribute. Pause produces a sharp still.");
+            });
+            egui::CollapsingHeader::new("Screen-space reflections").show(ui, |ui| {
+                ui.checkbox(&mut display.reflections.enabled, "Reflections");
+                slider(ui, &mut display.reflections.strength, 0.0..=1.0, "Strength");
+                slider(
+                    ui,
+                    &mut display.reflections.max_distance,
+                    0.1..=200.0,
+                    "Trace distance",
+                );
+                slider(
+                    ui,
+                    &mut display.reflections.roughness_cutoff,
+                    0.05..=1.0,
+                    "Roughness cutoff",
+                );
+                slider(
+                    ui,
+                    &mut display.reflections.thickness,
+                    0.005..=2.0,
+                    "Surface thickness",
+                );
+                ui.add(
+                    egui::Slider::new(&mut display.reflections.steps, 16..=128).text("Ray steps"),
+                );
+                ui.weak(
+                    "Reflects visible surfaces. Rough and off-screen areas retain sky reflections.",
+                );
             });
             egui::CollapsingHeader::new("Camera focus & bokeh").show(ui, |ui| {
                 lens_controls(ui, &mut display.depth_of_field);
@@ -294,4 +355,110 @@ fn exposure_controls(ui: &mut egui::Ui, exposure: &mut bozzard_scene::AutoExposu
         ui.weak("Exposure EV adds compensation. Limits preserve the scene's mood.");
         ui.weak("Play adapts gradually; edit previews meter immediately.");
     });
+}
+
+impl App {
+    pub fn effects_inspector(&mut self, ui: &mut egui::Ui) {
+        theme::panel_title(ui, "Effects");
+        if self.workspace.layer_2d {
+            ui.weak("Effects apply to the 3D view.");
+        }
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(self.editor.play.is_none(),|ui|{ui.checkbox(&mut self.preview_running,"Live preview");});
+            ui.checkbox(&mut self.preview_bypass,"Before").on_hover_text("Compare the base scene with the authored effects. This only changes your viewport.");
+        });
+        ui.weak("Preview animates particles and atmosphere. Play runs gameplay too.");
+        let mut scene = self.editor.scene().clone();
+        let original = scene.clone();
+        let mut particle = None;
+        let mut wet = false;
+        let mut volume = false;
+        ui.add_enabled_ui(self.editor.play.is_none()&&!self.workspace.layer_2d,|ui| {
+            ui.horizontal(|ui| {
+                presets(ui,&mut scene.display);
+                ui.menu_button("Quality",|ui| {
+                    for (name,steps,samples) in [("Performance",32,8),("Balanced",48,12),("High",96,24)] {
+                        if ui.button(name).clicked() {
+                            scene.display.temporal_aa.enabled=true;
+                            scene.display.reflections.steps=steps;
+                            scene.display.motion_blur.samples=samples;
+                            scene.display.volumetric_fog.steps=steps;
+                            ui.close();
+                        }
+                    }
+                }).response.on_hover_text("Set sampling quality and enable temporal anti-aliasing.");
+            });
+            ui.separator();
+            ui.label(egui::RichText::new("Camera").strong());
+            ui.checkbox(&mut scene.display.temporal_aa.enabled,"Smooth edges (TAA)");
+            ui.checkbox(&mut scene.display.motion_blur.enabled,"Motion blur");
+            if scene.display.motion_blur.enabled {slider(ui,&mut scene.display.motion_blur.shutter_angle,0.0..=360.0,"Shutter angle");}
+            ui.checkbox(&mut scene.display.depth_of_field.enabled,"Focus & bokeh");
+            if scene.display.depth_of_field.enabled {
+                ui.add(egui::Slider::new(&mut scene.display.depth_of_field.focus_distance,0.5..=1000.0).logarithmic(true).text("Focus distance"));
+                if ui.add_enabled(self.editor.selected.is_some(),egui::Button::new("Focus selected object")).clicked() {
+                    let result=(||->Result<f32> {
+                        let matrices=scene.global_transforms()?;
+                        let selected=self.editor.selected.as_ref().context("Select an object")?;
+                        let position=matrices[selected].transform_point3(Vec3::ZERO);
+                        let camera=self.workspace.camera.as_ref().map(|c|c.pose()).unwrap_or(matrices[&scene.views[&Layer::ThreeD]]);
+                        let forward=-camera.z_axis.truncate().normalize();
+                        Ok((position-camera.w_axis.truncate()).dot(forward).clamp(0.5,1000.))
+                    })();
+                    match result {Ok(distance)=>scene.display.depth_of_field.focus_distance=distance,Err(error)=>self.result(Err(error))}
+                }
+                slider(ui,&mut scene.display.depth_of_field.aperture,0.7..=32.0,"Aperture f/");
+            }
+            ui.checkbox(&mut scene.display.auto_exposure.enabled,"Adapt to brightness");
+            slider(ui,&mut scene.display.exposure_ev,-4.0..=4.0,"Exposure EV");
+            ui.separator();
+            ui.label(egui::RichText::new("Light & atmosphere").strong());
+            ui.checkbox(&mut scene.display.bloom.enabled,"Bloom & light streaks");
+            if scene.display.bloom.enabled {slider(ui,&mut scene.display.bloom.intensity,0.0..=1.0,"Glow");}
+            ui.checkbox(&mut scene.display.volumetric_fog.enabled,"Volumetric fog & light shafts");
+            if scene.display.volumetric_fog.enabled {ui.add(egui::Slider::new(&mut scene.display.volumetric_fog.density,0.0..=0.3).logarithmic(true).text("Haze density"));}
+            ui.checkbox(&mut scene.display.ambient_occlusion.enabled,"Contact shading (AO)");
+            ui.checkbox(&mut scene.display.heat_distortion.enabled,"Heat shimmer");
+            ui.checkbox(&mut scene.display.reflections.enabled,"Screen-space reflections");
+            let has_mesh=self.editor.selected.as_ref().is_some_and(|id|scene.objects.iter().any(|o|&o.id==id&&o.drawable.is_some()));
+            wet=ui.add_enabled(has_mesh,egui::Button::new("Make selected surface wet")).on_hover_text("Apply a smooth dielectric material and enable reflections. Undo restores the material.").clicked();
+            ui.separator();
+            ui.label(egui::RichText::new("Color & film").strong());
+            ui.checkbox(&mut scene.display.tone_mapping,"Tone mapping");
+            slider(ui,&mut scene.display.color_grading.temperature,-1.0..=1.0,"Warmth");
+            slider(ui,&mut scene.display.color_grading.saturation,0.0..=2.0,"Saturation");
+            slider(ui,&mut scene.display.grain.intensity,0.0..=0.25,"Film grain");
+            slider(ui,&mut scene.display.vignette.intensity,0.0..=1.0,"Vignette");
+            ui.separator();
+            ui.label(egui::RichText::new("Add particles").strong());
+            ui.horizontal_wrapped(|ui| {for kind in bozzard_scene::ParticleKind::ALL {if ui.button(format!("+ {}",kind.name())).clicked(){particle=Some(kind);}}});
+            ui.weak("Created at the selection. Tune wind, size and trails in the Inspector.");
+            ui.separator();
+            egui::CollapsingHeader::new("Fine tuning").show(ui,|ui|{controls(ui,&mut scene.display);});
+            volume=ui.add_enabled(scene.post_process_volumes.len()<32,egui::Button::new("+ Effect volume at camera")).clicked();
+            volumes(ui,&mut scene.post_process_volumes);
+        });
+        if scene != original {
+            let result = self.editor.apply("Edit effects", scene);
+            self.result(result);
+        }
+        if let Some(kind) = particle {
+            let result = self.editor.create_particle_emitter(kind);
+            self.result(result);
+        }
+        if wet {
+            let result = self.editor.apply_wet_material();
+            self.result(result);
+        }
+        if volume {
+            let position = self
+                .workspace
+                .camera
+                .as_ref()
+                .map(|c| c.pose().transform_point3(Vec3::ZERO))
+                .unwrap_or(Vec3::ZERO);
+            let result = self.editor.create_effect_volume(position);
+            self.result(result);
+        }
+    }
 }

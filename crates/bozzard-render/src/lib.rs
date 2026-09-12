@@ -1,4 +1,5 @@
 //! Native WebGPU renderer. No dependency on the ECS, simulation, or a window toolkit.
+pub use scene::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
 pub use wgpu;
 mod mipmap;
 mod pbr;
@@ -9,9 +10,9 @@ pub use scene::{
     DrawItem, EnvironmentSettings, FilmGrain, FogSettings, FrameStats, HeatDistortion,
     IrradianceVolume, Lighting, LocalLight, LocalShadowSettings, MAX_LOCAL_LIGHTS,
     MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart,
-    ModelUploadStats, PendingUpload, RenderScene, SceneRenderer, SpotShadowSettings,
-    SurfaceMaterialOverride, TextureKind, ToneMapper, UploadContext, UploadData, UploadProgress,
-    UploadSource, Vignette, VolumetricFog,
+    ModelUploadStats, Particle, ParticleKind, PendingUpload, RenderScene, SceneRenderer,
+    SpotShadowSettings, SurfaceMaterialOverride, TextureKind, ToneMapper, UploadContext,
+    UploadData, UploadProgress, UploadSource, Vignette, VolumetricFog,
 };
 
 use anyhow::{Context, Result, ensure};

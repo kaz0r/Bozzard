@@ -615,6 +615,8 @@ mod tests {
     }
     fn drawable() -> Drawable {
         Drawable {
+            metallic: None,
+            roughness: None,
             gi_static: true,
             material_overrides: vec![],
             layer: bozzard_scene::Layer::ThreeD,

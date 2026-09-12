@@ -1,14 +1,17 @@
 # Post processing
 
-Bozzard's editor and player share a configurable HDR post-processing stack. Open `examples/demo/scenes/bonfire-lab.json` to see filmic color, horizontal bloom streaks, contact occlusion, heat shimmer, grain, a vignette, and drifting volumetric firelight together. Press **Play** to animate shimmer and grain with the simulation.
+Bozzard's editor and player share a configurable HDR post-processing stack. Open `examples/demo/scenes/bonfire-lab.json` to see filmic color, horizontal bloom streaks, contact occlusion, heat shimmer, grain, a vignette, and drifting volumetric firelight together. **Effects → Live preview** animates atmosphere while editing; **Play** runs the full simulation. See [atmosphere and motion effects](atmosphere-effects.md) for smoke, ash, sparks, TAA, motion blur and reflections.
 
-In **Scene Settings → Post Processing**, choose **Apply preset**: Neutral (the legacy look), Cinematic, Bonfire, Neon, or Noir. Presets replace the global display settings; individual controls remain editable. Sliders, presets, reset, and volume edits use normal Undo/Redo, scene saving, and Play isolation. The bonfire scene keeps its original exposure and bloom intensity, with the new effects tuned around them.
+In **Effects**, choose **Apply preset**: Neutral (the legacy look), Cinematic, Bonfire, Neon, or Noir. Presets replace the global display settings; individual controls remain editable. Sliders, presets, reset, and volume edits use normal Undo/Redo, scene saving, and Play isolation. The bonfire scene keeps its original exposure and bloom intensity, with the new effects tuned around them.
 
 ## Controls
 
 | Effect | Controls and behavior |
 | --- | --- |
 | Tone mapping | Reinhard remains the default for existing scenes. Filmic uses a soft toe and highlight shoulder, maps luminance, and compresses highlights into the output gamut. The tone-mapping switch bypasses only the curve. |
+| Temporal AA | Eight-sample camera/object reprojection with depth rejection and reactive particles. Replaces FXAA when enabled. |
+| Motion blur | Shutter angle, bounded radius and samples; camera/object motion with silhouette spreading and foreground depth protection. |
+| Reflections | Material normals/roughness, bounded screen-space depth tracing and environment fallback. |
 | Depth of field | Focus distance, focal length, aperture, and maximum blur; separate foreground/background bokeh. See [camera effects](camera-effects.md). |
 | Auto exposure | GPU histogram metering, EV limits, target brightness, center weighting, and separate adaptation rates. Manual EV remains additive compensation. |
 | Color grading | Warmth and green/magenta tint, saturation, contrast, and per-channel lift/gamma/gain. Neutral values preserve the original grading. This is an analytic grade, without external LUT import. |
@@ -19,13 +22,13 @@ In **Scene Settings → Post Processing**, choose **Apply preset**: Neutral (the
 | Film grain | Intensity (0–0.25) and grain size (1–4 pixels). Deterministic for a given simulation time, with a 24 Hz pattern and reduced noise in black/white regions. |
 | Vignette | Intensity (0–1), roundness, and feather. Accounts for viewport aspect ratio. |
 
-Exposure retains its -16…16 EV range. New effects are neutral or disabled when absent in JSON, so older scenes retain their appearance. Every control is validated for finite values and a bounded range in both the scene and renderer APIs. `display.tone_mapper` accepts `reinhard` or `filmic`; new nested settings are `color_grading`, `ambient_occlusion`, `heat_distortion`, `grain`, `vignette`, `volumetric_fog`, `depth_of_field`, and `auto_exposure`. Bloom adds `anamorphic`.
+Exposure retains its -16…16 EV range. New effects are neutral or disabled when absent in JSON, so older scenes retain their appearance. Every control is validated for finite values and a bounded range in both the scene and renderer APIs. `display.tone_mapper` accepts `reinhard` or `filmic`; new nested settings are `color_grading`, `ambient_occlusion`, `heat_distortion`, `grain`, `vignette`, `volumetric_fog`, `depth_of_field`, `auto_exposure`, `temporal_aa`, `motion_blur`, and `reflections`. Bloom adds `anamorphic`.
 
 ## Effect volumes
 
-**Scene Settings → Post-process Volumes → Add effect volume** creates a world-space axis-aligned box. Edit its center, half size, blend distance, weight, priority, and its own complete display settings or preset. The camera receives full weight inside the box, with a smooth fade over the blend distance outside. Higher priorities apply last; equal priorities retain document order. Up to 32 volumes are supported and saved in `post_process_volumes`.
+**Effects → Effect volume at camera** (or **Post-process Volumes → Add effect volume**) creates a world-space axis-aligned box. Edit its center, half size, blend distance, weight, priority, and its own complete display settings or preset. The camera receives full weight inside the box, with a smooth fade over the blend distance outside. Higher priorities apply last; equal priorities retain document order. Up to 32 volumes are supported and saved in `post_process_volumes`.
 
-Continuous controls interpolate, and disabled effects blend from zero intensity. The tone-mapping switch and mapper selection change at the midpoint; use the same mapper in adjacent volumes for a seamless transition. Volumes follow the editor's fly camera while editing and the active scene camera during Play or in the player. They have numeric bounds controls; viewport handles are not provided.
+Continuous controls interpolate, and disabled effects blend from zero intensity. The tone-mapping switch, mapper selection, and TAA enablement change at the midpoint; use the same mapper in adjacent volumes for a seamless transition. Volumes follow the editor's fly camera while editing and the active scene camera during Play or in the player. They have numeric bounds controls; viewport handles are not provided.
 
 ## Blueprint animation
 
@@ -35,21 +38,20 @@ Actions write transient global overrides after volume blending. Graph execution 
 
 ## Renderer order and limits
 
-1. Geometry and alpha blending render into scene-linear `Rgba16Float` color and a sampleable `Depth32Float` target.
-2. Enabled SSAO uses a half-resolution 24-tap spiral, reconstructs positions/normals from depth, and filters during upsampling using depth to avoid crossing silhouettes.
-3. A full-resolution HDR pass combines occlusion and heat distortion. Bright highlights resist occlusion. Heat source and destination depth checks protect nearer silhouettes.
-4. Enabled volumetric fog integrates shadowed light at half resolution and composites against opaque depth.
-5. Auto exposure meters HDR luminance on the GPU and updates its adaptation state.
-6. Depth of field gathers near/far bokeh and composites around focused silhouettes.
-7. The bloom pyramid extracts HDR brightness and reconstructs with an optionally stretched horizontal kernel.
-8. Exposure and white balance precede the selected tone mapper; lift/gamma/gain, contrast, and saturation finish the grade.
-9. FXAA runs before vignette and grain. Grain operates in display-encoded brightness; final sRGB encoding happens once, using the hardware target or shader as appropriate.
+1. Geometry writes HDR, depth, surface normals/roughness, motion/reactivity, and Fresnel/occlusion. Lit soft particles composite into HDR.
+2. Enabled reflections trace opaque depth and blend with existing environment specular lighting.
+3. SSAO uses a half-resolution 24-tap spiral. A full-resolution pass combines occlusion and heat distortion with depth protection.
+4. Volumetric fog integrates shadowed light at half resolution and composites against opaque depth.
+5. TAA resolves subpixel history, then camera/object motion blur gathers along bounded velocity.
+6. Auto exposure meters HDR luminance; depth of field gathers near/far bokeh.
+7. Bloom reconstructs HDR brightness; exposure, white balance, tone mapping, and color grading map it for display.
+8. FXAA is used when TAA is disabled; grain, vignette, and output encoding finish the frame.
 
 SSAO approximates occlusion from visible depth. It cannot see offscreen geometry, uses geometric rather than normal-map detail, and modulates composited scene color rather than only indirect light. Transparent surfaces use the opaque depth behind them. Heat is an HDR brightness proxy, not a temperature simulation or authored heat-volume system, so sufficiently bright non-fire surfaces can also shimmer. Anamorphic bloom is a stretched pyramid filter rather than an optical lens simulation.
 
-Both depth effects skip all their passes and release intermediate targets when disabled or zero-strength. AO uses half-resolution work, while the heat/composite pass is full resolution; enabling both shares that composite. Volumetric fog adds a half-resolution trace and full-resolution composite; thin silhouettes can trace additional rays. Bloom remains conditional. Targets and bindings rebuild on resize or effect-source changes. Auto exposure retains a small GPU history state; the spatial effects have no motion-vector or temporal-image buffers.
+Both depth effects skip all their passes and release intermediate targets when disabled or zero-strength. AO uses half-resolution work, while the heat/composite pass is full resolution; enabling both shares that composite. Volumetric fog adds a half-resolution trace and full-resolution composite; thin silhouettes can trace additional rays. Bloom remains conditional. Targets resize with the viewport; input bindings update when effect sources change. Auto exposure retains a small GPU history state. TAA adds ping-pong HDR/surface history and motion blur uses velocity tiles; bokeh and bloom reuse their targets when temporal inputs alternate.
 
-2D scene extraction disables all these effects but retains normal display encoding and FXAA. `draw_linear` bypasses every post effect and remains the numeric diagnostic path. UI and editor overlays are drawn afterward. Edit mode holds the animation clock at zero and meters exposure immediately; simulation pause freezes animation and eye adaptation.
+2D scene extraction disables all these effects but retains normal display encoding and FXAA. `draw_linear` bypasses every post effect and remains the numeric diagnostic path. UI and editor overlays are drawn afterward. Live preview advances an isolated effects clock in edit mode. Pausing preview or simulation freezes animation and eye adaptation. Independent stills at time zero meter exposure immediately.
 
 ## Verification and captures
 

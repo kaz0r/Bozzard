@@ -1,6 +1,10 @@
 use super::*;
 
 pub(super) struct FrameInput<'a> {
+    pub environment_gpu: Option<&'a environment::Environment>,
+    pub fog: FogSettings,
+    pub geometry: Option<&'a geometry::GeometryBuffers>,
+    pub temporal: geometry::TemporalFrame,
     pub size: [u32; 2],
     pub raw: bool,
     pub view_projection: Mat4,
@@ -12,6 +16,10 @@ pub(super) struct FrameInput<'a> {
 impl Default for FrameInput<'_> {
     fn default() -> Self {
         Self {
+            environment_gpu: None,
+            fog: Default::default(),
+            geometry: None,
+            temporal: Default::default(),
             size: [1, 1],
             raw: false,
             view_projection: Mat4::IDENTITY,
@@ -58,6 +66,9 @@ fn texture(gpu: &Gpu, size: [u32; 2], label: &'static str) -> wgpu::TextureView 
         .create_view(&Default::default())
 }
 impl PostProcess {
+    pub fn invalidate(&mut self) {
+        self.targets = None;
+    }
     pub fn new(gpu: &Gpu) -> Self {
         let texture_binding = |binding, sample_type| wgpu::BindGroupLayoutEntry {
             binding,

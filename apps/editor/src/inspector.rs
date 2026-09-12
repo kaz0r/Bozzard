@@ -78,6 +78,11 @@ impl App {
                             });
                         }
                         });
+                        if let Some(emitter) = &mut object.particle_emitter {
+                            component_section(ui, "PARTICLE EMITTER", &mut remove, |ui| {
+                                crate::particles::inspector(ui, emitter);
+                            });
+                        }
                         if object.light.is_some() {
                             component_section(ui, "LIGHT", &mut remove, |ui| {
                                 crate::lights::inspector(ui, &mut object.light);
@@ -96,6 +101,10 @@ impl App {
                                         && let Some(shading) = &part.shading {
                                         crate::surfaces::factor_control(ui, "Metallic", &mut material.metallic, shading.material.metallic);
                                         crate::surfaces::factor_control(ui, "Roughness", &mut material.roughness, shading.material.roughness);
+                                    }
+                                    if object.drawable.as_ref().is_some_and(|d| !matches!(d.mesh,Mesh::Surface{..})) {
+                                        crate::surfaces::factor_control(ui,"Metallic",&mut material.metallic,0.0);
+                                        crate::surfaces::factor_control(ui,"Roughness",&mut material.roughness,1.0);
                                     }
                                     ui.label("Tint");
                                     color_edit_button_rgb(ui, &mut material.color);
@@ -616,6 +625,7 @@ fn remove_component(
         "TRIGGER" => object.trigger = None,
         "SPIN" => object.spin = None,
         "LIGHT" => object.light = None,
+        "PARTICLE EMITTER" => object.particle_emitter = None,
         "CAMERA" => {
             object.camera = None;
             scene.views.retain(|_, id| id != &object.id);
@@ -624,7 +634,7 @@ fn remove_component(
     }
 }
 
-fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 10] {
+fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 11] {
     [
         ("Mesh Renderer", object.drawable.is_none()),
         (
@@ -651,6 +661,7 @@ fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 1
             object.trigger.is_none() && object.collider.is_none() && object.gravity.is_none(),
         ),
         ("Light", object.light.is_none()),
+        ("Particle Emitter", object.particle_emitter.is_none()),
         ("Camera", object.camera.is_none()),
         (
             "Spin",
@@ -680,6 +691,8 @@ fn add_component(
     match label {
         "Mesh Renderer" => {
             object.drawable = Some(Drawable {
+                metallic: None,
+                roughness: None,
                 gi_static: true,
                 material_overrides: Vec::new(),
                 layer,
@@ -710,6 +723,7 @@ fn add_component(
             })
         }
         "Light" => object.light = Some(Light::default()),
+        "Particle Emitter" => object.particle_emitter = Some(ParticleEmitter::default()),
         "Camera" => {
             object.camera = Some(Camera::Perspective {
                 vertical_fov_degrees: 60.,

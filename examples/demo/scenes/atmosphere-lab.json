@@ -111,7 +111,7 @@
     },
     "volumetric_fog": {
       "enabled": true,
-      "density": 0.028,
+      "density": 0.022,
       "albedo": [
         0.88,
         0.92,
@@ -135,9 +135,9 @@
     },
     "depth_of_field": {
       "enabled": true,
-      "focus_distance": 4.3,
-      "focal_length_mm": 85.0,
-      "aperture": 1.8,
+      "focus_distance": 9.0,
+      "focal_length_mm": 65.0,
+      "aperture": 4.0,
       "max_blur_radius": 20.0
     },
     "auto_exposure": {
@@ -192,7 +192,6 @@
     "ambient_intensity": 0.012
   },
   "version": 1,
-  "name": "Emberwatch / Dark Bonfire - Spawn and Destroy",
   "views": {
     "2d": "camera-2d",
     "3d": "camera"
@@ -203,13 +202,13 @@
       "name": "Camera / Bonfire overview",
       "transform": {
         "translation": [
-          -4.3881845,
-          1.4012396,
-          0.6461922
+          -7.0,
+          3.1,
+          6.0
         ],
         "rotation_degrees": [
-          -0.97501564,
-          -84.36876,
+          -12.0,
+          -49.4,
           0.0
         ],
         "scale": [
@@ -6946,9 +6945,9 @@
       "parent": null,
       "transform": {
         "translation": [
-          -2.1,
+          -1.7,
           0.003,
-          -1.0
+          2.0
         ],
         "rotation_degrees": [
           0,
@@ -6956,9 +6955,9 @@
           0
         ],
         "scale": [
-          0.8,
+          1.5,
           0.025,
-          0.9
+          1.2
         ]
       },
       "drawable": {
@@ -6985,9 +6984,9 @@
       "parent": null,
       "transform": {
         "translation": [
-          -2.45,
+          -0.3999999999999999,
           0.003,
-          0.0
+          2.15
         ],
         "rotation_degrees": [
           0,
@@ -6995,9 +6994,9 @@
           0
         ],
         "scale": [
-          0.8,
+          1.5,
           0.025,
-          0.9
+          1.2
         ]
       },
       "drawable": {
@@ -7024,9 +7023,9 @@
       "parent": null,
       "transform": {
         "translation": [
-          -2.8,
+          0.9000000000000001,
           0.003,
-          1.0
+          2.3
         ],
         "rotation_degrees": [
           0,
@@ -7034,9 +7033,9 @@
           0
         ],
         "scale": [
-          0.8,
+          1.5,
           0.025,
-          0.9
+          1.2
         ]
       },
       "drawable": {
@@ -7071,5 +7070,6 @@
       "kind": "mesh",
       "path": "assets/bonfire/gold-cube.gltf"
     }
-  }
+  },
+  "name": "Atmosphere Lab"
 }

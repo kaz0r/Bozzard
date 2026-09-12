@@ -49,6 +49,7 @@ struct Level {
     up_binding: Option<wgpu::BindGroup>,
 }
 pub(super) struct Bloom {
+    source_dirty: bool,
     prefilter: wgpu::RenderPipeline,
     downsample: wgpu::RenderPipeline,
     upsample: wgpu::RenderPipeline,
@@ -186,6 +187,7 @@ impl Bloom {
             uniform,
             black,
             levels: Vec::new(),
+            source_dirty: false,
             size: [0, 0],
         }
     }
@@ -243,6 +245,10 @@ impl Bloom {
             ]),
         );
         if self.size == size && !self.levels.is_empty() {
+            if self.source_dirty {
+                self.levels[0].down_binding = self.binding(gpu, hdr, &self.black);
+                self.source_dirty = false;
+            }
             return false;
         }
         self.levels.clear();
@@ -276,7 +282,7 @@ impl Bloom {
         true
     }
     pub fn invalidate(&mut self) {
-        self.levels.clear();
+        self.source_dirty = true;
     }
     pub fn output(&self) -> &wgpu::TextureView {
         self.levels

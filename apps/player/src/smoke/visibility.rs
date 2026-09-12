@@ -3,9 +3,12 @@ use super::*;
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let item = |position: Vec3| DrawItem {
+        motion_id: 0,
         model: Mat4::from_translation(position),
         mesh: MeshKind::Cube,
         material: Material {
+            metallic: None,
+            roughness: None,
             surface_overrides: Default::default(),
             tint: [0.3, 0.8, 0.7],
             texture: TextureKind::White,
@@ -14,6 +17,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         },
     };
     let scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),
@@ -26,6 +30,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             item(Vec3::new(100., 0., -4.)),
             item(Vec3::new(0., 0., 5.)),
             DrawItem {
+                motion_id: 0,
                 model: Mat4::from_translation(Vec3::new(1.8, 0., -4.))
                     * Mat4::from_rotation_z(0.6)
                     * Mat4::from_scale(Vec3::new(-2., 0.2, 1.)),
@@ -56,6 +61,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         "batching or shadow counters incorrect"
     );
     let mut shadow_scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),
@@ -72,11 +78,13 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),
         items: vec![
             DrawItem {
+                motion_id: 0,
                 model: Mat4::from_scale(Vec3::new(4., 4., 1.)),
                 mesh: MeshKind::Quad,
                 ..item(Vec3::ZERO)
             },
             DrawItem {
+                motion_id: 0,
                 model: Mat4::from_translation(Vec3::new(2.5, 0., 1.))
                     * Mat4::from_scale(Vec3::splat(0.6)),
                 mesh: MeshKind::Quad,

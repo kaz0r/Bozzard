@@ -84,7 +84,8 @@ fn from_srgb(c: vec3<f32>) -> vec3<f32> {
     }
     let texel = 1.0 / vec2<f32>(textureDimensions(hdr_scene));
     let uv = position.xy*texel;
-    var color = fxaa(uv, texel, display_color(uv));
+    var color = display_color(uv);
+    if settings.aa.z < 0.5 { color = fxaa(uv, texel, color); }
     if settings.vignette.x > 0.0 {
         let aspect = f32(textureDimensions(hdr_scene).x)/f32(textureDimensions(hdr_scene).y);
         let shape = mix(vec2<f32>(1),vec2<f32>(aspect,1),settings.vignette.y);

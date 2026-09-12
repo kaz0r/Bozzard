@@ -1,10 +1,14 @@
 use super::BloomSettings;
 use super::VolumetricFog;
 use super::{AutoExposure, DepthOfField};
+use super::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
 use anyhow::{Result, ensure};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DisplaySettings {
+    pub temporal_aa: TemporalAntiAliasing,
+    pub motion_blur: MotionBlur,
+    pub reflections: ScreenSpaceReflections,
     /// Simulation time; deterministic captures set this explicitly.
     pub time_seconds: f32,
     pub bloom: BloomSettings,
@@ -26,6 +30,9 @@ impl Default for DisplaySettings {
     fn default() -> Self {
         Self {
             time_seconds: 0.,
+            temporal_aa: TemporalAntiAliasing::default(),
+            motion_blur: MotionBlur::default(),
+            reflections: ScreenSpaceReflections::default(),
             bloom: BloomSettings::default(),
             tone_mapper: ToneMapper::default(),
             color_grading: ColorGrading::default(),
@@ -44,6 +51,9 @@ impl Default for DisplaySettings {
 impl DisplaySettings {
     pub fn validate(&self) -> Result<()> {
         range(self.time_seconds, 0., f32::MAX, "display time")?;
+        self.temporal_aa.validate()?;
+        self.motion_blur.validate()?;
+        self.reflections.validate()?;
         self.bloom.validate()?;
         self.color_grading.validate()?;
         self.ambient_occlusion.validate()?;

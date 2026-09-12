@@ -31,6 +31,9 @@ cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/model-lab.json
 # Dark cube-built bonfire: Blueprint-spawned embers destroy themselves after 2.8 seconds.
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/bonfire-lab.json
 
+# Smoke, sparks, temporal AA, motion blur and wet-surface reflections.
+cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/atmosphere-lab.json
+
 # Load file-backed textures and meshes (edit the source assets to hot reload).
 cargo run -p bozzard-player -- --scene examples/demo/scenes/asset-lab.json
 
@@ -41,6 +44,8 @@ cargo run -p bozzard-server -- --ticks 120
 Windows needs Rust's MSVC toolchain and Visual Studio C++ build tools. Linux needs a C linker, Vulkan drivers and window-system development packages; the CI workflow lists Ubuntu packages. `--backend metal|dx12|vulkan` selects one graphics API explicitly. `--software` requires a software adapter; `--hardware` requires a reported integrated/discrete GPU. Missing adapters fail visibly.
 
 The [bonfire demo](docs/bonfire.md) demonstrates **Spawn Prefab / Destroy Prefab** in a dark, fire-lit scene. Press **Play**, then **Space** in the viewport to toggle emission and watch the remaining embers expire.
+
+Click **Effects** for presets, live particle preview, focus, wet materials, and detailed tuning. See [atmosphere and motion effects](docs/atmosphere-effects.md).
 
 ## Lighting and material galleries
 
