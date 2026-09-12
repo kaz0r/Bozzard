@@ -381,6 +381,7 @@ fn fit(
 impl SceneRenderer {
     pub(super) fn mesh_for(&self, kind: &MeshKind) -> &MeshBuffers {
         match kind {
+            MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
             MeshKind::Quad => &self.quad,
             MeshKind::Cube => &self.cube,
             MeshKind::Imported(id) => &self.imported_meshes[id],

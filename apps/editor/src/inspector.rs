@@ -78,6 +78,9 @@ impl App {
                             });
                         }
                         });
+                        if let Some(text) = &mut object.text_rendering {
+                            component_section(ui, "TEXT RENDERING", &mut remove, |ui| text_inspector(ui, text));
+                        }
                         if object.light.is_some() {
                             component_section(ui, "LIGHT", &mut remove, |ui| {
                                 crate::lights::inspector(ui, &mut object.light);
@@ -649,6 +652,63 @@ fn component_section(
     .body(contents);
 }
 
+fn text_inspector(ui: &mut egui::Ui, text: &mut bozzard_scene::TextRendering) {
+    use bozzard_scene::{TextAlignment, TextFont};
+    ui.checkbox(&mut text.enabled, "Enabled");
+    ui.horizontal(|ui| {
+        ui.selectable_value(&mut text.layer, Layer::ThreeD, "3D");
+        ui.selectable_value(&mut text.layer, Layer::TwoD, "2D");
+    });
+    ui.add(
+        egui::TextEdit::multiline(&mut text.text)
+            .desired_rows(4)
+            .desired_width(f32::INFINITY)
+            .char_limit(4096),
+    );
+    ui.small("Plain text · max 4096 UTF-8 bytes");
+    egui::ComboBox::from_id_salt("text-font")
+        .selected_text(format!("{:?}", text.font))
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut text.font, TextFont::Sans, "Sans");
+            ui.selectable_value(&mut text.font, TextFont::Monospace, "Monospace");
+        });
+    ui.horizontal(|ui| {
+        ui.label("Font size (local units)");
+        ui.add(
+            egui::DragValue::new(&mut text.font_size)
+                .speed(0.01)
+                .range(0.001..=1000.),
+        );
+    });
+    ui.horizontal(|ui| {
+        ui.selectable_value(&mut text.alignment, TextAlignment::Left, "Left");
+        ui.selectable_value(&mut text.alignment, TextAlignment::Center, "Center");
+        ui.selectable_value(&mut text.alignment, TextAlignment::Right, "Right");
+    });
+    let mut wrap = text.max_width.is_some();
+    if ui.checkbox(&mut wrap, "Word wrap").changed() {
+        text.max_width = wrap.then_some(text.font_size * 8.);
+    }
+    if let Some(width) = &mut text.max_width {
+        ui.horizontal(|ui| {
+            ui.label("Width (local units)");
+            ui.add(
+                egui::DragValue::new(width)
+                    .speed(0.05)
+                    .range(0.001..=10000.),
+            );
+        });
+    }
+    let mut rgb = [text.color[0], text.color[1], text.color[2]];
+    ui.label("Color");
+    color_edit_button_rgb(ui, &mut rgb);
+    text.color[..3].copy_from_slice(&rgb);
+    ui.add(egui::Slider::new(&mut text.color[3], 0.0..=1.0).text("Opacity"));
+    ui.weak(
+        "Top anchor · local XY plane · unlit · Transform controls position, rotation and scale",
+    );
+}
+
 fn remove_component(
     object: &mut bozzard_scene::Object,
     scene: &mut bozzard_scene::Scene,
@@ -659,6 +719,7 @@ fn remove_component(
             object.drawable = None;
             object.material = None;
         }
+        "TEXT RENDERING" => object.text_rendering = None,
         "MATERIAL" => object.material = None,
         "MESH COLLIDER" => {
             object.mesh_collider = None;
@@ -685,8 +746,9 @@ fn remove_component(
     }
 }
 
-fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 11] {
+fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 12] {
     [
+        ("Text Rendering", object.text_rendering.is_none()),
         ("Mesh Renderer", object.drawable.is_none()),
         (
             "Material",
@@ -765,6 +827,12 @@ fn add_component(
                 texture: Texture::White,
                 color: [1.; 3],
                 uv_scale: [1.; 2],
+            })
+        }
+        "Text Rendering" => {
+            object.text_rendering = Some(TextRendering {
+                layer,
+                ..Default::default()
             })
         }
         "Material" => object.material = object.drawable.as_ref().map(Material::from_drawable),
@@ -997,6 +1065,40 @@ mod tests {
             fresh.material.is_none() && fresh.collider.is_none() && fresh.blueprints.is_empty()
         );
         assert_eq!(editor.selected_object().unwrap(), &fresh);
+    }
+
+    #[test]
+    fn text_component_is_opt_in_and_independent_of_the_mesh() {
+        let mut editor = editor();
+        editor.create(Mesh::Cube, Layer::TwoD).unwrap();
+        let mut object = editor.selected_object().unwrap().clone();
+        let mut scene = editor.scene().clone();
+        assert!(object.text_rendering.is_none());
+        add_component(
+            &mut object,
+            "Text Rendering",
+            &scene,
+            Layer::TwoD,
+            &editor.assets,
+        )
+        .unwrap();
+        assert_eq!(object.text_rendering.as_ref().unwrap().layer, Layer::TwoD);
+        assert!(
+            add_component(
+                &mut object,
+                "Text Rendering",
+                &scene,
+                Layer::TwoD,
+                &editor.assets
+            )
+            .is_err()
+        );
+        remove_component(&mut object, &mut scene, "MESH RENDERER");
+        assert!(object.drawable.is_none() && object.text_rendering.is_some());
+        let transform = object.transform;
+        remove_component(&mut object, &mut scene, "TEXT RENDERING");
+        assert!(object.text_rendering.is_none());
+        assert_eq!(object.transform, transform);
     }
 
     #[test]

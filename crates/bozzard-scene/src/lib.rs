@@ -2,6 +2,8 @@
 //! IDs are document-local persistent strings, never runtime entity handles.
 mod gi;
 pub use gi::{BakedGi, GI_PROBE_STRIDE, GI_VISIBILITY_SIZE, GiSettings, GiVolumeSettings};
+mod text;
+pub use text::{TextAlignment, TextFont, TextRendering};
 mod surface;
 pub use surface::SurfaceMaterialOverride;
 pub mod blueprint;
@@ -289,9 +291,11 @@ impl Material {
 #[serde(transparent)]
 pub struct Spin(pub [f32; 3]);
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_rendering: Option<TextRendering>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<Material>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -476,6 +480,9 @@ impl Scene {
                     "Mesh Collider cannot also have Box Collider, Player Controller or Trigger on '{}'",
                     object.id
                 );
+            }
+            if let Some(text) = &object.text_rendering {
+                text.validate()?;
             }
             if let Some(light) = object.light {
                 light.validate()?;
@@ -796,7 +803,19 @@ impl SceneInstance {
         let camera_id = &self.document.views[&layer];
         let view_projection = projection * matrices[camera_id].inverse();
         let mut objects = Vec::new();
+        let mut texts = Vec::new();
         for (id, entity) in &self.entities {
+            if let Some(text) = world.get::<TextRendering>(*entity)
+                && text.enabled
+                && text.layer == layer
+                && !world.get::<BlueprintHidden>(*entity).is_some_and(|h| h.0)
+                && !world
+                    .resource::<GameplayState>()
+                    .is_some_and(|s| s.collected.contains(id))
+            {
+                text.validate()?;
+                texts.push((matrices[id], text.clone()));
+            }
             if let Some(drawable) = world.get::<Drawable>(*entity)
                 && drawable.layer == layer
                 && !world.get::<BlueprintHidden>(*entity).is_some_and(|h| h.0)
@@ -848,6 +867,7 @@ impl SceneInstance {
             lighting: self.document.lighting,
             view_projection,
             objects,
+            texts,
         })
     }
 
@@ -860,6 +880,7 @@ impl SceneInstance {
             object.transform = *world
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
+            object.text_rendering = world.get::<TextRendering>(entity).cloned();
             object.material = world.get::<Material>(entity).cloned();
             object.light = world.get::<Light>(entity).copied();
             object.camera = world.get::<Camera>(entity).copied();
@@ -877,6 +898,7 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub texts: Vec<(Mat4, TextRendering)>,
     pub fog: FogSettings,
     pub lights: Vec<WorldLight>,
     pub environment: EnvironmentSettings,
@@ -892,6 +914,7 @@ impl Object {
         world.insert(entity, self.transform)?;
         macro_rules! insert { ($($field:ident),*) => { $(if let Some(value) = &self.$field { world.insert(entity, value.clone())?; })* }; }
         insert!(
+            text_rendering,
             material,
             light,
             camera,
@@ -1040,6 +1063,7 @@ mod tests {
             spin: None,
             collider: None,
             mesh_collider: None,
+            text_rendering: None,
             gravity: None,
             player_controller: None,
             trigger: None,
