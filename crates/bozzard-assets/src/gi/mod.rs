@@ -97,11 +97,10 @@ fn source_with(
     let sorted: BTreeMap<_, _> = scene.objects.iter().map(|o| (&o.id, o)).collect();
     for (id, object) in sorted {
         if statics.contains(id) {
-            let drawable = object.drawable.as_ref().unwrap();
             write(id.as_bytes());
             write(&serde_json::to_vec(&matrices[id].to_cols_array())?);
-            write(&serde_json::to_vec(drawable)?);
-            dependencies.extend(drawable.asset_dependencies().into_iter().map(|(id, _)| id));
+            write(&serde_json::to_vec(&object.effective_drawable().unwrap())?);
+            dependencies.extend(object.asset_dependencies().into_iter().map(|(id, _)| id));
         }
         if let Some(mut light) = object.light.filter(|l| l.enabled) {
             light.validate()?;
@@ -151,6 +150,13 @@ pub fn fit_volume(scene: &Scene, assets: &AssetStore) -> Result<GiVolumeSettings
             match &drawable.mesh {
                 bozzard_scene::Mesh::Cube => [Vec3::splat(-0.5), Vec3::splat(0.5)],
                 bozzard_scene::Mesh::Quad => [Vec3::new(-0.5, -0.5, 0.), Vec3::new(0.5, 0.5, 0.)],
+                bozzard_scene::Mesh::Surface { .. } => {
+                    let Some((_, bounds)) = assets.mesh_surface(&drawable.mesh) else {
+                        continue;
+                    };
+                    let center = bounds[0] * 0.5 + bounds[1] * 0.5;
+                    [bounds[0] - center, bounds[1] - center]
+                }
                 bozzard_scene::Mesh::Asset(id) => {
                     let entry = assets
                         .handle(id)

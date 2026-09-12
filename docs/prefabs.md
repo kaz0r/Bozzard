@@ -1,6 +1,6 @@
 # Prefabs
 
-Prefabs are authoring assets that keep a reusable object hierarchy in a separate JSON file while scenes retain expanded objects. Headless runs use those expanded scene objects without reading the authoring prefab source. The graphical player loads the scene's declared asset catalog, so the prefab files must still be present, but it does not perform editor prefab expansion.
+Prefabs are authoring assets that keep a reusable object hierarchy in a separate JSON file while scenes retain expanded objects. Headless runs use those expanded scene objects without reading the authoring prefab source unless a Blueprint references a Spawn Prefab template. The graphical player loads the scene's declared asset catalog, so the prefab files must still be present, but it does not perform editor prefab expansion.
 
 The current workflow is:
 
@@ -21,7 +21,7 @@ Select the first **Body**, change its tint, and choose **Apply to prefab**. The 
 
 Applying a prefab overwrites the source file after preparation succeeds. The scene change is recorded in editor history, but the source-file write is not undone by scene **Undo**. Treat **Apply to prefab** as an explicit source edit and keep normal file backups or version control for source recovery.
 
-The merge keeps a local component when it differs from the saved baseline; an unchanged local component receives the newer source component. Transform fields (position, rotation, and scale) are one transform override for merge purposes, including on children. A `Drawable` is one component too, so a local tint override keeps the drawable's other local settings. The root transform is always preserved as the instance's placement; the source never receives the current instance placement. Source-added children are added to linked instances. If a source deletes a child that was locally changed, refresh stops safely and asks for the instance to be unpacked; unpack before deleting or restructuring that child locally. Hierarchy edits such as reparenting also require **Unpack** first. Linked instances cannot overlap or contain one another.
+The merge keeps a local component when it differs from the saved baseline; an unchanged local component receives the newer source component. Transform fields (position, rotation, and scale) are one transform override for merge purposes, including on children. `Drawable` and optional `Material` are separate component overrides. Older scenes retain their drawable tint; newly added Material edits merge independently of mesh settings. The root transform is always preserved as the instance's placement; the source never receives the current instance placement. Source-added children are added to linked instances. If a source deletes a child that was locally changed, refresh stops safely and asks for the instance to be unpacked; unpack before deleting or restructuring that child locally. Hierarchy edits such as reparenting also require **Unpack** first. Linked instances cannot overlap or contain one another.
 
 To check the linked behavior quickly, save a small hierarchy as a prefab, then use **Add to scene** twice (or drag the card twice) and move the two roots to different positions. Change a component on one instance, apply it with **Apply to prefab**, and confirm the other instance updates while both root placements remain different. Then make a source change and use **Refresh instances** to confirm the local component override remains while unchanged components update.
 
@@ -31,4 +31,8 @@ Prefab files can be imported through the asset browser as `.prefab.json`. Import
 
 [Gameplay Blueprint](blueprints.md) attachments are captured per prefab member, including their order, enabled flags, and graph data. The attachment list is one component-level override: unchanged lists receive Apply/Refresh updates, while locally edited lists are preserved. Every placed instance has independent runtime variables; graphs target their own member, not the shared mesh asset.
 
-Nested prefabs, prefab variants, and `Player Controller` prefabs are not supported yet. A hierarchy containing a `Player Controller` must be unpacked or authored at scene level. The editor also requires Play to be stopped before prefab authoring operations.
+Blueprints can [spawn and destroy prefab instances](blueprints.md#spawn-and-destroy-prefabs), including from graphs on imported surface children. Referenced templates load before Play in editor, player, and server. Spawned graphs may reference further prefab assets; this does not create nested linked hierarchies.
+
+Legacy whole-model drawables must be **Unpacked** before converting surfaces into child entities; save the converted hierarchy as a prefab to reuse it.
+
+Nested linked prefabs, prefab variants, and `Player Controller` prefabs are not supported yet. A hierarchy containing a `Player Controller` must be unpacked or authored at scene level. The editor also requires Play to be stopped before prefab authoring operations.

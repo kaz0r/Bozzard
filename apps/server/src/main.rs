@@ -23,14 +23,14 @@ fn main() -> Result<()> {
         }
     }
     let document = load_document(scene.as_deref())?;
-    let mut demo = SceneDemo::new(&document)?;
+    let mut demo = SceneDemo::new_with_prefabs(&document, scene.as_deref())?;
     for _ in 0..ticks {
         demo.app.step();
         demo.check_simulation()?;
     }
     if let Some(path) = save {
         save_document_from(
-            &demo.instance.capture(&demo.app.world)?,
+            &demo.instance().capture(&demo.app.world)?,
             &path,
             scene.as_deref(),
         )?;

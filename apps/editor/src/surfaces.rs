@@ -52,10 +52,10 @@ impl App {
                         let selected = self.editor.selected.as_deref() == Some(object)
                             && self.editor.selected_surface().is_some_and(|s| s.index == index);
                         let row = ui.selectable_label(selected, label)
-                            .on_hover_text("Editable surface · W/E/R transforms · Double-click to frame · Select the model row for components");
+                            .on_hover_text("Select to make model surfaces independent child entities · Each child supports components · Unpack linked prefabs first");
                         if row.clicked() || row.double_clicked() {
                             self.editor.finish_gesture();
-                            let result = self.editor.select_pick(Some(bozzard_editor::Pick {
+                            let result = self.editor.select_component_pick(Some(bozzard_editor::Pick {
                                 object: object.to_owned(), surface: Some(index),
                             }));
                             self.result(result);
@@ -83,7 +83,10 @@ impl App {
         let Some(mesh) = self.editor.selected_mesh() else {
             return false;
         };
-        if mesh.parts.is_empty() || self.editor.play.is_some() {
+        if self.editor.selected_surface().is_none()
+            || mesh.parts.is_empty()
+            || self.editor.play.is_some()
+        {
             return false;
         }
         let selected = self.editor.selected_surface().map(|s| s.index);
@@ -396,7 +399,12 @@ fn material_controls(
     reset
 }
 
-fn factor_control(ui: &mut egui::Ui, label: &str, factor: &mut Option<f32>, source: f32) {
+pub(super) fn factor_control(
+    ui: &mut egui::Ui,
+    label: &str,
+    factor: &mut Option<f32>,
+    source: f32,
+) {
     ui.horizontal(|ui| {
         let mut enabled = factor.is_some();
         if ui.checkbox(&mut enabled, label)

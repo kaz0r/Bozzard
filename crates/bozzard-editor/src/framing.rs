@@ -5,7 +5,7 @@ impl Editor {
     /// descendants; a selection without geometry falls back to its world-space origin.
     pub fn frame_bounds(&self, layer: Layer, selection: Option<&str>) -> Result<Option<[Vec3; 2]>> {
         let demo = SceneDemo::new(&self.scene)?;
-        let matrices = demo.instance.global_transforms(&demo.app.world)?;
+        let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let mut included = BTreeSet::new();
         if let Some(id) = selection {
             ensure!(
@@ -48,6 +48,21 @@ impl Editor {
             }
             let matrix = matrices[&object.id];
             match &drawable.mesh {
+                Mesh::Surface { .. } => {
+                    let Some((_, bounds)) = self.assets.mesh_surface(&drawable.mesh) else {
+                        continue;
+                    };
+                    let center = bounds[0] * 0.5 + bounds[1] * 0.5;
+                    for i in 0..8 {
+                        include(matrix.transform_point3(
+                            Vec3::new(
+                                bounds[i & 1].x,
+                                bounds[(i >> 1) & 1].y,
+                                bounds[(i >> 2) & 1].z,
+                            ) - center,
+                        ))?;
+                    }
+                }
                 Mesh::Asset(id) => {
                     let data = self
                         .assets

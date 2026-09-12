@@ -170,6 +170,13 @@ struct SourceSnapshot {
 }
 
 impl Entry {
+    /// Paths observed by the latest source read, for safe project-file deletion.
+    pub fn source_dependencies(&self) -> impl Iterator<Item = &Path> {
+        self.observed
+            .iter()
+            .flat_map(|s| &s.dependencies)
+            .map(|(path, _)| path.as_path())
+    }
     /// Digest of the last successfully decoded source bytes and dependencies.
     pub fn content_fingerprint(&self) -> Option<u64> {
         self.content_fingerprint
@@ -238,6 +245,22 @@ pub struct AssetStore {
 }
 
 impl AssetStore {
+    /// Resolve a stable surface binding. Changed source geometry must be rebound explicitly.
+    pub fn mesh_surface(&self, mesh: &bozzard_scene::Mesh) -> Option<(&MeshPart, [Vec3; 2])> {
+        let bozzard_scene::Mesh::Surface {
+            asset,
+            index,
+            source,
+        } = mesh
+        else {
+            return None;
+        };
+        let AssetData::Mesh(mesh) = self.get(self.handle(asset)?)?.data()? else {
+            return None;
+        };
+        let part = mesh.parts.get(*index as usize)?;
+        (part.source_key == *source).then_some((part, mesh.part_bounds(*index as usize)?))
+    }
     pub fn new(root: &Path, sources: &BTreeMap<String, AssetSource>) -> Result<Self> {
         let id = NEXT_STORE
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))

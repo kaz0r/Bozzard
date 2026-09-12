@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "name": "Bonfire / Warm light flicker",
+  "variables": {
+    "brightness": 48
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "position": [
+        0,
+        0
+      ],
+      "kind": "update",
+      "inputs": []
+    },
+    {
+      "id": 2,
+      "position": [
+        1500,
+        0
+      ],
+      "kind": "set_light_intensity",
+      "inputs": [
+        "exec",
+        {
+          "number": 48
+        },
+        {
+          "object": "self_object"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "position": [
+        0,
+        200
+      ],
+      "kind": "elapsed_time",
+      "inputs": []
+    },
+    {
+      "id": 4,
+      "position": [
+        300,
+        180
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 8.3
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "position": [
+        600,
+        180
+      ],
+      "kind": "sine",
+      "inputs": [
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "position": [
+        900,
+        180
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 5
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "position": [
+        300,
+        420
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 17.7
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "position": [
+        600,
+        420
+      ],
+      "kind": "sine",
+      "inputs": [
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "position": [
+        900,
+        420
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 3
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "position": [
+        1200,
+        180
+      ],
+      "kind": "add",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "position": [
+        1200,
+        420
+      ],
+      "kind": "get_variable",
+      "inputs": [],
+      "variable": "brightness"
+    },
+    {
+      "id": 12,
+      "position": [
+        1500,
+        240
+      ],
+      "kind": "add",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    }
+  ],
+  "wires": [
+    {
+      "from": {
+        "node": 1,
+        "port": 0
+      },
+      "to": {
+        "node": 2,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 3,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 4,
+        "port": 0
+      },
+      "to": {
+        "node": 5,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 5,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 3,
+        "port": 0
+      },
+      "to": {
+        "node": 7,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 7,
+        "port": 0
+      },
+      "to": {
+        "node": 8,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 8,
+        "port": 0
+      },
+      "to": {
+        "node": 9,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 6,
+        "port": 0
+      },
+      "to": {
+        "node": 10,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 9,
+        "port": 0
+      },
+      "to": {
+        "node": 10,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 10,
+        "port": 0
+      },
+      "to": {
+        "node": 12,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 11,
+        "port": 0
+      },
+      "to": {
+        "node": 12,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 12,
+        "port": 0
+      },
+      "to": {
+        "node": 2,
+        "port": 1
+      }
+    }
+  ]
+}

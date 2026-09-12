@@ -35,8 +35,14 @@ impl Prefab {
     pub fn validate(&self) -> Result<()> {
         ensure!(self.version == 1, "unsupported prefab version");
         ensure!(
-            self.assets.values().all(|a| a.kind != AssetKind::Prefab),
-            "nested prefabs are not supported yet"
+            self.assets.iter().all(|(id, a)| a.kind != AssetKind::Prefab
+                || self
+                    .objects
+                    .iter()
+                    .flat_map(|o| &o.blueprints)
+                    .flat_map(|b| &b.graph.nodes)
+                    .any(|n| n.kind == blueprint::NodeKind::SpawnPrefab && &n.prefab == id)),
+            "nested prefab assets must be referenced by Spawn Prefab nodes"
         );
         ensure!(
             self.objects.iter().all(|o| o.player_controller.is_none()),
@@ -131,8 +137,7 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
         let dependencies: BTreeSet<_> = link
             .baseline
             .iter()
-            .filter_map(|o| o.drawable.as_ref())
-            .flat_map(|d| d.asset_dependencies().into_iter().map(|(id, _)| id))
+            .flat_map(|o| o.asset_dependencies().into_iter().map(|(id, _)| id))
             .collect();
         let assets = dependencies
             .into_iter()

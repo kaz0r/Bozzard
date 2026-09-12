@@ -30,7 +30,7 @@ impl Editor {
             return Ok(());
         }
         let demo = SceneDemo::new(&self.scene)?;
-        let matrices = demo.instance.global_transforms(&demo.app.world)?;
+        let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let world = matrices[id];
         let parent_world = parent.map_or(Mat4::IDENTITY, |id| matrices[id]);
         ensure!(
@@ -93,7 +93,7 @@ mod tests {
     }
     fn worlds(editor: &Editor) -> BTreeMap<String, Mat4> {
         let demo = SceneDemo::new(editor.scene()).unwrap();
-        demo.instance.global_transforms(&demo.app.world).unwrap()
+        demo.instance().global_transforms(&demo.app.world).unwrap()
     }
     #[test]
     fn reparent_preserves_subtree_and_is_one_undoable_change() {

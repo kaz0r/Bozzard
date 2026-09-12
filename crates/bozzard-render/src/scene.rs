@@ -960,7 +960,7 @@ impl SceneRenderer {
             });
         };
         for object in &scene.items {
-            if let MeshKind::Imported(id) = &object.mesh
+            if let MeshKind::Imported(id) | MeshKind::ModelPart(id, _) = &object.mesh
                 && let Some(parts) = self.models.get(id)
             {
                 let overrides: BTreeMap<_, _> = object
@@ -970,7 +970,14 @@ impl SceneRenderer {
                     .map(|v| (v.surface as usize, v))
                     .collect();
                 for (index, part) in parts.iter().enumerate() {
+                    if matches!(&object.mesh, MeshKind::ModelPart(_, selected) if *selected != index)
+                    {
+                        continue;
+                    }
                     let mut item = object.clone();
+                    if matches!(object.mesh, MeshKind::ModelPart(..)) {
+                        item.model *= Mat4::from_translation(-part.center);
+                    }
                     item.mesh = MeshKind::ModelPart(id.clone(), index);
                     for (tint, color) in item.material.tint.iter_mut().zip(part.color) {
                         *tint *= color;

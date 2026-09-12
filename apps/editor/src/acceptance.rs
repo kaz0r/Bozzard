@@ -133,7 +133,7 @@ impl App {
                 // Add a temporary runtime-only floor using a known scene member.
                 // This exercises response even when the supplied scene has no colliders.
                 let play = self.editor.play.as_mut().unwrap();
-                let floor = play.instance.camera_entity(Layer::ThreeD)?;
+                let floor = play.instance().camera_entity(Layer::ThreeD)?;
                 *play.app.world.get_mut::<Transform>(floor).unwrap() = Transform {
                     translation: [0.0, -5.0, 0.0],
                     ..Transform::default()
@@ -153,7 +153,7 @@ impl App {
                     "swept box crossed the runtime floor: {movement:?}"
                 );
                 let play = self.editor.play.as_mut().unwrap();
-                let mover = play.instance.entity(&id).context("missing smoke mover")?;
+                let mover = play.instance().entity(&id).context("missing smoke mover")?;
                 play.app.world.remove::<Spin>(mover)?;
                 *play.app.world.get_mut::<Transform>(mover).unwrap() = Transform {
                     translation: [50.0, 0.0, 50.0],
@@ -472,7 +472,7 @@ impl App {
                     // region its camera projection predicts, not just anywhere.
                     let cube = self.editor.selected.clone().context("smoke cube lost")?;
                     let demo = bozzard_demo::SceneDemo::new(self.editor.scene())?;
-                    let matrices = demo.instance.global_transforms(&demo.app.world)?;
+                    let matrices = demo.instance().global_transforms(&demo.app.world)?;
                     let center = matrices[&cube].transform_point3(Vec3::ZERO);
                     let aspect = target.size[0] as f32 / target.size[1] as f32;
                     let clip = self.editor.render(self.layer(), aspect)?.view_projection
@@ -683,7 +683,7 @@ impl App {
                                 }
                                 play.check_simulation()?;
                                 ensure!(
-                                    play.instance.capture(&play.app.world)? != authored,
+                                    play.instance().capture(&play.app.world)? != authored,
                                     "blueprint did not execute"
                                 );
                                 self.editor.stop_play();
@@ -731,7 +731,7 @@ impl App {
                                 let authored = self.editor.scene().clone();
                                 self.editor.start_play()?;
                                 let play = self.editor.play.as_mut().unwrap();
-                                let player = play.instance.entity("player").unwrap();
+                                let player = play.instance().entity("player").unwrap();
                                 play.app
                                     .world
                                     .get_mut::<bozzard_scene::Transform>(player)
@@ -740,7 +740,7 @@ impl App {
                                 play.app.step();
                                 play.check_simulation()?;
                                 for (id, height) in [("door-1", 4.5), ("door-2", 1.5)] {
-                                    let entity = play.instance.entity(id).unwrap();
+                                    let entity = play.instance().entity(id).unwrap();
                                     ensure!(
                                         play.app
                                             .world

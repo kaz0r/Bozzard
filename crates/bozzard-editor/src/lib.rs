@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 
+mod components;
+mod deletion;
 mod gi;
 pub use gi::PreparedGi;
 mod framing;
@@ -30,6 +32,7 @@ struct Change {
     label: String,
     scene: Scene,
     assets: Option<AssetStore>,
+    restore_file: Option<(PathBuf, PathBuf)>,
 }
 
 pub struct Editor {
@@ -42,6 +45,7 @@ pub struct Editor {
     future: Vec<Change>,
     gesture: Option<Change>,
     pub play: Option<SceneDemo>,
+    edit_assets: Option<AssetStore>,
     pub assets: AssetStore,
     revision: u64,
     asset_revision: u64,
@@ -72,6 +76,7 @@ impl Editor {
             future: Vec::new(),
             gesture: None,
             play: None,
+            edit_assets: None,
             assets,
             revision: 1,
             asset_revision: 1,
@@ -108,6 +113,7 @@ impl Editor {
                 label: label.into(),
                 scene: self.scene.clone(),
                 assets: Some(self.assets.clone()),
+                restore_file: None,
             });
         }
     }
@@ -158,6 +164,7 @@ impl Editor {
                 label: label.into(),
                 scene: self.scene.clone(),
                 assets: assets.as_ref().map(|_| self.assets.clone()),
+                restore_file: None,
             });
         }
         self.scene = scene;
@@ -180,11 +187,15 @@ impl Editor {
     pub fn undo(&mut self) -> Result<()> {
         ensure!(self.play.is_none(), "Stop Play before undo");
         self.finish_gesture();
+        if let Some((from, to)) = self.past.last().and_then(|c| c.restore_file.as_ref()) {
+            deletion::move_file(from, to)?;
+        }
         if let Some(change) = self.past.pop() {
             let assets = change
                 .assets
                 .filter(|_| change.scene.assets != self.scene.assets);
             self.future.push(Change {
+                restore_file: change.restore_file.map(|(from, to)| (to, from)),
                 label: change.label,
                 scene: std::mem::replace(&mut self.scene, change.scene),
                 assets: assets.as_ref().map(|_| self.assets.clone()),
@@ -201,11 +212,15 @@ impl Editor {
     pub fn redo(&mut self) -> Result<()> {
         ensure!(self.play.is_none(), "Stop Play before redo");
         self.finish_gesture();
+        if let Some((from, to)) = self.future.last().and_then(|c| c.restore_file.as_ref()) {
+            deletion::move_file(from, to)?;
+        }
         if let Some(change) = self.future.pop() {
             let assets = change
                 .assets
                 .filter(|_| change.scene.assets != self.scene.assets);
             self.past.push(Change {
+                restore_file: change.restore_file.map(|(from, to)| (to, from)),
                 label: change.label,
                 scene: std::mem::replace(&mut self.scene, change.scene),
                 assets: assets.as_ref().map(|_| self.assets.clone()),
@@ -226,10 +241,12 @@ impl Editor {
             blueprints: Vec::new(),
             light: None,
             id: id.clone(),
+            material: None,
             name: match mesh {
                 Mesh::Quad => "Sprite",
                 Mesh::Cube => "Cube",
                 Mesh::Asset(_) => "Mesh",
+                Mesh::Surface { .. } => "Surface",
             }
             .into(),
             parent: None,
@@ -250,6 +267,7 @@ impl Editor {
                 uv_scale: [1.0; 2],
             }),
         });
+        self.expand_model_objects(&mut scene, &id)?;
         self.apply("Create object", scene)?;
         self.selected = Some(id);
         Ok(())
@@ -260,6 +278,7 @@ impl Editor {
         scene.objects.push(Object {
             blueprints: Vec::new(),
             id: id.clone(),
+            material: None,
             name: match kind {
                 bozzard_scene::LightKind::Point => "Point light",
                 bozzard_scene::LightKind::Spot => "Spot light",
@@ -413,12 +432,20 @@ impl Editor {
         self.surface_selection = None;
         self.finish_gesture();
         if self.play.is_none() {
-            self.play = Some(SceneDemo::new(&self.scene)?);
+            let play = SceneDemo::new_with_prefabs(&self.scene, Some(&self.path))?;
+            let assets = self.cached_assets(play.instance().document(), &self.path)?;
+            self.edit_assets = Some(std::mem::replace(&mut self.assets, assets));
+            self.asset_revision += 1;
+            self.play = Some(play);
         }
         Ok(())
     }
     pub fn stop_play(&mut self) {
         self.play = None;
+        if let Some(assets) = self.edit_assets.take() {
+            self.assets = assets;
+            self.asset_revision += 1;
+        }
     }
     pub fn advance(&mut self, delta: Duration) {
         if let Some(play) = &mut self.play {
@@ -440,7 +467,11 @@ impl Editor {
         self.scene = rebased.clone();
         self.saved = rebased;
         self.path = path.to_path_buf();
-        self.assets = assets;
+        if self.play.is_some() {
+            self.edit_assets = Some(assets);
+        } else {
+            self.assets = assets;
+        }
         self.asset_revision += 1;
         self.revision += 1;
         Ok(())
@@ -479,6 +510,7 @@ impl Editor {
             blueprints: Vec::new(),
             light: None,
             id: id.clone(),
+            material: None,
             name: asset_id.into(),
             parent: None,
             transform,
@@ -498,6 +530,7 @@ impl Editor {
                 uv_scale: [1.0; 2],
             }),
         });
+        self.expand_model_objects(&mut scene, &id)?;
         self.finish_gesture();
         self.apply("Add asset to scene", scene)?;
         self.selected = Some(id);
@@ -549,7 +582,12 @@ impl Editor {
                     drawable.material_overrides.clear();
                 }
             }
-            AssetKind::Image => drawable.texture = Texture::Asset(asset_id.into()),
+            AssetKind::Image => {
+                let material = object
+                    .material
+                    .get_or_insert_with(|| bozzard_scene::Material::from_drawable(drawable));
+                material.texture = Some(Texture::Asset(asset_id.into()));
+            }
         }
         self.finish_gesture();
         self.apply("Assign asset", scene)
@@ -751,26 +789,29 @@ impl Editor {
             .play
             .as_mut()
             .context("start Play to move a collider")?;
-        play.instance.move_box(&mut play.app.world, id, delta)
+        play.with_instance(|instance, world| instance.move_box(world, id, delta))
     }
     /// Jump only in the Play world; authoring remains unchanged.
     pub fn jump_selected_box(&mut self) -> Result<bool> {
         let id = self.selected.as_ref().context("select a box to jump")?;
         let play = self.play.as_mut().context("start Play to jump")?;
-        let entity = play.instance.entity(id).context("unknown jumping object")?;
+        let entity = play
+            .instance()
+            .entity(id)
+            .context("unknown jumping object")?;
         let Some(gravity) = play.app.world.get::<bozzard_scene::Gravity>(entity) else {
             return Ok(false);
         };
         let speed = gravity.jump_speed;
-        play.instance.jump_box(&mut play.app.world, id, speed)
+        play.with_instance(|instance, world| instance.jump_box(world, id, speed))
     }
     /// Current authored or Play-world collider bounds and overlap pairs.
     pub fn collisions(&self) -> Result<bozzard_scene::CollisionSnapshot> {
         if let Some(play) = &self.play {
-            play.instance.collisions(&play.app.world)
+            play.instance().collisions(&play.app.world)
         } else {
             let demo = SceneDemo::new(&self.scene)?;
-            demo.instance.collisions(&demo.app.world)
+            demo.instance().collisions(&demo.app.world)
         }
     }
 }
@@ -844,13 +885,13 @@ pub fn extract(
     aspect: f32,
 ) -> Result<RenderScene> {
     demo.check_simulation()?;
-    let view = demo.instance.view(&demo.app.world, layer, aspect)?;
+    let view = demo.instance().view(&demo.app.world, layer, aspect)?;
     let mut gi = None;
     if layer == Layer::ThreeD
-        && demo.instance.document().gi.enabled
-        && demo.instance.document().gi.baked.is_some()
+        && demo.instance().document().gi.enabled
+        && demo.instance().document().gi.baked.is_some()
     {
-        let scene = demo.instance.capture(&demo.app.world)?;
+        let scene = demo.instance().capture(&demo.app.world)?;
         if bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false) {
             let baked = scene.gi.baked.as_ref().unwrap();
             gi = Some(bozzard_render::IrradianceVolume {
@@ -937,12 +978,18 @@ pub fn extract(
         items: view
             .objects
             .into_iter()
+            .filter(|(_, d)| {
+                !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
+            })
             .map(|(model, d)| DrawItem {
                 model,
                 mesh: match d.mesh {
                     Mesh::Quad => MeshKind::Quad,
                     Mesh::Cube => MeshKind::Cube,
                     Mesh::Asset(id) => MeshKind::Imported(id),
+                    Mesh::Surface { asset, index, .. } => {
+                        MeshKind::ModelPart(asset, index as usize)
+                    }
                 },
                 material: Material {
                     surface_overrides: d
@@ -1142,7 +1189,7 @@ mod tests {
         let authored = e.scene().clone();
         e.start_play().unwrap();
         let play = e.play.as_mut().unwrap();
-        let entity = play.instance.entity(&id).unwrap();
+        let entity = play.instance().entity(&id).unwrap();
         play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
         play.app.world.get_mut::<Light>(entity).unwrap().shadows = false;
         assert!(
@@ -1197,7 +1244,7 @@ mod tests {
         let authored = e.scene.clone();
         e.start_play().unwrap();
         let play = e.play.as_mut().unwrap();
-        let entity = play.instance.entity(&id).unwrap();
+        let entity = play.instance().entity(&id).unwrap();
         play.app
             .world
             .insert(
@@ -1304,7 +1351,7 @@ mod tests {
             .play
             .as_ref()
             .unwrap()
-            .instance
+            .instance()
             .entity("satellite")
             .unwrap();
         for _ in 0..120 {
@@ -1314,7 +1361,7 @@ mod tests {
             e.play
                 .as_ref()
                 .unwrap()
-                .instance
+                .instance()
                 .capture(&e.play.as_ref().unwrap().app.world)
                 .unwrap(),
             initial
@@ -1329,7 +1376,7 @@ mod tests {
             e.play
                 .as_ref()
                 .unwrap()
-                .instance
+                .instance()
                 .entity("satellite")
                 .unwrap()
         );
@@ -1403,14 +1450,18 @@ mod tests {
             e.assets.require_ready().unwrap();
             let before = e.scene.clone();
             assert_eq!(e.add_asset_to_scene(&asset).unwrap(), Layer::ThreeD);
-            assert_eq!(
-                e.selected_object()
-                    .unwrap()
-                    .drawable
-                    .as_ref()
-                    .unwrap()
-                    .color,
-                [1.0; 3]
+            assert!(e.selected_object().unwrap().drawable.is_none());
+            let children: Vec<_> = e
+                .scene
+                .objects
+                .iter()
+                .filter(|o| o.parent.as_ref() == e.selected.as_ref())
+                .collect();
+            assert_eq!(children.len(), 10);
+            assert!(
+                children
+                    .iter()
+                    .all(|o| o.drawable.as_ref().unwrap().color == [1.; 3] && o.material.is_none())
             );
             assert!(e.remove_asset(&asset).is_err());
             e.undo().unwrap();
@@ -1595,7 +1646,7 @@ mod tests {
         let authored = e.scene().clone();
         e.start_play().unwrap();
         let play = e.play.as_mut().unwrap();
-        let entity = play.instance.entity(&b).unwrap();
+        let entity = play.instance().entity(&b).unwrap();
         play.app
             .world
             .get_mut::<Transform>(entity)

@@ -181,6 +181,7 @@ impl Editor {
         }
         let catalog_changed = self.scene.assets != prepared.scene.assets;
         self.record(Change {
+            restore_file: None,
             label: prepared.label,
             scene: self.scene.clone(),
             assets: catalog_changed.then(|| self.assets.clone()),
@@ -511,9 +512,8 @@ fn capture(scene: &Scene, id: &str, scene_path: &Path, target: &Path) -> Result<
     let name = selected.name.clone();
     let dependencies: BTreeSet<_> = objects
         .iter()
-        .filter_map(|o| o.drawable.as_ref())
-        .flat_map(|d| {
-            d.asset_dependencies()
+        .flat_map(|o| {
+            o.asset_dependencies()
                 .into_iter()
                 .map(|(id, _)| id.to_owned())
         })
@@ -586,21 +586,9 @@ fn remap(
         .cloned()
         .map(|mut o| {
             o.remap_blueprint_objects(members);
+            o.remap_assets(assets);
             o.id = members[&o.id].clone();
             o.parent = o.parent.map(|p| members[&p].clone());
-            if let Some(d) = &mut o.drawable {
-                if let Mesh::Asset(id) = &mut d.mesh {
-                    *id = assets[id].clone();
-                }
-                if let Texture::Asset(id) = &mut d.texture {
-                    *id = assets[id].clone();
-                }
-                for surface in &mut d.material_overrides {
-                    if let Some(Texture::Asset(id)) = &mut surface.texture {
-                        *id = assets[id].clone();
-                    }
-                }
-            }
             o
         })
         .collect()
@@ -665,7 +653,8 @@ fn merge_instances(
                     .context("prefab baseline missing")?;
                 macro_rules! merge { ($($field:ident),*) => { $(if current.$field == old.$field { current.$field = source.$field.clone(); })* }; }
                 merge!(
-                    name, camera, drawable, spin, collider, gravity, trigger, light, blueprints
+                    name, camera, drawable, material, spin, collider, gravity, trigger, light,
+                    blueprints
                 );
                 if current.id != root {
                     merge!(transform, parent);

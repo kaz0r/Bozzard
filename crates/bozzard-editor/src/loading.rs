@@ -82,7 +82,11 @@ impl Editor {
         self.scene = scene.clone();
         self.saved = scene;
         self.path = path;
-        self.assets = assets;
+        if self.play.is_some() {
+            self.edit_assets = Some(assets);
+        } else {
+            self.assets = assets;
+        }
         self.asset_revision += 1;
         self.revision += 1;
         Ok(())
@@ -151,6 +155,7 @@ impl Editor {
         scene.validate()?;
         self.finish_gesture();
         self.record(Change {
+            restore_file: None,
             label: "Import asset".into(),
             scene: self.scene.clone(),
             assets: Some(self.assets.clone()),

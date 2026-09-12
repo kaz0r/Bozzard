@@ -42,7 +42,7 @@ fn transform(demo: &SceneDemo) -> Transform {
     *demo
         .app
         .world
-        .get(demo.instance.entity("owner").unwrap())
+        .get(demo.instance().entity("owner").unwrap())
         .unwrap()
 }
 
@@ -50,7 +50,7 @@ fn transform(demo: &SceneDemo) -> Transform {
 fn demo_coral_cube_bounces_only_on_z_without_drift() {
     let scene = Scene::from_json(include_str!("../scenes/blueprint-lab.json")).unwrap();
     let mut demo = SceneDemo::new(&scene).unwrap();
-    let entity = demo.instance.entity("coral-cube").unwrap();
+    let entity = demo.instance().entity("coral-cube").unwrap();
     let initial = *demo.app.world.get::<Transform>(entity).unwrap();
     for tick in 1..=240 {
         demo.app.step();
@@ -69,7 +69,7 @@ fn demo_coral_cube_bounces_only_on_z_without_drift() {
             );
         }
     }
-    assert_eq!(demo.instance.document(), &scene);
+    assert_eq!(demo.instance().document(), &scene);
 }
 
 #[test]
@@ -105,13 +105,13 @@ fn graphs_execute_in_order_with_independent_state_and_coded_behavior() {
     assert_eq!(
         demo.app
             .world
-            .get::<Transform>(demo.instance.entity("sibling").unwrap())
+            .get::<Transform>(demo.instance().entity("sibling").unwrap())
             .unwrap()
             .translation,
         [7., 0., 0.]
     );
-    assert_eq!(demo.instance.document(), &s);
-    let captured = demo.instance.capture(&demo.app.world).unwrap();
+    assert_eq!(demo.instance().document(), &s);
+    let captured = demo.instance().capture(&demo.app.world).unwrap();
     assert_eq!(captured.objects[0].blueprints, s.objects[0].blueprints);
     let restarted = SceneDemo::new(&s).unwrap();
     assert_eq!(transform(&restarted).translation, [0.; 3]);
@@ -186,7 +186,7 @@ fn overlaps_branch_visibility_and_light_actions_are_real_runtime_changes() {
     let mut demo = SceneDemo::new(&s).unwrap();
     demo.app.step();
     demo.check_simulation().unwrap();
-    let e = demo.instance.entity("owner").unwrap();
+    let e = demo.instance().entity("owner").unwrap();
     assert_eq!(
         demo.app
             .world
@@ -221,6 +221,42 @@ fn overlaps_branch_visibility_and_light_actions_are_real_runtime_changes() {
             .color,
         [1., 0., 0.]
     );
+}
+
+#[test]
+fn transform_writes_reject_singular_roots_and_composed_overflow_atomically() {
+    for case in 0..3 {
+        let mut s = scene(vec![action(
+            K::Start,
+            K::SetScale,
+            Value::Vector(if case == 0 {
+                [f32::MAX; 3]
+            } else {
+                [1e20, 1., 1.]
+            }),
+        )]);
+        if case > 0 {
+            let mut related = s.objects[0].clone();
+            related.id = "related".into();
+            related.blueprints.clear();
+            related.transform.scale = [1e20, 1., 1.];
+            if case == 1 {
+                s.objects[0].parent = Some(related.id.clone());
+            } else {
+                related.parent = Some("owner".into());
+            }
+            s.objects.push(related);
+        }
+        let mut demo = SceneDemo::new(&s).unwrap();
+        let before = demo.instance().global_transforms(&demo.app.world).unwrap();
+        demo.app.step();
+        assert!(demo.check_simulation().is_err(), "case {case}");
+        assert_eq!(
+            demo.instance().global_transforms(&demo.app.world).unwrap(),
+            before
+        );
+        assert_eq!(transform(&demo).scale, [1.; 3]);
+    }
 }
 
 #[test]

@@ -118,6 +118,39 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         capture(gpu, renderer, scene, [128, 128])
     };
     let baseline = render(&mut renderer, &scene)?;
+    let split = |scene: &RenderScene| {
+        let mut children = scene.clone();
+        children.items = scene
+            .items
+            .iter()
+            .flat_map(|owner| {
+                (0..2).map(move |index| {
+                    let mut child = owner.clone();
+                    child.mesh = MeshKind::ModelPart("override-source".into(), index);
+                    child.model *= Mat4::from_translation(Vec3::new(
+                        if index == 0 { -0.5 } else { 0.5 },
+                        0.,
+                        0.,
+                    ));
+                    child
+                })
+            })
+            .collect();
+        children
+    };
+    let mut children = split(&scene);
+    ensure!(
+        render(&mut renderer, &children)?.rgba == baseline.rgba,
+        "independent child meshes differ from whole model"
+    );
+    children.items.remove(0);
+    let removed = render(&mut renderer, &children)?;
+    ensure!(
+        removed.rgba != baseline.rgba
+            && removed.rgba[64 * 128 * 4..] == baseline.rgba[64 * 128 * 4..],
+        "removing one child affected another instance"
+    );
+    println!("component_children_gpu_ok source_material_and_geometry_parity isolated_removal");
     let value = SurfaceMaterialOverride {
         surface: 0,
         source: KEYS[0].into(),
@@ -152,6 +185,10 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         item.material.lit = true;
     }
     let lit_baseline = render(&mut renderer, &scene)?;
+    ensure!(
+        render(&mut renderer, &split(&scene))?.rgba == lit_baseline.rgba,
+        "independent children lost PBR source materials"
+    );
     for (metallic, roughness) in [
         (Some(0.9), None),
         (None, Some(0.18)),
@@ -215,6 +252,10 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     };
     scene.items[0].material.surface_overrides = vec![edit.clone()].into();
     let moved = render(&mut renderer, &scene)?;
+    ensure!(
+        render(&mut renderer, &split(&scene))?.rgba == moved.rgba,
+        "independent children lost surface transforms or textures"
+    );
     pixel(&moved, 51, 30, [0, 0, 102])?;
     for (x, y) in [(85, 38), (43, 90), (85, 90)] {
         pixel(&moved, x, y, [204, 153, 102])?;

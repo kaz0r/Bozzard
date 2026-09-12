@@ -38,7 +38,7 @@ Inspect the complete CPU import with:
 cargo run -p bozzard-assets --example inspect --locked --offline -- work/sponza/glTF/Sponza.gltf
 ```
 
-In the editor, click imported geometry in the viewport or choose a surface row in the Hierarchy or **Imported surfaces** inspector. **W / E / R** and the Properties Transform section edit the selected surface independently. **Alt-click** selects the whole model instead. Enable **Override texture / effect** to replace a surface texture; see [submesh editing](assets.md#editing-a-submesh). Double-click a row or press **F** to frame that surface; **Select whole model** returns to the owner selection, and **Shift+F** frames the whole layer. Press **Escape** to clear the whole-object or inspected-surface selection and its outline after higher-priority editing or navigation actions have finished. A source primitive can contain disconnected geometry, so the list does not automatically create separate editable entries for each disconnected piece.
+In the editor, click imported geometry or a surface row to convert this legacy model into independent child entities (undoable). **W / E / R** and Properties Transform edit the selected child; select its parent to move the whole model. **Add Component → Material** exposes texture and PBR overrides; children can also own Rigidbody and Blueprint components. See [submesh editing](assets.md#editing-a-submesh). **F** frames the child and **Shift+F** frames the layer. A source primitive can contain disconnected geometry; those pieces are not automatically split.
 
 The CPU-only surface reproduction is:
 
@@ -52,9 +52,9 @@ Picking and outline/framing are held until the CPU model identity matches the GP
 Manual surface-override checklist:
 
 - [ ] Open `examples/sponza/scene.json` and click imported geometry.
-- [ ] Choose a row in **Imported surfaces**, move/rotate/scale it with gizmos and numeric fields, and confirm adjacent surfaces stay put. **F** must frame its new location, and clicking it there must select it.
-- [ ] Import an image, assign it to the selected surface, adjust UV repeat and Tint, and confirm only that surface changes. Reset its material and pose independently.
-- [ ] Enable and adjust Metallic or Roughness; confirm the value multiplies the existing map, then use **Reset override**.
+- [ ] Select a child, move/rotate/scale it with gizmos and numeric fields, and confirm siblings stay put. **F** must frame its new location, and clicking it there must select it.
+- [ ] Import an image, assign it to the selected child, adjust Material UV repeat and Tint, and confirm only that child changes.
+- [ ] Enable and adjust Metallic or Roughness; confirm the value multiplies the existing map, then uncheck the override.
 - [ ] Select the whole model, duplicate the owning object, select a surface on the copy, change its Tint, and confirm the original remains unchanged; Undo/redo the edit.
 - [ ] Save, reopen, enter Play, and Stop; confirm overrides persist with the authored document and Play remains isolated.
 

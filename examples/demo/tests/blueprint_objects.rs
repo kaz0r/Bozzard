@@ -38,12 +38,12 @@ fn step(d: &mut SceneDemo) {
 fn position(d: &SceneDemo, id: &str) -> [f32; 3] {
     d.app
         .world
-        .get::<Transform>(d.instance.entity(id).unwrap())
+        .get::<Transform>(d.instance().entity(id).unwrap())
         .unwrap()
         .translation
 }
 fn move_to(d: &mut SceneDemo, id: &str, p: [f32; 3]) {
-    let e = d.instance.entity(id).unwrap();
+    let e = d.instance().entity(id).unwrap();
     d.app.world.get_mut::<Transform>(e).unwrap().translation = p;
 }
 #[test]
@@ -119,7 +119,7 @@ fn per_body_events_identify_each_collider_and_count_remaining_occupants() {
     move_to(&mut d, "a", [10., 0., 0.]);
     step(&mut d);
     assert_eq!(position(&d, "door"), [1., 0., 0.]);
-    let e = d.instance.entity("b").unwrap();
+    let e = d.instance().entity("b").unwrap();
     d.app.world.get_mut::<BoxCollider>(e).unwrap().enabled = false;
     step(&mut d);
     assert_eq!(position(&d, "door"), [0.; 3]);
@@ -189,7 +189,7 @@ fn pressure_plate_fixture_opens_only_its_own_door_and_resets_without_winning() {
     step(&mut d);
     assert_eq!(position(&d, "door-1")[1], 1.5);
     assert_eq!(position(&d, "door-2")[1], 1.5);
-    assert_eq!(d.instance.document(), &s);
+    assert_eq!(d.instance().document(), &s);
     let fresh = SceneDemo::new(&s).unwrap();
     assert_eq!(position(&fresh, "door-2")[1], 1.5);
 }

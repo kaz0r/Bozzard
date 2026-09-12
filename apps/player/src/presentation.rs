@@ -24,13 +24,13 @@ pub fn extract(
     aspect: f32,
 ) -> Result<RenderScene> {
     demo.check_simulation()?;
-    let view = demo.instance.view(&demo.app.world, layer, aspect)?;
+    let view = demo.instance().view(&demo.app.world, layer, aspect)?;
     let mut gi = None;
     if layer == Layer::ThreeD
-        && demo.instance.document().gi.enabled
-        && demo.instance.document().gi.baked.is_some()
+        && demo.instance().document().gi.enabled
+        && demo.instance().document().gi.baked.is_some()
     {
-        let scene = demo.instance.capture(&demo.app.world)?;
+        let scene = demo.instance().capture(&demo.app.world)?;
         if bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false) {
             let baked = scene.gi.baked.as_ref().unwrap();
             gi = Some(bozzard_render::IrradianceVolume {
@@ -117,12 +117,18 @@ pub fn extract(
         items: view
             .objects
             .into_iter()
+            .filter(|(_, d)| {
+                !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
+            })
             .map(|(model, drawable)| DrawItem {
                 model,
                 mesh: match drawable.mesh {
                     Mesh::Quad => MeshKind::Quad,
                     Mesh::Cube => MeshKind::Cube,
                     Mesh::Asset(id) => MeshKind::Imported(id),
+                    Mesh::Surface { asset, index, .. } => {
+                        MeshKind::ModelPart(asset, index as usize)
+                    }
                 },
                 material: Material {
                     surface_overrides: drawable

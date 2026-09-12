@@ -1,0 +1,6702 @@
+{
+  "fog": {
+    "enabled": true,
+    "color": [
+      0.002,
+      0.004,
+      0.008
+    ],
+    "distance_density": 0.032,
+    "start_distance": 10.0,
+    "height_density": 0.018,
+    "base_height": 0.0,
+    "height_falloff": 0.6
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.004,
+      0.007,
+      0.016
+    ],
+    "horizon": [
+      0.009,
+      0.016,
+      0.03
+    ],
+    "ground": [
+      0.002,
+      0.003,
+      0.005
+    ],
+    "intensity": 0.22,
+    "background": true
+  },
+  "display": {
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.4,
+      "threshold": 0.5,
+      "scatter": 0.78
+    },
+    "exposure_ev": -0.2,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": false,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      -0.5,
+      0.7,
+      -0.3
+    ],
+    "sun_color": [
+      0.22,
+      0.36,
+      0.65
+    ],
+    "sun_intensity": 0.055,
+    "ambient_color": [
+      0.22,
+      0.32,
+      0.5
+    ],
+    "ambient_intensity": 0.012
+  },
+  "version": 1,
+  "name": "Emberwatch / Dark Bonfire - Spawn and Destroy",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Camera / Bonfire overview",
+      "transform": {
+        "translation": [
+          -4.3881845,
+          1.4012396,
+          0.6461922
+        ],
+        "rotation_degrees": [
+          -0.97501564,
+          -84.36876,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 52.0,
+        "near": 0.1,
+        "far": 85.0
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera / Top-down inspection",
+      "transform": {
+        "translation": [
+          0.0,
+          24.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          -90.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 22.0,
+        "near": 0.1,
+        "far": 60.0
+      }
+    },
+    {
+      "id": "clearing",
+      "name": "Clearing / cubic forest and hearth",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ground",
+      "name": "Dark forest earth",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          0.0,
+          -0.22,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          65.0,
+          0.4,
+          65.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.105,
+          0.082,
+          0.06
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "hearth",
+      "name": "Soot-black hearth",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          0.0,
+          0.005,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          18.0,
+          0.0
+        ],
+        "scale": [
+          3.7,
+          0.06,
+          3.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.018,
+          0.016
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Bonfire / Spawn embers - Space toggles emission",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  280.0,
+                  0.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  580.0,
+                  0.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "age",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  880.0,
+                  0.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "bonfire-ember",
+                "id": 5,
+                "position": [
+                  1180.0,
+                  0.0
+                ],
+                "kind": "spawn_prefab",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0.0,
+                      1.3,
+                      0.0
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  1480.0,
+                  0.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "age",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  0.0,
+                  180.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "emitting",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  280.0,
+                  180.0
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.5
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  0.0,
+                  380.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "age",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 10,
+                "position": [
+                  0.0,
+                  520.0
+                ],
+                "kind": "delta_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 11,
+                "position": [
+                  280.0,
+                  380.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 12,
+                "position": [
+                  580.0,
+                  380.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "interval",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 13,
+                "position": [
+                  880.0,
+                  240.0
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 14,
+                "position": [
+                  1180.0,
+                  240.0
+                ],
+                "kind": "subtract",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 15,
+                "position": [
+                  0.0,
+                  760.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 16,
+                "position": [
+                  280.0,
+                  680.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 2.1
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 17,
+                "position": [
+                  580.0,
+                  680.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 18,
+                "position": [
+                  880.0,
+                  680.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.58
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 19,
+                "position": [
+                  280.0,
+                  880.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 3.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 20,
+                "position": [
+                  580.0,
+                  880.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 21,
+                "position": [
+                  880.0,
+                  880.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.42
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 22,
+                "position": [
+                  1180.0,
+                  680.0
+                ],
+                "kind": "make_vector",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 1.25
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 23,
+                "position": [
+                  1180.0,
+                  920.0
+                ],
+                "kind": "position",
+                "inputs": [
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 24,
+                "position": [
+                  1480.0,
+                  680.0
+                ],
+                "kind": "add_vector",
+                "inputs": [
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 25,
+                "position": [
+                  0.0,
+                  1140.0
+                ],
+                "kind": "input_pressed",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 26,
+                "position": [
+                  280.0,
+                  1140.0
+                ],
+                "kind": "subtract",
+                "inputs": [
+                  {
+                    "number": 1.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 27,
+                "position": [
+                  580.0,
+                  1140.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "emitting",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 10,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 11,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 13,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 12,
+                  "port": 0
+                },
+                "to": {
+                  "node": 13,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 13,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 14,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 12,
+                  "port": 0
+                },
+                "to": {
+                  "node": 14,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 14,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 15,
+                  "port": 0
+                },
+                "to": {
+                  "node": 16,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 16,
+                  "port": 0
+                },
+                "to": {
+                  "node": 17,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 17,
+                  "port": 0
+                },
+                "to": {
+                  "node": 18,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 15,
+                  "port": 0
+                },
+                "to": {
+                  "node": 19,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 19,
+                  "port": 0
+                },
+                "to": {
+                  "node": 20,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 20,
+                  "port": 0
+                },
+                "to": {
+                  "node": 21,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 18,
+                  "port": 0
+                },
+                "to": {
+                  "node": 22,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 21,
+                  "port": 0
+                },
+                "to": {
+                  "node": 22,
+                  "port": 2
+                }
+              },
+              {
+                "from": {
+                  "node": 22,
+                  "port": 0
+                },
+                "to": {
+                  "node": 24,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 23,
+                  "port": 0
+                },
+                "to": {
+                  "node": 24,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 24,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 26,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 26,
+                  "port": 0
+                },
+                "to": {
+                  "node": 27,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 25,
+                  "port": 0
+                },
+                "to": {
+                  "node": 27,
+                  "port": 0
+                }
+              }
+            ],
+            "variables": {
+              "age": 0.0,
+              "emitting": 1.0,
+              "interval": 0.18
+            }
+          }
+        }
+      ],
+      "id": "bonfire",
+      "name": "BONFIRE / Space toggles ember spawning",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Bonfire / Warm light flicker",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  1500.0,
+                  0.0
+                ],
+                "kind": "set_light_intensity",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 48.0
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  0.0,
+                  200.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  300.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 8.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  600.0,
+                  180.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  900.0,
+                  180.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 5.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  300.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 17.7
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  600.0,
+                  420.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  900.0,
+                  420.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 3.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 10,
+                "position": [
+                  1200.0,
+                  180.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 11,
+                "position": [
+                  1200.0,
+                  420.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "brightness",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 12,
+                "position": [
+                  1500.0,
+                  240.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 10,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 10,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 10,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 11,
+                  "port": 0
+                },
+                "to": {
+                  "node": 12,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 12,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {
+              "brightness": 48.0
+            }
+          }
+        }
+      ],
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          1.0,
+          0.31,
+          0.055
+        ],
+        "intensity": 48.0,
+        "range": 14.0,
+        "inner_angle_degrees": 20.0,
+        "outer_angle_degrees": 30.0,
+        "shadows": true,
+        "shadow_bias": 0.006,
+        "shadow_normal_bias": 0.015
+      },
+      "id": "firelight",
+      "name": "Firelight / flicker Blueprint",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          2.65,
+          0.2
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-00",
+      "name": "Hearth stone 1",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          1.66,
+          0.19,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          -0.0,
+          -3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.1748,
+          0.152
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-01",
+      "name": "Hearth stone 2",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          1.4956083,
+          0.19,
+          0.72024703
+        ],
+        "rotation_degrees": [
+          0.0,
+          -25.714285,
+          0.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.215,
+          0.1978,
+          0.172
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-02",
+      "name": "Hearth stone 3",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          1.034993,
+          0.19,
+          1.2978402
+        ],
+        "rotation_degrees": [
+          0.0,
+          -51.42857,
+          3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.2208,
+          0.192
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-03",
+      "name": "Hearth stone 4",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.36938474,
+          0.19,
+          1.6183803
+        ],
+        "rotation_degrees": [
+          0.0,
+          -77.14286,
+          -3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.1748,
+          0.152
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-04",
+      "name": "Hearth stone 5",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -0.36938474,
+          0.19,
+          1.6183803
+        ],
+        "rotation_degrees": [
+          0.0,
+          -102.85714,
+          0.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.215,
+          0.1978,
+          0.172
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-05",
+      "name": "Hearth stone 6",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -1.034993,
+          0.19,
+          1.2978402
+        ],
+        "rotation_degrees": [
+          0.0,
+          -128.57143,
+          3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.2208,
+          0.192
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-06",
+      "name": "Hearth stone 7",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -1.4956083,
+          0.19,
+          0.72024703
+        ],
+        "rotation_degrees": [
+          0.0,
+          -154.28572,
+          -3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.1748,
+          0.152
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-07",
+      "name": "Hearth stone 8",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -1.66,
+          0.19,
+          2.0329137e-16
+        ],
+        "rotation_degrees": [
+          0.0,
+          -180.0,
+          0.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.215,
+          0.1978,
+          0.172
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-08",
+      "name": "Hearth stone 9",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -1.4956083,
+          0.19,
+          -0.72024703
+        ],
+        "rotation_degrees": [
+          0.0,
+          -205.71428,
+          3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.2208,
+          0.192
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-09",
+      "name": "Hearth stone 10",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -1.034993,
+          0.19,
+          -1.2978402
+        ],
+        "rotation_degrees": [
+          0.0,
+          -231.42857,
+          -3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.1748,
+          0.152
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-10",
+      "name": "Hearth stone 11",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -0.36938474,
+          0.19,
+          -1.6183803
+        ],
+        "rotation_degrees": [
+          0.0,
+          -257.14285,
+          0.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.215,
+          0.1978,
+          0.172
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-11",
+      "name": "Hearth stone 12",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.36938474,
+          0.19,
+          -1.6183803
+        ],
+        "rotation_degrees": [
+          0.0,
+          -282.85715,
+          3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.2208,
+          0.192
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-12",
+      "name": "Hearth stone 13",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          1.034993,
+          0.19,
+          -1.2978402
+        ],
+        "rotation_degrees": [
+          0.0,
+          -308.57144,
+          -3.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.1748,
+          0.152
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ring-13",
+      "name": "Hearth stone 14",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          1.4956083,
+          0.19,
+          -0.72024703
+        ],
+        "rotation_degrees": [
+          0.0,
+          -334.2857,
+          0.0
+        ],
+        "scale": [
+          0.62,
+          0.38,
+          0.43
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.215,
+          0.1978,
+          0.172
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "log-0",
+      "name": "Charred timber 1",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -0.42,
+          0.22,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.36,
+          0.32,
+          2.35
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.027,
+          0.009
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "coal-0",
+      "name": "Glowing coal seam 1",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          -0.42,
+          0.39,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.08,
+          0.035,
+          1.55
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "log-1",
+      "name": "Charred timber 2",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.42,
+          0.22,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.36,
+          0.32,
+          2.35
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.027,
+          0.009
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "coal-1",
+      "name": "Glowing coal seam 2",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.42,
+          0.39,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.08,
+          0.035,
+          1.55
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "log-2",
+      "name": "Charred timber 3",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          0.48,
+          -0.38
+        ],
+        "rotation_degrees": [
+          0.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          0.36,
+          0.32,
+          2.35
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.027,
+          0.009
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "coal-2",
+      "name": "Glowing coal seam 3",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          0.65,
+          -0.38
+        ],
+        "rotation_degrees": [
+          0.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          0.08,
+          0.035,
+          1.55
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "log-3",
+      "name": "Charred timber 4",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          0.48,
+          0.38
+        ],
+        "rotation_degrees": [
+          0.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          0.36,
+          0.32,
+          2.35
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.075,
+          0.027,
+          0.009
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "coal-3",
+      "name": "Glowing coal seam 4",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          0.65,
+          0.38
+        ],
+        "rotation_degrees": [
+          0.0,
+          90.0,
+          0.0
+        ],
+        "scale": [
+          0.08,
+          0.035,
+          1.55
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Bonfire / Flame height pulse",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  1500.0,
+                  0.0
+                ],
+                "kind": "set_scale",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  0.0,
+                  220.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  300.0,
+                  220.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 9.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  600.0,
+                  220.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  900.0,
+                  220.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  1200.0,
+                  220.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.13
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  1500.0,
+                  220.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 1.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  1800.0,
+                  0.0
+                ],
+                "kind": "make_vector",
+                "inputs": [
+                  {
+                    "number": 1.0
+                  },
+                  {
+                    "number": 1.0
+                  },
+                  {
+                    "number": 1.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {}
+          }
+        }
+      ],
+      "id": "outer-flames",
+      "name": "Flames / amber cubes",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Bonfire / Flame height pulse",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  1500.0,
+                  0.0
+                ],
+                "kind": "set_scale",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  0.0,
+                  220.0
+                ],
+                "kind": "elapsed_time",
+                "inputs": [],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  300.0,
+                  220.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 13.1
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  600.0,
+                  220.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 1.6
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  900.0,
+                  220.0
+                ],
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 7,
+                "position": [
+                  1200.0,
+                  220.0
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.13
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 8,
+                "position": [
+                  1500.0,
+                  220.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 1.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 9,
+                "position": [
+                  1800.0,
+                  0.0
+                ],
+                "kind": "make_vector",
+                "inputs": [
+                  {
+                    "number": 1.0
+                  },
+                  {
+                    "number": 1.0
+                  },
+                  {
+                    "number": 1.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {}
+          }
+        }
+      ],
+      "id": "inner-flames",
+      "name": "Flames / golden core cubes",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-0",
+      "name": "Amber flame cube 1",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          -0.5,
+          0.85,
+          0.2
+        ],
+        "rotation_degrees": [
+          8.0,
+          12.0,
+          -14.0
+        ],
+        "scale": [
+          0.48,
+          0.8,
+          0.5
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-1",
+      "name": "Amber flame cube 2",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          0.5,
+          0.93,
+          -0.1
+        ],
+        "rotation_degrees": [
+          -10.0,
+          24.0,
+          13.0
+        ],
+        "scale": [
+          0.52,
+          1.02,
+          0.45
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-2",
+      "name": "Amber flame cube 3",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          -0.15,
+          1.2,
+          -0.36
+        ],
+        "rotation_degrees": [
+          12.0,
+          -16.0,
+          -7.0
+        ],
+        "scale": [
+          0.5,
+          1.4,
+          0.45
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-3",
+      "name": "Amber flame cube 4",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          0.15,
+          0.82,
+          0.43
+        ],
+        "rotation_degrees": [
+          -8.0,
+          40.0,
+          14.0
+        ],
+        "scale": [
+          0.46,
+          0.7,
+          0.46
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-4",
+      "name": "Amber flame cube 5",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          -0.35,
+          1.65,
+          -0.23
+        ],
+        "rotation_degrees": [
+          5.0,
+          20.0,
+          -20.0
+        ],
+        "scale": [
+          0.25,
+          0.6,
+          0.24
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-5",
+      "name": "Amber flame cube 6",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          0.42,
+          1.63,
+          -0.16
+        ],
+        "rotation_degrees": [
+          -15.0,
+          10.0,
+          18.0
+        ],
+        "scale": [
+          0.25,
+          0.65,
+          0.24
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "flame-6",
+      "name": "Amber flame cube 7",
+      "parent": "outer-flames",
+      "transform": {
+        "translation": [
+          -0.04,
+          1.95,
+          -0.37
+        ],
+        "rotation_degrees": [
+          12.0,
+          -10.0,
+          -12.0
+        ],
+        "scale": [
+          0.19,
+          0.44,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-flame"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "core-0",
+      "name": "Golden core cube 1",
+      "parent": "inner-flames",
+      "transform": {
+        "translation": [
+          0.0,
+          0.72,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          12.0,
+          0.0
+        ],
+        "scale": [
+          0.68,
+          0.54,
+          0.65
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-gold"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "core-1",
+      "name": "Golden core cube 2",
+      "parent": "inner-flames",
+      "transform": {
+        "translation": [
+          -0.14,
+          1.04,
+          0.15
+        ],
+        "rotation_degrees": [
+          8.0,
+          25.0,
+          -12.0
+        ],
+        "scale": [
+          0.33,
+          0.74,
+          0.3
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-gold"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "core-2",
+      "name": "Golden core cube 3",
+      "parent": "inner-flames",
+      "transform": {
+        "translation": [
+          0.21,
+          1.08,
+          0.02
+        ],
+        "rotation_degrees": [
+          -7.0,
+          4.0,
+          15.0
+        ],
+        "scale": [
+          0.3,
+          0.8,
+          0.28
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-gold"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "core-3",
+      "name": "Golden core cube 4",
+      "parent": "inner-flames",
+      "transform": {
+        "translation": [
+          0.06,
+          1.43,
+          -0.04
+        ],
+        "rotation_degrees": [
+          -7.0,
+          20.0,
+          8.0
+        ],
+        "scale": [
+          0.18,
+          0.43,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": {
+          "asset": "bonfire-gold"
+        },
+        "texture": "white",
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-0",
+      "name": "Rough timber bench 1",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -3.6,
+          0.0,
+          -0.15
+        ],
+        "rotation_degrees": [
+          0.0,
+          -12.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-0-seat",
+      "name": "Split timber seat",
+      "parent": "bench-0",
+      "transform": {
+        "translation": [
+          0.0,
+          0.68,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.65,
+          0.28,
+          2.55
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.087,
+          0.033
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-0-foot-0",
+      "name": "Bench foot",
+      "parent": "bench-0",
+      "transform": {
+        "translation": [
+          0.0,
+          0.25,
+          -0.83
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.045,
+          0.023
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-0-foot-1",
+      "name": "Bench foot",
+      "parent": "bench-0",
+      "transform": {
+        "translation": [
+          0.0,
+          0.25,
+          0.83
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.045,
+          0.023
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-1",
+      "name": "Rough timber bench 2",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          2.8,
+          0.0,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0.0,
+          48.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-1-seat",
+      "name": "Split timber seat",
+      "parent": "bench-1",
+      "transform": {
+        "translation": [
+          0.0,
+          0.68,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.65,
+          0.28,
+          2.55
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.087,
+          0.033
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-1-foot-0",
+      "name": "Bench foot",
+      "parent": "bench-1",
+      "transform": {
+        "translation": [
+          0.0,
+          0.25,
+          -0.83
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.045,
+          0.023
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bench-1-foot-1",
+      "name": "Bench foot",
+      "parent": "bench-1",
+      "transform": {
+        "translation": [
+          0.0,
+          0.25,
+          0.83
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.045,
+          0.023
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-00",
+      "name": "Forest stone 1",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          2.5,
+          0.039,
+          0.0
+        ],
+        "rotation_degrees": [
+          3.0,
+          0.0,
+          7.0
+        ],
+        "scale": [
+          0.247,
+          0.078,
+          0.13
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-01",
+      "name": "Forest stone 2",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -2.374328,
+          0.057,
+          2.1750786
+        ],
+        "rotation_degrees": [
+          3.0,
+          137.5179,
+          7.0
+        ],
+        "scale": [
+          0.361,
+          0.114,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-02",
+      "name": "Forest stone 3",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          0.34445736,
+          0.075,
+          -3.924914
+        ],
+        "rotation_degrees": [
+          3.0,
+          275.0358,
+          7.0
+        ],
+        "scale": [
+          0.475,
+          0.15,
+          0.25
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-03",
+      "name": "Forest stone 4",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          2.835325,
+          0.093,
+          3.6981795
+        ],
+        "rotation_degrees": [
+          3.0,
+          412.55368,
+          7.0
+        ],
+        "scale": [
+          0.589,
+          0.186,
+          0.31
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-04",
+      "name": "Forest stone 5",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -5.2977586,
+          0.039,
+          -0.9370989
+        ],
+        "rotation_degrees": [
+          3.0,
+          550.0716,
+          7.0
+        ],
+        "scale": [
+          0.247,
+          0.078,
+          0.13
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-05",
+      "name": "Forest stone 6",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          5.1469073,
+          0.057,
+          -3.2740412
+        ],
+        "rotation_degrees": [
+          3.0,
+          687.5895,
+          7.0
+        ],
+        "scale": [
+          0.361,
+          0.114,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-06",
+      "name": "Forest stone 7",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -0.6490108,
+          0.075,
+          2.4142876
+        ],
+        "rotation_degrees": [
+          3.0,
+          825.10736,
+          7.0
+        ],
+        "scale": [
+          0.475,
+          0.15,
+          0.25
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-07",
+      "name": "Forest stone 8",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -1.4841206,
+          0.093,
+          -2.857584
+        ],
+        "rotation_degrees": [
+          3.0,
+          962.62524,
+          7.0
+        ],
+        "scale": [
+          0.589,
+          0.186,
+          0.31
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-08",
+      "name": "Forest stone 9",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          3.7009258,
+          0.039,
+          1.3515722
+        ],
+        "rotation_degrees": [
+          3.0,
+          1100.1432,
+          7.0
+        ],
+        "scale": [
+          0.247,
+          0.078,
+          0.13
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-09",
+      "name": "Forest stone 10",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -4.3074503,
+          0.057,
+          1.7780528
+        ],
+        "rotation_degrees": [
+          3.0,
+          1237.661,
+          7.0
+        ],
+        "scale": [
+          0.361,
+          0.114,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-10",
+      "name": "Forest stone 11",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          2.2802916,
+          0.075,
+          -4.8728504
+        ],
+        "rotation_degrees": [
+          3.0,
+          1375.179,
+          7.0
+        ],
+        "scale": [
+          0.475,
+          0.15,
+          0.25
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-11",
+      "name": "Forest stone 12",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          1.8256315,
+          0.093,
+          5.820401
+        ],
+        "rotation_degrees": [
+          3.0,
+          1512.6968,
+          7.0
+        ],
+        "scale": [
+          0.589,
+          0.186,
+          0.31
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-12",
+      "name": "Forest stone 13",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -2.163028,
+          0.039,
+          -1.2535189
+        ],
+        "rotation_degrees": [
+          3.0,
+          1650.2147,
+          7.0
+        ],
+        "scale": [
+          0.247,
+          0.078,
+          0.13
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-13",
+      "name": "Forest stone 14",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          3.144896,
+          0.057,
+          -0.69139653
+        ],
+        "rotation_degrees": [
+          3.0,
+          1787.7327,
+          7.0
+        ],
+        "scale": [
+          0.361,
+          0.114,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-14",
+      "name": "Forest stone 15",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -2.26601,
+          0.075,
+          3.223166
+        ],
+        "rotation_degrees": [
+          3.0,
+          1925.2505,
+          7.0
+        ],
+        "scale": [
+          0.475,
+          0.15,
+          0.25
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-15",
+      "name": "Forest stone 16",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -0.5988598,
+          0.093,
+          -4.62136
+        ],
+        "rotation_degrees": [
+          3.0,
+          2062.7683,
+          7.0
+        ],
+        "scale": [
+          0.589,
+          0.186,
+          0.31
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-16",
+      "name": "Forest stone 17",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          4.1138115,
+          0.039,
+          3.4671247
+        ],
+        "rotation_degrees": [
+          3.0,
+          2200.2864,
+          7.0
+        ],
+        "scale": [
+          0.247,
+          0.078,
+          0.13
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-17",
+      "name": "Forest stone 18",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -6.094791,
+          0.057,
+          0.25203872
+        ],
+        "rotation_degrees": [
+          3.0,
+          2337.8042,
+          7.0
+        ],
+        "scale": [
+          0.361,
+          0.114,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-18",
+      "name": "Forest stone 19",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          1.7720735,
+          0.075,
+          -1.7634498
+        ],
+        "rotation_degrees": [
+          3.0,
+          2475.322,
+          7.0
+        ],
+        "scale": [
+          0.475,
+          0.15,
+          0.25
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-19",
+      "name": "Forest stone 20",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -0.14873648,
+          0.093,
+          3.216563
+        ],
+        "rotation_degrees": [
+          3.0,
+          2612.84,
+          7.0
+        ],
+        "scale": [
+          0.589,
+          0.186,
+          0.31
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-20",
+      "name": "Forest stone 21",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -2.524394,
+          0.039,
+          -3.0250678
+        ],
+        "rotation_degrees": [
+          3.0,
+          2750.358,
+          7.0
+        ],
+        "scale": [
+          0.247,
+          0.078,
+          0.13
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "scatter-21",
+      "name": "Forest stone 22",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          4.6183834,
+          0.057,
+          0.621397
+        ],
+        "rotation_degrees": [
+          3.0,
+          2887.8757,
+          7.0
+        ],
+        "scale": [
+          0.361,
+          0.114,
+          0.19
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.15,
+          0.145
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-00",
+      "name": "Cubic pine 1",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -6.0,
+          0.0,
+          -4.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-00-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-00",
+      "transform": {
+        "translation": [
+          0.0,
+          2.73,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          5.46,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-00-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-00",
+      "transform": {
+        "translation": [
+          0.0,
+          3.12,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          1.95,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-00-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-00",
+      "transform": {
+        "translation": [
+          0.0,
+          4.42,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          1.95,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-00-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-00",
+      "transform": {
+        "translation": [
+          0.0,
+          5.72,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          1.95,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-01",
+      "name": "Cubic pine 2",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -3.8,
+          0.0,
+          -6.8
+        ],
+        "rotation_degrees": [
+          0.0,
+          31.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-01-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-01",
+      "transform": {
+        "translation": [
+          0.0,
+          3.276,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          6.552,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-01-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-01",
+      "transform": {
+        "translation": [
+          0.0,
+          3.744,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.34,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-01-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-01",
+      "transform": {
+        "translation": [
+          0.0,
+          5.304,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.34,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-01-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-01",
+      "transform": {
+        "translation": [
+          0.0,
+          6.864,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.34,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-02",
+      "name": "Cubic pine 3",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          0.1,
+          0.0,
+          -8.7
+        ],
+        "rotation_degrees": [
+          0.0,
+          62.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-02-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-02",
+      "transform": {
+        "translation": [
+          0.0,
+          3.57,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          7.14,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-02-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-02",
+      "transform": {
+        "translation": [
+          0.0,
+          4.08,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.55,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-02-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-02",
+      "transform": {
+        "translation": [
+          0.0,
+          5.78,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.55,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-02-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-02",
+      "transform": {
+        "translation": [
+          0.0,
+          7.48,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.55,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-03",
+      "name": "Cubic pine 4",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          4.0,
+          0.0,
+          -7.4
+        ],
+        "rotation_degrees": [
+          0.0,
+          3.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-03-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-03",
+      "transform": {
+        "translation": [
+          0.0,
+          2.94,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          5.88,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-03-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-03",
+      "transform": {
+        "translation": [
+          0.0,
+          3.36,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.1,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-03-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-03",
+      "transform": {
+        "translation": [
+          0.0,
+          4.76,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.1,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-03-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-03",
+      "transform": {
+        "translation": [
+          0.0,
+          6.16,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.1,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-04",
+      "name": "Cubic pine 5",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          7.0,
+          0.0,
+          -5.8
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-04-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-04",
+      "transform": {
+        "translation": [
+          0.0,
+          3.486,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          6.972,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-04-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-04",
+      "transform": {
+        "translation": [
+          0.0,
+          3.984,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.49,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-04-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-04",
+      "transform": {
+        "translation": [
+          0.0,
+          5.644,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.49,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-04-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-04",
+      "transform": {
+        "translation": [
+          0.0,
+          7.304,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.49,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-05",
+      "name": "Cubic pine 6",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -8.2,
+          0.0,
+          0.5
+        ],
+        "rotation_degrees": [
+          0.0,
+          65.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-05-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-05",
+      "transform": {
+        "translation": [
+          0.0,
+          3.36,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          6.72,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-05-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-05",
+      "transform": {
+        "translation": [
+          0.0,
+          3.84,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.4,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-05-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-05",
+      "transform": {
+        "translation": [
+          0.0,
+          5.44,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.4,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-05-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-05",
+      "transform": {
+        "translation": [
+          0.0,
+          7.04,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.4,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-06",
+      "name": "Cubic pine 7",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -8.8,
+          0.0,
+          5.1
+        ],
+        "rotation_degrees": [
+          0.0,
+          6.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-06-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-06",
+      "transform": {
+        "translation": [
+          0.0,
+          3.15,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          6.3,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-06-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-06",
+      "transform": {
+        "translation": [
+          0.0,
+          3.6,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.25,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-06-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-06",
+      "transform": {
+        "translation": [
+          0.0,
+          5.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.25,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-06-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-06",
+      "transform": {
+        "translation": [
+          0.0,
+          6.6,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.25,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-07",
+      "name": "Cubic pine 8",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          8.1,
+          0.0,
+          -0.8
+        ],
+        "rotation_degrees": [
+          0.0,
+          37.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-07-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-07",
+      "transform": {
+        "translation": [
+          0.0,
+          2.856,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          5.712,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-07-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-07",
+      "transform": {
+        "translation": [
+          0.0,
+          3.264,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.04,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-07-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-07",
+      "transform": {
+        "translation": [
+          0.0,
+          4.624,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.04,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-07-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-07",
+      "transform": {
+        "translation": [
+          0.0,
+          5.984,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.04,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-08",
+      "name": "Cubic pine 9",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          10.5,
+          0.0,
+          -5.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          68.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-08-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-08",
+      "transform": {
+        "translation": [
+          0.0,
+          3.78,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          7.56,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-08-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-08",
+      "transform": {
+        "translation": [
+          0.0,
+          4.32,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.7,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-08-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-08",
+      "transform": {
+        "translation": [
+          0.0,
+          6.12,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.7,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-08-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-08",
+      "transform": {
+        "translation": [
+          0.0,
+          7.92,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.7,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-09",
+      "name": "Cubic pine 10",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -10.0,
+          0.0,
+          -8.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          9.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-09-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-09",
+      "transform": {
+        "translation": [
+          0.0,
+          3.948,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          7.896,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-09-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-09",
+      "transform": {
+        "translation": [
+          0.0,
+          4.512,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.82,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-09-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-09",
+      "transform": {
+        "translation": [
+          0.0,
+          6.392,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.82,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-09-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-09",
+      "transform": {
+        "translation": [
+          0.0,
+          8.272,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.82,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-10",
+      "name": "Cubic pine 11",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          4.0,
+          0.0,
+          -12.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          40.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-10-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-10",
+      "transform": {
+        "translation": [
+          0.0,
+          3.78,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          7.56,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-10-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-10",
+      "transform": {
+        "translation": [
+          0.0,
+          4.32,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          2.7,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-10-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-10",
+      "transform": {
+        "translation": [
+          0.0,
+          6.12,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          2.7,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-10-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-10",
+      "transform": {
+        "translation": [
+          0.0,
+          7.92,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          2.7,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-11",
+      "name": "Cubic pine 12",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -4.0,
+          0.0,
+          -13.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          71.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-11-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-11",
+      "transform": {
+        "translation": [
+          0.0,
+          4.326,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          8.652,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-11-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-11",
+      "transform": {
+        "translation": [
+          0.0,
+          4.944,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          3.09,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-11-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-11",
+      "transform": {
+        "translation": [
+          0.0,
+          7.004,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          3.09,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-11-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-11",
+      "transform": {
+        "translation": [
+          0.0,
+          9.064,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          3.09,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-12",
+      "name": "Cubic pine 13",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          10.0,
+          0.0,
+          -12.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          12.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-12-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-12",
+      "transform": {
+        "translation": [
+          0.0,
+          4.2,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          8.4,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-12-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-12",
+      "transform": {
+        "translation": [
+          0.0,
+          4.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          3.0,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-12-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-12",
+      "transform": {
+        "translation": [
+          0.0,
+          6.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          3.0,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-12-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-12",
+      "transform": {
+        "translation": [
+          0.0,
+          8.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          3.0,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-13",
+      "name": "Cubic pine 14",
+      "parent": "clearing",
+      "transform": {
+        "translation": [
+          -12.0,
+          0.0,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          43.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-13-trunk",
+      "name": "Pine trunk",
+      "parent": "tree-13",
+      "transform": {
+        "translation": [
+          0.0,
+          4.2,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.48,
+          8.4,
+          0.48
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.072,
+          0.044,
+          0.027
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-13-crown-0",
+      "name": "Pine crown cube",
+      "parent": "tree-13",
+      "transform": {
+        "translation": [
+          0.0,
+          4.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.5,
+          3.0,
+          2.5
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.022,
+          0.047,
+          0.037
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-13-crown-1",
+      "name": "Pine crown cube",
+      "parent": "tree-13",
+      "transform": {
+        "translation": [
+          0.0,
+          6.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          17.0,
+          0.0
+        ],
+        "scale": [
+          1.92,
+          3.0,
+          1.92
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.051,
+          0.04
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "tree-13-crown-2",
+      "name": "Pine crown cube",
+      "parent": "tree-13",
+      "transform": {
+        "translation": [
+          0.0,
+          8.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          34.0,
+          0.0
+        ],
+        "scale": [
+          1.34,
+          3.0,
+          1.34
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.028,
+          0.055,
+          0.043
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "bonfire-ember": {
+      "kind": "prefab",
+      "path": "assets/bonfire/ember.prefab.json"
+    },
+    "bonfire-flame": {
+      "kind": "mesh",
+      "path": "assets/bonfire/flame-cube.gltf"
+    },
+    "bonfire-gold": {
+      "kind": "mesh",
+      "path": "assets/bonfire/gold-cube.gltf"
+    }
+  }
+}

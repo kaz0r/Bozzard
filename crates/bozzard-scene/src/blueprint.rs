@@ -156,9 +156,11 @@ pub enum NodeKind {
     MoveWithCollision,
     Jump,
     Print,
+    SpawnPrefab,
+    DestroyPrefab,
 }
 impl NodeKind {
-    pub const ALL: [Self; 51] = [
+    pub const ALL: [Self; 53] = [
         Self::Object,
         Self::SelfObject,
         Self::ObjectEqual,
@@ -210,6 +212,8 @@ impl NodeKind {
         Self::MoveWithCollision,
         Self::Jump,
         Self::Print,
+        Self::SpawnPrefab,
+        Self::DestroyPrefab,
     ];
     pub fn title(self) -> &'static str {
         match self {
@@ -264,6 +268,8 @@ impl NodeKind {
             Self::MoveWithCollision => "Move With Collision",
             Self::Jump => "Jump",
             Self::Print => "Print Number",
+            Self::SpawnPrefab => "Spawn Prefab",
+            Self::DestroyPrefab => "Destroy Prefab",
         }
     }
     pub fn event(self) -> bool {
@@ -313,6 +319,8 @@ impl NodeKind {
             Self::SetVisible => &[("In", Exec), ("Visible", Bool), ("Target", Object)],
             Self::SetLightIntensity => &[("In", Exec), ("Intensity", Number), ("Target", Object)],
             Self::Jump => &[("In", Exec), ("Speed", Number), ("Target", Object)],
+            Self::SpawnPrefab => &[("In", Exec), ("Position", Vector)],
+            Self::DestroyPrefab => &[("In", Exec), ("Target", Object)],
             _ => &[],
         }
     }
@@ -328,6 +336,7 @@ impl NodeKind {
         use PinType::*;
         match self {
             Self::BodyEnter | Self::BodyExit => &[("Then", Exec), ("Other", Object)],
+            Self::SpawnPrefab => &[("Then", Exec), ("Instance", Object)],
             Self::Object | Self::SelfObject => &[("Value", Object)],
             Self::ObjectEqual | Self::IsValidObject => &[("Value", Bool)],
             Self::Branch => &[("True", Exec), ("False", Exec)],
@@ -354,6 +363,8 @@ impl NodeKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, from = "StoredNode")]
 pub struct Node {
+    #[serde(default)]
+    pub prefab: String,
     pub id: u32,
     pub position: [f32; 2],
     pub kind: NodeKind,
@@ -366,6 +377,8 @@ pub struct Node {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredNode {
+    #[serde(default)]
+    prefab: String,
     id: u32,
     position: [f32; 2],
     kind: NodeKind,
@@ -383,6 +396,7 @@ impl From<StoredNode> for Node {
             n.inputs.push(Value::Object(ObjectRef::SelfObject));
         }
         Self {
+            prefab: n.prefab,
             id: n.id,
             position: n.position,
             kind: n.kind,
@@ -398,6 +412,7 @@ fn jump_key() -> InputKey {
 impl Node {
     pub fn new(id: u32, kind: NodeKind, position: [f32; 2]) -> Self {
         Self {
+            prefab: String::new(),
             id,
             position,
             kind,
@@ -531,6 +546,7 @@ impl Blueprint {
                 "invalid inputs on node {}",
                 n.id
             );
+            ensure!(n.prefab.len() <= 256, "prefab asset ID too long");
             ensure!(n.variable.len() <= 64, "variable name too long");
             if matches!(n.kind, NodeKind::GetVariable | NodeKind::SetVariable) {
                 ensure!(
@@ -631,6 +647,9 @@ impl Blueprint {
     }
     /// Portable graph imports must be rebound rather than accidentally targeting matching IDs.
     pub fn clear_object_bindings(&mut self) {
+        for node in &mut self.nodes {
+            node.prefab.clear();
+        }
         for value in self.nodes.iter_mut().flat_map(|n| &mut n.inputs) {
             if matches!(value, Value::Object(ObjectRef::Id(_))) {
                 *value = Value::Object(ObjectRef::None);

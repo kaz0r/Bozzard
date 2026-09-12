@@ -270,6 +270,11 @@ impl World {
             .insert(TypeId::of::<T>(), Box::new(value))
             .map(|old| *old.downcast::<T>().expect("resource type"))
     }
+    pub fn remove_resource<T: Component>(&mut self) -> Option<T> {
+        self.resources
+            .remove(&TypeId::of::<T>())
+            .map(|value| *value.downcast::<T>().expect("resource type"))
+    }
     pub fn resource<T: Component>(&self) -> Option<&T> {
         self.resources.get(&TypeId::of::<T>())?.downcast_ref()
     }

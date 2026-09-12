@@ -36,7 +36,7 @@ fn play_controller_is_selection_independent_and_stop_resets_all_state() {
         let state = play.gameplay().unwrap();
         assert!(state.won);
         assert_eq!(state.collected.len(), 3);
-        let player = play.instance.entity("player").unwrap();
+        let player = play.instance().entity("player").unwrap();
         outcomes.push(*play.app.world.get::<Transform>(player).unwrap());
         assert_eq!(editor.scene(), &original);
         editor.stop_play();
@@ -50,7 +50,7 @@ fn play_controller_is_selection_independent_and_stop_resets_all_state() {
             play.app.world.resource::<GameplayInput>().unwrap().movement,
             [0.0; 2]
         );
-        assert_eq!(play.instance.capture(&play.app.world).unwrap(), original);
+        assert_eq!(play.instance().capture(&play.app.world).unwrap(), original);
         editor.stop_play();
     }
     assert!(outcomes.windows(2).all(|pair| pair[0] == pair[1]));
