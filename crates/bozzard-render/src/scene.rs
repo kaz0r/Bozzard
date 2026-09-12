@@ -11,6 +11,10 @@ mod environment;
 pub use environment::EnvironmentSettings;
 mod bloom;
 pub use bloom::BloomSettings;
+mod optics_settings;
+pub use optics_settings::{AutoExposure, DepthOfField};
+mod auto_exposure;
+mod depth_of_field;
 mod display;
 mod display_settings;
 mod post_process;
@@ -1354,5 +1358,13 @@ impl SceneRenderer {
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())
+    }
+}
+
+impl SceneRenderer {
+    /// Discard eye-adaptation history on a camera cut, scene change, or independent capture.
+    /// The next enabled auto-exposure frame starts from its current metered target.
+    pub fn reset_display_history(&mut self) {
+        self.display.reset_history();
     }
 }

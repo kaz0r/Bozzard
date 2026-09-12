@@ -399,3 +399,62 @@ fn volumetric_graph_controls_are_transient() {
             .enabled
     );
 }
+
+#[test]
+fn focus_and_aperture_graph_controls_preserve_authored_lens() {
+    use bozzard_scene::Layer;
+    let authored = scene(vec![
+        action(K::Start, K::SetFocusDistance, Value::Number(8.)),
+        action(K::Start, K::SetAperture, Value::Number(1.4)),
+    ]);
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    let display = demo.instance().display_at([0.; 3].into(), Layer::ThreeD);
+    assert!(display.depth_of_field.enabled);
+    assert_eq!(display.depth_of_field.focus_distance, 8.);
+    assert_eq!(display.depth_of_field.aperture, 1.4);
+    assert!(
+        !demo
+            .instance()
+            .display_at([0.; 3].into(), Layer::TwoD)
+            .depth_of_field
+            .enabled
+    );
+    assert_eq!(demo.instance().capture(&demo.app.world).unwrap(), authored);
+    for (kind, value) in [(K::SetFocusDistance, 0.), (K::SetAperture, 0.1)] {
+        let source = scene(vec![action(K::Start, kind, Value::Number(value))]);
+        let mut demo = SceneDemo::new(&source).unwrap();
+        demo.app.step();
+        assert!(demo.check_simulation().is_err());
+        assert_eq!(
+            demo.instance().display_at([0.; 3].into(), Layer::ThreeD),
+            source.display
+        );
+    }
+}
+
+#[test]
+fn lens_showcase_racks_focus_and_restarts_from_authored_settings() {
+    let authored =
+        bozzard_scene::Scene::from_json(include_str!("../scenes/lens-lab.json")).unwrap();
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    for _ in 0..120 {
+        demo.app.step();
+        demo.check_simulation().unwrap();
+    }
+    let lens = demo
+        .instance()
+        .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD)
+        .depth_of_field;
+    assert!((9.0..12.0).contains(&lens.focus_distance));
+    let saved = demo.instance().capture(&demo.app.world).unwrap();
+    assert_eq!(saved.display, authored.display);
+    let reset = SceneDemo::new(&saved).unwrap();
+    assert_eq!(
+        reset
+            .instance()
+            .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD),
+        authored.display
+    );
+}

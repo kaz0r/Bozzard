@@ -191,3 +191,75 @@ fn volumetric_defaults_validation_and_volume_blending() {
     );
     assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
 }
+
+#[test]
+fn optics_defaults_validation_roundtrip_and_camera_volumes() {
+    use bozzard_scene::{AutoExposure, DepthOfField};
+    let mut scene = legacy();
+    assert!(!scene.display.depth_of_field.enabled && !scene.display.auto_exposure.enabled);
+    let lens_fields: &[fn(&mut DepthOfField) -> &mut f32] = &[
+        |s| &mut s.focus_distance,
+        |s| &mut s.focal_length_mm,
+        |s| &mut s.aperture,
+        |s| &mut s.max_blur_radius,
+    ];
+    for field in lens_fields {
+        for invalid in [f32::NAN, f32::INFINITY, -1., f32::MAX] {
+            let mut value = DepthOfField::default();
+            *field(&mut value) = invalid;
+            assert!(value.validate().is_err());
+        }
+    }
+    let meter_fields: &[fn(&mut AutoExposure) -> &mut f32] = &[
+        |s| &mut s.strength,
+        |s| &mut s.min_ev,
+        |s| &mut s.max_ev,
+        |s| &mut s.target_gray,
+        |s| &mut s.speed_up,
+        |s| &mut s.speed_down,
+        |s| &mut s.center_weight,
+    ];
+    for field in meter_fields {
+        for invalid in [f32::NAN, f32::INFINITY, f32::MAX] {
+            let mut value = AutoExposure::default();
+            *field(&mut value) = invalid;
+            assert!(value.validate().is_err());
+        }
+    }
+    assert!(
+        AutoExposure {
+            min_ev: 3.,
+            max_ev: 2.,
+            ..Default::default()
+        }
+        .validate()
+        .is_err()
+    );
+    let target = DisplaySettings {
+        depth_of_field: DepthOfField {
+            enabled: true,
+            focus_distance: 10.,
+            max_blur_radius: 24.,
+            ..Default::default()
+        },
+        auto_exposure: AutoExposure {
+            enabled: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    scene.post_process_volumes = vec![PostProcessVolume {
+        half_size: [1.; 3],
+        blend_distance: 2.,
+        display: target,
+        ..Default::default()
+    }];
+    let blended = scene.display_at(Vec3::new(2., 0., 0.));
+    assert_eq!(blended.depth_of_field.max_blur_radius, 12.);
+    assert_eq!(blended.auto_exposure.strength, 0.5);
+    assert_eq!(scene.display_at(Vec3::ZERO), target);
+    assert_eq!(Scene::from_json(&scene.to_json().unwrap()).unwrap(), scene);
+    let mut json = serde_json::to_value(&scene).unwrap();
+    json["display"]["depth_of_field"]["unknown"] = true.into();
+    assert!(Scene::from_json(&json.to_string()).is_err());
+}

@@ -12,6 +12,8 @@ struct DisplaySettings {
 @group(0) @binding(1) var<uniform> settings: DisplaySettings;
 @group(0) @binding(2) var bloom: texture_2d<f32>;
 @group(0) @binding(3) var bloom_sampler: sampler;
+struct ExposureState { multiplier: f32, ev: f32, target_ev: f32, log_luminance: f32 }
+@group(0) @binding(4) var<uniform> exposure: ExposureState;
 @vertex fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
     let p = array<vec2<f32>,3>(vec2<f32>(-1.0,-1.0), vec2<f32>(3.0,-1.0), vec2<f32>(-1.0,3.0));
     return vec4<f32>(p[index],0.0,1.0);
@@ -25,7 +27,7 @@ fn display_color(uv: vec2<f32>) -> vec3<f32> {
         radiance += textureSampleLevel(bloom,bloom_sampler,uv,0.0).rgb*settings.transform.w;
     }
     let balance = exp2(vec3<f32>(settings.grade.x*0.5 + settings.grade.y*0.15, -settings.grade.y*0.3, -settings.grade.x*0.5 + settings.grade.y*0.15));
-    var color = radiance*settings.transform.x*balance;
+    var color = radiance*settings.transform.x*exposure.multiplier*balance;
     if settings.transform.y > 1.5 {
         // Bozzard filmic curve: soft toe/shoulder, normalized at scene-linear white 8.
         // Map luminance first to preserve bright fire/neon hue, then compress into gamut.

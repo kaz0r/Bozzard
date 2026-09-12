@@ -15,6 +15,8 @@ mod environment;
 pub use environment::EnvironmentSettings;
 mod volumetric;
 pub use volumetric::VolumetricFog;
+mod optics;
+pub use optics::{AutoExposure, DepthOfField};
 mod display;
 pub use display::{
     AmbientOcclusion, BloomSettings, ColorGrading, DisplayPreset, DisplaySettings, FilmGrain,

@@ -132,6 +132,22 @@
       "light_intensity": 0.6,
       "ambient": 0.15,
       "steps": 48
+    },
+    "depth_of_field": {
+      "enabled": true,
+      "focus_distance": 4.3,
+      "focal_length_mm": 85.0,
+      "aperture": 1.8,
+      "max_blur_radius": 20.0
+    },
+    "auto_exposure": {
+      "enabled": true,
+      "min_ev": -0.5,
+      "max_ev": 0.4,
+      "target_gray": 0.025,
+      "speed_up": 1.0,
+      "speed_down": 3.0,
+      "center_weight": 0.7
     }
   },
   "lighting": {

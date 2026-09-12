@@ -5,12 +5,13 @@ mod pbr;
 mod scene;
 pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
-    AmbientOcclusion, BloomSettings, ColorGrading, DisplaySettings, DrawItem, EnvironmentSettings,
-    FilmGrain, FogSettings, FrameStats, HeatDistortion, IrradianceVolume, Lighting, LocalLight,
-    LocalShadowSettings, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS,
-    Material, MeshKind, ModelImage, ModelPart, ModelUploadStats, PendingUpload, RenderScene,
-    SceneRenderer, SpotShadowSettings, SurfaceMaterialOverride, TextureKind, ToneMapper,
-    UploadContext, UploadData, UploadProgress, UploadSource, Vignette, VolumetricFog,
+    AmbientOcclusion, AutoExposure, BloomSettings, ColorGrading, DepthOfField, DisplaySettings,
+    DrawItem, EnvironmentSettings, FilmGrain, FogSettings, FrameStats, HeatDistortion,
+    IrradianceVolume, Lighting, LocalLight, LocalShadowSettings, MAX_LOCAL_LIGHTS,
+    MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart,
+    ModelUploadStats, PendingUpload, RenderScene, SceneRenderer, SpotShadowSettings,
+    SurfaceMaterialOverride, TextureKind, ToneMapper, UploadContext, UploadData, UploadProgress,
+    UploadSource, Vignette, VolumetricFog,
 };
 
 use anyhow::{Context, Result, ensure};

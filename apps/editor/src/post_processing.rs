@@ -31,6 +31,12 @@ pub fn controls(ui: &mut egui::Ui, display: &mut DisplaySettings) {
                     ui.selectable_value(&mut display.tone_mapper, ToneMapper::Filmic, "Filmic");
                 });
             });
+            egui::CollapsingHeader::new("Camera focus & bokeh").show(ui, |ui| {
+                lens_controls(ui, &mut display.depth_of_field);
+            });
+            egui::CollapsingHeader::new("Auto exposure").show(ui, |ui| {
+                exposure_controls(ui, &mut display.auto_exposure);
+            });
             egui::CollapsingHeader::new("Color grading").show(ui, |ui| {
                 let grade = &mut display.color_grading;
                 slider(ui, &mut grade.temperature, -1.0..=1.0, "Warmth");
@@ -231,5 +237,61 @@ fn fog_controls(ui: &mut egui::Ui, fog: &mut bozzard_scene::VolumetricFog) {
         ui.add(egui::Slider::new(&mut fog.steps, 16..=96).text("Ray steps"));
         ui.weak("Scene lights illuminate the haze. Enable their shadows to cast light shafts.");
         ui.weak("Play animates the wind.");
+    });
+}
+
+fn lens_controls(ui: &mut egui::Ui, lens: &mut bozzard_scene::DepthOfField) {
+    ui.checkbox(&mut lens.enabled, "Depth of field");
+    ui.add_enabled_ui(lens.enabled, |ui| {
+        ui.add(
+            egui::Slider::new(&mut lens.focus_distance, 0.5..=1000.0)
+                .logarithmic(true)
+                .text("Focus distance"),
+        );
+        slider(ui, &mut lens.focal_length_mm, 10.0..=200.0, "Lens mm");
+        ui.add(
+            egui::Slider::new(&mut lens.aperture, 0.7..=32.0)
+                .logarithmic(true)
+                .text("Aperture f-stop"),
+        );
+        slider(ui, &mut lens.max_blur_radius, 0.0..=32.0, "Maximum blur");
+        ui.weak("Lower f-stops and longer lenses give softer backgrounds.");
+        ui.weak(
+            "Focus distance starts at the camera near plane. Lens mm changes blur, not framing.",
+        );
+    });
+}
+fn exposure_controls(ui: &mut egui::Ui, exposure: &mut bozzard_scene::AutoExposure) {
+    ui.checkbox(&mut exposure.enabled, "Eye adaptation");
+    ui.add_enabled_ui(exposure.enabled, |ui| {
+        slider(ui, &mut exposure.strength, 0.0..=1.0, "Adaptation strength");
+        slider(
+            ui,
+            &mut exposure.min_ev,
+            -16.0..=exposure.max_ev,
+            "Minimum EV",
+        );
+        slider(
+            ui,
+            &mut exposure.max_ev,
+            exposure.min_ev..=16.0,
+            "Maximum EV",
+        );
+        slider(
+            ui,
+            &mut exposure.target_gray,
+            0.01..=0.5,
+            "Target brightness",
+        );
+        slider(ui, &mut exposure.speed_up, 0.01..=20.0, "Brighten speed");
+        slider(ui, &mut exposure.speed_down, 0.01..=20.0, "Darken speed");
+        slider(
+            ui,
+            &mut exposure.center_weight,
+            0.0..=1.0,
+            "Center weighting",
+        );
+        ui.weak("Exposure EV adds compensation. Limits preserve the scene's mood.");
+        ui.weak("Play adapts gradually; edit previews meter immediately.");
     });
 }

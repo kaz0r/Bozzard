@@ -49,3 +49,5 @@ The CPU check reports tick cost and, on Linux, resident memory over 40 simulated
 Isolated root transform edits validate only that object's matrix; they cannot affect another object's composition. Parent/child edits still validate the full hierarchy and roll back invalid changes. This avoids rebuilding every scene transform for every ember's movement and shrink action. The debug-build CPU soak measured approximately **14 ms → 2 ms per tick** on the development machine; timings depend on hardware/build and do not measure GPU frame time.
 
 The scene also showcases the [post-processing stack](post-processing.md). Scene Settings exposes each effect and named presets; Play animates shimmer, grain, and the [volumetric haze](volumetrics.md). The authored exposure and bloom threshold remain tuned for this dark clearing.
+
+The [camera effects](camera-effects.md) keep the fire near the focal plane while nearby stones and distant trees soften. Eye adaptation is limited to −0.5…0.4 EV with a dark metering target, preserving the clearing's mood. Tune these under **Camera focus & bokeh** and **Auto exposure** in Post Processing.

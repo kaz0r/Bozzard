@@ -1,5 +1,6 @@
 use super::BloomSettings;
 use super::VolumetricFog;
+use super::{AutoExposure, DepthOfField};
 use anyhow::{Result, ensure};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -13,6 +14,8 @@ pub struct DisplaySettings {
     pub heat_distortion: HeatDistortion,
     pub grain: FilmGrain,
     pub vignette: Vignette,
+    pub depth_of_field: DepthOfField,
+    pub auto_exposure: AutoExposure,
     pub volumetric_fog: VolumetricFog,
     /// Stops applied to HDR radiance before display mapping. +1 doubles exposure.
     pub exposure_ev: f32,
@@ -30,6 +33,8 @@ impl Default for DisplaySettings {
             heat_distortion: HeatDistortion::default(),
             grain: FilmGrain::default(),
             vignette: Vignette::default(),
+            depth_of_field: DepthOfField::default(),
+            auto_exposure: AutoExposure::default(),
             volumetric_fog: VolumetricFog::default(),
             exposure_ev: 0.,
             tone_mapping: true,
@@ -46,6 +51,8 @@ impl DisplaySettings {
         self.grain.validate()?;
         self.vignette.validate()?;
         self.volumetric_fog.validate()?;
+        self.depth_of_field.validate()?;
+        self.auto_exposure.validate()?;
         ensure!(
             self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
             "exposure must be finite and within -16..16 stops"

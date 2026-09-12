@@ -9,6 +9,9 @@ fn post_processing_history_save_play_and_2d_isolation() {
     for preset in [DisplayPreset::Cinematic, DisplayPreset::Bonfire] {
         let mut scene = editor.scene().clone();
         scene.display = DisplaySettings::preset(preset);
+        scene.display.depth_of_field.enabled = true;
+        scene.display.auto_exposure.enabled = true;
+        scene.display.depth_of_field.focus_distance = 8.;
         scene.post_process_volumes = vec![PostProcessVolume {
             center: [1000.; 3],
             ..Default::default()
@@ -21,6 +24,8 @@ fn post_processing_history_save_play_and_2d_isolation() {
     assert_eq!(view.display.tone_mapper, bozzard_render::ToneMapper::Filmic);
     assert!(view.display.heat_distortion.enabled && view.display.ambient_occlusion.enabled);
     assert!(view.display.volumetric_fog.enabled);
+    assert!(view.display.depth_of_field.enabled && view.display.auto_exposure.enabled);
+    assert_eq!(view.display.depth_of_field.focus_distance, 8.);
     assert_eq!(
         editor.render(Layer::TwoD, 1.).unwrap().display,
         bozzard_render::DisplaySettings {

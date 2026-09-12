@@ -1,4 +1,5 @@
 use crate::VolumetricFog;
+use crate::{AutoExposure, DepthOfField};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +13,8 @@ pub struct DisplaySettings {
     pub heat_distortion: HeatDistortion,
     pub grain: FilmGrain,
     pub vignette: Vignette,
+    pub depth_of_field: DepthOfField,
+    pub auto_exposure: AutoExposure,
     pub volumetric_fog: VolumetricFog,
     /// Stops applied to HDR radiance before display mapping. +1 doubles exposure.
     pub exposure_ev: f32,
@@ -28,6 +31,8 @@ impl Default for DisplaySettings {
             heat_distortion: HeatDistortion::default(),
             grain: FilmGrain::default(),
             vignette: Vignette::default(),
+            depth_of_field: DepthOfField::default(),
+            auto_exposure: AutoExposure::default(),
             volumetric_fog: VolumetricFog::default(),
             exposure_ev: 0.,
             tone_mapping: true,
@@ -43,6 +48,8 @@ impl DisplaySettings {
         self.grain.validate()?;
         self.vignette.validate()?;
         self.volumetric_fog.validate()?;
+        self.depth_of_field.validate()?;
+        self.auto_exposure.validate()?;
         ensure!(
             self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
             "exposure must be finite and within -16..16 stops"
@@ -344,6 +351,8 @@ impl DisplaySettings {
         let rgb = |a: [f32; 3], b: [f32; 3]| std::array::from_fn(|i| mix(a[i], b[i]));
         let strength = |enabled, value| if enabled { value } else { 0. };
         Self {
+            depth_of_field: self.depth_of_field.blend(other.depth_of_field, t),
+            auto_exposure: self.auto_exposure.blend(other.auto_exposure, t),
             volumetric_fog: self.volumetric_fog.blend(other.volumetric_fog, t),
             exposure_ev: mix(self.exposure_ev, other.exposure_ev),
             tone_mapping: if t < 0.5 {
@@ -497,6 +506,8 @@ pub(crate) struct DisplayOverrides {
     pub heat: Option<f32>,
     pub grain: Option<f32>,
     pub vignette: Option<f32>,
+    pub focus_distance: Option<f32>,
+    pub aperture: Option<f32>,
     pub fog_density: Option<f32>,
     pub fog_light: Option<f32>,
 }
@@ -521,6 +532,13 @@ impl DisplayOverrides {
         }
         if let Some(value) = self.vignette {
             display.vignette.intensity = value;
+        }
+        if let Some(value) = self.focus_distance {
+            display.depth_of_field.enabled = true;
+            display.depth_of_field.focus_distance = value;
+        }
+        if let Some(value) = self.aperture {
+            display.depth_of_field.aperture = value;
         }
         if let Some(value) = self.fog_density {
             display.volumetric_fog.enabled = true;
@@ -567,6 +585,8 @@ impl crate::SceneInstance {
         use crate::blueprint::NodeKind as K;
         let mut next = self.display_overrides.clone();
         match kind {
+            K::SetFocusDistance => next.focus_distance = Some(value),
+            K::SetAperture => next.aperture = Some(value),
             K::SetFogDensity => next.fog_density = Some(value),
             K::SetFogLightIntensity => next.fog_light = Some(value),
             K::SetExposure => next.exposure = Some(value),

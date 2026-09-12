@@ -408,7 +408,9 @@ impl SceneInstance {
                                                 BlueprintHidden(!value.boolean()?),
                                             )?;
                                         }
-                                        K::SetFogDensity
+                                        K::SetFocusDistance
+                                        | K::SetAperture
+                                        | K::SetFogDensity
                                         | K::SetFogLightIntensity
                                         | K::SetExposure
                                         | K::SetBloomIntensity

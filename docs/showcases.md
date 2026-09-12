@@ -47,6 +47,10 @@ Bloom and FXAA run in the shared display path; raw diagnostics bypass them.
 
 Open `examples/demo/scenes/light-shafts-lab.json` for warm, shadowed beams entering a stone room through tall windows. Play moves the density field. Use **Scene Settings → Post Processing → Volumetric fog & light shafts** to tune it; see [volumetric fog](volumetrics.md) for controls and limitations.
 
+## Lens Lab
+
+Open `examples/demo/scenes/lens-lab.json` for a gold sculpture against rows of distant warm lights. Play slowly shifts focus between the sculpture and lights using a Blueprint. The scene also uses bounded eye adaptation; see [camera effects](camera-effects.md) for controls and rendering details.
+
 ## Fog
 
 Open **Scene Settings → Fog (3D)**. Distance density controls

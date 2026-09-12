@@ -4,6 +4,8 @@ pub(super) struct Display {
     bloom: bloom::Bloom,
     post: post_process::PostProcess,
     volume: Option<volumetric::Volumetric>,
+    dof: Option<depth_of_field::Dof>,
+    exposure: auto_exposure::Exposure,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     target: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
@@ -54,6 +56,8 @@ impl Display {
             bloom: bloom::Bloom::new(gpu),
             post: post_process::PostProcess::new(gpu),
             volume: None,
+            dof: None,
+            exposure: auto_exposure::Exposure::new(gpu),
             pipeline,
             uniform,
             target: None,
@@ -117,6 +121,26 @@ impl Display {
             .volume
             .as_ref()
             .and_then(|v| v.output())
+            .unwrap_or(source);
+        self.exposure
+            .prepare(gpu, source, settings, raw, source_changed);
+        if !raw
+            && settings.depth_of_field.enabled
+            && settings.depth_of_field.max_blur_radius > 0.
+            && self.dof.is_none()
+        {
+            self.dof = Some(depth_of_field::Dof::new(gpu));
+        }
+        let dof_changed = if let Some(dof) = &mut self.dof {
+            dof.prepare(gpu, source, settings.depth_of_field, &frame, source_changed)?
+        } else {
+            false
+        };
+        let source_changed = source_changed || dof_changed;
+        let source = self
+            .dof
+            .as_ref()
+            .and_then(|dof| dof.output())
             .unwrap_or(source);
         if source_changed {
             self.bloom.invalidate();
@@ -203,11 +227,18 @@ impl Display {
                     resource: wgpu::BindingResource::TextureView(self.bloom.output()),
                 },
                 wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.exposure.state.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Sampler(&self.bloom.sampler),
                 },
             ],
         })
+    }
+    pub fn reset_history(&mut self) {
+        self.exposure.reset();
     }
     pub fn hdr(&self) -> &wgpu::TextureView {
         &self.target.as_ref().unwrap().0
@@ -221,6 +252,10 @@ impl Display {
         self.post.draw(encoder);
         if let Some(volume) = &self.volume {
             volume.draw(encoder, shadows);
+        }
+        self.exposure.draw(encoder);
+        if let Some(dof) = &self.dof {
+            dof.draw(encoder);
         }
         self.bloom.draw(encoder);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

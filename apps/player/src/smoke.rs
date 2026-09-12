@@ -35,6 +35,7 @@ fn capture_display(
     scene: &RenderScene,
     size: [u32; 2],
 ) -> Result<Frame> {
+    renderer.reset_display_history();
     capture_offscreen(gpu, size[0], size[1], |view| {
         renderer.draw(gpu, view, size, scene)
     })
@@ -649,6 +650,13 @@ fn check_document(
         initial.write_ppm(&options.output.join(format!("{prefix}-{label}.ppm")))?;
         if layer == Layer::ThreeD && prefix == "loaded" {
             let mut before = extract(&demo, assets, layer, aspect)?;
+            if before.display.depth_of_field.enabled || before.display.auto_exposure.enabled {
+                let mut before_optics = extract(&demo, assets, layer, aspect)?;
+                before_optics.display.depth_of_field.enabled = false;
+                before_optics.display.auto_exposure.enabled = false;
+                capture_display(gpu, renderer, &before_optics, size)?
+                    .write_ppm(&options.output.join("loaded-3d-before-optics.ppm"))?;
+            }
             if before.display.volumetric_fog.enabled {
                 before.display.volumetric_fog.enabled = false;
                 capture_display(gpu, renderer, &before, size)?
@@ -700,11 +708,17 @@ fn check_document(
             ensure!(initial.rgba != moved.rgba, "{label} scene did not animate");
         }
         let saved = demo.instance().capture(&demo.app.world)?;
+        ensure!(
+            saved.display == document.display
+                && saved.post_process_volumes == document.post_process_volumes,
+            "runtime display overrides leaked into scene saving"
+        );
         let restored = SceneDemo::new(&Scene::from_json(&saved.to_json()?)?)?;
         let mut restored_scene = extract(&restored, assets, layer, aspect)?;
-        // Grain and shimmer use runtime time, which is intentionally not serialized.
-        // Compare save/reload at the same visual phase.
-        restored_scene.display.time_seconds = moved_scene.display.time_seconds;
+        // Time and Blueprint lens/display overrides are intentionally not serialized.
+        // Freeze the same transient look for the geometry/material image comparison;
+        // the assertion above separately verifies that the authored look was saved.
+        restored_scene.display = moved_scene.display;
         let reloaded = capture_display(gpu, renderer, &restored_scene, size)?;
         ensure!(
             moved.rgba == reloaded.rgba,

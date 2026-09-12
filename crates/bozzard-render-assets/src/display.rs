@@ -12,6 +12,23 @@ pub fn display_settings(
         };
     }
     r::DisplaySettings {
+        depth_of_field: r::DepthOfField {
+            enabled: source.depth_of_field.enabled,
+            focus_distance: source.depth_of_field.focus_distance,
+            focal_length_mm: source.depth_of_field.focal_length_mm,
+            aperture: source.depth_of_field.aperture,
+            max_blur_radius: source.depth_of_field.max_blur_radius,
+        },
+        auto_exposure: r::AutoExposure {
+            enabled: source.auto_exposure.enabled,
+            strength: source.auto_exposure.strength,
+            min_ev: source.auto_exposure.min_ev,
+            max_ev: source.auto_exposure.max_ev,
+            target_gray: source.auto_exposure.target_gray,
+            speed_up: source.auto_exposure.speed_up,
+            speed_down: source.auto_exposure.speed_down,
+            center_weight: source.auto_exposure.center_weight,
+        },
         volumetric_fog: r::VolumetricFog {
             enabled: source.volumetric_fog.enabled,
             density: source.volumetric_fog.density,
