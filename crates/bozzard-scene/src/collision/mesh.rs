@@ -1,7 +1,7 @@
 //! Cooked, two-sided triangle surfaces. Box movers retain the existing kinematic response.
 use super::*;
 use crate::bvh::TriangleBvh;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Immutable geometry/BVH shared by scene snapshots, prefab instances and the ECS.
 #[derive(Clone, Debug)]
@@ -10,6 +10,7 @@ pub struct TriangleMesh(Arc<MeshData>);
 struct MeshData {
     triangles: Vec<[[f32; 3]; 3]>,
     tree: TriangleBvh,
+    hull: OnceLock<std::result::Result<TriangleMesh, String>>,
 }
 impl PartialEq for TriangleMesh {
     fn eq(&self, other: &Self) -> bool {
@@ -79,7 +80,23 @@ impl TriangleMesh {
             })
             .collect();
         let tree = TriangleBvh::build(bounds, &|| Ok(()))?;
-        Ok(Self(Arc::new(MeshData { triangles, tree })))
+        Ok(Self(Arc::new(MeshData {
+            triangles,
+            tree,
+            hull: OnceLock::new(),
+        })))
+    }
+    /// Dynamic bodies use a cached convex envelope; static meshes retain their holes.
+    pub fn convex_hull(&self) -> Result<Self> {
+        self.0.hull.get_or_init(|| {
+            let points: Vec<_> = self.triangles().iter().flatten().map(|p| Vec3::from_array(*p)).collect();
+            let shape = rapier3d::prelude::SharedShape::convex_hull(&points)
+                .ok_or_else(|| "Rigidbody Mesh Collider needs a non-flat, three-dimensional convex hull".to_owned())?;
+            let mass = shape.mass_properties(1.0).mass();
+            if !mass.is_finite() || mass <= 1e-12 { return Err("Rigidbody Mesh Collider needs nonzero volume; use a Box Collider for flat surfaces".into()); }
+            let (points, indices) = shape.as_convex_polyhedron().unwrap().to_trimesh();
+            TriangleMesh::new(indices.iter().map(|i| i.map(|j| points[j as usize].to_array())).collect()).map_err(|e| e.to_string())
+        }).clone().map_err(anyhow::Error::msg)
     }
     pub fn triangles(&self) -> &[[[f32; 3]; 3]] {
         &self.0.triangles
@@ -121,6 +138,7 @@ pub struct CollisionMesh {
     pub entity: Entity,
     pub mesh: TriangleMesh,
     pub matrix: Mat4,
+    pub solid: bool,
 }
 impl CollisionMesh {
     /// Broad phase in local space, narrow phase in f64 world space (including scale/shear).
@@ -158,9 +176,38 @@ impl CollisionMesh {
                 hit = true;
             }
         });
-        hit
+        hit || self.containment(a).is_some()
+    }
+    fn containment(&self, a: &CollisionBox) -> Option<(f64, DVec3)> {
+        if !self.solid {
+            return None;
+        }
+        let matrix = self.matrix.as_dmat4();
+        let inverse = matrix.inverse();
+        let center = inverse.transform_point3(a.center);
+        let mut best = (f64::INFINITY, DVec3::ZERO);
+        for t in self.mesh.triangles() {
+            let [p, q, r] = t.map(|p| Vec3::from_array(p).as_dvec3());
+            let local_normal = (q - p).cross(r - p).normalize();
+            if local_normal.dot(center - p) > 1e-9 {
+                return None;
+            }
+            let normal = inverse
+                .transpose()
+                .transform_vector3(local_normal)
+                .normalize();
+            let radius = a.edges.iter().map(|e| e.dot(normal).abs()).sum::<f64>();
+            let depth = radius - (a.center - matrix.transform_point3(p)).dot(normal);
+            if depth < best.0 {
+                best = (depth, normal);
+            }
+        }
+        Some(best)
     }
     pub(crate) fn penetration(&self, a: &CollisionBox) -> Option<(f64, DVec3)> {
+        if let Some(hit) = self.containment(a) {
+            return Some(hit);
+        }
         let mut deepest = None;
         self.candidates(a, DVec3::ZERO, |t| {
             let mut best = (f64::INFINITY, DVec3::ZERO);

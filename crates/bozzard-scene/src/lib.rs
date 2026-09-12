@@ -35,6 +35,7 @@ mod prefab;
 pub use prefab::{Prefab, PrefabInstance};
 pub mod bvh;
 mod gravity;
+mod physics;
 pub use collision::{
     BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, MeshCollider, MoveResult,
     TriangleMesh,
@@ -459,8 +460,8 @@ impl Scene {
             if let Some(gravity) = object.gravity {
                 gravity.validate()?;
                 ensure!(
-                    !gravity.enabled || object.collider.is_some(),
-                    "gravity needs a box collider on '{}'",
+                    !gravity.enabled || object.collider.is_some() || object.mesh_collider.is_some(),
+                    "Rigidbody needs a Box or Mesh Collider on '{}'",
                     object.id
                 );
             }
@@ -470,10 +471,9 @@ impl Scene {
             if object.mesh_collider.is_some() {
                 ensure!(
                     object.collider.is_none()
-                        && object.gravity.is_none()
                         && object.player_controller.is_none()
                         && object.trigger.is_none(),
-                    "Mesh Collider is a static triangle surface; remove Box Collider, Rigidbody, Player Controller and Trigger on '{}' first",
+                    "Mesh Collider cannot also have Box Collider, Player Controller or Trigger on '{}'",
                     object.id
                 );
             }
@@ -625,6 +625,20 @@ impl Scene {
                 .map(|p| matrices[p.as_str()])
                 .unwrap_or(Mat4::IDENTITY);
             let global = parent * object.transform.matrix();
+            if object.collider.is_some_and(|c| c.enabled)
+                || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+            {
+                let mut ancestor = object.parent.as_deref();
+                while let Some(id) = ancestor {
+                    let body = &self.objects[ids[id]];
+                    ensure!(
+                        !body.gravity.is_some_and(|g| g.enabled),
+                        "Rigidbody '{id}' cannot carry a colliding descendant '{}'; use one collider per body",
+                        object.id
+                    );
+                    ancestor = body.parent.as_deref();
+                }
+            }
             ensure!(
                 global.is_finite() && global.inverse().is_finite(),
                 "invalid composed transform on '{}'",
@@ -635,6 +649,13 @@ impl Scene {
             }
             if let Some(collider) = &object.mesh_collider {
                 collider.geometry(global)?;
+                if object.gravity.is_some_and(|g| g.enabled) {
+                    collider.mesh.convex_hull()?;
+                }
+            }
+            if object.gravity.is_some_and(|g| g.enabled) && object.player_controller.is_none() {
+                physics::parent_pose(parent)
+                    .with_context(|| format!("Rigidbody '{}'", object.id))?;
             }
             if let Some(trigger) = &object.trigger {
                 trigger.volume.geometry(global)?;

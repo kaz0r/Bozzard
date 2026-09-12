@@ -9,7 +9,7 @@
 
 A native 2D/3D game engine in Rust, with our own ECS and WebGPU rendering through `wgpu`. No Bevy dependencies.
 
-The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth, authored sun/ambient lighting, optional point/spot lights, baked diffuse GI, scene save/load, and a first native editor. PNG/JPEG textures and static OBJ/glTF/GLB models can be imported and reloaded while running, including base-color materials and transparency. The first playable third-person demo adds an authored controller, follow camera, kinematic box movement/jumping and simple trigger interactions. It is not yet a game exporter; full physics, audio, and networking remain future milestones.
+The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth, authored sun/ambient lighting, optional point/spot lights, baked diffuse GI, scene save/load, and a first native editor. PNG/JPEG textures and static OBJ/glTF/GLB models can be imported and reloaded while running, including base-color materials and transparency. The first playable third-person demo adds an authored controller, follow camera, kinematic box movement/jumping and simple trigger interactions. It is not yet a game exporter; audio and networking remain future milestones. Rigidbody physics uses Rapier, including angular response and convex mesh bodies.
 
 ## Run
 
@@ -133,9 +133,9 @@ Shortcuts: Cmd/Ctrl+S save, Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z redo, Cmd/Ctrl+D d
 
 ### 3D box colliders
 
-Objects may have an optional `BoxCollider` with a local-space center, full local dimensions, and an enabled flag. The inspector adds or removes the component and edits these values; the box follows the object's complete parent transform, including rotation, nonuniform or mirrored scale, and shear. Collision detection is discrete: touching counts as overlap. `SceneInstance::collisions(&World)` is available headlessly and returns sorted, unique overlap pairs by object ID. `SceneInstance::move_box(&mut World, id, world_delta)` sweeps one box through enabled boxes and static triangle Mesh Colliders, stops and slides on contact, and reports the requested and applied motion plus contacts in `MoveResult`; the world delta is converted into the moving object's parent-local space. Rotation sweeps, dynamic rigid-body impulses, and pushing are not included.
+Objects may have an optional `BoxCollider` with a local-space center, full local dimensions, and an enabled flag. The inspector adds or removes the component and edits these values; the box follows the object's complete parent transform, including rotation, nonuniform or mirrored scale, and shear. Collision detection is discrete: touching counts as overlap. `SceneInstance::collisions(&World)` is available headlessly and returns sorted, unique overlap pairs by object ID. `SceneInstance::move_box(&mut World, id, world_delta)` sweeps one box through enabled boxes and static triangle Mesh Colliders, stops and slides on contact, and reports the requested and applied motion plus contacts in `MoveResult`; the world delta is converted into the moving object's parent-local space. This box-mover API remains kinematic; Rigidbody uses Rapier separately for angular dynamics and collision impulses.
 
-Use **Add Component → Mesh Collider** to bake actual triangles from a mesh or imported surface. It is an optional static component; moving bodies still use Box Collider + Rigidbody. See [Mesh Collider setup, rebuild workflow and limits](docs/mesh-colliders.md).
+Use **Add Component → Mesh Collider** to bake actual triangles from a mesh or imported surface. Without Rigidbody it is static triangle geometry; with Rigidbody it becomes a dynamic convex hull. See [Mesh Collider setup, rebuild workflow and limits](docs/mesh-colliders.md).
 
 Enable **Colliders** in the 3D viewport to see cyan wire boxes and green mesh guides; overlapping boxes turn orange and the overlay lists pairs. These debugging wires show through scene geometry. The default demo includes colliders on the hero cube, coral cube, and floor.
 
@@ -221,11 +221,11 @@ Local Metal checks have passed on an Apple M2 Pro. The foundation matrix has pas
 
 Open `examples/demo/scenes/gravity-lab.json`, select **Falling Box**, and press **Play**. The box falls onto the floor; use WASD over the viewport to move it off an edge. Stop restores the authored scene.
 
-The inspector's **Gravity** component adds a box collider when needed, with positive world-down acceleration and a maximum fall speed. Play displays Grounded/Falling. Gravity runs at the shared fixed simulation timestep in editor, player and headless server. Disabling gravity or its collider resets fall velocity; Space/Ctrl vertical movement is available only without enabled gravity. Configuration saves with the scene; velocity and grounding reset on spawn.
+The inspector's **Rigidbody** component adds a box collider only when no Box/Mesh Collider exists, with positive world-down acceleration and a maximum fall speed. Play displays Grounded/Falling. Gravity runs at the shared fixed simulation timestep in editor, player and headless server. Disabling gravity or its collider resets fall velocity; Space/Ctrl vertical movement is available only without enabled gravity. Configuration saves with the scene; velocity and grounding reset on spawn.
 
-This is kinematic box gravity, with no dynamic pushing or rigidbody simulation. Bodies step sequentially in object-ID order. `SceneDemo::check_simulation()` surfaces simulation failures; built-in applications check it.
+Non-player bodies use Rapier for angular dynamics, friction, impulses, CCD and sleeping; tilted boxes can topple and settle. Player Controllers retain kinematic gravity. See [Rigidbody settings and mesh/parenting limits](docs/mesh-colliders.md). `SceneDemo::check_simulation()` surfaces simulation failures; built-in applications check it.
 
-In editor Play, press **Space** over the 3D viewport to jump with the selected grounded gravity box (set **Jump speed** under Gravity; default 5 units/s). Midair presses and held-key repeats do not jump. Ceiling contact cancels ascent. The headless API is `SceneInstance::jump_box(world, id, speed)`, returning whether a jump was accepted.
+In editor Play, press **Space** over the 3D viewport to jump with the selected grounded box or convex mesh body (set **Jump speed** under Rigidbody; default 5 units/s). Midair presses and held-key repeats do not jump. Ceiling contact cancels ascent. The headless API is `SceneInstance::jump_box(world, id, speed)`, returning whether a jump was accepted.
 
 Jump speed is saved per object with the scene. Existing scenes that omit it retain the 5 units/s default. Adjust it before Play; higher values produce higher jumps.
 

@@ -530,11 +530,10 @@ impl App {
             && response.hovered()
             && ui.input(|i| i.focused)
             && !ui.ctx().egui_wants_keyboard_input()
-            && self
-                .editor
-                .selected_object()
-                .and_then(|o| o.collider)
-                .is_some_and(|c| c.enabled)
+            && self.editor.selected_object().is_some_and(|o| {
+                o.collider.is_some_and(|c| c.enabled)
+                    || o.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+            })
         {
             // Ignore OS key repeats: holding Space must not auto-jump after landing.
             if ui.input(|i| {
@@ -575,7 +574,12 @@ impl App {
                     * i.stable_dt.min(0.05)
                     * if i.modifiers.shift { 8.0 } else { 3.0 }
             });
-            if delta != Vec3::ZERO {
+            if delta != Vec3::ZERO
+                && self
+                    .editor
+                    .selected_object()
+                    .is_some_and(|o| o.collider.is_some())
+            {
                 let result = self.editor.move_selected_box(delta).map(|movement| {
                     self.status = if movement.contacts.is_empty() {
                         "Moving selected box".into()

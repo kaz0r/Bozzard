@@ -235,14 +235,21 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
             o.mesh_collider
                 .as_ref()
                 .filter(|c| c.enabled)
-                .map(|c| CollisionMesh {
-                    id: o.id.clone(),
-                    entity,
-                    mesh: c.mesh.clone(),
-                    matrix: matrices[o.id.as_str()],
+                .map(|c| -> Result<_> {
+                    Ok(CollisionMesh {
+                        id: o.id.clone(),
+                        entity,
+                        mesh: if o.gravity.is_some_and(|g| g.enabled) {
+                            c.mesh.convex_hull()?
+                        } else {
+                            c.mesh.clone()
+                        },
+                        matrix: matrices[o.id.as_str()],
+                        solid: o.gravity.is_some_and(|g| g.enabled),
+                    })
                 })
         })
-        .collect();
+        .collect::<Result<_>>()?;
     let mut points = vec![(player.id.as_str(), player.transform.translation)];
     for object in &scene.objects {
         if let Some(Trigger {
@@ -474,8 +481,13 @@ impl SceneInstance {
                 let mesh = CollisionMesh {
                     id: id.clone(),
                     entity,
-                    mesh: collider.mesh.clone(),
+                    mesh: if world.get::<Gravity>(entity).is_some_and(|g| g.enabled) {
+                        collider.mesh.convex_hull()?
+                    } else {
+                        collider.mesh.clone()
+                    },
                     matrix: matrices[id],
+                    solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
                 };
                 // Conservative cube around the camera sphere also protects triangle edges/corners.
                 let (center, edges, corners) = BoxCollider {

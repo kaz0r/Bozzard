@@ -118,16 +118,20 @@ impl SceneInstance {
         for (id, &entity) in &self.entities {
             if let Some(collider) = world.get::<MeshCollider>(entity).filter(|c| c.enabled) {
                 ensure!(
-                    world.get::<BoxCollider>(entity).is_none()
-                        && world.get::<Gravity>(entity).is_none(),
-                    "Mesh Collider cannot also be a box or Rigidbody"
+                    world.get::<BoxCollider>(entity).is_none(),
+                    "Mesh Collider cannot also be a Box Collider"
                 );
                 collider.geometry(matrices[id])?;
                 snapshot.meshes.push(CollisionMesh {
                     id: id.clone(),
                     entity,
-                    mesh: collider.mesh.clone(),
+                    mesh: if world.get::<Gravity>(entity).is_some_and(|g| g.enabled) {
+                        collider.mesh.convex_hull()?
+                    } else {
+                        collider.mesh.clone()
+                    },
                     matrix: matrices[id],
+                    solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
                 });
             }
             if let Some(collider) = world.get::<BoxCollider>(entity) {
@@ -164,7 +168,11 @@ impl SceneInstance {
                 }
             }
         }
+        if let Some(physics) = world.resource::<crate::physics::Physics>() {
+            snapshot.overlaps.extend(physics.contacts(world, &matrices));
+        }
         snapshot.overlaps.sort();
+        snapshot.overlaps.dedup();
         Ok(snapshot)
     }
 }

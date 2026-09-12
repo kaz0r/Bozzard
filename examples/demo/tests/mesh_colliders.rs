@@ -44,7 +44,12 @@ fn triangle_sweeps_ground_slide_disable_and_roundtrip() {
         demo.app.step();
         demo.check_simulation().unwrap();
     }
-    assert!(demo.app.world.get::<GravityState>(body).unwrap().grounded);
+    assert!(
+        demo.app.world.get::<GravityState>(body).unwrap().grounded,
+        "pose={:?} state={:?}",
+        position(&demo),
+        demo.app.world.get::<GravityState>(body)
+    );
     let floor = demo.instance().entity("floor").unwrap();
     demo.app
         .world
@@ -274,4 +279,39 @@ fn player_spawn_validation_includes_mesh_surfaces() {
     floor.transform.translation = player.transform.translation;
     level.objects.push(floor);
     assert!(format!("{:#}", level.validate().unwrap_err()).contains("spawn point"));
+}
+
+#[test]
+fn spin_seeds_dynamic_angular_velocity_but_does_not_override_contacts() {
+    let mut s = scene();
+    s.objects[1].gravity = Some(Gravity::default());
+    s.objects[1].spin = Some(bozzard_scene::Spin([0., 0., 180.]));
+    let mut demo = SceneDemo::new(&s).unwrap();
+    for _ in 0..600 {
+        demo.app.step();
+        demo.check_simulation().unwrap();
+    }
+    let entity = demo.instance().entity("body").unwrap();
+    let matrix = demo.app.world.get::<Transform>(entity).unwrap().matrix();
+    for _ in 0..120 {
+        demo.app.step();
+        demo.check_simulation().unwrap();
+    }
+    assert!(
+        demo.app
+            .world
+            .get::<Transform>(entity)
+            .unwrap()
+            .matrix()
+            .abs_diff_eq(matrix, 0.001)
+    );
+    assert!(demo.app.world.get::<GravityState>(entity).unwrap().grounded);
+    assert!(
+        demo.instance()
+            .collisions(&demo.app.world)
+            .unwrap()
+            .overlaps
+            .contains(&("body".into(), "floor".into())),
+        "sleeping contacts must not emit a false Blueprint exit"
+    );
 }
