@@ -287,6 +287,7 @@ mod tests {
         gpu.require_hardware()?;
         let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
         let mut scene = RenderScene {
+            particles: vec![],
             fog: Default::default(),
             gi: None,
             lights: vec![],
@@ -303,12 +304,15 @@ mod tests {
         };
         let empty = capture(&mut renderer, &scene)?;
         let item = DrawItem {
+            motion_id: 0,
             model: Mat4::from_translation(Vec3::new(-1.5, 1., 1.)),
             mesh: MeshKind::Text(TextMesh {
                 text: "Hi!".into(),
                 ..Default::default()
             }),
             material: Material {
+                metallic: None,
+                roughness: None,
                 surface_overrides: Default::default(),
                 tint: [1., 0.1, 0.05],
                 uv_scale: [1.; 2],

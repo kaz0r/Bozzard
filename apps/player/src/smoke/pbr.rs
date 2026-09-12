@@ -51,6 +51,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            particles: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: self.lights.clone(),
@@ -61,9 +62,12 @@ impl Fixture<'_> {
                 -1., 1., -1., 1., 0.1, 10.,
             ) * Mat4::from_translation(Vec3::new(0., 0., -3.)),
             items: vec![DrawItem {
+                motion_id: 0,
                 model: self.model,
                 mesh: MeshKind::Imported("pbr-fixture".into()),
                 material: Material {
+                    metallic: None,
+                    roughness: None,
                     surface_overrides: Default::default(),
                     tint: [1.; 3],
                     uv_scale: [1.; 2],

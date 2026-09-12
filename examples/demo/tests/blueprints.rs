@@ -357,3 +357,156 @@ fn malformed_graphs_reject_atomically_and_bad_runtime_values_freeze_safely() {
     demo.app.step();
     assert_eq!(transform(&demo), before);
 }
+
+#[test]
+fn post_processing_graph_controls_animate_without_changing_authored_settings() {
+    use bozzard_scene::{Layer, PostProcessVolume};
+    let graphs = vec![
+        action(K::Start, K::SetExposure, Value::Number(1.5)),
+        action(K::Start, K::SetBloomIntensity, Value::Number(0.6)),
+        action(K::Start, K::SetSaturation, Value::Number(0.4)),
+        action(K::Start, K::SetHeatStrength, Value::Number(5.)),
+        action(K::Start, K::SetGrainIntensity, Value::Number(0.1)),
+        action(K::Start, K::SetVignetteIntensity, Value::Number(0.7)),
+    ];
+    let mut authored = scene(graphs);
+    authored.post_process_volumes = vec![PostProcessVolume::default()];
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    let display = demo.instance().display_at([0.; 3].into(), Layer::ThreeD);
+    assert_eq!(display.exposure_ev, 1.5);
+    assert_eq!(display.bloom.intensity, 0.6);
+    assert_eq!(display.color_grading.saturation, 0.4);
+    assert_eq!(display.heat_distortion.strength, 5.);
+    assert_eq!(display.grain.intensity, 0.1);
+    assert_eq!(display.vignette.intensity, 0.7);
+    assert!(
+        !demo
+            .instance()
+            .display_at([0.; 3].into(), Layer::TwoD)
+            .heat_distortion
+            .enabled
+    );
+    assert_eq!(demo.instance().capture(&demo.app.world).unwrap(), authored);
+    let reset = SceneDemo::new(&authored).unwrap();
+    assert_eq!(
+        reset.instance().display_at([0.; 3].into(), Layer::ThreeD),
+        authored.display_at([0.; 3].into())
+    );
+}
+
+#[test]
+fn post_processing_graph_rejects_out_of_range_without_partial_write() {
+    let authored = scene(vec![action(
+        K::Start,
+        K::SetHeatStrength,
+        Value::Number(31.),
+    )]);
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    assert!(demo.check_simulation().is_err());
+    assert_eq!(
+        demo.instance()
+            .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD),
+        authored.display
+    );
+}
+
+#[test]
+fn volumetric_graph_controls_are_transient() {
+    use bozzard_scene::Layer;
+    let authored = scene(vec![
+        action(K::Start, K::SetFogDensity, Value::Number(0.12)),
+        action(K::Start, K::SetFogLightIntensity, Value::Number(2.5)),
+    ]);
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    let display = demo.instance().display_at([0.; 3].into(), Layer::ThreeD);
+    assert!(display.volumetric_fog.enabled);
+    assert_eq!(display.volumetric_fog.density, 0.12);
+    assert_eq!(display.volumetric_fog.light_intensity, 2.5);
+    assert!(
+        !demo
+            .instance()
+            .display_at([0.; 3].into(), Layer::TwoD)
+            .volumetric_fog
+            .enabled
+    );
+    assert_eq!(demo.instance().capture(&demo.app.world).unwrap(), authored);
+    let mut invalid = SceneDemo::new(&scene(vec![action(
+        K::Start,
+        K::SetFogDensity,
+        Value::Number(-1.),
+    )]))
+    .unwrap();
+    invalid.app.step();
+    assert!(invalid.check_simulation().is_err());
+    assert!(
+        !invalid
+            .instance()
+            .display_at([0.; 3].into(), Layer::ThreeD)
+            .volumetric_fog
+            .enabled
+    );
+}
+
+#[test]
+fn focus_and_aperture_graph_controls_preserve_authored_lens() {
+    use bozzard_scene::Layer;
+    let authored = scene(vec![
+        action(K::Start, K::SetFocusDistance, Value::Number(8.)),
+        action(K::Start, K::SetAperture, Value::Number(1.4)),
+    ]);
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    demo.app.step();
+    demo.check_simulation().unwrap();
+    let display = demo.instance().display_at([0.; 3].into(), Layer::ThreeD);
+    assert!(display.depth_of_field.enabled);
+    assert_eq!(display.depth_of_field.focus_distance, 8.);
+    assert_eq!(display.depth_of_field.aperture, 1.4);
+    assert!(
+        !demo
+            .instance()
+            .display_at([0.; 3].into(), Layer::TwoD)
+            .depth_of_field
+            .enabled
+    );
+    assert_eq!(demo.instance().capture(&demo.app.world).unwrap(), authored);
+    for (kind, value) in [(K::SetFocusDistance, 0.), (K::SetAperture, 0.1)] {
+        let source = scene(vec![action(K::Start, kind, Value::Number(value))]);
+        let mut demo = SceneDemo::new(&source).unwrap();
+        demo.app.step();
+        assert!(demo.check_simulation().is_err());
+        assert_eq!(
+            demo.instance().display_at([0.; 3].into(), Layer::ThreeD),
+            source.display
+        );
+    }
+}
+
+#[test]
+fn lens_showcase_racks_focus_and_restarts_from_authored_settings() {
+    let authored =
+        bozzard_scene::Scene::from_json(include_str!("../scenes/lens-lab.json")).unwrap();
+    let mut demo = SceneDemo::new(&authored).unwrap();
+    for _ in 0..120 {
+        demo.app.step();
+        demo.check_simulation().unwrap();
+    }
+    let lens = demo
+        .instance()
+        .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD)
+        .depth_of_field;
+    assert!((9.0..12.0).contains(&lens.focus_distance));
+    let saved = demo.instance().capture(&demo.app.world).unwrap();
+    assert_eq!(saved.display, authored.display);
+    let reset = SceneDemo::new(&saved).unwrap();
+    assert_eq!(
+        reset
+            .instance()
+            .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD),
+        authored.display
+    );
+}

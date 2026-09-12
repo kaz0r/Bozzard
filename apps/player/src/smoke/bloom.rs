@@ -5,6 +5,7 @@ use std::path::Path;
 pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),
@@ -22,16 +23,21 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
                 intensity: 1.,
                 threshold: 1.,
                 scatter: 0.7,
+                anamorphic: 0.,
             },
             exposure_ev: 0.,
             tone_mapping: true,
+            ..Default::default()
         },
         view_projection: glam::camera::rh::proj::directx::orthographic(-1., 1., -1., 1., 0.1, 10.)
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),
         items: vec![DrawItem {
+            motion_id: 0,
             model: Mat4::from_scale(Vec3::splat(0.25)),
             mesh: MeshKind::Quad,
             material: Material {
+                metallic: None,
+                roughness: None,
                 surface_overrides: Default::default(),
                 tint: [1.; 3],
                 uv_scale: [1.; 2],

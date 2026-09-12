@@ -84,6 +84,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         .cpu_upload_ms
         .to_bits();
     let mut scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),
@@ -102,9 +103,12 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         items: [0.6, -0.6]
             .into_iter()
             .map(|y| DrawItem {
+                motion_id: 0,
                 model: Mat4::from_translation(Vec3::new(0., y, 0.)),
                 mesh: MeshKind::Imported("override-source".into()),
                 material: Material {
+                    metallic: None,
+                    roughness: None,
                     tint: [1.; 3],
                     uv_scale: [1.; 2],
                     texture: TextureKind::White,

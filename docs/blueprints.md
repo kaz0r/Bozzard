@@ -83,3 +83,7 @@ Open `examples/demo/scenes/pressure-plate-lab.json`, press Play, and use WASD to
 The enter event checks that Other is valid before opening the door. The exit event closes it only when Overlap Count is zero, so one departing body cannot close it on another. Duplicate an entire gate root to get another independent pair; duplicating only a plate intentionally preserves its reference to the original door.
 
 Fixed action targets and their descendants are excluded from static GI. A graph writing to an event-dependent target conservatively excludes all scene geometry from the bake, since any collider could become its target.
+
+### Post-processing actions
+
+**Set Exposure (EV)**, **Set Bloom Intensity**, **Set Saturation**, **Set Heat Strength**, **Set Grain Intensity**, and **Set Vignette Intensity** accept execution plus a numeric Value. They override the current global look after volume blending for this Play session. They do not require a target object. Values are validated before the write; stopping Play discards them. See [post-processing animation](post-processing.md#blueprint-animation).

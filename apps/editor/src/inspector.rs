@@ -78,6 +78,11 @@ impl App {
                             });
                         }
                         });
+                        if let Some(emitter) = &mut object.particle_emitter {
+                            component_section(ui, "PARTICLE EMITTER", &mut remove, |ui| {
+                                crate::particles::inspector(ui, emitter);
+                            });
+                        }
                         if let Some(text) = &mut object.text_rendering {
                             component_section(ui, "TEXT RENDERING", &mut remove, |ui| text_inspector(ui, text));
                         }
@@ -99,6 +104,10 @@ impl App {
                                         && let Some(shading) = &part.shading {
                                         crate::surfaces::factor_control(ui, "Metallic", &mut material.metallic, shading.material.metallic);
                                         crate::surfaces::factor_control(ui, "Roughness", &mut material.roughness, shading.material.roughness);
+                                    }
+                                    if object.drawable.as_ref().is_some_and(|d| !matches!(d.mesh,Mesh::Surface{..})) {
+                                        crate::surfaces::factor_control(ui,"Metallic",&mut material.metallic,0.0);
+                                        crate::surfaces::factor_control(ui,"Roughness",&mut material.roughness,1.0);
                                     }
                                     ui.label("Tint");
                                     color_edit_button_rgb(ui, &mut material.color);
@@ -534,43 +543,15 @@ impl App {
             ui.separator();
             crate::fog::controls(ui, &mut scene.fog);
             ui.separator();
-            egui::CollapsingHeader::new("DISPLAY & BLOOM")
-                .default_open(true)
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::Slider::new(&mut scene.display.exposure_ev, -16.0..=16.0)
-                            .text("Exposure EV"),
-                    );
-                    ui.checkbox(&mut scene.display.tone_mapping, "Reinhard tone mapping");
-                    let bloom = &mut scene.display.bloom;
-                    ui.checkbox(&mut bloom.enabled, "Bloom");
-                    ui.add_enabled_ui(bloom.enabled, |ui| {
-                        ui.add(
-                            egui::Slider::new(&mut bloom.intensity, 0.0..=10.0)
-                                .logarithmic(true)
-                                .text("Glow intensity"),
-                        );
-                        ui.horizontal(|ui| {
-                            ui.label("Threshold");
-                            ui.add(
-                                egui::DragValue::new(&mut bloom.threshold)
-                                    .speed(0.05)
-                                    .range(0.0..=60000.),
-                            );
-                        });
-                        ui.add(egui::Slider::new(&mut bloom.scatter, 0.0..=1.0).text("Spread"));
-                        ui.weak("Threshold is scene brightness before exposure.");
-                    });
-                    if ui.button("Reset display").clicked() {
-                        scene.display = Default::default();
-                    }
-                });
+            crate::post_processing::controls(ui, &mut scene.display);
+            crate::post_processing::volumes(ui, &mut scene.post_process_volumes);
         });
         if ui.is_enabled()
             && self.editor.play.is_none()
             && (scene.fog != self.editor.scene().fog
                 || scene.gi != self.editor.scene().gi
                 || scene.lighting != self.editor.scene().lighting
+                || scene.post_process_volumes != self.editor.scene().post_process_volumes
                 || scene.display != self.editor.scene().display
                 || scene.environment != self.editor.scene().environment)
         {
@@ -738,6 +719,7 @@ fn remove_component(
         "TRIGGER" => object.trigger = None,
         "SPIN" => object.spin = None,
         "LIGHT" => object.light = None,
+        "PARTICLE EMITTER" => object.particle_emitter = None,
         "CAMERA" => {
             object.camera = None;
             scene.views.retain(|_, id| id != &object.id);
@@ -746,7 +728,7 @@ fn remove_component(
     }
 }
 
-fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 12] {
+fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 13] {
     [
         ("Text Rendering", object.text_rendering.is_none()),
         ("Mesh Renderer", object.drawable.is_none()),
@@ -785,6 +767,7 @@ fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 1
                 && object.mesh_collider.is_none(),
         ),
         ("Light", object.light.is_none()),
+        ("Particle Emitter", object.particle_emitter.is_none()),
         ("Camera", object.camera.is_none()),
         (
             "Spin",
@@ -820,6 +803,8 @@ fn add_component(
     match label {
         "Mesh Renderer" => {
             object.drawable = Some(Drawable {
+                metallic: None,
+                roughness: None,
                 gi_static: true,
                 material_overrides: Vec::new(),
                 layer,
@@ -868,6 +853,7 @@ fn add_component(
             })
         }
         "Light" => object.light = Some(Light::default()),
+        "Particle Emitter" => object.particle_emitter = Some(ParticleEmitter::default()),
         "Camera" => {
             object.camera = Some(Camera::Perspective {
                 vertical_fov_degrees: 60.,

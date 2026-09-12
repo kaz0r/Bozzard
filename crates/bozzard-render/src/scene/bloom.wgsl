@@ -25,7 +25,7 @@ fn filtered_source(uv:vec2<f32>) -> vec3<f32> {
 }
 @fragment fn downsample(in:Vertex) -> @location(0) vec4<f32> { return vec4<f32>(filtered_source(in.uv),1.0); }
 @fragment fn upsample(in:Vertex) -> @location(0) vec4<f32> {
-    let step = 1.0/vec2<f32>(textureDimensions(low));
+    let step = vec2<f32>(1.0 + settings.w*15.0, 1.0)/vec2<f32>(textureDimensions(low));
     var blurred=vec3<f32>(0.0);
     for(var y=-1;y<=1;y++) { for(var x=-1;x<=1;x++) {
         let weight=select(1.0,2.0,x==0)*select(1.0,2.0,y==0);

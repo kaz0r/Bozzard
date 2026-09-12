@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BloomSettings {
     pub enabled: bool,
     pub intensity: f32,
@@ -8,6 +8,7 @@ pub struct BloomSettings {
     pub threshold: f32,
     /// Weight of wider pyramid levels, controlling the glow radius.
     pub scatter: f32,
+    pub anamorphic: f32,
 }
 impl Default for BloomSettings {
     fn default() -> Self {
@@ -16,11 +17,16 @@ impl Default for BloomSettings {
             intensity: 0.15,
             threshold: 1.,
             scatter: 0.7,
+            anamorphic: 0.,
         }
     }
 }
 impl BloomSettings {
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.anamorphic.is_finite() && (0.0..=1.).contains(&self.anamorphic),
+            "invalid anamorphic bloom"
+        );
         ensure!(
             self.intensity.is_finite() && (0.0..=10.).contains(&self.intensity),
             "bloom intensity must be in 0..10"
@@ -43,6 +49,7 @@ struct Level {
     up_binding: Option<wgpu::BindGroup>,
 }
 pub(super) struct Bloom {
+    source_dirty: bool,
     prefilter: wgpu::RenderPipeline,
     downsample: wgpu::RenderPipeline,
     upsample: wgpu::RenderPipeline,
@@ -180,6 +187,7 @@ impl Bloom {
             uniform,
             black,
             levels: Vec::new(),
+            source_dirty: false,
             size: [0, 0],
         }
     }
@@ -233,10 +241,14 @@ impl Bloom {
                 settings.threshold,
                 settings.threshold * 0.5,
                 settings.scatter,
-                0.,
+                settings.anamorphic,
             ]),
         );
         if self.size == size && !self.levels.is_empty() {
+            if self.source_dirty {
+                self.levels[0].down_binding = self.binding(gpu, hdr, &self.black);
+                self.source_dirty = false;
+            }
             return false;
         }
         self.levels.clear();
@@ -268,6 +280,9 @@ impl Bloom {
             self.levels[i].up_binding = Some(self.binding(gpu, &self.levels[i].down, low));
         }
         true
+    }
+    pub fn invalidate(&mut self) {
+        self.source_dirty = true;
     }
     pub fn output(&self) -> &wgpu::TextureView {
         self.levels

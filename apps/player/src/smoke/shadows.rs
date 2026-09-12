@@ -45,9 +45,12 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         }],
     )?;
     let receiver = DrawItem {
+        motion_id: 0,
         model: Mat4::from_scale(Vec3::new(4., 4., 1.)),
         mesh: MeshKind::Imported("receiver".into()),
         material: Material {
+            metallic: None,
+            roughness: None,
             surface_overrides: Default::default(),
             tint: [1.; 3],
             uv_scale: [1.; 2],
@@ -56,12 +59,14 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         },
     };
     let caster = DrawItem {
+        motion_id: 0,
         model: Mat4::from_translation(Vec3::new(0.6, 0., 1.))
             * Mat4::from_scale(Vec3::new(0.6, 0.6, 1.)),
         mesh: MeshKind::Quad,
         material: receiver.material.clone(),
     };
     let mut scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),

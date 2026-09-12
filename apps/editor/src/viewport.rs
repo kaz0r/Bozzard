@@ -231,7 +231,7 @@ impl FlyCamera {
     fn rotation(&self) -> Mat4 {
         look_rotation([self.yaw, self.pitch])
     }
-    fn pose(&self) -> Mat4 {
+    pub(super) fn pose(&self) -> Mat4 {
         Mat4::from_translation(Vec3::from_array(self.position)) * self.rotation()
     }
     fn move_by(&mut self, direction: Vec3) {
@@ -646,7 +646,15 @@ impl App {
             });
         }
         let aspect = size[0] as f32 / size[1] as f32;
-        let mut scene = self.editor.render(self.layer(), aspect)?;
+        let mut scene = if self.editor.play.is_none() {
+            if let Some(preview) = &self.effects_preview {
+                preview.render(&self.editor, self.layer(), aspect)?
+            } else {
+                self.editor.render(self.layer(), aspect)?
+            }
+        } else {
+            self.editor.render(self.layer(), aspect)?
+        };
         if !self
             .editor
             .assets
@@ -800,6 +808,12 @@ impl App {
                     );
                 }
                 scene.view_projection = lens * camera.pose().inverse();
+                let position = camera.pose().transform_point3(Vec3::ZERO);
+                scene.display = bozzard_render_assets::display_settings(
+                    doc.display_at(position),
+                    bozzard_scene::Layer::ThreeD,
+                    scene.display.time_seconds,
+                );
             }
         }
         if self
@@ -807,6 +821,11 @@ impl App {
             .is_some_and(|button| !ui.input(|i| i.pointer.button_down(button)))
         {
             self.navigation_button = None;
+        }
+        if self.preview_bypass {
+            scene.display = bozzard_render::DisplaySettings::default();
+            scene.particles.clear();
+            scene.fog.enabled = false;
         }
         let projection = scene.view_projection;
         let target = self.target.as_ref().unwrap();
@@ -829,11 +848,12 @@ impl App {
                 rect.left_top() + egui::vec2(8.0, 8.0 + collider_label_height),
                 egui::Align2::LEFT_TOP,
                 format!(
-                    "Draws {}/{} · {} tris · {} shadow draws · CPU {:.2} ms",
+                    "Draws {}/{} · {} tris · {} shadow draws · {} particles · CPU {:.2} ms",
                     stats.visible_surfaces,
                     stats.surfaces,
                     stats.color_triangles,
                     stats.shadow_draws,
+                    stats.particles,
                     stats.cpu_ms
                 ),
                 egui::FontId::monospace(11.0),

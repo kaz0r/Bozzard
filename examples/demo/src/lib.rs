@@ -238,10 +238,12 @@ impl SceneDemo {
                 .remove_resource::<SceneInstance>()
                 .expect("scene instance");
             let error = gravity_instance
-                .gameplay_motion(world, dt)
+                .advance_display(dt)
+                .and_then(|()| gravity_instance.gameplay_motion(world, dt))
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
                 .and_then(|()| gravity_instance.gameplay_interactions(world))
                 .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
+                .and_then(|()| gravity_instance.step_particles(world, dt))
                 .err()
                 .map(|error| format!("{error:#}"));
             world.insert_resource(GameplayInput {

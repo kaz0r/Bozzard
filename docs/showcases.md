@@ -43,6 +43,14 @@ show orientation, checker shows UVs, and toon uses scene sun direction/shadows.
 Use **White** in **Texture / material effect** to restore ordinary PBR lighting.
 Bloom and FXAA run in the shared display path; raw diagnostics bypass them.
 
+## Light Shafts Lab
+
+Open `examples/demo/scenes/light-shafts-lab.json` for warm, shadowed beams entering a stone room through tall windows. Play moves the density field. Use **Effects → Fine tuning → Post Processing → Volumetric fog & light shafts** to tune it; see [volumetric fog](volumetrics.md) for controls and limitations.
+
+## Lens Lab
+
+Open `examples/demo/scenes/lens-lab.json` for a gold sculpture against rows of distant warm lights. Play slowly shifts focus between the sculpture and lights using a Blueprint. The scene also uses bounded eye adaptation; see [camera effects](camera-effects.md) for controls and rendering details.
+
 ## Fog
 
 Open **Scene Settings → Fog (3D)**. Distance density controls
@@ -83,3 +91,7 @@ cargo run -p bozzard-player -- --scene examples/demo/scenes/material-gallery.jso
 
 On Linux a working Vulkan driver is required. For Arch with Intel graphics,
 install `vulkan-intel`; `vulkaninfo --summary` from `vulkan-tools` checks discovery.
+
+## Atmosphere and motion
+
+Open `examples/demo/scenes/atmosphere-lab.json` for the bonfire clearing with curling smoke, windblown ash and sparks, temporal anti-aliasing, motion blur, and wet ground reflections. The Effects panel has live preview, common controls and application shortcuts. See [atmosphere effects](atmosphere-effects.md).

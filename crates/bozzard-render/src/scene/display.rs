@@ -1,32 +1,13 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug)]
-pub struct DisplaySettings {
-    pub bloom: BloomSettings,
-    pub exposure_ev: f32,
-    pub tone_mapping: bool,
-}
-impl Default for DisplaySettings {
-    fn default() -> Self {
-        Self {
-            bloom: BloomSettings::default(),
-            exposure_ev: 0.,
-            tone_mapping: true,
-        }
-    }
-}
-impl DisplaySettings {
-    pub fn validate(&self) -> Result<()> {
-        self.bloom.validate()?;
-        ensure!(
-            self.exposure_ev.is_finite() && (-16.0..=16.0).contains(&self.exposure_ev),
-            "invalid exposure"
-        );
-        Ok(())
-    }
-}
 pub(super) struct Display {
     bloom: bloom::Bloom,
+    post: post_process::PostProcess,
+    volume: Option<volumetric::Volumetric>,
+    dof: Option<depth_of_field::Dof>,
+    temporal: Option<temporal::Temporal>,
+    reflections: Option<reflections::Reflections>,
+    exposure: auto_exposure::Exposure,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     target: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
@@ -69,12 +50,18 @@ impl Display {
             });
         let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("display settings"),
-            size: 32,
+            size: 128,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         Self {
             bloom: bloom::Bloom::new(gpu),
+            post: post_process::PostProcess::new(gpu),
+            volume: None,
+            dof: None,
+            temporal: None,
+            reflections: None,
+            exposure: auto_exposure::Exposure::new(gpu),
             pipeline,
             uniform,
             target: None,
@@ -84,18 +71,18 @@ impl Display {
     pub fn prepare(
         &mut self,
         gpu: &Gpu,
-        size: [u32; 2],
         settings: DisplaySettings,
-        raw: bool,
+        frame: post_process::FrameInput<'_>,
     ) -> Result<()> {
         settings.validate()?;
+        let post_process::FrameInput { size, raw, .. } = frame;
         ensure!(
             !raw || !self.srgb_target,
             "raw linear diagnostics need a non-sRGB output target"
         );
-        if self.target.as_ref().is_none_or(|(_, _, old)| *old != size) {
-            let view = gpu
-                .device
+        let resized = self.target.as_ref().is_none_or(|(_, _, old)| *old != size);
+        let replacement = resized.then(|| {
+            gpu.device
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some("linear HDR scene"),
                     size: wgpu::Extent3d {
@@ -111,35 +98,121 @@ impl Display {
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     view_formats: &[],
                 })
-                .create_view(&Default::default());
-            self.bloom.prepare(
-                gpu,
-                &view,
-                size,
-                settings.bloom,
-                !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
-            );
-            let binding = self.binding(gpu, &view);
-            self.target = Some((view, binding, size));
-        } else if self.bloom.prepare(
+                .create_view(&Default::default())
+        });
+        let hdr = replacement
+            .as_ref()
+            .unwrap_or_else(|| &self.target.as_ref().unwrap().0);
+        if !raw
+            && settings.reflections.enabled
+            && self.reflections.is_none()
+            && let Some(environment) = frame.environment_gpu
+        {
+            self.reflections = Some(reflections::Reflections::new(gpu, &environment.layout));
+        }
+        let reflection_changed = if let Some(reflections) = &mut self.reflections {
+            reflections.prepare(gpu, hdr, settings.reflections, &frame, resized)
+        } else {
+            false
+        };
+        let reflected = self
+            .reflections
+            .as_ref()
+            .and_then(|r| r.output())
+            .unwrap_or(hdr);
+        if reflection_changed {
+            self.post.invalidate();
+        }
+        let depth_changed =
+            self.post.prepare(gpu, reflected, settings, &frame)? || resized || reflection_changed;
+        let source = self.post.output().unwrap_or(reflected);
+        if !raw
+            && settings.volumetric_fog.enabled
+            && settings.volumetric_fog.density > 0.
+            && self.volume.is_none()
+        {
+            let shadows = frame
+                .shadows
+                .context("volumetric fog requires scene light bindings")?;
+            self.volume = Some(volumetric::Volumetric::new(gpu, &shadows.sample_layout));
+        }
+        let volume_changed = if let Some(volume) = &mut self.volume {
+            volume.prepare(gpu, source, settings, &frame, depth_changed)?
+        } else {
+            false
+        };
+        let source_changed = depth_changed || volume_changed;
+        let source = self
+            .volume
+            .as_ref()
+            .and_then(|v| v.output())
+            .unwrap_or(source);
+        if !raw
+            && (settings.temporal_aa.enabled || settings.motion_blur.enabled)
+            && self.temporal.is_none()
+        {
+            self.temporal = Some(temporal::Temporal::new(gpu));
+        }
+        let temporal_changed = if let Some(temporal) = &mut self.temporal {
+            temporal.prepare(gpu, source, settings, &frame)
+        } else {
+            false
+        };
+        let source_changed = source_changed || temporal_changed;
+        let source = self
+            .temporal
+            .as_ref()
+            .and_then(|v| v.output())
+            .unwrap_or(source);
+        self.exposure
+            .prepare(gpu, source, settings, raw, source_changed);
+        if !raw
+            && settings.depth_of_field.enabled
+            && settings.depth_of_field.max_blur_radius > 0.
+            && self.dof.is_none()
+        {
+            self.dof = Some(depth_of_field::Dof::new(gpu));
+        }
+        let dof_changed = if let Some(dof) = &mut self.dof {
+            dof.prepare(gpu, source, settings.depth_of_field, &frame, source_changed)?
+        } else {
+            false
+        };
+        let source_changed =
+            dof_changed || (self.dof.as_ref().and_then(|d| d.output()).is_none() && source_changed);
+        let source = self
+            .dof
+            .as_ref()
+            .and_then(|dof| dof.output())
+            .unwrap_or(source);
+        if source_changed {
+            self.bloom.invalidate();
+        }
+        let bloom_changed = self.bloom.prepare(
             gpu,
-            &self.target.as_ref().unwrap().0,
+            source,
             size,
             settings.bloom,
             !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
-        ) {
-            let binding = self.binding(gpu, &self.target.as_ref().unwrap().0);
+        );
+        let binding = (source_changed || bloom_changed).then(|| self.binding(gpu, source));
+        if let Some(view) = replacement {
+            self.target = Some((view, binding.unwrap(), size));
+        } else if let Some(binding) = binding {
             self.target.as_mut().unwrap().1 = binding;
         }
+        let grade = settings.color_grading;
         gpu.queue.write_buffer(
             &self.uniform,
             0,
             &float_bytes([
                 if raw { 1. } else { settings.exposure_ev.exp2() },
-                if !raw && settings.tone_mapping {
-                    1.
-                } else {
+                if raw || !settings.tone_mapping {
                     0.
+                } else if settings.tone_mapper == ToneMapper::Filmic {
+                    2.
+                } else {
+                    1.
                 },
                 if !raw && !self.srgb_target { 1. } else { 0. },
                 if !raw && settings.bloom.enabled {
@@ -147,8 +220,36 @@ impl Display {
                 } else {
                     0.
                 },
-                if raw { 0. } else { 1. }, // FXAA is display-only, never diagnostic.
+                if raw { 0. } else { 1. },
+                settings.time_seconds % 4096.,
+                if settings.temporal_aa.enabled && frame.geometry.is_some() {
+                    1.
+                } else {
+                    0.
+                },
                 0.,
+                grade.temperature,
+                grade.tint,
+                grade.saturation,
+                grade.contrast,
+                grade.lift[0],
+                grade.lift[1],
+                grade.lift[2],
+                0.,
+                grade.gamma[0],
+                grade.gamma[1],
+                grade.gamma[2],
+                0.,
+                grade.gain[0],
+                grade.gain[1],
+                grade.gain[2],
+                0.,
+                settings.vignette.intensity,
+                settings.vignette.roundness,
+                settings.vignette.feather,
+                0.,
+                settings.grain.intensity,
+                settings.grain.size,
                 0.,
                 0.,
             ]),
@@ -173,16 +274,46 @@ impl Display {
                     resource: wgpu::BindingResource::TextureView(self.bloom.output()),
                 },
                 wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.exposure.state.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Sampler(&self.bloom.sampler),
                 },
             ],
         })
     }
+    pub fn reset_history(&mut self) {
+        self.exposure.reset();
+        if let Some(temporal) = &mut self.temporal {
+            temporal.reset();
+        }
+    }
     pub fn hdr(&self) -> &wgpu::TextureView {
         &self.target.as_ref().unwrap().0
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+    pub fn draw(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        shadows: Option<&wgpu::BindGroup>,
+        environment: Option<&wgpu::BindGroup>,
+    ) {
+        if let Some(reflections) = &self.reflections {
+            reflections.draw(encoder, environment);
+        }
+        self.post.draw(encoder);
+        if let Some(volume) = &self.volume {
+            volume.draw(encoder, shadows);
+        }
+        if let Some(temporal) = &self.temporal {
+            temporal.draw(encoder);
+        }
+        self.exposure.draw(encoder);
+        if let Some(dof) = &self.dof {
+            dof.draw(encoder);
+        }
         self.bloom.draw(encoder);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("exposure tone mapping and display encoding"),
@@ -276,7 +407,15 @@ mod tests {
                        raw,
                        format|
          -> Result<crate::Frame> {
-            display.prepare(&gpu, size, settings, raw)?;
+            display.prepare(
+                &gpu,
+                settings,
+                post_process::FrameInput {
+                    size,
+                    raw,
+                    ..Default::default()
+                },
+            )?;
             let output = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("FXAA readback"),
                 size: wgpu::Extent3d {
@@ -308,7 +447,12 @@ mod tests {
                 pass.set_pipeline(&fixture);
                 pass.draw(0..3, 0..1);
             }
-            display.draw(&mut encoder, &output.create_view(&Default::default()));
+            display.draw(
+                &mut encoder,
+                &output.create_view(&Default::default()),
+                None,
+                None,
+            );
             gpu.queue.submit([encoder.finish()]);
             crate::read_texture(&gpu, &output, size[0], size[1])
         };

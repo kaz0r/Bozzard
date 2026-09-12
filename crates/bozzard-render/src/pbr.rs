@@ -145,7 +145,7 @@ impl PbrRenderer {
                     Some(wgpu::VertexBufferLayout { array_stride: 48, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![3=>Float32x4, 4=>Float32x2, 5=>Float32x2, 6=>Float32x2, 7=>Float32x2] }),
                 ] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format, blend: if transparent { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: wgpu::ColorWrites::ALL })] }),
+                targets: &crate::scene::geometry::color_targets(format, transparent) }),
             primitive: Default::default(), depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: Some(!transparent), depth_compare: Some(wgpu::CompareFunction::Less), stencil: Default::default(), bias: Default::default() }),
             multisample: Default::default(), multiview_mask: None, cache: None,

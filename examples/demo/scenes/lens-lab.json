@@ -1,0 +1,1609 @@
+{
+  "version": 1,
+  "name": "Lens Lab / Focus & Light",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "hero": {
+      "kind": "mesh",
+      "path": "assets/material-gallery/gold-satin.gltf"
+    },
+    "bulb": {
+      "kind": "mesh",
+      "path": "assets/bonfire/gold-cube.gltf"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Focus on the sculpture",
+      "transform": {
+        "translation": [
+          0,
+          1.9,
+          7
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation_degrees": [
+          -4,
+          0,
+          0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 48,
+        "near": 0.1,
+        "far": 80
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Midnight slate floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.15,
+          -4
+        ],
+        "scale": [
+          20,
+          0.3,
+          26
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.035,
+          0.06,
+          0.085
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "hero-plinth",
+      "name": "Sculpture plinth",
+      "transform": {
+        "translation": [
+          0,
+          0.35,
+          0
+        ],
+        "scale": [
+          1.7,
+          0.7,
+          1.7
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.13,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "hero",
+      "name": "Gold study / focus plane",
+      "transform": {
+        "translation": [
+          0,
+          1.3,
+          0
+        ],
+        "scale": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "rotation_degrees": [
+          0,
+          20,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "hero"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-0",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -5.6,
+          2.1,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-1",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -4.199999999999999,
+          2.3629481417991025,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-2",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -2.8,
+          2.447082683658364,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-3",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -1.4,
+          2.295189301086996,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-4",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          0.0,
+          2.0105606142906094,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-5",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          1.4,
+          1.7867537246199958,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-6",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          2.8,
+          1.7759648611852938,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-7",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          4.199999999999999,
+          1.9855308147955908,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-0-8",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          5.6,
+          2.272939672898513,
+          -5
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-0",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -5.199999999999999,
+          2.351074631814833,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-1",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -3.7999999999999994,
+          2.4489027599588717,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-2",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -2.4,
+          2.309465250436385,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-3",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -0.9999999999999999,
+          2.0275843099143103,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-4",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          0.4,
+          1.7949484796552442,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-5",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          1.7999999999999998,
+          1.7697579659774327,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-6",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          3.1999999999999997,
+          1.9691431673094173,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-7",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          4.6,
+          2.2575154258232164,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-1-8",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          6.0,
+          2.43877188521102,
+          -10
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-0",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -5.6,
+          2.449850761064527,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-1",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -4.199999999999999,
+          2.3232176457470763,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-2",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -2.8,
+          2.044789007049863,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-3",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          -1.4,
+          1.8039057046235938,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-4",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          0.0,
+          1.7643765038679016,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-5",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          1.4,
+          1.9530825937560492,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-6",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          2.8,
+          2.2416974722158094,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-7",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          4.199999999999999,
+          2.4339532931978303,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bulb-2-8",
+      "name": "Warm distant light",
+      "transform": {
+        "translation": [
+          5.6,
+          2.399109617830898,
+          -15
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "near-post-0",
+      "name": "Foreground focus reference",
+      "transform": {
+        "translation": [
+          -3.8,
+          1.2,
+          2.8
+        ],
+        "scale": [
+          0.16,
+          2.4,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.13,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "near-bulb-0",
+      "name": "Foreground lamp",
+      "transform": {
+        "translation": [
+          -3.8,
+          2.5,
+          2.8
+        ],
+        "scale": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "near-post-1",
+      "name": "Foreground focus reference",
+      "transform": {
+        "translation": [
+          3.8,
+          1.2,
+          2.8
+        ],
+        "scale": [
+          0.16,
+          2.4,
+          0.16
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.09,
+          0.13,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "near-bulb-1",
+      "name": "Foreground lamp",
+      "transform": {
+        "translation": [
+          3.8,
+          2.5,
+          2.8
+        ],
+        "scale": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "bulb"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "key-light",
+      "name": "Warm studio key",
+      "transform": {
+        "translation": [
+          -2,
+          3,
+          3
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.7,
+          0.4
+        ],
+        "intensity": 60,
+        "range": 12
+      }
+    },
+    {
+      "id": "lens-director",
+      "name": "Lens Director / Play racks focus",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Rack focus / sculpture to distant lights",
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "update",
+                "inputs": [],
+                "position": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "id": 2,
+                "kind": "set_focus_distance",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 6.9
+                  }
+                ],
+                "position": [
+                  1450,
+                  0
+                ]
+              },
+              {
+                "id": 3,
+                "kind": "elapsed_time",
+                "inputs": [],
+                "position": [
+                  0,
+                  180
+                ]
+              },
+              {
+                "id": 4,
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0.5
+                  }
+                ],
+                "position": [
+                  230,
+                  180
+                ]
+              },
+              {
+                "id": 5,
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": -1.5707963267948966
+                  }
+                ],
+                "position": [
+                  470,
+                  180
+                ]
+              },
+              {
+                "id": 6,
+                "kind": "sine",
+                "inputs": [
+                  {
+                    "number": 0
+                  }
+                ],
+                "position": [
+                  700,
+                  180
+                ]
+              },
+              {
+                "id": 7,
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 7.5
+                  }
+                ],
+                "position": [
+                  930,
+                  180
+                ]
+              },
+              {
+                "id": 8,
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 14.4
+                  }
+                ],
+                "position": [
+                  1170,
+                  180
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {}
+          }
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "sun_direction": [
+      -0.6,
+      0.8,
+      0.4
+    ],
+    "sun_color": [
+      0.7,
+      0.83,
+      1.0
+    ],
+    "sun_intensity": 2.5,
+    "ambient_intensity": 0.018,
+    "shadows": true,
+    "shadow_resolution": 1024
+  },
+  "environment": {
+    "zenith": [
+      0.025,
+      0.06,
+      0.14
+    ],
+    "horizon": [
+      0.06,
+      0.1,
+      0.17
+    ],
+    "ground": [
+      0.025,
+      0.03,
+      0.04
+    ],
+    "intensity": 0.5,
+    "background": true
+  },
+  "display": {
+    "tone_mapper": "filmic",
+    "depth_of_field": {
+      "enabled": true,
+      "focus_distance": 6.9,
+      "focal_length_mm": 135.0,
+      "aperture": 1.0,
+      "max_blur_radius": 30.0
+    },
+    "auto_exposure": {
+      "enabled": true,
+      "min_ev": -0.75,
+      "max_ev": 0.75,
+      "target_gray": 0.07,
+      "speed_up": 1.0,
+      "speed_down": 3.0,
+      "center_weight": 0.65
+    },
+    "bloom": {
+      "enabled": true,
+      "threshold": 0.7,
+      "intensity": 0.18,
+      "scatter": 0.7
+    },
+    "vignette": {
+      "intensity": 0.25
+    },
+    "color_grading": {
+      "temperature": 0.08,
+      "contrast": 1.04,
+      "saturation": 1.08
+    }
+  }
+}

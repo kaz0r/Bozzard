@@ -664,6 +664,7 @@ fn merge_instances(
                     gravity,
                     trigger,
                     light,
+                    particle_emitter,
                     blueprints
                 );
                 if current.id != root {

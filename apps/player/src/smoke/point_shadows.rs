@@ -16,9 +16,12 @@ fn point(position: Vec3) -> LocalLight {
 }
 fn quad(model: Mat4) -> DrawItem {
     DrawItem {
+        motion_id: 0,
         model,
         mesh: MeshKind::Quad,
         material: Material {
+            metallic: None,
+            roughness: None,
             surface_overrides: Default::default(),
             tint: [1.; 3],
             uv_scale: [1.; 2],
@@ -51,6 +54,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
                 let receiver = origin + forward * 4.;
                 // Large enough to cover seam pixels, small enough to leave a lit edge.
                 let mut scene = RenderScene {
+                    particles: Vec::new(),
                     fog: Default::default(),
                     view_projection: glam::camera::rh::proj::directx::orthographic(
                         -0.8, 0.8, -0.8, 0.8, 0.1, 10.,
@@ -152,6 +156,7 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
         shadows: None,
     };
     let mut scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         view_projection: glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 10.)
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),

@@ -2,6 +2,8 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct FrameStats {
+    pub particles: usize,
+    pub particle_triangles: u64,
     pub scene_items: usize,
     pub surfaces: usize,
     pub visible_surfaces: usize,

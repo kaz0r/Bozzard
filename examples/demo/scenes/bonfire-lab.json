@@ -60,10 +60,113 @@
       "enabled": true,
       "intensity": 0.4,
       "threshold": 0.5,
-      "scatter": 0.78
+      "scatter": 0.78,
+      "anamorphic": 0.65
     },
     "exposure_ev": -0.2,
-    "tone_mapping": true
+    "tone_mapping": true,
+    "tone_mapper": "filmic",
+    "color_grading": {
+      "temperature": 0.12,
+      "tint": 0.0,
+      "saturation": 1.05,
+      "contrast": 1.05,
+      "lift": [
+        0.0,
+        0.0,
+        0.001
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": true,
+      "intensity": 0.7,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": true,
+      "strength": 4.0,
+      "threshold": 0.6,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.025,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.4,
+      "roundness": 0.7,
+      "feather": 0.6
+    },
+    "volumetric_fog": {
+      "enabled": true,
+      "density": 0.028,
+      "albedo": [
+        0.88,
+        0.92,
+        1.0
+      ],
+      "anisotropy": 0.3,
+      "base_height": 0.0,
+      "height_falloff": 0.3,
+      "start_distance": 0.25,
+      "max_distance": 32.0,
+      "noise_amount": 0.8,
+      "noise_scale": 0.45,
+      "wind": [
+        0.16,
+        0.035,
+        0.08
+      ],
+      "light_intensity": 0.6,
+      "ambient": 0.15,
+      "steps": 48
+    },
+    "depth_of_field": {
+      "enabled": true,
+      "focus_distance": 4.3,
+      "focal_length_mm": 85.0,
+      "aperture": 1.8,
+      "max_blur_radius": 20.0
+    },
+    "auto_exposure": {
+      "enabled": true,
+      "min_ev": -0.5,
+      "max_ev": 0.4,
+      "target_gray": 0.025,
+      "speed_up": 1.0,
+      "speed_down": 3.0,
+      "center_weight": 0.7
+    },
+    "temporal_aa": {
+      "enabled": true,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": true,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": true,
+      "strength": 0.8,
+      "max_distance": 25.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.6,
+      "steps": 64
+    }
   },
   "lighting": {
     "shadows": false,
@@ -6682,6 +6785,276 @@
           1.0,
           1.0
         ]
+      }
+    },
+    {
+      "id": "fire-smoke",
+      "name": "Smoke / curling firelit wisps",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0,
+          1.65,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "particle_emitter": {
+        "enabled": true,
+        "kind": "smoke",
+        "rate": 12,
+        "lifetime": 4.5,
+        "radius": 0.25,
+        "speed": 0.7,
+        "spread": 0.3,
+        "start_size": 0.45,
+        "end_size": 1.8,
+        "color": [
+          0.28,
+          0.3,
+          0.34
+        ],
+        "opacity": 0.16,
+        "wind": [
+          0.12,
+          0,
+          0.07
+        ],
+        "turbulence": 0.5,
+        "gravity": 0.15,
+        "drag": 0.25,
+        "softness": 0.5,
+        "trail_length": 0,
+        "max_particles": 512,
+        "seed": 1
+      }
+    },
+    {
+      "id": "fire-ash",
+      "name": "Ash / wind and tumble",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0,
+          1.6,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "particle_emitter": {
+        "enabled": true,
+        "kind": "ash",
+        "rate": 7,
+        "lifetime": 6,
+        "radius": 0.25,
+        "speed": 1.2,
+        "spread": 0.6,
+        "start_size": 0.035,
+        "end_size": 0.014,
+        "color": [
+          0.55,
+          0.48,
+          0.38
+        ],
+        "opacity": 0.55,
+        "wind": [
+          0.14,
+          0,
+          0.06
+        ],
+        "turbulence": 0.7,
+        "gravity": -0.25,
+        "drag": 0.25,
+        "softness": 0.1,
+        "trail_length": 0,
+        "max_particles": 512,
+        "seed": 1
+      }
+    },
+    {
+      "id": "fire-sparks",
+      "name": "Sparks / glowing trails",
+      "parent": "bonfire",
+      "transform": {
+        "translation": [
+          0,
+          1.4,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "particle_emitter": {
+        "enabled": true,
+        "kind": "sparks",
+        "rate": 12,
+        "lifetime": 2.2,
+        "radius": 0.25,
+        "speed": 2.2,
+        "spread": 0.6,
+        "start_size": 0.035,
+        "end_size": 0.008,
+        "color": [
+          1,
+          0.32,
+          0.04
+        ],
+        "opacity": 1,
+        "wind": [
+          0.12,
+          0,
+          0.06
+        ],
+        "turbulence": 0.7,
+        "gravity": -0.9,
+        "drag": 0.25,
+        "softness": 0.1,
+        "trail_length": 0.1,
+        "max_particles": 512,
+        "seed": 1
+      }
+    },
+    {
+      "id": "wet-stone-0",
+      "name": "Rain-darkened stone",
+      "parent": null,
+      "transform": {
+        "translation": [
+          -2.1,
+          0.003,
+          -1.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.8,
+          0.025,
+          0.9
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.05,
+          0.06
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "roughness": 0.08,
+        "metallic": 0.05
+      }
+    },
+    {
+      "id": "wet-stone-1",
+      "name": "Rain-darkened stone",
+      "parent": null,
+      "transform": {
+        "translation": [
+          -2.45,
+          0.003,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          12,
+          0
+        ],
+        "scale": [
+          0.8,
+          0.025,
+          0.9
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.05,
+          0.06
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "roughness": 0.08,
+        "metallic": 0.05
+      }
+    },
+    {
+      "id": "wet-stone-2",
+      "name": "Rain-darkened stone",
+      "parent": null,
+      "transform": {
+        "translation": [
+          -2.8,
+          0.003,
+          1.0
+        ],
+        "rotation_degrees": [
+          0,
+          24,
+          0
+        ],
+        "scale": [
+          0.8,
+          0.025,
+          0.9
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.05,
+          0.06
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "roughness": 0.08,
+        "metallic": 0.05
       }
     }
   ],

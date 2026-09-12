@@ -5,6 +5,7 @@ use std::sync::Arc;
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let scene = RenderScene {
+        particles: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: Vec::new(),
@@ -13,9 +14,12 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         lighting: Default::default(),
         view_projection: Mat4::IDENTITY,
         items: vec![DrawItem {
+            motion_id: 0,
             model: Mat4::from_translation(Vec3::new(0., 0., 0.5)),
             mesh: MeshKind::Imported("staged".into()),
             material: Material {
+                metallic: None,
+                roughness: None,
                 surface_overrides: Default::default(),
                 tint: [1.; 3],
                 uv_scale: [128.; 2],

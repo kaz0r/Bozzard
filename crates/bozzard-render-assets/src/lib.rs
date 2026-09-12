@@ -28,9 +28,12 @@ pub fn text_item(
     text: &bozzard_scene::TextRendering,
 ) -> bozzard_render::DrawItem {
     bozzard_render::DrawItem {
+        motion_id: 0,
         model,
         mesh: bozzard_render::MeshKind::Text(text_mesh(text)),
         material: bozzard_render::Material {
+            metallic: None,
+            roughness: None,
             surface_overrides: Default::default(),
             tint: [text.color[0], text.color[1], text.color[2]],
             uv_scale: [1.; 2],
@@ -150,3 +153,6 @@ pub fn upload(
         }
     }
 }
+
+mod display;
+pub use display::{display_settings, particle_frame};

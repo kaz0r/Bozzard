@@ -4,6 +4,7 @@ struct ObjectUniform {
     sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
     surface_factors: vec4<f32>,
     fog_color: vec4<f32>, fog_density: vec4<f32>, fog_height: vec4<f32>,
+    previous_mvp: mat4x4<f32>,
 };
 struct MaterialUniform { factors: vec4<f32>, emissive: vec4<f32> };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
@@ -20,6 +21,7 @@ struct MaterialUniform { factors: vec4<f32>, emissive: vec4<f32> };
 @group(1) @binding(8) var emissive_sampler: sampler;
 
 struct VertexOutput {
+    @location(8) previous:vec4<f32>,
     @builtin(position) position: vec4<f32>,
     @location(0) world: vec3<f32>, @location(1) normal: vec3<f32>,
     @location(2) tangent: vec4<f32>, @location(3) uv: vec2<f32>,
@@ -30,6 +32,7 @@ struct VertexOutput {
     @location(3) tangent: vec4<f32>, @location(4) normal_uv: vec2<f32>, @location(5) mr_uv: vec2<f32>,
     @location(6) ao_uv: vec2<f32>, @location(7) emissive_uv: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
+    out.previous=object.previous_mvp*vec4<f32>(position,1.0);
     out.position = object.mvp * vec4<f32>(position,1.0);
     out.world = (object.model * vec4<f32>(position,1.0)).xyz;
     out.normal = (object.normal * vec4<f32>(normal,0.0)).xyz;
@@ -41,7 +44,7 @@ struct VertexOutput {
     out.emissive_uv = emissive_uv * object.parameters.xy;
     return out;
 }
-@fragment fn fs_main(in: VertexOutput, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+@fragment fn fs_main(in: VertexOutput, @builtin(front_facing) front: bool) -> SurfaceOutput {
     let texel = textureSample(color_texture,color_sampler,in.uv);
     let mr = textureSample(mr_texture,mr_sampler,in.mr_uv);
     let sampled_normal = textureSample(normal_texture,normal_sampler,in.normal_uv).xyz * 2.0 - 1.0;
@@ -55,10 +58,10 @@ struct VertexOutput {
     if object.surface_factors.z > 0.5 {
         let effect_normal = in.normal * select(-1.0, 1.0, facing);
         let effect = demo_effect(base, effect_normal, in.uv, in.world);
-        if object.surface_factors.z < 1.5 { return vec4<f32>(effect, alpha); }
-        return vec4<f32>(apply_fog(effect, in.world, in.position.xy), alpha);
+        if object.surface_factors.z < 1.5 { return surface_output(vec4<f32>(effect, alpha),in.position,in.previous,in.normal,1.0,vec3<f32>(0),1.0,1.0); }
+        return surface_output(vec4<f32>(apply_fog(effect, in.world, in.position.xy), alpha),in.position,in.previous,in.normal,1.0,vec3<f32>(0),1.0,1.0);
     }
-    if object.parameters.z < 0.5 { return vec4<f32>(apply_fog(base, in.world, in.position.xy),alpha); }
+    if object.parameters.z < 0.5 { return surface_output(vec4<f32>(apply_fog(base, in.world, in.position.xy),alpha),in.position,in.previous,in.normal,1.0,vec3<f32>(0),1.0,0.0); }
     var n = normalize(in.normal);
     let t = normalize(in.tangent.xyz - n * dot(n,in.tangent.xyz));
     let b = cross(n,t) * in.tangent.w;
@@ -87,7 +90,7 @@ struct VertexOutput {
     let ibl_diffuse = gi_diffuse(in.world,n)*base*(1.0-f0)*(1.0-metallic);
     let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);
     let indirect = base*(1.0-metallic)*object.sun_color.w*object.ambient_color.rgb*ao + (ibl_diffuse+ibl_specular)*ao;
-    return vec4<f32>(apply_fog(min(direct+indirect+emissive, vec3<f32>(60000.0)), in.world, in.position.xy),alpha);
+    return surface_output(vec4<f32>(apply_fog(min(direct+indirect+emissive, vec3<f32>(60000.0)), in.world, in.position.xy),alpha),in.position,in.previous,n,roughness,f0,ao,0.0);
 }
 
 fn direct_brdf(base: vec3<f32>, metallic: f32, roughness: f32, n: vec3<f32>, v: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
@@ -104,4 +107,20 @@ fn direct_brdf(base: vec3<f32>, metallic: f32, roughness: f32, n: vec3<f32>, v: 
     let fresnel = f0 + (1.0-f0)*pow(1.0-vh,5.0);
     let diffuse = (1.0-fresnel)*(1.0-metallic)*base/3.14159265;
     return (diffuse + distribution*visibility*fresnel)*nl;
+}
+
+
+struct SurfaceOutput {
+    @location(0) color:vec4<f32>,
+    @location(1) normal_roughness:vec4<f32>,
+    @location(2) motion_depth_reactive:vec4<f32>,
+    @location(3) fresnel_occlusion:vec4<f32>,
+}
+fn surface_output(color:vec4<f32>,position:vec4<f32>,previous:vec4<f32>,normal:vec3<f32>,roughness:f32,f0:vec3<f32>,ao:f32,reactive:f32)->SurfaceOutput {
+    let current_uv=position.xy/object.viewport.xy;
+    let previous_ndc=previous.xyz/max(previous.w,0.000001);
+    let previous_uv=previous_ndc.xy*vec2<f32>(0.5,-0.5)+0.5;
+    let valid=previous.w>0.00001 && previous_ndc.z>=0.0 && previous_ndc.z<=1.0;
+    return SurfaceOutput(color,vec4<f32>(normalize(normal),roughness),
+        vec4<f32>(select(vec2<f32>(0),current_uv-previous_uv,valid),select(1.0,log2(max(1.0-previous_ndc.z,0.00000001)),valid),max(reactive,object.surface_factors.w)),vec4<f32>(f0,ao));
 }

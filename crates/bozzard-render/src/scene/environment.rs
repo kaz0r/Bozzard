@@ -201,11 +201,20 @@ impl Environment {
                         module: shader,
                         entry_point: Some(entry),
                         compilation_options: Default::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba16Float,
-                            blend: None,
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
+                        targets: &if sky {
+                            let mut targets =
+                                geometry::color_targets(wgpu::TextureFormat::Rgba16Float, false);
+                            for target in targets.iter_mut().skip(1) {
+                                target.as_mut().unwrap().write_mask = wgpu::ColorWrites::empty();
+                            }
+                            targets.to_vec()
+                        } else {
+                            vec![Some(wgpu::ColorTargetState {
+                                format: wgpu::TextureFormat::Rgba16Float,
+                                blend: None,
+                                write_mask: wgpu::ColorWrites::ALL,
+                            })]
+                        },
                     }),
                     primitive: Default::default(),
                     depth_stencil: sky.then_some(wgpu::DepthStencilState {
@@ -240,9 +249,10 @@ impl Environment {
         gpu: &Gpu,
         settings: EnvironmentSettings,
         inverse: Mat4,
+        require_brdf: bool,
     ) -> Result<()> {
         settings.validate()?;
-        if !self.ready && settings.intensity > 0. {
+        if !self.ready && (settings.intensity > 0. || require_brdf) {
             let mut encoder = gpu
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {

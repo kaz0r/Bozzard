@@ -74,6 +74,7 @@ impl Editor {
                 .as_ref()
                 .map(|_| bozzard_scene::Material::from_drawable(&geometry));
             scene.objects.push(Object {
+                particle_emitter: None,
                 id: id.clone(),
                 name: part.name.clone(),
                 parent: Some(original.id.clone()),

@@ -1,0 +1,750 @@
+{
+  "version": 1,
+  "name": "Light Shafts Lab",
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Shafts viewpoint",
+      "transform": {
+        "translation": [
+          4.5,
+          2.1,
+          4.7
+        ],
+        "rotation_degrees": [
+          -0.6042975566969583,
+          37.71597634558314,
+          0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 52.0,
+        "near": 0.1,
+        "far": 80.0
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Slate floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.15,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          0.3,
+          12
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.19,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "ceiling",
+      "name": "Stone ceiling",
+      "transform": {
+        "translation": [
+          0,
+          5.15,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          0.3,
+          12
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.15,
+          0.18
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "left-wall",
+      "name": "West wall",
+      "transform": {
+        "translation": [
+          -6,
+          2.5,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.3,
+          5,
+          12
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.2,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "right-wall",
+      "name": "East wall",
+      "transform": {
+        "translation": [
+          6,
+          2.5,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.3,
+          5,
+          12
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.2,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "back-low",
+      "name": "Window sill",
+      "transform": {
+        "translation": [
+          0,
+          0.55,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          1.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "back-high",
+      "name": "Window lintel",
+      "transform": {
+        "translation": [
+          0,
+          4.55,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          0.9,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "mullion-0",
+      "name": "Window pier",
+      "transform": {
+        "translation": [
+          -5.6,
+          2.6,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.2,
+          3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "mullion-1",
+      "name": "Window pier",
+      "transform": {
+        "translation": [
+          -2.8,
+          2.6,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.2,
+          3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "mullion-2",
+      "name": "Window pier",
+      "transform": {
+        "translation": [
+          0,
+          2.6,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.2,
+          3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "mullion-3",
+      "name": "Window pier",
+      "transform": {
+        "translation": [
+          2.8,
+          2.6,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.2,
+          3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "mullion-4",
+      "name": "Window pier",
+      "transform": {
+        "translation": [
+          5.6,
+          2.6,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.2,
+          3,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.22,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "window-bar-0",
+      "name": "Window crossbar",
+      "transform": {
+        "translation": [
+          -4.2,
+          3.25,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.14,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "window-bar-1",
+      "name": "Window crossbar",
+      "transform": {
+        "translation": [
+          -1.4,
+          3.25,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.14,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "window-bar-2",
+      "name": "Window crossbar",
+      "transform": {
+        "translation": [
+          1.4,
+          3.25,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.14,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "window-bar-3",
+      "name": "Window crossbar",
+      "transform": {
+        "translation": [
+          4.2,
+          3.25,
+          -4.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.6,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.14,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "plinth-0",
+      "name": "Stone plinth",
+      "transform": {
+        "translation": [
+          -3,
+          0.6,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.1,
+          1.2,
+          1.1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.25,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "plinth-1",
+      "name": "Stone plinth",
+      "transform": {
+        "translation": [
+          0.3,
+          0.35,
+          -0.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.1,
+          0.7,
+          1.1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.25,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "plinth-2",
+      "name": "Stone plinth",
+      "transform": {
+        "translation": [
+          2.5,
+          0.45,
+          1.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.1,
+          0.9,
+          1.1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.22,
+          0.25,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.003,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      -0.55,
+      0.3,
+      -0.75
+    ],
+    "sun_color": [
+      1.0,
+      0.83,
+      0.62
+    ],
+    "sun_intensity": 6,
+    "ambient_color": [
+      0.28,
+      0.4,
+      0.65
+    ],
+    "ambient_intensity": 0.025
+  },
+  "environment": {
+    "zenith": [
+      0.03,
+      0.06,
+      0.12
+    ],
+    "horizon": [
+      0.1,
+      0.14,
+      0.2
+    ],
+    "ground": [
+      0.04,
+      0.03,
+      0.02
+    ],
+    "intensity": 0.18,
+    "background": true
+  },
+  "display": {
+    "tone_mapper": "filmic",
+    "exposure_ev": 0.0,
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.2,
+      "threshold": 1.0,
+      "scatter": 0.7,
+      "anamorphic": 0.25
+    },
+    "ambient_occlusion": {
+      "enabled": true,
+      "intensity": 0.7,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "vignette": {
+      "intensity": 0.2
+    },
+    "volumetric_fog": {
+      "enabled": true,
+      "density": 0.045,
+      "albedo": [
+        0.9,
+        0.95,
+        1.0
+      ],
+      "anisotropy": 0.35,
+      "height_falloff": 0.08,
+      "start_distance": 0.1,
+      "max_distance": 22,
+      "noise_amount": 0.4,
+      "noise_scale": 0.3,
+      "wind": [
+        0.15,
+        0.025,
+        0.07
+      ],
+      "ambient": 0.15,
+      "steps": 80
+    }
+  }
+}

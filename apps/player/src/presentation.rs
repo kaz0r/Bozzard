@@ -45,6 +45,7 @@ pub fn extract(
     }
 
     Ok(RenderScene {
+        particles: bozzard_render_assets::particle_frame(&view.particles),
         fog: bozzard_render::FogSettings {
             enabled: layer == Layer::ThreeD && view.fog.enabled,
             color: view.fog.color,
@@ -88,20 +89,7 @@ pub fn extract(
             },
             background: layer == Layer::ThreeD && view.environment.background,
         },
-        display: bozzard_render::DisplaySettings {
-            bloom: bozzard_render::BloomSettings {
-                enabled: layer == Layer::ThreeD && view.display.bloom.enabled,
-                intensity: view.display.bloom.intensity,
-                threshold: view.display.bloom.threshold,
-                scatter: view.display.bloom.scatter,
-            },
-            exposure_ev: if layer == Layer::ThreeD {
-                view.display.exposure_ev
-            } else {
-                0.
-            },
-            tone_mapping: layer == Layer::ThreeD && view.display.tone_mapping,
-        },
+        display: bozzard_render_assets::display_settings(view.display, layer, view.display_time),
         lighting: bozzard_render::Lighting {
             shadows: view.lighting.shadows,
             shadow_resolution: view.lighting.shadow_resolution,
@@ -117,10 +105,12 @@ pub fn extract(
         items: view
             .objects
             .into_iter()
-            .filter(|(_, d)| {
+            .zip(view.object_ids)
+            .filter(|((_, d), _)| {
                 !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
             })
-            .map(|(model, drawable)| DrawItem {
+            .map(|((model, drawable), motion_id)| DrawItem {
+                motion_id,
                 model,
                 mesh: match drawable.mesh {
                     Mesh::Quad => MeshKind::Quad,
@@ -131,6 +121,8 @@ pub fn extract(
                     }
                 },
                 material: Material {
+                    metallic: drawable.metallic,
+                    roughness: drawable.roughness,
                     surface_overrides: drawable
                         .material_overrides
                         .into_iter()

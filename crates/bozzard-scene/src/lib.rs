@@ -15,8 +15,19 @@ mod fog;
 pub use fog::FogSettings;
 mod environment;
 pub use environment::EnvironmentSettings;
+mod temporal;
+pub use temporal::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
+mod particles;
+pub use particles::{MAX_PARTICLES, Particle, ParticleEmitter, ParticleKind};
+mod volumetric;
+pub use volumetric::VolumetricFog;
+mod optics;
+pub use optics::{AutoExposure, DepthOfField};
 mod display;
-pub use display::{BloomSettings, DisplaySettings};
+pub use display::{
+    AmbientOcclusion, BloomSettings, ColorGrading, DisplayPreset, DisplaySettings, FilmGrain,
+    HeatDistortion, PostProcessVolume, ToneMapper, Vignette,
+};
 mod light;
 pub use light::{
     Light, LightKind, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS,
@@ -215,6 +226,10 @@ pub enum Texture {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Drawable {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metallic: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roughness: Option<f32>,
     /// Contribute to a static GI bake. Known moving objects/ancestors are excluded.
     #[serde(default = "default_true")]
     pub gi_static: bool,
@@ -256,6 +271,8 @@ impl Material {
         if let Some(texture) = &self.texture {
             drawable.texture = texture.clone();
         }
+        drawable.metallic = self.metallic.or(drawable.metallic);
+        drawable.roughness = self.roughness.or(drawable.roughness);
         drawable.color = self.color;
         drawable.uv_scale = self.uv_scale;
         if let Mesh::Surface { index, source, .. } = &drawable.mesh
@@ -294,6 +311,8 @@ pub struct Spin(pub [f32; 3]);
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particle_emitter: Option<ParticleEmitter>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_rendering: Option<TextRendering>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -338,6 +357,8 @@ pub struct Scene {
     pub environment: EnvironmentSettings,
     #[serde(default)]
     pub display: DisplaySettings,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub post_process_volumes: Vec<PostProcessVolume>,
     #[serde(default)]
     pub lighting: Lighting,
     pub version: u32,
@@ -399,6 +420,13 @@ impl Scene {
         self.gi.validate()?;
         self.lighting.validate()?;
         self.display.validate()?;
+        ensure!(
+            self.post_process_volumes.len() <= 32,
+            "at most 32 post-process volumes"
+        );
+        for volume in &self.post_process_volumes {
+            volume.validate()?;
+        }
         self.environment.validate()?;
         ensure!(
             self.version == SCENE_VERSION,
@@ -472,6 +500,9 @@ impl Scene {
             if let Some(collider) = object.collider {
                 collider.validate()?;
             }
+            if let Some(emitter) = object.particle_emitter {
+                emitter.validate()?;
+            }
             if object.mesh_collider.is_some() {
                 ensure!(
                     object.collider.is_none()
@@ -497,19 +528,21 @@ impl Scene {
                     object.id
                 );
             }
+            if let Some(drawable) = &object.drawable {
+                ensure!(
+                    drawable
+                        .metallic
+                        .iter()
+                        .chain(drawable.roughness.iter())
+                        .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                    "invalid mesh surface factors"
+                );
+            }
             if let Some(material) = &object.material {
                 ensure!(
                     object.drawable.is_some(),
                     "Material needs a mesh on '{}'",
                     object.id
-                );
-                ensure!(
-                    (material.metallic.is_none() && material.roughness.is_none())
-                        || object
-                            .drawable
-                            .as_ref()
-                            .is_some_and(|d| matches!(d.mesh, Mesh::Surface { .. })),
-                    "PBR factor overrides need an imported surface entity"
                 );
                 ensure!(
                     material
@@ -667,6 +700,9 @@ impl Scene {
             if let Some(trigger) = &object.trigger {
                 trigger.volume.geometry(global)?;
             }
+            if let Some(emitter) = object.particle_emitter {
+                emitter.validate()?;
+            }
             if let Some(light) = object.light {
                 light.at(global)?;
             }
@@ -710,6 +746,9 @@ impl Scene {
             order,
             templates,
             next_spawn: 0,
+            particle_state: Default::default(),
+            display_time: 0.,
+            display_overrides: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -719,6 +758,9 @@ impl Scene {
 /// Runtime scene membership and live ECS components. Authored documents remain independent.
 #[derive(Clone)]
 pub struct SceneInstance {
+    particle_state: particles::ParticleSystem,
+    display_time: f32,
+    display_overrides: display::DisplayOverrides,
     templates: BTreeMap<String, Prefab>,
     next_spawn: u64,
     document: Scene,
@@ -803,6 +845,7 @@ impl SceneInstance {
         let camera_id = &self.document.views[&layer];
         let view_projection = projection * matrices[camera_id].inverse();
         let mut objects = Vec::new();
+        let mut object_ids = Vec::new();
         let mut texts = Vec::new();
         for (id, entity) in &self.entities {
             if let Some(text) = world.get::<TextRendering>(*entity)
@@ -827,6 +870,10 @@ impl SceneInstance {
                 if let Some(material) = world.get::<Material>(*entity) {
                     material.apply(&mut drawable);
                 }
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                entity.hash(&mut hasher);
+                object_ids.push(hasher.finish().max(1));
                 objects.push((matrices[id], drawable));
             }
         }
@@ -860,13 +907,23 @@ impl SceneInstance {
             "too many runtime shadowed point lights"
         );
         Ok(SceneView {
+            particles: if layer == Layer::ThreeD {
+                self.particle_state.frame()
+            } else {
+                Vec::new()
+            },
             fog: self.document.fog,
             lights,
             environment: self.document.environment,
-            display: self.document.display,
+            display: self.display_at(
+                matrices[camera_id].transform_point3(glam::Vec3::ZERO),
+                layer,
+            ),
+            display_time: self.display_time,
             lighting: self.document.lighting,
             view_projection,
             objects,
+            object_ids,
             texts,
         })
     }
@@ -880,6 +937,7 @@ impl SceneInstance {
             object.transform = *world
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
+            object.particle_emitter = world.get::<ParticleEmitter>(entity).copied();
             object.text_rendering = world.get::<TextRendering>(entity).cloned();
             object.material = world.get::<Material>(entity).cloned();
             object.light = world.get::<Light>(entity).copied();
@@ -898,6 +956,10 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    /// Runtime identities in the same order as objects; never serialized.
+    pub object_ids: Vec<u64>,
+    pub particles: Vec<Particle>,
+    pub display_time: f32,
     pub texts: Vec<(Mat4, TextRendering)>,
     pub fog: FogSettings,
     pub lights: Vec<WorldLight>,
@@ -914,6 +976,7 @@ impl Object {
         world.insert(entity, self.transform)?;
         macro_rules! insert { ($($field:ident),*) => { $(if let Some(value) = &self.$field { world.insert(entity, value.clone())?; })* }; }
         insert!(
+            particle_emitter,
             text_rendering,
             material,
             light,
@@ -1051,6 +1114,7 @@ mod tests {
     use super::*;
     fn object(id: &str) -> Object {
         Object {
+            particle_emitter: None,
             material: None,
             blueprints: Vec::new(),
             light: None,
@@ -1075,6 +1139,7 @@ mod tests {
             gi: Default::default(),
             environment: EnvironmentSettings::default(),
             display: DisplaySettings::default(),
+            post_process_volumes: Vec::new(),
             lighting: Lighting::default(),
             version: 1,
             name: "test".into(),

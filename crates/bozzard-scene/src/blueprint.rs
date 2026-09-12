@@ -155,6 +155,17 @@ pub enum NodeKind {
     SetColor,
     SetVisible,
     SetLightIntensity,
+    SetFocusDistance,
+    SetAperture,
+    SetFogDensity,
+    SetFogLightIntensity,
+    SetExposure,
+    SetBloomIntensity,
+    SetSaturation,
+    SetHeatStrength,
+    SetGrainIntensity,
+    SetVignetteIntensity,
+
     MoveWithCollision,
     Jump,
     Print,
@@ -162,7 +173,7 @@ pub enum NodeKind {
     DestroyPrefab,
 }
 impl NodeKind {
-    pub const ALL: [Self; 55] = [
+    pub const ALL: [Self; 65] = [
         Self::Object,
         Self::SelfObject,
         Self::ObjectEqual,
@@ -213,6 +224,16 @@ impl NodeKind {
         Self::SetColor,
         Self::SetVisible,
         Self::SetLightIntensity,
+        Self::SetFocusDistance,
+        Self::SetAperture,
+        Self::SetFogDensity,
+        Self::SetFogLightIntensity,
+        Self::SetExposure,
+        Self::SetBloomIntensity,
+        Self::SetSaturation,
+        Self::SetHeatStrength,
+        Self::SetGrainIntensity,
+        Self::SetVignetteIntensity,
         Self::MoveWithCollision,
         Self::Jump,
         Self::Print,
@@ -271,6 +292,17 @@ impl NodeKind {
             Self::SetColor => "Set Color (RGB)",
             Self::SetVisible => "Set Visible",
             Self::SetLightIntensity => "Set Light Intensity",
+            Self::SetFocusDistance => "Set Focus Distance",
+            Self::SetAperture => "Set Aperture (f-stop)",
+            Self::SetFogDensity => "Set Volumetric Fog Density",
+            Self::SetFogLightIntensity => "Set Volumetric Light Intensity",
+            Self::SetExposure => "Set Exposure (EV)",
+            Self::SetBloomIntensity => "Set Bloom Intensity",
+            Self::SetSaturation => "Set Saturation",
+            Self::SetHeatStrength => "Set Heat Strength",
+            Self::SetGrainIntensity => "Set Grain Intensity",
+            Self::SetVignetteIntensity => "Set Vignette Intensity",
+
             Self::MoveWithCollision => "Move With Collision",
             Self::Jump => "Jump",
             Self::Print => "Print Number",
@@ -314,6 +346,16 @@ impl NodeKind {
             Self::ScaleVector => &[("Vector", Vector), ("Factor", Number)],
             Self::AddVector => &[("A", Vector), ("B", Vector)],
             Self::Branch => &[("In", Exec), ("Condition", Bool)],
+            Self::SetFocusDistance
+            | Self::SetAperture
+            | Self::SetFogDensity
+            | Self::SetFogLightIntensity
+            | Self::SetExposure
+            | Self::SetBloomIntensity
+            | Self::SetSaturation
+            | Self::SetHeatStrength
+            | Self::SetGrainIntensity
+            | Self::SetVignetteIntensity => &[("In", Exec), ("Value", Number)],
             Self::SetVariable | Self::Print => &[("In", Exec), ("Value", Number)],
             Self::Translate
             | Self::Rotate

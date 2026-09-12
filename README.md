@@ -31,6 +31,9 @@ cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/model-lab.json
 # Dark cube-built bonfire: Blueprint-spawned embers destroy themselves after 2.8 seconds.
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/bonfire-lab.json
 
+# Smoke, sparks, temporal AA, motion blur and wet-surface reflections.
+cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/atmosphere-lab.json
+
 # Load file-backed textures and meshes (edit the source assets to hot reload).
 cargo run -p bozzard-player -- --scene examples/demo/scenes/asset-lab.json
 
@@ -43,6 +46,8 @@ Windows needs Rust's MSVC toolchain and Visual Studio C++ build tools. Linux nee
 The [Gold Yard mini-game](docs/gold-yard.md) is a small physics playground: open `examples/demo/scenes/gold-yard.json`, Play, then **WASD** to roam, **Space** to jump and **right-drag** to look. Collect the gold, step on the blue pad to drop convex physics blocks onto a ramp, and optionally finish at the green pad. Includes reusable **Mouse Delta X/Y** Blueprint nodes.
 
 The [bonfire demo](docs/bonfire.md) demonstrates **Spawn Prefab / Destroy Prefab** in a dark, fire-lit scene. Press **Play**, then **Space** in the viewport to toggle emission and watch the remaining embers expire.
+
+Click **Effects** for presets, live particle preview, focus, wet materials, and detailed tuning. See [atmosphere and motion effects](docs/atmosphere-effects.md).
 
 ## Lighting and material galleries
 
@@ -125,7 +130,7 @@ Sun shadows use one camera-independent `Depth32Float` map over all lit world geo
 
 Undo/redo is bounded to 100 changes and coalesces each drag into one entry. Play starts a separate simulated world; editing is disabled while it runs and Stop restores the untouched authored scene. Saving always writes the authored document, even during Play. The Content Browser offers previews, search, filters, and undoable add/assign/remove actions. Imports copy PNG/JPEG/OBJ/glTF/GLB files into an `assets/` folder next to the scene before adding them to the catalog. glTF/GLB imports become `assets/<id>/model.gltf` with flat external buffer and image files, preserving metadata without large base64 expansion; material-bearing OBJ imports retain the existing packed single glTF path. A cancelled, stale, or failed glTF/GLB import removes its owned directory, while accepted imports and remove/undo retain files. Dropped files import (or open, for `.json`). Unsaved changes prompt before New/Open/close, and the workspace layout persists in the platform application-data directory. New scenes default to fresh filenames under `~/Documents/Bozzard Projects` (`%USERPROFILE%/Documents/Bozzard Projects` on Windows); use Save As to choose another location.
 
-The 3D display pipeline shades and blends into bounded `Rgba16Float` scene color, caps scene radiance at 60000, optionally composites scene-linear bloom, then applies exposure and optional per-channel Reinhard tone mapping once before sRGB display encoding. `exposure_ev` defaults to 0 and accepts -16..16 stops; each positive stop doubles radiance. Bloom is disabled by default; its intensity defaults to 0.15 (0..10), threshold to 1 (0..60000 scene-linear radiance before exposure), and Spread/scatter to 0.7 (0..1). Disabling tone mapping bypasses only the curve. 2D extraction bypasses exposure, bloom, and tone mapping but keeps display encoding. Auto-exposure is not implemented; the `draw_linear` diagnostic path bypasses display transforms, including bloom, for numeric fixtures and requires a non-sRGB target.
+The 3D display pipeline shades into bounded HDR color, optionally applies depth-based ambient occlusion and animated heat shimmer, composites bloom (including horizontal anamorphic streaks), and applies exposure, Reinhard or filmic tone mapping, color grading, FXAA, vignette, and grain before final sRGB encoding. **Scene Settings → Post Processing** provides live controls and Neutral/Cinematic/Bonfire/Neon/Noir presets. World-space effect volumes blend looks around the camera; Blueprint setters animate transient display controls during Play. Existing scenes retain their original defaults, and 2D/raw diagnostics bypass the effects. See [post-processing controls, volumes, and renderer limits](docs/post-processing.md).
 
 Scenes also include one procedural distant environment by default: zenith `[0.15, 0.32, 0.65]`, horizon `[0.65, 0.70, 0.80]`, ground `[0.12, 0.10, 0.08]`, intensity `0.35`, and a background toggle. Colors are linear RGB in 0..1 and intensity is 0..1000. The GPU precomputes diffuse cosine-convolved and GGX specular IBL resources on first use; later color/intensity edits update uniforms only. PBR surfaces use diffuse and roughness-dependent specular environment light, legacy surfaces use diffuse environment light, and 2D extraction disables it. HDR panorama import, local reflection probes, and atmospheric simulation are not implemented. Baked diffuse GI is available as one bounded static probe volume with diffuse transport; CPU transport samples source textures at mip level zero, while runtime evaluates probe SH and trilinear visibility. Glossy GI, caustics, multiple volumes, and runtime rebaking are not implemented. The split-sum approach follows [Filament's material documentation](https://google.github.io/filament/main/filament.html); the implementation is Bozzard's own. See [baked global illumination](docs/lighting.md#baked-global-illumination).
 

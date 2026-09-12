@@ -28,6 +28,8 @@ mod hierarchy;
 mod inspector;
 mod lights;
 mod loading;
+mod particles;
+mod post_processing;
 mod snapping;
 mod surfaces;
 mod theme;
@@ -47,6 +49,7 @@ struct Workspace {
     layer_2d: bool,
     assets_visible: bool,
     settings_visible: bool,
+    effects_page: bool,
     blueprints_visible: bool,
     stats_visible: bool,
     colliders_visible: bool,
@@ -65,6 +68,7 @@ impl Default for Workspace {
             layer_2d: false,
             assets_visible: true,
             settings_visible: true,
+            effects_page: true,
             blueprints_visible: false,
             stats_visible: false,
             colliders_visible: true,
@@ -122,6 +126,9 @@ struct App {
     close_after_loading: bool,
     error: bool,
     last_frame: Instant,
+    effects_preview: Option<bozzard_editor::EffectsPreview>,
+    preview_running: bool,
+    preview_bypass: bool,
     last_assets: Instant,
     dialog: Option<files::Dialog>,
     pending: Option<Pending>,
@@ -209,6 +216,9 @@ impl App {
             close_after_loading: false,
             error: false,
             last_frame: Instant::now(),
+            effects_preview: None,
+            preview_running: true,
+            preview_bypass: false,
             last_assets: Instant::now() - Duration::from_secs(1),
             dialog: None,
             pending: None,
@@ -493,6 +503,16 @@ impl App {
                                 );
                             });
                         });
+                        if ui
+                            .selectable_label(
+                                self.workspace.settings_visible && self.workspace.effects_page,
+                                "Effects",
+                            )
+                            .clicked()
+                        {
+                            self.workspace.settings_visible = true;
+                            self.workspace.effects_page = true;
+                        }
                         ui.menu_button("View", |ui| {
                             ui.checkbox(&mut self.workspace.blueprints_visible, "Blueprint Editor");
                             ui.checkbox(&mut self.workspace.assets_visible, "Content Browser");
@@ -633,6 +653,19 @@ impl App {
                         ui.close();
                     }
                     ui.separator();
+                    ui.menu_button("Particles", |ui| {
+                        for kind in bozzard_scene::ParticleKind::ALL {
+                            if ui.button(kind.name()).clicked() {
+                                let result = self.editor.create_particle_emitter(kind);
+                                if result.is_ok() {
+                                    self.workspace.layer_2d = false;
+                                    self.hierarchy_search.clear();
+                                }
+                                self.result(result);
+                                ui.close();
+                            }
+                        }
+                    });
                     for (kind, label) in [
                         (bozzard_scene::LightKind::Point, "Point light"),
                         (bozzard_scene::LightKind::Spot, "Spot light"),
@@ -1160,6 +1193,24 @@ impl eframe::App for App {
         self.editor.repair_surface_selection();
         let now = Instant::now();
         self.editor.advance(now.duration_since(self.last_frame));
+        if self.editor.play.is_none() && self.loading.is_none() {
+            let result = (|| -> Result<()> {
+                if self.effects_preview.is_none() {
+                    self.effects_preview = Some(bozzard_editor::EffectsPreview::new(&self.editor)?);
+                }
+                self.effects_preview.as_mut().unwrap().advance(
+                    &self.editor,
+                    now.duration_since(self.last_frame),
+                    self.preview_running && !self.workspace.layer_2d,
+                )
+            })();
+            if result.is_err() {
+                self.result(result);
+            }
+        } else {
+            self.effects_preview = None;
+        }
+
         if let Some(play) = &self.editor.play
             && let Err(error) = play.check_simulation()
         {
@@ -1340,11 +1391,23 @@ impl eframe::App for App {
                     if self.loading.is_some() {
                         ui.disable();
                     }
-                    theme::panel_title(ui, "Scene Settings");
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(&mut self.workspace.effects_page, true, "Effects");
+                        ui.selectable_value(
+                            &mut self.workspace.effects_page,
+                            false,
+                            "Scene Settings",
+                        );
+                    });
+                    ui.separator();
                     egui::ScrollArea::vertical()
                         .id_salt("scene-settings-scroll")
                         .show(ui, |ui| {
-                            self.lighting_inspector(ui);
+                            if self.workspace.effects_page {
+                                self.effects_inspector(ui);
+                            } else {
+                                self.lighting_inspector(ui);
+                            }
                         });
                 });
         }

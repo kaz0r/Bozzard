@@ -456,6 +456,18 @@ impl SceneInstance {
                                                 BlueprintHidden(!value.boolean()?),
                                             )?;
                                         }
+                                        K::SetFocusDistance
+                                        | K::SetAperture
+                                        | K::SetFogDensity
+                                        | K::SetFogLightIntensity
+                                        | K::SetExposure
+                                        | K::SetBloomIntensity
+                                        | K::SetSaturation
+                                        | K::SetHeatStrength
+                                        | K::SetGrainIntensity
+                                        | K::SetVignetteIntensity => {
+                                            self.set_display_parameter(node.kind, value.number()?)?
+                                        }
                                         K::SetLightIntensity => {
                                             let mut light = *world
                                                 .get::<Light>(entity)
