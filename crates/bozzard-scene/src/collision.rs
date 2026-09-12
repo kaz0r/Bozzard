@@ -1,7 +1,9 @@
 //! Box overlap queries and swept single-box translation against static colliders.
 use super::*;
 use glam::DVec3;
+mod mesh;
 mod response;
+pub use mesh::{CollisionMesh, MeshCollider, TriangleMesh};
 pub use response::MoveResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -104,6 +106,8 @@ impl CollisionBox {
 pub struct CollisionSnapshot {
     /// Enabled colliders in stable object-ID order.
     pub boxes: Vec<CollisionBox>,
+    /// Static triangle surfaces; mesh/mesh overlap is not queried.
+    pub meshes: Vec<CollisionMesh>,
     /// Unique, sorted object-ID pairs. Re-query after changing runtime transforms/components.
     pub overlaps: Vec<(String, String)>,
 }
@@ -112,6 +116,24 @@ impl SceneInstance {
         let matrices = self.global_transforms(world)?;
         let mut snapshot = CollisionSnapshot::default();
         for (id, &entity) in &self.entities {
+            if let Some(collider) = world.get::<MeshCollider>(entity).filter(|c| c.enabled) {
+                ensure!(
+                    world.get::<BoxCollider>(entity).is_none(),
+                    "Mesh Collider cannot also be a Box Collider"
+                );
+                collider.geometry(matrices[id])?;
+                snapshot.meshes.push(CollisionMesh {
+                    id: id.clone(),
+                    entity,
+                    mesh: if world.get::<Gravity>(entity).is_some_and(|g| g.enabled) {
+                        collider.mesh.convex_hull()?
+                    } else {
+                        collider.mesh.clone()
+                    },
+                    matrix: matrices[id],
+                    solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
+                });
+            }
             if let Some(collider) = world.get::<BoxCollider>(entity) {
                 collider.validate()?;
                 if !collider.enabled {
@@ -135,6 +157,22 @@ impl SceneInstance {
                 }
             }
         }
+        for a in &snapshot.boxes {
+            for b in &snapshot.meshes {
+                if b.intersects(a) {
+                    snapshot.overlaps.push(if a.id < b.id {
+                        (a.id.clone(), b.id.clone())
+                    } else {
+                        (b.id.clone(), a.id.clone())
+                    });
+                }
+            }
+        }
+        if let Some(physics) = world.resource::<crate::physics::Physics>() {
+            snapshot.overlaps.extend(physics.contacts(world, &matrices));
+        }
+        snapshot.overlaps.sort();
+        snapshot.overlaps.dedup();
         Ok(snapshot)
     }
 }

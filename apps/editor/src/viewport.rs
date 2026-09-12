@@ -1,6 +1,15 @@
 use super::framing::{fit_2d, fit_3d};
 use super::*;
 use glam::Mat4;
+fn gameplay_orbit(response: &egui::Response) -> Vec2 {
+    // dragged_by reads the Context too: never call it while input holds egui's lock.
+    if response.dragged_by(egui::PointerButton::Secondary) {
+        response.ctx.input(|i| i.pointer.delta())
+    } else {
+        Vec2::ZERO
+    }
+}
+
 pub struct Drag {
     id: String,
     surface: Option<usize>,
@@ -508,13 +517,7 @@ impl App {
                 && !ui.ctx().egui_wants_keyboard_input();
             let play = self.editor.play.as_mut().unwrap();
             if eligible {
-                let orbit = ui.input(|i| {
-                    if response.dragged_by(egui::PointerButton::Secondary) {
-                        i.pointer.delta()
-                    } else {
-                        Vec2::ZERO
-                    }
-                });
+                let orbit = gameplay_orbit(&response);
                 let input = self.gameplay_controls.take_input([orbit.x, orbit.y]);
                 play.set_gameplay_input(input);
             } else {
@@ -530,11 +533,10 @@ impl App {
             && response.hovered()
             && ui.input(|i| i.focused)
             && !ui.ctx().egui_wants_keyboard_input()
-            && self
-                .editor
-                .selected_object()
-                .and_then(|o| o.collider)
-                .is_some_and(|c| c.enabled)
+            && self.editor.selected_object().is_some_and(|o| {
+                o.collider.is_some_and(|c| c.enabled)
+                    || o.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+            })
         {
             // Ignore OS key repeats: holding Space must not auto-jump after landing.
             if ui.input(|i| {
@@ -575,7 +577,12 @@ impl App {
                     * i.stable_dt.min(0.05)
                     * if i.modifiers.shift { 8.0 } else { 3.0 }
             });
-            if delta != Vec3::ZERO {
+            if delta != Vec3::ZERO
+                && self
+                    .editor
+                    .selected_object()
+                    .is_some_and(|o| o.collider.is_some())
+            {
                 let result = self.editor.move_selected_box(delta).map(|movement| {
                     self.status = if movement.contacts.is_empty() {
                         "Moving selected box".into()
@@ -1293,6 +1300,62 @@ fn prefab_drop_position(projection: Mat4, rect: Rect, pointer: Pos2, layer: Laye
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn play_viewport_pointer_presses_drags_and_releases_do_not_reenter_egui() {
+        for button in [
+            egui::PointerButton::Primary,
+            egui::PointerButton::Secondary,
+            egui::PointerButton::Middle,
+        ] {
+            let ctx = egui::Context::default();
+            let mut time = 0.;
+            let mut frame = |events| {
+                time += 1. / 60.;
+                let mut sample = (false, Vec2::ZERO);
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::splat(300.))),
+                        time: Some(time),
+                        focused: true,
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        let (_, response) =
+                            ui.allocate_exact_size(Vec2::splat(250.), Sense::click_and_drag());
+                        sample = (response.dragged(), gameplay_orbit(&response));
+                    },
+                );
+                output.textures_delta.clear();
+                sample
+            };
+            let start = Pos2::new(60., 60.);
+            let end = Pos2::new(90., 80.);
+            let press = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            frame(vec![]);
+            assert_eq!(
+                frame(vec![egui::Event::PointerMoved(start), press(start, true)]).1,
+                Vec2::ZERO
+            );
+            let (dragged, delta) = frame(vec![egui::Event::PointerMoved(end)]);
+            assert!(dragged, "must exercise a real egui drag for {button:?}");
+            assert_eq!(
+                delta,
+                if button == egui::PointerButton::Secondary {
+                    end - start
+                } else {
+                    Vec2::ZERO
+                }
+            );
+            assert_eq!(frame(vec![press(end, false)]).1, Vec2::ZERO);
+        }
+    }
+
     #[test]
     fn prefab_drop_follows_construction_plane_and_has_finite_parallel_fallback() {
         let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(500.0));

@@ -101,6 +101,8 @@ impl Eval<'_> {
             K::InputHeld => Value::Bool(n.key.active(self.input)),
             K::MoveX => Value::Number(self.input.movement[0]),
             K::MoveY => Value::Number(self.input.movement[1]),
+            K::MouseX => Value::Number(self.input.orbit[0]),
+            K::MouseY => Value::Number(self.input.orbit[1]),
             K::GetVariable => Value::Number(self.variables[&n.variable]),
             K::Add => Value::Number(v[0].number()? + v[1].number()?),
             K::Subtract => Value::Number(v[0].number()? - v[1].number()?),
@@ -162,7 +164,13 @@ impl SceneInstance {
             return Ok(());
         }
         ensure!(
-            dt.is_finite() && dt > 0. && input.movement.iter().all(|v| v.is_finite()),
+            dt.is_finite()
+                && dt > 0.
+                && input
+                    .movement
+                    .iter()
+                    .chain(&input.orbit)
+                    .all(|v| v.is_finite()),
             "invalid blueprint timestep/input"
         );
         let mut runtime = world
@@ -192,12 +200,30 @@ impl SceneInstance {
                         .iter()
                         .any(|b| b.enabled && needs_overlap(&b.graph))
                 }) {
+                    contacts.insert(object.id.clone(), BTreeSet::new());
+                }
+                // Reuse solid pairs once, rather than scanning every pair for every graph owner.
+                for (a, b) in &collisions.overlaps {
+                    ensure!(
+                        overlap_budget > 0,
+                        "blueprint overlap budget exceeded (1000000 tests/tick)"
+                    );
+                    overlap_budget -= 1;
+                    if let Some(overlap) = contacts.get_mut(a) {
+                        overlap.insert(b.clone());
+                    }
+                    if let Some(overlap) = contacts.get_mut(b) {
+                        overlap.insert(a.clone());
+                    }
+                }
+                for object in self.document.objects.iter().filter(|o| {
+                    o.blueprints
+                        .iter()
+                        .any(|b| b.enabled && needs_overlap(&b.graph))
+                }) {
                     let entity = self.entities[&object.id];
-                    let collider = world
-                        .get::<Trigger>(entity)
-                        .map(|t| t.volume)
-                        .or_else(|| world.get::<BoxCollider>(entity).copied());
-                    let mut overlap = BTreeSet::new();
+                    let collider = world.get::<Trigger>(entity).map(|t| t.volume);
+                    let mut overlap = contacts.remove(&object.id).unwrap_or_default();
                     if let Some(collider) = collider.filter(|c| c.enabled) {
                         let (center, edges, corners) = collider.geometry(matrices[&object.id])?;
                         let volume = CollisionBox {
@@ -215,6 +241,16 @@ impl SceneInstance {
                             overlap_budget -= 1;
                             if body.id != object.id && volume.intersects(body) {
                                 overlap.insert(body.id.clone());
+                            }
+                        }
+                        for mesh in &collisions.meshes {
+                            ensure!(
+                                overlap_budget > 0,
+                                "blueprint overlap budget exceeded (1000000 tests/tick)"
+                            );
+                            overlap_budget -= 1;
+                            if mesh.id != object.id && mesh.intersects(&volume) {
+                                overlap.insert(mesh.id.clone());
                             }
                         }
                     }

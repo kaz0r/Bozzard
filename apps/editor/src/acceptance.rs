@@ -119,6 +119,25 @@ impl App {
                 object.transform.translation = [0.0, 2.5, 0.0];
                 object.spin = Some(Spin([0.0, 90.0, 0.0]));
                 object.collider = Some(bozzard_scene::BoxCollider::default());
+                // A Player Controller owns its camera pose; never repurpose that camera as a floor.
+                let mut floor_object = object.clone();
+                let mut floor_id = format!("{id}-smoke-floor");
+                while scene.objects.iter().any(|o| o.id == floor_id) {
+                    floor_id.push('_');
+                }
+                floor_object.id = floor_id.clone();
+                floor_object.name = "Smoke physics floor".into();
+                floor_object.drawable = None;
+                floor_object.spin = None;
+                floor_object.transform = Transform {
+                    translation: [50., -5., 50.],
+                    ..Default::default()
+                };
+                floor_object.collider = Some(bozzard_scene::BoxCollider {
+                    size: [30., 1., 30.],
+                    ..Default::default()
+                });
+                scene.objects.push(floor_object);
                 self.editor.apply("Smoke transform", scene)?;
                 self.editor.finish_gesture();
                 ensure!(
@@ -130,21 +149,16 @@ impl App {
                 for _ in 0..120 {
                     self.editor.play.as_mut().unwrap().app.step();
                 }
-                // Add a temporary runtime-only floor using a known scene member.
-                // This exercises response even when the supplied scene has no colliders.
+                // Exercise response even when the supplied scene has no colliders.
                 let play = self.editor.play.as_mut().unwrap();
-                let floor = play.instance().camera_entity(Layer::ThreeD)?;
+                let floor = play
+                    .instance()
+                    .entity(&floor_id)
+                    .context("missing smoke floor")?;
                 *play.app.world.get_mut::<Transform>(floor).unwrap() = Transform {
                     translation: [0.0, -5.0, 0.0],
                     ..Transform::default()
                 };
-                play.app.world.insert(
-                    floor,
-                    bozzard_scene::BoxCollider {
-                        size: [30.0, 1.0, 30.0],
-                        ..Default::default()
-                    },
-                )?;
                 let movement = self.editor.move_selected_box(Vec3::new(0.0, -20.0, 0.0))?;
                 ensure!(
                     !movement.contacts.is_empty()

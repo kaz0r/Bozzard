@@ -140,7 +140,11 @@ impl SceneInstance {
             "prefab member was removed outside the scene"
         );
         for id in &ids {
-            world.despawn(self.entities.remove(id).unwrap())?;
+            let entity = self.entities.remove(id).unwrap();
+            if let Some(physics) = world.resource_mut::<crate::physics::Physics>() {
+                physics.remove_entity(entity);
+            }
+            world.despawn(entity)?;
         }
         self.document = scene;
         self.order = order;

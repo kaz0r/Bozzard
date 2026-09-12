@@ -33,8 +33,13 @@ mod collision;
 mod gameplay;
 mod prefab;
 pub use prefab::{Prefab, PrefabInstance};
+pub mod bvh;
 mod gravity;
-pub use collision::{BoxCollider, CollisionBox, CollisionSnapshot, MoveResult};
+mod physics;
+pub use collision::{
+    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, MeshCollider, MoveResult,
+    TriangleMesh,
+};
 pub use gameplay::{GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction};
 pub use gravity::{Gravity, GravityState};
 
@@ -307,6 +312,8 @@ pub struct Object {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collider: Option<BoxCollider>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mesh_collider: Option<MeshCollider>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gravity: Option<Gravity>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_controller: Option<PlayerController>,
@@ -453,13 +460,22 @@ impl Scene {
             if let Some(gravity) = object.gravity {
                 gravity.validate()?;
                 ensure!(
-                    !gravity.enabled || object.collider.is_some(),
-                    "gravity needs a box collider on '{}'",
+                    !gravity.enabled || object.collider.is_some() || object.mesh_collider.is_some(),
+                    "Rigidbody needs a Box or Mesh Collider on '{}'",
                     object.id
                 );
             }
             if let Some(collider) = object.collider {
                 collider.validate()?;
+            }
+            if object.mesh_collider.is_some() {
+                ensure!(
+                    object.collider.is_none()
+                        && object.player_controller.is_none()
+                        && object.trigger.is_none(),
+                    "Mesh Collider cannot also have Box Collider, Player Controller or Trigger on '{}'",
+                    object.id
+                );
             }
             if let Some(light) = object.light {
                 light.validate()?;
@@ -609,6 +625,20 @@ impl Scene {
                 .map(|p| matrices[p.as_str()])
                 .unwrap_or(Mat4::IDENTITY);
             let global = parent * object.transform.matrix();
+            if object.collider.is_some_and(|c| c.enabled)
+                || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+            {
+                let mut ancestor = object.parent.as_deref();
+                while let Some(id) = ancestor {
+                    let body = &self.objects[ids[id]];
+                    ensure!(
+                        !body.gravity.is_some_and(|g| g.enabled),
+                        "Rigidbody '{id}' cannot carry a colliding descendant '{}'; use one collider per body",
+                        object.id
+                    );
+                    ancestor = body.parent.as_deref();
+                }
+            }
             ensure!(
                 global.is_finite() && global.inverse().is_finite(),
                 "invalid composed transform on '{}'",
@@ -616,6 +646,16 @@ impl Scene {
             );
             if let Some(collider) = object.collider {
                 collider.geometry(global)?;
+            }
+            if let Some(collider) = &object.mesh_collider {
+                collider.geometry(global)?;
+                if object.gravity.is_some_and(|g| g.enabled) {
+                    collider.mesh.convex_hull()?;
+                }
+            }
+            if object.gravity.is_some_and(|g| g.enabled) && object.player_controller.is_none() {
+                physics::parent_pose(parent)
+                    .with_context(|| format!("Rigidbody '{}'", object.id))?;
             }
             if let Some(trigger) = &object.trigger {
                 trigger.volume.geometry(global)?;
@@ -826,6 +866,7 @@ impl SceneInstance {
             object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
             object.collider = world.get::<BoxCollider>(entity).copied();
+            object.mesh_collider = world.get::<MeshCollider>(entity).cloned();
             object.gravity = world.get::<Gravity>(entity).copied();
             object.player_controller = world.get::<PlayerController>(entity).cloned();
             object.trigger = world.get::<Trigger>(entity).cloned();
@@ -857,6 +898,7 @@ impl Object {
             drawable,
             gravity,
             collider,
+            mesh_collider,
             player_controller,
             trigger,
             spin
@@ -997,6 +1039,7 @@ mod tests {
             drawable: None,
             spin: None,
             collider: None,
+            mesh_collider: None,
             gravity: None,
             player_controller: None,
             trigger: None,

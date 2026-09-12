@@ -242,6 +242,7 @@ impl Editor {
             light: None,
             id: id.clone(),
             material: None,
+            mesh_collider: None,
             name: match mesh {
                 Mesh::Quad => "Sprite",
                 Mesh::Cube => "Cube",
@@ -279,6 +280,7 @@ impl Editor {
             blueprints: Vec::new(),
             id: id.clone(),
             material: None,
+            mesh_collider: None,
             name: match kind {
                 bozzard_scene::LightKind::Point => "Point light",
                 bozzard_scene::LightKind::Spot => "Spot light",
@@ -511,6 +513,7 @@ impl Editor {
             light: None,
             id: id.clone(),
             material: None,
+            mesh_collider: None,
             name: asset_id.into(),
             parent: None,
             transform,

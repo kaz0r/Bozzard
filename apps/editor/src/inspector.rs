@@ -133,12 +133,27 @@ impl App {
                         }
                         });
                         }
+                        if object.mesh_collider.is_some() {
+                            component_section(ui, "MESH COLLIDER", &mut remove, |ui| {
+                                let collider = object.mesh_collider.as_mut().unwrap();
+                                ui.checkbox(&mut collider.enabled, "Enabled");
+                                ui.label(format!("{} source triangles", collider.mesh.triangles().len()));
+                                ui.weak(if object.gravity.is_some_and(|g| g.enabled) { "Dynamic convex hull: holes and concavities are filled." } else { "Static / two-sided triangle surfaces." });
+                                ui.weak("Baked geometry follows Transform, but not later renderer/source edits.");
+                                if ui.add_enabled(object.drawable.is_some(), egui::Button::new("Rebuild from Mesh Renderer")).clicked() {
+                                    match self.editor.assets.cook_mesh_collider(object.drawable.as_ref().unwrap()) {
+                                        Ok(mut rebuilt) => { rebuilt.enabled = collider.enabled; *collider = rebuilt; }
+                                        Err(error) => self.result(Err(error)),
+                                    }
+                                }
+                            });
+                        }
                         if object.gravity.is_some() {
                         component_section(ui, "RIGIDBODY", &mut remove, |ui| {
                         let mut gravity = object.gravity.is_some();
-                        if ui.add_enabled(object.player_controller.is_none(), egui::Checkbox::new(&mut gravity, "Rigidbody (kinematic gravity)")).changed() {
+                        if ui.add_enabled(object.player_controller.is_none(), egui::Checkbox::new(&mut gravity, "Rigidbody")).changed() {
                             if gravity {
-                                if object.collider.is_none() {
+                                if object.collider.is_none() && object.mesh_collider.is_none() {
                                     object.collider = Some(bozzard_scene::BoxCollider::default());
                                 }
                                 object.gravity = Some(bozzard_scene::Gravity::default());
@@ -156,6 +171,13 @@ impl App {
                             );
                             positive_number(ui, "Max speed (m/s)", &mut gravity.max_speed, 0.5);
                             positive_number(ui, "Jump speed (m/s)", &mut gravity.jump_speed, 0.1);
+                            if object.player_controller.is_none() {
+                                positive_number(ui, "Mass (kg)", &mut gravity.mass, 0.1);
+                                ui.add(egui::Slider::new(&mut gravity.friction, 0.0..=10.0).text("Friction"));
+                                ui.add(egui::Slider::new(&mut gravity.restitution, 0.0..=1.0).text("Restitution"));
+                                ui.add(egui::Slider::new(&mut gravity.angular_damping, 0.0..=100.0).text("Angular damping"));
+                                ui.weak("Dynamic body: contacts can rotate, topple and push it. Spin sets initial angular velocity.");
+                            } else { ui.weak("Player Controller keeps kinematic movement and locked rotation."); }
                             // Continuous-motion estimates; fixed-step integration differs slightly.
                             let acceleration = f64::from(gravity.acceleration);
                             let launch = f64::from(gravity.jump_speed);
@@ -335,7 +357,7 @@ impl App {
                         }
                         });
                         }
-                        add_component_menu(ui, &mut object, &scene, self.layer(), &self.editor.assets);
+                        if let Some(error) = add_component_menu(ui, &mut object, &scene, self.layer(), &self.editor.assets) { self.result(Err(error)); }
                     });
                 });
         });
@@ -351,11 +373,16 @@ impl App {
                 .world
                 .get::<bozzard_scene::Gravity>(entity)
                 .is_some_and(|g| g.enabled)
-            && play
+            && (play
                 .app
                 .world
                 .get::<bozzard_scene::BoxCollider>(entity)
                 .is_some_and(|c| c.enabled)
+                || play
+                    .app
+                    .world
+                    .get::<bozzard_scene::MeshCollider>(entity)
+                    .is_some_and(|c| c.enabled))
         {
             ui.weak(if state.grounded {
                 "Grounded"
@@ -567,7 +594,8 @@ fn add_component_menu(
     scene: &bozzard_scene::Scene,
     layer: Layer,
     assets: &bozzard_assets::AssetStore,
-) {
+) -> Option<anyhow::Error> {
+    let mut error = None;
     ui.separator();
     ui.menu_button("Add Component", |ui| {
         let id = ui.id().with("component-search");
@@ -582,7 +610,7 @@ fn add_component_menu(
             }
             matches += 1;
             if ui.button(label).clicked() {
-                add_component(object, label, scene, layer, assets);
+                error = add_component(object, label, scene, layer, assets).err();
                 ui.close();
             }
         }
@@ -590,6 +618,7 @@ fn add_component_menu(
             ui.weak("No matching components available");
         }
     });
+    error
 }
 
 fn component_section(
@@ -631,6 +660,10 @@ fn remove_component(
             object.material = None;
         }
         "MATERIAL" => object.material = None,
+        "MESH COLLIDER" => {
+            object.mesh_collider = None;
+            object.gravity = None;
+        }
         "BOX COLLIDER" => {
             object.collider = None;
             object.gravity = None;
@@ -652,7 +685,7 @@ fn remove_component(
     }
 }
 
-fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 10] {
+fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 11] {
     [
         ("Mesh Renderer", object.drawable.is_none()),
         (
@@ -665,18 +698,29 @@ fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 1
         ),
         (
             "Box Collider",
-            object.collider.is_none() && object.trigger.is_none(),
+            object.collider.is_none() && object.trigger.is_none() && object.mesh_collider.is_none(),
+        ),
+        (
+            "Mesh Collider",
+            object.mesh_collider.is_none()
+                && object.drawable.is_some()
+                && object.player_controller.is_none()
+                && object.trigger.is_none(),
         ),
         (
             "Player Controller",
             object.player_controller.is_none()
+                && object.mesh_collider.is_none()
                 && object.trigger.is_none()
                 && object.parent.is_none()
                 && object.spin.is_none(),
         ),
         (
             "Trigger",
-            object.trigger.is_none() && object.collider.is_none() && object.gravity.is_none(),
+            object.trigger.is_none()
+                && object.collider.is_none()
+                && object.gravity.is_none()
+                && object.mesh_collider.is_none(),
         ),
         ("Light", object.light.is_none()),
         ("Camera", object.camera.is_none()),
@@ -694,8 +738,14 @@ fn add_component(
     scene: &bozzard_scene::Scene,
     layer: Layer,
     assets: &bozzard_assets::AssetStore,
-) {
+) -> Result<()> {
     use bozzard_scene::*;
+    anyhow::ensure!(
+        component_choices(object)
+            .iter()
+            .any(|(name, available)| *name == label && *available),
+        "Component is unavailable or incompatible"
+    );
     let collider = object
         .drawable
         .as_ref()
@@ -719,8 +769,20 @@ fn add_component(
         }
         "Material" => object.material = object.drawable.as_ref().map(Material::from_drawable),
         "Box Collider" => object.collider = Some(collider),
+        "Mesh Collider" => {
+            let mesh = assets.cook_mesh_collider(object.drawable.as_ref().unwrap())?;
+            if object.gravity.is_some_and(|g| g.enabled) {
+                mesh.mesh.convex_hull()?;
+            }
+            object.collider = None;
+            object.mesh_collider = Some(mesh);
+        }
         "Rigidbody" => {
-            object.collider.get_or_insert(collider);
+            if let Some(mesh) = &object.mesh_collider {
+                mesh.mesh.convex_hull()?;
+            } else {
+                object.collider.get_or_insert(collider);
+            }
             object.gravity = Some(Gravity::default());
         }
         "Player Controller" => {
@@ -752,6 +814,7 @@ fn add_component(
         }),
         _ => {}
     }
+    Ok(())
 }
 
 pub(super) fn texture_control(
@@ -844,6 +907,7 @@ fn eligible_follow_camera(object: &bozzard_scene::Object) -> bool {
         && object.spin.is_none()
         && object.gravity.is_none()
         && object.collider.is_none()
+        && object.mesh_collider.is_none()
         && object.trigger.is_none()
         && object.player_controller.is_none()
         && matches!(object.camera, Some(Camera::Perspective { .. }))
@@ -919,7 +983,8 @@ mod tests {
                 editor.scene(),
                 Layer::ThreeD,
                 &editor.assets,
-            );
+            )
+            .unwrap();
         }
         assert!(object.material.is_some() && object.gravity.is_some() && object.collider.is_some());
         assert_eq!(object.blueprints.len(), 1);
@@ -935,6 +1000,43 @@ mod tests {
     }
 
     #[test]
+    fn mesh_collider_accepts_rigidbody_and_survives_renderer_removal() {
+        let mut editor = editor();
+        editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let mut object = editor.selected_object().unwrap().clone();
+        let mut scene = editor.scene().clone();
+        add_component(
+            &mut object,
+            "Mesh Collider",
+            &scene,
+            Layer::ThreeD,
+            &editor.assets,
+        )
+        .unwrap();
+        add_component(
+            &mut object,
+            "Rigidbody",
+            &scene,
+            Layer::ThreeD,
+            &editor.assets,
+        )
+        .unwrap();
+        assert!(object.collider.is_none());
+        assert!(object.gravity.is_some());
+        let before = object.clone();
+        for name in ["Box Collider", "Player Controller", "Trigger"] {
+            assert!(
+                add_component(&mut object, name, &scene, Layer::ThreeD, &editor.assets).is_err()
+            );
+            assert_eq!(object, before);
+        }
+        remove_component(&mut object, &mut scene, "MESH RENDERER");
+        assert_eq!(object.mesh_collider, before.mesh_collider);
+        assert!(object.drawable.is_none());
+        assert_eq!(object.transform, before.transform);
+    }
+
+    #[test]
     fn removal_keeps_transform_and_cascades_required_components_undoably() {
         let mut editor = editor();
         editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
@@ -942,6 +1044,7 @@ mod tests {
         let mut scene = editor.scene().clone();
         for (add, remove) in [
             ("Material", "MATERIAL"),
+            ("Mesh Collider", "MESH COLLIDER"),
             ("Rigidbody", "BOX COLLIDER"),
             ("Light", "LIGHT"),
             ("Spin", "SPIN"),
@@ -949,7 +1052,7 @@ mod tests {
             ("Camera", "CAMERA"),
         ] {
             let mut object = fresh.clone();
-            add_component(&mut object, add, &scene, Layer::ThreeD, &editor.assets);
+            add_component(&mut object, add, &scene, Layer::ThreeD, &editor.assets).unwrap();
             remove_component(&mut object, &mut scene, remove);
             assert_eq!(object, fresh, "{remove}");
         }
@@ -960,7 +1063,8 @@ mod tests {
             &scene,
             Layer::ThreeD,
             &editor.assets,
-        );
+        )
+        .unwrap();
         remove_component(&mut object, &mut scene, "BOX COLLIDER");
         assert_eq!(object, fresh);
         remove_component(&mut object, &mut scene, "TRANSFORM");

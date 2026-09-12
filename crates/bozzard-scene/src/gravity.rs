@@ -1,4 +1,5 @@
-//! Fixed-step world-down acceleration for individual swept box movers.
+//! Rigidbody settings (`gravity` is retained as the scene key for compatibility).
+//! Player Controllers remain kinematic; other bodies use Rapier dynamics.
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -10,6 +11,10 @@ pub struct Gravity {
     pub max_speed: f32,
     /// Upward launch speed used by editor Play controls, in world units / second.
     pub jump_speed: f32,
+    pub mass: f32,
+    pub friction: f32,
+    pub restitution: f32,
+    pub angular_damping: f32,
 }
 impl Default for Gravity {
     fn default() -> Self {
@@ -18,11 +23,31 @@ impl Default for Gravity {
             acceleration: 9.81,
             max_speed: 50.0,
             jump_speed: 5.0,
+            mass: 1.0,
+            friction: 0.6,
+            restitution: 0.0,
+            angular_damping: 0.1,
         }
     }
 }
 impl Gravity {
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.mass.is_finite() && (0.0001..=1000000.0).contains(&self.mass),
+            "Rigidbody mass must be in 0.0001..=1000000"
+        );
+        ensure!(
+            self.friction.is_finite() && (0.0..=10.0).contains(&self.friction),
+            "Rigidbody friction must be in 0..=10"
+        );
+        ensure!(
+            self.restitution.is_finite() && (0.0..=1.0).contains(&self.restitution),
+            "Rigidbody restitution must be in 0..=1"
+        );
+        ensure!(
+            self.angular_damping.is_finite() && (0.0..=100.0).contains(&self.angular_damping),
+            "Rigidbody angular damping must be in 0..=100"
+        );
         ensure!(
             self.acceleration.is_finite() && self.acceleration > 0.0,
             "gravity acceleration must be positive and finite"
@@ -54,7 +79,8 @@ impl SceneInstance {
         );
         let entity = self.entity(id).context("unknown jumping object")?;
         if !world.get::<Gravity>(entity).is_some_and(|g| g.enabled)
-            || !world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
+            || !(world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
+                || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled))
             || !world
                 .get::<GravityState>(entity)
                 .is_some_and(|s| s.grounded)
@@ -68,16 +94,18 @@ impl SceneInstance {
                 grounded: false,
             },
         )?;
+        if let Some(physics) = world.resource_mut::<crate::physics::Physics>() {
+            physics.launch(entity, speed);
+        }
         Ok(true)
     }
 
-    /// Sequential kinematic gravity in stable object-ID order. No dynamic impulses.
-    /// Disabled gravity/colliders reset velocity. Errors leave the failing body's move unapplied;
-    /// previously stepped bodies in the same tick are not rolled back.
+    /// Step kinematic players followed by dynamic rigid bodies. Disabled bodies reset velocity.
+    /// Public timesteps are bounded to one second and internally substepped; use fixed ticks.
     pub fn step_gravity(&self, world: &mut World, dt: f32) -> Result<()> {
         ensure!(
-            dt.is_finite() && dt > 0.0,
-            "gravity timestep must be positive and finite"
+            dt.is_finite() && dt > 0.0 && dt <= 1.0,
+            "gravity timestep must be finite and in (0, 1]"
         );
         for (id, &entity) in &self.entities {
             let Some(gravity) = world.get::<Gravity>(entity).copied() else {
@@ -87,8 +115,14 @@ impl SceneInstance {
                 continue;
             };
             gravity.validate()?;
-            if !gravity.enabled || world.get::<BoxCollider>(entity).is_some_and(|c| !c.enabled) {
+            if !gravity.enabled
+                || !(world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
+                    || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled))
+            {
                 world.insert(entity, GravityState::default())?;
+                continue;
+            }
+            if world.get::<PlayerController>(entity).is_none() {
                 continue;
             }
             let mut state = world
@@ -118,6 +152,6 @@ impl SceneInstance {
             }
             world.insert(entity, state)?;
         }
-        Ok(())
+        self.step_bodies(world, dt)
     }
 }
