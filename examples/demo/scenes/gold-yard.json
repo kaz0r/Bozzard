@@ -1,0 +1,1725 @@
+{
+  "version": 1,
+  "name": "Gold Yard - gold, ramps and falling blocks",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "yard-drop": {
+      "kind": "prefab",
+      "path": "assets/gold-yard/drop-block.prefab.json"
+    }
+  },
+  "lighting": {
+    "sun_direction": [
+      0.4,
+      0.85,
+      0.35
+    ],
+    "sun_color": [
+      1,
+      0.95,
+      0.85
+    ],
+    "sun_intensity": 3,
+    "ambient_intensity": 0.1
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Follow camera",
+      "transform": {
+        "translation": [
+          0,
+          3.15,
+          12.2
+        ],
+        "rotation_degrees": [
+          -18.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 60,
+        "near": 0.1,
+        "far": 150.0
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player \u2014 WASD / Space",
+      "transform": {
+        "translation": [
+          0,
+          0.65,
+          7
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          1.2,
+          0.8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.08,
+          0.62,
+          0.8
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "gravity": {
+        "enabled": true,
+        "acceleration": 9.81,
+        "max_speed": 50.0,
+        "jump_speed": 5.0
+      },
+      "player_controller": {
+        "camera": "camera",
+        "move_speed": 4.5,
+        "jump_speed": 6.0,
+        "camera_distance": 5.5,
+        "camera_height": 0.8,
+        "camera_radius": 0.3,
+        "orbit_sensitivity": 0.2,
+        "fall_height": -8.0
+      }
+    },
+    {
+      "id": "floor",
+      "name": "The plane - static triangle Mesh Collider",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          -90,
+          0,
+          0
+        ],
+        "scale": [
+          24,
+          24,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "quad",
+        "texture": "white",
+        "color": [
+          0.28,
+          0.34,
+          0.39
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": true
+      },
+      "material": {
+        "color": [
+          0.28,
+          0.34,
+          0.39
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "mesh_collider": {
+        "mesh": [
+          [
+            [
+              -0.5,
+              -0.5,
+              0
+            ],
+            [
+              0.5,
+              -0.5,
+              0
+            ],
+            [
+              0.5,
+              0.5,
+              0
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              0
+            ],
+            [
+              0.5,
+              0.5,
+              0
+            ],
+            [
+              -0.5,
+              0.5,
+              0
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "id": "gold",
+      "name": "Gold - walk into it to collect",
+      "transform": {
+        "translation": [
+          0,
+          0.75,
+          3
+        ],
+        "rotation_degrees": [
+          12,
+          30,
+          0
+        ],
+        "scale": [
+          0.65,
+          0.65,
+          0.65
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1,
+          0.68,
+          0.055
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          1,
+          0.68,
+          0.055
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "size": [
+            1.8,
+            2,
+            1.8
+          ]
+        },
+        "action": {
+          "kind": "collectible"
+        }
+      },
+      "blueprints": [
+        {
+          "graph": {
+            "version": 1,
+            "name": "Gold - mouse delta demo",
+            "variables": {},
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "update",
+                "position": [
+                  520,
+                  300
+                ],
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "kind": "mouse_x",
+                "position": [
+                  0,
+                  180
+                ],
+                "inputs": []
+              },
+              {
+                "id": 3,
+                "kind": "mouse_y",
+                "position": [
+                  0,
+                  0
+                ],
+                "inputs": []
+              },
+              {
+                "id": 4,
+                "kind": "make_vector",
+                "position": [
+                  260,
+                  30
+                ],
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0
+                  }
+                ]
+              },
+              {
+                "id": 5,
+                "kind": "scale_vector",
+                "position": [
+                  520,
+                  30
+                ],
+                "inputs": [
+                  {
+                    "vector": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "number": 0.3
+                  }
+                ]
+              },
+              {
+                "id": 6,
+                "kind": "rotate",
+                "position": [
+                  800,
+                  70
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "drop-pad",
+      "name": "Blue pad - step off and back on to drop",
+      "transform": {
+        "translation": [
+          0,
+          0.06,
+          -1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.8,
+          0.12,
+          1.8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.03,
+          0.35,
+          0.95
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.03,
+          0.35,
+          0.95
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0,
+            5,
+            0
+          ],
+          "size": [
+            1,
+            12,
+            1
+          ]
+        },
+        "action": {
+          "kind": "sensor"
+        }
+      },
+      "blueprints": [
+        {
+          "graph": {
+            "version": 1,
+            "name": "Blue pad - drop a physics block",
+            "variables": {
+              "last_drop": -2
+            },
+            "nodes": [
+              {
+                "id": 1,
+                "kind": "body_enter",
+                "position": [
+                  0,
+                  0
+                ],
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "kind": "object_equal",
+                "position": [
+                  260,
+                  130
+                ],
+                "inputs": [
+                  {
+                    "object": "self_object"
+                  },
+                  {
+                    "object": {
+                      "id": "player"
+                    }
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "kind": "branch",
+                "position": [
+                  520,
+                  0
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "kind": "elapsed_time",
+                "position": [
+                  0,
+                  480
+                ],
+                "inputs": []
+              },
+              {
+                "id": 5,
+                "kind": "get_variable",
+                "position": [
+                  0,
+                  650
+                ],
+                "inputs": [],
+                "variable": "last_drop"
+              },
+              {
+                "id": 6,
+                "kind": "subtract",
+                "position": [
+                  260,
+                  480
+                ],
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 0
+                  }
+                ]
+              },
+              {
+                "id": 7,
+                "kind": "greater",
+                "position": [
+                  520,
+                  480
+                ],
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": 1
+                  }
+                ]
+              },
+              {
+                "id": 8,
+                "kind": "branch",
+                "position": [
+                  780,
+                  0
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 9,
+                "kind": "set_variable",
+                "position": [
+                  1040,
+                  0
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0
+                  }
+                ],
+                "variable": "last_drop"
+              },
+              {
+                "id": 10,
+                "kind": "spawn_prefab",
+                "position": [
+                  1300,
+                  0
+                ],
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      4,
+                      5,
+                      -3.5
+                    ]
+                  }
+                ],
+                "prefab": "yard-drop"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 1
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 6,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 8,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 10,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ramp",
+      "name": "Ramp - static triangle mesh",
+      "transform": {
+        "translation": [
+          4,
+          1,
+          -2
+        ],
+        "rotation_degrees": [
+          20,
+          0,
+          0
+        ],
+        "scale": [
+          3,
+          0.3,
+          5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.62,
+          0.68,
+          0.71
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.62,
+          0.68,
+          0.71
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "mesh_collider": {
+        "mesh": [
+          [
+            [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              -0.5,
+              0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              0.5,
+              -0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              -0.5,
+              -0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              0.5
+            ],
+            [
+              0.5,
+              -0.5,
+              0.5
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              0.5
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ],
+            [
+              -0.5,
+              0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              -0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              -0.5,
+              0.5
+            ],
+            [
+              -0.5,
+              -0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              0.5,
+              -0.5
+            ],
+            [
+              -0.5,
+              0.5,
+              0.5
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ],
+            [
+              0.5,
+              0.5,
+              -0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              -0.5,
+              -0.5,
+              0.5
+            ],
+            [
+              -0.5,
+              0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              -0.5,
+              0.5,
+              0.5
+            ],
+            [
+              -0.5,
+              0.5,
+              -0.5
+            ]
+          ],
+          [
+            [
+              0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ]
+          ],
+          [
+            [
+              0.5,
+              -0.5,
+              -0.5
+            ],
+            [
+              0.5,
+              0.5,
+              0.5
+            ],
+            [
+              0.5,
+              -0.5,
+              0.5
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "id": "ramp-support",
+      "name": "Ramp support",
+      "transform": {
+        "translation": [
+          4,
+          0.7,
+          -3.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.6,
+          1.4,
+          0.35
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.2,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.16,
+          0.2,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {}
+    },
+    {
+      "id": "stack-0",
+      "name": "Stacked box 1 - Rigidbody",
+      "transform": {
+        "translation": [
+          4,
+          0.4,
+          2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          0.8,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.25,
+          0.5,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.25,
+          0.5,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {},
+      "gravity": {
+        "mass": 0.7,
+        "friction": 0.5
+      }
+    },
+    {
+      "id": "stack-1",
+      "name": "Stacked box 2 - Rigidbody",
+      "transform": {
+        "translation": [
+          4,
+          1.21,
+          2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          0.8,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.33,
+          0.5700000000000001,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.33,
+          0.5700000000000001,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {},
+      "gravity": {
+        "mass": 0.7,
+        "friction": 0.5
+      }
+    },
+    {
+      "id": "stack-2",
+      "name": "Stacked box 3 - Rigidbody",
+      "transform": {
+        "translation": [
+          4,
+          2.02,
+          2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          0.8,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.41000000000000003,
+          0.64,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.41000000000000003,
+          0.64,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {},
+      "gravity": {
+        "mass": 0.7,
+        "friction": 0.5
+      }
+    },
+    {
+      "id": "tilted-box",
+      "name": "Tilted box - watch it topple",
+      "transform": {
+        "translation": [
+          -3,
+          2.2,
+          -2
+        ],
+        "rotation_degrees": [
+          24,
+          0,
+          32
+        ],
+        "scale": [
+          1.1,
+          1.1,
+          1.1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.4,
+          0.15
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.9,
+          0.4,
+          0.15
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {},
+      "gravity": {}
+    },
+    {
+      "id": "long-box",
+      "name": "Long box - different inertia",
+      "transform": {
+        "translation": [
+          -4,
+          1.8,
+          -4
+        ],
+        "rotation_degrees": [
+          0,
+          20,
+          37
+        ],
+        "scale": [
+          2.5,
+          0.6,
+          0.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.68,
+          0.27,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.68,
+          0.27,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {},
+      "gravity": {
+        "mass": 3
+      }
+    },
+    {
+      "id": "backstop",
+      "name": "Block backstop",
+      "transform": {
+        "translation": [
+          4,
+          0.5,
+          5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          4,
+          1,
+          0.35
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.2,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.16,
+          0.2,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "collider": {}
+    },
+    {
+      "id": "goal",
+      "name": "Green exit - finish after collecting gold",
+      "transform": {
+        "translation": [
+          -8,
+          0.06,
+          -7
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2,
+          0.12,
+          2
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.1,
+          0.9,
+          0.3
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.1,
+          0.9,
+          0.3
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0,
+            5,
+            0
+          ],
+          "size": [
+            1,
+            12,
+            1
+          ]
+        },
+        "action": {
+          "kind": "goal"
+        }
+      }
+    },
+    {
+      "id": "trail-0",
+      "name": "Painted path",
+      "transform": {
+        "translation": [
+          0,
+          0.007,
+          5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.2,
+          0.01,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.84,
+          0.58
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.9,
+          0.84,
+          0.58
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "trail-1",
+      "name": "Painted path",
+      "transform": {
+        "translation": [
+          0,
+          0.007,
+          1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.2,
+          0.01,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.84,
+          0.58
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.9,
+          0.84,
+          0.58
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "trail-2",
+      "name": "Painted path",
+      "transform": {
+        "translation": [
+          0,
+          0.007,
+          -3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.2,
+          0.01,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.84,
+          0.58
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.9,
+          0.84,
+          0.58
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "edge-0",
+      "name": "Painted edge",
+      "transform": {
+        "translation": [
+          0,
+          0.007,
+          11.8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          23.6,
+          0.01,
+          0.08
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "edge-1",
+      "name": "Painted edge",
+      "transform": {
+        "translation": [
+          0,
+          0.007,
+          -11.8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          23.6,
+          0.01,
+          0.08
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "edge-2",
+      "name": "Painted edge",
+      "transform": {
+        "translation": [
+          -11.8,
+          0.007,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.08,
+          0.01,
+          23.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "edge-3",
+      "name": "Painted edge",
+      "transform": {
+        "translation": [
+          11.8,
+          0.007,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.08,
+          0.01,
+          23.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "material": {
+        "color": [
+          0.72,
+          0.77,
+          0.79
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

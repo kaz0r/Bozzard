@@ -125,6 +125,58 @@ fn graphs_execute_in_order_with_independent_state_and_coded_behavior() {
 }
 
 #[test]
+fn mouse_deltas_accumulate_once_per_tick_with_or_without_a_player() {
+    let mut graph = action(K::Update, K::Translate, Value::Vector([0.; 3]));
+    graph.nodes.extend([
+        Node::new(3, K::MouseX, [0.; 2]),
+        Node::new(4, K::MouseY, [0.; 2]),
+        Node::new(5, K::MakeVector, [0.; 2]),
+    ]);
+    link(&mut graph, 3, 0, 5, 0);
+    link(&mut graph, 4, 0, 5, 1);
+    link(&mut graph, 5, 0, 2, 1);
+    let plain = scene(vec![graph]);
+    assert_eq!(Scene::from_json(&plain.to_json().unwrap()).unwrap(), plain);
+    let mut player = Scene::from_json(include_str!("../scenes/first-trail.json")).unwrap();
+    player.objects.push(plain.objects[0].clone());
+    for document in [plain, player] {
+        let mut demo = SceneDemo::new(&document).unwrap();
+        for orbit in [[10., -4.], [15., -6.]] {
+            demo.set_gameplay_input(GameplayInput {
+                orbit,
+                ..Default::default()
+            });
+        }
+        for _ in 0..4 {
+            demo.app.step();
+            demo.check_simulation().unwrap();
+        }
+        assert_eq!(transform(&demo).translation, [25., -10., 0.]);
+        demo.set_gameplay_input(GameplayInput {
+            orbit: [100.; 2],
+            ..Default::default()
+        });
+        demo.clear_gameplay_input();
+        demo.app.step();
+        assert_eq!(transform(&demo).translation, [25., -10., 0.]);
+        for invalid in [f32::NAN, f32::INFINITY] {
+            assert!(
+                demo.with_instance(|instance, world| instance.step_blueprints(
+                    world,
+                    1. / 60.,
+                    GameplayInput {
+                        orbit: [invalid, 0.],
+                        ..Default::default()
+                    }
+                ))
+                .is_err()
+            );
+            assert_eq!(transform(&demo).translation, [25., -10., 0.]);
+        }
+    }
+}
+
+#[test]
 fn input_edges_and_focus_clear_work_without_a_coded_player() {
     let s = scene(vec![action(
         K::InputPressed,

@@ -40,6 +40,8 @@ cargo run -p bozzard-server -- --ticks 120
 
 Windows needs Rust's MSVC toolchain and Visual Studio C++ build tools. Linux needs a C linker, Vulkan drivers and window-system development packages; the CI workflow lists Ubuntu packages. `--backend metal|dx12|vulkan` selects one graphics API explicitly. `--software` requires a software adapter; `--hardware` requires a reported integrated/discrete GPU. Missing adapters fail visibly.
 
+The [Gold Yard mini-game](docs/gold-yard.md) is a small physics playground: open `examples/demo/scenes/gold-yard.json`, Play, then **WASD** to roam, **Space** to jump and **right-drag** to look. Collect the gold, step on the blue pad to drop convex physics blocks onto a ramp, and optionally finish at the green pad. Includes reusable **Mouse Delta X/Y** Blueprint nodes.
+
 The [bonfire demo](docs/bonfire.md) demonstrates **Spawn Prefab / Destroy Prefab** in a dark, fire-lit scene. Press **Play**, then **Space** in the viewport to toggle emission and watch the remaining embers expire.
 
 ## Lighting and material galleries

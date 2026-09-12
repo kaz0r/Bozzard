@@ -128,6 +128,8 @@ pub enum NodeKind {
     InputHeld,
     MoveX,
     MoveY,
+    MouseX,
+    MouseY,
     GetVariable,
     Add,
     Subtract,
@@ -160,7 +162,7 @@ pub enum NodeKind {
     DestroyPrefab,
 }
 impl NodeKind {
-    pub const ALL: [Self; 53] = [
+    pub const ALL: [Self; 55] = [
         Self::Object,
         Self::SelfObject,
         Self::ObjectEqual,
@@ -184,6 +186,8 @@ impl NodeKind {
         Self::InputHeld,
         Self::MoveX,
         Self::MoveY,
+        Self::MouseX,
+        Self::MouseY,
         Self::GetVariable,
         Self::Add,
         Self::Subtract,
@@ -240,6 +244,8 @@ impl NodeKind {
             Self::InputHeld => "Input Held",
             Self::MoveX => "Move Axis X (A/D)",
             Self::MoveY => "Move Axis Y (S/W)",
+            Self::MouseX => "Mouse Delta X (right-drag)",
+            Self::MouseY => "Mouse Delta Y (right-drag)",
             Self::GetVariable => "Get Variable",
             Self::SetVariable => "Set Variable",
             Self::Add => "Add",

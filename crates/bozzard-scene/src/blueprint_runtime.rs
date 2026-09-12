@@ -101,6 +101,8 @@ impl Eval<'_> {
             K::InputHeld => Value::Bool(n.key.active(self.input)),
             K::MoveX => Value::Number(self.input.movement[0]),
             K::MoveY => Value::Number(self.input.movement[1]),
+            K::MouseX => Value::Number(self.input.orbit[0]),
+            K::MouseY => Value::Number(self.input.orbit[1]),
             K::GetVariable => Value::Number(self.variables[&n.variable]),
             K::Add => Value::Number(v[0].number()? + v[1].number()?),
             K::Subtract => Value::Number(v[0].number()? - v[1].number()?),
@@ -162,7 +164,13 @@ impl SceneInstance {
             return Ok(());
         }
         ensure!(
-            dt.is_finite() && dt > 0. && input.movement.iter().all(|v| v.is_finite()),
+            dt.is_finite()
+                && dt > 0.
+                && input
+                    .movement
+                    .iter()
+                    .chain(&input.orbit)
+                    .all(|v| v.is_finite()),
             "invalid blueprint timestep/input"
         );
         let mut runtime = world

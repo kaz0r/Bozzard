@@ -40,7 +40,7 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 | Category | Nodes |
 |---|---|
 | Events | On Start, On Update, On Input Pressed, On Overlap Enter/Exit, On Object Enter/Exit |
-| Inputs | Number, Boolean, Vector, Delta Seconds, Elapsed Seconds, Input Held, Move Axis X/Y |
+| Inputs | Number, Boolean, Vector, Delta Seconds, Elapsed Seconds, Input Held, Move Axis X/Y, Mouse Delta X/Y |
 | Object reads | Object Reference, Self, Same Object, Is Valid Object, Get Position, Get Rotation, Get Scale, Overlap Count |
 | State/flow | Get Variable, Set Variable, Branch, Print Number |
 | Number math | Add, Subtract, Multiply, Divide, Sine, Greater Than, Less Than, Equal |
@@ -53,6 +53,8 @@ Actions target their **Target** object, defaulting to the attached object (**Sel
 Set Color needs drawable geometry and linear RGB in `0..1`; it updates an attached Material when present, otherwise the drawable's base color. Set Visible affects only the target's mesh, not descendants, collision, or lights. Set Light Intensity needs a Light and accepts `0..100000`. Scale must remain finite and invertible. Invalid runtime values/missing required components freeze simulation and report an error instead of continuing a broken world. Stop, repair the graph/components, and Play again.
 
 Input uses the engine's existing physical controls: Forward W, Backward S, Left A, Right D, Jump Space. Opposing movement keys cancel at the axis level. Movement press events fire on an inactive→active transition; Space is a queued press edge consumed once, including when no Player Controller exists. Focus loss, dialogs, and switching away from the viewport clear gameplay input. Input Held/Move Axis nodes can drive continuous behavior from On Update. Custom key mapping is not included yet.
+
+**Mouse Delta X/Y** (`mouse_x` / `mouse_y`) expose the existing **right-mouse drag** input, including in Blueprint-only scenes. Values are logical pointer points (positive right/down), not degrees or normalized axes. Deltas accumulate until a simulation tick and are consumed once, even during catch-up ticks; multiple graphs see the same sample. Multiply by your sensitivity, not Delta Seconds. Focus loss and viewport cancellation discard pending motion; the native player also clears it on display-scale changes. The pointer is not locked. [Gold Yard](gold-yard.md) includes a working graph that turns its gold block with these nodes.
 
 Overlap events use the owner's enabled Trigger volume, Box Collider, or Mesh Collider against other enabled colliders. Box/box and box/mesh pairs are supported, plus Rapier contacts involving dynamic mesh bodies (including sleeping contacts); static mesh/mesh pairs are not queried. **On Overlap Enter** and **On Overlap Exit** fire when occupancy changes from empty to occupied or when the last overlap ends. They remain aggregate events and do not supply an “other actor” reference. **On Object Enter** and **On Object Exit** emit once per collider entering or leaving and provide that collider's object through their **Other** Object output. **Other** resolves only along execution from that event; outside that event it is None. **Overlap Count** reports the current number of overlapping colliders. Contacts are snapshotted before graph actions, and per-object events use object-ID order, so mutations affect contact events on the next tick. Choose **Sensor (Blueprints)** for a trigger with no built-in gameplay effects. Existing collectible/checkpoint/goal trigger behavior remains independent.
 
