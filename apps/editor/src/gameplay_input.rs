@@ -170,7 +170,7 @@ mod tests {
         demo.set_gameplay_input(controls.take_input([0.; 2]));
         demo.app.step();
         demo.check_simulation().unwrap();
-        let entity = demo.instance.entity("hero-cube").unwrap();
+        let entity = demo.instance().entity("hero-cube").unwrap();
         assert!(
             demo.app
                 .world
@@ -399,8 +399,8 @@ mod tests {
             demo.app.step();
             idle.app.step();
             assert_eq!(
-                demo.instance.capture(&demo.app.world).unwrap(),
-                idle.instance.capture(&idle.app.world).unwrap()
+                demo.instance().capture(&demo.app.world).unwrap(),
+                idle.instance().capture(&idle.app.world).unwrap()
             );
         }
     }

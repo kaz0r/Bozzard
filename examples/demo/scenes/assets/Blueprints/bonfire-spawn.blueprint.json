@@ -1,0 +1,698 @@
+{
+  "version": 1,
+  "name": "Bonfire / Spawn embers - Space toggles emission",
+  "variables": {
+    "age": 0,
+    "interval": 0.18,
+    "emitting": 1
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "position": [
+        0,
+        0
+      ],
+      "kind": "update",
+      "inputs": []
+    },
+    {
+      "id": 2,
+      "position": [
+        280,
+        0
+      ],
+      "kind": "branch",
+      "inputs": [
+        "exec",
+        {
+          "bool": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "position": [
+        580,
+        0
+      ],
+      "kind": "set_variable",
+      "inputs": [
+        "exec",
+        {
+          "number": 0
+        }
+      ],
+      "variable": "age"
+    },
+    {
+      "id": 4,
+      "position": [
+        880,
+        0
+      ],
+      "kind": "branch",
+      "inputs": [
+        "exec",
+        {
+          "bool": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "position": [
+        1180,
+        0
+      ],
+      "kind": "spawn_prefab",
+      "inputs": [
+        "exec",
+        {
+          "vector": [
+            0,
+            1.3,
+            0
+          ]
+        }
+      ],
+      "prefab": "bonfire-ember"
+    },
+    {
+      "id": 6,
+      "position": [
+        1480,
+        0
+      ],
+      "kind": "set_variable",
+      "inputs": [
+        "exec",
+        {
+          "number": 0
+        }
+      ],
+      "variable": "age"
+    },
+    {
+      "id": 7,
+      "position": [
+        0,
+        180
+      ],
+      "kind": "get_variable",
+      "inputs": [],
+      "variable": "emitting"
+    },
+    {
+      "id": 8,
+      "position": [
+        280,
+        180
+      ],
+      "kind": "greater",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0.5
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "position": [
+        0,
+        380
+      ],
+      "kind": "get_variable",
+      "inputs": [],
+      "variable": "age"
+    },
+    {
+      "id": 10,
+      "position": [
+        0,
+        520
+      ],
+      "kind": "delta_time",
+      "inputs": []
+    },
+    {
+      "id": 11,
+      "position": [
+        280,
+        380
+      ],
+      "kind": "add",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "position": [
+        580,
+        380
+      ],
+      "kind": "get_variable",
+      "inputs": [],
+      "variable": "interval"
+    },
+    {
+      "id": 13,
+      "position": [
+        880,
+        240
+      ],
+      "kind": "greater",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "position": [
+        1180,
+        240
+      ],
+      "kind": "subtract",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "position": [
+        0,
+        760
+      ],
+      "kind": "elapsed_time",
+      "inputs": []
+    },
+    {
+      "id": 16,
+      "position": [
+        280,
+        680
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 2.1
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "position": [
+        580,
+        680
+      ],
+      "kind": "sine",
+      "inputs": [
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "position": [
+        880,
+        680
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0.58
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "position": [
+        280,
+        880
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 3.3
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "position": [
+        580,
+        880
+      ],
+      "kind": "sine",
+      "inputs": [
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "position": [
+        880,
+        880
+      ],
+      "kind": "multiply",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 0.42
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "position": [
+        1180,
+        680
+      ],
+      "kind": "make_vector",
+      "inputs": [
+        {
+          "number": 0
+        },
+        {
+          "number": 1.25
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "position": [
+        1180,
+        920
+      ],
+      "kind": "position",
+      "inputs": [
+        {
+          "object": "self_object"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "position": [
+        1480,
+        680
+      ],
+      "kind": "add_vector",
+      "inputs": [
+        {
+          "vector": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "vector": [
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "position": [
+        0,
+        1140
+      ],
+      "kind": "input_pressed",
+      "inputs": [],
+      "key": "jump"
+    },
+    {
+      "id": 26,
+      "position": [
+        280,
+        1140
+      ],
+      "kind": "subtract",
+      "inputs": [
+        {
+          "number": 1
+        },
+        {
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "position": [
+        580,
+        1140
+      ],
+      "kind": "set_variable",
+      "inputs": [
+        "exec",
+        {
+          "number": 0
+        }
+      ],
+      "variable": "emitting"
+    }
+  ],
+  "wires": [
+    {
+      "from": {
+        "node": 1,
+        "port": 0
+      },
+      "to": {
+        "node": 2,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 2,
+        "port": 0
+      },
+      "to": {
+        "node": 3,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 3,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 4,
+        "port": 0
+      },
+      "to": {
+        "node": 5,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 5,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 7,
+        "port": 0
+      },
+      "to": {
+        "node": 8,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 8,
+        "port": 0
+      },
+      "to": {
+        "node": 2,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 9,
+        "port": 0
+      },
+      "to": {
+        "node": 11,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 10,
+        "port": 0
+      },
+      "to": {
+        "node": 11,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 11,
+        "port": 0
+      },
+      "to": {
+        "node": 3,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 9,
+        "port": 0
+      },
+      "to": {
+        "node": 13,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 12,
+        "port": 0
+      },
+      "to": {
+        "node": 13,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 13,
+        "port": 0
+      },
+      "to": {
+        "node": 4,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 9,
+        "port": 0
+      },
+      "to": {
+        "node": 14,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 12,
+        "port": 0
+      },
+      "to": {
+        "node": 14,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 14,
+        "port": 0
+      },
+      "to": {
+        "node": 6,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 15,
+        "port": 0
+      },
+      "to": {
+        "node": 16,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 16,
+        "port": 0
+      },
+      "to": {
+        "node": 17,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 17,
+        "port": 0
+      },
+      "to": {
+        "node": 18,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 15,
+        "port": 0
+      },
+      "to": {
+        "node": 19,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 19,
+        "port": 0
+      },
+      "to": {
+        "node": 20,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 20,
+        "port": 0
+      },
+      "to": {
+        "node": 21,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 18,
+        "port": 0
+      },
+      "to": {
+        "node": 22,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 21,
+        "port": 0
+      },
+      "to": {
+        "node": 22,
+        "port": 2
+      }
+    },
+    {
+      "from": {
+        "node": 22,
+        "port": 0
+      },
+      "to": {
+        "node": 24,
+        "port": 0
+      }
+    },
+    {
+      "from": {
+        "node": 23,
+        "port": 0
+      },
+      "to": {
+        "node": 24,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 24,
+        "port": 0
+      },
+      "to": {
+        "node": 5,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 7,
+        "port": 0
+      },
+      "to": {
+        "node": 26,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 26,
+        "port": 0
+      },
+      "to": {
+        "node": 27,
+        "port": 1
+      }
+    },
+    {
+      "from": {
+        "node": 25,
+        "port": 0
+      },
+      "to": {
+        "node": 27,
+        "port": 0
+      }
+    }
+  ]
+}

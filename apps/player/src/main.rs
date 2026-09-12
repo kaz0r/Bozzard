@@ -269,7 +269,7 @@ impl Player {
                 state.checkpoint.as_deref().unwrap_or("start"),
                 state.respawns
             )
-        } else if self.demo.instance.has_blueprints() {
+        } else if self.demo.instance().has_blueprints() {
             format!(
                 "Bozzard | {status}Blueprints running | WASD / Space: input | R: restart | F5: save"
             )
@@ -300,7 +300,7 @@ impl Player {
                 let input =
                     self.gameplay_controls
                         .key(code, state == ElementState::Pressed, repeat);
-                if self.options.layer == Layer::ThreeD || self.demo.instance.has_blueprints() {
+                if self.options.layer == Layer::ThreeD || self.demo.instance().has_blueprints() {
                     self.demo.set_gameplay_input(input);
                 } else {
                     self.demo.clear_gameplay_input();
@@ -357,7 +357,7 @@ impl Player {
                     Layer::ThreeD
                 };
                 ensure!(
-                    self.demo.instance.has_view(layer),
+                    self.demo.instance().has_view(layer),
                     "scene has no {layer:?} view"
                 );
                 self.options.layer = layer;
@@ -366,10 +366,13 @@ impl Player {
             }
             Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
                 let document = load_document(self.options.scene.as_deref())?;
-                let next = SceneDemo::new(&document)?;
-                let mut assets = assets::Assets::load(&document, self.options.scene.as_deref())?;
+                let next = SceneDemo::new_with_prefabs(&document, self.options.scene.as_deref())?;
+                let mut assets = assets::Assets::load(
+                    next.instance().document(),
+                    self.options.scene.as_deref(),
+                )?;
                 ensure!(
-                    next.instance.has_view(self.options.layer),
+                    next.instance().has_view(self.options.layer),
                     "reloaded scene is missing the active view"
                 );
                 if let Some(view) = &mut self.view {
@@ -388,7 +391,7 @@ impl Player {
             }
             Key::Named(NamedKey::F5) if !repeat => {
                 save_document_from(
-                    &self.demo.instance.capture(&self.demo.app.world)?,
+                    &self.demo.instance().capture(&self.demo.app.world)?,
                     &self.options.save_path,
                     self.options.scene.as_deref(),
                 )?;
@@ -400,7 +403,7 @@ impl Player {
                 | NamedKey::ArrowUp
                 | NamedKey::ArrowDown),
             ) if self.demo.gameplay().is_none() => {
-                let entity = self.demo.instance.camera_entity(self.options.layer)?;
+                let entity = self.demo.instance().camera_entity(self.options.layer)?;
                 let camera = self
                     .demo
                     .app
@@ -461,7 +464,7 @@ impl ApplicationHandler for Player {
         }
         if self.demo.accepts_gameplay_input() {
             if let Some(input) = self.gameplay_controls.event(&event)
-                && (self.options.layer == Layer::ThreeD || self.demo.instance.has_blueprints())
+                && (self.options.layer == Layer::ThreeD || self.demo.instance().has_blueprints())
             {
                 self.demo.set_gameplay_input(input);
             } else {
@@ -570,12 +573,12 @@ fn main() -> Result<()> {
         println!("scene_saved path={}", path.display());
         return Ok(());
     }
-    let demo = SceneDemo::new(&document)?;
+    let demo = SceneDemo::new_with_prefabs(&document, options.scene.as_deref())?;
     ensure!(
-        demo.instance.has_view(options.layer),
+        demo.instance().has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"
     );
-    let assets = assets::Assets::load(&document, options.scene.as_deref())?;
+    let assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
     let mut player = Player {
         assets,
         options,
@@ -638,7 +641,7 @@ mod controls_tests {
         player.gameplay_controls.event(&WindowEvent::Focused(true));
         let visible = |p: &Player| {
             p.demo
-                .instance
+                .instance()
                 .view(&p.demo.app.world, Layer::ThreeD, 1.)
                 .unwrap()
                 .objects
@@ -839,7 +842,7 @@ mod controls_tests {
             .handle_key(&Key::Named(NamedKey::Space), false)
             .unwrap();
         assert!(!player.paused);
-        let camera = player.demo.instance.camera_entity(Layer::ThreeD).unwrap();
+        let camera = player.demo.instance().camera_entity(Layer::ThreeD).unwrap();
         let pose = *player.demo.app.world.get::<Transform>(camera).unwrap();
         player
             .handle_key(&Key::Named(NamedKey::ArrowLeft), false)
@@ -868,7 +871,7 @@ mod controls_tests {
         assert_eq!(
             player
                 .demo
-                .instance
+                .instance()
                 .capture(&player.demo.app.world)
                 .unwrap(),
             document
@@ -914,7 +917,7 @@ mod controls_tests {
         player
             .handle_key(&Key::Named(NamedKey::ArrowRight), false)
             .unwrap();
-        let camera = player.demo.instance.camera_entity(Layer::TwoD).unwrap();
+        let camera = player.demo.instance().camera_entity(Layer::TwoD).unwrap();
         assert_eq!(
             player
                 .demo
@@ -932,7 +935,7 @@ mod controls_tests {
                 .is_err()
         );
         assert_eq!(
-            player.demo.instance.camera_entity(Layer::TwoD).unwrap(),
+            player.demo.instance().camera_entity(Layer::TwoD).unwrap(),
             camera
         );
         player.options.scene = None;
@@ -940,7 +943,7 @@ mod controls_tests {
             .handle_key(&Key::Character("r".into()), false)
             .unwrap();
         assert_ne!(
-            player.demo.instance.camera_entity(Layer::TwoD).unwrap(),
+            player.demo.instance().camera_entity(Layer::TwoD).unwrap(),
             camera
         );
         assert_eq!(player.demo.app.ticks(), 0);

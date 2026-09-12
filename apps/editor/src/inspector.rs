@@ -15,10 +15,13 @@ impl App {
         let mut object = original.clone();
         let mut scene = self.editor.scene().clone();
         let checkpoint_start = checkpoint_respawn(&scene, &original);
+        let mut remove = None;
         ui.push_id(&original.id, |ui| {
         egui::ScrollArea::vertical().id_salt("entity-properties").show(ui, |ui| {
                     if self.surface_inspector(ui) { return; }
-                    self.blueprint_inspector(ui, &mut object);
+                    if !object.blueprints.is_empty() {
+                        self.blueprint_inspector(ui, &mut object);
+                    }
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                         ui.add(egui::TextEdit::singleline(&mut object.name).desired_width(f32::INFINITY))
                             .on_hover_text(format!("Entity name · ID: {}", object.id));
@@ -50,82 +53,67 @@ impl App {
                         if ui.small_button("Reset transform").clicked() {
                             object.transform = Transform::default();
                         }
-                        });
-                        ui.separator();
-                        egui::CollapsingHeader::new("LIGHT").default_open(original.light.is_some()).show(ui, |ui| {
-                            crate::lights::inspector(ui, &mut object.light);
-                        });
-                        ui.separator();
-                        egui::CollapsingHeader::new("MESH RENDERER").default_open(original.drawable.is_some()).show(ui, |ui| {
-                        let mut drawable = object.drawable.is_some();
-                        if ui.checkbox(&mut drawable, "Renderable").changed() {
-                            object.drawable = if drawable {
-                                Some(bozzard_scene::Drawable {
-                                    gi_static: true,
-                                    material_overrides: Vec::new(),
-                                    layer: self.layer(),
-                                    mesh: Mesh::Cube,
-                                    texture: Texture::White,
-                                    color: [0.25, 0.8, 0.7],
-                                    uv_scale: [1.0; 2],
-                                })
-                            } else {
-                                None
-                            };
-                        }
-                        if let Some(d) = &mut object.drawable {
-                            ui.checkbox(&mut d.gi_static,"Contribute to GI bake (static)").on_hover_text("Moving components and their descendants are excluded automatically. Objects can still receive baked light.");
-                            ui.horizontal(|ui| {
-                                ui.selectable_value(&mut d.layer, Layer::TwoD, "2D");
-                                ui.selectable_value(&mut d.layer, Layer::ThreeD, "3D");
-                            });
-                            let original_mesh = d.mesh.clone();
-                            egui::ComboBox::from_id_salt("mesh")
-                                .selected_text(match &d.mesh {
-                                    Mesh::Cube => "Cube",
-                                    Mesh::Quad => "Quad",
-                                    Mesh::Asset(id) => id,
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut d.mesh, Mesh::Cube, "Cube");
-                                    ui.selectable_value(&mut d.mesh, Mesh::Quad, "Quad");
-                                    for (id, asset) in &scene.assets {
-                                        if asset.kind == AssetKind::Mesh {
-                                            ui.selectable_value(
-                                                &mut d.mesh,
-                                                Mesh::Asset(id.clone()),
-                                                id,
-                                            );
+                        if let Some(drawable) = &mut object.drawable {
+                            if matches!(drawable.mesh, Mesh::Surface { .. }) && self.editor.assets.mesh_surface(&drawable.mesh).is_none() {
+                                ui.colored_label(Color32::YELLOW, "Source surface changed or is unavailable. Reassign its mesh; the stale binding is not rendered.");
+                            }
+                            ui.menu_button("Mesh settings", |ui| {
+                                if ui.button("Remove Mesh Renderer").on_hover_text("Also removes its Material; keeps Transform and other components").clicked() { remove = Some("MESH RENDERER"); ui.close(); }
+                                ui.checkbox(&mut drawable.gi_static, "Contribute to GI bake (static)");
+                                ui.horizontal(|ui| {
+                                    ui.selectable_value(&mut drawable.layer, Layer::TwoD, "2D");
+                                    ui.selectable_value(&mut drawable.layer, Layer::ThreeD, "3D");
+                                });
+                                let before = drawable.mesh.clone();
+                                egui::ComboBox::from_id_salt("mesh").width(180.).truncate().selected_text(format!("{:?}", drawable.mesh)).show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut drawable.mesh, Mesh::Cube, "Cube");
+                                    ui.selectable_value(&mut drawable.mesh, Mesh::Quad, "Quad");
+                                    for (id, source) in &scene.assets {
+                                        if source.kind == AssetKind::Mesh {
+                                            ui.selectable_value(&mut drawable.mesh, Mesh::Asset(id.clone()), id);
                                         }
                                     }
                                 });
-                            if d.mesh != original_mesh { d.material_overrides.clear(); }
-                            ui.label("Texture / material effect");
-                            texture_control(ui, &mut d.texture, &scene);
-                            ui.horizontal(|ui| {
-                                ui.label("Tint");
-                                let mut color = d.color;
-                                if color_edit_button_rgb(ui, &mut color).changed() {
-                                    d.color = color;
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label("UV repeat").on_hover_text("Also controls procedural checker density; tint colors checker and toon effects.");
-                                for value in &mut d.uv_scale {
-                                    ui.add(
-                                        egui::DragValue::new(value)
-                                            .speed(0.05)
-                                            .range(0.001..=1000.0),
-                                    );
-                                }
+                                if before != drawable.mesh { drawable.material_overrides.clear(); }
                             });
                         }
                         });
+                        if object.light.is_some() {
+                            component_section(ui, "LIGHT", &mut remove, |ui| {
+                                crate::lights::inspector(ui, &mut object.light);
+                            });
+                        }
+                        if object.material.is_some() {
+                            component_section(ui, "MATERIAL", &mut remove, |ui| {
+                                if ui.small_button("Remove Material").clicked() { object.material = None; }
+                                if let Some(material) = &mut object.material {
+                                    let mut override_texture = material.texture.is_some();
+                                    if ui.checkbox(&mut override_texture, "Override texture / effect").changed() {
+                                        material.texture = override_texture.then_some(Texture::White);
+                                    }
+                                    if let Some(texture) = &mut material.texture { texture_control(ui, texture, &scene); }
+                                    if let Some((part, _)) = object.drawable.as_ref().and_then(|d| self.editor.assets.mesh_surface(&d.mesh))
+                                        && let Some(shading) = &part.shading {
+                                        crate::surfaces::factor_control(ui, "Metallic", &mut material.metallic, shading.material.metallic);
+                                        crate::surfaces::factor_control(ui, "Roughness", &mut material.roughness, shading.material.roughness);
+                                    }
+                                    ui.label("Tint");
+                                    color_edit_button_rgb(ui, &mut material.color);
+                                    ui.horizontal(|ui| {
+                                        ui.label("UV repeat");
+                                        for value in &mut material.uv_scale {
+                                            ui.add(egui::DragValue::new(value).speed(0.05).range(0.001..=1000.0));
+                                        }
+                                    });
+                                }
+                            });
+                        }
                         ui.separator();
-                        egui::CollapsingHeader::new("PHYSICS").default_open(original.collider.is_some()).show(ui, |ui| {
+                        if object.collider.is_some() {
+                        component_section(ui, "BOX COLLIDER", &mut remove, |ui| {
                         let mut box_collider = object.collider.is_some();
                         if ui
-                            .checkbox(&mut box_collider, "Box collider (3D)")
+                            .add_enabled(object.player_controller.is_none() && object.gravity.is_none(), egui::Checkbox::new(&mut box_collider, "Box collider (3D)"))
                             .changed()
                         {
                             if box_collider {
@@ -141,10 +129,14 @@ impl App {
                             ui.checkbox(&mut collider.enabled, "Enabled");
                             vector(ui, "Center", &mut collider.center, 0.05);
                             positive_vector(ui, "Size", &mut collider.size, 0.05);
-                            ui.weak("Blocks swept box movement. Add Gravity below to make it fall.");
+                            ui.weak("Blocks swept box movement. Add Rigidbody to make it fall.");
                         }
+                        });
+                        }
+                        if object.gravity.is_some() {
+                        component_section(ui, "RIGIDBODY", &mut remove, |ui| {
                         let mut gravity = object.gravity.is_some();
-                        if ui.checkbox(&mut gravity, "Gravity").changed() {
+                        if ui.add_enabled(object.player_controller.is_none(), egui::Checkbox::new(&mut gravity, "Rigidbody (kinematic gravity)")).changed() {
                             if gravity {
                                 if object.collider.is_none() {
                                     object.collider = Some(bozzard_scene::BoxCollider::default());
@@ -195,7 +187,9 @@ impl App {
                         }
                         });
                         ui.separator();
-                        egui::CollapsingHeader::new("PLAYER & TRIGGERS").default_open(original.player_controller.is_some() || original.trigger.is_some()).show(ui, |ui| {
+                        }
+                        if object.player_controller.is_some() {
+                        component_section(ui, "PLAYER CONTROLLER", &mut remove, |ui| {
                         let mut controller = object.player_controller.is_some();
                         if ui.checkbox(&mut controller, "Player Controller").changed() {
                             object.player_controller = controller.then(|| bozzard_scene::PlayerController {
@@ -227,6 +221,10 @@ impl App {
                             ui.horizontal(|ui| { ui.label("Fall / respawn Y"); ui.add(egui::DragValue::new(&mut config.fall_height).speed(0.1)); });
                             ui.weak("Controller jump speed overrides Gravity's legacy selected-box jump speed.");
                         }
+                        });
+                        }
+                        if object.trigger.is_some() {
+                        component_section(ui, "TRIGGER", &mut remove, |ui| {
                         let mut trigger = object.trigger.is_some();
                         if ui.checkbox(&mut trigger, "Trigger volume").changed() {
                             object.trigger = trigger.then(bozzard_scene::Trigger::default);
@@ -254,7 +252,9 @@ impl App {
                         }
                         });
                         ui.separator();
-                        egui::CollapsingHeader::new("BEHAVIOR").default_open(original.spin.is_some()).show(ui, |ui| {
+                        }
+                        if object.spin.is_some() {
+                        component_section(ui, "SPIN", &mut remove, |ui| {
                         let mut spin = object.spin.is_some();
                         if ui.checkbox(&mut spin, "Spin behavior").changed() {
                             object.spin = spin.then_some(Spin([0.0, 45.0, 0.0]));
@@ -265,9 +265,14 @@ impl App {
                         }
                         });
                         ui.separator();
-                        egui::CollapsingHeader::new("CAMERA").default_open(original.camera.is_some()).show(ui, |ui| {
+                        }
+                        if object.camera.is_some() {
+                        component_section(ui, "CAMERA", &mut remove, |ui| {
                         let mut camera = object.camera.is_some();
                         if ui.checkbox(&mut camera, "Camera").changed() {
+                            if !camera {
+                                scene.views.retain(|_, id| id != &object.id);
+                            }
                             object.camera = if camera {
                                 Some(Camera::Perspective {
                                     vertical_fov_degrees: 60.0,
@@ -329,11 +334,17 @@ impl App {
                             });
                         }
                         });
+                        }
+                        add_component_menu(ui, &mut object, &scene, self.layer(), &self.editor.assets);
                     });
                 });
         });
+        if let Some(component) = remove {
+            self.editor.finish_gesture();
+            remove_component(&mut object, &mut scene, component);
+        }
         if let Some(play) = &self.editor.play
-            && let Some(entity) = play.instance.entity(&original.id)
+            && let Some(entity) = play.instance().entity(&original.id)
             && let Some(state) = play.app.world.get::<bozzard_scene::GravityState>(entity)
             && play
                 .app
@@ -550,6 +561,199 @@ impl App {
         }
     }
 }
+fn add_component_menu(
+    ui: &mut egui::Ui,
+    object: &mut bozzard_scene::Object,
+    scene: &bozzard_scene::Scene,
+    layer: Layer,
+    assets: &bozzard_assets::AssetStore,
+) {
+    ui.separator();
+    ui.menu_button("Add Component", |ui| {
+        let id = ui.id().with("component-search");
+        let mut search = ui.data_mut(|d| d.get_temp::<String>(id).unwrap_or_default());
+        ui.add(egui::TextEdit::singleline(&mut search).hint_text("Search components…"));
+        let query = search.trim().to_lowercase();
+        ui.data_mut(|d| d.insert_temp(id, search));
+        let mut matches = 0;
+        for (label, available) in component_choices(object) {
+            if !available || !label.to_lowercase().contains(&query) {
+                continue;
+            }
+            matches += 1;
+            if ui.button(label).clicked() {
+                add_component(object, label, scene, layer, assets);
+                ui.close();
+            }
+        }
+        if matches == 0 {
+            ui.weak("No matching components available");
+        }
+    });
+}
+
+fn component_section(
+    ui: &mut egui::Ui,
+    name: &'static str,
+    remove: &mut Option<&'static str>,
+    contents: impl FnOnce(&mut egui::Ui),
+) {
+    egui::collapsing_header::CollapsingState::load_with_default_open(
+        ui.ctx(),
+        ui.make_persistent_id(name),
+        true,
+    )
+    .show_header(ui, |ui| {
+        ui.strong(name);
+        let hint = match name {
+            "BOX COLLIDER" => {
+                "Remove collider and dependent Rigidbody / Player Controller (Undo restores them)"
+            }
+            "RIGIDBODY" => "Remove Rigidbody and dependent Player Controller (Undo restores them)",
+            "CAMERA" => "Remove camera (reassign a player follow-camera first)",
+            _ => "Remove component (Undo restores it)",
+        };
+        if ui.small_button("×").on_hover_text(hint).clicked() {
+            *remove = Some(name);
+        }
+    })
+    .body(contents);
+}
+
+fn remove_component(
+    object: &mut bozzard_scene::Object,
+    scene: &mut bozzard_scene::Scene,
+    name: &str,
+) {
+    match name {
+        "MESH RENDERER" => {
+            object.drawable = None;
+            object.material = None;
+        }
+        "MATERIAL" => object.material = None,
+        "BOX COLLIDER" => {
+            object.collider = None;
+            object.gravity = None;
+            object.player_controller = None;
+        }
+        "RIGIDBODY" => {
+            object.gravity = None;
+            object.player_controller = None;
+        }
+        "PLAYER CONTROLLER" => object.player_controller = None,
+        "TRIGGER" => object.trigger = None,
+        "SPIN" => object.spin = None,
+        "LIGHT" => object.light = None,
+        "CAMERA" => {
+            object.camera = None;
+            scene.views.retain(|_, id| id != &object.id);
+        }
+        _ => {}
+    }
+}
+
+fn component_choices(object: &bozzard_scene::Object) -> [(&'static str, bool); 10] {
+    [
+        ("Mesh Renderer", object.drawable.is_none()),
+        (
+            "Material",
+            object.drawable.is_some() && object.material.is_none(),
+        ),
+        (
+            "Rigidbody",
+            object.gravity.is_none() && object.trigger.is_none(),
+        ),
+        (
+            "Box Collider",
+            object.collider.is_none() && object.trigger.is_none(),
+        ),
+        (
+            "Player Controller",
+            object.player_controller.is_none()
+                && object.trigger.is_none()
+                && object.parent.is_none()
+                && object.spin.is_none(),
+        ),
+        (
+            "Trigger",
+            object.trigger.is_none() && object.collider.is_none() && object.gravity.is_none(),
+        ),
+        ("Light", object.light.is_none()),
+        ("Camera", object.camera.is_none()),
+        (
+            "Spin",
+            object.spin.is_none() && object.player_controller.is_none(),
+        ),
+        ("Blueprint", object.blueprints.len() < 16),
+    ]
+}
+
+fn add_component(
+    object: &mut bozzard_scene::Object,
+    label: &str,
+    scene: &bozzard_scene::Scene,
+    layer: Layer,
+    assets: &bozzard_assets::AssetStore,
+) {
+    use bozzard_scene::*;
+    let collider = object
+        .drawable
+        .as_ref()
+        .and_then(|d| assets.mesh_surface(&d.mesh))
+        .map(|(_, bounds)| BoxCollider {
+            size: (bounds[1] - bounds[0]).max(Vec3::splat(0.001)).to_array(),
+            ..Default::default()
+        })
+        .unwrap_or_default();
+    match label {
+        "Mesh Renderer" => {
+            object.drawable = Some(Drawable {
+                gi_static: true,
+                material_overrides: Vec::new(),
+                layer,
+                mesh: Mesh::Cube,
+                texture: Texture::White,
+                color: [1.; 3],
+                uv_scale: [1.; 2],
+            })
+        }
+        "Material" => object.material = object.drawable.as_ref().map(Material::from_drawable),
+        "Box Collider" => object.collider = Some(collider),
+        "Rigidbody" => {
+            object.collider.get_or_insert(collider);
+            object.gravity = Some(Gravity::default());
+        }
+        "Player Controller" => {
+            object.collider.get_or_insert(collider).enabled = true;
+            object.gravity.get_or_insert_with(Default::default).enabled = true;
+            object.player_controller = Some(PlayerController {
+                camera: scene.views.get(&Layer::ThreeD).cloned().unwrap_or_default(),
+                ..Default::default()
+            });
+        }
+        "Trigger" => {
+            object.trigger = Some(Trigger {
+                action: TriggerAction::Sensor,
+                ..Default::default()
+            })
+        }
+        "Light" => object.light = Some(Light::default()),
+        "Camera" => {
+            object.camera = Some(Camera::Perspective {
+                vertical_fov_degrees: 60.,
+                near: 0.1,
+                far: 1000.,
+            })
+        }
+        "Spin" => object.spin = Some(Spin([0., 45., 0.])),
+        "Blueprint" => object.blueprints.push(BlueprintAttachment {
+            enabled: true,
+            graph: Blueprint::default(),
+        }),
+        _ => {}
+    }
+}
+
 pub(super) fn texture_control(
     ui: &mut egui::Ui,
     texture: &mut Texture,
@@ -695,6 +899,80 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/demo/scenes/first-trail.json");
         Editor::open(&path).unwrap()
+    }
+
+    #[test]
+    fn component_menu_adds_only_to_its_owner_and_rigidbody_adds_required_collider() {
+        let mut editor = editor();
+        editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let fresh = editor.selected_object().unwrap().clone();
+        let mut object = fresh.clone();
+        assert!(
+            component_choices(&object)
+                .iter()
+                .any(|(name, available)| *name == "Material" && *available)
+        );
+        for name in ["Material", "Rigidbody", "Blueprint"] {
+            add_component(
+                &mut object,
+                name,
+                editor.scene(),
+                Layer::ThreeD,
+                &editor.assets,
+            );
+        }
+        assert!(object.material.is_some() && object.gravity.is_some() && object.collider.is_some());
+        assert_eq!(object.blueprints.len(), 1);
+        assert!(
+            component_choices(&object)
+                .iter()
+                .any(|(name, available)| *name == "Material" && !available)
+        );
+        assert!(
+            fresh.material.is_none() && fresh.collider.is_none() && fresh.blueprints.is_empty()
+        );
+        assert_eq!(editor.selected_object().unwrap(), &fresh);
+    }
+
+    #[test]
+    fn removal_keeps_transform_and_cascades_required_components_undoably() {
+        let mut editor = editor();
+        editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let fresh = editor.selected_object().unwrap().clone();
+        let mut scene = editor.scene().clone();
+        for (add, remove) in [
+            ("Material", "MATERIAL"),
+            ("Rigidbody", "BOX COLLIDER"),
+            ("Light", "LIGHT"),
+            ("Spin", "SPIN"),
+            ("Trigger", "TRIGGER"),
+            ("Camera", "CAMERA"),
+        ] {
+            let mut object = fresh.clone();
+            add_component(&mut object, add, &scene, Layer::ThreeD, &editor.assets);
+            remove_component(&mut object, &mut scene, remove);
+            assert_eq!(object, fresh, "{remove}");
+        }
+        let mut object = fresh.clone();
+        add_component(
+            &mut object,
+            "Player Controller",
+            &scene,
+            Layer::ThreeD,
+            &editor.assets,
+        );
+        remove_component(&mut object, &mut scene, "BOX COLLIDER");
+        assert_eq!(object, fresh);
+        remove_component(&mut object, &mut scene, "TRANSFORM");
+        assert_eq!(object, fresh);
+        remove_component(&mut object, &mut scene, "MESH RENDERER");
+        assert!(object.drawable.is_none());
+        *scene.objects.iter_mut().find(|o| o.id == fresh.id).unwrap() = object;
+        editor.apply("Remove renderer", scene).unwrap();
+        editor.undo().unwrap();
+        assert_eq!(editor.selected_object().unwrap(), &fresh);
+        editor.redo().unwrap();
+        assert!(editor.selected_object().unwrap().drawable.is_none());
     }
 
     #[test]

@@ -493,7 +493,7 @@ impl App {
                         .editor
                         .play
                         .as_ref()
-                        .is_some_and(|p| p.instance.has_blueprints()))
+                        .is_some_and(|p| p.instance().has_blueprints()))
                 && (response.hovered() || response.dragged_by(egui::PointerButton::Secondary))
                 && self.dialog.is_none()
                 && !self.confirm_discard
@@ -914,7 +914,7 @@ impl App {
                         .pick_surface_with_projection(self.layer(), projection, ndc)?
                 };
                 self.editor
-                    .select_pick(transform_pick(pick, ui.input(|i| i.modifiers.alt)))?;
+                    .select_component_pick(transform_pick(pick, ui.input(|i| i.modifiers.alt)))?;
                 if let Some(surface) = self.editor.selected_surface() {
                     self.status = format!(
                         "Surface {} selected · W/E/R to transform · Alt-click selects the owner",

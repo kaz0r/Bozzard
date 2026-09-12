@@ -17,6 +17,7 @@ use std::{
 mod acceptance;
 mod asset_browser;
 mod blueprints;
+mod cameras;
 mod colliders;
 mod files;
 mod fog;
@@ -919,6 +920,33 @@ impl App {
                 if let Some(command) = output.prefab_requested {
                     self.start_prefab(command);
                 }
+                if let Some(owner) = output.blueprint_owner {
+                    self.editor.select_object(Some(owner));
+                    self.open_last_blueprint();
+                }
+                if output.blueprint_import_requested {
+                    self.blueprint_dialog(files::Kind::LoadBlueprint);
+                }
+                if output.blueprint_opened
+                    && let Some(object) = self.editor.selected_object().cloned()
+                {
+                    let mut attachments = object.blueprints;
+                    attachments.push(bozzard_scene::BlueprintAttachment {
+                        enabled: true,
+                        graph: Default::default(),
+                    });
+                    self.editor.finish_gesture();
+                    let result = self.editor.set_blueprints(&object.id, attachments);
+                    self.result(result);
+                    self.open_last_blueprint();
+                }
+                if let Some(path) = output.blueprint_path
+                    && let Some(owner) = self.editor.selected.clone()
+                {
+                    let result = self.editor.load_blueprint(&owner, &path);
+                    self.result(result);
+                    self.open_last_blueprint();
+                }
                 if output.import_requested {
                     self.dialog = Some(files::Dialog::new(files::Kind::Import, &self.editor.path));
                 }
@@ -943,11 +971,18 @@ impl App {
         if self.loading.is_some()
             || self.dialog.is_some()
             || self.confirm_discard
+            || self.asset_browser.confirming_delete()
             || self.drag.is_some()
         {
             return;
         }
         if self.hierarchy_rename.is_some() {
+            return;
+        }
+        if self.workspace.assets_visible
+            && !self.mouse_captured
+            && self.asset_browser.delete_shortcut(ctx, &self.editor)
+        {
             return;
         }
         if self.editor.play.is_none()
@@ -1085,7 +1120,7 @@ impl eframe::App for App {
                         .editor
                         .play
                         .as_ref()
-                        .is_some_and(|p| p.instance.has_blueprints())),
+                        .is_some_and(|p| p.instance().has_blueprints())),
             self.editor.play.as_mut(),
         );
         let eligible = input.focused

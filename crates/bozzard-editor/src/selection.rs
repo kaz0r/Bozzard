@@ -131,7 +131,7 @@ impl Editor {
         }
         let selection = self.surface_selection.as_ref().unwrap();
         let demo = SceneDemo::new(&self.scene)?;
-        let transform = demo.instance.global_transforms(&demo.app.world)?[&object.id]
+        let transform = demo.instance().global_transforms(&demo.app.world)?[&object.id]
             * self
                 .selected_material_override()?
                 .matrix(self.selected_surface_pivot().unwrap());
@@ -203,7 +203,7 @@ impl Editor {
         let inv = projection.inverse();
         let origin = inv.project_point3(Vec3::new(ndc[0], ndc[1], 0.0));
         let direction = (inv.project_point3(Vec3::new(ndc[0], ndc[1], 1.0)) - origin).normalize();
-        let matrices = demo.instance.global_transforms(&demo.app.world)?;
+        let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let mut best: Option<(f32, Pick)> = None;
         for object in &self.scene.objects {
             let Some(drawable) = &object.drawable else {
@@ -230,6 +230,23 @@ impl Editor {
                     }
                 }
                 Mesh::Cube => ray_box(o, d).map(|t| (t, None)),
+                Mesh::Surface { asset, .. } => {
+                    let Some((part, bounds)) = self.assets.mesh_surface(&drawable.mesh) else {
+                        continue;
+                    };
+                    let entry = self.assets.get(self.assets.handle(asset).unwrap()).unwrap();
+                    let center = bounds[0] * 0.5 + bounds[1] * 0.5;
+                    entry
+                        .raycast_filtered(
+                            o + center,
+                            d,
+                            |triangle| {
+                                (part.start..part.start + part.count).contains(&(triangle * 3))
+                            },
+                            reference,
+                        )
+                        .map(|hit| (hit.distance, None))
+                }
                 Mesh::Asset(id) => self
                     .assets
                     .handle(id)
@@ -490,41 +507,60 @@ mod tests {
     }
 
     #[test]
-    fn imported_hierarchy_parts_reuse_surface_selection_without_editing_owner() {
+    fn imported_hierarchy_parts_are_independent_entities_with_undo() {
         let fixture = Fixture::new();
         let mut editor = fixture.editor();
         // Exercise the portable import and instantiation path, not just a catalog OBJ.
         let asset = editor.import(&fixture.0.join("parts.obj")).unwrap();
         editor.add_asset_to_scene(&asset).unwrap();
         let owner = editor.selected.clone().unwrap();
-        editor.select_object(None);
-        let mesh = editor.object_mesh(&owner).unwrap();
-        assert_eq!(mesh.parts.len(), 2);
-        assert!(mesh.parts[0].name.contains("Surface 1"));
-        assert_eq!(mesh.parts[0].material_name.as_deref(), Some("LeftPaint"));
-        assert_eq!(mesh.parts[1].material_name.as_deref(), Some("RightPaint"));
-        assert!(
-            editor.selected.is_none(),
-            "listing rows must not select their owner"
-        );
-        assert!(editor.object_mesh("missing").is_none());
+        assert!(editor.selected_object().unwrap().drawable.is_none());
+        let children: Vec<_> = editor
+            .scene()
+            .objects
+            .iter()
+            .filter(|o| o.parent.as_ref() == Some(&owner))
+            .cloned()
+            .collect();
+        assert_eq!(children.len(), 2);
+        for (index, child) in children.iter().enumerate() {
+            assert!(
+                child.material.is_none() && child.gravity.is_none() && child.blueprints.is_empty()
+            );
+            assert!(
+                matches!(&child.drawable.as_ref().unwrap().mesh, Mesh::Surface { index: part, .. } if *part as usize == index)
+            );
+            assert!(
+                editor
+                    .assets
+                    .mesh_surface(&child.drawable.as_ref().unwrap().mesh)
+                    .is_some()
+            );
+        }
         let before = editor.scene().clone();
-        let history = editor.undo_label().map(str::to_owned);
-        editor
-            .select_pick(Some(Pick {
-                object: owner.clone(),
-                surface: Some(1),
-            }))
-            .unwrap();
-        assert_eq!(editor.selected_surface().unwrap().index, 1);
-        assert!(editor.delete().is_err());
-        assert!(editor.duplicate().is_err());
-        assert!(editor.assign_asset_to_selected(&asset).is_err());
-        assert_eq!(editor.scene(), &before);
-        assert_eq!(editor.undo_label(), history.as_deref());
-        editor.select_object(Some(owner));
+        editor.select_object(Some(children[1].id.clone()));
         assert!(editor.selected_surface().is_none());
-        assert_eq!(editor.selected_mesh().unwrap().parts.len(), 2);
+        editor.duplicate().unwrap();
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &before);
+        editor.select_object(Some(children[0].id.clone()));
+        editor.delete().unwrap();
+        assert!(
+            editor
+                .scene()
+                .objects
+                .iter()
+                .any(|o| o.id == children[1].id)
+        );
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &before);
+        editor.select_object(Some(owner));
+        assert!(
+            editor
+                .frame_selection_bounds(Layer::ThreeD)
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[test]

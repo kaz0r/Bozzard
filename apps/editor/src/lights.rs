@@ -101,11 +101,10 @@ impl App {
         projection: Mat4,
         pointer: Option<Pos2>,
     ) -> Result<Option<String>> {
-        if self.workspace.layer_2d || self.editor.play.is_some() {
+        if self.editor.play.is_some() {
             return Ok(None);
         }
-        let demo = bozzard_demo::SceneDemo::new(self.editor.scene())?;
-        let matrices = demo.instance.global_transforms(&demo.app.world)?;
+        let matrices = self.editor.scene().global_transforms()?;
         let painter = ui.painter().with_clip_rect(rect);
         let project = |v: glam::Vec4| {
             let p = v.truncate() / v.w;
@@ -116,6 +115,23 @@ impl App {
         };
         let mut picked: Option<(f32, String)> = None;
         for object in &self.editor.scene().objects {
+            if let Some(depth) = cameras::draw(
+                ui,
+                rect,
+                projection,
+                pointer,
+                object,
+                matrices[&object.id],
+                self.editor.selected.as_deref() == Some(&object.id),
+            )? && picked
+                .as_ref()
+                .is_none_or(|(previous, _)| depth < *previous)
+            {
+                picked = Some((depth, object.id.clone()));
+            }
+            if self.workspace.layer_2d {
+                continue;
+            }
             let Some(light) = object.light else { continue };
             let world = light.at(matrices[&object.id])?;
             let origin = Vec3::from(world.position);

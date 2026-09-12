@@ -358,7 +358,13 @@ fn dependencies_rebase_import_bind_colliding_ids_and_are_protected_in_history() 
     );
     assert!(other.assets.require_ready().is_ok());
     let root_id = other.selected.clone().unwrap();
-    let texture = &object(&other, &root_id).drawable.as_ref().unwrap().texture;
+    let texture = object(&other, &root_id)
+        .material
+        .as_ref()
+        .unwrap()
+        .texture
+        .as_ref()
+        .unwrap();
     assert_ne!(texture, &bozzard_scene::Texture::Asset(image_id));
     let bozzard_scene::Texture::Asset(bound) = texture else {
         panic!("missing image")
@@ -577,7 +583,7 @@ fn blueprint_files_history_and_play_are_isolated_from_authoring() {
     let play = e.play.as_ref().unwrap();
     play.check_simulation().unwrap();
     assert_ne!(
-        play.instance.capture(&play.app.world).unwrap().objects[0].transform,
+        play.instance().capture(&play.app.world).unwrap().objects[0].transform,
         authored.objects[0].transform
     );
     assert_eq!(*e.scene(), authored);
@@ -687,7 +693,7 @@ fn blueprint_references_remap_through_prefab_duplicate_apply_and_save() {
     demo.check_simulation().unwrap();
     for root in ["root", second.as_str(), third.as_str()] {
         let child = &reopened.scene().prefabs[root].members["child"];
-        let entity = demo.instance.entity(child).unwrap();
+        let entity = demo.instance().entity(child).unwrap();
         assert_eq!(
             demo.app
                 .world

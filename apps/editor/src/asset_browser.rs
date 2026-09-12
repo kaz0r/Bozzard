@@ -10,6 +10,9 @@ pub struct AssetBrowser {
     search: String,
     filter: AssetFilter,
     selected: Option<String>,
+    selected_blueprint: Option<std::path::PathBuf>,
+    focused: bool,
+    pending_delete: Option<PendingDelete>,
     show_details: bool,
     thumbnails: HashMap<String, Thumbnail>,
     catalog_revision: u64,
@@ -22,6 +25,7 @@ enum AssetFilter {
     Images,
     Models,
     Prefabs,
+    Blueprints,
 }
 
 struct Thumbnail {
@@ -31,6 +35,10 @@ struct Thumbnail {
 
 #[derive(Default)]
 pub struct AssetBrowserOutput {
+    pub blueprint_opened: bool,
+    pub blueprint_import_requested: bool,
+    pub blueprint_path: Option<std::path::PathBuf>,
+    pub blueprint_owner: Option<String>,
     pub prefab_requested: Option<bozzard_editor::PrefabCommand>,
     pub import_requested: bool,
     pub reload_requested: bool,
@@ -68,7 +76,20 @@ struct MeshPreview {
     warnings: Vec<String>,
 }
 
+#[derive(Clone)]
+enum DeleteTarget {
+    Asset(String),
+    Blueprint(std::path::PathBuf),
+}
+struct PendingDelete {
+    target: DeleteTarget,
+    revision: u64,
+    assets: u64,
+    scene: std::path::PathBuf,
+}
+
 enum AssetCommand {
+    Delete(String),
     Add(String),
     Assign(String),
     Remove(String),
@@ -76,6 +97,58 @@ enum AssetCommand {
 }
 
 impl AssetBrowser {
+    pub fn confirming_delete(&self) -> bool {
+        self.pending_delete.is_some()
+    }
+    fn request_delete(&mut self, target: DeleteTarget, editor: &Editor) {
+        self.pending_delete = Some(PendingDelete {
+            target,
+            revision: editor.revision(),
+            assets: editor.asset_revision(),
+            scene: editor.path.clone(),
+        });
+    }
+    pub fn delete_shortcut(&mut self, ctx: &egui::Context, editor: &Editor) -> bool {
+        if !self.focused
+            || editor.play.is_some()
+            || ctx.egui_wants_keyboard_input()
+            || egui::Popup::is_any_open(ctx)
+        {
+            return false;
+        }
+        if !ctx.input_mut(|i| {
+            i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+                || (cfg!(target_os = "macos")
+                    && i.consume_key(egui::Modifiers::COMMAND, egui::Key::Backspace))
+        }) {
+            return false;
+        }
+        let query = self.search.trim().to_lowercase();
+        let target = if self.filter == AssetFilter::Blueprints {
+            self.selected_blueprint
+                .clone()
+                .filter(|p| {
+                    p.file_name()
+                        .is_some_and(|n| n.to_string_lossy().to_lowercase().contains(&query))
+                })
+                .map(DeleteTarget::Blueprint)
+        } else {
+            self.selected
+                .clone()
+                .filter(|id| {
+                    editor.scene().assets.get(id).is_some_and(|a| {
+                        matches_filter(self.filter, a.kind)
+                            && (id.to_lowercase().contains(&query)
+                                || a.path.to_lowercase().contains(&query))
+                    })
+                })
+                .map(DeleteTarget::Asset)
+        };
+        if let Some(target) = target {
+            self.request_delete(target, editor);
+        }
+        true // Never let a browser Delete fall through to the scene selection.
+    }
     pub fn reveal(&mut self, id: String) {
         self.selected = Some(id);
         self.search.clear();
@@ -84,6 +157,14 @@ impl AssetBrowser {
     /// Renders the browser and performs document operations through the editor.
     /// The caller handles the two operations that need application services.
     pub fn ui(&mut self, ui: &mut egui::Ui, editor: &mut Editor) -> AssetBrowserOutput {
+        if ui.input(|i| i.pointer.any_pressed()) && self.pending_delete.is_none() {
+            self.focused = ui.is_enabled()
+                && ui.input(|i| {
+                    i.pointer
+                        .interact_pos()
+                        .is_some_and(|p| ui.max_rect().contains(p))
+                });
+        }
         self.prune_thumbnails(editor);
         let assets = snapshots(editor);
         if self
@@ -117,12 +198,14 @@ impl AssetBrowser {
                     AssetFilter::Images => "Textures",
                     AssetFilter::Models => "Models",
                     AssetFilter::Prefabs => "Prefabs",
+                    AssetFilter::Blueprints => "Blueprints",
                 })
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.filter, AssetFilter::All, "All assets");
                     ui.selectable_value(&mut self.filter, AssetFilter::Images, "Textures");
                     ui.selectable_value(&mut self.filter, AssetFilter::Models, "Models");
                     ui.selectable_value(&mut self.filter, AssetFilter::Prefabs, "Prefabs");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Blueprints, "Blueprints");
                 });
             ui.separator();
             if ui
@@ -130,7 +213,11 @@ impl AssetBrowser {
                 .on_hover_text("Import PNG, JPEG, OBJ, glTF, GLB, or .prefab.json")
                 .clicked()
             {
-                output.import_requested = true;
+                if self.filter == AssetFilter::Blueprints {
+                    output.blueprint_import_requested = true;
+                } else {
+                    output.import_requested = true;
+                }
             }
             if ui
                 .add_enabled(editing, egui::Button::new("Reload"))
@@ -175,7 +262,7 @@ impl AssetBrowser {
         let selected = self
             .selected
             .as_ref()
-            .filter(|_| self.show_details)
+            .filter(|_| self.show_details && self.filter != AssetFilter::Blueprints)
             .and_then(|id| assets.iter().find(|asset| &asset.id == id));
         let grid_width = if side_details && selected.is_some() {
             available.x - 276.0
@@ -191,7 +278,7 @@ impl AssetBrowser {
             if sidebar {
                 ui.allocate_ui_with_layout(Vec2::new(130.0, available.y), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.small("PROJECT");
-                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs")] {
+                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints")] {
                         ui.horizontal(|ui| {
                             let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 16.0), Sense::hover());
                             draw_folder(ui.painter(), rect);
@@ -212,6 +299,10 @@ impl AssetBrowser {
                         .auto_shrink([false, false])
                         .max_height(grid_height)
                         .show(ui, |ui| {
+                            if self.filter == AssetFilter::Blueprints {
+                                self.blueprints(ui, editor, &mut output);
+                                return;
+                            }
                             if shown.is_empty() {
                                 ui.add_space(18.0);
                                 ui.weak(if assets.is_empty() {
@@ -263,6 +354,7 @@ impl AssetBrowser {
 
         if let Some(command) = command {
             match command {
+                AssetCommand::Delete(id) => self.request_delete(DeleteTarget::Asset(id), editor),
                 AssetCommand::RefreshPrefab(asset) => {
                     output.prefab_requested = Some(bozzard_editor::PrefabCommand::Refresh { asset })
                 }
@@ -303,7 +395,132 @@ impl AssetBrowser {
                 },
             }
         }
+        self.delete_confirmation(ui.ctx(), editor, &mut output, ui.is_enabled());
         output
+    }
+
+    fn delete_confirmation(
+        &mut self,
+        ctx: &egui::Context,
+        editor: &mut Editor,
+        output: &mut AssetBrowserOutput,
+        enabled: bool,
+    ) {
+        let Some(pending) = &self.pending_delete else {
+            return;
+        };
+        let name = match &pending.target {
+            DeleteTarget::Asset(id) => id.clone(),
+            DeleteTarget::Blueprint(path) => path.display().to_string(),
+        };
+        let mut confirm = false;
+        let mut cancel = false;
+        let modal = egui::Modal::new(egui::Id::new("delete-project-asset")).show(ctx, |ui| {
+            ui.heading("Delete from project?");
+            ui.label(&name);
+            ui.label("Removes the asset file and all scene objects using it, including their children.");
+            if matches!(pending.target, DeleteTarget::Blueprint(_)) { ui.weak("Embedded Blueprint attachments are independent copies and will remain."); }
+            ui.weak("Undo restores the file and scene objects. Files are kept in .bozzard-trash for recovery. Other saved scenes may reference this file; they are not rewritten. Shared dependencies are kept.");
+            ui.horizontal(|ui| {
+                confirm = ui.add_enabled(enabled && editor.play.is_none(), egui::Button::new("Delete from project")).clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+        });
+        if confirm {
+            let pending = self.pending_delete.take().unwrap();
+            let result = if pending.revision != editor.revision()
+                || pending.assets != editor.asset_revision()
+                || pending.scene != editor.path
+            {
+                Err(anyhow::anyhow!(
+                    "Scene or assets changed; select the asset and confirm deletion again"
+                ))
+            } else {
+                match pending.target {
+                    DeleteTarget::Asset(id) => editor.delete_project_asset(&id),
+                    DeleteTarget::Blueprint(path) => editor.delete_project_file(&path),
+                }
+            };
+            match result {
+                Ok(count) => {
+                    self.selected = None;
+                    self.selected_blueprint = None;
+                    output.status = Some(BrowserStatus {
+                        message: format!(
+                            "Deleted project asset and {count} scene objects · Undo restores both"
+                        ),
+                        error: false,
+                    });
+                }
+                Err(error) => set_error(output, error),
+            }
+        } else if cancel || modal.should_close() {
+            self.pending_delete = None;
+        }
+    }
+
+    fn blueprints(&mut self, ui: &mut egui::Ui, editor: &Editor, output: &mut AssetBrowserOutput) {
+        ui.weak("Blueprints · Select an object, then double-click a graph to attach a copy.");
+        let editing = editor.play.is_none()
+            && editor.selected_object().is_some()
+            && editor.selected_surface().is_none();
+        if ui
+            .add_enabled(editing, egui::Button::new("New Blueprint"))
+            .clicked()
+        {
+            output.blueprint_opened = true;
+        }
+        let query = self.search.trim().to_lowercase();
+        let paths = blueprint_paths(&editor.path);
+        match paths {
+            Err(error) => {
+                ui.colored_label(Color32::LIGHT_RED, error.to_string());
+            }
+            Ok(mut paths) => {
+                paths.sort();
+                for path in paths.iter().filter(|p| {
+                    p.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+                        n.ends_with(".blueprint.json") && n.to_lowercase().contains(&query)
+                    })
+                }) {
+                    let name = path.file_name().unwrap().to_string_lossy();
+                    let response = ui.add_enabled(editor.play.is_none(), egui::Button::selectable(self.selected_blueprint.as_ref() == Some(path), format!("◇ {name}")))
+                        .on_hover_text(format!("{}\nDouble-click to attach an independent copy · Delete removes the project file", path.display()));
+                    if response.clicked() || response.secondary_clicked() {
+                        self.selected_blueprint = Some(path.clone());
+                    }
+                    if response.double_clicked() && editing {
+                        output.blueprint_path = Some(path.clone());
+                    }
+                    response.context_menu(|ui| {
+                        if ui
+                            .add_enabled(
+                                editor.play.is_none(),
+                                egui::Button::new("Delete from project…"),
+                            )
+                            .clicked()
+                        {
+                            self.request_delete(DeleteTarget::Blueprint(path.clone()), editor);
+                            ui.close();
+                        }
+                    });
+                }
+                if paths.is_empty() {
+                    ui.weak("Save graphs here using Blueprint Editor → Save graph.");
+                }
+            }
+        }
+        ui.separator();
+        ui.weak("Graphs attached in this scene");
+        for object in &editor.scene().objects {
+            for attachment in &object.blueprints {
+                let label = format!("{} / {}", object.name, attachment.graph.name);
+                if label.to_lowercase().contains(&query) && ui.button(label).clicked() {
+                    self.selected_blueprint = None;
+                    output.blueprint_owner = Some(object.id.clone());
+                }
+            }
+        }
     }
 
     fn prune_thumbnails(&mut self, editor: &Editor) {
@@ -394,6 +611,13 @@ impl AssetBrowser {
                                 ui.close();
                             }
                             ui.separator();
+                            if ui
+                                .add_enabled(editing, egui::Button::new("Delete from project…"))
+                                .clicked()
+                            {
+                                *command = Some(AssetCommand::Delete(asset.id.clone()));
+                                ui.close();
+                            }
                             if ui
                                 .add_enabled(
                                     editing && asset.users == 0,
@@ -544,6 +768,12 @@ impl AssetBrowser {
                 *command = Some(AssetCommand::Assign(asset.id.clone()));
             }
             if ui
+                .add_enabled(editing, egui::Button::new("Delete from project…"))
+                .clicked()
+            {
+                *command = Some(AssetCommand::Delete(asset.id.clone()));
+            }
+            if ui
                 .add_enabled(editing && asset.users == 0, egui::Button::new("Remove"))
                 .on_hover_text("Removes this asset from the scene; the source file stays on disk")
                 .clicked()
@@ -552,6 +782,32 @@ impl AssetBrowser {
             }
         });
     }
+}
+
+fn blueprint_paths(scene: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
+    // ponytail: two shallow directory listings; cache if projects accumulate thousands of graphs.
+    let assets = bozzard_editor::root(scene).join("assets");
+    let mut paths = Vec::new();
+    for directory in [assets.clone(), assets.join("Blueprints")] {
+        match std::fs::read_dir(directory) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry?;
+                    if entry.file_type()?.is_file()
+                        && entry
+                            .file_name()
+                            .to_string_lossy()
+                            .ends_with(".blueprint.json")
+                    {
+                        paths.push(entry.path());
+                    }
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(paths)
 }
 
 fn set_error(output: &mut AssetBrowserOutput, error: anyhow::Error) {
@@ -796,6 +1052,67 @@ fn draw_mesh_preview(painter: &egui::Painter, rect: Rect, vertices: &[[f32; 8]],
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn blueprints_folder_lists_saved_graphs_without_mutating_scene() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/model-lab.json");
+        let mut editor = Editor::open(&path).unwrap();
+        let original = editor.scene().clone();
+        let paths = blueprint_paths(&path).unwrap();
+        assert!(paths.iter().any(|p| p.ends_with("spin.blueprint.json")));
+        let ctx = egui::Context::default();
+        let mut browser = AssetBrowser {
+            filter: AssetFilter::Blueprints,
+            show_details: true,
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            let result = browser.ui(ui, &mut editor);
+            assert!(!result.blueprint_opened && result.blueprint_path.is_none());
+        });
+        output.textures_delta.clear();
+        assert_eq!(editor.scene(), &original);
+    }
+
+    #[test]
+    fn delete_belongs_to_browser_focus_and_requires_confirmation_of_visible_asset() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/model-lab.json");
+        let editor = Editor::open(&path).unwrap();
+        let original = editor.scene().clone();
+        for (focused, query, pending) in [
+            (false, "", false),
+            (true, "", true),
+            (true, "no-such-asset", false),
+        ] {
+            let ctx = egui::Context::default();
+            let mut browser = AssetBrowser {
+                focused,
+                selected: editor.scene().assets.keys().next().cloned(),
+                search: query.into(),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events: vec![egui::Event::Key {
+                        key: egui::Key::Delete,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    }],
+                    ..Default::default()
+                },
+                |ui| {
+                    assert_eq!(browser.delete_shortcut(ui.ctx(), &editor), focused);
+                },
+            );
+            output.textures_delta.clear();
+            assert_eq!(browser.confirming_delete(), pending);
+            assert_eq!(editor.scene(), &original);
+        }
+    }
 
     #[test]
     fn compact_browser_fits_and_double_click_add_is_edit_only() {

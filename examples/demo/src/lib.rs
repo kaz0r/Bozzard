@@ -1,4 +1,5 @@
 //! Shared simulation for the native player and the headless executable.
+mod prefabs;
 use bozzard_app::{App, Entity, Plugin};
 use bozzard_scene::{GameplayInput, GameplayState, Scene, SceneInstance, Spin, Transform};
 use std::{
@@ -117,12 +118,30 @@ struct SimulationStatus {
 
 pub struct SceneDemo {
     pub app: App,
-    pub instance: SceneInstance,
 }
 
 impl SceneDemo {
+    pub fn instance(&self) -> &SceneInstance {
+        self.app
+            .world
+            .resource::<SceneInstance>()
+            .expect("scene instance")
+    }
+    pub fn with_instance<R>(
+        &mut self,
+        f: impl FnOnce(&mut SceneInstance, &mut bozzard_app::World) -> R,
+    ) -> R {
+        let mut instance = self
+            .app
+            .world
+            .remove_resource::<SceneInstance>()
+            .expect("scene instance");
+        let result = f(&mut instance, &mut self.app.world);
+        self.app.world.insert_resource(instance);
+        result
+    }
     pub fn accepts_gameplay_input(&self) -> bool {
-        self.gameplay().is_some() || self.instance.has_blueprints()
+        self.gameplay().is_some() || self.instance().has_blueprints()
     }
     pub fn gameplay(&self) -> Option<&GameplayState> {
         self.app.world.resource::<GameplayState>()
@@ -158,6 +177,17 @@ impl SceneDemo {
         }
         Ok(())
     }
+    pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
+        let (scene, templates) = prefabs::load(document, path)?;
+        let mut demo = Self::new(&scene)?;
+        demo.with_instance(|instance, _| -> anyhow::Result<()> {
+            for (asset, prefab) in templates {
+                instance.register_prefab(asset, prefab)?;
+            }
+            Ok(())
+        })?;
+        Ok(demo)
+    }
     pub fn new(document: &Scene) -> anyhow::Result<Self> {
         let mut app = App::default();
         let instance = document.spawn(&mut app.world)?;
@@ -179,7 +209,7 @@ impl SceneDemo {
                 }
             }
         });
-        let gravity_instance = instance.clone();
+        app.world.insert_resource(instance);
         app.world.insert_resource(SimulationStatus::default());
         app.add_system(move |world, _, tick| {
             // Freeze on simulation failure rather than silently advancing a broken world.
@@ -194,6 +224,9 @@ impl SceneDemo {
                 .resource::<GameplayInput>()
                 .copied()
                 .unwrap_or_default();
+            let mut gravity_instance = world
+                .remove_resource::<SceneInstance>()
+                .expect("scene instance");
             let error = gravity_instance
                 .gameplay_motion(world, dt)
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
@@ -205,9 +238,10 @@ impl SceneDemo {
                 movement: input.movement,
                 ..Default::default()
             });
+            world.insert_resource(gravity_instance);
             world.insert_resource(SimulationStatus { error });
         });
-        Ok(Self { app, instance })
+        Ok(Self { app })
     }
 }
 
@@ -282,16 +316,19 @@ mod tests {
     #[test]
     fn scene_animation_and_save_reload_preserve_parented_objects() {
         let mut demo = SceneDemo::new(&scene_document().unwrap()).unwrap();
-        let before = demo.instance.global_transforms(&demo.app.world).unwrap()["satellite"];
+        let before = demo.instance().global_transforms(&demo.app.world).unwrap()["satellite"];
         for _ in 0..120 {
             demo.app.step();
         }
-        let after = demo.instance.global_transforms(&demo.app.world).unwrap()["satellite"];
+        let after = demo.instance().global_transforms(&demo.app.world).unwrap()["satellite"];
         assert_ne!(before, after);
-        let saved = demo.instance.capture(&demo.app.world).unwrap();
+        let saved = demo.instance().capture(&demo.app.world).unwrap();
         let other = SceneDemo::new(&Scene::from_json(&saved.to_json().unwrap()).unwrap()).unwrap();
         assert_eq!(
-            other.instance.global_transforms(&other.app.world).unwrap()["satellite"],
+            other
+                .instance()
+                .global_transforms(&other.app.world)
+                .unwrap()["satellite"],
             after
         );
     }

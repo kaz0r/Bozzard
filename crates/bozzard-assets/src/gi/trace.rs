@@ -88,15 +88,20 @@ impl TraceScene {
                 continue;
             }
             progress.stage(format!("Preparing GI geometry: {}", object.name))?;
-            let drawable = object.drawable.as_ref().unwrap();
+            let drawable = object.effective_drawable().unwrap();
+            if matches!(drawable.mesh, Mesh::Surface { .. })
+                && assets.mesh_surface(&drawable.mesh).is_none()
+            {
+                continue;
+            }
             let key = match &drawable.mesh {
                 Mesh::Cube => "builtin:cube".into(),
                 Mesh::Quad => "builtin:quad".into(),
-                Mesh::Asset(id) => format!("asset:{id}"),
+                Mesh::Asset(id) | Mesh::Surface { asset: id, .. } => format!("asset:{id}"),
             };
             if !cache.contains_key(&key) {
                 let geometry = match &drawable.mesh {
-                    Mesh::Asset(id) => {
+                    Mesh::Asset(id) | Mesh::Surface { asset: id, .. } => {
                         let entry = assets
                             .handle(id)
                             .and_then(|h| assets.get(h))
@@ -133,7 +138,9 @@ impl TraceScene {
                         || v.texture.is_some()
                         || v.uv_scale != [1.; 2])
             });
-            let parts: Vec<_> = if split {
+            let parts: Vec<_> = if let Mesh::Surface { index, .. } = drawable.mesh {
+                vec![Some(index as usize)]
+            } else if split {
                 (0..geometry.mesh().parts.len()).map(Some).collect()
             } else {
                 vec![None]
@@ -141,6 +148,9 @@ impl TraceScene {
             for part_index in parts {
                 let mut drawable = drawable.clone();
                 let mut model = matrices[&object.id];
+                if let Some((_, bounds)) = assets.mesh_surface(&drawable.mesh) {
+                    model *= Mat4::from_translation(-(bounds[0] * 0.5 + bounds[1] * 0.5));
+                }
                 let mut source_texture = drawable.texture == Texture::White;
                 let mut triangles = None;
                 let local_bounds = if let Some(index) = part_index {

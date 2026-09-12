@@ -12,6 +12,8 @@ mod local_shadows;
 mod overrides;
 mod pbr;
 mod point_shadows;
+#[cfg(test)]
+mod prefab_lifecycle;
 mod shadows;
 mod upload;
 mod visibility;
@@ -367,7 +369,10 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         true,
     )?;
     if let Some(path) = &options.scene {
-        let document = load_document(Some(path))?;
+        let document = SceneDemo::new_with_prefabs(&load_document(Some(path))?, Some(path))?
+            .instance()
+            .document()
+            .clone();
         let mut assets = assets::Assets::load(&document, Some(path))?;
         assets.upload(gpu, &mut renderer)?;
         check_document(
@@ -619,8 +624,11 @@ fn check_document(
         (Layer::TwoD, "2d", [640, 400]),
         (Layer::ThreeD, "3d", [800, 500]),
     ] {
-        let mut demo = SceneDemo::new(document)?;
-        if !demo.instance.has_view(layer) {
+        let mut demo = SceneDemo::new_with_prefabs(
+            document,
+            options.scene.as_deref().filter(|_| prefix == "loaded"),
+        )?;
+        if !demo.instance().has_view(layer) {
             continue;
         }
         let aspect = size[0] as f32 / size[1] as f32;
@@ -658,6 +666,7 @@ fn check_document(
         }
         for _ in 0..120 {
             demo.app.step();
+            demo.check_simulation()?;
         }
         let moved = capture_display(gpu, renderer, &extract(&demo, assets, layer, aspect)?, size)?;
         moved.write_ppm(
@@ -668,7 +677,7 @@ fn check_document(
         if animated {
             ensure!(initial.rgba != moved.rgba, "{label} scene did not animate");
         }
-        let saved = demo.instance.capture(&demo.app.world)?;
+        let saved = demo.instance().capture(&demo.app.world)?;
         let restored = SceneDemo::new(&Scene::from_json(&saved.to_json()?)?)?;
         let reloaded = capture_display(
             gpu,

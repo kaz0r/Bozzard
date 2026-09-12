@@ -70,7 +70,7 @@ fn bake_history_save_play_and_static_invalidation() {
     e.start_play().unwrap();
     assert!(e.render(Layer::ThreeD, 1.).unwrap().gi.is_some());
     let play = e.play.as_mut().unwrap();
-    let entity = play.instance.entity("tall-box").unwrap();
+    let entity = play.instance().entity("tall-box").unwrap();
     play.app
         .world
         .get_mut::<Transform>(entity)

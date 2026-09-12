@@ -9,6 +9,7 @@ struct Run {
     overlap: BTreeSet<String>,
     held: [bool; 5],
     variables: BTreeMap<String, f32>,
+    spawned: BTreeMap<u32, ObjectRef>,
 }
 #[derive(Clone, Default)]
 pub struct BlueprintRuntime {
@@ -22,6 +23,7 @@ pub struct BlueprintHidden(pub bool);
 struct Eval<'a> {
     graph: &'a Blueprint,
     variables: &'a BTreeMap<String, f32>,
+    spawned: &'a BTreeMap<u32, ObjectRef>,
     world: &'a World,
     entities: &'a BTreeMap<String, Entity>,
     owner: &'a str,
@@ -51,6 +53,11 @@ impl Eval<'_> {
             return Ok(value.clone());
         }
         let n = self.graph.node(id)?;
+        if n.kind == K::SpawnPrefab && socket.port == 1 {
+            return Ok(Value::Object(
+                self.spawned.get(&id).cloned().unwrap_or(ObjectRef::None),
+            ));
+        }
         let v: Vec<_> = (0..n.inputs.len())
             .map(|p| self.input(n, p))
             .collect::<Result<_>>()?;
@@ -145,7 +152,12 @@ impl SceneInstance {
             .iter()
             .any(|o| o.blueprints.iter().any(|b| b.enabled))
     }
-    pub fn step_blueprints(&self, world: &mut World, dt: f32, input: GameplayInput) -> Result<()> {
+    pub fn step_blueprints(
+        &mut self,
+        world: &mut World,
+        dt: f32,
+        input: GameplayInput,
+    ) -> Result<()> {
         if !self.has_blueprints() {
             return Ok(());
         }
@@ -211,7 +223,18 @@ impl SceneInstance {
             }
             let empty = BTreeSet::new();
             let mut budget = 100_000usize;
-            for object in &self.document.objects {
+            // New instances begin their graphs on the next tick, never recursively during Spawn.
+            let owners: Vec<_> = self
+                .document
+                .objects
+                .iter()
+                .filter(|o| o.blueprints.iter().any(|b| b.enabled))
+                .cloned()
+                .collect();
+            for object in &owners {
+                if !self.entities.contains_key(&object.id) {
+                    continue;
+                }
                 let overlap = contacts.get(&object.id).unwrap_or(&empty);
                 for (index, attachment) in object
                     .blueprints
@@ -225,6 +248,9 @@ impl SceneInstance {
                         run.variables = graph.variables.clone();
                     }
                     for event in graph.nodes.iter().filter(|n| n.kind.event()) {
+                        if !self.entities.contains_key(&object.id) {
+                            break;
+                        }
                         let key_index = InputKey::ALL.iter().position(|k| *k == event.key).unwrap();
                         let fire = match event.kind {
                             K::Start => !run.started,
@@ -261,7 +287,13 @@ impl SceneInstance {
                                 port: 0,
                             }]);
                             while let Some(output) = queue.pop_front() {
+                                if !self.entities.contains_key(&object.id) {
+                                    break;
+                                }
                                 for wire in graph.wires.iter().filter(|w| w.from == output) {
+                                    if !self.entities.contains_key(&object.id) {
+                                        break;
+                                    }
                                     ensure!(
                                         budget > 0,
                                         "blueprint execution budget exceeded (100000 actions/tick)"
@@ -271,6 +303,7 @@ impl SceneInstance {
                                     let mut eval = Eval {
                                         graph,
                                         variables: &run.variables,
+                                        spawned: &run.spawned,
                                         world,
                                         entities: &self.entities,
                                         owner: &object.id,
@@ -302,6 +335,15 @@ impl SceneInstance {
                                         .context("blueprint target was removed")?;
                                     let mut port = 0;
                                     match node.kind {
+                                        K::SpawnPrefab => {
+                                            let id = self.spawn_prefab(
+                                                world,
+                                                &node.prefab,
+                                                value.vector()?,
+                                            )?;
+                                            run.spawned.insert(node.id, ObjectRef::Id(id));
+                                        }
+                                        K::DestroyPrefab => self.destroy_prefab(world, &target)?,
                                         K::Branch => port = usize::from(!value.boolean()?),
                                         K::SetVariable => {
                                             run.variables
@@ -335,7 +377,9 @@ impl SceneInstance {
                                             }
                                             next.validate()?;
                                             world.insert(entity, next)?;
-                                            if let Err(error) = self.global_transforms(world) {
+                                            if let Err(error) =
+                                                self.validate_transform_change(world, &target)
+                                            {
                                                 world.insert(entity, transform)?;
                                                 return Err(error);
                                             }
@@ -346,10 +390,17 @@ impl SceneInstance {
                                                 color.iter().all(|c| (0.0..=1.0).contains(c)),
                                                 "blueprint RGB must be in 0..1"
                                             );
-                                            world
-                                                .get_mut::<Drawable>(entity)
-                                                .context("Set Color needs a Mesh Renderer")?
-                                                .color = color;
+                                            if let Some(material) =
+                                                world.get_mut::<Material>(entity)
+                                            {
+                                                material.color = color;
+                                            } else {
+                                                // Legacy graphs also work on meshes using their source material.
+                                                world
+                                                    .get_mut::<Drawable>(entity)
+                                                    .context("Set Color needs a mesh or Material")?
+                                                    .color = color;
+                                            }
                                         }
                                         K::SetVisible => {
                                             world.insert(
@@ -401,6 +452,9 @@ impl SceneInstance {
                     run.held = InputKey::ALL.map(|key| key.active(input));
                 }
             }
+            runtime
+                .runs
+                .retain(|(id, _), _| self.entities.contains_key(id));
             Ok(())
         })();
         world.insert_resource(runtime);

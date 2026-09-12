@@ -6,6 +6,7 @@ mod surface;
 pub use surface::SurfaceMaterialOverride;
 pub mod blueprint;
 mod blueprint_runtime;
+mod runtime_prefabs;
 pub use blueprint::{Blueprint, BlueprintAttachment};
 pub use blueprint_runtime::{BlueprintHidden, BlueprintRuntime};
 mod fog;
@@ -182,6 +183,12 @@ pub enum Mesh {
     Quad,
     Cube,
     Asset(String),
+    /// One imported primitive, with its local origin at the source bounds center.
+    Surface {
+        asset: String,
+        index: u32,
+        source: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -214,6 +221,65 @@ pub struct Drawable {
     pub uv_scale: [f32; 2],
 }
 
+/// Optional per-object material; without it, meshes use their source appearance.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Material {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metallic: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roughness: Option<f32>,
+    /// None inherits the mesh's source texture, including imported material maps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texture: Option<Texture>,
+    pub color: [f32; 3],
+    pub uv_scale: [f32; 2],
+}
+impl Material {
+    pub fn from_drawable(drawable: &Drawable) -> Self {
+        Self {
+            metallic: None,
+            roughness: None,
+            texture: None,
+            color: drawable.color,
+            uv_scale: drawable.uv_scale,
+        }
+    }
+    pub fn apply(&self, drawable: &mut Drawable) {
+        if let Some(texture) = &self.texture {
+            drawable.texture = texture.clone();
+        }
+        drawable.color = self.color;
+        drawable.uv_scale = self.uv_scale;
+        if let Mesh::Surface { index, source, .. } = &drawable.mesh
+            && (self.texture.is_some() || self.metallic.is_some() || self.roughness.is_some())
+        {
+            let index = *index;
+            let source = source.clone();
+            let position = drawable
+                .material_overrides
+                .iter()
+                .position(|v| v.surface == index && v.source == source)
+                .unwrap_or_else(|| {
+                    drawable
+                        .material_overrides
+                        .push(SurfaceMaterialOverride::inherited(index, source));
+                    drawable.material_overrides.len() - 1
+                });
+            let value = &mut drawable.material_overrides[position];
+            if let Some(texture) = &self.texture {
+                value.texture = Some(texture.clone());
+            }
+            if let Some(metallic) = self.metallic {
+                value.metallic = Some(metallic);
+            }
+            if let Some(roughness) = self.roughness {
+                value.roughness = Some(roughness);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Spin(pub [f32; 3]);
@@ -221,6 +287,8 @@ pub struct Spin(pub [f32; 3]);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material: Option<Material>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blueprints: Vec<BlueprintAttachment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -399,10 +467,62 @@ impl Scene {
             if let Some(camera) = object.camera {
                 camera.validate()?;
             }
+            for (id, kind) in object.asset_dependencies() {
+                ensure!(
+                    self.assets.get(id).is_some_and(|a| a.kind == kind),
+                    "missing or wrong-kind asset '{id}' on '{}'",
+                    object.id
+                );
+            }
+            if let Some(material) = &object.material {
+                ensure!(
+                    object.drawable.is_some(),
+                    "Material needs a mesh on '{}'",
+                    object.id
+                );
+                ensure!(
+                    (material.metallic.is_none() && material.roughness.is_none())
+                        || object
+                            .drawable
+                            .as_ref()
+                            .is_some_and(|d| matches!(d.mesh, Mesh::Surface { .. })),
+                    "PBR factor overrides need an imported surface entity"
+                );
+                ensure!(
+                    material
+                        .color
+                        .iter()
+                        .chain(material.metallic.iter())
+                        .chain(material.roughness.iter())
+                        .all(|c| c.is_finite() && (0.0..=1.0).contains(c))
+                        && material.uv_scale.iter().all(|v| v.is_finite() && *v > 0.0),
+                    "invalid Material on '{}'",
+                    object.id
+                );
+            }
             if let Some(drawable) = &object.drawable {
+                if let Mesh::Surface { index, source, .. } = &drawable.mesh {
+                    ensure!(
+                        *index < 4096
+                            && source.len() == 16
+                            && source
+                                .bytes()
+                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+                        "invalid surface binding"
+                    );
+                    ensure!(
+                        drawable
+                            .material_overrides
+                            .iter()
+                            .all(|v| v.surface == *index
+                                && v.source == *source
+                                && v.transform == Transform::default()),
+                        "surface entities use their own Transform and material binding"
+                    );
+                }
                 ensure!(
                     drawable.material_overrides.is_empty()
-                        || matches!(drawable.mesh, Mesh::Asset(_)),
+                        || matches!(drawable.mesh, Mesh::Asset(_) | Mesh::Surface { .. }),
                     "surface overrides need an imported model"
                 );
                 ensure!(
@@ -413,17 +533,6 @@ impl Scene {
                 for value in &drawable.material_overrides {
                     value.validate()?;
                     ensure!(surfaces.insert(value.surface), "duplicate surface override");
-                }
-                for (id, kind) in drawable.asset_dependencies() {
-                    let source = self
-                        .assets
-                        .get(id)
-                        .with_context(|| format!("missing asset '{id}' on '{}'", object.id))?;
-                    ensure!(
-                        source.kind == kind,
-                        "wrong asset kind for '{id}' on '{}'",
-                        object.id
-                    );
                 }
                 ensure!(
                     drawable
@@ -525,49 +634,46 @@ impl Scene {
         let order = self.order()?;
         let mut entities = BTreeMap::new();
         for object in &self.objects {
-            let entity = world.spawn();
-            world.insert(entity, object.transform)?;
-            if let Some(value) = object.light {
-                world.insert(entity, value)?;
-            }
-            if let Some(value) = object.camera {
-                world.insert(entity, value)?;
-            }
-            if let Some(value) = &object.drawable {
-                world.insert(entity, value.clone())?;
-            }
-            if let Some(value) = object.gravity {
-                world.insert(entity, value)?;
-                world.insert(entity, GravityState::default())?;
-            }
-            if let Some(value) = object.collider {
-                world.insert(entity, value)?;
-            }
-            if let Some(value) = &object.player_controller {
-                world.insert(entity, value.clone())?;
-            }
-            if let Some(value) = &object.trigger {
-                world.insert(entity, value.clone())?;
-            }
-            if let Some(value) = object.spin {
-                world.insert(entity, value)?;
-            }
-            entities.insert(object.id.clone(), entity);
+            entities.insert(object.id.clone(), object.spawn_in(world)?);
         }
+        let templates = self
+            .prefabs
+            .iter()
+            .map(|(root, link)| {
+                (
+                    link.asset.clone(),
+                    Prefab {
+                        version: 1,
+                        name: link.asset.clone(),
+                        root: root.clone(),
+                        objects: link.baseline.clone(),
+                        assets: self
+                            .assets
+                            .iter()
+                            .filter(|(_, a)| a.kind != AssetKind::Prefab)
+                            .map(|(id, a)| (id.clone(), a.clone()))
+                            .collect(),
+                    },
+                )
+            })
+            .collect();
         let instance = SceneInstance {
             document: self.clone(),
             entities,
             order,
+            templates,
+            next_spawn: 0,
         };
         instance.initialize_gameplay(world);
         Ok(instance)
     }
 }
 
-/// Structural membership/parentage is fixed for this first scene instance API.
-/// Transform and optional component values remain live ECS data.
+/// Runtime scene membership and live ECS components. Authored documents remain independent.
 #[derive(Clone)]
 pub struct SceneInstance {
+    templates: BTreeMap<String, Prefab>,
+    next_spawn: u64,
     document: Scene,
     entities: BTreeMap<String, Entity>,
     order: Vec<usize>,
@@ -616,6 +722,30 @@ impl SceneInstance {
         Ok(matrices)
     }
 
+    /// An isolated root cannot affect any other object's composed transform.
+    fn validate_transform_change(&self, world: &World, id: &str) -> Result<()> {
+        if self
+            .document
+            .objects
+            .iter()
+            .any(|o| o.parent.as_deref() == Some(id) || (o.id == id && o.parent.is_some()))
+        {
+            // ponytail: full checks for hierarchy edits; validate dirty subtrees if these become hot.
+            self.global_transforms(world)?;
+        } else {
+            let local = world
+                .get::<Transform>(self.entities[id])
+                .context("scene object/transform was removed")?;
+            local.validate()?;
+            let matrix = local.matrix();
+            ensure!(
+                matrix.is_finite() && matrix.inverse().is_finite(),
+                "invalid runtime transform on '{id}'"
+            );
+        }
+        Ok(())
+    }
+
     pub fn view(&self, world: &World, layer: Layer, aspect: f32) -> Result<SceneView> {
         let matrices = self.global_transforms(world)?;
         let camera = self.camera_entity(layer)?;
@@ -634,7 +764,11 @@ impl SceneInstance {
                     .resource::<GameplayState>()
                     .is_some_and(|s| s.collected.contains(id))
             {
-                objects.push((matrices[id], drawable.clone()));
+                let mut drawable = drawable.clone();
+                if let Some(material) = world.get::<Material>(*entity) {
+                    material.apply(&mut drawable);
+                }
+                objects.push((matrices[id], drawable));
             }
         }
         let mut lights = Vec::new();
@@ -686,6 +820,7 @@ impl SceneInstance {
             object.transform = *world
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
+            object.material = world.get::<Material>(entity).cloned();
             object.light = world.get::<Light>(entity).copied();
             object.camera = world.get::<Camera>(entity).copied();
             object.drawable = world.get::<Drawable>(entity).cloned();
@@ -710,10 +845,90 @@ pub struct SceneView {
     pub objects: Vec<(Mat4, Drawable)>,
 }
 
+impl Object {
+    fn spawn_in(&self, world: &mut World) -> Result<Entity> {
+        let entity = world.spawn();
+        world.insert(entity, self.transform)?;
+        macro_rules! insert { ($($field:ident),*) => { $(if let Some(value) = &self.$field { world.insert(entity, value.clone())?; })* }; }
+        insert!(
+            material,
+            light,
+            camera,
+            drawable,
+            gravity,
+            collider,
+            player_controller,
+            trigger,
+            spin
+        );
+        if self.gravity.is_some() {
+            world.insert(entity, GravityState::default())?;
+        }
+        Ok(entity)
+    }
+    pub fn asset_dependencies(&self) -> Vec<(&str, AssetKind)> {
+        let mut dependencies = self
+            .drawable
+            .as_ref()
+            .map(Drawable::asset_dependencies)
+            .unwrap_or_default();
+        if let Some(Material {
+            texture: Some(Texture::Asset(id)),
+            ..
+        }) = &self.material
+        {
+            dependencies.push((id, AssetKind::Image));
+        }
+        for node in self.blueprints.iter().flat_map(|b| &b.graph.nodes) {
+            if node.kind == blueprint::NodeKind::SpawnPrefab && !node.prefab.is_empty() {
+                dependencies.push((&node.prefab, AssetKind::Prefab));
+            }
+        }
+        dependencies
+    }
+    pub fn remap_assets(&mut self, mapping: &BTreeMap<String, String>) {
+        let remap = |id: &mut String| {
+            if let Some(new) = mapping.get(id) {
+                *id = new.clone();
+            }
+        };
+        if let Some(material) = &mut self.material
+            && let Some(Texture::Asset(id)) = &mut material.texture
+        {
+            remap(id);
+        }
+        if let Some(drawable) = &mut self.drawable {
+            if let Mesh::Asset(id) | Mesh::Surface { asset: id, .. } = &mut drawable.mesh {
+                remap(id);
+            }
+            if let Texture::Asset(id) = &mut drawable.texture {
+                remap(id);
+            }
+            for surface in &mut drawable.material_overrides {
+                if let Some(Texture::Asset(id)) = &mut surface.texture {
+                    remap(id);
+                }
+            }
+        }
+        for node in self.blueprints.iter_mut().flat_map(|b| &mut b.graph.nodes) {
+            if node.kind == blueprint::NodeKind::SpawnPrefab {
+                remap(&mut node.prefab);
+            }
+        }
+    }
+    pub fn effective_drawable(&self) -> Option<Drawable> {
+        let mut drawable = self.drawable.clone()?;
+        if let Some(material) = &self.material {
+            material.apply(&mut drawable);
+        }
+        Some(drawable)
+    }
+}
+
 impl Drawable {
     pub fn asset_dependencies(&self) -> Vec<(&str, AssetKind)> {
         let mut result = Vec::new();
-        if let Mesh::Asset(id) = &self.mesh {
+        if let Mesh::Asset(id) | Mesh::Surface { asset: id, .. } = &self.mesh {
             result.push((id.as_str(), AssetKind::Mesh));
         }
         if let Texture::Asset(id) = &self.texture {
@@ -737,12 +952,10 @@ impl Scene {
             .map(|id| (id.clone(), Vec::new()))
             .collect();
         for object in &self.objects {
-            if let Some(drawable) = &object.drawable {
-                for (id, _) in drawable.asset_dependencies() {
-                    let objects = users.entry(id.into()).or_default();
-                    if objects.last() != Some(&object.id) {
-                        objects.push(object.id.clone());
-                    }
+            for (id, _) in object.asset_dependencies() {
+                let objects = users.entry(id.into()).or_default();
+                if objects.last() != Some(&object.id) {
+                    objects.push(object.id.clone());
                 }
             }
         }
@@ -752,12 +965,10 @@ impl Scene {
                 .or_default()
                 .push(root.clone());
             for object in &link.baseline {
-                if let Some(drawable) = &object.drawable {
-                    for (id, _) in drawable.asset_dependencies() {
-                        let users = users.entry(id.into()).or_default();
-                        if !users.contains(root) {
-                            users.push(root.clone());
-                        }
+                for (id, _) in object.asset_dependencies() {
+                    let users = users.entry(id.into()).or_default();
+                    if !users.contains(root) {
+                        users.push(root.clone());
                     }
                 }
             }
@@ -775,6 +986,7 @@ mod tests {
     use super::*;
     fn object(id: &str) -> Object {
         Object {
+            material: None,
             blueprints: Vec::new(),
             light: None,
             id: id.into(),

@@ -124,7 +124,7 @@ impl App {
                             move_to = Some((i, i - 1));
                         }
                         if ui
-                            .add_enabled(editing, egui::Button::new("×").small())
+                            .add_enabled(editing, egui::Button::new("Remove").small())
                             .on_hover_text("Detach blueprint (Undo restores it)")
                             .clicked()
                         {
@@ -186,10 +186,13 @@ impl App {
         let Some(object) = self.editor.selected_object() else {
             return;
         };
-        let mut dialog = files::Dialog::new(
-            kind,
-            &bozzard_editor::root(&self.editor.path).join("behavior.blueprint.json"),
-        );
+        let path = bozzard_editor::root(&self.editor.path)
+            .join("assets/Blueprints/behavior.blueprint.json");
+        if let Err(error) = std::fs::create_dir_all(path.parent().unwrap()) {
+            self.result(Err(error.into()));
+            return;
+        }
+        let mut dialog = files::Dialog::new(kind, &path);
         dialog.blueprint_target = Some((
             self.editor.path.clone(),
             self.editor.revision(),
@@ -382,6 +385,32 @@ impl App {
                 }
             });
         });
+        if let Some(node) = graph
+            .nodes
+            .iter_mut()
+            .find(|n| Some(n.id) == self.blueprint_pane.selected && n.kind == NodeKind::SpawnPrefab)
+        {
+            ui.add_enabled_ui(editing, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Spawn Prefab source");
+                    egui::ComboBox::from_id_salt("spawn-prefab-source")
+                        .selected_text(if node.prefab.is_empty() {
+                            "Choose prefab…"
+                        } else {
+                            &node.prefab
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut node.prefab, String::new(), "None");
+                            for (id, source) in &self.editor.scene().assets {
+                                if source.kind == AssetKind::Prefab {
+                                    ui.selectable_value(&mut node.prefab, id.clone(), id);
+                                }
+                            }
+                        });
+                    ui.weak("Instance output → Destroy Prefab Target. Position is world space.");
+                });
+            });
+        }
         ui.small("Drag headers to move · Output → input to connect · Right-click input to disconnect · Middle-drag / scroll to pan · Ctrl+scroll to zoom");
         if let Some(play) = &self.editor.play {
             if let Err(error) = play.check_simulation() {

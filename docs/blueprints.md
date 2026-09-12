@@ -14,8 +14,8 @@ The **Hero Cube** has two blueprints: **Spin** rotates it, and **Space toggles v
 
 ## Build without code
 
-1. Select an object in Hierarchy. For imported meshes, select the **owner**, not an imported surface (Alt-click also selects the owner).
-2. Expand **Properties → BLUEPRINTS**. Choose **+ New**, **+ Spin example**, or **Load…**. The **Blueprint** workspace tab opens its own node-editor pane, separate from the Scene viewport. **View → Blueprint Editor** switches to it too.
+1. Select an object or imported mesh child in Hierarchy. Components and graphs belong to that entity, not its shared mesh asset.
+2. Choose **Properties → Add Component**, search for **Blueprint**, and add it. Expand **BLUEPRINTS** for **+ New**, **+ Spin example**, or **Load…**. The **Blueprint** workspace tab opens its own node-editor pane, separate from the Scene viewport. **View → Blueprint Editor** switches to it too.
 3. Use **+ Add node** and search by name. Drag node headers to position them. Select a node and use **Delete node** or Delete to remove it and its wires.
 4. Click an output pin, then an input pin (drag/release also works). White pins carry execution; green numbers, red booleans, blue vectors, and purple object references carry data. Only matching types connect. A new connection replaces that input's existing wire. Right-click an input to disconnect. Escape cancels a pending connection/selection.
 5. Edit unconnected input values directly on nodes. **Variables** adds named numbers and their starting values; Get/Set Variable nodes select from those names. A referenced variable cannot be deleted.
@@ -26,7 +26,8 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 
 ## Save, reuse, and attach multiple graphs
 
-- **Save graph…** exports the selected graph to a `.blueprint.json` file. Existing files require explicit replacement confirmation; writes use a sibling temporary file and atomic replacement. Scene Undo does not undo file exports.
+- The Content Browser's **Blueprints** folder lists saved graphs under scene-relative `assets/Blueprints/` (and legacy `assets/*.blueprint.json`) plus scene attachments. Double-click a saved graph to attach a copy; **New Blueprint** adds one to the selected object.
+- **Save graph…** exports the selected graph to a `.blueprint.json` file, defaulting to `assets/Blueprints/`. Existing files require explicit replacement confirmation; writes use a sibling temporary file and atomic replacement. Scene Undo does not undo file exports.
 - **Load copy…**, Properties **Load…**, or dropping a `.blueprint.json` file into the editor attaches an **independent copy** to the selected owner. It does not replace existing attachments. This is deliberately not a live source-file link: subsequent edits to a file or another attachment cannot silently change an object.
 - A scene embeds all attachments, node positions, constants, variable defaults, and wires. Normal Save/Open and Save As need no extra blueprint files at runtime. Shared mesh geometry is untouched.
 - Object data pins are typed **Object** pins. The **Object Reference** node supplies an explicitly bound scene object, while **Self** supplies the object that owns the graph. Action nodes with a **Target** pin default to Self, so older graphs keep their behavior after loading. **Same Object** compares two object references; **Is Valid Object** checks whether one currently resolves to an object with a transform.
@@ -45,11 +46,11 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 | Number math | Add, Subtract, Multiply, Divide, Sine, Greater Than, Less Than, Equal |
 | Boolean math | Not, And, Or |
 | Vector math | Make Vector, Scale Vector, Add Vectors |
-| Actions | Translate, Rotate, Set Position/Rotation/Scale, Set Color, Set Visible, Set Light Intensity, Move With Collision, Jump |
+| Actions | Translate, Rotate, Set Position/Rotation/Scale, Set Color, Set Visible, Set Light Intensity, Move With Collision, Jump, Spawn Prefab, Destroy Prefab |
 
 Actions target their **Target** object, defaulting to the attached object (**Self**). Transform reads also accept a Target. Transform values are in parent/model coordinates; rotations are Y-X-Z Euler degrees. Translate and setters are direct transform edits, **not collision-safe movement**. Multiply rates by Delta Seconds for frame-rate-independent motion. **Move With Collision** accepts world-space displacement and requires an enabled box collider; **Jump** uses the existing grounded Gravity behavior. Existing limitations on compound colliders still apply.
 
-Set Color needs a Mesh Renderer and linear RGB in `0..1`. Set Visible affects only the target's mesh, not descendants, collision, or lights. Set Light Intensity needs a Light and accepts `0..100000`. Scale must remain finite and invertible. Invalid runtime values/missing required components freeze simulation and report an error instead of continuing a broken world. Stop, repair the graph/components, and Play again.
+Set Color needs drawable geometry and linear RGB in `0..1`; it updates an attached Material when present, otherwise the drawable's base color. Set Visible affects only the target's mesh, not descendants, collision, or lights. Set Light Intensity needs a Light and accepts `0..100000`. Scale must remain finite and invertible. Invalid runtime values/missing required components freeze simulation and report an error instead of continuing a broken world. Stop, repair the graph/components, and Play again.
 
 Input uses the engine's existing physical controls: Forward W, Backward S, Left A, Right D, Jump Space. Opposing movement keys cancel at the axis level. Movement press events fire on an inactive→active transition; Space is a queued press edge consumed once, including when no Player Controller exists. Focus loss, dialogs, and switching away from the viewport clear gameplay input. Input Held/Move Axis nodes can drive continuous behavior from On Update. Custom key mapping is not included yet.
 
@@ -59,9 +60,17 @@ Actions resolve their Object **Target** at runtime. A **None** target is an erro
 
 On Start runs once at the first simulation tick; On Update runs each tick. Blueprints execute **after existing motion, gravity and gameplay interactions**. Objects use document order, attachments use list order, events use node order, and execution fan-out is queued in wire order. Get Variable/transform reads are evaluated afresh for each action, so later actions see earlier writes. Runtime variables, event state, visibility, and the bounded print log reset on Play; they are not saved-game checkpoints.
 
+## Spawn and destroy prefabs
+
+Import or save a `.prefab.json`, add **Spawn Prefab**, select its asset, and connect an execution input. **Position** sets its root's world position. **Instance** returns its new root Object reference; connect that to **Destroy Prefab → Target**. Destroy accepts any member and removes the entire linked instance, not a shared source asset. Ordinary scene objects and active cameras cannot be destroyed through this node. Use **Is Valid Object** before reusing a potentially destroyed reference.
+
+Spawned members have independent components, remapped internal references, and graph state. Their graphs start on the next tick. Each Spawn node retains its latest result per attachment; it is not an object-array variable. Stop discards runtime spawns and restores the authored scene. Editor Save during Play saves the authored scene, not these spawns.
+
+Editor Play, player, and server load referenced prefab templates and dependencies before simulation, including prefabs referenced by spawned graphs. Missing or invalid files fail startup; ticks never load files. Template limits: 1024 files, 32 MiB combined JSON, 100,000 template objects, with normal scene limits still enforced on spawning.
+
 ## Current boundaries
 
-This is a working first **gameplay** graph system, not Unreal file/API compatibility or an animation/material graph editor. No skeletal animation, blend graphs, arbitrary code nodes, object spawning, custom events/functions, audio, networking, or runtime graph editing is included. Mesh sub-surfaces and shared mesh asset defaults are not attachment targets.
+This is a working first **gameplay** graph system, not Unreal file/API compatibility or an animation/material graph editor. No skeletal animation, blend graphs, arbitrary code nodes, custom events/functions, audio, networking, or runtime graph editing is included. Imported surface entities support attachments; shared mesh asset defaults do not.
 
 Graphs are versioned, typed, and validated before acceptance. Cycles are rejected (use On Update plus variables); disconnected pins use their editable defaults and disconnected actions do nothing. Limits: 128 nodes, 512 wires, 64 number variables per graph, 16 attachments per object, 1 MiB per imported graph, 100,000 event/action executions and 1,000,000 overlap tests per scene tick. Enabled blueprint owners and their descendants are excluded from static GI geometry, since graphs can move or recolor them. No runtime filesystem access, dynamic code loading, or new dependencies are needed.
 
