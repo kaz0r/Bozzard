@@ -64,7 +64,7 @@ impl Gravity {
     }
 }
 /// Runtime-only state. Restarting/spawning a scene resets velocity and grounding.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct GravityState {
     pub vertical_velocity: f32,
     pub grounded: bool,

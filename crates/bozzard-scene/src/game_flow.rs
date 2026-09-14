@@ -30,7 +30,7 @@ impl GameFlowSettings {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GamePhase {
     Ready,
     Playing,
@@ -54,7 +54,7 @@ pub enum GameKey {
     Quit,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameSession {
     pub phase: GamePhase,
     pub message: String,

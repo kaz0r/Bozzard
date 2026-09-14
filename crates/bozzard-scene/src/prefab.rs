@@ -64,6 +64,35 @@ impl Prefab {
 
 fn document(objects: Vec<Object>, assets: BTreeMap<String, AssetSource>) -> Scene {
     Scene {
+        blackboard: objects
+            .iter()
+            .flat_map(|o| &o.blueprints)
+            .flat_map(|b| &b.graph.nodes)
+            .filter(|n| n.uses_variable() && n.scope == blueprint::VariableScope::Scene)
+            .map(|n| {
+                (
+                    n.variable.clone(),
+                    if n.uses_list() {
+                        blueprint::BlackboardValue::List {
+                            element: if matches!(
+                                n.kind,
+                                blueprint::NodeKind::SphereOverlap
+                                    | blueprint::NodeKind::BoxOverlap
+                            ) {
+                                blueprint::PinType::Object
+                            } else {
+                                n.value_type
+                            },
+                            capacity: 256,
+                            values: vec![],
+                        }
+                    } else {
+                        blueprint::BlackboardValue::Scalar(n.value_type.default_value())
+                    },
+                )
+            })
+            .collect(),
+        runtime_scenes: Default::default(),
         game_flow: None,
         version: SCENE_VERSION,
         name: "Prefab".into(),

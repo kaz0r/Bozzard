@@ -29,6 +29,7 @@ pub(crate) struct Physics {
     bodies: BTreeMap<String, Body>,
     // Spawned bodies are created on the next physics step; remember their launch velocity until then.
     pending: BTreeMap<String, Vec3>,
+    restored: BTreeMap<String, BodySave>,
 }
 
 /// A rotating child can only keep its authored scale under a rigid/uniformly scaled parent.
@@ -309,6 +310,14 @@ impl Physics {
                     );
                     self.simulation.bodies[handle].set_linvel(velocity, true);
                     self.simulation.bodies[handle].set_angvel(angular, true);
+                    if let Some(saved) = self.restored.remove(id) {
+                        let body = &mut self.simulation.bodies[handle];
+                        body.set_linvel(Vec3::from(saved.linear), true);
+                        body.set_angvel(Vec3::from(saved.angular), true);
+                        if saved.sleeping {
+                            body.sleep();
+                        }
+                    }
                 }
                 self.bodies.insert(
                     id.clone(),
@@ -489,6 +498,141 @@ impl SceneInstance {
         world.resource::<Physics>().map_or(0, |p| {
             debug_assert_eq!(p.simulation.colliders.len(), p.bodies.len());
             p.simulation.bodies.len()
+        })
+    }
+}
+
+impl Physics {
+    pub(crate) fn blueprint_contacts(
+        &self,
+        world: &World,
+        matrices: &BTreeMap<String, Mat4>,
+    ) -> BTreeMap<String, Vec<collision::Contact>> {
+        let ids: std::collections::HashMap<_, _> = self
+            .bodies
+            .iter()
+            .filter(|(id, b)| {
+                matrices.get(*id) == Some(&b.pose)
+                    && (world
+                        .get::<BoxCollider>(b.entity)
+                        .is_some_and(|c| c.enabled)
+                        || world
+                            .get::<MeshCollider>(b.entity)
+                            .is_some_and(|c| c.enabled))
+            })
+            .map(|(id, b)| (b.collider, id))
+            .collect();
+        let mut result: BTreeMap<String, Vec<collision::Contact>> = BTreeMap::new();
+        for pair in self.simulation.narrow_phase.contact_pairs() {
+            let (Some(a), Some(b)) = (ids.get(&pair.collider1), ids.get(&pair.collider2)) else {
+                continue;
+            };
+            let mut normal = Vec3::ZERO;
+            let mut impulse = 0.;
+            let mut found = false;
+            for manifold in &pair.manifolds {
+                if !manifold.data.solver_contacts.is_empty()
+                    || manifold.points.iter().any(|p| p.dist <= 0.001)
+                {
+                    if !found {
+                        normal = manifold.data.normal;
+                        found = true;
+                    }
+                    impulse += manifold.points.iter().map(|p| p.data.impulse).sum::<f32>();
+                }
+            }
+            if found {
+                result
+                    .entry((*a).clone())
+                    .or_default()
+                    .push(collision::Contact {
+                        other: (*b).clone(),
+                        normal: -normal,
+                        impulse,
+                    });
+                result
+                    .entry((*b).clone())
+                    .or_default()
+                    .push(collision::Contact {
+                        other: (*a).clone(),
+                        normal,
+                        impulse,
+                    });
+            }
+        }
+        for contacts in result.values_mut() {
+            contacts.sort_by(|a, b| a.other.cmp(&b.other));
+        }
+        result
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct BodySave {
+    id: String,
+    linear: [f32; 3],
+    angular: [f32; 3],
+    sleeping: bool,
+}
+impl Physics {
+    pub(crate) fn save(&self) -> Vec<BodySave> {
+        let mut result: BTreeMap<_, _> = self
+            .bodies
+            .iter()
+            .filter(|(_, b)| b.shape.dynamic)
+            .map(|(id, b)| {
+                let body = &self.simulation.bodies[b.handle];
+                (
+                    id.clone(),
+                    BodySave {
+                        id: id.clone(),
+                        linear: body.linvel().to_array(),
+                        angular: body.angvel().to_array(),
+                        sleeping: body.is_sleeping(),
+                    },
+                )
+            })
+            .collect();
+        for (id, saved) in &self.restored {
+            result.insert(id.clone(), saved.clone());
+        }
+        for (id, v) in &self.pending {
+            result.insert(
+                id.clone(),
+                BodySave {
+                    id: id.clone(),
+                    linear: v.to_array(),
+                    angular: [0.; 3],
+                    sleeping: false,
+                },
+            );
+        }
+        result.into_values().collect()
+    }
+    pub(crate) fn restore(saved: &[BodySave], scene: &Scene) -> Result<Self> {
+        let mut restored = BTreeMap::new();
+        for body in saved {
+            ensure!(
+                scene
+                    .objects
+                    .iter()
+                    .any(|o| o.id == body.id && o.gravity.is_some_and(|g| g.enabled))
+                    && body
+                        .linear
+                        .iter()
+                        .chain(&body.angular)
+                        .all(|v| v.is_finite()),
+                "invalid saved body"
+            );
+            ensure!(
+                restored.insert(body.id.clone(), body.clone()).is_none(),
+                "duplicate saved body"
+            );
+        }
+        Ok(Self {
+            restored,
+            ..Self::default()
         })
     }
 }

@@ -220,3 +220,20 @@ impl SceneInstance {
         }
     }
 }
+
+/// Minimum separating axis also defines a normal at touching (zero-depth) contacts.
+pub(super) fn contact_normal(a: &CollisionBox, b: &CollisionBox) -> Option<DVec3> {
+    let mut best = (f64::INFINITY, DVec3::ZERO);
+    for axis in axes(a, b) {
+        let distance = (a.center - b.center).dot(axis);
+        let extent = radius(a, b, axis);
+        let depth = extent - distance.abs();
+        if depth < -extent.max(1e-6) * 1e-6 {
+            return None;
+        }
+        if depth < best.0 {
+            best = (depth, if distance >= 0. { axis } else { -axis });
+        }
+    }
+    best.0.is_finite().then_some(best.1)
+}

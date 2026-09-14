@@ -665,7 +665,8 @@ fn merge_instances(
                     trigger,
                     light,
                     particle_emitter,
-                    blueprints
+                    blueprints,
+                    blackboard
                 );
                 if current.id != root {
                     merge!(transform, parent);

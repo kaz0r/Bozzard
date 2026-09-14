@@ -90,6 +90,11 @@ pub fn prepare_export(
         source.parent().unwrap_or(Path::new(".")),
         false,
     )?;
+    for level in cooked.runtime_scenes.values_mut() {
+        for (id, asset) in &mut std::sync::Arc::make_mut(level).assets {
+            *asset = cooked.assets[id].clone();
+        }
+    }
     fs::write(data.join("scene.json"), cooked.to_json()?)?;
     let mut runtime_project = project.clone();
     runtime_project.start_scene = "scene.json".into();

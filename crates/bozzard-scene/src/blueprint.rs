@@ -2,14 +2,107 @@
 use super::*;
 use std::collections::BTreeSet;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PinType {
     Exec,
     Text,
+    #[default]
     Number,
     Bool,
     Vector,
     Object,
+}
+impl PinType {
+    pub const VALUES: [Self; 5] = [
+        Self::Number,
+        Self::Bool,
+        Self::Vector,
+        Self::Text,
+        Self::Object,
+    ];
+    pub fn default_value(self) -> Value {
+        match self {
+            Self::Exec => Value::Exec,
+            Self::Text => Value::Text(String::new()),
+            Self::Number => Value::Number(0.),
+            Self::Bool => Value::Bool(false),
+            Self::Vector => Value::Vector([0.; 3]),
+            Self::Object => Value::Object(ObjectRef::None),
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VariableScope {
+    #[default]
+    Graph,
+    Object,
+    Scene,
+}
+/// Containers live in blackboards and expose typed scalar pins through list nodes.
+/// This keeps the six pin types closed and forbids nested/unbounded containers.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlackboardValue {
+    Scalar(Value),
+    List {
+        element: PinType,
+        capacity: usize,
+        values: Vec<Value>,
+    },
+}
+pub type Blackboard = BTreeMap<String, BlackboardValue>;
+impl BlackboardValue {
+    pub fn kind(&self) -> PinType {
+        match self {
+            Self::Scalar(v) => v.kind(),
+            Self::List { element, .. } => *element,
+        }
+    }
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.kind() != PinType::Exec,
+            "Exec cannot be stored in a blackboard"
+        );
+        match self {
+            Self::Scalar(v) => ensure!(v.valid(), "invalid blackboard value"),
+            Self::List {
+                element,
+                capacity,
+                values,
+            } => ensure!(
+                (1..=1024).contains(capacity)
+                    && values.len() <= *capacity
+                    && values.iter().all(|v| v.kind() == *element && v.valid()),
+                "list needs 1–1024 capacity and matching finite scalar elements"
+            ),
+        }
+        Ok(())
+    }
+    pub fn values(&self) -> &[Value] {
+        match self {
+            Self::Scalar(v) => std::slice::from_ref(v),
+            Self::List { values, .. } => values,
+        }
+    }
+    pub fn values_mut(&mut self) -> &mut [Value] {
+        match self {
+            Self::Scalar(v) => std::slice::from_mut(v),
+            Self::List { values, .. } => values,
+        }
+    }
+}
+pub fn validate_blackboard(board: &Blackboard) -> Result<()> {
+    ensure!(board.len() <= 64, "blackboard limit: 64 variables");
+    for (name, value) in board {
+        ensure!(
+            !name.trim().is_empty() && name.len() <= 64,
+            "variable needs a name (1–64 bytes)"
+        );
+        value.validate()?;
+    }
+    Ok(())
 }
 /// Persistent document IDs, never ECS handles. None is distinct from the self default.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,9 +321,56 @@ pub enum NodeKind {
     Print,
     SpawnPrefab,
     DestroyPrefab,
+    Enable,
+    Disable,
+    Destroy,
+    CollisionEnter,
+    SetGraphEnabled,
+    Delay,
+    Lerp,
+    Min,
+    Max,
+    Abs,
+    Length,
+    Normalize,
+    Dot,
+    Cross,
+    Distance,
+    Modulo,
+    Power,
+    Random,
+    Cosine,
+    Tangent,
+    ArcSine,
+    ArcCosine,
+    Atan2,
+    ToRadians,
+    ToDegrees,
+    Floor,
+    Ceil,
+    Round,
+    Sqrt,
+    LerpVector,
+    Raycast,
+    SphereOverlap,
+    BoxOverlap,
+    LineOfSight,
+    ListGet,
+    ListPush,
+    ListSet,
+    ListRemove,
+    ListClear,
+    ListLength,
+    LoadScene,
+    AddScene,
+    RestartScene,
+    SaveGame,
+    LoadGame,
+    Comment,
+    Reroute,
 }
 impl NodeKind {
-    pub const ALL: [Self; 78] = [
+    pub const ALL: [Self; 125] = [
         Self::Text,
         Self::NumberToText,
         Self::JoinText,
@@ -309,6 +449,53 @@ impl NodeKind {
         Self::Print,
         Self::SpawnPrefab,
         Self::DestroyPrefab,
+        Self::Enable,
+        Self::Disable,
+        Self::Destroy,
+        Self::CollisionEnter,
+        Self::SetGraphEnabled,
+        Self::Delay,
+        Self::Lerp,
+        Self::Min,
+        Self::Max,
+        Self::Abs,
+        Self::Length,
+        Self::Normalize,
+        Self::Dot,
+        Self::Cross,
+        Self::Distance,
+        Self::Modulo,
+        Self::Power,
+        Self::Random,
+        Self::Cosine,
+        Self::Tangent,
+        Self::ArcSine,
+        Self::ArcCosine,
+        Self::Atan2,
+        Self::ToRadians,
+        Self::ToDegrees,
+        Self::Floor,
+        Self::Ceil,
+        Self::Round,
+        Self::Sqrt,
+        Self::LerpVector,
+        Self::Raycast,
+        Self::SphereOverlap,
+        Self::BoxOverlap,
+        Self::LineOfSight,
+        Self::ListGet,
+        Self::ListPush,
+        Self::ListSet,
+        Self::ListRemove,
+        Self::ListClear,
+        Self::ListLength,
+        Self::LoadScene,
+        Self::AddScene,
+        Self::RestartScene,
+        Self::SaveGame,
+        Self::LoadGame,
+        Self::Comment,
+        Self::Reroute,
     ];
     pub fn title(self) -> &'static str {
         match self {
@@ -391,12 +578,63 @@ impl NodeKind {
             Self::Print => "Print Number",
             Self::SpawnPrefab => "Spawn Prefab",
             Self::DestroyPrefab => "Destroy Prefab",
+            Self::Enable => "On Enable",
+            Self::Disable => "On Disable",
+            Self::Destroy => "On Destroy",
+            Self::CollisionEnter => "On Collision Enter",
+            Self::SetGraphEnabled => "Set Graph Enabled",
+            Self::Delay => "Delay / After",
+            Self::Lerp => "Lerp",
+            Self::Min => "Min",
+            Self::Max => "Max",
+            Self::Abs => "Abs",
+            Self::Length => "Length",
+            Self::Normalize => "Normalize",
+            Self::Dot => "Dot",
+            Self::Cross => "Cross",
+            Self::Distance => "Distance",
+            Self::Modulo => "Modulo",
+            Self::Power => "Power",
+            Self::Random => "Random (seeded)",
+            Self::Cosine => "Cosine (radians)",
+            Self::Tangent => "Tangent (radians)",
+            Self::ArcSine => "Arc Sine",
+            Self::ArcCosine => "Arc Cosine",
+            Self::Atan2 => "Atan2 (Y, X)",
+            Self::ToRadians => "Degrees to Radians",
+            Self::ToDegrees => "Radians to Degrees",
+            Self::Floor => "Floor",
+            Self::Ceil => "Ceil",
+            Self::Round => "Round",
+            Self::Sqrt => "Square Root",
+            Self::LerpVector => "Lerp Vectors",
+            Self::Raycast => "Raycast",
+            Self::SphereOverlap => "Sphere Overlap",
+            Self::BoxOverlap => "Box Overlap",
+            Self::LineOfSight => "Line of Sight",
+            Self::ListGet => "List Get",
+            Self::ListPush => "List Push",
+            Self::ListSet => "List Set",
+            Self::ListRemove => "List Remove",
+            Self::ListClear => "List Clear",
+            Self::ListLength => "List Length",
+            Self::LoadScene => "Load Scene",
+            Self::AddScene => "Load Scene Additively",
+            Self::RestartScene => "Restart Scene",
+            Self::SaveGame => "Save Game State",
+            Self::LoadGame => "Load Game State",
+            Self::Comment => "Comment",
+            Self::Reroute => "Reroute",
         }
     }
     pub fn event(self) -> bool {
         matches!(
             self,
-            Self::Start
+            Self::Enable
+                | Self::Disable
+                | Self::Destroy
+                | Self::CollisionEnter
+                | Self::Start
                 | Self::Update
                 | Self::InputPressed
                 | Self::TriggerEnter
@@ -408,6 +646,64 @@ impl NodeKind {
     pub fn inputs(self) -> &'static [(&'static str, PinType)] {
         use PinType::*;
         match self {
+            Self::Delay => &[("In", Exec), ("Seconds", Number)],
+            Self::SetGraphEnabled => &[
+                ("In", Exec),
+                ("Enabled", Bool),
+                ("Target", Object),
+                ("Attachment", Number),
+            ],
+            Self::LoadScene | Self::AddScene => &[("In", Exec), ("Scene", Text)],
+            Self::RestartScene => &[("In", Exec)],
+            Self::SaveGame | Self::LoadGame => &[("In", Exec), ("Slot", Text)],
+            Self::Lerp => &[("A", Number), ("B", Number), ("T", Number)],
+            Self::LerpVector => &[("A", Vector), ("B", Vector), ("T", Number)],
+            Self::Min | Self::Max | Self::Modulo | Self::Power | Self::Atan2 => {
+                &[("A", Number), ("B", Number)]
+            }
+            Self::Abs
+            | Self::Cosine
+            | Self::Tangent
+            | Self::ArcSine
+            | Self::ArcCosine
+            | Self::ToRadians
+            | Self::ToDegrees
+            | Self::Floor
+            | Self::Ceil
+            | Self::Round
+            | Self::Sqrt => &[("Value", Number)],
+            Self::Length | Self::Normalize => &[("Value", Vector)],
+            Self::Dot | Self::Cross | Self::Distance => &[("A", Vector), ("B", Vector)],
+            Self::Random => &[("In", Exec), ("Min", Number), ("Max", Number)],
+            Self::Raycast => &[
+                ("In", Exec),
+                ("Origin", Vector),
+                ("Direction", Vector),
+                ("Distance", Number),
+                ("Ignore", Object),
+            ],
+            Self::SphereOverlap => &[
+                ("In", Exec),
+                ("Center", Vector),
+                ("Radius", Number),
+                ("Ignore", Object),
+            ],
+            Self::BoxOverlap => &[
+                ("In", Exec),
+                ("Center", Vector),
+                ("Size", Vector),
+                ("Ignore", Object),
+            ],
+            Self::LineOfSight => &[
+                ("In", Exec),
+                ("From", Vector),
+                ("To", Vector),
+                ("Ignore", Object),
+            ],
+            Self::ListGet => &[("Index", Number)],
+            Self::ListRemove => &[("In", Exec), ("Index", Number)],
+            Self::ListClear => &[("In", Exec)],
+            Self::ListPush | Self::ListSet => &[("In", Exec), ("Value", Number)],
             Self::EndGame => &[("In", Exec), ("Message", Text)],
             Self::Text => &[("Value", Text)],
             Self::NumberToText => &[("Value", Number), ("Decimals (0–6)", Number)],
@@ -480,7 +776,24 @@ impl NodeKind {
         match self {
             Self::Text | Self::NumberToText | Self::JoinText | Self::GetText => &[("Text", Text)],
             Self::MoveWithCollision => &[("Then", Exec), ("Grounded", Bool)],
-            Self::EndGame => &[],
+            Self::EndGame | Self::Comment => &[],
+            Self::Random => &[("Then", Exec), ("Value", Number)],
+            Self::CollisionEnter => &[
+                ("Then", Exec),
+                ("Other", Object),
+                ("Normal", Vector),
+                ("Impulse", Number),
+            ],
+            Self::Raycast => &[
+                ("Then", Exec),
+                ("Hit", Bool),
+                ("Object", Object),
+                ("Position", Vector),
+                ("Normal", Vector),
+                ("Distance", Number),
+            ],
+            Self::SphereOverlap | Self::BoxOverlap => &[("Then", Exec), ("Count", Number)],
+            Self::LineOfSight => &[("Then", Exec), ("Visible", Bool)],
             Self::BodyEnter | Self::BodyExit => &[("Then", Exec), ("Other", Object)],
             Self::SpawnPrefab => &[("Then", Exec), ("Instance", Object)],
             Self::Object | Self::SelfObject => &[("Value", Object)],
@@ -495,7 +808,10 @@ impl NodeKind {
             | Self::Not
             | Self::And
             | Self::Or => &[("Value", Bool)],
-            Self::Vector
+            Self::Normalize
+            | Self::Cross
+            | Self::LerpVector
+            | Self::Vector
             | Self::Position
             | Self::Rotation
             | Self::Scale
@@ -511,6 +827,9 @@ impl NodeKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, from = "StoredNode")]
 pub struct Node {
+    pub scope: VariableScope,
+    pub value_type: PinType,
+    pub comment: String,
     #[serde(default)]
     pub prefab: String,
     pub id: u32,
@@ -525,6 +844,12 @@ pub struct Node {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredNode {
+    #[serde(default)]
+    scope: VariableScope,
+    #[serde(default)]
+    value_type: PinType,
+    #[serde(default)]
+    comment: String,
     #[serde(default)]
     prefab: String,
     id: u32,
@@ -544,6 +869,9 @@ impl From<StoredNode> for Node {
             n.inputs.push(Value::Object(ObjectRef::SelfObject));
         }
         Self {
+            scope: n.scope,
+            value_type: n.value_type,
+            comment: n.comment,
             prefab: n.prefab,
             id: n.id,
             position: n.position,
@@ -559,33 +887,97 @@ fn jump_key() -> InputKey {
 }
 impl Node {
     pub fn new(id: u32, kind: NodeKind, position: [f32; 2]) -> Self {
-        Self {
+        let mut node = Self {
+            scope: VariableScope::Graph,
+            value_type: PinType::Number,
+            comment: String::new(),
             prefab: String::new(),
             id,
             position,
             kind,
-            inputs: kind
-                .inputs()
-                .iter()
-                .map(|(_, t)| match t {
-                    PinType::Object => Value::Object(if kind == NodeKind::Object {
-                        ObjectRef::None
-                    } else {
-                        ObjectRef::SelfObject
-                    }),
-                    PinType::Exec => Value::Exec,
-                    PinType::Text => Value::Text(String::new()),
-                    PinType::Number => Value::Number(0.),
-                    PinType::Bool => Value::Bool(false),
-                    PinType::Vector => Value::Vector(if kind == NodeKind::SetScale {
-                        [1.; 3]
-                    } else {
-                        [0.; 3]
-                    }),
-                })
-                .collect(),
+            inputs: Vec::new(),
             variable: "value".into(),
             key: InputKey::default(),
+        };
+        node.reset_inputs();
+        node
+    }
+    pub fn reset_inputs(&mut self) {
+        self.inputs = self
+            .input_pins()
+            .iter()
+            .map(|(_, t)| t.default_value())
+            .collect();
+        if let Some(p) = self.kind.target_port() {
+            self.inputs[p] = Value::Object(ObjectRef::SelfObject);
+        }
+        if self.kind == NodeKind::SetScale {
+            self.inputs[1] = Value::Vector([1.; 3]);
+        }
+    }
+    pub fn uses_variable(&self) -> bool {
+        matches!(
+            self.kind,
+            NodeKind::GetVariable
+                | NodeKind::SetVariable
+                | NodeKind::ListGet
+                | NodeKind::ListPush
+                | NodeKind::ListSet
+                | NodeKind::ListRemove
+                | NodeKind::ListClear
+                | NodeKind::ListLength
+                | NodeKind::SphereOverlap
+                | NodeKind::BoxOverlap
+        )
+    }
+    pub fn uses_list(&self) -> bool {
+        self.uses_variable() && !matches!(self.kind, NodeKind::GetVariable | NodeKind::SetVariable)
+    }
+    pub fn input_pins(&self) -> &'static [(&'static str, PinType)] {
+        use NodeKind as K;
+        macro_rules! pins {
+            ($t:ident) => {
+                match self.kind {
+                    K::SetVariable | K::ListPush => {
+                        &[("In", PinType::Exec), ("Value", PinType::$t)]
+                    }
+                    K::ListSet => &[
+                        ("In", PinType::Exec),
+                        ("Value", PinType::$t),
+                        ("Index", PinType::Number),
+                    ],
+                    K::Reroute => &[("Value", PinType::$t)],
+                    _ => self.kind.inputs(),
+                }
+            };
+        }
+        match self.value_type {
+            PinType::Exec => pins!(Exec),
+            PinType::Text => pins!(Text),
+            PinType::Number => pins!(Number),
+            PinType::Bool => pins!(Bool),
+            PinType::Vector => pins!(Vector),
+            PinType::Object => pins!(Object),
+        }
+    }
+    pub fn output_pins(&self) -> &'static [(&'static str, PinType)] {
+        use NodeKind as K;
+        macro_rules! pins {
+            ($t:ident) => {
+                match self.kind {
+                    K::GetVariable | K::ListGet | K::Reroute => &[("Value", PinType::$t)],
+                    K::ListPush | K::ListSet => &[("Then", PinType::Exec)],
+                    _ => self.kind.outputs(),
+                }
+            };
+        }
+        match self.value_type {
+            PinType::Exec => pins!(Exec),
+            PinType::Text => pins!(Text),
+            PinType::Number => pins!(Number),
+            PinType::Bool => pins!(Bool),
+            PinType::Vector => pins!(Vector),
+            PinType::Object => pins!(Object),
         }
     }
 }
@@ -610,6 +1002,8 @@ pub struct Blueprint {
     pub wires: Vec<Wire>,
     #[serde(default)]
     pub variables: BTreeMap<String, f32>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub blackboard: Blackboard,
 }
 impl Default for Blueprint {
     fn default() -> Self {
@@ -621,6 +1015,7 @@ impl Default for Blueprint {
                 Node::new(2, NodeKind::Update, [40., 160.]),
             ],
             wires: vec![],
+            blackboard: Blackboard::new(),
             variables: BTreeMap::from([("value".into(), 0.)]),
         }
     }
@@ -636,7 +1031,23 @@ impl Blueprint {
     pub fn from_json(json: &str) -> Result<Self> {
         ensure!(json.len() <= 1024 * 1024, "blueprint exceeds 1 MiB");
         let graph: Self = serde_json::from_str(json).context("parsing blueprint JSON")?;
-        graph.validate()?;
+        if let Err(error) = graph.validate() {
+            let diff = graph
+                .stale_wires()
+                .iter()
+                .map(|i| {
+                    format!(
+                        "\nwire {}:{} -> {}:{}: {}",
+                        i.wire.from.node,
+                        i.wire.from.port,
+                        i.wire.to.node,
+                        i.wire.to.port,
+                        i.reason
+                    )
+                })
+                .collect::<String>();
+            anyhow::bail!("{error:#}{diff}");
+        }
         Ok(graph)
     }
     pub fn to_json(&self) -> Result<String> {
@@ -668,8 +1079,17 @@ impl Blueprint {
             "blueprint needs a name (1–128 bytes)"
         );
         ensure!(
-            self.nodes.len() <= 128 && self.wires.len() <= 512 && self.variables.len() <= 64,
+            self.nodes.len() <= 128
+                && self.wires.len() <= 512
+                && self.variables.len() + self.blackboard.len() <= 64,
             "blueprint limit: 128 nodes, 512 wires, 64 variables"
+        );
+        validate_blackboard(&self.blackboard)?;
+        ensure!(
+            self.blackboard
+                .keys()
+                .all(|k| !self.variables.contains_key(k)),
+            "duplicate local variable"
         );
         for (name, value) in &self.variables {
             ensure!(
@@ -687,22 +1107,25 @@ impl Blueprint {
                 "invalid node position"
             );
             ensure!(
-                n.inputs.len() == n.kind.inputs().len()
+                n.inputs.len() == n.input_pins().len()
                     && n.inputs
                         .iter()
-                        .zip(n.kind.inputs())
+                        .zip(n.input_pins())
                         .all(|(v, (_, t))| v.kind() == *t && v.valid()),
                 "invalid inputs on node {}",
                 n.id
             );
             ensure!(n.prefab.len() <= 256, "prefab asset ID too long");
             ensure!(n.variable.len() <= 64, "variable name too long");
-            if matches!(n.kind, NodeKind::GetVariable | NodeKind::SetVariable) {
+            ensure!(n.comment.len() <= 4096, "node comment exceeds 4096 bytes");
+            if n.uses_variable() {
                 ensure!(
-                    self.variables.contains_key(&n.variable),
-                    "unknown variable '{}'",
-                    n.variable
+                    n.value_type != PinType::Exec,
+                    "variables cannot have execution type"
                 );
+                if n.scope == VariableScope::Graph {
+                    self.validate_variable(n, &self.blackboard)?;
+                }
             }
         }
         let mut incoming = BTreeSet::new();
@@ -710,14 +1133,12 @@ impl Blueprint {
         for w in &self.wires {
             let from = self
                 .node(w.from.node)?
-                .kind
-                .outputs()
+                .output_pins()
                 .get(w.from.port)
                 .context("invalid output pin")?;
             let to = self
                 .node(w.to.node)?
-                .kind
-                .inputs()
+                .input_pins()
                 .get(w.to.port)
                 .context("invalid input pin")?;
             ensure!(
@@ -796,12 +1217,14 @@ impl Blueprint {
         self.nodes
             .iter()
             .flat_map(|n| &n.inputs)
+            .chain(self.blackboard.values().flat_map(BlackboardValue::values))
             .filter_map(|v| match v {
                 Value::Object(ObjectRef::Id(id)) => Some(id.as_str()),
                 _ => None,
             })
     }
     pub fn remap_objects(&mut self, mapping: &BTreeMap<String, String>) {
+        remap_board(&mut self.blackboard, mapping);
         for value in self.nodes.iter_mut().flat_map(|n| &mut n.inputs) {
             if let Value::Object(ObjectRef::Id(id)) = value
                 && let Some(new) = mapping.get(id)
@@ -815,7 +1238,11 @@ impl Blueprint {
         for node in &mut self.nodes {
             node.prefab.clear();
         }
-        for value in self.nodes.iter_mut().flat_map(|n| &mut n.inputs) {
+        for value in self.nodes.iter_mut().flat_map(|n| &mut n.inputs).chain(
+            self.blackboard
+                .values_mut()
+                .flat_map(BlackboardValue::values_mut),
+        ) {
             if matches!(value, Value::Object(ObjectRef::Id(_))) {
                 *value = Value::Object(ObjectRef::None);
             }
@@ -877,8 +1304,161 @@ impl Blueprint {
 }
 impl Object {
     pub fn remap_blueprint_objects(&mut self, mapping: &BTreeMap<String, String>) {
+        remap_board(&mut self.blackboard, mapping);
         for attachment in &mut self.blueprints {
             attachment.graph.remap_objects(mapping);
+        }
+    }
+}
+
+impl Blueprint {
+    pub fn validate_variable(&self, node: &Node, board: &Blackboard) -> Result<()> {
+        if node.scope == VariableScope::Graph
+            && !node.uses_list()
+            && node.value_type == PinType::Number
+            && self.variables.contains_key(&node.variable)
+        {
+            return Ok(());
+        }
+        let entry = board.get(&node.variable).with_context(|| {
+            format!(
+                "unknown {:?} variable '{}' at node {}",
+                node.scope, node.variable, node.id
+            )
+        })?;
+        let expected = if matches!(node.kind, NodeKind::SphereOverlap | NodeKind::BoxOverlap) {
+            PinType::Object
+        } else {
+            node.value_type
+        };
+        ensure!(
+            entry.kind() == expected
+                && matches!(entry, BlackboardValue::List { .. }) == node.uses_list(),
+            "variable '{}' has a different type at node {}",
+            node.variable,
+            node.id
+        );
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WireIssue {
+    pub index: usize,
+    pub wire: Wire,
+    pub reason: String,
+}
+impl Blueprint {
+    /// Every obsolete endpoint/type is reported, so a failed edit/import is repairable in one pass.
+    pub fn stale_wires(&self) -> Vec<WireIssue> {
+        let mut incoming = BTreeSet::new();
+        self.wires
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &wire)| {
+                let a = self
+                    .node(wire.from.node)
+                    .ok()
+                    .and_then(|n| n.output_pins().get(wire.from.port));
+                let b = self
+                    .node(wire.to.node)
+                    .ok()
+                    .and_then(|n| n.input_pins().get(wire.to.port));
+                let reason = match (a, b) {
+                    (None, _) => Some("source node or output no longer exists".into()),
+                    (_, None) => Some("destination node or input no longer exists".into()),
+                    (Some(a), Some(b)) if a.1 != b.1 => Some(format!(
+                        "{} ({:?}) → {} ({:?}): type changed",
+                        a.0, a.1, b.0, b.1
+                    )),
+                    _ if !incoming.insert(wire.to) => Some("input already has a wire".into()),
+                    _ => None,
+                };
+                reason.map(|reason| WireIssue {
+                    index,
+                    wire,
+                    reason,
+                })
+            })
+            .collect()
+    }
+    pub fn copy_subgraph(&self, selected: &BTreeSet<u32>) -> Result<Self> {
+        let mut graph = self.clone();
+        graph.nodes.retain(|n| selected.contains(&n.id));
+        ensure!(!graph.nodes.is_empty(), "select nodes to copy");
+        graph
+            .wires
+            .retain(|w| selected.contains(&w.from.node) && selected.contains(&w.to.node));
+        let variables: BTreeSet<_> = graph
+            .nodes
+            .iter()
+            .filter(|n| n.uses_variable() && n.scope == VariableScope::Graph)
+            .map(|n| n.variable.clone())
+            .collect();
+        graph.variables.retain(|n, _| variables.contains(n));
+        graph.blackboard.retain(|n, _| variables.contains(n));
+        graph.validate()?;
+        Ok(graph)
+    }
+    /// Paste is atomic, with fresh IDs and preserved internal wiring; conflicting locals fail.
+    pub fn paste_subgraph(&mut self, copied: &Self, offset: [f32; 2]) -> Result<BTreeSet<u32>> {
+        copied.validate()?;
+        let mut next = self.clone();
+        for (name, value) in &copied.variables {
+            ensure!(
+                next.variables.get(name).is_none_or(|v| v == value),
+                "conflicting local variable '{name}'"
+            );
+            next.variables.insert(name.clone(), *value);
+        }
+        for (name, value) in &copied.blackboard {
+            ensure!(
+                next.blackboard.get(name).is_none_or(|v| v == value),
+                "conflicting local variable '{name}'"
+            );
+            next.blackboard.insert(name.clone(), value.clone());
+        }
+        let mut id = next.nodes.iter().map(|n| n.id).max().unwrap_or(0);
+        let mut mapping = BTreeMap::new();
+        for n in &copied.nodes {
+            id = id.checked_add(1).context("node ID space exhausted")?;
+            mapping.insert(n.id, id);
+            let mut node = n.clone();
+            node.id = id;
+            node.position[0] += offset[0];
+            node.position[1] += offset[1];
+            next.nodes.push(node);
+        }
+        next.wires.extend(copied.wires.iter().map(|w| Wire {
+            from: Socket {
+                node: mapping[&w.from.node],
+                port: w.from.port,
+            },
+            to: Socket {
+                node: mapping[&w.to.node],
+                port: w.to.port,
+            },
+        }));
+        next.validate()?;
+        *self = next;
+        Ok(mapping.into_values().collect())
+    }
+}
+pub fn board_references(board: &Blackboard) -> impl Iterator<Item = &str> {
+    board
+        .values()
+        .flat_map(BlackboardValue::values)
+        .filter_map(|v| match v {
+            Value::Object(ObjectRef::Id(id)) => Some(id.as_str()),
+            _ => None,
+        })
+}
+pub fn remap_board(board: &mut Blackboard, mapping: &BTreeMap<String, String>) {
+    for v in board.values_mut().flat_map(BlackboardValue::values_mut) {
+        if let Value::Object(ObjectRef::Id(id)) = v
+            && let Some(new) = mapping.get(id)
+        {
+            *id = new.clone();
         }
     }
 }

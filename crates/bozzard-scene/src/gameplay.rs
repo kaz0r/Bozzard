@@ -88,7 +88,7 @@ impl GameplayInput {
 pub struct CursorCapture {
     pub requested: Option<bool>,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameplayState {
     pub player: String,
     pub collected: BTreeSet<String>,

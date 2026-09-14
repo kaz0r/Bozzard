@@ -91,12 +91,13 @@ impl SceneInstance {
         }
         self.document = scene;
         self.order = order;
+        self.rebuild_hierarchy_index();
         self.refresh_collectibles(world);
         Ok(root)
     }
 
     /// Any member identifies its entire linked prefab; active cameras/players are protected.
-    pub fn destroy_prefab(&mut self, world: &mut World, target: &str) -> Result<()> {
+    pub(crate) fn destroy_prefab_raw(&mut self, world: &mut World, target: &str) -> Result<()> {
         let (root, link) = self
             .document
             .prefabs
@@ -133,6 +134,31 @@ impl SceneInstance {
                 }
             }
         }
+        for value in scene
+            .blackboard
+            .values_mut()
+            .flat_map(blueprint::BlackboardValue::values_mut)
+            .chain(
+                scene
+                    .objects
+                    .iter_mut()
+                    .chain(scene.prefabs.values_mut().flat_map(|p| &mut p.baseline))
+                    .flat_map(|o| {
+                        o.blackboard.values_mut().chain(
+                            o.blueprints
+                                .iter_mut()
+                                .flat_map(|b| b.graph.blackboard.values_mut()),
+                        )
+                    })
+                    .flat_map(blueprint::BlackboardValue::values_mut),
+            )
+        {
+            if let blueprint::Value::Object(blueprint::ObjectRef::Id(id)) = value
+                && ids.contains(id)
+            {
+                *value = blueprint::Value::Object(blueprint::ObjectRef::None);
+            }
+        }
         let order = scene.order()?;
         ensure!(
             ids.iter()
@@ -148,6 +174,7 @@ impl SceneInstance {
         }
         self.document = scene;
         self.order = order;
+        self.rebuild_hierarchy_index();
         self.refresh_collectibles(world);
         Ok(())
     }

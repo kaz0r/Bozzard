@@ -142,7 +142,12 @@ pub struct CollisionMesh {
 }
 impl CollisionMesh {
     /// Broad phase in local space, narrow phase in f64 world space (including scale/shear).
-    fn candidates(&self, a: &CollisionBox, delta: DVec3, mut visit: impl FnMut([DVec3; 3])) {
+    pub(super) fn candidates(
+        &self,
+        a: &CollisionBox,
+        delta: DVec3,
+        mut visit: impl FnMut([DVec3; 3]),
+    ) {
         let inverse = self.matrix.as_dmat4().inverse();
         let center = inverse.transform_point3(a.center);
         let extent: DVec3 = a
@@ -178,7 +183,7 @@ impl CollisionMesh {
         });
         hit || self.containment(a).is_some()
     }
-    fn containment(&self, a: &CollisionBox) -> Option<(f64, DVec3)> {
+    pub(super) fn containment(&self, a: &CollisionBox) -> Option<(f64, DVec3)> {
         if !self.solid {
             return None;
         }
@@ -284,4 +289,89 @@ fn interval(a: &CollisionBox, t: [DVec3; 3], axis: DVec3) -> (f64, f64) {
     let p = t.map(|p| (p - a.center).dot(axis));
     let r = a.edges.iter().map(|e| e.dot(axis).abs()).sum::<f64>();
     (p[0].min(p[1]).min(p[2]) - r, p[0].max(p[1]).max(p[2]) + r)
+}
+
+impl TriangleMesh {
+    pub(super) fn raycast(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        limit: f32,
+        budget: &mut usize,
+    ) -> Result<Option<(f32, Vec3)>> {
+        let mut exhausted = false;
+        let hit = self.0.tree.raycast(origin, direction, limit, &mut |i| {
+            if *budget == 0 {
+                exhausted = true;
+                return None;
+            }
+            *budget -= 1;
+            crate::spatial::triangle_hit(
+                self.0.triangles[i as usize].map(Vec3::from_array),
+                origin,
+                direction,
+            )
+        });
+        ensure!(!exhausted, "blueprint spatial query budget exceeded");
+        let Some((i, t)) = hit else {
+            return Ok(None);
+        };
+        let [a, b, c] = self.0.triangles[i as usize].map(Vec3::from_array);
+        Ok(Some((t, (b - a).cross(c - a).normalize_or_zero())))
+    }
+}
+
+impl CollisionMesh {
+    pub(super) fn overlap_budget(&self, a: &CollisionBox, budget: &mut usize) -> Result<bool> {
+        let mut hit = false;
+        let mut exhausted = false;
+        self.candidates(a, DVec3::ZERO, |t| {
+            if hit {
+                return;
+            }
+            if *budget == 0 {
+                exhausted = true;
+                return;
+            }
+            *budget -= 1;
+            hit = triangle_axes(a, t).all(|axis| {
+                let (lo, hi) = interval(a, t, axis);
+                let pad = (hi - lo).max(1e-6) * 1e-6;
+                lo <= pad && hi >= -pad
+            });
+        });
+        ensure!(!exhausted, "blueprint spatial query budget exceeded");
+        if !hit && self.solid {
+            queries::charge(budget, self.mesh.triangles().len())?;
+            hit = self.containment(a).is_some();
+        }
+        Ok(hit)
+    }
+}
+
+impl CollisionMesh {
+    pub(super) fn contact_normal(&self, a: &CollisionBox) -> Option<DVec3> {
+        if let Some((_, normal)) = self.containment(a) {
+            return Some(normal);
+        }
+        let mut nearest = None;
+        self.candidates(a, DVec3::ZERO, |triangle| {
+            let mut best = (f64::INFINITY, DVec3::ZERO);
+            for axis in triangle_axes(a, triangle) {
+                let (lo, hi) = interval(a, triangle, axis);
+                let pad = (hi - lo).max(1e-6) * 1e-6;
+                if lo > pad || hi < -pad {
+                    return;
+                }
+                let candidate = if hi < -lo { (hi, axis) } else { (-lo, -axis) };
+                if candidate.0 < best.0 {
+                    best = candidate;
+                }
+            }
+            if nearest.is_none_or(|(depth, _)| best.0 < depth) {
+                nearest = Some(best);
+            }
+        });
+        nearest.map(|(_, normal)| normal)
+    }
 }

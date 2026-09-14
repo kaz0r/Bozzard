@@ -11,7 +11,9 @@ pub use surface::SurfaceMaterialOverride;
 pub mod blueprint;
 mod blueprint_runtime;
 mod runtime_prefabs;
+pub mod scene_control;
 pub mod shader_graph;
+pub mod spatial;
 pub use blueprint::{Blueprint, BlueprintAttachment};
 pub use blueprint_runtime::{BlueprintHidden, BlueprintRuntime};
 mod fog;
@@ -54,8 +56,8 @@ pub mod bvh;
 mod gravity;
 mod physics;
 pub use collision::{
-    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, MeshCollider, MoveResult,
-    TriangleMesh,
+    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, Contact, MeshCollider, MoveResult,
+    QueryHit, TriangleMesh,
 };
 pub use gameplay::{
     CursorCapture, GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction,
@@ -317,6 +319,8 @@ pub struct Spin(pub [f32; 3]);
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Object {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub blackboard: blueprint::Blackboard,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub particle_emitter: Option<ParticleEmitter>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -356,6 +360,11 @@ pub struct Object {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scene {
+    /// Embedded levels share this document's preloaded asset catalog. Nested libraries are forbidden.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub runtime_scenes: BTreeMap<String, std::sync::Arc<Scene>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub blackboard: blueprint::Blackboard,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game_flow: Option<GameFlowSettings>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -481,13 +490,27 @@ impl Scene {
                 "scene supports at most {limit} shadowed {kind:?} lights (including disabled lights)"
             );
         }
+        scene_control::validate_library(self)?;
+        blueprint::validate_blackboard(&self.blackboard)?;
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
             ensure!(
                 object.blueprints.len() <= 16,
                 "at most 16 blueprints per object"
             );
+            blueprint::validate_blackboard(&object.blackboard)?;
             for attachment in &object.blueprints {
+                for node in attachment.graph.nodes.iter().filter(|n| n.uses_variable()) {
+                    match node.scope {
+                        blueprint::VariableScope::Graph => {}
+                        blueprint::VariableScope::Object => attachment
+                            .graph
+                            .validate_variable(node, &object.blackboard)?,
+                        blueprint::VariableScope::Scene => {
+                            attachment.graph.validate_variable(node, &self.blackboard)?
+                        }
+                    }
+                }
                 attachment
                     .graph
                     .validate()
@@ -644,6 +667,16 @@ impl Scene {
                 }
             }
         }
+        for target in blueprint::board_references(&self.blackboard).chain(
+            self.objects
+                .iter()
+                .flat_map(|o| blueprint::board_references(&o.blackboard)),
+        ) {
+            ensure!(
+                ids.contains_key(target),
+                "blackboard references missing object '{target}'"
+            );
+        }
         for camera in self.views.values() {
             let index = *ids
                 .get(camera.as_str())
@@ -765,6 +798,13 @@ impl Scene {
             order,
             templates,
             next_spawn: 0,
+            restart_document: std::sync::Arc::new(self.clone()),
+            scene_serial: 0,
+            hierarchy_objects: self
+                .objects
+                .iter()
+                .flat_map(|o| o.parent.iter().flat_map(|p| [p.clone(), o.id.clone()]))
+                .collect(),
             particle_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
@@ -782,12 +822,23 @@ pub struct SceneInstance {
     display_overrides: display::DisplayOverrides,
     templates: BTreeMap<String, Prefab>,
     next_spawn: u64,
+    restart_document: std::sync::Arc<Scene>,
+    scene_serial: u64,
+    hierarchy_objects: std::collections::BTreeSet<String>,
     document: Scene,
     entities: BTreeMap<String, Entity>,
     order: Vec<usize>,
 }
 
 impl SceneInstance {
+    fn rebuild_hierarchy_index(&mut self) {
+        self.hierarchy_objects = self
+            .document
+            .objects
+            .iter()
+            .flat_map(|o| o.parent.iter().flat_map(|p| [p.clone(), o.id.clone()]))
+            .collect();
+    }
     pub fn document(&self) -> &Scene {
         &self.document
     }
@@ -832,12 +883,7 @@ impl SceneInstance {
 
     /// An isolated root cannot affect any other object's composed transform.
     fn validate_transform_change(&self, world: &World, id: &str) -> Result<()> {
-        if self
-            .document
-            .objects
-            .iter()
-            .any(|o| o.parent.as_deref() == Some(id) || (o.id == id && o.parent.is_some()))
-        {
+        if self.hierarchy_objects.contains(id) {
             // ponytail: full checks for hierarchy edits; validate dirty subtrees if these become hot.
             self.global_transforms(world)?;
         } else {
@@ -1144,6 +1190,7 @@ mod tests {
     use super::*;
     fn object(id: &str) -> Object {
         Object {
+            blackboard: Default::default(),
             particle_emitter: None,
             material: None,
             blueprints: Vec::new(),
@@ -1166,6 +1213,8 @@ mod tests {
     }
     fn scene() -> Scene {
         Scene {
+            blackboard: Default::default(),
+            runtime_scenes: Default::default(),
             game_flow: None,
             fog: Default::default(),
             gi: Default::default(),

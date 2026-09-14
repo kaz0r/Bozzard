@@ -69,6 +69,11 @@ pub fn prepare_document_from(
             .context("asset path is not UTF-8")?
             .replace('\\', "/");
     }
+    for level in saved.runtime_scenes.values_mut() {
+        for (id, asset) in &mut std::sync::Arc::make_mut(level).assets {
+            *asset = saved.assets[id].clone();
+        }
+    }
     Ok(saved)
 }
 
@@ -118,8 +123,6 @@ struct SimulationStatus {
 
 pub struct SceneDemo {
     pub app: App,
-    restart_scene: Scene,
-    restart_prefabs: std::collections::BTreeMap<String, bozzard_scene::Prefab>,
 }
 
 impl SceneDemo {
@@ -135,15 +138,8 @@ impl SceneDemo {
             (P::Ready, A::Start) | (P::Paused, A::Resume) => P::Playing,
             (P::Playing, A::Pause) => P::Paused,
             (P::Playing | P::Paused | P::GameOver, A::Restart) => {
-                let mut next = Self::new(&self.restart_scene)?;
-                next.restart_prefabs = self.restart_prefabs.clone();
-                next.with_instance(|instance, _| -> anyhow::Result<()> {
-                    for (id, prefab) in &self.restart_prefabs {
-                        instance.register_prefab(id.clone(), prefab.clone())?;
-                    }
-                    Ok(())
-                })?;
-                *self = next;
+                self.with_instance(|instance, world| instance.restart_runtime_scene(world))?;
+                self.app.world.insert_resource(SimulationStatus::default());
                 P::Playing
             }
             (_, A::Quit) => P::Quit,
@@ -221,9 +217,48 @@ impl SceneDemo {
         Ok(())
     }
     pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
-        let (scene, templates) = prefabs::load(document, path)?;
+        let mut scene = document.clone();
+        let mut templates = std::collections::BTreeMap::new();
+        let (main, loaded) = prefabs::load(document, path)?;
+        scene.assets = main.assets;
+        templates.extend(loaded);
+        for (name, level) in &document.runtime_scenes {
+            let mut source = level.as_ref().clone();
+            source.assets = scene.assets.clone();
+            let (mut prepared, loaded) = prefabs::load(&source, path)?;
+            scene.assets.extend(prepared.assets.clone());
+            templates.extend(loaded);
+            prepared.runtime_scenes.clear();
+            scene
+                .runtime_scenes
+                .insert(name.clone(), std::sync::Arc::new(prepared));
+        }
+        for level in scene.runtime_scenes.values_mut() {
+            std::sync::Arc::make_mut(level).assets = scene.assets.clone();
+        }
         let mut demo = Self::new(&scene)?;
-        demo.restart_prefabs = templates.clone();
+        let directory = std::env::var_os("BOZZARD_SAVE_DIR")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                let base = std::env::var_os("LOCALAPPDATA")
+                    .or_else(|| std::env::var_os("XDG_DATA_HOME"))
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| {
+                        std::env::var_os("HOME")
+                            .map(|p| std::path::PathBuf::from(p).join(".local/share"))
+                    })?;
+                let key = document.name.bytes().fold(14695981039346656037u64, |h, b| {
+                    (h ^ u64::from(b)).wrapping_mul(1099511628211)
+                });
+                Some(base.join("bozzard/saves").join(format!("{key:016x}")))
+            });
+        if let Some(directory) = directory {
+            demo.app
+                .world
+                .insert_resource(bozzard_scene::scene_control::GameSaves::in_directory(
+                    directory,
+                ));
+        }
         demo.with_instance(|instance, _| -> anyhow::Result<()> {
             for (asset, prefab) in templates {
                 instance.register_prefab(asset, prefab)?;
@@ -311,11 +346,7 @@ impl SceneDemo {
             world.insert_resource(gravity_instance);
             world.insert_resource(SimulationStatus { error });
         });
-        Ok(Self {
-            app,
-            restart_scene: document.clone(),
-            restart_prefabs: Default::default(),
-        })
+        Ok(Self { app })
     }
 }
 

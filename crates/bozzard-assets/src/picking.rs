@@ -1,6 +1,7 @@
 //! Immutable, balanced triangle BVH. Built with the asset on its loading worker.
 use super::{MeshData, job::Progress};
 use anyhow::{Context, Result, ensure};
+pub(super) use bozzard_scene::spatial::box_entry;
 use glam::Vec3;
 use std::time::Instant;
 
@@ -81,104 +82,18 @@ impl MeshIndex {
         if self.tree.nodes.is_empty() || !valid_ray(origin, direction) {
             return None;
         }
-        let mut best = None;
-        self.visit(0, mesh, origin, direction, &mut best, accept);
-        best
-    }
-    #[allow(clippy::too_many_arguments)]
-    fn visit(
-        &self,
-        node: usize,
-        mesh: &MeshData,
-        origin: Vec3,
-        direction: Vec3,
-        best: &mut Option<MeshHit>,
-        accept: &impl Fn(u32) -> bool,
-    ) {
-        let node = self.tree.nodes[node];
-        let limit = best.map_or(f32::INFINITY, |hit| hit.distance);
-        if box_entry(node.bounds, origin, direction, limit).is_none() {
-            return;
-        }
-        if node.count > 0 {
-            for triangle in
-                &self.tree.triangle_order[node.first as usize..(node.first + node.count) as usize]
-            {
-                if accept(*triangle)
-                    && let Some(distance) = triangle_hit(mesh, *triangle, origin, direction)
-                {
-                    let hit = MeshHit {
-                        distance,
-                        triangle: *triangle,
-                    };
-                    if best.is_none_or(|old| {
-                        distance < old.distance
-                            || (distance == old.distance && hit.triangle < old.triangle)
-                    }) {
-                        *best = Some(hit);
-                    }
-                }
-            }
-        } else {
-            let left = node.first as usize;
-            let right = left + 1;
-            let a = box_entry(self.tree.nodes[left].bounds, origin, direction, limit);
-            let b = box_entry(self.tree.nodes[right].bounds, origin, direction, limit);
-            // Visit the nearer box first, then prune against the actual nearest triangle.
-            match (a, b) {
-                (Some(a), Some(b)) => {
-                    let order = if a <= b { [left, right] } else { [right, left] };
-                    for child in order {
-                        self.visit(child, mesh, origin, direction, best, accept);
-                    }
-                }
-                (Some(_), None) => self.visit(left, mesh, origin, direction, best, accept),
-                (None, Some(_)) => self.visit(right, mesh, origin, direction, best, accept),
-                (None, None) => {}
-            }
-        }
+        self.tree
+            .raycast(origin, direction, f32::INFINITY, &mut |triangle| {
+                accept(triangle)
+                    .then(|| triangle_hit(mesh, triangle, origin, direction))
+                    .flatten()
+            })
+            .map(|(triangle, distance)| MeshHit { distance, triangle })
     }
 }
 
 fn valid_ray(origin: Vec3, direction: Vec3) -> bool {
     origin.is_finite() && direction.is_finite() && direction != Vec3::ZERO
-}
-pub(super) fn box_entry(
-    bounds: [Vec3; 2],
-    origin: Vec3,
-    direction: Vec3,
-    limit: f32,
-) -> Option<f64> {
-    let mut near = 0.0_f64;
-    let mut far = f64::from(limit) * (1.0 + 8.0 * f64::from(f32::EPSILON)) + 1e-6;
-    for axis in 0..3 {
-        // Conservative padding includes f32 triangle/transform rounding near box edges.
-        // f64 slab arithmetic avoids overflow and handles tiny nonzero directions.
-        let scale = bounds[0][axis]
-            .abs()
-            .max(bounds[1][axis].abs())
-            .max(origin[axis].abs())
-            .max(1.0);
-        let pad = f64::from(scale) * 8.0 * f64::from(f32::EPSILON);
-        let min = f64::from(bounds[0][axis]) - pad;
-        let max = f64::from(bounds[1][axis]) + pad;
-        let o = f64::from(origin[axis]);
-        let d = f64::from(direction[axis]);
-        if d == 0.0 {
-            if o < min || o > max {
-                return None;
-            }
-        } else {
-            let a = (min - o) / d;
-            let b = (max - o) / d;
-            near = near.max(a.min(b));
-            far = far.min(a.max(b));
-            if near > far {
-                return None;
-            }
-        }
-    }
-    (far >= near && far > 0.0).then_some(near)
 }
 
 /// Linear oracle preserves the original editor's triangle test and first-hit tie order.
@@ -209,25 +124,7 @@ fn triangle_hit(mesh: &MeshData, triangle: u32, o: Vec3, d: Vec3) -> Option<f32>
     let [a, b, c] = std::array::from_fn(|i| {
         Vec3::from_slice(&mesh.vertices[mesh.indices[first + i] as usize][..3])
     });
-    let e1 = b - a;
-    let e2 = c - a;
-    let p = d.cross(e2);
-    let det = e1.dot(p);
-    if det.abs() < 1e-8 {
-        return None;
-    }
-    let t = o - a;
-    let u = t.dot(p) / det;
-    if !(0.0..=1.0).contains(&u) {
-        return None;
-    }
-    let q = t.cross(e1);
-    let v = d.dot(q) / det;
-    if v < 0.0 || u + v > 1.0 {
-        return None;
-    }
-    let distance = e2.dot(q) / det;
-    (distance > 0.0).then_some(distance)
+    bozzard_scene::spatial::triangle_hit([a, b, c], o, d)
 }
 
 #[cfg(test)]

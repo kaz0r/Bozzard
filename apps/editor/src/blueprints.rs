@@ -2,13 +2,24 @@
 use super::*;
 use bozzard_scene::{
     Blueprint, BlueprintAttachment,
-    blueprint::{InputKey, Node, NodeKind, ObjectRef, PinType, Socket, Value, Wire},
+    blueprint::{
+        Blackboard, BlackboardValue, InputKey, Node, NodeKind, ObjectRef, PinType, Socket, Value,
+        VariableScope, Wire,
+    },
 };
 
 pub struct BlueprintPane {
     target: Option<(PathBuf, String)>,
     pub index: usize,
     selected: Option<u32>,
+    selection: std::collections::BTreeSet<u32>,
+    clipboard: Option<Blueprint>,
+    draft: Option<Blueprint>,
+    draft_scene_board: Option<Blackboard>,
+    draft_object_board: Option<Blackboard>,
+    find: String,
+    scene_file: String,
+    scene_name: String,
     connecting: Option<Socket>,
     view: Rect,
     search: String,
@@ -20,6 +31,14 @@ impl Default for BlueprintPane {
             target: None,
             index: 0,
             selected: None,
+            selection: Default::default(),
+            clipboard: None,
+            draft: None,
+            draft_scene_board: None,
+            draft_object_board: None,
+            find: String::new(),
+            scene_file: String::new(),
+            scene_name: String::new(),
             connecting: None,
             view: Rect::from_min_size(Pos2::ZERO, Vec2::new(900., 560.)),
             search: String::new(),
@@ -52,6 +71,10 @@ impl BlueprintPane {
     fn choose(&mut self, index: usize, graph: &Blueprint) {
         self.index = index;
         self.selected = None;
+        self.selection.clear();
+        self.draft = None;
+        self.draft_scene_board = None;
+        self.draft_object_board = None;
         self.connecting = None;
         self.fit(graph);
     }
@@ -134,6 +157,7 @@ impl App {
                     ui.push_id((i, "bindings"), |ui| {
                         ui.add_enabled_ui(editing, |ui| {
                             for node in &mut attachment.graph.nodes {
+                                let pins = node.input_pins();
                                 for (port, value) in node.inputs.iter_mut().enumerate() {
                                     if attachment.graph.wires.iter().any(|w| {
                                         w.to == (Socket {
@@ -148,7 +172,7 @@ impl App {
                                             ui.label(format!(
                                                 "{} · {}",
                                                 node.kind.title(),
-                                                node.kind.inputs()[port].0
+                                                pins[port].0
                                             ));
                                             object_picker(ui, reference, &objects);
                                         });
@@ -168,7 +192,7 @@ impl App {
                     self.blueprint_pane.connecting = None;
                 }
                 object.blueprints = attachments;
-                ui.weak("Top to bottom · Independent state · Targets default to Self");
+                ui.weak("Top to bottom · Graph / Object / Scene state · Targets default to Self");
             });
     }
     pub fn open_last_blueprint(&mut self) {
@@ -259,7 +283,21 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard;
         let index = self.blueprint_pane.index;
-        let mut graph = object.blueprints[index].graph.clone();
+        let mut graph = self
+            .blueprint_pane
+            .draft
+            .take()
+            .unwrap_or_else(|| object.blueprints[index].graph.clone());
+        let mut scene_board = self
+            .blueprint_pane
+            .draft_scene_board
+            .take()
+            .unwrap_or_else(|| self.editor.scene().blackboard.clone());
+        let mut object_board = self
+            .blueprint_pane
+            .draft_object_board
+            .take()
+            .unwrap_or_else(|| object.blackboard.clone());
         ui.horizontal_wrapped(|ui| {
             ui.strong("Blueprint Editor");
             ui.label(&object.name);
@@ -325,10 +363,22 @@ impl App {
                                     }
                                     graph.nodes.push(node);
                                     self.blueprint_pane.selected = Some(id);
+                                    self.blueprint_pane.selection =
+                                        std::collections::BTreeSet::from([id]);
                                     ui.close();
                                 }
                             }
                         });
+                });
+                ui.menu_button("Blackboards", |ui| {
+                    ui.label("Graph attachment");
+                    board_editor(ui, &mut graph.blackboard, &mut self.blueprint_pane.variable);
+                    ui.separator();
+                    ui.label("Object (shared by attachments)");
+                    board_editor(ui, &mut object_board, &mut self.blueprint_pane.variable);
+                    ui.separator();
+                    ui.label("Scene (shared by objects)");
+                    board_editor(ui, &mut scene_board, &mut self.blueprint_pane.variable);
                 });
                 ui.menu_button("Variables", |ui| {
                     ui.weak("Number variables · Reset to defaults on each Play");
@@ -380,6 +430,9 @@ impl App {
                 {
                     if let Some(id) = self.blueprint_pane.selected.take() {
                         graph.remove_node(id);
+                        for id in std::mem::take(&mut self.blueprint_pane.selection) {
+                            graph.remove_node(id);
+                        }
                     }
                     self.blueprint_pane.connecting = None;
                 }
@@ -411,6 +464,210 @@ impl App {
                 });
             });
         }
+        ui.horizontal_wrapped(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.blueprint_pane.find)
+                    .hint_text("Find in graph: node, ID, variable, comment")
+                    .desired_width(240.),
+            );
+            if !self.blueprint_pane.find.trim().is_empty() {
+                let query = self.blueprint_pane.find.to_lowercase();
+                egui::ComboBox::from_id_salt("find-node")
+                    .selected_text("Matches…")
+                    .show_ui(ui, |ui| {
+                        for n in &graph.nodes {
+                            if format!("{} {} {} {}", n.id, n.kind.title(), n.variable, n.comment)
+                                .to_lowercase()
+                                .contains(&query)
+                                && ui.button(format!("#{} {}", n.id, n.kind.title())).clicked()
+                            {
+                                self.blueprint_pane.selected = Some(n.id);
+                                self.blueprint_pane.selection =
+                                    std::collections::BTreeSet::from([n.id]);
+                                self.blueprint_pane.view = node_rect(n).expand(120.);
+                                ui.close();
+                            }
+                        }
+                    });
+            }
+            if ui
+                .add_enabled(editing, egui::Button::new("Select all"))
+                .clicked()
+            {
+                self.blueprint_pane.selection = graph.nodes.iter().map(|n| n.id).collect();
+                self.blueprint_pane.selected = self.blueprint_pane.selection.first().copied();
+            }
+            if ui.add_enabled(editing, egui::Button::new("Copy")).clicked() {
+                self.blueprint_pane.copy(ui, &graph);
+            }
+            if ui
+                .add_enabled(
+                    editing && self.blueprint_pane.clipboard.is_some(),
+                    egui::Button::new("Paste"),
+                )
+                .clicked()
+                && let Err(e) = self.blueprint_pane.paste(&mut graph)
+            {
+                self.result(Err(e));
+            }
+        });
+        if let Some(node) = graph
+            .nodes
+            .iter_mut()
+            .find(|n| Some(n.id) == self.blueprint_pane.selected)
+        {
+            ui.add_enabled_ui(editing, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(format!("#{} {}", node.id, node.kind.title()));
+                    if node.uses_variable() {
+                        egui::ComboBox::from_id_salt("variable-scope")
+                            .selected_text(format!("{:?}", node.scope))
+                            .show_ui(ui, |ui| {
+                                for scope in [
+                                    VariableScope::Graph,
+                                    VariableScope::Object,
+                                    VariableScope::Scene,
+                                ] {
+                                    ui.selectable_value(
+                                        &mut node.scope,
+                                        scope,
+                                        format!("{scope:?}"),
+                                    );
+                                }
+                            });
+                        let board = match node.scope {
+                            VariableScope::Graph => &graph.blackboard,
+                            VariableScope::Object => &object_board,
+                            VariableScope::Scene => &scene_board,
+                        };
+                        let mut choices: Vec<_> = board
+                            .iter()
+                            .filter(|(_, v)| {
+                                matches!(v, BlackboardValue::List { .. }) == node.uses_list()
+                            })
+                            .map(|(name, v)| (name.clone(), v.kind()))
+                            .collect();
+                        if node.scope == VariableScope::Graph && !node.uses_list() {
+                            choices.extend(
+                                graph.variables.keys().map(|n| (n.clone(), PinType::Number)),
+                            );
+                        }
+                        egui::ComboBox::from_id_salt("scoped-variable")
+                            .selected_text(&node.variable)
+                            .show_ui(ui, |ui| {
+                                for (name, kind) in choices {
+                                    if ui
+                                        .selectable_label(
+                                            node.variable == name,
+                                            format!("{name} ({kind:?})"),
+                                        )
+                                        .clicked()
+                                    {
+                                        node.variable = name;
+                                        if node.value_type != kind {
+                                            node.value_type = kind;
+                                            node.reset_inputs();
+                                        }
+                                    }
+                                }
+                            });
+                    }
+                    if node.kind == NodeKind::Reroute {
+                        egui::ComboBox::from_id_salt("reroute-type")
+                            .selected_text(format!("{:?}", node.value_type))
+                            .show_ui(ui, |ui| {
+                                for kind in [
+                                    PinType::Exec,
+                                    PinType::Number,
+                                    PinType::Bool,
+                                    PinType::Vector,
+                                    PinType::Text,
+                                    PinType::Object,
+                                ] {
+                                    if ui
+                                        .selectable_label(
+                                            node.value_type == kind,
+                                            format!("{kind:?}"),
+                                        )
+                                        .clicked()
+                                    {
+                                        node.value_type = kind;
+                                        node.reset_inputs();
+                                    }
+                                }
+                            });
+                    }
+                    ui.add(
+                        egui::TextEdit::singleline(&mut node.comment)
+                            .hint_text("Comment / annotation")
+                            .char_limit(4096)
+                            .desired_width(260.),
+                    );
+                });
+            });
+        }
+        ui.menu_button("Runtime scenes", |ui| {
+            for name in self.editor.scene().runtime_scenes.keys() {
+                ui.label(name);
+            }
+            ui.add(
+                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_name)
+                    .hint_text("Scene name"),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_file)
+                    .hint_text("Scene JSON path"),
+            );
+            if ui
+                .add_enabled(editing, egui::Button::new("Import scene into library"))
+                .clicked()
+            {
+                let result = self.editor.import_runtime_scene(
+                    &self.blueprint_pane.scene_name,
+                    &PathBuf::from(&self.blueprint_pane.scene_file),
+                );
+                self.result(result);
+            }
+        });
+        if let Err(error) = graph.validate() {
+            ui.colored_label(Color32::LIGHT_RED, format!("Draft is invalid: {error:#}"));
+            let stale = graph.stale_wires();
+            for issue in &stale {
+                ui.colored_label(
+                    Color32::LIGHT_RED,
+                    format!(
+                        "− wire {}:{} → {}:{} · {}",
+                        issue.wire.from.node,
+                        issue.wire.from.port,
+                        issue.wire.to.node,
+                        issue.wire.to.port,
+                        issue.reason
+                    ),
+                );
+            }
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(
+                        editing && !stale.is_empty(),
+                        egui::Button::new("Remove stale wires"),
+                    )
+                    .clicked()
+                {
+                    let bad: std::collections::BTreeSet<_> =
+                        stale.iter().map(|i| i.index).collect();
+                    graph.wires = graph
+                        .wires
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, _)| !bad.contains(i))
+                        .map(|(_, w)| *w)
+                        .collect();
+                }
+                if ui.button("Discard draft").clicked() {
+                    graph = object.blueprints[index].graph.clone();
+                }
+            });
+        }
         ui.small("Drag headers to move · Output → input to connect · Right-click input to disconnect · Middle-drag / scroll to pan · Ctrl+scroll to zoom");
         if let Some(play) = &self.editor.play {
             if let Err(error) = play.check_simulation() {
@@ -431,10 +688,14 @@ impl App {
             if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
                 self.blueprint_pane.connecting = None;
                 self.blueprint_pane.selected = None;
+                self.blueprint_pane.selection.clear();
             }
             if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)) {
                 if let Some(id) = self.blueprint_pane.selected.take() {
                     graph.remove_node(id);
+                    for id in std::mem::take(&mut self.blueprint_pane.selection) {
+                        graph.remove_node(id);
+                    }
                 }
                 self.blueprint_pane.connecting = None;
             }
@@ -446,18 +707,60 @@ impl App {
             .iter()
             .map(|o| (o.id.clone(), o.name.clone()))
             .collect();
+        if editing && !ui.ctx().egui_wants_keyboard_input() {
+            for event in ui.input(|i| i.events.clone()) {
+                match event {
+                    egui::Event::Copy => self.blueprint_pane.copy(ui, &graph),
+                    egui::Event::Paste(text) => {
+                        if let Ok(copied) = Blueprint::from_json(&text) {
+                            self.blueprint_pane.clipboard = Some(copied);
+                            if let Err(e) = self.blueprint_pane.paste(&mut graph) {
+                                self.result(Err(e));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         let error = self
             .blueprint_pane
             .canvas(ui, &mut graph, editing, &objects);
         if let Some(error) = error {
             self.result(Err(error));
         }
-        if editing && graph != object.blueprints[index].graph {
-            let mut attachments = object.blueprints;
-            attachments[index].graph = graph;
-            self.editor.begin_gesture("Edit blueprint graph");
-            let result = self.editor.set_blueprints(&object.id, attachments);
-            self.result(result);
+        if editing
+            && (graph != object.blueprints[index].graph
+                || scene_board != self.editor.scene().blackboard
+                || object_board != object.blackboard)
+        {
+            let mut scene = self.editor.scene().clone();
+            scene.blackboard = scene_board;
+            let owner = scene
+                .objects
+                .iter_mut()
+                .find(|o| o.id == object.id)
+                .unwrap();
+            owner.blackboard = object_board;
+            owner.blueprints[index].graph = graph.clone();
+            if let Err(error) = scene.validate() {
+                self.blueprint_pane.draft_scene_board = Some(scene.blackboard.clone());
+                self.blueprint_pane.draft_object_board = Some(
+                    scene
+                        .objects
+                        .iter()
+                        .find(|o| o.id == object.id)
+                        .unwrap()
+                        .blackboard
+                        .clone(),
+                );
+                self.blueprint_pane.draft = Some(graph);
+                ui.colored_label(Color32::LIGHT_RED, format!("Unapplied draft: {error:#}"));
+            } else {
+                self.editor.begin_gesture("Edit blueprint graph");
+                let result = self.editor.apply("Edit blueprint graph", scene);
+                self.result(result);
+            }
         }
     }
 }
@@ -505,7 +808,11 @@ fn node_rect(node: &Node) -> Rect {
         Pos2::from(node.position),
         Vec2::new(
             WIDTH,
-            70. + 28. * node.kind.inputs().len().max(node.kind.outputs().len()) as f32,
+            if node.kind == NodeKind::Comment {
+                180.
+            } else {
+                70. + 28. * node.input_pins().len().max(node.output_pins().len()) as f32
+            },
         ),
     )
 }
@@ -581,16 +888,20 @@ impl BlueprintPane {
                             ui.painter(),
                             pin(from, wire.from.port, true),
                             pin(to, wire.to.port, false),
-                            color(from.kind.outputs()[wire.from.port].1),
+                            from.output_pins()
+                                .get(wire.from.port)
+                                .map_or(Color32::LIGHT_RED, |p| color(p.1)),
                         );
                     }
                 }
                 let mut connection = None;
                 let mut disconnect = None;
+                let mut group_drag = None;
                 for node in &mut graph.nodes {
                     let rect = node_rect(node);
                     ui.expand_to_include_rect(rect);
-                    let selected = self.selected == Some(node.id);
+                    let selected =
+                        self.selected == Some(node.id) || self.selection.contains(&node.id);
                     ui.painter()
                         .rect_filled(rect, 5., Color32::from_rgb(39, 43, 48));
                     ui.painter().rect_stroke(
@@ -643,9 +954,18 @@ impl BlueprintPane {
                     });
                     if response.clicked() || response.drag_started() {
                         self.selected = Some(node.id);
+                        if ui.input(|i| i.modifiers.shift) {
+                            if !self.selection.insert(node.id) {
+                                self.selection.remove(&node.id);
+                                self.selected = self.selection.first().copied();
+                            }
+                        } else if !self.selection.contains(&node.id) {
+                            self.selection = std::collections::BTreeSet::from([node.id]);
+                        }
                     }
                     if editing && response.dragged_by(egui::PointerButton::Primary) {
                         node.position = (Pos2::from(node.position) + response.drag_delta()).into();
+                        group_drag = Some((node.id, response.drag_delta()));
                     }
                     ui.push_id(node.id, |ui| {
                         ui.add_enabled_ui(editing, |ui| {
@@ -654,21 +974,11 @@ impl BlueprintPane {
                                 Vec2::new(WIDTH - 24., 24.),
                             );
                             ui.scope_builder(egui::UiBuilder::new().max_rect(config), |ui| {
-                                if matches!(
-                                    node.kind,
-                                    NodeKind::GetVariable | NodeKind::SetVariable
-                                ) {
-                                    egui::ComboBox::from_id_salt("variable")
-                                        .selected_text(&node.variable)
-                                        .show_ui(ui, |ui| {
-                                            for name in graph.variables.keys() {
-                                                ui.selectable_value(
-                                                    &mut node.variable,
-                                                    name.clone(),
-                                                    name,
-                                                );
-                                            }
-                                        });
+                                if node.uses_variable() {
+                                    ui.weak(format!(
+                                        "{:?} · {} ({:?})",
+                                        node.scope, node.variable, node.value_type
+                                    ));
                                 } else if matches!(
                                     node.kind,
                                     NodeKind::InputPressed | NodeKind::InputHeld
@@ -686,7 +996,22 @@ impl BlueprintPane {
                                         });
                                 }
                             });
-                            for (port, (label, kind)) in node.kind.inputs().iter().enumerate() {
+                            if node.kind == NodeKind::Comment {
+                                let painter =
+                                    ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+                                let galley = painter.layout(
+                                    node.comment.clone(),
+                                    egui::FontId::proportional(12.),
+                                    Color32::LIGHT_YELLOW,
+                                    WIDTH - 24.,
+                                );
+                                painter.galley(
+                                    rect.min + Vec2::new(12., 38.),
+                                    galley,
+                                    Color32::LIGHT_YELLOW,
+                                );
+                            }
+                            for (port, (label, kind)) in node.input_pins().iter().enumerate() {
                                 let p = pin(node, port, false);
                                 let socket = Socket {
                                     node: node.id,
@@ -784,7 +1109,7 @@ impl BlueprintPane {
                                     );
                                 }
                             }
-                            for (port, (label, kind)) in node.kind.outputs().iter().enumerate() {
+                            for (port, (label, kind)) in node.output_pins().iter().enumerate() {
                                 let p = pin(node, port, true);
                                 ui.painter().circle_filled(p, 5., color(*kind));
                                 ui.painter().text(
@@ -823,6 +1148,13 @@ impl BlueprintPane {
                         });
                     });
                 }
+                if let Some((dragged, delta)) = group_drag {
+                    for node in &mut graph.nodes {
+                        if node.id != dragged && self.selection.contains(&node.id) {
+                            node.position = (Pos2::from(node.position) + delta).into();
+                        }
+                    }
+                }
                 if let Some(socket) = self.connecting {
                     if let Ok(node) = graph.node(socket.node) {
                         if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) {
@@ -834,7 +1166,9 @@ impl BlueprintPane {
                                 ui.painter(),
                                 pin(node, socket.port, true),
                                 p,
-                                color(node.kind.outputs()[socket.port].1),
+                                node.output_pins()
+                                    .get(socket.port)
+                                    .map_or(Color32::LIGHT_RED, |p| color(p.1)),
                             );
                         }
                     } else {
@@ -852,6 +1186,133 @@ impl BlueprintPane {
             });
         self.view = view;
         error
+    }
+}
+
+impl BlueprintPane {
+    fn copy(&mut self, ui: &egui::Ui, graph: &Blueprint) {
+        let mut selected = self.selection.clone();
+        if let Some(id) = self.selected {
+            selected.insert(id);
+        }
+        if let Ok(copy) = graph.copy_subgraph(&selected) {
+            if let Ok(text) = copy.to_json() {
+                ui.ctx().copy_text(text);
+            }
+            self.clipboard = Some(copy);
+        }
+    }
+    fn paste(&mut self, graph: &mut Blueprint) -> anyhow::Result<()> {
+        if let Some(copy) = &self.clipboard {
+            self.selection = graph.paste_subgraph(copy, [40., 40.])?;
+            self.selected = self.selection.first().copied();
+        }
+        Ok(())
+    }
+}
+fn board_editor(ui: &mut egui::Ui, board: &mut Blackboard, name: &mut String) {
+    let mut remove = None;
+    for (key, value) in board.iter_mut() {
+        ui.push_id(key, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(key);
+                match value {
+                    BlackboardValue::Scalar(v) => edit_scalar(ui, v),
+                    BlackboardValue::List {
+                        element,
+                        capacity,
+                        values,
+                    } => {
+                        ui.label(format!("{:?} list · {} entries", element, values.len()));
+                        ui.add(
+                            egui::DragValue::new(capacity)
+                                .range(values.len().max(1)..=1024)
+                                .prefix("Capacity "),
+                        );
+                        if ui.button("+ element").clicked() && values.len() < *capacity {
+                            values.push(element.default_value());
+                        }
+                        if ui.button("Pop").clicked() {
+                            values.pop();
+                        }
+                        for (i, v) in values.iter_mut().enumerate() {
+                            ui.push_id(i, |ui| edit_scalar(ui, v));
+                        }
+                    }
+                }
+                if ui.small_button("×").clicked() {
+                    remove = Some(key.clone());
+                }
+            });
+        });
+    }
+    if let Some(key) = remove {
+        board.remove(&key);
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.add(
+            egui::TextEdit::singleline(name)
+                .hint_text("Variable name")
+                .desired_width(130.),
+        );
+        ui.menu_button("Add scalar", |ui| {
+            for kind in PinType::VALUES {
+                if ui.button(format!("{kind:?}")).clicked() && !name.trim().is_empty() {
+                    board
+                        .entry(name.trim().into())
+                        .or_insert_with(|| BlackboardValue::Scalar(kind.default_value()));
+                    name.clear();
+                    ui.close();
+                }
+            }
+        });
+        ui.menu_button("Add list", |ui| {
+            for kind in PinType::VALUES {
+                if ui.button(format!("{kind:?}")).clicked() && !name.trim().is_empty() {
+                    board
+                        .entry(name.trim().into())
+                        .or_insert_with(|| BlackboardValue::List {
+                            element: kind,
+                            capacity: 256,
+                            values: vec![],
+                        });
+                    name.clear();
+                    ui.close();
+                }
+            }
+        });
+    });
+}
+fn edit_scalar(ui: &mut egui::Ui, value: &mut Value) {
+    match value {
+        Value::Number(v) => {
+            ui.add(egui::DragValue::new(v).speed(0.1));
+        }
+        Value::Bool(v) => {
+            ui.checkbox(v, "");
+        }
+        Value::Vector(v) => {
+            for axis in v {
+                ui.add(egui::DragValue::new(axis).speed(0.1));
+            }
+        }
+        Value::Text(v) => {
+            ui.add(
+                egui::TextEdit::singleline(v)
+                    .char_limit(4096)
+                    .desired_width(120.),
+            );
+        }
+        Value::Object(reference) => {
+            object_picker(ui, reference, &[]);
+            if let ObjectRef::Id(id) = reference {
+                ui.text_edit_singleline(id);
+            }
+            if ui.small_button("Bind ID").clicked() {
+                *reference = ObjectRef::Id("object-id".into());
+            }
+        }
+        Value::Exec => {}
     }
 }
 
@@ -974,5 +1435,34 @@ mod tests {
             false,
         );
         assert_eq!(graph, before);
+    }
+    #[test]
+    fn canvas_handles_stale_wires_and_typed_reroutes_and_pastes_selected_subgraphs() {
+        let ctx = egui::Context::default();
+        let mut pane = BlueprintPane::default();
+        let mut graph = Blueprint::spinning();
+        graph.wires.push(Wire {
+            from: Socket { node: 1, port: 99 },
+            to: Socket { node: 4, port: 99 },
+        });
+        frame(&ctx, &mut pane, &mut graph, vec![], true);
+        assert_eq!(graph.stale_wires().len(), 1);
+        graph.wires.pop();
+        pane.selection = std::collections::BTreeSet::from([1, 4]);
+        let mut output = ctx.run_ui(Default::default(), |ui| pane.copy(ui, &graph));
+        output.textures_delta.clear();
+        pane.paste(&mut graph).unwrap();
+        assert_eq!(pane.selection.len(), 2);
+        assert_eq!(graph.nodes.len(), 6);
+        graph.validate().unwrap();
+        let mut reroute = Node::new(7, NodeKind::Reroute, [40., 350.]);
+        reroute.value_type = PinType::Text;
+        reroute.reset_inputs();
+        graph.nodes.push(reroute);
+        let mut comment = Node::new(8, NodeKind::Comment, [350., 350.]);
+        comment.comment = "Shared state across graphs".into();
+        graph.nodes.push(comment);
+        frame(&ctx, &mut pane, &mut graph, vec![], true);
+        graph.validate().unwrap();
     }
 }
