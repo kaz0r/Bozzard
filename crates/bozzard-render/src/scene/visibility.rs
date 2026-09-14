@@ -10,7 +10,21 @@ pub struct FrameStats {
     pub culled_surfaces: usize,
     pub color_triangles: u64,
     pub shadow_draws: usize,
+    /// Depth passes encoded this frame, including clears of empty maps.
+    pub shadow_maps_rendered: usize,
+    pub graph_compilations: usize,
+    /// All active graphs plus at most eight recently absent graphs.
+    pub resident_graphs: usize,
     pub shadow_triangles: u64,
+    /// True when every shadow map was reused without another depth pass.
+    pub shadow_cache_hit: bool,
+    pub object_uniform_writes: usize,
+    pub auxiliary_targets: usize,
+    /// Logical size of allocated auxiliary textures; excludes other effect/history targets.
+    pub geometry_allocated_bytes: u64,
+    /// Logical bytes retained by the opaque pass's three RGBA16F auxiliary targets.
+    /// Not measured memory traffic.
+    pub geometry_store_bytes: u64,
     /// Color-pass mesh pipeline binds; excludes sky, shadow and display passes.
     pub pipeline_binds: usize,
     /// CPU work only, including command submission. Not GPU execution or FPS.

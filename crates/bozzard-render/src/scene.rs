@@ -51,6 +51,7 @@ mod upload;
 pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
+const OBJECT_UNIFORM_BYTES: usize = 496;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshKind {
@@ -200,6 +201,7 @@ struct ObjectBinding {
     buffer: wgpu::Buffer,
     texture: TextureKind,
     binding: wgpu::BindGroup,
+    uniform: Option<[u8; OBJECT_UNIFORM_BYTES]>,
 }
 struct DepthTarget {
     view: wgpu::TextureView,
@@ -222,11 +224,13 @@ pub struct SceneRenderer {
     environment: environment::Environment,
     display: display::Display,
     shadows: shadows::Shadows,
-    pipeline: wgpu::RenderPipeline,
-    transparent_pipeline: wgpu::RenderPipeline,
+    shadow_frame: Option<shadows::ShadowFrame>,
+    pipeline: [wgpu::RenderPipeline; 2],
+    transparent_pipeline: [wgpu::RenderPipeline; 2],
     layout: wgpu::BindGroupLayout,
     /// Shader graph modules by content hash; compiled on first use per frame.
-    graphs: BTreeMap<u64, std::sync::Arc<GraphPipelines>>,
+    graphs: BTreeMap<(u64, bool), std::sync::Arc<GraphPipelines>>,
+    idle_graphs: std::collections::VecDeque<(u64, bool)>,
     neutral_normal: wgpu::TextureView,
     quad: MeshBuffers,
     cube: MeshBuffers,
@@ -287,6 +291,7 @@ fn scene_pipeline(
     module: &wgpu::ShaderModule,
     pbr: bool,
     transparent: bool,
+    auxiliary: bool,
 ) -> wgpu::RenderPipeline {
     let basic_buffers = [Some(wgpu::VertexBufferLayout {
         array_stride: 32,
@@ -321,7 +326,11 @@ fn scene_pipeline(
                 module,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &geometry::color_targets(wgpu::TextureFormat::Rgba16Float, transparent),
+                targets: &geometry::color_targets(
+                    wgpu::TextureFormat::Rgba16Float,
+                    transparent,
+                    auxiliary,
+                ),
             }),
             primitive: Default::default(),
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -563,7 +572,7 @@ impl SceneRenderer {
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(496),
+                    min_binding_size: wgpu::BufferSize::new(OBJECT_UNIFORM_BYTES as u64),
                 },
                 count: None,
             },
@@ -628,7 +637,7 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(host_text(false).into()),
             });
-        let make_pipeline = |transparent: bool| {
+        let make_pipeline = |transparent: bool, auxiliary: bool| {
             scene_pipeline(
                 gpu,
                 "scene pipeline",
@@ -636,10 +645,11 @@ impl SceneRenderer {
                 &shader,
                 false,
                 transparent,
+                auxiliary,
             )
         };
-        let pipeline = make_pipeline(false);
-        let transparent_pipeline = make_pipeline(true);
+        let pipeline = [make_pipeline(false, false), make_pipeline(false, true)];
+        let transparent_pipeline = [make_pipeline(true, false), make_pipeline(true, true)];
         let pbr = crate::pbr::PbrRenderer::new(
             gpu,
             format,
@@ -671,11 +681,13 @@ impl SceneRenderer {
             environment,
             display,
             shadows,
+            shadow_frame: None,
             pbr,
             pipeline,
             transparent_pipeline,
             layout,
             graphs: BTreeMap::new(),
+            idle_graphs: Default::default(),
             neutral_normal: neutral_texture(gpu),
             quad,
             cube: cube(gpu),
@@ -713,7 +725,12 @@ impl SceneRenderer {
 
     /// Compile both host flavors for one shader graph. WGSL errors panic like the
     /// startup modules; graphs are validated before codegen, so errors are engine bugs.
-    fn compile_graph(&self, gpu: &Gpu, source: &ShaderSource) -> Result<GraphPipelines> {
+    fn compile_graph(
+        &self,
+        gpu: &Gpu,
+        source: &ShaderSource,
+        auxiliary: bool,
+    ) -> Result<GraphPipelines> {
         // The basic host leaves group 1 unused, so it keeps an automatic (empty)
         // layout; the PBR host binds the shared material map group.
         let layout = |group1: Option<&wgpu::BindGroupLayout>| {
@@ -750,6 +767,7 @@ impl SceneRenderer {
                     &module,
                     pbr,
                     false,
+                    auxiliary,
                 ),
                 scene_pipeline(
                     gpu,
@@ -758,6 +776,7 @@ impl SceneRenderer {
                     &module,
                     pbr,
                     true,
+                    auxiliary,
                 ),
             ]
         };
@@ -770,7 +789,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 496,
+            size: OBJECT_UNIFORM_BYTES as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -845,12 +864,20 @@ impl SceneRenderer {
             buffer,
             texture: key.clone(),
             binding,
+            uniform: None,
         })
+    }
+
+    fn invalidate_object_bindings(&mut self) {
+        self.objects.clear();
+        self.shadow_frame = None;
+        self.shadows.spots.invalidate();
+        self.shadows.points.invalidate();
     }
 
     pub fn clear_imported(&mut self) {
         self.model_upload_stats.clear();
-        self.objects.clear();
+        self.invalidate_object_bindings();
         self.imported_meshes.clear();
         self.imported_textures.clear();
         self.models.clear();
@@ -864,7 +891,7 @@ impl SceneRenderer {
         self.imported_textures.remove(id);
         self.transparent_textures.remove(id);
         self.model_upload_stats.remove(id);
-        self.objects.clear();
+        self.invalidate_object_bindings();
     }
 
     pub fn upload_mesh(
@@ -891,7 +918,7 @@ impl SceneRenderer {
         self.model_upload_stats.remove(id);
         self.imported_textures.remove(id);
         self.transparent_textures.remove(id);
-        self.objects.clear();
+        self.invalidate_object_bindings();
         self.imported_meshes
             .insert(id.into(), mesh(gpu, vertices, indices));
         Ok(())
@@ -954,7 +981,7 @@ impl SceneRenderer {
         self.models.remove(id);
         self.model_upload_stats.remove(id);
         // Drop bind groups referring to old texture views; the next draw rebuilds them.
-        self.objects.clear();
+        self.invalidate_object_bindings();
         Ok(())
     }
 
@@ -1246,7 +1273,7 @@ impl SceneRenderer {
                         .sum::<usize>(),
             },
         );
-        self.objects.clear();
+        self.invalidate_object_bindings();
         Ok(())
     }
     fn prepare(&self, scene: &RenderScene) -> Vec<PreparedDraw> {
@@ -1300,11 +1327,13 @@ impl SceneRenderer {
                     .iter()
                     .map(|v| (v.surface as usize, v))
                     .collect();
-                for (index, part) in parts.iter().enumerate() {
-                    if matches!(&object.mesh, MeshKind::ModelPart(_, selected) if *selected != index)
-                    {
-                        continue;
-                    }
+                let (start, count) = match &object.mesh {
+                    MeshKind::ModelPart(_, index) => (*index, 1),
+                    _ => (0, parts.len()),
+                };
+                // Expanded surface entities already identify their part. Slice iterators
+                // skip directly to it instead of scanning every sibling for every entity.
+                for (index, part) in parts.iter().enumerate().skip(start).take(count) {
                     let mut item = object.clone();
                     if matches!(object.mesh, MeshKind::ModelPart(..)) {
                         item.model *= Mat4::from_translation(-part.center);
@@ -1486,6 +1515,8 @@ impl SceneRenderer {
         }
         scene.fog.validate()?;
         scene.display.validate()?;
+        let stores = geometry::stores(scene, raw, self.state_caching);
+        let auxiliary = stores.iter().any(|store| *store);
         let (view_projection, temporal_frame) = self.motion_history.begin(scene, size, raw);
         self.environment.prepare(
             gpu,
@@ -1494,7 +1525,7 @@ impl SceneRenderer {
             !raw && scene.display.reflections.enabled,
         )?;
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
-            self.geometry = Some(geometry::GeometryBuffers::new(gpu, size));
+            self.geometry = None;
             if let Some(particles) = &mut self.particles {
                 particles.invalidate_depth();
             }
@@ -1517,6 +1548,9 @@ impl SceneRenderer {
                 view: texture.create_view(&Default::default()),
                 size,
             });
+        }
+        if auxiliary && self.geometry.is_none() {
+            self.geometry = Some(geometry::GeometryBuffers::new(gpu, size));
         }
         self.display.prepare(
             gpu,
@@ -1542,20 +1576,36 @@ impl SceneRenderer {
             .write_buffer(&self.shadows.local_lights, 0, &lights);
         self.prepare_text(gpu, scene)?;
         let draws = self.prepare(scene);
-        // Compile shader graph pipelines on first use; retire stale ones after edits.
-        let mut graph_sources: BTreeMap<u64, std::sync::Arc<ShaderSource>> = BTreeMap::new();
+        // Keep all active pipelines and a bounded set of recently absent previews.
+        let mut graph_sources: BTreeMap<(u64, bool), std::sync::Arc<ShaderSource>> =
+            BTreeMap::new();
         for draw in &draws {
             if let Some(shader) = &draw.object.material.shader {
-                graph_sources.insert(shader.id, shader.clone());
+                graph_sources.insert((shader.id, auxiliary), shader.clone());
             }
         }
-        self.graphs.retain(|id, _| graph_sources.contains_key(id));
+        self.idle_graphs
+            .retain(|id| !graph_sources.contains_key(id));
+        for id in self
+            .graphs
+            .keys()
+            .filter(|id| !graph_sources.contains_key(id))
+        {
+            if !self.idle_graphs.contains(id) {
+                self.idle_graphs.push_back(*id);
+            }
+        }
+        while self.idle_graphs.len() > if self.state_caching { 8 } else { 0 } {
+            self.graphs.remove(&self.idle_graphs.pop_front().unwrap());
+        }
         for (id, source) in graph_sources {
             if !self.graphs.contains_key(&id) {
-                let pipelines = self.compile_graph(gpu, &source)?;
+                let pipelines = self.compile_graph(gpu, &source, auxiliary)?;
                 self.graphs.insert(id, std::sync::Arc::new(pipelines));
+                self.stats.graph_compilations += 1;
             }
         }
+        self.stats.resident_graphs = self.graphs.len();
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {
             let object = &draw.object;
@@ -1585,7 +1635,10 @@ impl SceneRenderer {
         self.stats.surfaces = draws.len();
         self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
         self.stats.culled_surfaces = draws.len() - self.stats.visible_surfaces;
-        for (draw, binding) in draws.iter().zip(&self.objects) {
+        let inverse_view_projection = view_projection.inverse().to_cols_array();
+        let lighting_uniform = scene.lighting.uniform();
+        let fog_uniform = scene.fog.uniform(raw);
+        for (draw, binding) in draws.iter().zip(&mut self.objects) {
             let object = &draw.object;
             let mvp = view_projection * object.model;
             let previous_model = self.motion_history.previous_model(object);
@@ -1606,51 +1659,95 @@ impl SceneRenderer {
                 if material.lit { 1.0 } else { 0.0 },
                 draw.cutoff,
             ];
-            gpu.queue.write_buffer(
-                &binding.buffer,
-                0,
-                &float_bytes(
-                    mvp.to_cols_array()
-                        .into_iter()
-                        .chain(normal.to_cols_array())
-                        .chain(tail)
-                        .chain(object.model.to_cols_array())
-                        .chain(view_projection.inverse().to_cols_array())
-                        .chain([
-                            size[0] as f32,
-                            size[1] as f32,
-                            object.model.determinant().signum(),
-                            if self.shading(&object.mesh).is_none_or(|s| s.double_sided) {
-                                1.
-                            } else {
-                                0.
-                            },
-                        ])
-                        .chain(scene.lighting.uniform())
-                        .chain([
-                            draw.pbr_override[0],
-                            draw.pbr_override[1],
-                            match material.texture {
-                                TextureKind::Normals => 1.,
-                                TextureKind::ProceduralChecker => 2.,
-                                TextureKind::Toon => 3.,
-                                _ => 0.,
-                            },
-                            if draw.transparent || previous_model.is_none() {
-                                1.
-                            } else {
-                                0.
-                            },
-                        ])
-                        .chain(scene.fog.uniform(raw))
-                        .chain(previous_mvp.to_cols_array())
-                        .chain([scene.shader_time, 0., 0., 0.]),
-                ),
-            );
+            let double_sided = match &object.mesh {
+                MeshKind::ModelPart(id, index) => self.models[id][*index]
+                    .shading
+                    .as_ref()
+                    .is_none_or(|s| s.double_sided),
+                _ => true,
+            };
+            let values = mvp
+                .to_cols_array()
+                .into_iter()
+                .chain(normal.to_cols_array())
+                .chain(tail)
+                .chain(object.model.to_cols_array())
+                .chain(inverse_view_projection)
+                .chain([
+                    size[0] as f32,
+                    size[1] as f32,
+                    object.model.determinant().signum(),
+                    if double_sided { 1. } else { 0. },
+                ])
+                .chain(lighting_uniform)
+                .chain([
+                    draw.pbr_override[0],
+                    draw.pbr_override[1],
+                    match material.texture {
+                        TextureKind::Normals => 1.,
+                        TextureKind::ProceduralChecker => 2.,
+                        TextureKind::Toon => 3.,
+                        _ => 0.,
+                    },
+                    if draw.transparent || previous_model.is_none() {
+                        1.
+                    } else {
+                        0.
+                    },
+                ])
+                .chain(fog_uniform)
+                .chain(previous_mvp.to_cols_array())
+                .chain([
+                    if material.shader.is_some() {
+                        scene.shader_time
+                    } else {
+                        0.
+                    },
+                    0.,
+                    0.,
+                    0.,
+                ]);
+            let mut uniform = [0; OBJECT_UNIFORM_BYTES];
+            debug_assert_eq!(values.clone().count() * 4, uniform.len());
+            for (slot, value) in uniform.chunks_exact_mut(4).zip(values) {
+                slot.copy_from_slice(&value.to_le_bytes());
+            }
+            if !self.state_caching || binding.uniform.as_ref() != Some(&uniform) {
+                gpu.queue.write_buffer(&binding.buffer, 0, &uniform);
+                binding.uniform = Some(uniform);
+                self.stats.object_uniform_writes += 1;
+            }
         }
-        self.update_shadows(gpu, scene, &draws)?;
-        self.update_spot_shadows(gpu, scene)?;
-        self.update_point_shadows(gpu, scene)?;
+        let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
+        self.stats.shadow_cache_hit =
+            self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
+        let sun_changed = !self.state_caching
+            || !self
+                .shadow_frame
+                .as_ref()
+                .is_some_and(|previous| previous.same_sun(&shadow_frame));
+        let mut spot_changes = Vec::new();
+        let mut point_changes = Vec::new();
+        if !self.stats.shadow_cache_hit {
+            // Invalidate before queueing writes: a later frame error must not leave a
+            // valid-looking stamp paired with partially updated shadow uniforms.
+            self.shadow_frame = None;
+            if sun_changed {
+                self.update_shadows(gpu, scene, &draws)?;
+            }
+            self.update_spot_shadows(gpu, scene)?;
+            self.update_point_shadows(gpu, scene)?;
+            spot_changes = self.shadows.spots.changes(self, &draws);
+            point_changes = self.shadows.points.changes(self, &draws);
+            self.shadows.spots.invalidate_changes(&spot_changes);
+            self.shadows.points.invalidate_changes(&point_changes);
+            self.stats.shadow_maps_rendered = usize::from(sun_changed)
+                + spot_changes
+                    .iter()
+                    .chain(&point_changes)
+                    .filter(|c| c.is_some())
+                    .count();
+        }
         if !raw && !scene.particles.is_empty() {
             self.stats.particles = scene.particles.len();
             self.stats.particle_triangles = scene.particles.len() as u64 * 2;
@@ -1677,20 +1774,40 @@ impl SceneRenderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("scene frame"),
             });
-        (self.stats.shadow_draws, self.stats.shadow_triangles) =
-            self.draw_shadows(&mut encoder, scene, &draws);
-        let (spot_draws, spot_triangles) =
-            self.shadows
-                .spots
-                .draw(self, &mut encoder, &draws, &self.shadows.pipeline);
-        self.stats.shadow_draws += spot_draws;
-        self.stats.shadow_triangles += spot_triangles;
-        let (point_draws, point_triangles) =
-            self.shadows
-                .points
-                .draw(self, &mut encoder, &draws, &self.shadows.point_pipeline);
-        self.stats.shadow_draws += point_draws;
-        self.stats.shadow_triangles += point_triangles;
+        if !self.stats.shadow_cache_hit {
+            if sun_changed {
+                (self.stats.shadow_draws, self.stats.shadow_triangles) =
+                    self.draw_shadows(&mut encoder, scene, &draws);
+            }
+            let (spot_draws, spot_triangles) = self.shadows.spots.draw(
+                self,
+                &mut encoder,
+                &draws,
+                &self.shadows.pipeline,
+                &spot_changes,
+            );
+            self.stats.shadow_draws += spot_draws;
+            self.stats.shadow_triangles += spot_triangles;
+            let (point_draws, point_triangles) = self.shadows.points.draw(
+                self,
+                &mut encoder,
+                &draws,
+                &self.shadows.point_pipeline,
+                &point_changes,
+            );
+            self.stats.shadow_draws += point_draws;
+            self.stats.shadow_triangles += point_triangles;
+        }
+        self.stats.auxiliary_targets = if auxiliary { 3 } else { 0 };
+        self.stats.geometry_allocated_bytes = if self.geometry.is_some() {
+            24 * u64::from(size[0]) * u64::from(size[1])
+        } else {
+            0
+        };
+        self.stats.geometry_store_bytes = stores.iter().filter(|s| **s).count() as u64
+            * 8
+            * u64::from(size[0])
+            * u64::from(size[1]);
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
@@ -1704,18 +1821,30 @@ impl SceneRenderer {
                             a: 1.,
                         },
                     ),
-                    geometry::attachment(
-                        &self.geometry.as_ref().unwrap().normal,
-                        wgpu::Color::TRANSPARENT,
-                    ),
-                    geometry::attachment(
-                        &self.geometry.as_ref().unwrap().motion,
-                        wgpu::Color::TRANSPARENT,
-                    ),
-                    geometry::attachment(
-                        &self.geometry.as_ref().unwrap().specular,
-                        wgpu::Color::TRANSPARENT,
-                    ),
+                    auxiliary
+                        .then(|| {
+                            geometry::auxiliary_attachment(
+                                &self.geometry.as_ref().unwrap().normal,
+                                stores[0],
+                            )
+                        })
+                        .flatten(),
+                    auxiliary
+                        .then(|| {
+                            geometry::auxiliary_attachment(
+                                &self.geometry.as_ref().unwrap().motion,
+                                stores[1],
+                            )
+                        })
+                        .flatten(),
+                    auxiliary
+                        .then(|| {
+                            geometry::auxiliary_attachment(
+                                &self.geometry.as_ref().unwrap().specular,
+                                stores[2],
+                            )
+                        })
+                        .flatten(),
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth.as_ref().unwrap().view,
@@ -1727,7 +1856,8 @@ impl SceneRenderer {
                 }),
                 ..Default::default()
             });
-            self.environment.background(&mut pass, scene.environment);
+            self.environment
+                .background(&mut pass, scene.environment, auxiliary);
             let mut last_pipeline = None;
             for ((draw, binding), visible) in draws.iter().zip(&self.objects).zip(&visible) {
                 if !visible {
@@ -1740,14 +1870,14 @@ impl SceneRenderer {
                 };
                 let key = (shading.is_some(), draw.shader, draw.transparent);
                 let pipeline = match key {
-                    (true, Some(id), false) => &self.graphs[&id].pbr[0],
-                    (true, Some(id), true) => &self.graphs[&id].pbr[1],
-                    (false, Some(id), false) => &self.graphs[&id].basic[0],
-                    (false, Some(id), true) => &self.graphs[&id].basic[1],
-                    (true, None, false) => &self.pbr.opaque,
-                    (true, None, true) => &self.pbr.transparent,
-                    (false, None, false) => &self.pipeline,
-                    (false, None, true) => &self.transparent_pipeline,
+                    (true, Some(id), false) => &self.graphs[&(id, auxiliary)].pbr[0],
+                    (true, Some(id), true) => &self.graphs[&(id, auxiliary)].pbr[1],
+                    (false, Some(id), false) => &self.graphs[&(id, auxiliary)].basic[0],
+                    (false, Some(id), true) => &self.graphs[&(id, auxiliary)].basic[1],
+                    (true, None, false) => &self.pbr.opaque[usize::from(auxiliary)],
+                    (true, None, true) => &self.pbr.transparent[usize::from(auxiliary)],
+                    (false, None, false) => &self.pipeline[usize::from(auxiliary)],
+                    (false, None, true) => &self.transparent_pipeline[usize::from(auxiliary)],
                 };
                 if !self.state_caching || last_pipeline != Some(key) {
                     pass.set_pipeline(pipeline);
@@ -1815,6 +1945,9 @@ impl SceneRenderer {
         let submit_started = std::time::Instant::now();
         gpu.queue.submit([commands]);
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
+        self.shadows.spots.finish(spot_changes);
+        self.shadows.points.finish(point_changes);
+        self.shadow_frame = Some(shadow_frame);
         self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())

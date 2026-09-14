@@ -51,7 +51,7 @@ pub(super) struct Environment {
     brdf: wgpu::Texture,
     bake: wgpu::RenderPipeline,
     integrate: wgpu::RenderPipeline,
-    sky: wgpu::RenderPipeline,
+    sky: [wgpu::RenderPipeline; 2],
     ready: bool,
 }
 fn texture(gpu: &Gpu, size: u32, cube: bool, levels: u32) -> wgpu::Texture {
@@ -186,7 +186,7 @@ impl Environment {
                 bind_group_layouts: &[None, None, None, Some(&layout)],
                 immediate_size: 0,
             });
-        let pipeline = |shader: &wgpu::ShaderModule, entry: &str, sky: bool| {
+        let pipeline = |shader: &wgpu::ShaderModule, entry: &str, sky: bool, auxiliary: bool| {
             gpu.device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("environment pass"),
@@ -202,10 +202,13 @@ impl Environment {
                         entry_point: Some(entry),
                         compilation_options: Default::default(),
                         targets: &if sky {
-                            let mut targets =
-                                geometry::color_targets(wgpu::TextureFormat::Rgba16Float, false);
-                            for target in targets.iter_mut().skip(1) {
-                                target.as_mut().unwrap().write_mask = wgpu::ColorWrites::empty();
+                            let mut targets = geometry::color_targets(
+                                wgpu::TextureFormat::Rgba16Float,
+                                false,
+                                auxiliary,
+                            );
+                            for target in targets.iter_mut().skip(1).flatten() {
+                                target.write_mask = wgpu::ColorWrites::empty();
                             }
                             targets.to_vec()
                         } else {
@@ -236,9 +239,12 @@ impl Environment {
             irradiance,
             reflection,
             brdf,
-            bake: pipeline(&source, "fs_weights", false),
-            integrate: pipeline(&source, "fs_brdf", false),
-            sky: pipeline(&sky_shader, "fs_main", true),
+            bake: pipeline(&source, "fs_weights", false, false),
+            integrate: pipeline(&source, "fs_brdf", false, false),
+            sky: [
+                pipeline(&sky_shader, "fs_main", true, false),
+                pipeline(&sky_shader, "fs_main", true, true),
+            ],
             ready: false,
         }
     }
@@ -334,9 +340,14 @@ impl Environment {
         );
         Ok(())
     }
-    pub fn background(&self, pass: &mut wgpu::RenderPass<'_>, settings: EnvironmentSettings) {
+    pub fn background(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        settings: EnvironmentSettings,
+        auxiliary: bool,
+    ) {
         if settings.background && settings.intensity > 0. {
-            pass.set_pipeline(&self.sky);
+            pass.set_pipeline(&self.sky[usize::from(auxiliary)]);
             pass.set_bind_group(3, &self.binding, &[]);
             pass.draw(0..3, 0..1);
         }

@@ -51,6 +51,10 @@ pub struct Editor {
     pub assets: AssetStore,
     revision: u64,
     asset_revision: u64,
+    scene_snapshot: std::cell::RefCell<Option<(u64, std::sync::Arc<Scene>)>>,
+    gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
+    edit_demo: std::cell::RefCell<Option<(u64, SceneDemo)>>,
+    edit_collisions: std::cell::RefCell<Option<(u64, bozzard_scene::CollisionSnapshot)>>,
 }
 
 impl Editor {
@@ -82,10 +86,25 @@ impl Editor {
             assets,
             revision: 1,
             asset_revision: 1,
+            scene_snapshot: Default::default(),
+            gi_freshness: Default::default(),
+            edit_demo: Default::default(),
+            edit_collisions: Default::default(),
         }
     }
     pub fn scene(&self) -> &Scene {
         &self.scene
+    }
+    /// An immutable document snapshot shared by UI panels until the next transaction.
+    pub fn scene_snapshot(&self) -> std::sync::Arc<Scene> {
+        let mut cached = self.scene_snapshot.borrow_mut();
+        if cached
+            .as_ref()
+            .is_none_or(|(revision, _)| *revision != self.revision)
+        {
+            *cached = Some((self.revision, std::sync::Arc::new(self.scene.clone())));
+        }
+        cached.as_ref().unwrap().1.clone()
     }
     pub fn revision(&self) -> u64 {
         self.revision
@@ -847,10 +866,32 @@ impl Editor {
         let demo = if let Some(play) = &self.play {
             play
         } else {
-            edit = SceneDemo::new(&self.scene)?;
+            edit = self.edit_demo()?;
             &edit
         };
-        extract(demo, &self.assets, layer, aspect)
+        extract_with_gi(
+            demo,
+            &self.assets,
+            layer,
+            aspect,
+            self.play.is_none().then(|| self.gi_current()),
+        )
+    }
+    /// Authoring queries share one immutable world until a document transaction changes
+    /// its revision. Play owns a separate world and never mutates this snapshot.
+    fn edit_demo(&self) -> Result<std::cell::Ref<'_, SceneDemo>> {
+        if self
+            .edit_demo
+            .borrow()
+            .as_ref()
+            .is_none_or(|(revision, _)| *revision != self.revision)
+        {
+            let demo = SceneDemo::new(&self.scene)?;
+            *self.edit_demo.borrow_mut() = Some((self.revision, demo));
+        }
+        Ok(std::cell::Ref::map(self.edit_demo.borrow(), |cached| {
+            &cached.as_ref().unwrap().1
+        }))
     }
     /// Translate the selected Play-world collider without touching the authored scene.
     pub fn move_selected_box(&mut self, delta: Vec3) -> Result<bozzard_scene::MoveResult> {
@@ -883,8 +924,16 @@ impl Editor {
         if let Some(play) = &self.play {
             play.instance().collisions(&play.app.world)
         } else {
-            let demo = SceneDemo::new(&self.scene)?;
-            demo.instance().collisions(&demo.app.world)
+            let mut cached = self.edit_collisions.borrow_mut();
+            if cached
+                .as_ref()
+                .is_none_or(|(revision, _)| *revision != self.revision)
+            {
+                let demo = self.edit_demo()?;
+                *cached = Some((self.revision, demo.instance().collisions(&demo.app.world)?));
+            }
+            // Mesh geometry is shared; only bounds, IDs and contact pairs are copied.
+            Ok(cached.as_ref().unwrap().1.clone())
         }
     }
 }
@@ -957,6 +1006,16 @@ pub fn extract(
     layer: Layer,
     aspect: f32,
 ) -> Result<RenderScene> {
+    extract_with_gi(demo, assets, layer, aspect, None)
+}
+
+fn extract_with_gi(
+    demo: &SceneDemo,
+    assets: &bozzard_assets::AssetStore,
+    layer: Layer,
+    aspect: f32,
+    authored_gi: Option<bool>,
+) -> Result<RenderScene> {
     demo.check_simulation()?;
     let view = demo.instance().view(&demo.app.world, layer, aspect)?;
     let mut gi = None;
@@ -964,8 +1023,15 @@ pub fn extract(
         && demo.instance().document().gi.enabled
         && demo.instance().document().gi.baked.is_some()
     {
-        let scene = demo.instance().capture(&demo.app.world)?;
-        if bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false) {
+        let current = match authored_gi {
+            Some(current) => current,
+            None => {
+                let scene = demo.instance().capture(&demo.app.world)?;
+                bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false)
+            }
+        };
+        if current {
+            let scene = demo.instance().document();
             let baked = scene.gi.baked.as_ref().unwrap();
             gi = Some(bozzard_render::IrradianceVolume {
                 min: baked.volume.min,
@@ -1701,6 +1767,64 @@ mod tests {
         assert_eq!(e.scene, edited);
         assert!(e.dirty());
         assert!(e.undo_label().is_some());
+    }
+    #[test]
+    fn authoring_query_cache_tracks_transactions_and_preserves_identity_and_history() {
+        let mut e = editor();
+        let mut scene = e.scene().clone();
+        scene.objects.retain(|o| o.camera.is_some());
+        e.apply("Empty", scene).unwrap();
+        e.create(Mesh::Cube, Layer::ThreeD).unwrap();
+        let id = e.selected.clone().unwrap();
+        let mut scene = e.scene().clone();
+        let object = scene.objects.iter_mut().find(|o| o.id == id).unwrap();
+        object.transform = Transform::default();
+        object.collider = Some(bozzard_scene::BoxCollider::default());
+        let mut e = Editor::new(scene, &e.path).unwrap();
+        let projection = glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 10.)
+            * Mat4::from_translation(Vec3::new(0., 0., -3.));
+        let first = e.render(Layer::ThreeD, 1.).unwrap();
+        for _ in 0..3 {
+            let rendered = e.render(Layer::ThreeD, 1.).unwrap();
+            assert_eq!(rendered.items[0].motion_id, first.items[0].motion_id);
+            assert_eq!(e.collisions().unwrap().boxes[0].corners[0].x, -0.5);
+            assert_eq!(
+                e.pick_surface_with_projection(Layer::ThreeD, projection, [0.; 2])
+                    .unwrap()
+                    .unwrap()
+                    .object,
+                id
+            );
+        }
+        assert!(!e.dirty());
+        assert!(e.undo_label().is_none());
+        let mut changed = e.scene().clone();
+        let object = changed.objects.iter_mut().find(|o| o.id == id).unwrap();
+        object.transform.translation[0] = 10.;
+        object.drawable.as_mut().unwrap().color = [0.2, 0.4, 0.8];
+        e.apply("Move and recolor", changed).unwrap();
+        let moved = e.render(Layer::ThreeD, 1.).unwrap();
+        assert_eq!(moved.items[0].model.transform_point3(Vec3::ZERO).x, 10.);
+        assert_eq!(moved.items[0].material.tint, [0.2, 0.4, 0.8]);
+        assert_eq!(e.collisions().unwrap().boxes[0].corners[0].x, 9.5);
+        assert!(
+            e.pick_surface_with_projection(Layer::ThreeD, projection, [0.; 2])
+                .unwrap()
+                .is_none()
+        );
+        e.undo().unwrap();
+        assert_eq!(e.collisions().unwrap().boxes[0].corners[0].x, -0.5);
+        assert!(
+            e.pick_surface_with_projection(Layer::ThreeD, projection, [0.; 2])
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            e.render(Layer::ThreeD, 1.).unwrap().items[0].material.tint,
+            first.items[0].material.tint
+        );
+        e.redo().unwrap();
+        assert_eq!(e.collisions().unwrap().boxes[0].corners[0].x, 9.5);
     }
     #[test]
     fn collider_edits_undo_and_queries_follow_the_play_world() {

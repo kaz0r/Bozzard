@@ -132,7 +132,7 @@ impl MeshCollider {
         Ok(corners)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CollisionMesh {
     pub id: String,
     pub entity: Entity,

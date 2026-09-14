@@ -169,7 +169,7 @@ impl Editor {
             return Ok(None);
         }
         let selection = self.surface_selection.as_ref().unwrap();
-        let demo = SceneDemo::new(&self.scene)?;
+        let demo = self.edit_demo()?;
         let transform = demo.instance().global_transforms(&demo.app.world)?[&object.id]
             * self
                 .selected_material_override()?
@@ -238,7 +238,7 @@ impl Editor {
         ndc: [f32; 2],
         reference: bool,
     ) -> Result<Option<Pick>> {
-        let demo = SceneDemo::new(&self.scene)?;
+        let demo = self.edit_demo()?;
         let inv = projection.inverse();
         let origin = inv.project_point3(Vec3::new(ndc[0], ndc[1], 0.0));
         let direction = (inv.project_point3(Vec3::new(ndc[0], ndc[1], 1.0)) - origin).normalize();

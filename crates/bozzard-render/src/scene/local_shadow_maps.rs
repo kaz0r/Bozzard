@@ -3,6 +3,7 @@ use super::*;
 struct Caster {
     uniform: wgpu::Buffer,
     binding: wgpu::BindGroup,
+    row: Vec<u8>,
 }
 pub(super) struct ShadowMaps {
     pub uniform: wgpu::Buffer,
@@ -11,6 +12,7 @@ pub(super) struct ShadowMaps {
     casters: Vec<Caster>,
     matrices: Vec<Mat4>,
     resolution: u32,
+    retained: Vec<Option<Vec<shadows::ShadowCaster>>>,
 }
 fn target(gpu: &Gpu, count: usize, resolution: u32) -> (wgpu::TextureView, Vec<wgpu::TextureView>) {
     let resolution = if count == 0 { 1 } else { resolution };
@@ -74,7 +76,11 @@ impl ShadowMaps {
                         resource: uniform.as_entire_binding(),
                     }],
                 });
-                Caster { uniform, binding }
+                Caster {
+                    uniform,
+                    binding,
+                    row: Vec::new(),
+                }
             })
             .collect();
         let (depth, layers) = target(gpu, 0, resolution);
@@ -85,6 +91,7 @@ impl ShadowMaps {
             casters,
             matrices: Vec::new(),
             resolution,
+            retained: Vec::new(),
         }
     }
     /// Map ordering is rebuilt each frame; every pass has its own buffer because
@@ -102,6 +109,7 @@ impl ShadowMaps {
                 "local shadow maps exceed device limits"
             );
             (self.depth, self.layers) = target(gpu, maps.len(), self.resolution);
+            self.retained = vec![None; maps.len()];
         }
         let mut bytes = vec![0; self.casters.len() * 80];
         for (slot, (matrix, shadow)) in maps.iter().enumerate() {
@@ -112,11 +120,61 @@ impl ShadowMaps {
                 1. / self.resolution as f32,
             ]));
             bytes[slot * 80..(slot + 1) * 80].copy_from_slice(&row);
-            gpu.queue.write_buffer(&self.casters[slot].uniform, 0, &row);
+            if self.casters[slot].row != row {
+                self.retained[slot] = None;
+                gpu.queue.write_buffer(&self.casters[slot].uniform, 0, &row);
+                self.casters[slot].row = row;
+            }
         }
         gpu.queue.write_buffer(&self.uniform, 0, &bytes);
         self.matrices = maps.iter().map(|(m, _)| *m).collect();
         Ok(changed)
+    }
+    pub fn invalidate(&mut self) {
+        self.retained.fill(None);
+    }
+
+    /// Use the exact caster predicate used by the depth pass, independently for
+    /// each spot map / point-light face. Entering and leaving a frustum both change the key.
+    pub fn changes(
+        &self,
+        renderer: &SceneRenderer,
+        draws: &[PreparedDraw],
+    ) -> Vec<Option<Vec<shadows::ShadowCaster>>> {
+        self.matrices
+            .iter()
+            .enumerate()
+            .map(|(slot, matrix)| {
+                let casters: Vec<_> = draws
+                    .iter()
+                    .filter(|d| !d.transparent && d.object.material.lit)
+                    .filter(|d| {
+                        !renderer.culling
+                            || visibility::visible(
+                                renderer.mesh_for(&d.object.mesh).bounds,
+                                *matrix * d.object.model,
+                            )
+                    })
+                    .map(shadows::ShadowCaster::new)
+                    .collect();
+                (!renderer.state_caching || self.retained[slot].as_ref() != Some(&casters))
+                    .then_some(casters)
+            })
+            .collect()
+    }
+    pub fn invalidate_changes(&mut self, changes: &[Option<Vec<shadows::ShadowCaster>>]) {
+        for (slot, change) in changes.iter().enumerate() {
+            if change.is_some() {
+                self.retained[slot] = None;
+            }
+        }
+    }
+    pub fn finish(&mut self, changes: Vec<Option<Vec<shadows::ShadowCaster>>>) {
+        for (slot, change) in changes.into_iter().enumerate() {
+            if change.is_some() {
+                self.retained[slot] = change;
+            }
+        }
     }
     pub fn draw(
         &self,
@@ -124,9 +182,13 @@ impl ShadowMaps {
         encoder: &mut wgpu::CommandEncoder,
         draws: &[PreparedDraw],
         pipeline: &wgpu::RenderPipeline,
+        changes: &[Option<Vec<shadows::ShadowCaster>>],
     ) -> (usize, u64) {
         let mut counts = (0, 0);
         for (slot, matrix) in self.matrices.iter().enumerate() {
+            if changes[slot].is_none() {
+                continue;
+            }
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("local shadow casters"),
                 color_attachments: &[],

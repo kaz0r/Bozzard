@@ -2,6 +2,12 @@ use super::*;
 use bozzard_assets::job::Job;
 use bozzard_scene::BakedGi;
 
+pub(super) struct Freshness {
+    revision: u64,
+    assets: Vec<(String, Option<u64>)>,
+    current: bool,
+}
+
 pub struct PreparedGi {
     baked: BakedGi,
     revision: u64,
@@ -9,7 +15,30 @@ pub struct PreparedGi {
 }
 impl Editor {
     pub fn gi_current(&self) -> bool {
-        bozzard_assets::gi::is_current(&self.scene, &self.assets).unwrap_or(false)
+        if self.scene.gi.baked.is_none() {
+            return false;
+        }
+        // AssetStore is public: include actual resident content fingerprints, not
+        // just Editor's publication counter. Same-ID replacement and Undo are safe.
+        let assets: Vec<_> = self
+            .assets
+            .entries()
+            .map(|e| (e.id.clone(), e.content_fingerprint()))
+            .collect();
+        let mut cached = self.gi_freshness.borrow_mut();
+        if let Some(previous) = cached.as_ref()
+            && previous.revision == self.revision
+            && previous.assets == assets
+        {
+            return previous.current;
+        }
+        let current = bozzard_assets::gi::is_current(&self.scene, &self.assets).unwrap_or(false);
+        *cached = Some(Freshness {
+            revision: self.revision,
+            assets,
+            current,
+        });
+        current
     }
     pub fn fit_gi_volume(&mut self) -> Result<()> {
         let volume = bozzard_assets::gi::fit_volume(&self.scene, &self.assets)?;

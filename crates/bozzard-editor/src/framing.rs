@@ -4,7 +4,7 @@ impl Editor {
     /// Authored world bounds for drawable objects in a layer. A selected group includes
     /// descendants; a selection without geometry falls back to its world-space origin.
     pub fn frame_bounds(&self, layer: Layer, selection: Option<&str>) -> Result<Option<[Vec3; 2]>> {
-        let demo = SceneDemo::new(&self.scene)?;
+        let demo = self.edit_demo()?;
         let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let mut included = BTreeSet::new();
         if let Some(id) = selection {

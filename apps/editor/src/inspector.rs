@@ -1,4 +1,45 @@
 use super::*;
+
+/// Editable panel data, excluding the potentially large entity/asset document.
+#[derive(Clone, PartialEq)]
+pub(crate) struct SceneSettings {
+    pub name: String,
+    pub game_flow: Option<bozzard_scene::GameFlowSettings>,
+    pub gi: bozzard_scene::GiSettings,
+    pub lighting: bozzard_scene::Lighting,
+    pub environment: bozzard_scene::EnvironmentSettings,
+    pub fog: bozzard_scene::FogSettings,
+    pub display: bozzard_scene::DisplaySettings,
+    pub post_process_volumes: Vec<bozzard_scene::PostProcessVolume>,
+}
+impl From<&bozzard_scene::Scene> for SceneSettings {
+    fn from(scene: &bozzard_scene::Scene) -> Self {
+        Self {
+            name: scene.name.clone(),
+            game_flow: scene.game_flow.clone(),
+            gi: scene.gi.clone(),
+            lighting: scene.lighting,
+            environment: scene.environment,
+            fog: scene.fog,
+            display: scene.display,
+            post_process_volumes: scene.post_process_volumes.clone(),
+        }
+    }
+}
+impl SceneSettings {
+    pub fn apply_to(self, document: &bozzard_scene::Scene) -> bozzard_scene::Scene {
+        let mut scene = document.clone();
+        scene.game_flow = self.game_flow;
+        scene.gi = self.gi;
+        scene.lighting = self.lighting;
+        scene.environment = self.environment;
+        scene.fog = self.fog;
+        scene.display = self.display;
+        scene.post_process_volumes = self.post_process_volumes;
+        scene
+    }
+}
+
 impl App {
     pub fn inspector(&mut self, ui: &mut egui::Ui) {
         if self.loading.is_some() {
@@ -13,7 +54,8 @@ impl App {
             return;
         };
         let mut object = original.clone();
-        let mut scene = self.editor.scene().clone();
+        let mut scene = self.editor.scene_snapshot();
+        let mut views = scene.views.clone();
         let checkpoint_start = checkpoint_respawn(&scene, &original);
         let mut remove = None;
         ui.push_id(&original.id, |ui| {
@@ -228,7 +270,7 @@ impl App {
                         let mut controller = object.player_controller.is_some();
                         if ui.checkbox(&mut controller, "Player Controller").changed() {
                             object.player_controller = controller.then(|| bozzard_scene::PlayerController {
-                                camera: scene.views.get(&Layer::ThreeD).cloned().unwrap_or_default(),
+                                camera: views.get(&Layer::ThreeD).cloned().unwrap_or_default(),
                                 ..Default::default()
                             });
                             if controller {
@@ -242,7 +284,7 @@ impl App {
                                 .selected_text(&config.camera).show_ui(ui, |ui| {
                                     for candidate in scene.objects.iter().filter(|o| eligible_follow_camera(o)) {
                                         if ui.selectable_value(&mut config.camera, candidate.id.clone(), &candidate.name).changed() {
-                                            scene.views.insert(Layer::ThreeD, candidate.id.clone());
+                                            views.insert(Layer::ThreeD, candidate.id.clone());
                                         }
                                     }
                                 });
@@ -306,7 +348,7 @@ impl App {
                         let mut camera = object.camera.is_some();
                         if ui.checkbox(&mut camera, "Camera").changed() {
                             if !camera {
-                                scene.views.retain(|_, id| id != &object.id);
+                                views.retain(|_, id| id != &object.id);
                             }
                             object.camera = if camera {
                                 Some(Camera::Perspective {
@@ -363,20 +405,24 @@ impl App {
                                         || !scene.objects.iter().any(|o| o.player_controller.is_some())
                                         || eligible_follow_camera(&object);
                                     if ui.add_enabled(eligible, egui::Button::new(label)).clicked() {
-                                        scene.views.insert(layer, object.id.clone());
+                                        views.insert(layer, object.id.clone());
                                     }
                                 }
                             });
                         }
                         });
                         }
+                        if views != scene.views { std::sync::Arc::make_mut(&mut scene).views = views.clone(); }
                         if let Some(error) = add_component_menu(ui, &mut object, &scene, self.layer(), &self.editor.assets) { self.result(Err(error)); }
                     });
                 });
         });
         if let Some(component) = remove {
             self.editor.finish_gesture();
-            remove_component(&mut object, &mut scene, component);
+            let document = std::sync::Arc::make_mut(&mut scene);
+            document.views = views;
+            remove_component(&mut object, document, component);
+            views = document.views.clone();
         }
         if let Some(play) = &self.editor.play
             && let Some(entity) = play.instance().entity(&original.id)
@@ -412,9 +458,11 @@ impl App {
         }
         if ui.is_enabled()
             && self.editor.play.is_none()
-            && (object != original || scene.views != self.editor.scene().views)
+            && (object != original || views != self.editor.scene().views)
         {
             self.editor.begin_gesture("Edit component");
+            let mut scene = std::sync::Arc::unwrap_or_clone(scene);
+            scene.views = views;
             if let Some(slot) = scene.objects.iter_mut().find(|o| o.id == object.id) {
                 *slot = object;
             }
@@ -424,7 +472,8 @@ impl App {
         }
     }
     pub fn lighting_inspector(&mut self, ui: &mut egui::Ui) {
-        let mut scene = self.editor.scene().clone();
+        let mut scene = SceneSettings::from(self.editor.scene());
+        let original = scene.clone();
         let mut bake_gi = false;
         let mut fit_gi = false;
         let gi_current = self.editor.gi_current();
@@ -558,17 +607,11 @@ impl App {
             crate::post_processing::controls(ui, &mut scene.display);
             crate::post_processing::volumes(ui, &mut scene.post_process_volumes);
         });
-        if ui.is_enabled()
-            && self.editor.play.is_none()
-            && (scene.fog != self.editor.scene().fog
-                || scene.gi != self.editor.scene().gi
-                || scene.lighting != self.editor.scene().lighting
-                || scene.post_process_volumes != self.editor.scene().post_process_volumes
-                || scene.display != self.editor.scene().display
-                || scene.environment != self.editor.scene().environment)
-        {
+        if ui.is_enabled() && self.editor.play.is_none() && scene != original {
             self.editor.begin_gesture("Edit scene lighting");
-            let result = self.editor.apply("Edit scene lighting", scene);
+            let result = self
+                .editor
+                .apply("Edit scene lighting", scene.apply_to(self.editor.scene()));
             self.result(result);
         }
         if fit_gi {
@@ -1062,6 +1105,25 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/demo/scenes/first-trail.json");
         Editor::open(&path).unwrap()
+    }
+
+    #[test]
+    fn settings_draft_preserves_entities_assets_and_history() {
+        let mut editor = editor();
+        let original = editor.scene().clone();
+        let mut settings = SceneSettings::from(&original);
+        settings.display.exposure_ev = 0.5;
+        settings.game_flow = Some(bozzard_scene::GameFlowSettings::default());
+        let scene = settings.apply_to(editor.scene());
+        assert_eq!(scene.objects, original.objects);
+        assert_eq!(scene.assets, original.assets);
+        assert_eq!(scene.views, original.views);
+        assert_eq!(scene.prefabs, original.prefabs);
+        editor.apply("Scene settings", scene).unwrap();
+        assert_eq!(editor.scene().display.exposure_ev, 0.5);
+        assert!(editor.scene().game_flow.is_some());
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &original);
     }
 
     #[test]

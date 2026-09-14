@@ -1,5 +1,96 @@
 use super::*;
 
+/// Exact depth-producing state, independent of camera, exposure and light color.
+/// Asset publication invalidates the retained frame even when asset IDs are reused.
+#[derive(PartialEq)]
+pub(super) struct ShadowFrame {
+    sun: (bool, u32, [f32; 3], f32, f32),
+    lights: Vec<ShadowLight>,
+    casters: Vec<ShadowCaster>,
+    culling: bool,
+}
+
+#[derive(PartialEq)]
+struct ShadowLight {
+    position: [f32; 3],
+    direction: [f32; 3],
+    range: f32,
+    angles: Option<[f32; 2]>,
+    bias: f32,
+    normal_bias: f32,
+}
+
+#[derive(Clone, PartialEq)]
+pub(super) struct ShadowCaster {
+    model: Mat4,
+    mesh: MeshKind,
+    texture: TextureKind,
+    uv_scale: [f32; 2],
+    opacity: f32,
+    cutoff: f32,
+    transparent: bool,
+}
+
+impl ShadowCaster {
+    pub fn new(d: &PreparedDraw) -> Self {
+        Self {
+            model: d.object.model,
+            mesh: d.object.mesh.clone(),
+            texture: d.object.material.texture.clone(),
+            uv_scale: d.object.material.uv_scale,
+            opacity: d.opacity,
+            cutoff: d.cutoff,
+            transparent: d.transparent,
+        }
+    }
+}
+
+impl ShadowFrame {
+    pub fn same_sun(&self, other: &Self) -> bool {
+        self.sun == other.sun && self.casters == other.casters && self.culling == other.culling
+    }
+
+    pub fn new(scene: &RenderScene, draws: &[PreparedDraw], culling: bool) -> Self {
+        let light = scene.lighting;
+        Self {
+            sun: (
+                light.shadows && light.sun_intensity > 0.,
+                light.shadow_resolution,
+                light.sun_direction,
+                light.shadow_bias,
+                light.shadow_normal_bias,
+            ),
+            lights: scene
+                .lights
+                .iter()
+                .filter(|l| l.casts_shadow())
+                .map(|l| {
+                    let shadow = l.shadows.unwrap();
+                    ShadowLight {
+                        position: l.position,
+                        direction: if l.spot_angles.is_some() {
+                            l.direction
+                        } else {
+                            [0.; 3]
+                        },
+                        range: l.range,
+                        angles: l.spot_angles,
+                        bias: shadow.bias,
+                        normal_bias: shadow.normal_bias,
+                    }
+                })
+                .collect(),
+            casters: draws
+                .iter()
+                // Transparent receivers also affect the directional map's fitted bounds.
+                .filter(|d| d.object.material.lit)
+                .map(ShadowCaster::new)
+                .collect(),
+            culling,
+        }
+    }
+}
+
 pub(super) struct Shadows {
     pub spots: local_shadow_maps::ShadowMaps,
     pub points: local_shadow_maps::ShadowMaps,
@@ -383,15 +474,10 @@ impl SceneRenderer {
         match kind {
             MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
             MeshKind::Quad => &self.quad,
-            MeshKind::Cube | MeshKind::Sphere => &self.cube,
+            MeshKind::Cube => &self.cube,
+            MeshKind::Sphere => &self.sphere,
             MeshKind::Imported(id) => &self.imported_meshes[id],
             MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
-        }
-    }
-    pub(super) fn shading(&self, kind: &MeshKind) -> Option<&crate::pbr::UploadedShading> {
-        match kind {
-            MeshKind::ModelPart(id, index) => self.models[id][*index].shading.as_ref(),
-            _ => None,
         }
     }
     pub(super) fn update_shadows(

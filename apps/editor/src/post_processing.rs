@@ -368,7 +368,8 @@ impl App {
             ui.checkbox(&mut self.preview_bypass,"Before").on_hover_text("Compare the base scene with the authored effects. This only changes your viewport.");
         });
         ui.weak("Preview animates particles and atmosphere. Play runs gameplay too.");
-        let mut scene = self.editor.scene().clone();
+        let document = self.editor.scene_snapshot();
+        let mut scene = crate::inspector::SceneSettings::from(&*document);
         let original = scene.clone();
         let mut particle = None;
         let mut wet = false;
@@ -398,10 +399,10 @@ impl App {
                 ui.add(egui::Slider::new(&mut scene.display.depth_of_field.focus_distance,0.5..=1000.0).logarithmic(true).text("Focus distance"));
                 if ui.add_enabled(self.editor.selected.is_some(),egui::Button::new("Focus selected object")).clicked() {
                     let result=(||->Result<f32> {
-                        let matrices=scene.global_transforms()?;
+                        let matrices=document.global_transforms()?;
                         let selected=self.editor.selected.as_ref().context("Select an object")?;
                         let position=matrices[selected].transform_point3(Vec3::ZERO);
-                        let camera=self.workspace.camera.as_ref().map(|c|c.pose()).unwrap_or(matrices[&scene.views[&Layer::ThreeD]]);
+                        let camera=self.workspace.camera.as_ref().map(|c|c.pose()).unwrap_or(matrices[&document.views[&Layer::ThreeD]]);
                         let forward=-camera.z_axis.truncate().normalize();
                         Ok((position-camera.w_axis.truncate()).dot(forward).clamp(0.5,1000.))
                     })();
@@ -420,7 +421,7 @@ impl App {
             ui.checkbox(&mut scene.display.ambient_occlusion.enabled,"Contact shading (AO)");
             ui.checkbox(&mut scene.display.heat_distortion.enabled,"Heat shimmer");
             ui.checkbox(&mut scene.display.reflections.enabled,"Screen-space reflections");
-            let has_mesh=self.editor.selected.as_ref().is_some_and(|id|scene.objects.iter().any(|o|&o.id==id&&o.drawable.is_some()));
+            let has_mesh=self.editor.selected.as_ref().is_some_and(|id|document.objects.iter().any(|o|&o.id==id&&o.drawable.is_some()));
             wet=ui.add_enabled(has_mesh,egui::Button::new("Make selected surface wet")).on_hover_text("Apply a smooth dielectric material and enable reflections. Undo restores the material.").clicked();
             ui.separator();
             ui.label(egui::RichText::new("Color & film").strong());
@@ -439,7 +440,9 @@ impl App {
             volumes(ui,&mut scene.post_process_volumes);
         });
         if scene != original {
-            let result = self.editor.apply("Edit effects", scene);
+            let result = self
+                .editor
+                .apply("Edit effects", scene.apply_to(self.editor.scene()));
             self.result(result);
         }
         if let Some(kind) = particle {

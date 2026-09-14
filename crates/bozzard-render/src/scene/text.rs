@@ -297,10 +297,10 @@ impl SceneRenderer {
                 .prepare(gpu, &scene.items)?
             {
                 // The atlas view was replaced: bindings must not retain its old texture.
-                self.objects.clear();
+                self.invalidate_object_bindings();
             }
         } else if self.text.take().is_some() {
-            self.objects.clear();
+            self.invalidate_object_bindings();
         }
         Ok(())
     }

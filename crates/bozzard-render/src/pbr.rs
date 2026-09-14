@@ -56,8 +56,8 @@ pub(crate) struct UploadedShading {
 }
 #[derive(Clone)]
 pub(crate) struct PbrRenderer {
-    pub opaque: wgpu::RenderPipeline,
-    pub transparent: wgpu::RenderPipeline,
+    pub opaque: [wgpu::RenderPipeline; 2],
+    pub transparent: [wgpu::RenderPipeline; 2],
     layout: wgpu::BindGroupLayout,
     neutral_normal: wgpu::TextureView,
     white: wgpu::TextureView,
@@ -136,7 +136,7 @@ impl PbrRenderer {
                     .into(),
                 ),
             });
-        let pipeline = |transparent| {
+        let pipeline = |transparent, auxiliary| {
             gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("PBR scene"), layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(),
@@ -145,14 +145,14 @@ impl PbrRenderer {
                     Some(wgpu::VertexBufferLayout { array_stride: 48, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![3=>Float32x4, 4=>Float32x2, 5=>Float32x2, 6=>Float32x2, 7=>Float32x2] }),
                 ] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(),
-                targets: &crate::scene::geometry::color_targets(format, transparent) }),
+                targets: &crate::scene::geometry::color_targets(format, transparent, auxiliary) }),
             primitive: Default::default(), depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: Some(!transparent), depth_compare: Some(wgpu::CompareFunction::Less), stencil: Default::default(), bias: Default::default() }),
             multisample: Default::default(), multiview_mask: None, cache: None,
         })
         };
-        let opaque = pipeline(false);
-        let transparent = pipeline(true);
+        let opaque = [pipeline(false, false), pipeline(false, true)];
+        let transparent = [pipeline(true, false), pipeline(true, true)];
         let image = |rgba: &[u8]| {
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("PBR neutral texture"),

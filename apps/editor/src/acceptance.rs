@@ -1,5 +1,103 @@
 use super::*;
+#[derive(Default)]
+pub(super) struct RepaintSmoke {
+    frame: u32,
+    viewport_frames: u64,
+    draws: u64,
+    reuses: u64,
+    image: Option<bozzard_render::Frame>,
+    camera: Option<viewport::FlyCamera>,
+}
+impl RepaintSmoke {
+    fn advance(&mut self, viewport_frames: u64) -> Option<u32> {
+        // Asset decoding can finish several UI updates before GPU uploads do.
+        // Only count a frame once the viewport has actually drawn or reused it.
+        if viewport_frames == self.viewport_frames {
+            return None;
+        }
+        self.viewport_frames = viewport_frames;
+        self.frame += 1;
+        Some(self.frame)
+    }
+}
 impl App {
+    // Exercise the actual retained viewport before the existing authoring/Play tests.
+    fn smoke_retained_viewport(&mut self) -> Result<bool> {
+        if self.smoke_repaint.frame >= 11 {
+            return Ok(true);
+        }
+        let Some(step) = self
+            .smoke_repaint
+            .advance(self.viewport_draws + self.viewport_reuses)
+        else {
+            return Ok(false);
+        };
+        if self.viewport_continuous || self.workspace.layer_2d {
+            self.smoke_repaint.frame = 11;
+            return Ok(true);
+        }
+        let read = || -> Result<bozzard_render::Frame> {
+            let t = self
+                .target
+                .as_ref()
+                .context("viewport target unavailable")?;
+            bozzard_render::read_texture(&self.gpu, &t.texture, t.size[0], t.size[1])
+        };
+        match step {
+            3 => {
+                self.smoke_repaint.image = Some(read()?);
+                self.smoke_repaint.draws = self.viewport_draws;
+                self.smoke_repaint.reuses = self.viewport_reuses;
+            }
+            9 => {
+                ensure!(
+                    self.viewport_draws == self.smoke_repaint.draws,
+                    "idle viewport redrew"
+                );
+                ensure!(
+                    self.viewport_reuses >= self.smoke_repaint.reuses + 6,
+                    "idle viewport was not reused"
+                );
+                ensure!(
+                    read()?.rgba == self.smoke_repaint.image.as_ref().unwrap().rgba,
+                    "retained viewport changed pixels"
+                );
+                self.smoke_repaint.camera = self.workspace.camera.clone();
+                self.workspace
+                    .camera
+                    .as_mut()
+                    .context("missing editor camera")?
+                    .move_by(Vec3::new(0.5, 0., 0.));
+            }
+            10 => {
+                ensure!(
+                    self.viewport_draws == self.smoke_repaint.draws + 1,
+                    "camera movement did not redraw"
+                );
+                ensure!(
+                    read()?.rgba != self.smoke_repaint.image.as_ref().unwrap().rgba,
+                    "camera movement left stale viewport pixels"
+                );
+                self.workspace.camera = self.smoke_repaint.camera.take();
+            }
+            11 => {
+                ensure!(
+                    self.viewport_draws == self.smoke_repaint.draws + 2,
+                    "camera restore did not redraw"
+                );
+                ensure!(
+                    read()?.rgba == self.smoke_repaint.image.take().unwrap().rgba,
+                    "camera restore changed static viewport pixels"
+                );
+                println!(
+                    "editor_repaint_smoke_ok idle_frames=6 scene_draws=0 camera_move_and_restore exact_pixels"
+                );
+                return Ok(true);
+            }
+            _ => {}
+        }
+        Ok(false)
+    }
     pub fn smoke_gizmo_navigation(
         &mut self,
         ui: &mut egui::Ui,
@@ -102,6 +200,23 @@ impl App {
         let Some(output) = self.smoke.clone() else {
             return;
         };
+        // Check before any stage can return while waiting for graphics or I/O.
+        if self.smoke_start.elapsed() > Duration::from_secs(30) {
+            eprintln!("editor_smoke_failed: no completed UI workflow within 30 seconds");
+            self.allow_close = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+        match self.smoke_retained_viewport() {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(error) => {
+                eprintln!("editor_smoke_failed: {error:#}");
+                self.allow_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                return;
+            }
+        }
         self.smoke_frames += 1;
         if self.smoke_export_started {
             if self.loading.is_some() {
@@ -152,6 +267,10 @@ impl App {
                 eprintln!("editor_smoke_failed: {error:#}");
             } else {
                 self.smoke_passed.store(true, Ordering::Relaxed);
+                println!(
+                    "editor_viewport_work draws={} reused={}",
+                    self.viewport_draws, self.viewport_reuses
+                );
                 println!(
                     "editor_smoke_ok authored_commands play_isolation native_ui_capture export"
                 );
@@ -873,10 +992,35 @@ impl App {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
-        if self.smoke_start.elapsed() > Duration::from_secs(30) {
-            eprintln!("editor_smoke_failed: no rendered UI capture within 30 seconds");
-            self.allow_close = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RepaintSmoke;
+
+    #[test]
+    fn repaint_smoke_waits_for_the_first_rendered_viewport() {
+        let mut smoke = RepaintSmoke::default();
+        // Slow GPU uploads must not reach the step-three pixel read.
+        for _ in 0..100 {
+            assert_eq!(smoke.advance(0), None);
+        }
+        assert_eq!(smoke.advance(1), Some(1));
+        assert_eq!(smoke.advance(2), Some(2));
+        assert_eq!(smoke.advance(3), Some(3));
+    }
+
+    #[test]
+    fn repaint_smoke_counts_only_drawn_or_reused_viewport_frames() {
+        let mut smoke = RepaintSmoke::default();
+        for frame in 1..=11 {
+            assert_eq!(smoke.advance(frame), Some(frame as u32));
+            // Repeated UI updates without viewport work must not consume an
+            // idle frame or assert a camera redraw before rendering resumes.
+            for _ in 0..5 {
+                assert_eq!(smoke.advance(frame), None);
+            }
         }
     }
 }

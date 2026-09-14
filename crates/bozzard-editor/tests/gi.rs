@@ -146,3 +146,79 @@ fn cancelled_and_stale_bakes_never_publish() {
     .unwrap();
     assert!(baked.probes.iter().any(|p| p[3] > 0.));
 }
+
+#[test]
+fn freshness_tracks_public_asset_reload_and_preview_revision() -> anyhow::Result<()> {
+    let dir = Temp::new();
+    let mesh_path = dir.0.join("source.obj");
+    let mesh = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+    std::fs::write(&mesh_path, mesh)?;
+    let mut e = editor(&dir.0.join("scene.json"));
+    let mut scene = e.scene().clone();
+    scene.assets.insert(
+        "mesh".into(),
+        bozzard_scene::AssetSource {
+            kind: bozzard_scene::AssetKind::Mesh,
+            path: "source.obj".into(),
+        },
+    );
+    scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "floor")
+        .unwrap()
+        .drawable
+        .as_mut()
+        .unwrap()
+        .mesh = bozzard_scene::Mesh::Asset("mesh".into());
+    e.apply("Mesh", scene)?;
+    let mut scene = e.scene().clone();
+    scene.gi.baked = Some(std::sync::Arc::new(bozzard_scene::BakedGi::new(
+        bozzard_assets::gi::source(&scene, &e.assets, scene.gi.volume)?,
+        scene.gi.volume,
+        std::sync::Arc::new(vec![
+            [0.; 4];
+            scene.gi.volume.probe_count()
+                * bozzard_scene::GI_PROBE_STRIDE
+        ]),
+    )?));
+    scene.gi.enabled = true;
+    e.apply("GI fixture", scene)?;
+    let preview = bozzard_editor::EffectsPreview::new(&e)?;
+    for _ in 0..2 {
+        assert!(e.gi_current());
+        assert!(e.render(Layer::ThreeD, 1.)?.gi.is_some());
+        assert!(preview.render(&e, Layer::ThreeD, 1.)?.gi.is_some());
+    }
+    let revision = e.asset_revision();
+    std::fs::write(&mesh_path, mesh.replace("0 1 0", "0 2 0"))?;
+    assert_eq!(e.assets.refresh().len(), 1);
+    assert_eq!(revision, e.asset_revision()); // Bypasses Editor's publication counter.
+    assert!(!e.gi_current());
+    assert!(e.render(Layer::ThreeD, 1.)?.gi.is_none());
+    assert!(preview.render(&e, Layer::ThreeD, 1.)?.gi.is_none());
+    std::fs::write(&mesh_path, mesh)?;
+    e.assets.refresh();
+    assert!(e.gi_current());
+    Ok(())
+}
+
+#[test]
+fn immutable_document_snapshots_track_edits_undo_and_redo() -> anyhow::Result<()> {
+    let dir = Temp::new();
+    let mut e = editor(&dir.0.join("scene.json"));
+    let original = e.scene_snapshot();
+    assert!(std::sync::Arc::ptr_eq(&original, &e.scene_snapshot()));
+    let mut next = (*original).clone();
+    next.name = "Renamed".into();
+    e.apply("Rename", next.clone())?;
+    let changed = e.scene_snapshot();
+    assert_eq!(*changed, next);
+    assert!(!std::sync::Arc::ptr_eq(&original, &changed));
+    e.undo()?;
+    assert_eq!(*e.scene_snapshot(), *original);
+    e.redo()?;
+    assert_eq!(*e.scene_snapshot(), *changed);
+    assert_eq!(*original, *editor(&dir.0.join("other.json")).scene());
+    Ok(())
+}
