@@ -1,13 +1,16 @@
 //! Bounded fixed-step graph interpreter shared by editor Play, native player and server.
 use super::*;
-use blueprint::{Blueprint, InputKey, Node, NodeKind as K, ObjectRef, Socket, Value};
+use blueprint::{Blueprint, Node, NodeKind as K, ObjectRef, Socket, Value};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Default)]
 struct Run {
     started: bool,
     overlap: BTreeSet<String>,
-    held: [bool; 5],
+    // Bits of the bindings active last tick, so an assigned key still gets press edges.
+    held: u128,
+    // Latest Move With Collision floor contact per node: a data output of an action.
+    grounded: BTreeMap<u32, bool>,
     variables: BTreeMap<String, f32>,
     spawned: BTreeMap<u32, ObjectRef>,
 }
@@ -24,6 +27,7 @@ struct Eval<'a> {
     graph: &'a Blueprint,
     variables: &'a BTreeMap<String, f32>,
     spawned: &'a BTreeMap<u32, ObjectRef>,
+    grounded: &'a BTreeMap<u32, bool>,
     world: &'a World,
     entities: &'a BTreeMap<String, Entity>,
     owner: &'a str,
@@ -57,6 +61,9 @@ impl Eval<'_> {
             return Ok(Value::Object(
                 self.spawned.get(&id).cloned().unwrap_or(ObjectRef::None),
             ));
+        }
+        if n.kind == K::MoveWithCollision && socket.port == 1 {
+            return Ok(Value::Bool(*self.grounded.get(&id).unwrap_or(&false)));
         }
         let v: Vec<_> = (0..n.inputs.len())
             .map(|p| self.input(n, p))
@@ -102,6 +109,14 @@ impl Eval<'_> {
                     .and_then(|id| self.entities.get(id))
                     .is_some_and(|e| self.world.get::<Transform>(*e).is_some()),
             ),
+            K::IsRigidbody => Value::Bool(
+                reference_id(v[0].object()?, self.owner)
+                    .and_then(|id| self.entities.get(id))
+                    .is_some_and(|e| {
+                        self.world.get::<Gravity>(*e).is_some_and(|g| g.enabled)
+                            && self.world.get::<PlayerController>(*e).is_none()
+                    }),
+            ),
             K::DeltaTime => Value::Number(self.dt),
             K::ElapsedTime => Value::Number(self.elapsed),
             K::Position | K::Rotation | K::Scale => {
@@ -126,6 +141,20 @@ impl Eval<'_> {
             K::MoveY => Value::Number(self.input.movement[1]),
             K::MouseX => Value::Number(self.input.orbit[0]),
             K::MouseY => Value::Number(self.input.orbit[1]),
+            K::ForwardVector => {
+                let id = reference_id(v[0].object()?, self.owner)
+                    .context("forward vector target is None")?;
+                let entity = self
+                    .entities
+                    .get(id)
+                    .context("forward vector target does not exist")?;
+                let transform = self
+                    .world
+                    .get::<Transform>(*entity)
+                    .context("forward vector target was removed")?;
+                Value::Vector(crate::physics::forward(transform).to_array())
+            }
+            K::BreakVector => Value::Number(v[0].vector()?[socket.port]),
             K::GetVariable => Value::Number(self.variables[&n.variable]),
             K::Add => Value::Number(v[0].number()? + v[1].number()?),
             K::Subtract => Value::Number(v[0].number()? - v[1].number()?),
@@ -135,6 +164,11 @@ impl Eval<'_> {
                 Value::Number(v[0].number()? / v[1].number()?)
             }
             K::Sine => Value::Number(v[0].number()?.sin()),
+            K::Clamp => {
+                let (value, min, max) = (v[0].number()?, v[1].number()?, v[2].number()?);
+                ensure!(min <= max, "Clamp needs Min <= Max at node {id}");
+                Value::Number(value.clamp(min, max))
+            }
             K::Greater => Value::Bool(v[0].number()? > v[1].number()?),
             K::Less => Value::Bool(v[0].number()? < v[1].number()?),
             K::Equal => Value::Bool(v[0].number()? == v[1].number()?),
@@ -314,13 +348,12 @@ impl SceneInstance {
                         {
                             break;
                         }
-                        let key_index = InputKey::ALL.iter().position(|k| *k == event.key).unwrap();
                         let fire = match event.kind {
                             K::Start => !run.started,
                             K::Update => true,
                             K::InputPressed => {
                                 event.key.active(input)
-                                    && (event.key == InputKey::Jump || !run.held[key_index])
+                                    && (event.key.instant() || run.held & event.key.bit() == 0)
                             }
                             K::TriggerEnter => !overlap.is_empty() && run.overlap.is_empty(),
                             K::TriggerExit => overlap.is_empty() && !run.overlap.is_empty(),
@@ -371,6 +404,7 @@ impl SceneInstance {
                                         graph,
                                         variables: &run.variables,
                                         spawned: &run.spawned,
+                                        grounded: &run.grounded,
                                         world,
                                         entities: &self.entities,
                                         owner: &object.id,
@@ -381,12 +415,17 @@ impl SceneInstance {
                                         elapsed: runtime.elapsed,
                                         cache: BTreeMap::new(),
                                     };
-                                    let value = eval.input(node, 1).with_context(|| {
-                                        format!(
-                                            "blueprint '{}' on '{}', node {}",
-                                            graph.name, object.id, node.id
-                                        )
-                                    })?;
+                                    // Actions with no value pin (Lock/Unlock Cursor) carry only exec.
+                                    let value = if node.inputs.len() > 1 {
+                                        eval.input(node, 1).with_context(|| {
+                                            format!(
+                                                "blueprint '{}' on '{}', node {}",
+                                                graph.name, object.id, node.id
+                                            )
+                                        })?
+                                    } else {
+                                        Value::Exec
+                                    };
                                     let target = if let Some(port) = node.kind.target_port() {
                                         let target = eval.input(node, port)?;
                                         reference_id(target.object()?, &object.id).context("action target is None; choose an object or guard with Is Valid Object")?.to_owned()
@@ -524,14 +563,39 @@ impl SceneInstance {
                                             world.insert(entity, light)?;
                                         }
                                         K::MoveWithCollision => {
-                                            self.move_box(
+                                            let movement = self.move_box(
                                                 world,
                                                 &target,
                                                 Vec3::from(value.vector()?),
                                             )?;
+                                            run.grounded.insert(
+                                                node.id,
+                                                movement
+                                                    .contact_normals
+                                                    .iter()
+                                                    .any(|normal| normal.y >= 0.5),
+                                            );
                                         }
                                         K::Jump => {
                                             self.jump_box(world, &target, value.number()?)?;
+                                        }
+                                        K::SetVelocity => {
+                                            self.set_velocity(
+                                                world,
+                                                &target,
+                                                entity,
+                                                Vec3::from(value.vector()?),
+                                            )?;
+                                        }
+                                        K::LockCursor => {
+                                            world.insert_resource(CursorCapture {
+                                                requested: Some(true),
+                                            });
+                                        }
+                                        K::UnlockCursor => {
+                                            world.insert_resource(CursorCapture {
+                                                requested: Some(false),
+                                            });
                                         }
                                         K::Print => {
                                             runtime.messages.push_back(format!(
@@ -556,7 +620,7 @@ impl SceneInstance {
                     }
                     run.started = true;
                     run.overlap = overlap.clone();
-                    run.held = InputKey::ALL.map(|key| key.active(input));
+                    run.held = input.binding_mask();
                 }
             }
             runtime

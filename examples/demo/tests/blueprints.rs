@@ -1,7 +1,8 @@
 use bozzard_demo::SceneDemo;
 use bozzard_scene::{
     Blueprint, BlueprintAttachment, GameplayInput, Scene, Transform,
-    blueprint::{Node, NodeKind as K, Socket, Value, Wire},
+    blueprint::{InputKey, Node, NodeKind as K, Socket, Value, Wire},
+    keys,
 };
 
 fn link(graph: &mut Blueprint, from: u32, port: usize, to: u32, input: usize) {
@@ -509,4 +510,53 @@ fn lens_showcase_racks_focus_and_restarts_from_authored_settings() {
             .display_at([0.; 3].into(), bozzard_scene::Layer::ThreeD),
         authored.display
     );
+}
+
+#[test]
+fn a_scene_assigns_its_own_buttons_instead_of_the_fixed_seven() {
+    // The engine's original aliases are just names now; any bound key drives its own nodes.
+    let mut assign = action(K::InputPressed, K::Translate, Value::Vector([0., 1., 0.]));
+    assign.nodes[0].key = InputKey::parse("F").unwrap();
+    // An unbound spelling is a load error, not a node that silently never fires, both
+    // through the API and through the saved graph the scene file holds.
+    assert!(InputKey::parse("KeyFoo").is_err());
+    assert!(
+        Blueprint::from_json(&assign.to_json().unwrap().replace("\"jump\"", "\"KeyFoo\"")).is_err()
+    );
+    // A held key is a level: an Update tick translates while the button is down.
+    let mut held = Blueprint {
+        nodes: vec![
+            Node::new(1, K::Update, [0., 0.]),
+            Node::new(2, K::InputHeld, [200., 0.]),
+            Node::new(3, K::Branch, [400., 0.]),
+            Node::new(4, K::Translate, [600., 0.]),
+        ],
+        ..Blueprint::default()
+    };
+    held.nodes[1].key = InputKey::parse("MouseRight").unwrap();
+    held.nodes[3].inputs[1] = Value::Vector([0., 0., 1.]);
+    link(&mut held, 1, 0, 3, 0);
+    link(&mut held, 2, 0, 3, 1);
+    link(&mut held, 3, 0, 4, 0);
+    let mut demo = SceneDemo::new(&scene(vec![assign, held])).unwrap();
+    let press = |demo: &mut SceneDemo, mask: u128| {
+        demo.set_gameplay_input(GameplayInput {
+            keys: mask,
+            ..Default::default()
+        });
+        demo.app.step();
+        demo.check_simulation().unwrap();
+    };
+    let (f, right) = (keys::bit("F"), keys::bit("MouseRight"));
+    // Held over four ticks: the press edge fires once, the held node every tick.
+    for _ in 0..4 {
+        press(&mut demo, f | right);
+    }
+    assert_eq!(transform(&demo).translation[1], 1.);
+    assert!((transform(&demo).translation[2] - 4.).abs() < 0.001);
+    // Releasing and pressing again is a new edge, and the held node stops with the button.
+    press(&mut demo, 0);
+    press(&mut demo, keys::bit("KeyF"));
+    assert_eq!(transform(&demo).translation[1], 2.);
+    assert!((transform(&demo).translation[2] - 4.).abs() < 0.001);
 }

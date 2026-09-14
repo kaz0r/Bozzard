@@ -1,9 +1,13 @@
 use super::framing::{fit_2d, fit_3d};
 use super::*;
 use glam::Mat4;
-fn gameplay_orbit(response: &egui::Response) -> Vec2 {
+fn gameplay_orbit(response: &egui::Response, scene_captures_pointer: bool) -> Vec2 {
     // dragged_by reads the Context too: never call it while input holds egui's lock.
-    if response.dragged_by(egui::PointerButton::Secondary) {
+    // A scene that asks for cursor capture gets no-button look: the editor cannot lock
+    // the pointer, so a hovered viewport is the closest honest equivalent.
+    if response.dragged_by(egui::PointerButton::Secondary)
+        || (scene_captures_pointer && response.hovered())
+    {
         response.ctx.input(|i| i.pointer.delta())
     } else {
         Vec2::ZERO
@@ -587,7 +591,16 @@ impl App {
                 && !ui.ctx().egui_wants_keyboard_input();
             let play = self.editor.play.as_mut().unwrap();
             if eligible {
-                let orbit = gameplay_orbit(&response);
+                let captures = play
+                    .game_session()
+                    .is_none_or(|session| session.phase == bozzard_scene::GamePhase::Playing)
+                    && play
+                        .app
+                        .world
+                        .resource::<bozzard_scene::CursorCapture>()
+                        .and_then(|capture| capture.requested)
+                        .unwrap_or(false);
+                let orbit = gameplay_orbit(&response, captures);
                 let input = self.gameplay_controls.take_input([orbit.x, orbit.y]);
                 play.set_gameplay_input(input);
             } else {
@@ -1475,7 +1488,7 @@ mod tests {
                     |ui| {
                         let (_, response) =
                             ui.allocate_exact_size(Vec2::splat(250.), Sense::click_and_drag());
-                        sample = (response.dragged(), gameplay_orbit(&response));
+                        sample = (response.dragged(), gameplay_orbit(&response, false));
                     },
                 );
                 output.textures_delta.clear();

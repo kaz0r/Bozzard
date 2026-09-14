@@ -1,38 +1,64 @@
-//! Physical gameplay keys only; editor shortcuts continue using egui logical keys.
+//! Physical gameplay keys only; editor shortcuts continue using egui logical keys. Any key a
+//! scene can bind is tracked, so a scene chooses its own buttons.
 use bozzard_demo::SceneDemo;
-use bozzard_scene::GameplayInput;
-use eframe::egui::{Event, Key, Modifiers, RawInput};
+use bozzard_scene::{GameplayInput, keys};
+use eframe::egui::{Event, Key, Modifiers, PointerButton, RawInput};
 
 #[derive(Default)]
 pub struct GameplayControls {
-    held: [bool; 4],
-    // raw_input_hook runs before egui derives repeat flags. Keep this latch across
-    // gameplay resets so a still-held key cannot resume motion or auto-jump.
-    pressed: [bool; 5],
+    // Physical keys as last observed. raw_input_hook runs before egui derives repeat flags,
+    // and this latch survives gameplay resets so a still-held key cannot resume motion or
+    // auto-jump after focus loss.
+    pressed: u128,
+    // Keys gameplay may act on this frame.
+    keys: u128,
     // Only focus discontinuities can hide releases. Same-window cancellation
     // retains the press latch without suggesting that focus was lost.
-    rearm: [bool; 5],
+    rearm: u128,
     focused: bool,
     jump: bool,
+    fire: bool,
+    interact: bool,
 }
 impl GameplayControls {
     pub fn reset(&mut self) {
-        self.held = [false; 4];
+        self.keys = 0;
         self.jump = false;
+        self.fire = false;
+        self.interact = false;
     }
 
     pub fn rearm_hint(&self) -> Option<String> {
-        let keys: Vec<_> = ["A", "D", "W", "S", "Space"]
-            .into_iter()
-            .zip(self.rearm)
-            .filter_map(|(key, pending)| pending.then_some(key))
-            .collect();
+        let keys: Vec<_> = keys::mask_names(self.rearm).collect();
         (self.focused && !keys.is_empty()).then(|| {
             format!(
                 "Focus may have missed key releases. Press and release physical {} inside this refocused editor, then press again to play.",
                 keys.join(" / ")
             )
         })
+    }
+
+    /// Records a physical key and reports the binding when this is a fresh press gameplay
+    /// should act on. Names the engine does not bind are ignored.
+    fn hold(&mut self, requested: &str, pressed: bool, repeat: bool) -> Option<&'static str> {
+        let name = keys::canonical(requested)?;
+        let bit = keys::bit(name);
+        let fresh = pressed && self.pressed & bit == 0 && !repeat;
+        if pressed {
+            self.pressed |= bit;
+        } else {
+            self.pressed &= !bit;
+            self.keys &= !bit;
+            self.rearm &= !bit;
+            return None;
+        }
+        if fresh {
+            self.keys |= bit;
+        }
+        if !self.focused {
+            self.rearm |= bit;
+        }
+        fresh.then_some(name)
     }
 
     /// Runs in raw_input_hook, before Editor::advance can consume queued motion/edges.
@@ -63,39 +89,47 @@ impl GameplayControls {
             self.mark_focus_discontinuity();
         }
         self.jump = false;
+        self.fire = false;
+        self.interact = false;
         for event in &input.events {
-            if let Event::WindowFocused(focused) = event {
-                self.focused = *focused;
-                if !focused {
-                    self.mark_focus_discontinuity();
-                }
-            }
-            if let Event::Key {
-                physical_key: Some(key),
-                pressed,
-                repeat,
-                ..
-            } = event
-                && let Some(index) = [Key::A, Key::D, Key::W, Key::S, Key::Space]
-                    .iter()
-                    .position(|k| k == key)
-            {
-                let fresh = *pressed && !self.pressed[index] && !repeat;
-                self.pressed[index] = *pressed;
-                if !pressed {
-                    self.rearm[index] = false;
-                } else if !self.focused {
-                    self.rearm[index] = true;
-                }
-                if index < 4 {
-                    if !pressed {
-                        self.held[index] = false;
-                    } else if fresh {
-                        self.held[index] = true;
+            match event {
+                Event::PointerButton {
+                    button, pressed, ..
+                } => {
+                    let named = match button {
+                        PointerButton::Primary => "MouseLeft",
+                        PointerButton::Secondary => "MouseRight",
+                        PointerButton::Middle => "MouseMiddle",
+                        _ => continue,
+                    };
+                    if self.hold(named, *pressed, false).is_some()
+                        && *button == PointerButton::Primary
+                    {
+                        self.fire = true;
                     }
-                } else {
-                    self.jump |= fresh;
                 }
+                Event::Key {
+                    physical_key: Some(key),
+                    pressed,
+                    repeat,
+                    ..
+                } => {
+                    // Key names are physical positions, and both apps' spellings resolve.
+                    if let Some(name) = self.hold(&format!("{key:?}"), *pressed, *repeat) {
+                        match name {
+                            "Space" => self.jump = true,
+                            "E" => self.interact = true,
+                            _ => {}
+                        }
+                    }
+                }
+                Event::WindowFocused(focused) => {
+                    self.focused = *focused;
+                    if !focused {
+                        self.mark_focus_discontinuity();
+                    }
+                }
+                _ => {}
             }
         }
         let Some(play) = play else {
@@ -109,18 +143,17 @@ impl GameplayControls {
     }
 
     fn mark_focus_discontinuity(&mut self) {
-        for (pending, pressed) in self.rearm.iter_mut().zip(self.pressed) {
-            *pending |= pressed;
-        }
+        self.rearm |= self.pressed;
     }
 
     pub fn take_input(&mut self, orbit: [f32; 2]) -> GameplayInput {
+        let down = |name: &str| u8::from(self.keys & keys::bit(name) != 0) as f32;
         GameplayInput {
-            movement: [
-                self.held[1] as u8 as f32 - self.held[0] as u8 as f32,
-                self.held[2] as u8 as f32 - self.held[3] as u8 as f32,
-            ],
+            movement: [down("D") - down("A"), down("W") - down("S")],
+            keys: self.keys,
             jump: std::mem::take(&mut self.jump),
+            fire: std::mem::take(&mut self.fire),
+            interact: std::mem::take(&mut self.interact),
             orbit,
         }
     }
@@ -151,6 +184,111 @@ mod tests {
             events,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn left_click_fires_once_and_respects_viewport_gating() {
+        use eframe::egui::Pos2;
+        let click = |button| Event::PointerButton {
+            pos: Pos2::ZERO,
+            button,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        };
+        let mut demo = demo();
+        let mut controls = GameplayControls::default();
+        controls.prepare(
+            &raw(vec![click(PointerButton::Primary)]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        assert!(controls.take_input([0.; 2]).fire);
+        assert!(!controls.take_input([0.; 2]).fire, "one shot per click");
+        controls.prepare(
+            &raw(vec![click(PointerButton::Secondary)]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        assert!(!controls.take_input([0.; 2]).fire, "right-drag only orbits");
+        controls.prepare(
+            &raw(vec![click(PointerButton::Primary)]),
+            Modifiers::NONE,
+            false,
+            Some(&mut demo),
+        );
+        assert!(
+            !controls.take_input([0.; 2]).fire,
+            "selection and dialogs suppress gameplay fire"
+        );
+    }
+
+    #[test]
+    fn any_bound_button_reaches_gameplay_with_the_focus_latch_intact() {
+        let mut demo = demo();
+        let mut controls = GameplayControls::default();
+        // Digits, arrows and mouse buttons resolve from egui's own spellings.
+        controls.prepare(
+            &raw(vec![
+                key(Key::Num3, Key::Num3, false),
+                key(Key::ArrowLeft, Key::ArrowLeft, false),
+            ]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        let sample = controls.take_input([0.; 2]);
+        assert!(sample.keys & keys::bit("3") != 0);
+        assert!(sample.keys & keys::bit("ArrowLeft") != 0);
+        assert!(
+            controls.take_input([0.; 2]).keys & keys::bit("3") != 0,
+            "keys are a level"
+        );
+        // A held key that never released, then refocus: the latch still refuses to rehold it.
+        let mut away = raw(vec![]);
+        away.focused = false;
+        controls.prepare(&away, Modifiers::NONE, true, Some(&mut demo));
+        assert!(controls.rearm_hint().is_none(), "hide while unfocused");
+        controls.prepare(
+            &raw(vec![Event::WindowFocused(true)]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        assert!(
+            controls
+                .rearm_hint()
+                .unwrap()
+                .contains("physical 3 / ArrowLeft")
+        );
+        controls.prepare(
+            &raw(vec![key(Key::Num3, Key::Num3, false)]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        assert_eq!(controls.take_input([0.; 2]).keys & keys::bit("3"), 0);
+        // The release arrives locally, so the next press is fresh again.
+        controls.prepare(
+            &raw(vec![Event::Key {
+                key: Key::Num3,
+                physical_key: Some(Key::Num3),
+                pressed: false,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            }]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        controls.prepare(
+            &raw(vec![key(Key::Num3, Key::Num3, false)]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        assert!(controls.take_input([0.; 2]).keys & keys::bit("3") != 0);
     }
 
     #[test]
@@ -382,7 +520,10 @@ mod tests {
             let mut controls = GameplayControls::default();
             demo.set_gameplay_input(GameplayInput {
                 movement: [0.0, 1.0],
+                keys: bozzard_scene::keys::bit("F"),
                 jump: true,
+                fire: true,
+                interact: true,
                 orbit: [30.0, 10.0],
             });
             controls.prepare(
@@ -394,6 +535,7 @@ mod tests {
             let input = demo.app.world.resource::<GameplayInput>().unwrap();
             assert_eq!(input.movement, [0.0; 2]);
             assert!(!input.jump);
+            assert!(!input.fire);
             assert_eq!(input.orbit, [0.0; 2]);
             let mut idle = self::demo();
             demo.app.step();

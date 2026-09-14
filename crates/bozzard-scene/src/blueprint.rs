@@ -86,31 +86,64 @@ impl Value {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum InputKey {
-    Forward,
-    Backward,
-    Left,
-    Right,
-    Jump,
-}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InputKey(String);
 impl InputKey {
-    pub const ALL: [Self; 5] = [
-        Self::Forward,
-        Self::Backward,
-        Self::Left,
-        Self::Right,
-        Self::Jump,
-    ];
-    pub fn active(self, input: GameplayInput) -> bool {
-        match self {
-            Self::Forward => input.movement[1] > 0.,
-            Self::Backward => input.movement[1] < 0.,
-            Self::Left => input.movement[0] < 0.,
-            Self::Right => input.movement[0] > 0.,
-            Self::Jump => input.jump,
+    /// Rejects unknown names, so a typo fails where it is authored instead of never firing.
+    pub fn parse(name: &str) -> Result<Self> {
+        crate::keys::canonical(name)
+            .map(|name| Self(name.to_owned()))
+            .with_context(|| {
+                format!(
+                    "unknown input key '{name}'; bind an alias ({}) or a key such as {}",
+                    crate::keys::KEY_ALIASES.join("/"),
+                    crate::keys::BOUND_KEYS[..8].join("/")
+                )
+            })
+    }
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+    /// Every name a scene may bind, for editor pickers.
+    pub fn authorable() -> impl Iterator<Item = &'static str> {
+        crate::keys::authorable()
+    }
+    /// The bit this binding occupies in a frame's active set. Aliases live above the keys.
+    pub fn bit(&self) -> u128 {
+        crate::keys::alias_index(&self.0)
+            .map_or_else(|| crate::keys::bit(&self.0), crate::keys::alias_bit)
+    }
+    /// Whether the binding is held or queued in this frame's input.
+    pub fn active(&self, input: GameplayInput) -> bool {
+        match crate::keys::alias_index(&self.0) {
+            Some(index) => crate::keys::alias_active(index, input),
+            None => input.keys & self.bit() != 0,
         }
+    }
+    /// Jump and fire arrive as queued edges, so they are already one press per tick.
+    pub fn instant(&self) -> bool {
+        matches!(self.0.as_str(), "jump" | "fire")
+    }
+}
+impl Default for InputKey {
+    fn default() -> Self {
+        Self("jump".into())
+    }
+}
+impl Serialize for InputKey {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+impl<'de> Deserialize<'de> for InputKey {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        Self::parse(&name).map_err(serde::de::Error::custom)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,12 +180,16 @@ pub enum NodeKind {
     MoveY,
     MouseX,
     MouseY,
+    ForwardVector,
+    BreakVector,
+    IsRigidbody,
     GetVariable,
     Add,
     Subtract,
     Multiply,
     Divide,
     Sine,
+    Clamp,
     Greater,
     Less,
     Equal,
@@ -185,12 +222,15 @@ pub enum NodeKind {
 
     MoveWithCollision,
     Jump,
+    SetVelocity,
+    LockCursor,
+    UnlockCursor,
     Print,
     SpawnPrefab,
     DestroyPrefab,
 }
 impl NodeKind {
-    pub const ALL: [Self; 71] = [
+    pub const ALL: [Self; 78] = [
         Self::Text,
         Self::NumberToText,
         Self::JoinText,
@@ -222,12 +262,16 @@ impl NodeKind {
         Self::MoveY,
         Self::MouseX,
         Self::MouseY,
+        Self::ForwardVector,
+        Self::BreakVector,
+        Self::IsRigidbody,
         Self::GetVariable,
         Self::Add,
         Self::Subtract,
         Self::Multiply,
         Self::Divide,
         Self::Sine,
+        Self::Clamp,
         Self::Greater,
         Self::Less,
         Self::Equal,
@@ -259,6 +303,9 @@ impl NodeKind {
         Self::SetVignetteIntensity,
         Self::MoveWithCollision,
         Self::Jump,
+        Self::SetVelocity,
+        Self::LockCursor,
+        Self::UnlockCursor,
         Self::Print,
         Self::SpawnPrefab,
         Self::DestroyPrefab,
@@ -296,6 +343,9 @@ impl NodeKind {
             Self::MoveY => "Move Axis Y (S/W)",
             Self::MouseX => "Mouse Delta X (right-drag)",
             Self::MouseY => "Mouse Delta Y (right-drag)",
+            Self::ForwardVector => "Forward Vector",
+            Self::BreakVector => "Break Vector",
+            Self::IsRigidbody => "Is Rigidbody (dynamic body)",
             Self::GetVariable => "Get Variable",
             Self::SetVariable => "Set Variable",
             Self::Add => "Add",
@@ -303,6 +353,7 @@ impl NodeKind {
             Self::Multiply => "Multiply",
             Self::Divide => "Divide",
             Self::Sine => "Sine (radians)",
+            Self::Clamp => "Clamp (min–max)",
             Self::Greater => "Greater Than",
             Self::Less => "Less Than",
             Self::Equal => "Equal",
@@ -334,6 +385,9 @@ impl NodeKind {
 
             Self::MoveWithCollision => "Move With Collision",
             Self::Jump => "Jump",
+            Self::SetVelocity => "Set Velocity",
+            Self::LockCursor => "Lock Cursor",
+            Self::UnlockCursor => "Unlock Cursor",
             Self::Print => "Print Number",
             Self::SpawnPrefab => "Spawn Prefab",
             Self::DestroyPrefab => "Destroy Prefab",
@@ -361,7 +415,11 @@ impl NodeKind {
             Self::GetText => &[("Target", Object)],
             Self::SetText => &[("In", Exec), ("Text", Text), ("Target", Object)],
             Self::Object => &[("Value", Object)],
+            Self::LockCursor | Self::UnlockCursor => &[("In", Exec)],
+            Self::BreakVector => &[("Value", Vector)],
+            Self::IsRigidbody => &[("Value", Object)],
             Self::Position | Self::Rotation | Self::Scale => &[("Target", Object)],
+            Self::ForwardVector => &[("Target", Object)],
             Self::ObjectEqual => &[("A", Object), ("B", Object)],
             Self::IsValidObject => &[("Value", Object)],
             Self::Number => &[("Value", Number)],
@@ -375,6 +433,7 @@ impl NodeKind {
             | Self::Less
             | Self::Equal => &[("A", Number), ("B", Number)],
             Self::Sine => &[("Radians", Number)],
+            Self::Clamp => &[("Value", Number), ("Min", Number), ("Max", Number)],
             Self::Not => &[("Value", Bool)],
             Self::And | Self::Or => &[("A", Bool), ("B", Bool)],
             Self::MakeVector => &[("X", Number), ("Y", Number), ("Z", Number)],
@@ -402,6 +461,7 @@ impl NodeKind {
             Self::SetVisible => &[("In", Exec), ("Visible", Bool), ("Target", Object)],
             Self::SetLightIntensity => &[("In", Exec), ("Intensity", Number), ("Target", Object)],
             Self::Jump => &[("In", Exec), ("Speed", Number), ("Target", Object)],
+            Self::SetVelocity => &[("In", Exec), ("Velocity", Vector), ("Target", Object)],
             Self::SpawnPrefab => &[("In", Exec), ("Position", Vector)],
             Self::DestroyPrefab => &[("In", Exec), ("Target", Object)],
             _ => &[],
@@ -419,11 +479,12 @@ impl NodeKind {
         use PinType::*;
         match self {
             Self::Text | Self::NumberToText | Self::JoinText | Self::GetText => &[("Text", Text)],
+            Self::MoveWithCollision => &[("Then", Exec), ("Grounded", Bool)],
             Self::EndGame => &[],
             Self::BodyEnter | Self::BodyExit => &[("Then", Exec), ("Other", Object)],
             Self::SpawnPrefab => &[("Then", Exec), ("Instance", Object)],
             Self::Object | Self::SelfObject => &[("Value", Object)],
-            Self::ObjectEqual | Self::IsValidObject => &[("Value", Bool)],
+            Self::ObjectEqual | Self::IsValidObject | Self::IsRigidbody => &[("Value", Bool)],
             Self::Branch => &[("True", Exec), ("False", Exec)],
             kind if kind.event() || kind.action() => &[("Then", Exec)],
             Self::Boolean
@@ -438,9 +499,11 @@ impl NodeKind {
             | Self::Position
             | Self::Rotation
             | Self::Scale
+            | Self::ForwardVector
             | Self::MakeVector
             | Self::ScaleVector
             | Self::AddVector => &[("Value", Vector)],
+            Self::BreakVector => &[("X", Number), ("Y", Number), ("Z", Number)],
             _ => &[("Value", Number)],
         }
     }
@@ -492,7 +555,7 @@ impl From<StoredNode> for Node {
     }
 }
 fn jump_key() -> InputKey {
-    InputKey::Jump
+    InputKey::default()
 }
 impl Node {
     pub fn new(id: u32, kind: NodeKind, position: [f32; 2]) -> Self {
@@ -522,7 +585,7 @@ impl Node {
                 })
                 .collect(),
             variable: "value".into(),
-            key: InputKey::Jump,
+            key: InputKey::default(),
         }
     }
 }
@@ -657,8 +720,24 @@ impl Blueprint {
                 .inputs()
                 .get(w.to.port)
                 .context("invalid input pin")?;
-            ensure!(from.1 == to.1, "pin types do not match");
-            ensure!(incoming.insert(w.to), "input already connected");
+            ensure!(
+                from.1 == to.1,
+                "wire {}:{:?} -> {}:{:?} mixes {:?} with {:?}",
+                w.from.node,
+                from.0,
+                w.to.node,
+                to.0,
+                from.1,
+                to.1
+            );
+            ensure!(
+                incoming.insert(w.to),
+                "wire {}:{:?} -> {}:{:?} doubles an already connected input",
+                w.from.node,
+                from.0,
+                w.to.node,
+                to.0
+            );
             *degrees.get_mut(&w.to.node).unwrap() += 1;
         }
         let mut queue: VecDeque<_> = degrees

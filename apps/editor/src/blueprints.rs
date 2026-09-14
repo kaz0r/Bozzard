@@ -673,15 +673,15 @@ impl BlueprintPane {
                                     node.kind,
                                     NodeKind::InputPressed | NodeKind::InputHeld
                                 ) {
+                                    // Aliases read the engine's axes and edges; every other
+                                    // name binds the button itself.
                                     egui::ComboBox::from_id_salt("key")
-                                        .selected_text(format!("{:?}", node.key))
+                                        .selected_text(node.key.name())
                                         .show_ui(ui, |ui| {
-                                            for key in InputKey::ALL {
-                                                ui.selectable_value(
-                                                    &mut node.key,
-                                                    key,
-                                                    format!("{key:?}"),
-                                                );
+                                            for name in InputKey::authorable() {
+                                                let key = InputKey::parse(name)
+                                                    .expect("authorable names parse");
+                                                ui.selectable_value(&mut node.key, key, name);
                                             }
                                         });
                                 }

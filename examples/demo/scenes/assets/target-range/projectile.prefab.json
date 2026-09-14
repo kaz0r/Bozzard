@@ -1,0 +1,413 @@
+{
+  "version": 1,
+  "name": "Target Range Projectile",
+  "root": "projectile",
+  "objects": [
+    {
+      "id": "projectile",
+      "name": "Projectile",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.3,
+          0.3,
+          0.3
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.78,
+          0.22
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      },
+      "collider": {},
+      "gravity": {
+        "enabled": true,
+        "acceleration": 1.0,
+        "max_speed": 50.0,
+        "mass": 0.05,
+        "friction": 0.4
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Destroy on impact",
+            "variables": {},
+            "nodes": [
+              {
+                "id": 1,
+                "position": [
+                  40,
+                  40
+                ],
+                "kind": "body_enter",
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "position": [
+                  360,
+                  40
+                ],
+                "kind": "destroy_prefab",
+                "inputs": [
+                  "exec",
+                  {
+                    "object": "self_object"
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        },
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Clean up below the platform",
+            "variables": {},
+            "nodes": [
+              {
+                "id": 1,
+                "position": [
+                  40,
+                  40
+                ],
+                "kind": "update",
+                "inputs": []
+              },
+              {
+                "id": 2,
+                "position": [
+                  40,
+                  240
+                ],
+                "kind": "position",
+                "inputs": [
+                  {
+                    "object": "self_object"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "position": [
+                  340,
+                  240
+                ],
+                "kind": "break_vector",
+                "inputs": [
+                  {
+                    "vector": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "position": [
+                  620,
+                  240
+                ],
+                "kind": "less",
+                "inputs": [
+                  {
+                    "number": 0
+                  },
+                  {
+                    "number": -20
+                  }
+                ]
+              },
+              {
+                "id": 5,
+                "position": [
+                  1240,
+                  40
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ]
+              },
+              {
+                "id": 6,
+                "position": [
+                  1520,
+                  40
+                ],
+                "kind": "destroy_prefab",
+                "inputs": [
+                  "exec",
+                  {
+                    "object": "self_object"
+                  }
+                ]
+              },
+              {
+                "id": 7,
+                "position": [
+                  340,
+                  400
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ]
+              },
+              {
+                "id": 8,
+                "position": [
+                  340,
+                  560
+                ],
+                "kind": "multiply",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ]
+              },
+              {
+                "id": 9,
+                "position": [
+                  560,
+                  400
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ]
+              },
+              {
+                "id": 10,
+                "position": [
+                  780,
+                  400
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 196.0
+                  }
+                ]
+              },
+              {
+                "id": 11,
+                "position": [
+                  1000,
+                  240
+                ],
+                "kind": "or",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 1
+                },
+                "to": {
+                  "node": 4,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 11,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 7,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 2
+                },
+                "to": {
+                  "node": 8,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 2
+                },
+                "to": {
+                  "node": 8,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 7,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 8,
+                  "port": 0
+                },
+                "to": {
+                  "node": 9,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 9,
+                  "port": 0
+                },
+                "to": {
+                  "node": 10,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 10,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 11,
+                  "port": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

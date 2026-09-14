@@ -42,14 +42,9 @@ impl Player {
             }
             return Ok(true);
         }
-        Ok(!self.demo.accepts_gameplay_input()
-            || session.phase != GamePhase::Playing
-            || !matches!(
-                physical,
-                PhysicalKey::Code(
-                    KeyCode::KeyA | KeyCode::KeyD | KeyCode::KeyW | KeyCode::KeyS | KeyCode::Space
-                )
-            ))
+        // Everything else is gameplay's while it is playing: a scene assigns its own buttons,
+        // so only the app's menu keys above stay out of the input adapter.
+        Ok(!self.demo.accepts_gameplay_input() || session.phase != GamePhase::Playing)
     }
     pub(super) fn game_pointer_event(&mut self, event: &WindowEvent) -> Result<()> {
         if self.demo.game_session().is_none() {
