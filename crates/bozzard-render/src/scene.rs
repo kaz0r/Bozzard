@@ -225,11 +225,12 @@ pub struct SceneRenderer {
     display: display::Display,
     shadows: shadows::Shadows,
     shadow_frame: Option<shadows::ShadowFrame>,
-    pipeline: wgpu::RenderPipeline,
-    transparent_pipeline: wgpu::RenderPipeline,
+    pipeline: [wgpu::RenderPipeline; 2],
+    transparent_pipeline: [wgpu::RenderPipeline; 2],
     layout: wgpu::BindGroupLayout,
     /// Shader graph modules by content hash; compiled on first use per frame.
-    graphs: BTreeMap<u64, std::sync::Arc<GraphPipelines>>,
+    graphs: BTreeMap<(u64, bool), std::sync::Arc<GraphPipelines>>,
+    idle_graphs: std::collections::VecDeque<(u64, bool)>,
     neutral_normal: wgpu::TextureView,
     quad: MeshBuffers,
     cube: MeshBuffers,
@@ -290,6 +291,7 @@ fn scene_pipeline(
     module: &wgpu::ShaderModule,
     pbr: bool,
     transparent: bool,
+    auxiliary: bool,
 ) -> wgpu::RenderPipeline {
     let basic_buffers = [Some(wgpu::VertexBufferLayout {
         array_stride: 32,
@@ -324,7 +326,11 @@ fn scene_pipeline(
                 module,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &geometry::color_targets(wgpu::TextureFormat::Rgba16Float, transparent),
+                targets: &geometry::color_targets(
+                    wgpu::TextureFormat::Rgba16Float,
+                    transparent,
+                    auxiliary,
+                ),
             }),
             primitive: Default::default(),
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -631,7 +637,7 @@ impl SceneRenderer {
                 label: Some("scene shader"),
                 source: wgpu::ShaderSource::Wgsl(host_text(false).into()),
             });
-        let make_pipeline = |transparent: bool| {
+        let make_pipeline = |transparent: bool, auxiliary: bool| {
             scene_pipeline(
                 gpu,
                 "scene pipeline",
@@ -639,10 +645,11 @@ impl SceneRenderer {
                 &shader,
                 false,
                 transparent,
+                auxiliary,
             )
         };
-        let pipeline = make_pipeline(false);
-        let transparent_pipeline = make_pipeline(true);
+        let pipeline = [make_pipeline(false, false), make_pipeline(false, true)];
+        let transparent_pipeline = [make_pipeline(true, false), make_pipeline(true, true)];
         let pbr = crate::pbr::PbrRenderer::new(
             gpu,
             format,
@@ -680,6 +687,7 @@ impl SceneRenderer {
             transparent_pipeline,
             layout,
             graphs: BTreeMap::new(),
+            idle_graphs: Default::default(),
             neutral_normal: neutral_texture(gpu),
             quad,
             cube: cube(gpu),
@@ -717,7 +725,12 @@ impl SceneRenderer {
 
     /// Compile both host flavors for one shader graph. WGSL errors panic like the
     /// startup modules; graphs are validated before codegen, so errors are engine bugs.
-    fn compile_graph(&self, gpu: &Gpu, source: &ShaderSource) -> Result<GraphPipelines> {
+    fn compile_graph(
+        &self,
+        gpu: &Gpu,
+        source: &ShaderSource,
+        auxiliary: bool,
+    ) -> Result<GraphPipelines> {
         // The basic host leaves group 1 unused, so it keeps an automatic (empty)
         // layout; the PBR host binds the shared material map group.
         let layout = |group1: Option<&wgpu::BindGroupLayout>| {
@@ -754,6 +767,7 @@ impl SceneRenderer {
                     &module,
                     pbr,
                     false,
+                    auxiliary,
                 ),
                 scene_pipeline(
                     gpu,
@@ -762,6 +776,7 @@ impl SceneRenderer {
                     &module,
                     pbr,
                     true,
+                    auxiliary,
                 ),
             ]
         };
@@ -856,6 +871,8 @@ impl SceneRenderer {
     fn invalidate_object_bindings(&mut self) {
         self.objects.clear();
         self.shadow_frame = None;
+        self.shadows.spots.invalidate();
+        self.shadows.points.invalidate();
     }
 
     pub fn clear_imported(&mut self) {
@@ -1498,6 +1515,8 @@ impl SceneRenderer {
         }
         scene.fog.validate()?;
         scene.display.validate()?;
+        let stores = geometry::stores(scene, raw, self.state_caching);
+        let auxiliary = stores.iter().any(|store| *store);
         let (view_projection, temporal_frame) = self.motion_history.begin(scene, size, raw);
         self.environment.prepare(
             gpu,
@@ -1506,7 +1525,7 @@ impl SceneRenderer {
             !raw && scene.display.reflections.enabled,
         )?;
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
-            self.geometry = Some(geometry::GeometryBuffers::new(gpu, size));
+            self.geometry = None;
             if let Some(particles) = &mut self.particles {
                 particles.invalidate_depth();
             }
@@ -1529,6 +1548,9 @@ impl SceneRenderer {
                 view: texture.create_view(&Default::default()),
                 size,
             });
+        }
+        if auxiliary && self.geometry.is_none() {
+            self.geometry = Some(geometry::GeometryBuffers::new(gpu, size));
         }
         self.display.prepare(
             gpu,
@@ -1554,20 +1576,36 @@ impl SceneRenderer {
             .write_buffer(&self.shadows.local_lights, 0, &lights);
         self.prepare_text(gpu, scene)?;
         let draws = self.prepare(scene);
-        // Compile shader graph pipelines on first use; retire stale ones after edits.
-        let mut graph_sources: BTreeMap<u64, std::sync::Arc<ShaderSource>> = BTreeMap::new();
+        // Keep all active pipelines and a bounded set of recently absent previews.
+        let mut graph_sources: BTreeMap<(u64, bool), std::sync::Arc<ShaderSource>> =
+            BTreeMap::new();
         for draw in &draws {
             if let Some(shader) = &draw.object.material.shader {
-                graph_sources.insert(shader.id, shader.clone());
+                graph_sources.insert((shader.id, auxiliary), shader.clone());
             }
         }
-        self.graphs.retain(|id, _| graph_sources.contains_key(id));
+        self.idle_graphs
+            .retain(|id| !graph_sources.contains_key(id));
+        for id in self
+            .graphs
+            .keys()
+            .filter(|id| !graph_sources.contains_key(id))
+        {
+            if !self.idle_graphs.contains(id) {
+                self.idle_graphs.push_back(*id);
+            }
+        }
+        while self.idle_graphs.len() > if self.state_caching { 8 } else { 0 } {
+            self.graphs.remove(&self.idle_graphs.pop_front().unwrap());
+        }
         for (id, source) in graph_sources {
             if !self.graphs.contains_key(&id) {
-                let pipelines = self.compile_graph(gpu, &source)?;
+                let pipelines = self.compile_graph(gpu, &source, auxiliary)?;
                 self.graphs.insert(id, std::sync::Arc::new(pipelines));
+                self.stats.graph_compilations += 1;
             }
         }
+        self.stats.resident_graphs = self.graphs.len();
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {
             let object = &draw.object;
@@ -1683,13 +1721,32 @@ impl SceneRenderer {
         let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
         self.stats.shadow_cache_hit =
             self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
+        let sun_changed = !self.state_caching
+            || !self
+                .shadow_frame
+                .as_ref()
+                .is_some_and(|previous| previous.same_sun(&shadow_frame));
+        let mut spot_changes = Vec::new();
+        let mut point_changes = Vec::new();
         if !self.stats.shadow_cache_hit {
             // Invalidate before queueing writes: a later frame error must not leave a
             // valid-looking stamp paired with partially updated shadow uniforms.
             self.shadow_frame = None;
-            self.update_shadows(gpu, scene, &draws)?;
+            if sun_changed {
+                self.update_shadows(gpu, scene, &draws)?;
+            }
             self.update_spot_shadows(gpu, scene)?;
             self.update_point_shadows(gpu, scene)?;
+            spot_changes = self.shadows.spots.changes(self, &draws);
+            point_changes = self.shadows.points.changes(self, &draws);
+            self.shadows.spots.invalidate_changes(&spot_changes);
+            self.shadows.points.invalidate_changes(&point_changes);
+            self.stats.shadow_maps_rendered = usize::from(sun_changed)
+                + spot_changes
+                    .iter()
+                    .chain(&point_changes)
+                    .filter(|c| c.is_some())
+                    .count();
         }
         if !raw && !scene.particles.is_empty() {
             self.stats.particles = scene.particles.len();
@@ -1718,22 +1775,35 @@ impl SceneRenderer {
                 label: Some("scene frame"),
             });
         if !self.stats.shadow_cache_hit {
-            (self.stats.shadow_draws, self.stats.shadow_triangles) =
-                self.draw_shadows(&mut encoder, scene, &draws);
-            let (spot_draws, spot_triangles) =
-                self.shadows
-                    .spots
-                    .draw(self, &mut encoder, &draws, &self.shadows.pipeline);
+            if sun_changed {
+                (self.stats.shadow_draws, self.stats.shadow_triangles) =
+                    self.draw_shadows(&mut encoder, scene, &draws);
+            }
+            let (spot_draws, spot_triangles) = self.shadows.spots.draw(
+                self,
+                &mut encoder,
+                &draws,
+                &self.shadows.pipeline,
+                &spot_changes,
+            );
             self.stats.shadow_draws += spot_draws;
             self.stats.shadow_triangles += spot_triangles;
-            let (point_draws, point_triangles) =
-                self.shadows
-                    .points
-                    .draw(self, &mut encoder, &draws, &self.shadows.point_pipeline);
+            let (point_draws, point_triangles) = self.shadows.points.draw(
+                self,
+                &mut encoder,
+                &draws,
+                &self.shadows.point_pipeline,
+                &point_changes,
+            );
             self.stats.shadow_draws += point_draws;
             self.stats.shadow_triangles += point_triangles;
         }
-        let stores = geometry::stores(scene, raw, self.state_caching);
+        self.stats.auxiliary_targets = if auxiliary { 3 } else { 0 };
+        self.stats.geometry_allocated_bytes = if self.geometry.is_some() {
+            24 * u64::from(size[0]) * u64::from(size[1])
+        } else {
+            0
+        };
         self.stats.geometry_store_bytes = stores.iter().filter(|s| **s).count() as u64
             * 8
             * u64::from(size[0])
@@ -1751,18 +1821,30 @@ impl SceneRenderer {
                             a: 1.,
                         },
                     ),
-                    geometry::auxiliary_attachment(
-                        &self.geometry.as_ref().unwrap().normal,
-                        stores[0],
-                    ),
-                    geometry::auxiliary_attachment(
-                        &self.geometry.as_ref().unwrap().motion,
-                        stores[1],
-                    ),
-                    geometry::auxiliary_attachment(
-                        &self.geometry.as_ref().unwrap().specular,
-                        stores[2],
-                    ),
+                    auxiliary
+                        .then(|| {
+                            geometry::auxiliary_attachment(
+                                &self.geometry.as_ref().unwrap().normal,
+                                stores[0],
+                            )
+                        })
+                        .flatten(),
+                    auxiliary
+                        .then(|| {
+                            geometry::auxiliary_attachment(
+                                &self.geometry.as_ref().unwrap().motion,
+                                stores[1],
+                            )
+                        })
+                        .flatten(),
+                    auxiliary
+                        .then(|| {
+                            geometry::auxiliary_attachment(
+                                &self.geometry.as_ref().unwrap().specular,
+                                stores[2],
+                            )
+                        })
+                        .flatten(),
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth.as_ref().unwrap().view,
@@ -1774,7 +1856,8 @@ impl SceneRenderer {
                 }),
                 ..Default::default()
             });
-            self.environment.background(&mut pass, scene.environment);
+            self.environment
+                .background(&mut pass, scene.environment, auxiliary);
             let mut last_pipeline = None;
             for ((draw, binding), visible) in draws.iter().zip(&self.objects).zip(&visible) {
                 if !visible {
@@ -1787,14 +1870,14 @@ impl SceneRenderer {
                 };
                 let key = (shading.is_some(), draw.shader, draw.transparent);
                 let pipeline = match key {
-                    (true, Some(id), false) => &self.graphs[&id].pbr[0],
-                    (true, Some(id), true) => &self.graphs[&id].pbr[1],
-                    (false, Some(id), false) => &self.graphs[&id].basic[0],
-                    (false, Some(id), true) => &self.graphs[&id].basic[1],
-                    (true, None, false) => &self.pbr.opaque,
-                    (true, None, true) => &self.pbr.transparent,
-                    (false, None, false) => &self.pipeline,
-                    (false, None, true) => &self.transparent_pipeline,
+                    (true, Some(id), false) => &self.graphs[&(id, auxiliary)].pbr[0],
+                    (true, Some(id), true) => &self.graphs[&(id, auxiliary)].pbr[1],
+                    (false, Some(id), false) => &self.graphs[&(id, auxiliary)].basic[0],
+                    (false, Some(id), true) => &self.graphs[&(id, auxiliary)].basic[1],
+                    (true, None, false) => &self.pbr.opaque[usize::from(auxiliary)],
+                    (true, None, true) => &self.pbr.transparent[usize::from(auxiliary)],
+                    (false, None, false) => &self.pipeline[usize::from(auxiliary)],
+                    (false, None, true) => &self.transparent_pipeline[usize::from(auxiliary)],
                 };
                 if !self.state_caching || last_pipeline != Some(key) {
                     pass.set_pipeline(pipeline);
@@ -1862,6 +1945,8 @@ impl SceneRenderer {
         let submit_started = std::time::Instant::now();
         gpu.queue.submit([commands]);
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
+        self.shadows.spots.finish(spot_changes);
+        self.shadows.points.finish(point_changes);
         self.shadow_frame = Some(shadow_frame);
         self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;

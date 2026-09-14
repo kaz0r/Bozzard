@@ -37,8 +37,12 @@ impl GeometryBuffers {
 pub(crate) fn color_targets(
     format: wgpu::TextureFormat,
     transparent: bool,
+    auxiliary: bool,
 ) -> [Option<wgpu::ColorTargetState>; 4] {
     std::array::from_fn(|i| {
+        if i > 0 && !auxiliary {
+            return None;
+        }
         Some(wgpu::ColorTargetState {
             format: if i == 0 {
                 format
@@ -152,6 +156,7 @@ struct PreviousFrame {
 enum MotionMesh {
     Quad,
     Cube,
+    Sphere,
     Imported(String),
     ModelPart(String, usize),
     Text,
@@ -160,7 +165,8 @@ impl From<&MeshKind> for MotionMesh {
     fn from(mesh: &MeshKind) -> Self {
         match mesh {
             MeshKind::Quad => Self::Quad,
-            MeshKind::Cube | MeshKind::Sphere => Self::Cube,
+            MeshKind::Cube => Self::Cube,
+            MeshKind::Sphere => Self::Sphere,
             MeshKind::Imported(id) => Self::Imported(id.clone()),
             MeshKind::ModelPart(id, part) => Self::ModelPart(id.clone(), *part),
             MeshKind::Text(_) => Self::Text,

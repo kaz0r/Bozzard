@@ -77,6 +77,8 @@ The baseline water smoke failure was reproduced before edits. Its render benchma
 
 ## Findings and limits
 
+The following describes the first pass. Several items are addressed by [the optimization follow-up](optimization-followup.md), measured against this first-pass commit.
+
 - Existing frustum/shadow culling, shared model textures, mesh picking BVHs, staged asset uploads, and empty particle/physics early-outs were already present on main. They remain useful foundations; this work does not claim them as new optimizations.
 - Shadow reuse is conservative and covers the entire shadow frame. A moving caster or shadow light invalidates all retained maps. Animated scenes still pay for shadow rendering; per-light invalidation or spatial partitioning would require a separate measured design.
 - Active box-overlap queries still use an all-pairs loop. Removing SAT allocations and caching edit-mode queries reduces work, but it does not change the live query's quadratic scaling. Rapier's existing broad phase continues to handle its own simulated bodies.

@@ -743,7 +743,7 @@ impl App {
             }
         });
         let query = self.hierarchy_search.trim().to_lowercase();
-        let scene = self.editor.scene().clone();
+        let scene = self.editor.scene_snapshot();
         self.hierarchy_state
             .sync_selection(&scene, self.editor.selected.as_deref());
         self.hierarchy_state.sync_surface_selection(
@@ -791,7 +791,13 @@ impl App {
                         let object_matches = query.is_empty()
                             || object.name.to_lowercase().contains(&query)
                             || object.id.to_lowercase().contains(&query);
-                        let mesh = self.editor.object_mesh(&object.id);
+                        let mesh = object.drawable.as_ref().and_then(|drawable| {
+                            let Mesh::Asset(id) = &drawable.mesh else { return None; };
+                            match self.editor.assets.get(self.editor.assets.handle(id)?)?.data()? {
+                                bozzard_assets::AssetData::Mesh(mesh) => Some(mesh),
+                                _ => None,
+                            }
+                        });
                         let has_surfaces = mesh.is_some_and(|m| !m.parts.is_empty());
                         let surface_matches = mesh.is_some_and(|m| m.parts.iter().enumerate()
                             .any(|(index, part)| surfaces::surface_matches(index, part, &query)));

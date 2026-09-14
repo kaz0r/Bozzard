@@ -13,21 +13,20 @@ pub struct MoveResult {
     /// May repeat; these are not index-correlated with sorted, unique `contacts`.
     pub contact_normals: Vec<Vec3>,
 }
-fn axes(a: &CollisionBox, b: &CollisionBox) -> Vec<DVec3> {
+fn axes(a: &CollisionBox, b: &CollisionBox) -> impl Iterator<Item = DVec3> {
+    let (a, b) = (a.edges, b.edges);
     let faces = |e: [DVec3; 3]| [e[1].cross(e[2]), e[2].cross(e[0]), e[0].cross(e[1])];
-    faces(a.edges)
+    faces(a)
         .into_iter()
-        .chain(faces(b.edges))
+        .chain(faces(b))
         .chain(
-            a.edges
-                .into_iter()
-                .flat_map(|u| b.edges.map(|v| u.cross(v))),
+            a.into_iter()
+                .flat_map(move |u| b.into_iter().map(move |v| u.cross(v))),
         )
         .filter_map(|axis| {
             let length = axis.length();
             (length > 0.0).then(|| axis / length)
         })
-        .collect()
 }
 fn radius(a: &CollisionBox, b: &CollisionBox, axis: DVec3) -> f64 {
     a.edges
@@ -90,7 +89,7 @@ impl SceneInstance {
     /// A mover cannot carry enabled child colliders; compound-body motion is not supported.
     pub fn move_box(&self, world: &mut World, id: &str, displacement: Vec3) -> Result<MoveResult> {
         ensure!(displacement.is_finite(), "movement must be finite");
-        let snapshot = self.collisions(world)?;
+        let (snapshot, matrices) = self.collision_geometry(world)?;
         let meshes = snapshot.meshes;
         let mut boxes = snapshot.boxes;
         let index = boxes
@@ -98,28 +97,24 @@ impl SceneInstance {
             .position(|b| b.id == id)
             .context("mover needs an enabled box collider")?;
         let mut mover = boxes.remove(index);
+        let parents: BTreeMap<_, _> = self
+            .document
+            .objects
+            .iter()
+            .map(|object| (object.id.as_str(), object.parent.as_deref()))
+            .collect();
         for other in boxes
             .iter()
             .map(|b| &b.id)
             .chain(meshes.iter().map(|m| &m.id))
         {
-            let mut parent = self
-                .document
-                .objects
-                .iter()
-                .find(|o| o.id == *other)
-                .and_then(|o| o.parent.as_deref());
+            let mut parent = parents[other.as_str()];
             while let Some(ancestor) = parent {
                 ensure!(
                     ancestor != id,
                     "moving compound collider hierarchies is not supported"
                 );
-                parent = self
-                    .document
-                    .objects
-                    .iter()
-                    .find(|o| o.id == ancestor)
-                    .and_then(|o| o.parent.as_deref());
+                parent = parents[ancestor];
             }
         }
         let original_center = mover.center;
@@ -179,7 +174,6 @@ impl SceneInstance {
             "movement exceeds world precision limits"
         );
         let object = self.document.objects.iter().find(|o| o.id == id).unwrap();
-        let matrices = self.global_transforms(world)?;
         let parent = object
             .parent
             .as_ref()
@@ -196,7 +190,7 @@ impl SceneInstance {
         *world.get_mut::<Transform>(mover.entity).unwrap() = next;
         // Validate the actual f32 world result, including descendants, before publishing.
         let validation = (|| -> Result<Vec3> {
-            let result = self.collisions(world)?;
+            let (result, _) = self.collision_geometry(world)?;
             let actual = result.boxes.iter().find(|b| b.id == id).unwrap();
             ensure!(
                 result

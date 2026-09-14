@@ -51,6 +51,8 @@ pub struct Editor {
     pub assets: AssetStore,
     revision: u64,
     asset_revision: u64,
+    scene_snapshot: std::cell::RefCell<Option<(u64, std::sync::Arc<Scene>)>>,
+    gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
     edit_demo: std::cell::RefCell<Option<(u64, SceneDemo)>>,
     edit_collisions: std::cell::RefCell<Option<(u64, bozzard_scene::CollisionSnapshot)>>,
 }
@@ -84,12 +86,25 @@ impl Editor {
             assets,
             revision: 1,
             asset_revision: 1,
+            scene_snapshot: Default::default(),
+            gi_freshness: Default::default(),
             edit_demo: Default::default(),
             edit_collisions: Default::default(),
         }
     }
     pub fn scene(&self) -> &Scene {
         &self.scene
+    }
+    /// An immutable document snapshot shared by UI panels until the next transaction.
+    pub fn scene_snapshot(&self) -> std::sync::Arc<Scene> {
+        let mut cached = self.scene_snapshot.borrow_mut();
+        if cached
+            .as_ref()
+            .is_none_or(|(revision, _)| *revision != self.revision)
+        {
+            *cached = Some((self.revision, std::sync::Arc::new(self.scene.clone())));
+        }
+        cached.as_ref().unwrap().1.clone()
     }
     pub fn revision(&self) -> u64 {
         self.revision
@@ -854,7 +869,13 @@ impl Editor {
             edit = self.edit_demo()?;
             &edit
         };
-        extract(demo, &self.assets, layer, aspect)
+        extract_with_gi(
+            demo,
+            &self.assets,
+            layer,
+            aspect,
+            self.play.is_none().then(|| self.gi_current()),
+        )
     }
     /// Authoring queries share one immutable world until a document transaction changes
     /// its revision. Play owns a separate world and never mutates this snapshot.
@@ -985,6 +1006,16 @@ pub fn extract(
     layer: Layer,
     aspect: f32,
 ) -> Result<RenderScene> {
+    extract_with_gi(demo, assets, layer, aspect, None)
+}
+
+fn extract_with_gi(
+    demo: &SceneDemo,
+    assets: &bozzard_assets::AssetStore,
+    layer: Layer,
+    aspect: f32,
+    authored_gi: Option<bool>,
+) -> Result<RenderScene> {
     demo.check_simulation()?;
     let view = demo.instance().view(&demo.app.world, layer, aspect)?;
     let mut gi = None;
@@ -992,8 +1023,15 @@ pub fn extract(
         && demo.instance().document().gi.enabled
         && demo.instance().document().gi.baked.is_some()
     {
-        let scene = demo.instance().capture(&demo.app.world)?;
-        if bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false) {
+        let current = match authored_gi {
+            Some(current) => current,
+            None => {
+                let scene = demo.instance().capture(&demo.app.world)?;
+                bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false)
+            }
+        };
+        if current {
+            let scene = demo.instance().document();
             let baked = scene.gi.baked.as_ref().unwrap();
             gi = Some(bozzard_render::IrradianceVolume {
                 min: baked.volume.min,

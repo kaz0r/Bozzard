@@ -1,6 +1,7 @@
 //! Box overlap queries and swept single-box translation against static colliders.
 use super::*;
 use glam::DVec3;
+mod broad_phase;
 mod mesh;
 mod response;
 pub use mesh::{CollisionMesh, MeshCollider, TriangleMesh};
@@ -110,7 +111,11 @@ pub struct CollisionSnapshot {
     pub overlaps: Vec<(String, String)>,
 }
 impl SceneInstance {
-    pub fn collisions(&self, world: &World) -> Result<CollisionSnapshot> {
+    // Movement needs validated geometry, but has no use for all scene overlaps.
+    fn collision_geometry(
+        &self,
+        world: &World,
+    ) -> Result<(CollisionSnapshot, BTreeMap<String, Mat4>)> {
         let matrices = self.global_transforms(world)?;
         let mut snapshot = CollisionSnapshot::default();
         for (id, &entity) in &self.entities {
@@ -147,14 +152,12 @@ impl SceneInstance {
                 });
             }
         }
-        // Deliberately simple all-pairs broad phase for this first detection milestone.
-        for (i, a) in snapshot.boxes.iter().enumerate() {
-            for b in &snapshot.boxes[i + 1..] {
-                if a.intersects(b) {
-                    snapshot.overlaps.push((a.id.clone(), b.id.clone()));
-                }
-            }
-        }
+        Ok((snapshot, matrices))
+    }
+
+    pub fn collisions(&self, world: &World) -> Result<CollisionSnapshot> {
+        let (mut snapshot, matrices) = self.collision_geometry(world)?;
+        broad_phase::overlaps(&snapshot.boxes, &mut snapshot.overlaps);
         for a in &snapshot.boxes {
             for b in &snapshot.meshes {
                 if b.intersects(a) {

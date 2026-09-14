@@ -42,7 +42,13 @@ impl EffectsPreview {
         Ok(())
     }
     pub fn render(&self, editor: &Editor, layer: Layer, aspect: f32) -> Result<RenderScene> {
-        let mut scene = extract(&self.demo, &editor.assets, layer, aspect)?;
+        let mut scene = extract_with_gi(
+            &self.demo,
+            &editor.assets,
+            layer,
+            aspect,
+            (self.revision == editor.revision()).then(|| editor.gi_current()),
+        )?;
         // Live preview animates particles and atmosphere, not materials:
         // shader graph Time only advances in Play.
         scene.shader_time = 0.;

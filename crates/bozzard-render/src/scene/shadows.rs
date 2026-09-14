@@ -20,8 +20,8 @@ struct ShadowLight {
     normal_bias: f32,
 }
 
-#[derive(PartialEq)]
-struct ShadowCaster {
+#[derive(Clone, PartialEq)]
+pub(super) struct ShadowCaster {
     model: Mat4,
     mesh: MeshKind,
     texture: TextureKind,
@@ -31,7 +31,25 @@ struct ShadowCaster {
     transparent: bool,
 }
 
+impl ShadowCaster {
+    pub fn new(d: &PreparedDraw) -> Self {
+        Self {
+            model: d.object.model,
+            mesh: d.object.mesh.clone(),
+            texture: d.object.material.texture.clone(),
+            uv_scale: d.object.material.uv_scale,
+            opacity: d.opacity,
+            cutoff: d.cutoff,
+            transparent: d.transparent,
+        }
+    }
+}
+
 impl ShadowFrame {
+    pub fn same_sun(&self, other: &Self) -> bool {
+        self.sun == other.sun && self.casters == other.casters && self.culling == other.culling
+    }
+
     pub fn new(scene: &RenderScene, draws: &[PreparedDraw], culling: bool) -> Self {
         let light = scene.lighting;
         Self {
@@ -66,15 +84,7 @@ impl ShadowFrame {
                 .iter()
                 // Transparent receivers also affect the directional map's fitted bounds.
                 .filter(|d| d.object.material.lit)
-                .map(|d| ShadowCaster {
-                    model: d.object.model,
-                    mesh: d.object.mesh.clone(),
-                    texture: d.object.material.texture.clone(),
-                    uv_scale: d.object.material.uv_scale,
-                    opacity: d.opacity,
-                    cutoff: d.cutoff,
-                    transparent: d.transparent,
-                })
+                .map(ShadowCaster::new)
                 .collect(),
             culling,
         }
@@ -464,7 +474,8 @@ impl SceneRenderer {
         match kind {
             MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
             MeshKind::Quad => &self.quad,
-            MeshKind::Cube | MeshKind::Sphere => &self.cube,
+            MeshKind::Cube => &self.cube,
+            MeshKind::Sphere => &self.sphere,
             MeshKind::Imported(id) => &self.imported_meshes[id],
             MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
         }

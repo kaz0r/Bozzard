@@ -205,6 +205,9 @@ fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
     scene.items[0].mesh = MeshKind::Imported("receiver".into());
 
     // Render only the shadow region: the caster is outside the camera, inside the light.
+    // Count actual culling work independently of retained per-light maps. Cache
+    // reuse (including objects outside the light) is checked with separate histories.
+    renderer.set_state_caching_enabled(false);
     let camera = scene.view_projection;
     scene.view_projection =
         glam::camera::rh::proj::directx::orthographic(-1.2, -0.1, -1., 1., 0.1, 10.)
@@ -235,6 +238,7 @@ fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
         "unculled shadow reference skipped a caster"
     );
     renderer.set_culling_enabled(true);
+    renderer.set_state_caching_enabled(true);
     scene.items.pop();
     scene.view_projection = camera;
 
