@@ -51,6 +51,7 @@ mod upload;
 pub use lighting::Lighting;
 pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
+const OBJECT_UNIFORM_BYTES: usize = 496;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshKind {
@@ -200,6 +201,7 @@ struct ObjectBinding {
     buffer: wgpu::Buffer,
     texture: TextureKind,
     binding: wgpu::BindGroup,
+    uniform: Option<[u8; OBJECT_UNIFORM_BYTES]>,
 }
 struct DepthTarget {
     view: wgpu::TextureView,
@@ -222,6 +224,7 @@ pub struct SceneRenderer {
     environment: environment::Environment,
     display: display::Display,
     shadows: shadows::Shadows,
+    shadow_frame: Option<shadows::ShadowFrame>,
     pipeline: wgpu::RenderPipeline,
     transparent_pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
@@ -563,7 +566,7 @@ impl SceneRenderer {
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(496),
+                    min_binding_size: wgpu::BufferSize::new(OBJECT_UNIFORM_BYTES as u64),
                 },
                 count: None,
             },
@@ -671,6 +674,7 @@ impl SceneRenderer {
             environment,
             display,
             shadows,
+            shadow_frame: None,
             pbr,
             pipeline,
             transparent_pipeline,
@@ -770,7 +774,7 @@ impl SceneRenderer {
     fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
-            size: 496,
+            size: OBJECT_UNIFORM_BYTES as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -845,12 +849,18 @@ impl SceneRenderer {
             buffer,
             texture: key.clone(),
             binding,
+            uniform: None,
         })
+    }
+
+    fn invalidate_object_bindings(&mut self) {
+        self.objects.clear();
+        self.shadow_frame = None;
     }
 
     pub fn clear_imported(&mut self) {
         self.model_upload_stats.clear();
-        self.objects.clear();
+        self.invalidate_object_bindings();
         self.imported_meshes.clear();
         self.imported_textures.clear();
         self.models.clear();
@@ -864,7 +874,7 @@ impl SceneRenderer {
         self.imported_textures.remove(id);
         self.transparent_textures.remove(id);
         self.model_upload_stats.remove(id);
-        self.objects.clear();
+        self.invalidate_object_bindings();
     }
 
     pub fn upload_mesh(
@@ -891,7 +901,7 @@ impl SceneRenderer {
         self.model_upload_stats.remove(id);
         self.imported_textures.remove(id);
         self.transparent_textures.remove(id);
-        self.objects.clear();
+        self.invalidate_object_bindings();
         self.imported_meshes
             .insert(id.into(), mesh(gpu, vertices, indices));
         Ok(())
@@ -954,7 +964,7 @@ impl SceneRenderer {
         self.models.remove(id);
         self.model_upload_stats.remove(id);
         // Drop bind groups referring to old texture views; the next draw rebuilds them.
-        self.objects.clear();
+        self.invalidate_object_bindings();
         Ok(())
     }
 
@@ -1246,7 +1256,7 @@ impl SceneRenderer {
                         .sum::<usize>(),
             },
         );
-        self.objects.clear();
+        self.invalidate_object_bindings();
         Ok(())
     }
     fn prepare(&self, scene: &RenderScene) -> Vec<PreparedDraw> {
@@ -1300,11 +1310,13 @@ impl SceneRenderer {
                     .iter()
                     .map(|v| (v.surface as usize, v))
                     .collect();
-                for (index, part) in parts.iter().enumerate() {
-                    if matches!(&object.mesh, MeshKind::ModelPart(_, selected) if *selected != index)
-                    {
-                        continue;
-                    }
+                let (start, count) = match &object.mesh {
+                    MeshKind::ModelPart(_, index) => (*index, 1),
+                    _ => (0, parts.len()),
+                };
+                // Expanded surface entities already identify their part. Slice iterators
+                // skip directly to it instead of scanning every sibling for every entity.
+                for (index, part) in parts.iter().enumerate().skip(start).take(count) {
                     let mut item = object.clone();
                     if matches!(object.mesh, MeshKind::ModelPart(..)) {
                         item.model *= Mat4::from_translation(-part.center);
@@ -1585,7 +1597,10 @@ impl SceneRenderer {
         self.stats.surfaces = draws.len();
         self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
         self.stats.culled_surfaces = draws.len() - self.stats.visible_surfaces;
-        for (draw, binding) in draws.iter().zip(&self.objects) {
+        let inverse_view_projection = view_projection.inverse().to_cols_array();
+        let lighting_uniform = scene.lighting.uniform();
+        let fog_uniform = scene.fog.uniform(raw);
+        for (draw, binding) in draws.iter().zip(&mut self.objects) {
             let object = &draw.object;
             let mvp = view_projection * object.model;
             let previous_model = self.motion_history.previous_model(object);
@@ -1606,51 +1621,76 @@ impl SceneRenderer {
                 if material.lit { 1.0 } else { 0.0 },
                 draw.cutoff,
             ];
-            gpu.queue.write_buffer(
-                &binding.buffer,
-                0,
-                &float_bytes(
-                    mvp.to_cols_array()
-                        .into_iter()
-                        .chain(normal.to_cols_array())
-                        .chain(tail)
-                        .chain(object.model.to_cols_array())
-                        .chain(view_projection.inverse().to_cols_array())
-                        .chain([
-                            size[0] as f32,
-                            size[1] as f32,
-                            object.model.determinant().signum(),
-                            if self.shading(&object.mesh).is_none_or(|s| s.double_sided) {
-                                1.
-                            } else {
-                                0.
-                            },
-                        ])
-                        .chain(scene.lighting.uniform())
-                        .chain([
-                            draw.pbr_override[0],
-                            draw.pbr_override[1],
-                            match material.texture {
-                                TextureKind::Normals => 1.,
-                                TextureKind::ProceduralChecker => 2.,
-                                TextureKind::Toon => 3.,
-                                _ => 0.,
-                            },
-                            if draw.transparent || previous_model.is_none() {
-                                1.
-                            } else {
-                                0.
-                            },
-                        ])
-                        .chain(scene.fog.uniform(raw))
-                        .chain(previous_mvp.to_cols_array())
-                        .chain([scene.shader_time, 0., 0., 0.]),
-                ),
-            );
+            let double_sided = match &object.mesh {
+                MeshKind::ModelPart(id, index) => self.models[id][*index]
+                    .shading
+                    .as_ref()
+                    .is_none_or(|s| s.double_sided),
+                _ => true,
+            };
+            let values = mvp
+                .to_cols_array()
+                .into_iter()
+                .chain(normal.to_cols_array())
+                .chain(tail)
+                .chain(object.model.to_cols_array())
+                .chain(inverse_view_projection)
+                .chain([
+                    size[0] as f32,
+                    size[1] as f32,
+                    object.model.determinant().signum(),
+                    if double_sided { 1. } else { 0. },
+                ])
+                .chain(lighting_uniform)
+                .chain([
+                    draw.pbr_override[0],
+                    draw.pbr_override[1],
+                    match material.texture {
+                        TextureKind::Normals => 1.,
+                        TextureKind::ProceduralChecker => 2.,
+                        TextureKind::Toon => 3.,
+                        _ => 0.,
+                    },
+                    if draw.transparent || previous_model.is_none() {
+                        1.
+                    } else {
+                        0.
+                    },
+                ])
+                .chain(fog_uniform)
+                .chain(previous_mvp.to_cols_array())
+                .chain([
+                    if material.shader.is_some() {
+                        scene.shader_time
+                    } else {
+                        0.
+                    },
+                    0.,
+                    0.,
+                    0.,
+                ]);
+            let mut uniform = [0; OBJECT_UNIFORM_BYTES];
+            debug_assert_eq!(values.clone().count() * 4, uniform.len());
+            for (slot, value) in uniform.chunks_exact_mut(4).zip(values) {
+                slot.copy_from_slice(&value.to_le_bytes());
+            }
+            if !self.state_caching || binding.uniform.as_ref() != Some(&uniform) {
+                gpu.queue.write_buffer(&binding.buffer, 0, &uniform);
+                binding.uniform = Some(uniform);
+                self.stats.object_uniform_writes += 1;
+            }
         }
-        self.update_shadows(gpu, scene, &draws)?;
-        self.update_spot_shadows(gpu, scene)?;
-        self.update_point_shadows(gpu, scene)?;
+        let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
+        self.stats.shadow_cache_hit =
+            self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
+        if !self.stats.shadow_cache_hit {
+            // Invalidate before queueing writes: a later frame error must not leave a
+            // valid-looking stamp paired with partially updated shadow uniforms.
+            self.shadow_frame = None;
+            self.update_shadows(gpu, scene, &draws)?;
+            self.update_spot_shadows(gpu, scene)?;
+            self.update_point_shadows(gpu, scene)?;
+        }
         if !raw && !scene.particles.is_empty() {
             self.stats.particles = scene.particles.len();
             self.stats.particle_triangles = scene.particles.len() as u64 * 2;
@@ -1677,20 +1717,27 @@ impl SceneRenderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("scene frame"),
             });
-        (self.stats.shadow_draws, self.stats.shadow_triangles) =
-            self.draw_shadows(&mut encoder, scene, &draws);
-        let (spot_draws, spot_triangles) =
-            self.shadows
-                .spots
-                .draw(self, &mut encoder, &draws, &self.shadows.pipeline);
-        self.stats.shadow_draws += spot_draws;
-        self.stats.shadow_triangles += spot_triangles;
-        let (point_draws, point_triangles) =
-            self.shadows
-                .points
-                .draw(self, &mut encoder, &draws, &self.shadows.point_pipeline);
-        self.stats.shadow_draws += point_draws;
-        self.stats.shadow_triangles += point_triangles;
+        if !self.stats.shadow_cache_hit {
+            (self.stats.shadow_draws, self.stats.shadow_triangles) =
+                self.draw_shadows(&mut encoder, scene, &draws);
+            let (spot_draws, spot_triangles) =
+                self.shadows
+                    .spots
+                    .draw(self, &mut encoder, &draws, &self.shadows.pipeline);
+            self.stats.shadow_draws += spot_draws;
+            self.stats.shadow_triangles += spot_triangles;
+            let (point_draws, point_triangles) =
+                self.shadows
+                    .points
+                    .draw(self, &mut encoder, &draws, &self.shadows.point_pipeline);
+            self.stats.shadow_draws += point_draws;
+            self.stats.shadow_triangles += point_triangles;
+        }
+        let stores = geometry::stores(scene, raw, self.state_caching);
+        self.stats.geometry_store_bytes = stores.iter().filter(|s| **s).count() as u64
+            * 8
+            * u64::from(size[0])
+            * u64::from(size[1]);
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
@@ -1704,17 +1751,17 @@ impl SceneRenderer {
                             a: 1.,
                         },
                     ),
-                    geometry::attachment(
+                    geometry::auxiliary_attachment(
                         &self.geometry.as_ref().unwrap().normal,
-                        wgpu::Color::TRANSPARENT,
+                        stores[0],
                     ),
-                    geometry::attachment(
+                    geometry::auxiliary_attachment(
                         &self.geometry.as_ref().unwrap().motion,
-                        wgpu::Color::TRANSPARENT,
+                        stores[1],
                     ),
-                    geometry::attachment(
+                    geometry::auxiliary_attachment(
                         &self.geometry.as_ref().unwrap().specular,
-                        wgpu::Color::TRANSPARENT,
+                        stores[2],
                     ),
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -1815,6 +1862,7 @@ impl SceneRenderer {
         let submit_started = std::time::Instant::now();
         gpu.queue.submit([commands]);
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
+        self.shadow_frame = Some(shadow_frame);
         self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())

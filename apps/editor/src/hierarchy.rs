@@ -1,5 +1,17 @@
-use bozzard_scene::Scene;
-use std::collections::BTreeSet;
+use bozzard_scene::{Object, Scene};
+use std::collections::{BTreeMap, BTreeSet};
+
+/// Preserve document order without rescanning every object for each expanded row.
+pub fn children(scene: &Scene) -> BTreeMap<Option<&str>, Vec<&Object>> {
+    let mut children = BTreeMap::<_, Vec<_>>::new();
+    for object in &scene.objects {
+        children
+            .entry(object.parent.as_deref())
+            .or_default()
+            .push(object);
+    }
+    children
+}
 
 /// Transient navigation state, never serialized into a scene or its history.
 #[derive(Default)]
@@ -35,8 +47,9 @@ impl HierarchyState {
             .collect();
     }
     pub fn sync_selection(&mut self, scene: &Scene, selected: Option<&str>) {
+        let objects: BTreeMap<_, _> = scene.objects.iter().map(|o| (o.id.as_str(), o)).collect();
         self.collapsed
-            .retain(|id| scene.objects.iter().any(|o| &o.id == id));
+            .retain(|id| objects.contains_key(id.as_str()));
         let mut path = Vec::new();
         let mut next = selected;
         while let Some(id) = next {
@@ -44,11 +57,7 @@ impl HierarchyState {
                 break;
             }
             path.push(id.to_owned());
-            next = scene
-                .objects
-                .iter()
-                .find(|o| o.id == id)
-                .and_then(|o| o.parent.as_deref());
+            next = objects.get(id).and_then(|o| o.parent.as_deref());
         }
         if path != self.selection_path {
             for id in path.iter().skip(1) {
@@ -86,6 +95,88 @@ mod tests {
           {"id":"branch","name":"Branch","parent":"root","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
           {"id":"leaf","name":"Leaf","parent":"branch","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}
         ]}"#).unwrap()
+    }
+    fn walk(scene: &Scene, indexed: bool) -> Vec<&str> {
+        let index = indexed.then(|| children(scene));
+        let mut stack: Vec<_> = scene
+            .objects
+            .iter()
+            .filter(|o| o.parent.is_none())
+            .rev()
+            .collect();
+        let mut order = Vec::new();
+        while let Some(object) = stack.pop() {
+            order.push(object.id.as_str());
+            if let Some(index) = &index {
+                stack.extend(
+                    index
+                        .get(&Some(object.id.as_str()))
+                        .into_iter()
+                        .flatten()
+                        .rev()
+                        .copied(),
+                );
+            } else {
+                stack.extend(
+                    scene
+                        .objects
+                        .iter()
+                        .filter(|o| o.parent.as_deref() == Some(&object.id))
+                        .rev(),
+                );
+            }
+        }
+        order
+    }
+    #[test]
+    fn indexed_traversal_keeps_document_order_after_reparenting_and_deletion() {
+        let mut scene = scene();
+        assert_eq!(walk(&scene, true), vec!["root", "branch", "leaf"]);
+        scene.objects.swap(0, 2);
+        assert_eq!(walk(&scene, true), walk(&scene, false));
+        scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "leaf")
+            .unwrap()
+            .parent = None;
+        assert_eq!(walk(&scene, true), walk(&scene, false));
+        scene.objects.retain(|o| o.id != "branch");
+        assert_eq!(walk(&scene, true), vec!["leaf", "root"]);
+    }
+    #[test]
+    #[ignore = "release CPU benchmark; run explicitly with --ignored --nocapture"]
+    fn hierarchy_traversal_benchmark() {
+        let mut scene = scene();
+        let template = scene.objects[0].clone();
+        scene.objects = (0..2000)
+            .map(|i| {
+                let mut object = template.clone();
+                object.id = format!("node-{i}");
+                object.parent = (i > 0 && i % 7 != 0).then(|| format!("node-{}", (i - 1) / 2));
+                object
+            })
+            .collect();
+        assert_eq!(walk(&scene, true), walk(&scene, false));
+        assert_eq!(walk(&scene, true).len(), 2000);
+        let mut times = [Vec::new(), Vec::new()];
+        for iteration in 0..110 {
+            for mode in [iteration % 2, 1 - iteration % 2] {
+                let start = std::time::Instant::now();
+                std::hint::black_box(walk(&scene, mode == 1));
+                if iteration >= 10 {
+                    times[mode].push(start.elapsed().as_secs_f64() * 1000.);
+                }
+            }
+        }
+        for (mode, times) in times.iter_mut().enumerate() {
+            times.sort_by(f64::total_cmp);
+            println!(
+                "hierarchy_benchmark indexed={} objects=2000 samples=100 median_ms={:.6} exact_order=true",
+                mode == 1,
+                (times[49] + times[50]) * 0.5
+            );
+        }
     }
     #[test]
     fn collapse_search_and_expand_do_not_modify_scene() {

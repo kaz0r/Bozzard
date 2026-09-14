@@ -170,12 +170,7 @@ pub use display::{display_settings, particle_frame};
 pub fn shader_source(
     graph: &bozzard_scene::shader_graph::ShaderGraph,
 ) -> anyhow::Result<Arc<bozzard_render::ShaderSource>> {
-    use std::hash::{Hash, Hasher};
-    let surface = graph.surface_function()?;
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    surface.hash(&mut hasher);
-    Ok(Arc::new(bozzard_render::ShaderSource {
-        id: hasher.finish(),
-        surface,
-    }))
+    shaders::source(graph)
 }
+
+mod shaders;

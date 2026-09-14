@@ -142,3 +142,45 @@ fn sphere_preview_renders_graph_geometry() {
         "expected background at corner, got {corner:?}"
     );
 }
+
+#[test]
+fn cached_object_uniforms_keep_shader_time_live_but_ignore_unused_stock_time() -> anyhow::Result<()>
+{
+    use bozzard_scene::shader_graph::{Socket, Wire};
+    let mut graph = ShaderGraph::default();
+    graph.nodes.push(Node::new(2, NodeKind::Time, [0.; 2]));
+    graph.nodes.push(Node::new(3, NodeKind::Append, [0.; 2]));
+    graph.connect(Wire {
+        from: Socket { node: 2, port: 0 },
+        to: Socket { node: 3, port: 0 },
+    })?;
+    graph.connect(Wire {
+        from: Socket { node: 3, port: 0 },
+        to: Socket { node: 1, port: 0 },
+    })?;
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let mut scene = scene(vec![item(Some(graph_surface(graph)))]);
+    let draw = |renderer: &mut SceneRenderer, scene: &RenderScene| {
+        capture_offscreen(&gpu, 32, 24, |target| {
+            renderer.draw_linear(&gpu, target, [32, 24], scene)
+        })
+    };
+    scene.shader_time = 0.2;
+    let first = draw(&mut renderer, &scene)?;
+    scene.shader_time = 0.8;
+    let advanced = draw(&mut renderer, &scene)?;
+    assert!(pixel(&advanced, 16, 12)[0] > pixel(&first, 16, 12)[0] + 100);
+    assert_eq!(renderer.frame_stats().object_uniform_writes, 1);
+    assert_eq!(draw(&mut renderer, &scene)?.rgba, advanced.rgba);
+    assert_eq!(renderer.frame_stats().object_uniform_writes, 0);
+    renderer.set_state_caching_enabled(false);
+    assert_eq!(draw(&mut renderer, &scene)?.rgba, advanced.rgba);
+    renderer.set_state_caching_enabled(true);
+    scene.items[0].material.shader = None;
+    let stock = draw(&mut renderer, &scene)?;
+    scene.shader_time = 1.5;
+    assert_eq!(draw(&mut renderer, &scene)?.rgba, stock.rgba);
+    assert_eq!(renderer.frame_stats().object_uniform_writes, 0);
+    Ok(())
+}

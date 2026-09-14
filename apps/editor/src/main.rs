@@ -31,6 +31,7 @@ mod lights;
 mod loading;
 mod particles;
 mod post_processing;
+mod repaint;
 mod shaders;
 mod snapping;
 mod surfaces;
@@ -112,6 +113,10 @@ struct App {
     renderer: SceneRenderer,
     residency: bozzard_render_assets::Residency,
     target: Option<Target>,
+    viewport_stamp: Option<repaint::ViewportStamp>,
+    viewport_continuous: bool,
+    viewport_draws: u64,
+    viewport_reuses: u64,
     render_state: eframe::egui_wgpu::RenderState,
     workspace: Workspace,
     status: String,
@@ -153,6 +158,7 @@ struct App {
     smoke: Option<PathBuf>,
     smoke_passed: Arc<AtomicBool>,
     smoke_frames: u32,
+    smoke_repaint: acceptance::RepaintSmoke,
     smoke_start: Instant,
     smoke_requested: bool,
     smoke_gizmo_verified: bool,
@@ -208,6 +214,10 @@ impl App {
             residency: bozzard_render_assets::Residency::default(),
             render_state: state,
             target: None,
+            viewport_stamp: None,
+            viewport_continuous: false,
+            viewport_draws: 0,
+            viewport_reuses: 0,
             workspace,
             status: "Ready · Select an object to begin".into(),
             hierarchy_search: String::new(),
@@ -248,6 +258,7 @@ impl App {
             smoke,
             smoke_passed,
             smoke_frames: 0,
+            smoke_repaint: Default::default(),
             smoke_start: Instant::now(),
             smoke_requested: false,
             smoke_gizmo_verified: false,
@@ -316,6 +327,7 @@ impl App {
                     scene.objects.retain(|o| o.camera.is_some());
                     let path = untitled_scene_path()?;
                     self.editor = Editor::new(scene, &path)?;
+                    self.viewport_stamp = None;
                     self.hierarchy_state = hierarchy::HierarchyState::default();
                     self.refresh = None;
                     self.reload_paused = false;
@@ -740,12 +752,13 @@ impl App {
                 .and_then(|s| self.editor.selected.as_deref().map(|id| (id, s.index))),
         );
 
-        let mut stack: Vec<_> = scene
-            .objects
-            .iter()
-            .filter(|o| o.parent.is_none())
+        let children = hierarchy::children(&scene);
+        let mut stack: Vec<_> = children
+            .get(&None)
+            .into_iter()
+            .flatten()
             .rev()
-            .map(|o| (o, 0usize))
+            .map(|o| (*o, 0usize))
             .collect();
         let mut matches = 0usize;
         let can_reparent = ui.is_enabled()
@@ -787,7 +800,7 @@ impl App {
                             ui.horizontal(|ui| {
                                 if query.is_empty() {
                                     ui.add_space((depth.min(12) * 12) as f32);
-                                    if has_surfaces || scene.objects.iter().any(|o| o.parent.as_deref() == Some(&object.id)) {
+                                    if has_surfaces || children.contains_key(&Some(object.id.as_str())) {
                                         let collapsed = self.hierarchy_state.is_collapsed(&object.id);
                                         if ui.add_sized([18.0, 18.0], egui::Button::new(if collapsed { "▶" } else { "▼" }).frame(false))
                                             .on_hover_text(if collapsed { "Expand children" } else { "Collapse children" }).clicked() {
@@ -905,10 +918,10 @@ impl App {
                             continue;
                         }
                         self.hierarchy_surfaces(ui, &object.id, depth + 1, if object_matches { "" } else { &query });
-                        for child in scene
-                            .objects
-                            .iter()
-                            .filter(|o| o.parent.as_deref() == Some(&object.id))
+                        for child in children
+                            .get(&Some(object.id.as_str()))
+                            .into_iter()
+                            .flatten()
                             .rev()
                         {
                             stack.push((child, depth + 1));
@@ -1512,7 +1525,17 @@ impl eframe::App for App {
         {
             self.smoke_step(&ctx);
         }
-        ctx.request_repaint_after(Duration::from_millis(16));
+        let active = self.smoke.is_some()
+            || self.editor.play.is_some()
+            || self.loading.is_some()
+            || self.refresh.is_some()
+            || self.residency.progress().is_some()
+            || self.residency.preparing().is_some()
+            || self.workspace.shaders_visible
+            || (self.viewport_continuous && !self.workspace.blueprints_visible)
+            || self.fly_latched
+            || self.mouse_captured;
+        ctx.request_repaint_after(Duration::from_millis(if active { 16 } else { 500 }));
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.workspace.scene_path = Some(self.editor.path.clone());

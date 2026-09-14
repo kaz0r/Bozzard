@@ -59,7 +59,7 @@ impl BoxCollider {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CollisionBox {
     pub id: String,
     pub entity: Entity,
@@ -79,14 +79,12 @@ impl CollisionBox {
         let a = self.edges;
         let b = other.edges;
         let faces = |e: [DVec3; 3]| [e[1].cross(e[2]), e[2].cross(e[0]), e[0].cross(e[1])];
-        let mut axes = Vec::with_capacity(15);
-        axes.extend(faces(a));
-        axes.extend(faces(b));
-        for u in a {
-            for v in b {
-                axes.push(u.cross(v));
-            }
-        }
+        // Evaluate separating axes lazily. Distant pairs usually stop on a face
+        // normal, without allocating or computing the nine edge cross products.
+        let axes = faces(a).into_iter().chain(faces(b)).chain(
+            a.into_iter()
+                .flat_map(|u| b.into_iter().map(move |v| u.cross(v))),
+        );
         for axis in axes {
             let length = axis.length();
             if length == 0.0 {
@@ -102,7 +100,7 @@ impl CollisionBox {
         true
     }
 }
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CollisionSnapshot {
     /// Enabled colliders in stable object-ID order.
     pub boxes: Vec<CollisionBox>,

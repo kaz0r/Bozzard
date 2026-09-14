@@ -173,6 +173,7 @@ impl App {
             Some(Loading::Open(job)) => job.poll().map(|result| {
                 result.map(|loaded| {
                     self.editor = loaded.into_editor();
+                    self.viewport_stamp = None;
                     self.hierarchy_state = hierarchy::HierarchyState::default();
                     self.workspace.camera = None;
                     self.workspace.ortho_zoom = 1.0;

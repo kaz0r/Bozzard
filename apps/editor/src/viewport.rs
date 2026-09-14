@@ -209,7 +209,7 @@ fn angle_delta(current: f32, previous: f32) -> f32 {
     (current - previous + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)
         - std::f32::consts::PI
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FlyCamera {
     position: [f32; 3],
     yaw: f32,
@@ -234,7 +234,7 @@ impl FlyCamera {
     pub(super) fn pose(&self) -> Mat4 {
         Mat4::from_translation(Vec3::from_array(self.position)) * self.rotation()
     }
-    fn move_by(&mut self, direction: Vec3) {
+    pub(super) fn move_by(&mut self, direction: Vec3) {
         self.position = (Vec3::from_array(self.position) + direction).to_array();
     }
     fn flight_direction(&self, axes: Vec3) -> Vec3 {
@@ -670,6 +670,7 @@ impl App {
             (rect.height() * ppp).round().clamp(1.0, limit as f32) as u32,
         ];
         if self.target.as_ref().is_none_or(|t| t.size != size) {
+            self.viewport_stamp = None;
             let texture = self.gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Editor scene viewport"),
                 size: wgpu::Extent3d {
@@ -909,8 +910,50 @@ impl App {
         }
         let projection = scene.view_projection;
         let target = self.target.as_ref().unwrap();
-        self.renderer.set_hud_scale(ppp);
-        self.renderer.draw(&self.gpu, &target.view, size, &scene)?;
+        self.viewport_continuous = repaint::continuous(
+            scene.display,
+            self.editor.play.is_some(),
+            self.preview_running && !self.workspace.layer_2d && !self.preview_bypass,
+            self.editor
+                .scene()
+                .objects
+                .iter()
+                .any(|o| o.particle_emitter.is_some_and(|e| e.enabled)),
+        );
+        let stamp = repaint::ViewportStamp {
+            revision: self.editor.revision(),
+            catalog: self.editor.asset_revision(),
+            assets: self
+                .editor
+                .assets
+                .entries()
+                .map(|e| {
+                    (
+                        e.id.clone(),
+                        e.revision(),
+                        self.residency.is_current(&self.editor.assets, &e.id),
+                    )
+                })
+                .collect(),
+            size,
+            scale: ppp,
+            projection,
+            layer_2d: self.workspace.layer_2d,
+            playing: self.editor.play.is_some(),
+            bypass: self.preview_bypass,
+            display: bozzard_render::DisplaySettings {
+                time_seconds: 0.,
+                ..scene.display
+            },
+        };
+        if self.viewport_continuous || self.viewport_stamp.as_ref() != Some(&stamp) {
+            self.renderer.set_hud_scale(ppp);
+            self.renderer.draw(&self.gpu, &target.view, size, &scene)?;
+            self.viewport_stamp = Some(stamp);
+            self.viewport_draws += 1;
+        } else {
+            self.viewport_reuses += 1;
+        }
         ui.painter().image(
             target.id,
             rect,

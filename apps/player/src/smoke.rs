@@ -785,6 +785,9 @@ fn check_document(
         // Freeze the same transient look for the geometry/material image comparison;
         // the assertion above separately verifies that the authored look was saved.
         restored_scene.display = moved_scene.display;
+        // A scene snapshot preserves graph parameters, not the simulation clock.
+        // Compare the same shader time, just as we do for the display effects.
+        restored_scene.shader_time = moved_scene.shader_time;
         // Particle lifetimes/positions are runtime-only, like display overrides.
         restored_scene.particles = moved_scene.particles.clone();
         let reloaded = capture_display(gpu, renderer, &restored_scene, size)?;

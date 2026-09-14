@@ -1,5 +1,7 @@
 # Performance measurements
 
+For the September 2026 optimization pass, including shadow reuse, idle editor drawing, CPU caches, and before/after results, see [the optimization review](optimization-results.md). The recorded measurements below describe an earlier pass.
+
 Bozzard has two small, reproducible benchmark paths. They answer different questions: the editor example measures CPU authoring and inspection work, while the player benchmark measures a synchronized render loop for several renderer configurations. Neither reports frames per second, GPU timestamp queries, or a direct GPU execution time.
 
 ## Editor CPU paths

@@ -3,7 +3,7 @@ use bozzard_assets::{AssetData, LoadState};
 use bozzard_editor::Editor;
 use bozzard_scene::{AssetKind, Layer};
 use eframe::egui::{self, Color32, ColorImage, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct AssetBrowser {
@@ -16,7 +16,7 @@ pub struct AssetBrowser {
     selected_shader: Option<std::path::PathBuf>,
     show_details: bool,
     thumbnails: HashMap<String, Thumbnail>,
-    meshes: HashMap<String, (u64, MeshPreview)>,
+    meshes: HashMap<String, (u64, Arc<MeshPreview>)>,
     catalog_revision: u64,
 }
 
@@ -69,7 +69,7 @@ struct AssetSnapshot {
     revision: u64,
     users: usize,
     image: Option<(u32, u32)>,
-    mesh: Option<MeshPreview>,
+    mesh: Option<Arc<MeshPreview>>,
     prefab_objects: Option<usize>,
 }
 
@@ -1015,7 +1015,7 @@ fn set_error(output: &mut AssetBrowserOutput, error: anyhow::Error) {
 
 fn snapshots(
     editor: &Editor,
-    mesh_cache: &mut HashMap<String, (u64, MeshPreview)>,
+    mesh_cache: &mut HashMap<String, (u64, Arc<MeshPreview>)>,
 ) -> Vec<AssetSnapshot> {
     let users = editor.scene().asset_users();
     editor
@@ -1030,7 +1030,7 @@ fn snapshots(
                     let sampled = match mesh_cache.get(&entry.id) {
                         Some((r, preview)) if *r == revision => preview.clone(),
                         _ => {
-                            let preview = sample_mesh(mesh);
+                            let preview = Arc::new(sample_mesh(mesh));
                             mesh_cache.insert(entry.id.clone(), (revision, preview.clone()));
                             preview
                         }

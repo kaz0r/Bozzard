@@ -88,6 +88,36 @@ pub(super) fn attachment(
     })
 }
 
+/// Only retain auxiliary render targets when a later pass consumes them. The
+/// textures and shader outputs remain available when effects are enabled next frame.
+pub(super) fn stores(scene: &RenderScene, raw: bool, caching: bool) -> [bool; 3] {
+    if !caching {
+        return [true; 3];
+    }
+    let temporal = !raw && (scene.display.temporal_aa.enabled || scene.display.motion_blur.enabled);
+    let reflections =
+        !raw && scene.display.reflections.enabled && scene.display.reflections.strength > 0.;
+    [
+        temporal || reflections,
+        // The particle pass loads motion coverage, even when temporal effects are off.
+        temporal || (!raw && !scene.particles.is_empty()),
+        reflections,
+    ]
+}
+
+pub(super) fn auxiliary_attachment(
+    view: &wgpu::TextureView,
+    store: bool,
+) -> Option<wgpu::RenderPassColorAttachment<'_>> {
+    let mut attachment = attachment(view, wgpu::Color::TRANSPARENT)?;
+    attachment.ops.store = if store {
+        wgpu::StoreOp::Store
+    } else {
+        wgpu::StoreOp::Discard
+    };
+    Some(attachment)
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TemporalFrame {
     pub previous_vp: Mat4,

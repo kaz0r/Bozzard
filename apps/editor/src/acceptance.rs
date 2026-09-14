@@ -1,5 +1,86 @@
 use super::*;
+#[derive(Default)]
+pub(super) struct RepaintSmoke {
+    frame: u32,
+    draws: u64,
+    reuses: u64,
+    image: Option<bozzard_render::Frame>,
+    camera: Option<viewport::FlyCamera>,
+}
 impl App {
+    // Exercise the actual retained viewport before the existing authoring/Play tests.
+    fn smoke_retained_viewport(&mut self) -> Result<bool> {
+        self.smoke_repaint.frame += 1;
+        let step = self.smoke_repaint.frame;
+        if step > 11 {
+            return Ok(true);
+        }
+        if self.viewport_continuous || self.workspace.layer_2d {
+            self.smoke_repaint.frame = 12;
+            return Ok(true);
+        }
+        let read = || -> Result<bozzard_render::Frame> {
+            let t = self
+                .target
+                .as_ref()
+                .context("viewport target unavailable")?;
+            bozzard_render::read_texture(&self.gpu, &t.texture, t.size[0], t.size[1])
+        };
+        match step {
+            3 => {
+                self.smoke_repaint.image = Some(read()?);
+                self.smoke_repaint.draws = self.viewport_draws;
+                self.smoke_repaint.reuses = self.viewport_reuses;
+            }
+            9 => {
+                ensure!(
+                    self.viewport_draws == self.smoke_repaint.draws,
+                    "idle viewport redrew"
+                );
+                ensure!(
+                    self.viewport_reuses >= self.smoke_repaint.reuses + 6,
+                    "idle viewport was not reused"
+                );
+                ensure!(
+                    read()?.rgba == self.smoke_repaint.image.as_ref().unwrap().rgba,
+                    "retained viewport changed pixels"
+                );
+                self.smoke_repaint.camera = self.workspace.camera.clone();
+                self.workspace
+                    .camera
+                    .as_mut()
+                    .context("missing editor camera")?
+                    .move_by(Vec3::new(0.5, 0., 0.));
+            }
+            10 => {
+                ensure!(
+                    self.viewport_draws == self.smoke_repaint.draws + 1,
+                    "camera movement did not redraw"
+                );
+                ensure!(
+                    read()?.rgba != self.smoke_repaint.image.as_ref().unwrap().rgba,
+                    "camera movement left stale viewport pixels"
+                );
+                self.workspace.camera = self.smoke_repaint.camera.take();
+            }
+            11 => {
+                ensure!(
+                    self.viewport_draws == self.smoke_repaint.draws + 2,
+                    "camera restore did not redraw"
+                );
+                ensure!(
+                    read()?.rgba == self.smoke_repaint.image.take().unwrap().rgba,
+                    "camera restore changed static viewport pixels"
+                );
+                println!(
+                    "editor_repaint_smoke_ok idle_frames=6 scene_draws=0 camera_move_and_restore exact_pixels"
+                );
+                return Ok(true);
+            }
+            _ => {}
+        }
+        Ok(false)
+    }
     pub fn smoke_gizmo_navigation(
         &mut self,
         ui: &mut egui::Ui,
@@ -102,6 +183,16 @@ impl App {
         let Some(output) = self.smoke.clone() else {
             return;
         };
+        match self.smoke_retained_viewport() {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(error) => {
+                eprintln!("editor_smoke_failed: {error:#}");
+                self.allow_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                return;
+            }
+        }
         self.smoke_frames += 1;
         if self.smoke_export_started {
             if self.loading.is_some() {
@@ -152,6 +243,10 @@ impl App {
                 eprintln!("editor_smoke_failed: {error:#}");
             } else {
                 self.smoke_passed.store(true, Ordering::Relaxed);
+                println!(
+                    "editor_viewport_work draws={} reused={}",
+                    self.viewport_draws, self.viewport_reuses
+                );
                 println!(
                     "editor_smoke_ok authored_commands play_isolation native_ui_capture export"
                 );

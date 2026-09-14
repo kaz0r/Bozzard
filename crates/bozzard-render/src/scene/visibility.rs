@@ -11,6 +11,12 @@ pub struct FrameStats {
     pub color_triangles: u64,
     pub shadow_draws: usize,
     pub shadow_triangles: u64,
+    /// True when every shadow map was reused without another depth pass.
+    pub shadow_cache_hit: bool,
+    pub object_uniform_writes: usize,
+    /// Logical bytes retained by the opaque pass's three RGBA16F auxiliary targets.
+    /// Not measured memory traffic; allocation size is unchanged.
+    pub geometry_store_bytes: u64,
     /// Color-pass mesh pipeline binds; excludes sky, shadow and display passes.
     pub pipeline_binds: usize,
     /// CPU work only, including command submission. Not GPU execution or FPS.
