@@ -430,11 +430,14 @@ pub(super) fn corners(bounds: [Vec3; 2]) -> impl Iterator<Item = Vec3> {
         )
     })
 }
+/// Fits a sun-aligned light-space box around `points`, returning the projection, the fitted
+/// depth range, and the world size of one shadow texel. A fitted box spreads the map's fixed
+/// resolution over whatever it covers, so that texel size is what the bias has to keep up with.
 fn fit(
     points: impl Iterator<Item = Vec3>,
     direction: Vec3,
     resolution: u32,
-) -> Option<(Mat4, f32)> {
+) -> Option<(Mat4, f32, f32)> {
     let up = if direction.dot(Vec3::Y).abs() > 0.99 {
         Vec3::Z
     } else {
@@ -467,7 +470,9 @@ fn fit(
         near,
         far,
     ) * view;
-    matrix.is_finite().then_some((matrix, far - near))
+    matrix
+        .is_finite()
+        .then_some((matrix, far - near, texel.max_element()))
 }
 impl SceneRenderer {
     pub(super) fn mesh_for(&self, kind: &MeshKind) -> &MeshBuffers {
@@ -509,12 +514,18 @@ impl SceneRenderer {
             self.shadows.rebind(gpu);
             self.shadows.resolution = resolution;
         }
-        let (matrix, range) = fit.unwrap_or((Mat4::IDENTITY, 1.));
+        let (matrix, range, texel) = fit.unwrap_or((Mat4::IDENTITY, 1., 0.));
+        // One slanted texel reads the depth of its neighbour, so the error a texel can place
+        // under a surface scales with the texel's world size. Keeping the world-space bias at
+        // least one texel wide is what stops that error from turning into acne once a stray
+        // caster (a projectile crossing the scene) stretches the fitted box.
+        // ponytail: one whole-texel frame bias for every surface; per-pixel slope bias, or
+        // cascades that keep the box small, if the extra softening on large scenes matters.
         gpu.queue.write_buffer(
             &self.shadows.uniform,
             0,
             &float_bytes(matrix.to_cols_array().into_iter().chain([
-                light.shadow_bias / range,
+                (light.shadow_bias + texel) / range,
                 light.shadow_normal_bias,
                 if enabled { 1. } else { 0. },
                 1. / resolution as f32,
@@ -583,8 +594,8 @@ mod tests {
     fn bounds_fit_contains_corners_and_handles_vertical_sun() {
         let bounds = [Vec3::new(-20., -2., -10.), Vec3::new(25., 12., 10.)];
         for direction in [Vec3::Y, -Vec3::Y, Vec3::new(0.4, 0.8, 0.6).normalize()] {
-            let (m, range) = fit(corners(bounds), direction, 2048).unwrap();
-            assert!(range > 0.);
+            let (m, range, texel) = fit(corners(bounds), direction, 2048).unwrap();
+            assert!(range > 0. && texel > 0.);
             for p in corners(bounds) {
                 let q = m.project_point3(p);
                 assert!(
@@ -594,5 +605,27 @@ mod tests {
             }
         }
         assert!(fit(std::iter::empty(), Vec3::Y, 2048).is_none());
+    }
+    #[test]
+    fn one_texel_of_world_bias_tracks_the_fitted_area() {
+        // A projectile flying far from the playable area used to stretch the fitted box
+        // (and its texels) without changing the authored bias, so slanted floors broke out
+        // in shadow acne. The frame bias now grows with the texel it has to cover.
+        let direction = Vec3::new(0.4, 0.85, 0.35).normalize();
+        let arena = [Vec3::new(-9., 0., -9.), Vec3::new(9., 1.5, 9.)];
+        let stray = [Vec3::new(-9., 0., -9.), Vec3::new(140., 1.5, 9.)];
+        let bias = |authored: f32, texel: f32, range: f32| (authored + texel) / range;
+        let mut grew = false;
+        for bounds in [arena, stray] {
+            let (_, range, texel) = fit(corners(bounds), direction, 2048).unwrap();
+            // Floor faces sit 0.85 to the sun, so a slanted texel misreads 0.62 texels of depth.
+            let error = 0.62 * texel / range;
+            assert!(bias(0.005, texel, range) >= error, "{texel} {range}");
+            grew |= 0.005 / range < error;
+        }
+        assert!(
+            grew,
+            "the fitted box never stretched far enough to need the wider bias"
+        );
     }
 }
