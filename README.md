@@ -39,13 +39,18 @@ cargo run -p bozzard-player -- --scene examples/demo/scenes/asset-lab.json
 
 # Run the same scene for 120 fixed ticks without a graphics adapter or window.
 cargo run -p bozzard-server -- --ticks 120
+
+# First-person shooting: clear all four cubes to win.
+cargo run -p bozzard-player -- --scene examples/demo/scenes/target-range.json
 ```
 
 Windows needs Rust's MSVC toolchain and Visual Studio C++ build tools. Linux needs a C linker, Vulkan drivers and window-system development packages; the CI workflow lists Ubuntu packages. `--backend metal|dx12|vulkan` selects one graphics API explicitly. `--software` requires a software adapter; `--hardware` requires a reported integrated/discrete GPU. Missing adapters fail visibly.
 
-The [Gold Yard mini-game](docs/gold-yard.md) is a small physics playground: open `examples/demo/scenes/gold-yard.json`, Play, then **WASD** to roam, **Space** to jump and **right-drag** to look. Collect the gold, step on the blue pad to drop convex physics blocks onto a ramp, and optionally finish at the green pad. Includes reusable **Mouse Delta X/Y** Blueprint nodes.
+The [Gold Yard mini-game](docs/gold-yard.md) is a small physics playground: open `examples/demo/scenes/gold-yard.json`, Play, then **WASD** to roam, **Space** to jump and move the mouse to look (**right-drag** in the editor). Collect the gold, step on the blue pad to drop convex physics blocks onto a ramp, and optionally finish at the green pad. Includes reusable **Mouse Delta X/Y** Blueprint nodes.
 
 The [bonfire demo](docs/bonfire.md) demonstrates **Spawn Prefab / Destroy Prefab** in a dark, fire-lit scene. Press **Play**, then **Space** in the viewport to toggle emission and watch the remaining embers expire.
+
+The [Target Range](docs/blueprints.md#target-range-example) is a first-person shooting game built entirely from Blueprints — movement, gravity, jumping, mouse-look, the camera, the weapons and the shot are graphs, with no Player Controller component: **WASD** to move, **Space** to jump, move the mouse to look around (the standalone player locks the pointer; **right-drag** in the editor), **left-click** to fire at the crosshair, and **E** at the table to swap between the AR, pistol and shotgun, each with its own bullet speed, size and recoil kick. Four cube targets pop when a projectile hits them, and the run ends with a win screen once all four are gone. It uses the **Fire** and **E** inputs, **Forward Vector**, **Break Vector**, **Clamp**, **Set Velocity**, **Set Scale**, **Set Text**, **Is Rigidbody**, **Move With Collision**'s Grounded output and **Lock/Unlock Cursor** nodes.
 
 Click **Effects** for presets, live particle preview, focus, wet materials, and detailed tuning. See [atmosphere and motion effects](docs/atmosphere-effects.md).
 
@@ -75,7 +80,7 @@ cargo run -p bozzard-editor-app --locked --offline -- --scene examples/demo/scen
 cargo run -p bozzard-player --locked --offline -- --scene examples/demo/scenes/first-trail.json
 ```
 
-**WASD** moves relative to the follow camera, **Space** jumps when grounded, and **right-drag** orbits (visible, unconfined pointer). Collect three gold cubes, cross the blue checkpoint and reach the green goal. Jump just before the brown step while moving forward. Falling off respawns at the latest checkpoint, retaining collected gold. Progress/win appears above the editor viewport and in the standalone window title. Editor **Stop / Play**, or standalone **physical R**, resets the run. Inspector **Player Controller** and **Trigger volume** author the settings; editor Save/Stop never publish simulated state.
+**WASD** moves relative to the follow camera, **Space** jumps when grounded, and the mouse looks around — the standalone player locks the pointer during play, the editor keeps **right-drag** orbit. Collect three gold cubes, cross the blue checkpoint and reach the green goal. Jump just before the brown step while moving forward. Falling off respawns at the latest checkpoint, retaining collected gold. Progress/win appears above the editor viewport and in the standalone window title. Editor **Stop / Play**, or standalone **physical R**, resets the run. Inspector **Player Controller** and **Trigger volume** author the settings; editor Save/Stop never publish simulated state.
 
 See the [quick-start, fastest manual checklist, authoring contract and limits](docs/playable-demo.md). Dependencies must be cached for `--offline`; omit it on first download. The level reuses the repository's tiny static CC0 model, with no external assets.
 
@@ -158,7 +163,7 @@ Movement supports one collider at a time; movers carrying enabled child collider
 
 ## Gameplay Blueprints
 
-Use **Properties → BLUEPRINTS → + New** (or **+ Spin example**) to author gameplay without code in the dedicated **Blueprint** pane. Connect typed nodes, bind object references in the Inspector or node editor, save/load reusable `.blueprint.json` graphs, and attach multiple ordered graphs to an object or prefab member. Mesh instances remain independent; coded behavior still works alongside graphs.
+Use **Properties → BLUEPRINTS → + New** (or **+ Spin example**) to author gameplay without code in the dedicated **Blueprint** pane. Connect typed nodes, bind object references in the Inspector or node editor, save/load reusable `.blueprint.json` graphs, and attach multiple ordered graphs to an object or prefab member. **On Input Pressed** and **Input Held** watch whichever button you pick from their dropdown (letters, digits, `Space`, arrows, `F1`–`F12`, mouse buttons), so scenes assign their own controls instead of the engine's fixed WASD/Space/left-click set. Mesh instances remain independent; coded behavior still works alongside graphs.
 
 Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/blueprint-lab.json`: select **Hero Cube**, open Blueprint, then Play. In the Scene viewport, Space toggles its visibility while another graph keeps it spinning. See [the no-code workflow, node catalog, and current limits](docs/blueprints.md).
 
