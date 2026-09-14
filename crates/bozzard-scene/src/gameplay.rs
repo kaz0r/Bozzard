@@ -55,13 +55,38 @@ impl Default for Trigger {
         }
     }
 }
-/// Movement is right/forward in camera yaw space. Jump/orbit are queued edges/deltas,
+/// Movement is right/forward in camera yaw space. Jump/fire/orbit are queued edges/deltas,
 /// consumed once even when a render frame advances multiple simulation ticks.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GameplayInput {
     pub movement: [f32; 2],
     pub jump: bool,
+    pub fire: bool,
+    /// Use/interact edge: pick up a weapon, press a button, talk.
+    pub interact: bool,
+    /// Keys currently held, bit `i` = `keys::BOUND_KEYS[i]`: a level, not an edge, so
+    /// `On Input Pressed` sees the press and `Input Held` sees the hold.
+    pub keys: u128,
     pub orbit: [f32; 2],
+}
+impl GameplayInput {
+    /// Every binding's level this tick, indexed by `InputKey::bit`. Aliases read the same
+    /// axis, edge and button fields the engine has always exposed.
+    pub fn binding_mask(&self) -> u128 {
+        let mut mask = self.keys;
+        for index in 0..crate::keys::KEY_ALIASES.len() {
+            if crate::keys::alias_active(index, *self) {
+                mask |= crate::keys::alias_bit(index);
+            }
+        }
+        mask
+    }
+}
+/// Blueprint-requested pointer capture. `None` leaves the app's own policy (capture while
+/// playing) in place; only the hosting app can grab or release the cursor.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CursorCapture {
+    pub requested: Option<bool>,
 }
 #[derive(Clone, Debug)]
 pub struct GameplayState {

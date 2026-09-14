@@ -18,10 +18,10 @@ use std::{
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
-    event::{ElementState, WindowEvent},
+    event::{DeviceEvent, DeviceId, ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
-    window::{Window, WindowId},
+    window::{CursorGrabMode, Window, WindowId},
 };
 
 struct Options {
@@ -288,6 +288,31 @@ impl View {
     }
 }
 
+/// Everything the pointer-capture decision depends on, so it can be checked without a window.
+#[derive(Clone, Copy)]
+struct CursorCaptureState {
+    paused: bool,
+    focused: bool,
+    layer: Layer,
+    /// The scene uses gameplay input at all (a player controller or any enabled graph).
+    gameplay: bool,
+    /// The simulation is actually running: Game Flow menus, pause and game over are not.
+    running: bool,
+    /// Lock/Unlock Cursor request; None keeps the app policy (capture while playing).
+    requested: Option<bool>,
+}
+
+/// Capture only while the game plays. A scene may opt out with Unlock Cursor, but nothing may
+/// hold the pointer on a menu: the run menu, pause overlay and win screen are clicked with it.
+fn cursor_capture_wanted(state: CursorCaptureState) -> bool {
+    state.gameplay
+        && state.running
+        && state.focused
+        && !state.paused
+        && state.layer == Layer::ThreeD
+        && state.requested.unwrap_or(true)
+}
+
 struct Player {
     options: Options,
     view: Option<View>,
@@ -296,6 +321,7 @@ struct Player {
     paused: bool,
     menu_input: game_flow::MenuInput,
     gameplay_controls: gameplay_input::GameplayControls,
+    look: gameplay_input::Look,
     last_frame: Instant,
     last_present: Instant,
     frames: u32,
@@ -304,6 +330,69 @@ struct Player {
 }
 
 impl Player {
+    /// The game owns the pointer only while it is actually playing: menus, dialogs,
+    /// pause and other views keep a usable cursor. A grab is attempted once per
+    /// transition, never per frame, so a refused platform is not polled.
+    fn sync_mouse_look(&mut self) {
+        let running = self
+            .demo
+            .game_session()
+            .is_none_or(|session| session.phase == bozzard_scene::GamePhase::Playing);
+        let requested = self
+            .demo
+            .app
+            .world
+            .resource::<bozzard_scene::CursorCapture>()
+            .and_then(|capture| capture.requested);
+        let playing = self.view.is_some()
+            && cursor_capture_wanted(CursorCaptureState {
+                paused: self.paused,
+                focused: self.gameplay_controls.focused(),
+                layer: self.options.layer,
+                gameplay: self.demo.accepts_gameplay_input(),
+                running,
+                requested,
+            });
+        if self.look != gameplay_input::Look::Off {
+            if playing {
+                return;
+            }
+            self.set_look(gameplay_input::Look::Off);
+            return;
+        }
+        if !playing {
+            return;
+        }
+        let window = &self.view.as_ref().unwrap().window;
+        let look = if window.set_cursor_grab(CursorGrabMode::Locked).is_ok() {
+            gameplay_input::Look::Locked
+        } else {
+            // Confined keeps the pointer on the game view; a platform that refuses both
+            // grabs still gets no-button look from ordinary pointer motion.
+            if window.set_cursor_grab(CursorGrabMode::Confined).is_err() {
+                let _ = window.set_cursor_grab(CursorGrabMode::None);
+            }
+            gameplay_input::Look::Cursor
+        };
+        self.set_look(look);
+    }
+
+    fn set_look(&mut self, look: gameplay_input::Look) {
+        self.look = look;
+        self.gameplay_controls.set_mouse_look(look);
+        let Some(view) = &self.view else {
+            return;
+        };
+        if look == gameplay_input::Look::Off {
+            let _ = view.window.set_cursor_grab(CursorGrabMode::None);
+            view.window.set_cursor_visible(true);
+        } else {
+            // A locked pointer is invisible by definition; a moving one stays findable.
+            view.window
+                .set_cursor_visible(look == gameplay_input::Look::Cursor);
+        }
+    }
+
     fn window_title(&self) -> String {
         let name = self.options.game_name.as_deref().unwrap_or("Bozzard");
         let status = if let Some(error) = &self.command_error {
@@ -520,8 +609,25 @@ impl ApplicationHandler for Player {
 
     fn suspended(&mut self, _: &ActiveEventLoop) {
         self.view = None;
+        self.look = gameplay_input::Look::Off;
+        self.gameplay_controls
+            .set_mouse_look(gameplay_input::Look::Off);
         self.gameplay_controls.reset();
         self.demo.clear_gameplay_input();
+    }
+
+    /// Locked look reads raw device motion: the cursor does not move, so deltas never arrive
+    /// through CursorMoved.
+    fn device_event(&mut self, event_loop: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
+        if event_loop.exiting() || self.view.is_none() {
+            return;
+        }
+        let DeviceEvent::MouseMotion { delta } = event else {
+            return;
+        };
+        if let Some(input) = self.gameplay_controls.motion([delta.0, delta.1]) {
+            self.demo.set_gameplay_input(input);
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -583,6 +689,7 @@ impl ApplicationHandler for Player {
             }
             self.last_frame = now;
         }
+        self.sync_mouse_look();
         let title = self.window_title();
         let Some(view) = self.view.as_mut() else {
             return;
@@ -693,6 +800,7 @@ fn main() -> Result<()> {
         paused: false,
         menu_input: Default::default(),
         gameplay_controls: gameplay_input::GameplayControls::default(),
+        look: gameplay_input::Look::Off,
         last_frame: Instant::now(),
         last_present: Instant::now(),
         frames: 0,
@@ -742,12 +850,58 @@ mod controls_tests {
             paused: false,
             menu_input: Default::default(),
             gameplay_controls: gameplay_input::GameplayControls::default(),
+            look: gameplay_input::Look::Off,
             last_frame: Instant::now(),
             last_present: Instant::now(),
             frames: 0,
             error: None,
             command_error: None,
         }
+    }
+
+    #[test]
+    fn the_pointer_is_never_captured_outside_a_running_game() {
+        let base = CursorCaptureState {
+            paused: false,
+            focused: true,
+            layer: Layer::ThreeD,
+            gameplay: true,
+            running: true,
+            requested: None,
+        };
+        assert!(
+            cursor_capture_wanted(base),
+            "a running game owns the pointer"
+        );
+        assert!(
+            !cursor_capture_wanted(CursorCaptureState {
+                running: false,
+                // Scenes with graphs report gameplay input in the run menu too.
+                requested: Some(true),
+                ..base
+            }),
+            "the run menu, pause overlay and win screen are clicked with a visible pointer"
+        );
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            requested: Some(false),
+            ..base
+        }));
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            focused: false,
+            ..base
+        }));
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            paused: true,
+            ..base
+        }));
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            layer: Layer::TwoD,
+            ..base
+        }));
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            gameplay: false,
+            ..base
+        }));
     }
 
     #[test]
@@ -819,6 +973,78 @@ mod controls_tests {
         key(&mut player, KeyCode::KeyQ, false, false);
         assert_eq!(player.demo.game_session().unwrap().phase, P::Quit);
     }
+    #[test]
+    fn a_scene_assigned_key_reaches_gameplay_instead_of_a_menu_command() {
+        use bozzard_scene::GamePhase as P;
+        let mut player = authored_player();
+        let scene = Scene::from_json(include_str!(
+            "../../../examples/demo/scenes/game-flow-lab.json"
+        ))
+        .unwrap();
+        player.demo = SceneDemo::new(&scene).unwrap();
+        player.gameplay_controls.event(&WindowEvent::Focused(true));
+        // Start the run, then press a key only a scene would use.
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::Enter),
+                &Key::Named(NamedKey::Enter),
+                ElementState::Pressed,
+                false,
+                false,
+            )
+            .unwrap();
+        assert_eq!(player.demo.game_session().unwrap().phase, P::Playing);
+        let before = player
+            .demo
+            .app
+            .world
+            .resource::<bozzard_scene::GameplayInput>()
+            .copied();
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::KeyF),
+                &Key::Character("f".into()),
+                ElementState::Pressed,
+                false,
+                false,
+            )
+            .unwrap();
+        let after = player
+            .demo
+            .app
+            .world
+            .resource::<bozzard_scene::GameplayInput>()
+            .copied()
+            .unwrap();
+        assert!(
+            after.keys & bozzard_scene::keys::bit("F") != 0,
+            "an assigned key must reach the scene, not the app's command path"
+        );
+        assert!(before.unwrap_or_default().keys & bozzard_scene::keys::bit("F") == 0);
+        // Released again, the key leaves gameplay alone.
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::KeyF),
+                &Key::Character("f".into()),
+                ElementState::Released,
+                false,
+                false,
+            )
+            .unwrap();
+        assert_eq!(
+            player
+                .demo
+                .app
+                .world
+                .resource::<bozzard_scene::GameplayInput>()
+                .copied()
+                .unwrap()
+                .keys
+                & bozzard_scene::keys::bit("F"),
+            0
+        );
+    }
+
     #[test]
     fn blueprint_input_without_player_controller_toggles_rendered_mesh() {
         let mut player = authored_player();
@@ -1086,6 +1312,7 @@ mod controls_tests {
             paused: false,
             menu_input: Default::default(),
             gameplay_controls: gameplay_input::GameplayControls::default(),
+            look: gameplay_input::Look::Off,
             last_frame: Instant::now(),
             last_present: Instant::now(),
             frames: 0,

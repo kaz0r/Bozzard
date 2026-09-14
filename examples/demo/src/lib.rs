@@ -196,7 +196,10 @@ impl SceneDemo {
             .unwrap_or_default();
         self.app.world.insert_resource(GameplayInput {
             movement: input.movement,
+            keys: input.keys,
             jump: previous.jump || input.jump,
+            fire: previous.fire || input.fire,
+            interact: previous.interact || input.interact,
             orbit: [
                 previous.orbit[0] + input.orbit[0],
                 previous.orbit[1] + input.orbit[1],
@@ -300,7 +303,9 @@ impl SceneDemo {
                 .err()
                 .map(|error| format!("{error:#}"));
             world.insert_resource(GameplayInput {
+                // Movement and held keys are levels; edges and deltas are consumed per tick.
                 movement: input.movement,
+                keys: input.keys,
                 ..Default::default()
             });
             world.insert_resource(gravity_instance);
@@ -371,8 +376,11 @@ mod tests {
         assert_eq!(demo.gameplay().unwrap().yaw, yaw);
         demo.set_gameplay_input(GameplayInput {
             movement: [1.0, 0.0],
+            keys: bozzard_scene::keys::bit("F"),
             orbit: [100.0, 0.0],
             jump: true,
+            fire: true,
+            interact: true,
         });
         demo.clear_gameplay_input();
         demo.app.step();

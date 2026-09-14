@@ -47,6 +47,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 mod collision;
 mod gameplay;
+pub mod keys;
 mod prefab;
 pub use prefab::{Prefab, PrefabInstance};
 pub mod bvh;
@@ -56,7 +57,9 @@ pub use collision::{
     BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, MeshCollider, MoveResult,
     TriangleMesh,
 };
-pub use gameplay::{GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction};
+pub use gameplay::{
+    CursorCapture, GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction,
+};
 pub use gravity::{Gravity, GravityState};
 
 pub const SCENE_VERSION: u32 = 1;

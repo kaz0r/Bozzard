@@ -27,6 +27,8 @@ struct Body {
 pub(crate) struct Physics {
     simulation: PhysicsWorld,
     bodies: BTreeMap<String, Body>,
+    // Spawned bodies are created on the next physics step; remember their launch velocity until then.
+    pending: BTreeMap<String, Vec3>,
 }
 
 /// A rotating child can only keep its authored scale under a rigid/uniformly scaled parent.
@@ -48,6 +50,10 @@ pub(crate) fn parent_pose(matrix: Mat4) -> Result<(Quat, f32)> {
 fn rotation(transform: &Transform) -> Quat {
     let [x, y, z] = transform.rotation_degrees.map(f32::to_radians);
     Quat::from_euler(EulerRot::YXZ, y, x, z)
+}
+/// Engine convention: an object faces its local -Z axis.
+pub(crate) fn forward(transform: &Transform) -> Vec3 {
+    rotation(transform) * Vec3::NEG_Z
 }
 impl ShapeKey {
     fn cook(&self) -> Result<SharedShape> {
@@ -137,6 +143,23 @@ impl Physics {
             body.set_linvel(velocity, true);
         }
     }
+    /// Applied immediately to a live body, otherwise queued until that body is created.
+    pub(crate) fn set_velocity(&mut self, id: &str, entity: Entity, velocity: Vec3) {
+        let handle = self
+            .bodies
+            .values()
+            .find(|b| b.entity == entity)
+            .map(|b| b.handle);
+        match handle {
+            Some(handle) => {
+                self.pending.remove(id);
+                self.simulation.bodies[handle].set_linvel(velocity, true);
+            }
+            None => {
+                self.pending.insert(id.into(), velocity);
+            }
+        }
+    }
     fn step(&mut self, instance: &SceneInstance, world: &mut World, dt: f32) -> Result<()> {
         let matrices = instance.global_transforms(world)?;
         let objects: BTreeMap<_, _> = instance
@@ -159,6 +182,8 @@ impl Physics {
             }
             keep
         });
+        // Drop launches aimed at objects that were removed before their body was built.
+        self.pending.retain(|id, _| instance.entity(id).is_some());
         for (id, &entity) in &instance.entities {
             let gravity = world.get::<Gravity>(entity).copied();
             let player = world.get::<PlayerController>(entity).is_some();
@@ -275,7 +300,9 @@ impl Physics {
                         state.vertical_velocity.is_finite(),
                         "invalid fall velocity on '{id}'"
                     );
-                    let velocity = previous.map_or(Vec3::Y * state.vertical_velocity, |v| v.0);
+                    let velocity = self.pending.remove(id).unwrap_or_else(|| {
+                        previous.map_or(Vec3::Y * state.vertical_velocity, |v| v.0)
+                    });
                     let angular = previous.filter(|v| v.2 == spin).map_or_else(
                         || Vec3::from_array(spin.map_or([0.; 3], |s| s.0)).map(f32::to_radians),
                         |v| v.1,
@@ -421,6 +448,29 @@ impl Physics {
     }
 }
 impl SceneInstance {
+    /// Launch from a graph: blueprint targets are document IDs, bodies are ECS entities.
+    pub(crate) fn set_velocity(
+        &self,
+        world: &mut World,
+        id: &str,
+        entity: Entity,
+        velocity: Vec3,
+    ) -> Result<()> {
+        ensure!(
+            velocity.is_finite() && velocity.length() <= 1000.0,
+            "Set Velocity on '{id}' must be finite and at most 1000 units/second"
+        );
+        ensure!(
+            world.get::<Gravity>(entity).is_some_and(|g| g.enabled)
+                && world.get::<PlayerController>(entity).is_none(),
+            "Set Velocity needs a Gravity rigidbody that is not a Player Controller"
+        );
+        let physics = world.remove_resource::<Physics>().unwrap_or_default();
+        let mut physics = physics;
+        physics.set_velocity(id, entity, velocity);
+        world.insert_resource(physics);
+        Ok(())
+    }
     pub(crate) fn step_bodies(&self, world: &mut World, dt: f32) -> Result<()> {
         // Don't allocate a second collision world for scenes with only kinematic players/static scenery.
         if !self.entities.values().any(|&e| {
