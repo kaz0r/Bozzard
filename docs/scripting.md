@@ -11,6 +11,13 @@ cargo run -p bozzard-player -- --scene examples/demo/scenes/script-lab.json
 cargo run -p bozzard-server -- --scene examples/demo/scenes/script-lab.json --ticks 180
 ```
 
+The **[Target Range](blueprints.md#target-range-example) game is ported to scripts** as
+`examples/demo/scenes/target-range-rs.json`: the same arena, weapons, recoil, respawn and win, with
+the player, the weapon table, the shot, the cubes and the win condition all in
+`scenes/scripts/target-range/*.rs` and no graph of its own. `examples/demo/tests/target_range_rs.rs`
+runs the Blueprint scene's assertions against it, which is the point of the pair: a game ported from
+graphs to scripts keeps its behaviour.
+
 Rhai is a small, Rust-like, dynamically typed language with its own `if`/`while`/`for`, functions,
 arrays, maps, strings and math (`sin`, `sqrt`, `min`, `abs`, …). Anything Rhai already provides is
 not re-exposed: a script uses `sin(t)` and `a + b`, not an engine node name.
@@ -111,6 +118,12 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 - **Writes are queued and applied after every script has run**, in call order across all scripts.
   A queued write is visible to later reads *in the same tick*, so `set_position` followed by
   `get_position` agrees with a blueprint graph, and the ECS is only touched once per tick.
+- **`is_grounded` reports the last completed move**, not the one you are about to make: a move
+  applies at the end of the step, so a hook cannot read back its own result. Decide gravity and
+  jumping from it at the top of `on_update`, as `scenes/scripts/target-range/player.rs` does.
+- **Scripts step before blueprints** in a tick, so a graph reads a variable a script wrote in the
+  same tick. Each step samples one snapshot of the world for its own events, and running scripts
+  first also means a graph's `Destroy Prefab` cannot hide a hit the scripts were meant to see.
 - **Spawn handles** returned by `spawn_prefab` are stable IDs that resolve to the created object for
   the rest of the run (the same object the Spawn Prefab node's `Instance` pin addresses).
 - **Variables are shared with graphs.** `get/set_object_variable` use the same object blackboard a
@@ -121,6 +134,10 @@ errors: a thrown script stops the simulation and reports the hook, the object an
   error stops the simulation with `script hook on_update on 'thing': … (line 2, position 5)`.
 
 ## Limits
+
+A prefab a script can spawn has to be in the scene's asset catalog: a graph names it on a node, but
+script source is opaque to the loader, so a scene that runs scripts preloads **every** prefab in its
+catalog before the first tick.
 
 1 MiB per script source, 1024 compiled scripts per scene, 2,000,000 interpreter operations per hook
 call (a runaway loop fails the tick instead of hanging), 32 call levels, 1024 results per overlap

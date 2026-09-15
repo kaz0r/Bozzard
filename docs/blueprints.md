@@ -24,6 +24,10 @@ The **Hero Cube** has two blueprints: **Spin** rotates it, and **Space toggles v
 
 For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scale Vector / Factor** (green), and **Scale Vector → Rotate / Value** (blue). Set the vector to `[0, 45, 0]`: the object rotates 45 degrees per second around Y. The Spin example contains this graph.
 
+The same game is also checked in as scripts — `examples/demo/scenes/target-range-rs.json`, every
+rule in `scenes/scripts/target-range/*.rs` and no graph of its own — so the two authoring paths can
+be compared rule for rule. See [gameplay scripts](scripting.md).
+
 ## Save, reuse, and attach multiple graphs
 
 - The Content Browser's **Blueprints** folder lists saved graphs under scene-relative `assets/Blueprints/` (and legacy `assets/*.blueprint.json`) plus scene attachments. Double-click a saved graph to attach a copy; **New Blueprint** adds one to the selected object.
