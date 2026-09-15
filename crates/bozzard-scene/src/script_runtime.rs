@@ -1916,6 +1916,38 @@ mod tests {
         assert_eq!(runtime.stats.commands, 3);
     }
 
+    /// Restarting or loading a scene respawns the world. Script sources are runtime state the
+    /// document cannot carry, so a replacement that dropped them left every attachment unbound.
+    #[test]
+    fn a_replaced_scene_keeps_its_scripts_and_starts_their_state_over() {
+        let (mut instance, mut world) = demo(
+            r#"
+            fn on_start(me) { rotate(me, [0.0, 90.0, 0.0]); }
+            fn on_update(me, dt) { rotate(me, [0.0, 1.0, 0.0]); }
+            "#,
+        );
+        let rotation = |instance: &SceneInstance, world: &World| {
+            world
+                .get::<Transform>(instance.entity("thing").unwrap())
+                .unwrap()
+                .rotation_degrees
+        };
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(rotation(&instance, &world), [0., 91., 0.]);
+
+        instance.restart_runtime_scene(&mut world).unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            rotation(&instance, &world),
+            [0., 91., 0.],
+            "the restarted scene must run its script again from the new world's state"
+        );
+    }
+
     #[test]
     fn a_wrong_hook_signature_fails_at_load_and_a_throwing_script_stops_the_tick() {
         let scene = Scene::from_json(

@@ -565,3 +565,62 @@ fn a_missed_shot_leaves_the_arena_instead_of_stretching_the_shadow_map() {
         "the miss reached {furthest} units from the arena centre"
     );
 }
+
+/// The reported failure: win the run, press Retry, and the rebuilt world had no script sources, so
+/// the first script tick stopped the simulation with "no compiled source is bound". A restarted
+/// scene has to keep what the loader read and start its attachment state over.
+#[test]
+fn retrying_after_a_win_replays_the_run_with_its_scripts_intact() {
+    let mut demo = demo();
+    for id in TARGETS {
+        let target = position(&demo, id);
+        aim(&mut demo, target);
+        tick(
+            &mut demo,
+            GameplayInput {
+                fire: true,
+                ..Default::default()
+            },
+        );
+        run(&mut demo, 45, GameplayInput::default());
+        assert!(destroyed(&demo, id), "{id} survived the shot");
+    }
+    assert_eq!(demo.game_session().unwrap().phase, GamePhase::GameOver);
+
+    // Retry is what the win screen offers on Enter or R.
+    demo.game_action(GameAction::Restart).unwrap();
+    tick(&mut demo, GameplayInput::default());
+    assert_eq!(
+        demo.game_session().unwrap().phase,
+        GamePhase::Playing,
+        "the run must start over instead of ending again from a stale win counter"
+    );
+    for id in TARGETS {
+        assert!(!destroyed(&demo, id), "{id} must be back in the arena");
+    }
+    // The controller script drives the new world: the camera is the player's eye again.
+    let player = position(&demo, "player");
+    let camera = position(&demo, "camera");
+    assert!(
+        camera
+            .iter()
+            .zip([player[0], player[1] + EYE_HEIGHT, player[2]])
+            .all(|(a, b)| (a - b).abs() <= 0.01),
+        "camera {camera:?} must follow the restarted player {player:?}"
+    );
+    // And the whole pipeline works again: one aimed shot pops one cube.
+    let target = position(&demo, "target-1");
+    aim(&mut demo, target);
+    tick(
+        &mut demo,
+        GameplayInput {
+            fire: true,
+            ..Default::default()
+        },
+    );
+    run(&mut demo, 45, GameplayInput::default());
+    assert!(
+        destroyed(&demo, "target-1"),
+        "the projectile, the cube's script and the win counter must all work after Retry"
+    );
+}

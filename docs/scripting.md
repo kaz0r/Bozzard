@@ -123,6 +123,11 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 - **`is_grounded` reports the last completed move**, not the one you are about to make: a move
   applies at the end of the step, so a hook cannot read back its own result. Decide gravity and
   jumping from it at the top of `on_update`, as `scenes/scripts/target-range/player.rs` does.
+- **A restart, a scene change or a loaded save rebuilds the world without losing the scripts.**
+  Loaded sources and the compiled engine are runtime state that follows the replacement scene, while
+  attachment state (started, held keys, overlap sets) starts over, so `on_start` runs again in the
+  new world. Retry on the win screen and the runtime `Restart Scene`, `Load Scene` and `Load Game`
+  actions all go through it.
 - **Scripts step before blueprints** in a tick, so a graph reads a variable a script wrote in the
   same tick. Each step samples one snapshot of the world for its own events, and running scripts
   first also means a graph's `Destroy Prefab` cannot hide a hit the scripts were meant to see.

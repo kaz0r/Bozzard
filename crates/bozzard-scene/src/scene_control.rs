@@ -279,13 +279,19 @@ impl SceneInstance {
         }
         world.remove_resource::<crate::physics::Physics>();
         world.remove_resource::<BlueprintRuntime>();
+        world.remove_resource::<crate::ScriptRuntime>();
         world.remove_resource::<GameplayState>();
         world.remove_resource::<GameSession>();
         world.insert_resource(GameplayInput::default());
         world.insert_resource(CursorCapture::default());
         let templates = self.templates.clone();
         let mut next = scene.spawn(world)?;
+        // Loaded script sources and the compiled engine belong to the runtime, not to the document
+        // that was just spawned: without them the replacement scene has attachments nothing can run.
+        // Attachment state is deliberately not carried, so `on_start` fires again in the new scene.
         next.templates = templates;
+        next.script_engine = std::mem::take(&mut self.script_engine);
+        next.scripts = std::mem::take(&mut self.scripts);
         if scene.game_flow.is_some() {
             world.insert_resource(GameSession {
                 phase: GamePhase::Playing,
