@@ -149,6 +149,8 @@ pub enum AssetData {
     Prefab(bozzard_scene::Prefab),
     Image(ImageData),
     Mesh(MeshData),
+    /// Rhai source, read as text. The scene runtime compiles it; nothing here interprets it.
+    Script(String),
 }
 
 #[derive(Clone)]
@@ -576,6 +578,18 @@ fn import(
         AssetKind::Prefab => Ok(AssetData::Prefab(bozzard_scene::Prefab::from_json(
             std::str::from_utf8(bytes)?,
         )?)),
+        AssetKind::Script => {
+            ensure!(
+                matches!(extension.as_str(), "rs" | "rhai"),
+                "script import supports .rs and .rhai"
+            );
+            ensure!(
+                bytes.len() <= 1024 * 1024,
+                "script exceeds the 1 MiB source limit"
+            );
+            let source = std::str::from_utf8(bytes).context("script is not UTF-8 text")?;
+            Ok(AssetData::Script(source.to_owned()))
+        }
         AssetKind::Image => {
             ensure!(
                 matches!(extension.as_str(), "png" | "jpg" | "jpeg"),

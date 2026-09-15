@@ -273,6 +273,7 @@ impl SceneInstance {
             );
         }
         self.scene_destroy_events(world)?;
+        self.scene_script_destroy_events(world)?;
         for entity in self.entities.values() {
             world.despawn(*entity)?;
         }

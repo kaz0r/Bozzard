@@ -173,7 +173,7 @@ impl SceneDemo {
         result
     }
     pub fn accepts_gameplay_input(&self) -> bool {
-        self.gameplay().is_some() || self.instance().has_blueprints()
+        self.gameplay().is_some() || self.instance().has_gameplay_logic()
     }
     pub fn gameplay(&self) -> Option<&GameplayState> {
         self.app.world.resource::<GameplayState>()
@@ -219,12 +219,15 @@ impl SceneDemo {
     pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
         let mut scene = document.clone();
         let mut templates = std::collections::BTreeMap::new();
+        // Script sources are read once here, next to the prefabs: ticks never do file I/O.
+        let mut sources = bozzard_scene::load_sources(document, path)?;
         let (main, loaded) = prefabs::load(document, path)?;
         scene.assets = main.assets;
         templates.extend(loaded);
         for (name, level) in &document.runtime_scenes {
             let mut source = level.as_ref().clone();
             source.assets = scene.assets.clone();
+            sources.extend(bozzard_scene::load_sources(&source, path)?);
             let (mut prepared, loaded) = prefabs::load(&source, path)?;
             scene.assets.extend(prepared.assets.clone());
             templates.extend(loaded);
@@ -262,6 +265,9 @@ impl SceneDemo {
         demo.with_instance(|instance, _| -> anyhow::Result<()> {
             for (asset, prefab) in templates {
                 instance.register_prefab(asset, prefab)?;
+            }
+            for (asset, source) in sources {
+                instance.register_script(asset, source)?;
             }
             Ok(())
         })?;
@@ -328,6 +334,7 @@ impl SceneDemo {
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
                 .and_then(|()| gravity_instance.gameplay_interactions(world))
                 .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
+                .and_then(|()| gravity_instance.step_scripts(world, dt, input))
                 .and_then(|()| {
                     if bozzard_scene::game_flow::simulation_running(world) {
                         gravity_instance.step_particles(world, dt)

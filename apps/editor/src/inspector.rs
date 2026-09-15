@@ -65,6 +65,7 @@ impl App {
                     if !object.blueprints.is_empty() {
                         self.blueprint_inspector(ui, &mut object);
                     }
+                    self.script_manager_inspector(ui, &mut object);
                     self.shader_graph_inspector(ui, &mut object);
                     ui.add_enabled_ui(self.editor.play.is_none(), |ui| {
                         ui.add(egui::TextEdit::singleline(&mut object.name).desired_width(f32::INFINITY))

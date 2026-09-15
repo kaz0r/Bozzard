@@ -812,6 +812,7 @@ impl AssetBrowser {
                         AssetKind::Prefab => "Prefab",
                         AssetKind::Image => "Image",
                         AssetKind::Mesh => "Model",
+                        AssetKind::Script => "Script",
                     });
                     if matches!(asset.state, LoadState::Failed(_)) {
                         ui.colored_label(Color32::LIGHT_RED, "Load failed");
@@ -838,7 +839,7 @@ impl AssetBrowser {
             .and_then(|entry| entry.data())
             .and_then(|data| match data {
                 AssetData::Image(image) => Some(image),
-                AssetData::Mesh(_) | AssetData::Prefab(_) => None,
+                AssetData::Mesh(_) | AssetData::Prefab(_) | AssetData::Script(_) => None,
             })?;
         let texture = ctx.load_texture(
             format!("asset-thumbnail-{}-{}", asset.id, asset.revision),
@@ -883,6 +884,7 @@ impl AssetBrowser {
                 )),
                 None => ui.label("Model"),
             },
+            AssetKind::Script => ui.label("Script · Rhai"),
         };
         if let Some(mesh) = &asset.mesh {
             for warning in &mesh.warnings {
@@ -1037,7 +1039,7 @@ fn snapshots(
                     };
                     (None, Some(sampled))
                 }
-                Some(AssetData::Prefab(_)) | None => (None, None),
+                Some(AssetData::Prefab(_) | AssetData::Script(_)) | None => (None, None),
             };
             Some(AssetSnapshot {
                 id: entry.id.clone(),

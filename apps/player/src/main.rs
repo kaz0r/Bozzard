@@ -418,9 +418,9 @@ impl Player {
             )
         } else if self.options.game_name.is_some() {
             format!("{name} | {status}Playing | R: restart | Escape: quit")
-        } else if self.demo.instance().has_blueprints() {
+        } else if self.demo.instance().has_gameplay_logic() {
             format!(
-                "{name} | {status}Blueprints running | WASD / Space: input | R: restart | F5: save"
+                "{name} | {status}Gameplay logic running | WASD / Space: input | R: restart | F5: save"
             )
         } else {
             let layer = if self.options.layer == Layer::TwoD {
@@ -452,7 +452,8 @@ impl Player {
                 let input =
                     self.gameplay_controls
                         .key(code, state == ElementState::Pressed, repeat);
-                if self.options.layer == Layer::ThreeD || self.demo.instance().has_blueprints() {
+                if self.options.layer == Layer::ThreeD || self.demo.instance().has_gameplay_logic()
+                {
                     self.demo.set_gameplay_input(input);
                 } else {
                     self.demo.clear_gameplay_input();

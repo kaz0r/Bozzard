@@ -161,3 +161,92 @@ fn row() -> ComponentType {
 fn thrust(object: &Object) -> Option<f64> {
     object.extra(CUSTOM)?.get("thrust")?.as_f64()
 }
+
+/// A Script Manager is an ordinary component: registry-addable, saved, and validated against the
+/// scene catalog, so a script attachment can never point at nothing.
+#[test]
+fn the_script_manager_component_is_registry_addable_and_catalog_checked() {
+    let mut scene = Scene::from_json(&object_json("")).unwrap();
+    let entry = component_type("script_manager").expect("registered row");
+    assert_eq!(entry.label, "Script Manager");
+    assert_eq!(
+        entry.ui,
+        Ui::Custom,
+        "an ordered asset list is not field-shaped"
+    );
+    assert!(available_components(&scene.objects[0]).any(|c| c.name == "script_manager"));
+
+    let context = bozzard_scene::AddContext {
+        layer: bozzard_scene::Layer::ThreeD,
+        scene: &scene.clone(),
+        bounds: None,
+        cooked: None,
+    };
+    (entry.add)(&mut scene.objects[0], &context).unwrap();
+    let manager = scene.objects[0].script_manager.as_mut().unwrap();
+    assert_eq!(
+        manager.scripts.len(),
+        1,
+        "adding gives one empty attachment"
+    );
+    manager.scripts[0].script = "spin".into();
+
+    // A reference to an asset the catalog does not hold is a validation error, not a late failure.
+    let error = format!("{:#}", scene.validate().unwrap_err());
+    assert!(error.contains("spin"), "{error}");
+
+    scene.assets.insert(
+        "spin".into(),
+        bozzard_scene::AssetSource {
+            kind: bozzard_scene::AssetKind::Script,
+            path: "scripts/spin.rs".into(),
+        },
+    );
+    scene.validate().unwrap();
+    assert_eq!(
+        scene.objects[0].asset_dependencies(),
+        vec![("spin", bozzard_scene::AssetKind::Script)]
+    );
+
+    // The attachment list survives a write and read, including the enabled flag.
+    let saved = scene.to_json().unwrap();
+    assert!(saved.contains(r#""script_manager""#) && saved.contains("scripts/spin.rs"));
+    let reloaded = Scene::from_json(&saved).unwrap();
+    assert_eq!(reloaded, scene);
+    assert_eq!(
+        reloaded.objects[0].script_manager.as_ref().unwrap().scripts[0].script,
+        "spin"
+    );
+    assert!(reloaded.objects[0].extras.is_empty());
+}
+
+/// An empty attachment or an oversized list is refused where it is authored.
+#[test]
+fn a_script_manager_rejects_empty_attachments_and_too_many_scripts() {
+    let mut scene = Scene::from_json(&object_json("")).unwrap();
+    scene.assets.insert(
+        "spin".into(),
+        bozzard_scene::AssetSource {
+            kind: bozzard_scene::AssetKind::Script,
+            path: "scripts/spin.rs".into(),
+        },
+    );
+    scene.objects[0].script_manager = Some(bozzard_scene::ScriptManager {
+        scripts: vec![bozzard_scene::ScriptAttachment {
+            enabled: true,
+            script: String::new(),
+        }],
+    });
+    assert!(scene.validate().is_err(), "an attachment needs a script");
+
+    scene.objects[0].script_manager = Some(bozzard_scene::ScriptManager {
+        scripts: (0..bozzard_scene::MAX_SCRIPTS + 1)
+            .map(|_| bozzard_scene::ScriptAttachment {
+                enabled: true,
+                script: "spin".into(),
+            })
+            .collect(),
+    });
+    let error = format!("{:#}", scene.validate().unwrap_err());
+    assert!(error.contains("at most"), "{error}");
+}

@@ -1406,6 +1406,40 @@ impl BlueprintRuntime {
                 .or_insert_with(|| v.clone());
         }
     }
+    /// Scripts share these boards with graphs, so an object that declares variables gets one even
+    /// when it carries no graph at all.
+    pub(crate) fn add_object_defaults(&mut self, owner: &str, defaults: &Blackboard) {
+        let board = self.object_boards.entry(owner.to_owned()).or_default();
+        for (name, value) in defaults {
+            board.entry(name.clone()).or_insert_with(|| value.clone());
+        }
+    }
+    /// Write one scalar through the same type check a `Set Variable` node performs.
+    pub(crate) fn set_board_scalar(
+        &mut self,
+        scope: Scope,
+        owner: &str,
+        name: &str,
+        value: Value,
+    ) -> Result<()> {
+        let board = match scope {
+            Scope::Object => self
+                .object_boards
+                .get_mut(owner)
+                .context("missing object board")?,
+            Scope::Scene => &mut self.scene_board,
+            Scope::Graph => anyhow::bail!("a graph-scoped variable needs a graph"),
+        };
+        let entry = board
+            .get_mut(name)
+            .with_context(|| format!("unknown {scope:?} variable '{name}'"))?;
+        ensure!(
+            matches!(entry, B::Scalar(old) if old.kind() == value.kind()),
+            "variable '{name}' type mismatch"
+        );
+        *entry = B::Scalar(value);
+        Ok(())
+    }
 }
 
 impl SceneInstance {

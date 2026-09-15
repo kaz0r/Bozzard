@@ -277,6 +277,7 @@ impl Editor {
             extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
+            script_manager: None,
             shader_graph: None,
             light: None,
             id: id.clone(),
@@ -323,6 +324,7 @@ impl Editor {
             extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
+            script_manager: None,
             shader_graph: None,
             id: id.clone(),
             material: None,
@@ -587,6 +589,9 @@ impl Editor {
             AssetKind::Prefab => {
                 anyhow::bail!("Place prefabs using the background prefab operation")
             }
+            AssetKind::Script => anyhow::bail!(
+                "Assign a script with the Script Manager component instead of placing it"
+            ),
             AssetKind::Mesh => (Layer::ThreeD, Mesh::Asset(asset_id.into()), Texture::White),
             AssetKind::Image => (Layer::TwoD, Mesh::Quad, Texture::Asset(asset_id.into())),
         };
@@ -601,6 +606,7 @@ impl Editor {
             extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
+            script_manager: None,
             shader_graph: None,
             light: None,
             id: id.clone(),
@@ -686,6 +692,9 @@ impl Editor {
                     .get_or_insert_with(|| bozzard_scene::Material::from_drawable(drawable));
                 material.texture = Some(Texture::Asset(asset_id.into()));
             }
+            AssetKind::Script => {
+                anyhow::bail!("Assign a script to an object through its Script Manager component")
+            }
         }
         self.finish_gesture();
         self.apply("Assign asset", scene)
@@ -725,6 +734,7 @@ impl Editor {
         let kind = match extension.as_str() {
             "png" | "jpg" | "jpeg" => AssetKind::Image,
             "obj" | "gltf" | "glb" => AssetKind::Mesh,
+            "rs" | "rhai" => AssetKind::Script,
             "json"
                 if source
                     .file_name()
@@ -733,7 +743,7 @@ impl Editor {
             {
                 AssetKind::Prefab
             }
-            _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, GLB, or .prefab.json"),
+            _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, GLB, .rs, or .prefab.json"),
         };
         if kind == AssetKind::Prefab {
             return self.link_prefab(source, progress);

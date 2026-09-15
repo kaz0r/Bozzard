@@ -16,6 +16,10 @@ pub mod shader_graph;
 pub mod spatial;
 pub use blueprint::{Blueprint, BlueprintAttachment};
 pub use blueprint_runtime::{BlueprintHidden, BlueprintRuntime};
+pub mod script;
+pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
+mod script_runtime;
+pub use script_runtime::{ScriptRuntime, ScriptRuntimeStats, load_sources};
 mod fog;
 pub use fog::FogSettings;
 mod environment;
@@ -355,6 +359,7 @@ pub struct Object {
     pub gravity: Option<Gravity>,
     pub player_controller: Option<PlayerController>,
     pub trigger: Option<Trigger>,
+    pub script_manager: Option<ScriptManager>,
     /// Components this build does not recognize, kept verbatim. See [`Object::extra`].
     #[serde(skip)]
     pub extras: BTreeMap<String, serde_json::Value>,
@@ -480,6 +485,8 @@ pub enum AssetKind {
     Prefab,
     Image,
     Mesh,
+    /// A Rhai script file (`.rs` by project convention).
+    Script,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -639,6 +646,9 @@ impl Scene {
             }
             if let Some(text) = &object.text_rendering {
                 text.validate()?;
+            }
+            if let Some(manager) = &object.script_manager {
+                manager.validate()?;
             }
             if let Some(light) = object.light {
                 light.validate()?;
@@ -891,6 +901,8 @@ impl Scene {
             particle_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
+            script_engine: std::sync::OnceLock::new(),
+            scripts: BTreeMap::new(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -911,6 +923,9 @@ pub struct SceneInstance {
     document: Scene,
     entities: BTreeMap<String, Entity>,
     order: Vec<usize>,
+    /// Built on the first script registration, so a scene without scripts never pays for it.
+    script_engine: std::sync::OnceLock<std::sync::Arc<script_runtime::ScriptEngine>>,
+    scripts: BTreeMap<String, std::sync::Arc<script_runtime::CompiledScript>>,
 }
 
 impl SceneInstance {
@@ -1171,6 +1186,9 @@ impl Object {
                 dependencies.push((&node.prefab, AssetKind::Prefab));
             }
         }
+        if let Some(manager) = &self.script_manager {
+            dependencies.extend(manager.asset_dependencies());
+        }
         dependencies
     }
     pub fn remap_assets(&mut self, mapping: &BTreeMap<String, String>) {
@@ -1200,6 +1218,11 @@ impl Object {
         for node in self.blueprints.iter_mut().flat_map(|b| &mut b.graph.nodes) {
             if node.kind == blueprint::NodeKind::SpawnPrefab {
                 remap(&mut node.prefab);
+            }
+        }
+        if let Some(manager) = &mut self.script_manager {
+            for attachment in &mut manager.scripts {
+                remap(&mut attachment.script);
             }
         }
     }
@@ -1277,6 +1300,7 @@ mod tests {
             particle_emitter: None,
             material: None,
             blueprints: Vec::new(),
+            script_manager: None,
             shader_graph: None,
             light: None,
             id: id.into(),
