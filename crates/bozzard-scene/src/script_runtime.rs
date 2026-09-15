@@ -143,7 +143,11 @@ enum Command {
         name: String,
         value: Value,
     },
-    Print(String),
+    Print {
+        level: bozzard_diagnostics::Level,
+        owner: String,
+        text: String,
+    },
 }
 
 /// The read view and the write queue of the scripts running this tick.
@@ -932,7 +936,30 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     {
         let host = host.clone();
         engine.on_print(move |text| {
-            borrow!(host).record(Command::Print(text.to_owned()));
+            let mut host = borrow!(host);
+            let owner = host.owner.clone();
+            host.record(Command::Print {
+                level: bozzard_diagnostics::Level::Info,
+                owner,
+                text: text.to_owned(),
+            });
+        });
+    }
+
+    for (name, level) in [
+        ("log_info", bozzard_diagnostics::Level::Info),
+        ("log_warning", bozzard_diagnostics::Level::Warning),
+        ("log_error", bozzard_diagnostics::Level::Error),
+    ] {
+        let host = host.clone();
+        engine.register_fn(name, move |text: ImmutableString| {
+            let mut host = borrow!(host);
+            let owner = host.owner.clone();
+            host.record(Command::Print {
+                level,
+                owner,
+                text: text.to_string(),
+            });
         });
     }
 
@@ -1267,6 +1294,21 @@ impl SceneInstance {
                     dt,
                 );
                 runtime.runs.insert(key, run);
+                if let Err(error) = &result {
+                    bozzard_diagnostics::log(
+                        world,
+                        bozzard_diagnostics::Level::Error,
+                        "Script",
+                        &format!("{error:#}"),
+                        bozzard_diagnostics::Location {
+                            object: Some(owner.clone()),
+                            attachment: Some(index),
+                            node: None,
+                            asset: self.document_attachments(&owner).get(index).cloned(),
+                            ..Default::default()
+                        },
+                    );
+                }
                 result?;
             }
         }
@@ -1617,7 +1659,17 @@ impl SceneInstance {
                     .resource_mut::<BlueprintRuntime>()
                     .context("script variables need the blueprint runtime")?
                     .set_board_scalar(scope, &owner, &name, value)?,
-                Command::Print(text) => {
+                Command::Print { level, owner, text } => {
+                    bozzard_diagnostics::log(
+                        world,
+                        level,
+                        "Script",
+                        &text,
+                        bozzard_diagnostics::Location {
+                            object: Some(owner),
+                            ..Default::default()
+                        },
+                    );
                     runtime.messages.push_back(text.clone());
                     while runtime.messages.len() > 64 {
                         runtime.messages.pop_front();

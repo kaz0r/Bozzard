@@ -80,6 +80,24 @@ impl BlueprintPane {
     }
 }
 impl App {
+    pub(super) fn focus_diagnostic_node(&mut self, owner: &str, index: usize, node: Option<u32>) {
+        let Some(object) = self.editor.scene().objects.iter().find(|o| o.id == owner) else {
+            return;
+        };
+        let Some(attachment) = object.blueprints.get(index) else {
+            return;
+        };
+        self.blueprint_pane
+            .sync(&self.editor.path, owner, &object.blueprints);
+        self.blueprint_pane.choose(index, &attachment.graph);
+        if let Some(node) = node.and_then(|id| attachment.graph.nodes.iter().find(|n| n.id == id)) {
+            self.blueprint_pane.selected = Some(node.id);
+            self.blueprint_pane.selection.insert(node.id);
+            self.blueprint_pane.view = node_rect(node).expand(180.);
+        }
+        self.workspace.blueprints_visible = true;
+        self.workspace.shaders_visible = false;
+    }
     pub fn blueprint_inspector(&mut self, ui: &mut egui::Ui, object: &mut bozzard_scene::Object) {
         if self.editor.selected_surface().is_some() {
             return;

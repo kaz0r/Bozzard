@@ -285,3 +285,7 @@ For screen-anchored counters and labels, open `examples/demo/scenes/hud-lab.json
 Game lifecycle menus and Blueprint End Game: [Game flow](docs/game-flow.md). Try `examples/demo/scenes/game-flow-lab.json`.
 
 Play and export [Flap Woods](docs/flap-woods.md), a complete Blueprint game with HUD scoring, pause, game over and retry.
+
+### Profiling and the debug console
+
+Open **Debug** in the editor toolbar. **Record** captures CPU stages, GPU passes and render counters; click a bar to inspect that frame. **Console** filters logs by severity, source or text, and **Go to object** opens the originating Blueprint node. **Export JSON** saves a shareable capture. See [debugging](docs/debugging.md) for a guided Debug Lab and measurement limits.

@@ -9,6 +9,10 @@ pub struct Tick {
 }
 
 type System = Box<dyn FnMut(&mut World, &mut Commands, Tick) + Send>;
+struct NamedSystem {
+    name: &'static str,
+    run: System,
+}
 
 /// Compiled-in module interface. Dynamic binary loading/unloading is not supported yet.
 pub trait Plugin {
@@ -36,7 +40,7 @@ pub struct Advance {
 
 pub struct App {
     pub world: World,
-    systems: Vec<System>,
+    systems: Vec<NamedSystem>,
     plugins: HashSet<&'static str>,
     commands: Commands,
     timestep: Duration,
@@ -58,8 +62,10 @@ impl App {
     /// Panics if timestep is zero.
     pub fn new(timestep: Duration, max_catch_up: NonZeroU32) -> Self {
         assert!(!timestep.is_zero(), "timestep must be positive");
+        let mut world = World::new();
+        world.insert_resource(bozzard_diagnostics::Diagnostics::default());
         Self {
-            world: World::new(),
+            world,
             systems: Vec::new(),
             plugins: HashSet::new(),
             commands: Commands::default(),
@@ -81,7 +87,18 @@ impl App {
         &mut self,
         system: impl FnMut(&mut World, &mut Commands, Tick) + Send + 'static,
     ) {
-        self.systems.push(Box::new(system));
+        self.add_named_system("Custom system", system);
+    }
+    /// A readable name identifies this system in optional profiler captures.
+    pub fn add_named_system(
+        &mut self,
+        name: &'static str,
+        system: impl FnMut(&mut World, &mut Commands, Tick) + Send + 'static,
+    ) {
+        self.systems.push(NamedSystem {
+            name,
+            run: Box::new(system),
+        });
     }
     pub fn timestep(&self) -> Duration {
         self.timestep
@@ -98,10 +115,27 @@ impl App {
         // Systems in one step share a change tick, so a reader that bookmarks `World::change_tick`
         // when it finishes sees exactly the next step's writes as changed.
         self.world.advance_change_tick();
+        let span = self
+            .world
+            .resource_mut::<bozzard_diagnostics::Diagnostics>()
+            .and_then(|d| {
+                d.tick = Some(tick.number);
+                d.profiler.begin("Fixed tick", d.tick)
+            });
         for system in &mut self.systems {
-            system(&mut self.world, &mut self.commands, tick);
+            bozzard_diagnostics::measure(&mut self.world, system.name, |world| {
+                (system.run)(world, &mut self.commands, tick);
+            });
         }
-        self.commands.apply(&mut self.world);
+        bozzard_diagnostics::measure(&mut self.world, "Deferred changes", |world| {
+            self.commands.apply(world)
+        });
+        if let Some(d) = self
+            .world
+            .resource_mut::<bozzard_diagnostics::Diagnostics>()
+        {
+            d.profiler.end(span);
+        }
         self.ticks = self.ticks.checked_add(1).expect("tick counter exhausted");
     }
     pub fn advance(&mut self, elapsed: Duration) -> Advance {

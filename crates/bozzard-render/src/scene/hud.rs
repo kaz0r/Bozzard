@@ -94,7 +94,7 @@ impl HudRenderer {
     pub fn draw(
         &mut self,
         gpu: &Gpu,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut crate::profiling::Encoder,
         target: &wgpu::TextureView,
         size: [u32; 2],
         scene: &RenderScene,

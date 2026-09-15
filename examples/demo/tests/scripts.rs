@@ -156,3 +156,31 @@ fn a_throwing_script_stops_the_simulation_and_names_its_hook() {
     );
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn script_console_preserves_owner_and_severity() {
+    use bozzard_diagnostics::{Diagnostics, Level};
+    let (path, root) = project(
+        r#"fn on_start(me) { print("hello"); log_warning("careful"); log_error("failed"); }"#,
+    );
+    let mut demo = open(&path).unwrap();
+    tick(&mut demo);
+    let events = &demo
+        .app
+        .world
+        .resource::<Diagnostics>()
+        .unwrap()
+        .console
+        .events;
+    assert_eq!(events.len(), 3);
+    assert_eq!(
+        events.iter().map(|e| e.level).collect::<Vec<_>>(),
+        vec![Level::Info, Level::Warning, Level::Error]
+    );
+    assert!(
+        events
+            .iter()
+            .all(|e| e.source == "Script" && e.location.object.as_deref() == Some("thing"))
+    );
+    let _ = std::fs::remove_dir_all(root);
+}

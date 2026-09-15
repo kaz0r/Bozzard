@@ -100,7 +100,7 @@ reference scenes in `examples/demo/scenes/middleware-lab.json` and `ui-2d-lab.js
 
 ## 6 — Runtime and shipping
 
-- [ ] **M** In-editor profiler: CPU/GPU frame breakdown, ECS system timings, draw/instance counts, memory, and a log console.
+- [x] **M** In-editor profiler: optional CPU system/stage timings, asynchronous GPU pass timings with availability reporting, render counters, live graphics memory, and a searchable source-linked console. Bounded captures export to JSON; see [debugging](docs/debugging.md).
 - [ ] **S** Device-loss recovery and a bounded crash report path; unrecoverable device errors terminate the process today.
 - [ ] **M** Distribution completion: selected-module builds, certified minimum OS baselines verified on clean machines, dependency notices, signing/notarization, installer decisions (`docs/exporting.md`).
 - [ ] **M** Module manifest with dependency ordering, staged registration, and lifecycle cleanup; modules are compiled-in hooks without dependency resolution today (`docs/architecture.md`).

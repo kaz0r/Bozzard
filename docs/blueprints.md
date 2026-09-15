@@ -151,3 +151,7 @@ A screen-anchored Text Rendering object holding `+` draws the crosshair, the sam
 The projectile prefab carries its own graphs: On Object Enter destroys the instance on any impact, and On Update retires it once it falls below the platform or leaves the arena (the original squared-radius test is retained; Length and Distance are now available). That last part is not just tidiness: the sun shadow map is fitted to every lit draw, so a round that flew on into the void for 300 units would drag the fitted box and its texels along with it.
 
 Each cube owns a **pop when hit by a physical body** graph: On Object Enter supplies **Other**, Is Rigidbody rejects the platform and the player, and a Branch hides the cube and moves it out of play. A non-rendered `game-rules` object polls the four cube positions in one On Update graph and fires **End Game** with "You win! All four targets destroyed." once every cube has dropped below the platform. Game Flow shows the controls before the run and the win message afterwards.
+
+## Console messages
+
+**Log Info**, **Log Warning** and **Log Error** accept a Text message and continue through **Then**. They write to **Debug → Console**, including object, attachment, node and tick. **Print Number** remains available. Logging an error does not throw or stop a graph; runtime failures are reported separately. See [debugging](debugging.md).

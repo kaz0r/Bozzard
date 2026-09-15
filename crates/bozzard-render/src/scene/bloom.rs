@@ -296,8 +296,8 @@ impl Bloom {
             })
             .unwrap_or(&self.black)
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
-        let pass = |encoder: &mut wgpu::CommandEncoder,
+    pub fn draw(&self, encoder: &mut crate::profiling::Encoder) {
+        let pass = |encoder: &mut crate::profiling::Encoder,
                     target: &wgpu::TextureView,
                     pipeline: &wgpu::RenderPipeline,
                     binding: &wgpu::BindGroup| {

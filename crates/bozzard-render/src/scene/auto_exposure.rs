@@ -112,7 +112,7 @@ impl Exposure {
         self.previous_time = Some(time);
         self.active = true;
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn draw(&self, encoder: &mut crate::profiling::Encoder) {
         if !self.active {
             return;
         }
