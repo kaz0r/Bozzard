@@ -1,7 +1,7 @@
 //! Versioned scene documents and ECS instances, with no graphics dependencies.
 //! IDs are document-local persistent strings, never runtime entity handles.
 pub mod game_flow;
-pub use game_flow::{GameAction, GameFlowSettings, GameKey, GamePhase, GameSession};
+pub use game_flow::{GameAction, GameFlowSettings, GamePhase, GameSession};
 mod gi;
 pub use gi::{BakedGi, GI_PROBE_STRIDE, GI_VISIBILITY_SIZE, GiSettings, GiVolumeSettings};
 mod text;
@@ -10,6 +10,7 @@ mod surface;
 pub use surface::SurfaceMaterialOverride;
 pub mod blueprint;
 mod blueprint_runtime;
+pub mod middleware;
 mod runtime_prefabs;
 pub mod scene_control;
 pub mod shader_graph;
@@ -27,7 +28,7 @@ pub use environment::EnvironmentSettings;
 mod temporal;
 pub use temporal::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
 mod particles;
-pub use particles::{MAX_PARTICLES, Particle, ParticleEmitter, ParticleKind};
+pub use particles::{MAX_PARTICLES, Particle, ParticleEmitter, ParticleKind, ParticleSimulation};
 mod volumetric;
 pub use volumetric::VolumetricFog;
 mod optics;
@@ -482,6 +483,7 @@ pub struct Scene {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetKind {
+    Audio,
     Prefab,
     Image,
     Mesh,
@@ -564,6 +566,7 @@ impl Scene {
             self.objects.iter().filter(|o| o.light.is_some()).count() <= MAX_LOCAL_LIGHTS,
             "scene supports at most {MAX_LOCAL_LIGHTS} local lights"
         );
+        middleware::registry::validate_all(self)?;
         gameplay::validate(self)?;
         prefab::validate(self)?;
         for (kind, limit) in [
@@ -1000,15 +1003,28 @@ impl SceneInstance {
 
     pub fn view(&self, world: &World, layer: Layer, aspect: f32) -> Result<SceneView> {
         let matrices = self.global_transforms(world)?;
-        let camera = self.camera_entity(layer)?;
+        let camera_id = world
+            .resource::<middleware::timeline::Runtime>()
+            .and_then(|r| r.cameras.get(&layer))
+            .filter(|id| {
+                self.entities
+                    .get(*id)
+                    .is_some_and(|e| world.get::<Camera>(*e).is_some())
+            })
+            .or_else(|| self.document.views.get(&layer))
+            .context("scene does not provide this view")?;
+        let camera = *self
+            .entities
+            .get(camera_id)
+            .context("view camera was removed")?;
         let projection = world
             .get::<Camera>(camera)
             .context("view camera component was removed")?
             .projection(aspect)?;
-        let camera_id = &self.document.views[&layer];
         let view_projection = projection * matrices[camera_id].inverse();
         let mut objects = Vec::new();
         let mut object_ids = Vec::new();
+        let mut skin_poses = BTreeMap::new();
         let mut shader_graphs = Vec::new();
         let mut texts = Vec::new();
         for (id, entity) in &self.entities {
@@ -1037,7 +1053,30 @@ impl SceneInstance {
                 use std::hash::{Hash, Hasher};
                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
                 entity.hash(&mut hasher);
-                object_ids.push(hasher.finish().max(1));
+                let motion_id = hasher.finish().max(1);
+                object_ids.push(motion_id);
+                if let Some(animator) = world.get::<middleware::animation::Animator>(*entity)
+                    && !animator.rig.bindings.is_empty()
+                {
+                    let (signature, matrices) = match world
+                        .resource::<middleware::animation::Runtime>()
+                        .and_then(|r| r.players.get(id))
+                        .filter(|p| !p.palette.is_empty())
+                    {
+                        Some(player) => (player.signature, player.palette.clone()),
+                        None => (
+                            animator.rig.signature(),
+                            std::sync::Arc::new(animator.rig.palette(&animator.rig.rest_pose())?),
+                        ),
+                    };
+                    skin_poses.insert(
+                        motion_id,
+                        middleware::animation::Palette {
+                            signature,
+                            matrices,
+                        },
+                    );
+                }
                 shader_graphs.push(
                     world
                         .get::<shader_graph::ShaderGraph>(*entity)
@@ -1076,6 +1115,8 @@ impl SceneInstance {
             "too many runtime shadowed point lights"
         );
         Ok(SceneView {
+            sprites: self.sprite_frame_with_matrices(world, layer, &matrices)?,
+            skin_poses,
             particles: if layer == Layer::ThreeD {
                 self.particle_state.frame()
             } else {
@@ -1104,6 +1145,7 @@ impl SceneInstance {
         let mut scene = self.document.clone();
         for object in &mut scene.objects {
             let entity = self.entities[&object.id];
+            middleware::registry::capture_all(object, world, entity)?;
             object.transform = *world
                 .get::<Transform>(entity)
                 .context("cannot save a removed scene object/transform")?;
@@ -1127,6 +1169,8 @@ impl SceneInstance {
 }
 
 pub struct SceneView {
+    pub sprites: Vec<middleware::sprite::Visual>,
+    pub skin_poses: BTreeMap<u64, middleware::animation::Palette>,
     /// Runtime identities in the same order as objects; never serialized.
     pub object_ids: Vec<u64>,
     /// Surface shader graph per object, same order as `objects`.
@@ -1147,6 +1191,7 @@ impl Object {
     fn spawn_in(&self, world: &mut World) -> Result<Entity> {
         let entity = world.spawn();
         world.insert(entity, self.transform)?;
+        middleware::registry::spawn_all(self, world, entity)?;
         macro_rules! insert { ($($field:ident),*) => { $(if let Some(value) = &self.$field { world.insert(entity, value.clone())?; })* }; }
         insert!(
             particle_emitter,
@@ -1189,9 +1234,11 @@ impl Object {
         if let Some(manager) = &self.script_manager {
             dependencies.extend(manager.asset_dependencies());
         }
+        dependencies.extend(middleware::registry::dependencies(self));
         dependencies
     }
     pub fn remap_assets(&mut self, mapping: &BTreeMap<String, String>) {
+        middleware::registry::remap_assets(self, mapping);
         let remap = |id: &mut String| {
             if let Some(new) = mapping.get(id) {
                 *id = new.clone();

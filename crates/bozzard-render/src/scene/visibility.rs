@@ -3,6 +3,10 @@ use super::*;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct FrameStats {
     pub particles: usize,
+    /// Simulation/sort/gather/bucket compute dispatches; zero for an unchanged paused frame.
+    pub particle_compute_dispatches: u32,
+    /// Particle descriptors uploaded this frame, excluding small camera/sort uniforms.
+    pub particle_descriptor_bytes: usize,
     pub particle_triangles: u64,
     pub scene_items: usize,
     pub surfaces: usize,
@@ -76,7 +80,7 @@ impl SceneRenderer {
             .map(|d| {
                 !self.culling
                     || visible(
-                        self.mesh_for(&d.object.mesh).bounds,
+                        self.mesh_for(&d.object).bounds,
                         scene.view_projection * d.object.model,
                     )
             })

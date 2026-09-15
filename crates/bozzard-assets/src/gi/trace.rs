@@ -549,6 +549,7 @@ fn opaque(part: &MeshPart, alpha: f32) -> bool {
 }
 fn builtin(cube: bool) -> MeshData {
     let mut mesh = MeshData {
+        skin: None,
         vertices: Vec::new(),
         indices: Vec::new(),
         parts: Vec::new(),

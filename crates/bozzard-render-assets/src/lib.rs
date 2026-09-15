@@ -1,8 +1,8 @@
 //! Shared asset-to-renderer adapter used by the editor and standalone player.
 //! Neither the CPU importer nor the renderer depends on this bridge.
-mod game_flow;
+mod ui;
+pub use ui::{nine_slice, widget_items};
 mod residency;
-pub use game_flow::game_menu;
 
 use bozzard_assets::{
     AssetData, Filter, ImageData, MeshData, Sampler, SurfaceShading, TextureMap, Wrap,
@@ -11,9 +11,27 @@ use bozzard_render::{Gpu, MaterialMap, ModelImage, ModelPart, ModelShading, Scen
 pub use residency::{Residency, ResidencyReport};
 use std::sync::Arc;
 
+pub fn skin_poses(
+    poses: &std::collections::BTreeMap<u64, bozzard_scene::middleware::animation::Palette>,
+) -> std::collections::BTreeMap<u64, bozzard_render::SkinPose> {
+    poses
+        .iter()
+        .map(|(&id, pose)| {
+            (
+                id,
+                bozzard_render::SkinPose {
+                    signature: pose.signature,
+                    matrices: pose.matrices.clone(),
+                },
+            )
+        })
+        .collect()
+}
+
 /// The same text settings feed rendering, editor bounds, and picking.
 pub fn text_mesh(text: &bozzard_scene::TextRendering) -> bozzard_render::TextMesh {
     bozzard_render::TextMesh {
+        clip: None,
         screen: text.screen.map(|s| bozzard_render::ScreenText {
             anchor: s.anchor,
             offset: s.offset,
@@ -124,18 +142,30 @@ pub fn model_parts(mesh: &MeshData) -> Vec<ModelPart<'_>> {
 
 /// Whether an imported asset has anything to put on the GPU.
 ///
-/// Prefabs and scripts are gameplay data: the residency pass skips them and `upload_source` refuses
-/// them, and both ask this one function rather than listing the kinds again.
+/// Prefabs, scripts, and audio have no graphics resources. The residency pass and
+/// `upload_source` share this classification.
 pub fn needs_gpu(data: &AssetData) -> bool {
-    !matches!(data, AssetData::Prefab(_) | AssetData::Script(_))
+    matches!(data, AssetData::Image(_) | AssetData::Mesh(_))
 }
 
 struct SharedSource(Arc<AssetData>);
 impl bozzard_render::UploadSource for SharedSource {
+    fn skin(&self) -> Option<bozzard_render::SkinData<'_>> {
+        let AssetData::Mesh(mesh) = self.0.as_ref() else {
+            return None;
+        };
+        let skin = mesh.skin.as_ref()?;
+        Some(bozzard_render::SkinData {
+            signature: skin.rig.signature(),
+            bindings: skin.rig.bindings.len(),
+            vertices: &skin.vertices,
+        })
+    }
     fn data(&self) -> bozzard_render::UploadData<'_> {
         match self.0.as_ref() {
-            AssetData::Prefab(_) => unreachable!("prefabs are excluded by upload_source"),
-            AssetData::Script(_) => unreachable!("scripts are excluded by upload_source"),
+            AssetData::Prefab(_) | AssetData::Audio(_) | AssetData::Script(_) => {
+                unreachable!("non-rendered assets are excluded by upload_source")
+            }
             AssetData::Image(data) => bozzard_render::UploadData::Image(image(data)),
             AssetData::Mesh(mesh) => bozzard_render::UploadData::Model {
                 vertices: &mesh.vertices,
@@ -148,10 +178,7 @@ impl bozzard_render::UploadSource for SharedSource {
 pub fn upload_source(
     data: Arc<AssetData>,
 ) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
-    anyhow::ensure!(
-        needs_gpu(&data),
-        "prefabs and scripts have no GPU resources"
-    );
+    anyhow::ensure!(needs_gpu(&data), "this asset has no GPU resources");
     Ok(Arc::new(SharedSource(data)))
 }
 pub fn upload(
@@ -161,12 +188,27 @@ pub fn upload(
     data: &AssetData,
 ) -> anyhow::Result<()> {
     match data {
-        AssetData::Prefab(_) | AssetData::Script(_) => Ok(()),
+        AssetData::Prefab(_) | AssetData::Audio(_) | AssetData::Script(_) => Ok(()),
         AssetData::Image(image) => {
             renderer.upload_image(gpu, id, image.width, image.height, &image.rgba)
         }
         AssetData::Mesh(mesh) => {
-            renderer.upload_model(gpu, id, &mesh.vertices, &mesh.indices, &model_parts(mesh))
+            if let Some(skin) = &mesh.skin {
+                renderer.upload_skinned_model(
+                    gpu,
+                    id,
+                    &mesh.vertices,
+                    &mesh.indices,
+                    &model_parts(mesh),
+                    bozzard_render::SkinData {
+                        signature: skin.rig.signature(),
+                        bindings: skin.rig.bindings.len(),
+                        vertices: &skin.vertices,
+                    },
+                )
+            } else {
+                renderer.upload_model(gpu, id, &mesh.vertices, &mesh.indices, &model_parts(mesh))
+            }
         }
     }
 }
@@ -183,3 +225,36 @@ pub fn shader_source(
 }
 
 mod shaders;
+
+/// Shared atlas geometry uses content-cached GPU meshes, including an entire tilemap in one draw.
+pub fn sprite_items(
+    sprites: &[bozzard_scene::middleware::sprite::Visual],
+) -> anyhow::Result<Vec<bozzard_render::DrawItem>> {
+    sprites
+        .iter()
+        .map(|sprite| {
+            Ok(bozzard_render::DrawItem {
+                motion_id: sprite.motion_id,
+                model: sprite.model,
+                mesh: bozzard_render::MeshKind::Sprite(bozzard_render::SpriteMesh {
+                    geometry: bozzard_render::SpriteGeometry::shared(sprite.quads.clone())?,
+                    screen: None,
+                    clip: None,
+                    opacity: sprite.color[3],
+                }),
+                material: bozzard_render::Material {
+                    metallic: None,
+                    roughness: None,
+                    surface_overrides: Default::default(),
+                    tint: [sprite.color[0], sprite.color[1], sprite.color[2]],
+                    uv_scale: [1.; 2],
+                    texture: bozzard_render::TextureKind::Imported(sprite.image.clone()),
+                    lit: false,
+                    shader: None,
+                },
+            })
+        })
+        .collect()
+}
+
+pub mod accessibility;

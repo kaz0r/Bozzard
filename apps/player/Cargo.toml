@@ -6,6 +6,9 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+accesskit = "0.24.1"
+accesskit_winit = "0.32.0"
+bozzard-audio.workspace = true
 bozzard-project = { path = "../../crates/bozzard-project" }
 bozzard-assets.workspace = true
 bozzard-app.workspace = true

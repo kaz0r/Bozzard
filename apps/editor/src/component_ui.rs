@@ -20,13 +20,31 @@ pub(super) fn fields(
     views: &mut BTreeMap<Layer, String>,
 ) -> Result<bool> {
     let mut changed = false;
-    for field in entry.visible_fields(object) {
-        let Some(mut value) = (entry.get)(object, field.key) else {
-            continue;
-        };
+    let values = match bozzard_scene::middleware::registry::field_values(object, entry.name) {
+        Some(values) => values?,
+        None => entry
+            .visible_fields(object)
+            .into_iter()
+            .filter_map(|field| (entry.get)(object, field.key).map(|value| (field, value)))
+            .collect(),
+    };
+    for (field, mut value) in values {
         if widget(ui, &field, &mut value, scene, views)? {
             (entry.set)(object, field.key, value)
                 .with_context(|| format!("{} · {}", entry.label, field.label))?;
+            if entry.name == "audio_source" && field.key == "asset" {
+                use bozzard_scene::middleware::{audio::AudioSource, registry};
+                if let Some(mut source) = registry::get::<AudioSource>(object)?
+                    && let Some(bozzard_assets::AssetData::Audio(data)) = assets
+                        .handle(&source.asset)
+                        .and_then(|h| assets.get(h))
+                        .and_then(|e| e.data())
+                {
+                    source.duration = data.duration;
+                    source.streaming = data.duration > 10.;
+                    registry::set(object, &source)?;
+                }
+            }
             changed = true;
         }
     }

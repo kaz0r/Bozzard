@@ -443,74 +443,176 @@ impl App {
         let available = ui.available_size().max(Vec2::splat(1.0));
         let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
         self.viewport_rect = Some(rect);
-        if let Some(play) = &mut self.editor.play
-            && let Some(session) = play.game_session()
-        {
-            use bozzard_scene::{GameAction, GameKey, GamePhase};
-            let mut action = None;
+        let mut ui_consumed = false;
+        let layer = self.layer();
+        if let Some(play) = &mut self.editor.play {
+            use bozzard_scene::middleware::ui::Input;
+            let size = [rect.width(), rect.height()];
             if !ui.input(|i| i.focused) {
-                action = Some(GameAction::Pause);
-            } else if response.hovered()
-                && !ui.ctx().egui_wants_keyboard_input()
-                && !egui::Popup::is_any_open(ui.ctx())
-            {
-                action = ui.input(|i| {
-                    i.events.iter().find_map(|event| {
-                        if let egui::Event::Key {
+                play.ui_input(layer, size, Input::CancelPointer)?;
+                if play
+                    .game_session()
+                    .is_some_and(|s| s.phase == bozzard_scene::GamePhase::Playing)
+                {
+                    play.ui_input(layer, size, Input::Key("Escape".into()))?;
+                }
+            } else if !egui::Popup::is_any_open(ui.ctx()) {
+                let existing_frame = play.instance().ui_frame(&play.app.world, layer, size)?;
+                let ui_focused = ui.memory(|m| m.focused()).is_some_and(|id| {
+                    existing_frame
+                        .elements
+                        .iter()
+                        .any(|e| id == egui::Id::new(("authored_ui", e.id)))
+                });
+                for event in ui.input(|i| i.events.clone()) {
+                    match event {
+                        egui::Event::PointerMoved(pos) => {
+                            ui_consumed |= play.ui_input(
+                                layer,
+                                size,
+                                Input::PointerMove([(pos - rect.min).x, (pos - rect.min).y]),
+                            )?;
+                        }
+                        egui::Event::MouseWheel { unit, delta, .. } => {
+                            if let Some(pos) = ui
+                                .input(|i| i.pointer.hover_pos())
+                                .filter(|p| rect.contains(*p))
+                            {
+                                let amount = -delta.y
+                                    * match unit {
+                                        egui::MouseWheelUnit::Line => 40.,
+                                        egui::MouseWheelUnit::Page => rect.height() * 0.8,
+                                        _ => 1.,
+                                    };
+                                ui_consumed |= play.ui_input(
+                                    layer,
+                                    size,
+                                    Input::ScrollAt {
+                                        point: [(pos - rect.min).x, (pos - rect.min).y],
+                                        delta: amount,
+                                    },
+                                )?;
+                            }
+                        }
+                        egui::Event::PointerGone => {
+                            play.ui_input(layer, size, Input::CancelPointer)?;
+                        }
+                        egui::Event::PointerButton {
+                            pos,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            ..
+                        } => {
+                            let point = [(pos - rect.min).x, (pos - rect.min).y];
+                            if !pressed || rect.contains(pos) {
+                                ui_consumed |= play.ui_input(
+                                    layer,
+                                    size,
+                                    if pressed {
+                                        Input::PointerDown(point)
+                                    } else {
+                                        Input::PointerUp(point)
+                                    },
+                                )?;
+                            }
+                        }
+                        egui::Event::Key {
                             key,
                             pressed: true,
                             repeat: false,
                             modifiers,
                             ..
-                        } = event
+                        } if response.hovered()
+                            && (!ui.ctx().egui_wants_keyboard_input() || ui_focused)
+                            && !modifiers.command
+                            && !modifiers.ctrl
+                            && !modifiers.alt =>
                         {
-                            if modifiers.command || modifiers.ctrl || modifiers.alt {
-                                return None;
-                            }
-                            let key = match key {
-                                egui::Key::Enter => GameKey::Enter,
-                                egui::Key::Escape => GameKey::Escape,
-                                egui::Key::R => GameKey::Restart,
-                                egui::Key::Q => GameKey::Quit,
-                                _ => return None,
+                            let input = match key {
+                                egui::Key::PageDown => Some(Input::ScrollFocused(240.)),
+                                egui::Key::PageUp => Some(Input::ScrollFocused(-240.)),
+                                egui::Key::Tab => Some(Input::FocusNext {
+                                    reverse: modifiers.shift,
+                                }),
+                                egui::Key::Space | egui::Key::Enter => Some(Input::Activate),
+                                egui::Key::ArrowLeft | egui::Key::ArrowDown => {
+                                    Some(Input::Adjust(-1.))
+                                }
+                                egui::Key::ArrowRight | egui::Key::ArrowUp => {
+                                    Some(Input::Adjust(1.))
+                                }
+                                _ => None,
                             };
-                            session.key_action(key)
+                            let mut consumed = false;
+                            if let Some(input) = input {
+                                consumed = play.ui_input(layer, size, input)?;
+                            }
+                            if !consumed
+                                && let Some(key) =
+                                    bozzard_scene::keys::canonical(&format!("{key:?}"))
+                            {
+                                consumed = play.ui_input(layer, size, Input::Key(key.into()))?;
+                            }
+                            ui_consumed |= consumed;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            let frame = play.instance().ui_frame(&play.app.world, layer, size)?;
+            let mut accessibility_inputs = Vec::new();
+            for element in &frame.elements {
+                if element.clip.size.iter().any(|s| *s <= 0.) {
+                    continue;
+                }
+                let id = egui::Id::new(("authored_ui", element.id));
+                ui.input_mut(|input| {
+                    input.consume_accesskit_action_requests(id, |request| {
+                        if let Some(action) =
+                            bozzard_render_assets::accessibility::action(element, request)
+                        {
+                            accessibility_inputs.push(action);
+                            true
                         } else {
-                            None
+                            false
                         }
                     })
                 });
-                if response.clicked()
-                    && let Some(pos) = response.interact_pointer_pos()
-                {
-                    action = session
-                        .hit(
-                            [rect.width(), rect.height()],
-                            [(pos - rect.min).x, (pos - rect.min).y],
-                        )
-                        .or(action);
-                }
-                if ui.input(|i| i.pointer.hover_pos()).is_some_and(|pos| {
-                    session
-                        .hit(
-                            [rect.width(), rect.height()],
-                            [(pos - rect.min).x, (pos - rect.min).y],
-                        )
-                        .is_some()
-                }) {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                let bounds = element.rect.intersect(element.clip);
+                let response = ui.interact(
+                    egui::Rect::from_min_size(
+                        rect.min + egui::vec2(bounds.min[0], bounds.min[1]),
+                        egui::vec2(bounds.size[0], bounds.size[1]),
+                    ),
+                    id,
+                    egui::Sense::focusable_noninteractive(),
+                );
+                ui.ctx().accesskit_node_builder(id, |node| {
+                    *node = bozzard_render_assets::accessibility::node(
+                        element,
+                        [rect.min.x, rect.min.y],
+                        1.,
+                    )
+                });
+                if element.focused && ui_consumed {
+                    response.request_focus();
                 }
             }
-            if let Some(action) = action {
-                self.gameplay_controls.reset();
-                let result = play.game_action(action);
-                let quit = play
-                    .game_session()
-                    .is_some_and(|s| s.phase == GamePhase::Quit);
-                self.result(result);
-                if quit {
-                    self.editor.stop_play();
-                }
+            for input in accessibility_inputs {
+                ui_consumed |= play.ui_input(layer, size, input)?;
+            }
+            if ui.input(|i| i.pointer.hover_pos()).is_some_and(|pos| {
+                frame
+                    .hit([(pos - rect.min).x, (pos - rect.min).y])
+                    .is_some()
+            }) {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if play
+                .game_session()
+                .is_some_and(|s| s.phase == bozzard_scene::GamePhase::Quit)
+            {
+                self.editor.stop_play();
             }
         }
         if self.editor.play.is_none()
@@ -570,7 +672,8 @@ impl App {
             .as_ref()
             .is_some_and(|play| play.game_session().is_some() || play.accepts_gameplay_input());
         if authored_player {
-            let eligible = ui.is_enabled()
+            let eligible = !ui_consumed
+                && ui.is_enabled()
                 && (!self.workspace.layer_2d
                     || self
                         .editor
@@ -740,16 +843,13 @@ impl App {
         } else {
             self.editor.render(layer, aspect)?
         };
-        if let Some(play) = &self.editor.play
-            && let (Some(settings), Some(session)) =
-                (&play.instance().document().game_flow, play.game_session())
-        {
-            scene.items.extend(bozzard_render_assets::game_menu(
-                settings,
-                session,
-                [rect.width(), rect.height()],
-            ));
-        }
+        let widgets = self
+            .editor
+            .ui_frame(self.layer(), [rect.width(), rect.height()])?;
+        scene.items.extend(bozzard_render_assets::widget_items(
+            &widgets,
+            &self.editor.assets,
+        )?);
         if !self
             .editor
             .assets

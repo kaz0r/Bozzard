@@ -2,6 +2,7 @@ use bozzard_render::*;
 use glam::{Mat4, Vec3};
 fn scene() -> RenderScene {
     RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: vec![],
         view_projection: glam::camera::rh::proj::directx::orthographic(-3., 3., -2., 2., 0.1, 30.),

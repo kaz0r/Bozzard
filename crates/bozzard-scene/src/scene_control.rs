@@ -22,6 +22,8 @@ impl GameSaves {
 #[serde(deny_unknown_fields)]
 struct GameSave {
     version: u32,
+    #[serde(default)]
+    middleware: crate::middleware::checkpoint::Save,
     scene: Scene,
     restart: Scene,
     blueprint: Option<crate::blueprint_runtime::RuntimeSave>,
@@ -262,7 +264,8 @@ impl SceneInstance {
         self.scene_serial = serial;
         Ok(())
     }
-    fn replace_runtime_scene(&mut self, world: &mut World, scene: Scene) -> Result<()> {
+    fn replace_runtime_scene(&mut self, world: &mut World, mut scene: Scene) -> Result<()> {
+        scene.ensure_game_menus()?;
         // Validate all spawn-time invariants in isolation before removing any live entity.
         let mut check = World::default();
         scene.spawn(&mut check)?;
@@ -280,6 +283,7 @@ impl SceneInstance {
         world.remove_resource::<crate::physics::Physics>();
         world.remove_resource::<BlueprintRuntime>();
         world.remove_resource::<crate::ScriptRuntime>();
+        crate::middleware::checkpoint::clear(world);
         world.remove_resource::<GameplayState>();
         world.remove_resource::<GameSession>();
         world.insert_resource(GameplayInput::default());
@@ -289,6 +293,7 @@ impl SceneInstance {
         // Loaded script sources and the compiled engine belong to the runtime, not to the document
         // that was just spawned: without them the replacement scene has attachments nothing can run.
         // Attachment state is deliberately not carried, so `on_start` fires again in the new scene.
+        next.set_gpu_particles(self.gpu_particles_enabled());
         next.templates = templates;
         next.script_engine = std::mem::take(&mut self.script_engine);
         next.scripts = std::mem::take(&mut self.scripts);
@@ -304,6 +309,7 @@ impl SceneInstance {
     pub fn save_game_json(&self, world: &World) -> Result<String> {
         let save = GameSave {
             version: 1,
+            middleware: crate::middleware::checkpoint::Save::capture(world),
             scene: self.capture(world)?,
             restart: (*self.restart_document).clone(),
             blueprint: world
@@ -342,6 +348,7 @@ impl SceneInstance {
         ensure!(save.version == 1, "unsupported save game version");
         save.scene.validate()?;
         save.restart.validate()?;
+        save.middleware.validate(&save.scene)?;
         ensure!(
             save.scene.assets == self.document.assets
                 && save.scene.runtime_scenes == self.document.runtime_scenes,
@@ -425,6 +432,7 @@ impl SceneInstance {
             requested: save.cursor,
         });
         world.insert_resource(physics);
+        save.middleware.restore(world);
         Ok(())
     }
 }

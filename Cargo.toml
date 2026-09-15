@@ -9,7 +9,10 @@ rust-version = "1.95"
 publish = false
 
 [workspace.dependencies]
+bozzard-text = { path = "crates/bozzard-text" }
 bozzard-assets = { path = "crates/bozzard-assets" }
+bozzard-audio = { path = "crates/bozzard-audio" }
+kira = { version = "0.12.4", default-features = false, features = ["wav", "pcm", "ogg", "vorbis", "mp3", "flac"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tobj = { version = "4.0.4", default-features = false }
 gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }

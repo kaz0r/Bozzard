@@ -1,5 +1,6 @@
 //! Native WebGPU renderer. No dependency on the ECS, simulation, or a window toolkit.
 pub use scene::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
+pub use scene::{SkinData, SkinPose};
 pub use wgpu;
 mod mipmap;
 mod pbr;
@@ -383,6 +384,10 @@ pub fn read_texture(gpu: &Gpu, texture: &wgpu::Texture, width: u32, height: u32)
         rgba,
     })
 }
+
+pub use scene::{SpriteGeometry, SpriteMesh, SpriteQuad};
+
+pub use scene::ParticleSimulation;
 
 #[cfg(test)]
 mod tests {

@@ -8,14 +8,21 @@ The dependency direction is intentional:
 
 ```text
 bozzard-server -> bozzard-demo -> bozzard-app -> bozzard-ecs
-bozzard-demo -> bozzard-scene -> bozzard-ecs + glam + serde
+bozzard-demo -> bozzard-scene -> bozzard-ecs + glam + serde + bozzard-text
 bozzard-player -> bozzard-demo
 bozzard-player -> bozzard-render -> wgpu
 bozzard-player -> bozzard-assets -> bozzard-scene + image + tobj
-bozzard-player -> winit
+bozzard-player -> bozzard-audio -> Kira + CPAL
+bozzard-player -> winit + AccessKit
 ```
 
 `bozzard-render` accepts render data, never an ECS world. This leaves room for separate extraction, interpolation, batching, cameras, 2D sprites, and 3D meshes. Server compilation cannot accidentally initialize a window; its entire normal dependency tree is checked in CI.
+
+## Middleware boundary
+
+Typed middleware components use the scene component registry and extensible document storage. Animation rigs/clips, curves, blackboards, UI layouts, sprite/tile data and baked navigation run on the CPU without assets, windows or audio devices. The shared `bozzard-text` crate supplies CPU text shaping/metrics so headless UI layout agrees with rendering. Its Epaint font stack is reviewed in the headless dependency allowlist; WGPU, Winit, Egui integration, importers and CPAL remain outside it.
+
+Asset workers import glTF skin/animation and probe file-backed compressed audio. The render bridge supplies immutable skin palettes, sprite geometry, widget items and particle descriptors; the renderer owns compute skinning and particle motion/sorting. Native audio owns device handles and decoded/streaming sound caches. Gameplay sees typed Blueprint controls and events. UI and audio-completion Delay chains carry a wall-clock flag so paused menus can act while normal simulation timers stay frozen. Save games include middleware playback, paths, widget overrides and accessibility preferences. See [middleware authoring and limits](middleware.md).
 
 ## ECS baseline
 
@@ -63,4 +70,4 @@ The scene document owns stable asset IDs and source paths, and exposes reverse o
 
 The player uploads CPU data into renderer-owned caches keyed by asset ID. The renderer accepts vertices, indices, and RGBA pixels and retains no dependency on the importer or scene crate. Changed textures invalidate object bind groups; changed meshes replace their buffers. Replacing a scene first loads a complete new store/world/renderer, then swaps them in. Suspending and recreating a window uploads the retained CPU assets to the new device.
 
-Polling reads source bytes every 500 ms and compares contents, avoiding timestamp granularity problems. Failed imports report an error once per changed source and retain the previous data and revision. This is a small synchronous baseline: background import jobs, memory budgets, cancellation, incremental dependency graphs, and streaming are deliberately later work. See `assets.md` for current limits.
+Asset refresh runs in cancellable workers at a bounded interval. Images/models compare source/dependency contents; audio uses size/time as a fast path and streams a digest plus metadata when changed, retaining no compressed file bytes in the catalog. Explicit reload bypasses the audio fast path. Failed imports retain the last good data/revision. Native sound decoding uses a separate bounded cache or streaming reader. See `assets.md` and [middleware](middleware.md) for current limits.

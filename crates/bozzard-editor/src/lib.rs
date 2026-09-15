@@ -61,12 +61,15 @@ impl Editor {
     pub fn open(path: &Path) -> Result<Self> {
         Self::new(Scene::from_json(&std::fs::read_to_string(path)?)?, path)
     }
-    pub fn new(scene: Scene, path: &Path) -> Result<Self> {
+    pub fn new(mut scene: Scene, path: &Path) -> Result<Self> {
+        scene.ensure_game_menus()?;
         scene.validate()?;
         let assets = load_assets(&scene, path)?;
+        assets.bake_audio_metadata(&mut scene)?;
         Ok(Self::from_loaded(scene, path.to_path_buf(), assets))
     }
-    pub fn new_pending(scene: Scene, path: &Path) -> Result<Self> {
+    pub fn new_pending(mut scene: Scene, path: &Path) -> Result<Self> {
+        scene.ensure_game_menus()?;
         scene.validate()?;
         let assets = AssetStore::new(root(path), &scene.assets)?;
         Ok(Self::from_loaded(scene, path.to_path_buf(), assets))
@@ -520,7 +523,23 @@ impl Editor {
             .context("object has no shader graph")?;
         bozzard_demo::save_json(&graph.to_json()?, path)
     }
+    pub fn refresh_audio_metadata(&mut self) -> Result<()> {
+        if self.play.is_none()
+            && self
+                .scene
+                .objects
+                .iter()
+                .any(|o| o.extras.contains_key("audio_source"))
+        {
+            let mut scene = self.scene.clone();
+            if self.assets.bake_audio_metadata(&mut scene)? > 0 {
+                self.apply("Refresh audio clip lengths", scene)?;
+            }
+        }
+        Ok(())
+    }
     pub fn start_play(&mut self) -> Result<()> {
+        self.refresh_audio_metadata()?;
         self.surface_selection = None;
         self.finish_gesture();
         if self.play.is_none() {
@@ -547,8 +566,9 @@ impl Editor {
     pub fn save(&mut self, path: &Path) -> Result<()> {
         self.finish_gesture();
         // Always save the authored document, even during Play.
-        let rebased = prepare_document_from(&self.scene, path, Some(&self.path))?;
+        let mut rebased = prepare_document_from(&self.scene, path, Some(&self.path))?;
         let assets = load_assets(&rebased, path)?;
+        assets.bake_audio_metadata(&mut rebased)?;
         // Complete all fallible preparation before the atomic destination replacement.
         save_document(&rebased, path)?;
         if path != self.path {
@@ -586,6 +606,7 @@ impl Editor {
             "repair or reload this asset before adding it"
         );
         let (layer, mesh, texture) = match source.kind {
+            AssetKind::Audio => (Layer::ThreeD, Mesh::Cube, Texture::White),
             AssetKind::Prefab => {
                 anyhow::bail!("Place prefabs using the background prefab operation")
             }
@@ -634,6 +655,19 @@ impl Editor {
                 uv_scale: [1.0; 2],
             }),
         });
+        if let Some(AssetData::Audio(audio)) = entry.data() {
+            let owner = scene.objects.iter_mut().find(|o| o.id == id).unwrap();
+            owner.drawable = None;
+            bozzard_scene::middleware::registry::set(
+                owner,
+                &bozzard_scene::middleware::audio::AudioSource {
+                    asset: asset_id.into(),
+                    duration: audio.duration,
+                    streaming: audio.duration > 10.,
+                    ..Default::default()
+                },
+            )?;
+        }
         self.expand_model_objects(&mut scene, &id)?;
         self.finish_gesture();
         self.apply("Add asset to scene", scene)?;
@@ -671,11 +705,24 @@ impl Editor {
             .iter_mut()
             .find(|o| Some(&o.id) == self.selected.as_ref())
             .context("select a drawable object")?;
+        if let Some(AssetData::Audio(audio)) = entry.data() {
+            let mut source = bozzard_scene::middleware::registry::get::<
+                bozzard_scene::middleware::audio::AudioSource,
+            >(object)?
+            .unwrap_or_default();
+            source.asset = asset_id.into();
+            source.duration = audio.duration;
+            source.streaming = audio.duration > 10.;
+            bozzard_scene::middleware::registry::set(object, &source)?;
+            self.finish_gesture();
+            return self.apply("Assign audio clip", scene);
+        }
         let drawable = object
             .drawable
             .as_mut()
             .context("selected object has no drawable")?;
         match source.kind {
+            AssetKind::Audio => anyhow::bail!("audio asset data is unavailable"),
             AssetKind::Prefab => anyhow::bail!(
                 "Place a prefab as a linked hierarchy instead of assigning it to a drawable"
             ),
@@ -732,6 +779,7 @@ impl Editor {
             .unwrap_or("")
             .to_ascii_lowercase();
         let kind = match extension.as_str() {
+            "wav" | "ogg" | "mp3" | "flac" => AssetKind::Audio,
             "png" | "jpg" | "jpeg" => AssetKind::Image,
             "obj" | "gltf" | "glb" => AssetKind::Mesh,
             "rs" | "rhai" => AssetKind::Script,
@@ -743,7 +791,9 @@ impl Editor {
             {
                 AssetKind::Prefab
             }
-            _ => anyhow::bail!("Choose PNG, JPEG, OBJ, glTF, GLB, .rs, or .prefab.json"),
+            _ => anyhow::bail!(
+                "Choose PNG, JPEG, OBJ, glTF, GLB, WAV, OGG, MP3, FLAC, .rs, or .prefab.json"
+            ),
         };
         if kind == AssetKind::Prefab {
             return self.link_prefab(source, progress);
@@ -853,11 +903,31 @@ impl Editor {
             .create_new(true)
             .open(&target)?;
         let result = (|| -> Result<()> {
-            let bytes = match packed {
-                Some(bytes) => bytes,
-                None => std::fs::read(source)?,
-            };
-            destination.write_all(&bytes)?;
+            if kind == AssetKind::Audio {
+                use std::io::Read;
+                let mut file = std::fs::File::open(source)?;
+                let mut buffer = [0u8; 65536];
+                let mut copied = 0u64;
+                loop {
+                    progress.check()?;
+                    let count = file.read(&mut buffer)?;
+                    if count == 0 {
+                        break;
+                    }
+                    copied += count as u64;
+                    ensure!(
+                        copied <= 1024 * 1024 * 1024,
+                        "audio file grew beyond the import limit"
+                    );
+                    destination.write_all(&buffer[..count])?;
+                }
+            } else {
+                let bytes = match packed {
+                    Some(bytes) => bytes,
+                    None => std::fs::read(source)?,
+                };
+                destination.write_all(&bytes)?;
+            }
             destination.sync_all()?;
             drop(destination);
             progress.stage("Validating project assets")?;
@@ -876,6 +946,47 @@ impl Editor {
         }
         result?;
         Ok(id)
+    }
+    pub fn ui_frame(
+        &self,
+        layer: Layer,
+        size: [f32; 2],
+    ) -> Result<bozzard_scene::middleware::ui::Frame> {
+        let edit;
+        let demo = if let Some(play) = &self.play {
+            play
+        } else {
+            edit = self.edit_demo()?;
+            &edit
+        };
+        if self.play.is_none() {
+            use bozzard_scene::{
+                GamePhase,
+                middleware::{
+                    registry,
+                    ui::{Canvas, Phase},
+                },
+            };
+            let mut selected = self.selected.as_deref();
+            while let Some(id) = selected {
+                let Some(object) = self.scene.objects.iter().find(|o| o.id == id) else {
+                    break;
+                };
+                if let Some(canvas) = registry::get::<Canvas>(object)? {
+                    let phase = match canvas.phase {
+                        Phase::Ready | Phase::Always => GamePhase::Ready,
+                        Phase::Playing => GamePhase::Playing,
+                        Phase::Paused => GamePhase::Paused,
+                        Phase::GameOver => GamePhase::GameOver,
+                    };
+                    return demo
+                        .instance()
+                        .ui_frame_for_phase(&demo.app.world, layer, size, phase);
+                }
+                selected = object.parent.as_deref();
+            }
+        }
+        demo.instance().ui_frame(&demo.app.world, layer, size)
     }
     pub fn render(&self, layer: Layer, aspect: f32) -> Result<RenderScene> {
         let edit;
@@ -1061,6 +1172,7 @@ fn extract_with_gi(
     }
 
     Ok(RenderScene {
+        skin_poses: bozzard_render_assets::skin_poses(&view.skin_poses),
         shader_time: view.display_time,
         particles: bozzard_render_assets::particle_frame(&view.particles),
         fog: bozzard_render::FogSettings {
@@ -1169,6 +1281,7 @@ fn extract_with_gi(
             })
             .collect::<Result<Vec<_>>>()?
             .into_iter()
+            .chain(bozzard_render_assets::sprite_items(&view.sprites)?)
             .chain(
                 view.texts
                     .into_iter()

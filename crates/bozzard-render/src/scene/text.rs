@@ -3,7 +3,7 @@ use epaint::{
     Color32, FontFamily, FontId,
     text::{FontDefinitions, Fonts, LayoutJob, TextOptions},
 };
-use std::{cell::RefCell, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TextAlignment {
@@ -30,6 +30,7 @@ impl ScreenText {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextMesh {
+    pub clip: Option<[f32; 4]>,
     pub screen: Option<ScreenText>,
     pub text: String,
     pub font_size: f32,
@@ -41,6 +42,7 @@ pub struct TextMesh {
 impl Default for TextMesh {
     fn default() -> Self {
         Self {
+            clip: None,
             screen: None,
             text: "Text".into(),
             font_size: 0.5,
@@ -63,6 +65,14 @@ impl TextMesh {
         )
     }
     fn validate(&self) -> Result<()> {
+        if let Some(rect) = self.clip {
+            ensure!(
+                rect.iter().all(|v| v.is_finite() && v.abs() <= 1e6)
+                    && rect[2] >= 0.
+                    && rect[3] >= 0.,
+                "invalid text clipping rectangle"
+            );
+        }
         if let Some(screen) = self.screen {
             ensure!(
                 screen
@@ -72,7 +82,7 @@ impl TextMesh {
                     && screen
                         .offset
                         .iter()
-                        .all(|v| v.is_finite() && v.abs() <= 10000.),
+                        .all(|v| v.is_finite() && v.abs() <= 1_000_000.),
                 "invalid HUD position"
             );
         }
@@ -83,7 +93,7 @@ impl TextMesh {
         );
         ensure!(
             self.max_width
-                .is_none_or(|v| v.is_finite() && (0.001..=10000.).contains(&v)),
+                .is_none_or(|v| v.is_finite() && (0.001..=1_000_000.).contains(&v)),
             "invalid text width"
         );
         ensure!(
@@ -132,22 +142,22 @@ fn layout(fonts: &mut Fonts, text: &TextMesh) -> Result<Arc<epaint::text::Galley
     );
     Ok(galley)
 }
-thread_local! { static BOUNDS_FONTS: RefCell<Fonts> = RefCell::new(fonts()); }
-/// Local layout envelope, also used for editor picking and framing. No GPU required.
+/// Local layout envelope, shared with headless widget layout. No GPU required.
 pub fn text_bounds(text: &TextMesh) -> Result<Option<[Vec3; 2]>> {
-    BOUNDS_FONTS.with_borrow_mut(|fonts| {
-        fonts.begin_pass(options());
-        let galley = layout(fonts, text)?;
-        if galley.num_indices == 0 {
-            return Ok(None);
-        }
-        let rect = galley.rect.union(galley.mesh_bounds);
-        let scale = text.font_size / EM;
-        Ok(Some([
-            Vec3::new(rect.min.x, -rect.max.y, 0.) * scale,
-            Vec3::new(rect.max.x, -rect.min.y, 0.) * scale,
-        ]))
-    })
+    text.validate()?;
+    Ok(bozzard_text::bounds(
+        &text.text,
+        text.font_size,
+        text.max_width,
+        text.monospace,
+        text.alignment as u8,
+    )?
+    .map(|[min, max]| {
+        [
+            Vec3::new(min[0], -max[1], 0.),
+            Vec3::new(max[0], -min[1], 0.),
+        ]
+    }))
 }
 
 pub(super) struct TextRenderer {
@@ -317,6 +327,7 @@ mod tests {
         gpu.require_hardware()?;
         let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
         let mut scene = RenderScene {
+            skin_poses: Default::default(),
             shader_time: 0.,
             particles: vec![],
             fog: Default::default(),

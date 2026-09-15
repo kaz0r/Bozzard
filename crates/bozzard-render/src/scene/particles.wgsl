@@ -9,11 +9,14 @@ struct ParticleVertex {
     @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32>, @location(1) world:vec3<f32>,
     @location(2) color:vec4<f32>, @location(3) params:vec4<f32>,
 }
-@vertex fn vs_main(@builtin(vertex_index) index:u32,
-    @location(0) position_size:vec4<f32>, @location(1) velocity_rotation:vec4<f32>,
-    @location(2) color_opacity:vec4<f32>, @location(3) kind_soft_trail_seed:vec4<f32>) -> ParticleVertex {
+struct ParticleInstance {position_size:vec4<f32>,velocity_rotation:vec4<f32>,color_opacity:vec4<f32>,kind_soft_trail_seed:vec4<f32>}
+@group(0) @binding(2) var<storage,read> particle_instances:array<ParticleInstance>;
+@vertex fn vs_main(@builtin(vertex_index) index:u32)->ParticleVertex {
+    let particle=particle_instances[index/6u];
+    let position_size=particle.position_size;let velocity_rotation=particle.velocity_rotation;
+    let color_opacity=particle.color_opacity;let kind_soft_trail_seed=particle.kind_soft_trail_seed;
     let corners=array<vec2<f32>,6>(vec2<f32>(-1,-1),vec2<f32>(1,-1),vec2<f32>(1,1),vec2<f32>(-1,-1),vec2<f32>(1,1),vec2<f32>(-1,1));
-    let q=corners[index];let angle=velocity_rotation.w;
+    let q=corners[index%6u];let angle=velocity_rotation.w;
     let rotated=vec2<f32>(q.x*cos(angle)-q.y*sin(angle),q.x*sin(angle)+q.y*cos(angle));
     var world=position_size.xyz+(object.right.xyz*rotated.x+object.up.xyz*rotated.y)*position_size.w*0.5;
     if kind_soft_trail_seed.x>1.5 {
@@ -36,7 +39,7 @@ fn world_at(uv:vec2<f32>,depth:f32)->vec3<f32> {
     let h=object.inverse_view_projection*vec4<f32>(uv*vec2<f32>(2,-2)+vec2<f32>(-1,1),depth,1);
     return h.xyz/select(0.000001,h.w,abs(h.w)>0.000001);
 }
-struct ParticleOutput { @location(0) color:vec4<f32>, @location(1) reactive:vec4<f32> }
+struct ParticleOutput { @location(0) color:vec4<f32>, @location(1) normal:vec4<f32>, @location(2) reactive:vec4<f32>, @location(3) specular:vec4<f32> }
 @fragment fn fs_main(in:ParticleVertex)->ParticleOutput {
     let pixel=clamp(vec2<i32>(in.position.xy),vec2<i32>(0),vec2<i32>(textureDimensions(opaque_depth))-1);
     let z=textureLoad(opaque_depth,pixel,0);
@@ -72,5 +75,5 @@ struct ParticleOutput { @location(0) color:vec4<f32>, @location(1) reactive:vec4
     }
     alpha*=in.color.a*soft;
     if alpha<0.001 {discard;}
-    return ParticleOutput(vec4<f32>(min(color,vec3<f32>(60000)),clamp(alpha,0.0,1.0)),vec4<f32>(0,0,0,clamp(alpha*3.0,0.0,1.0)));
+    return ParticleOutput(vec4<f32>(min(color,vec3<f32>(60000)),clamp(alpha,0.0,1.0)),vec4<f32>(0),vec4<f32>(0,0,0,clamp(alpha*3.0,0.0,1.0)),vec4<f32>(0));
 }

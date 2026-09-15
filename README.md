@@ -54,6 +54,8 @@ The [Target Range](docs/blueprints.md#target-range-example) is a first-person sh
 
 Click **Effects** for presets, live particle preview, focus, wet materials, and detailed tuning. See [atmosphere and motion effects](docs/atmosphere-effects.md).
 
+The [Middleware labs](docs/middleware.md) demonstrate compressed/spatial audio, skinned glTF animation and blend trees, cinematic timelines, tween curves, UI widgets, localized accessible menus, sprite atlases/tilemaps, baked navigation and GPU particle simulation. Open `examples/demo/scenes/middleware-lab.json` or `ui-2d-lab.json` and press Play.
+
 ## Lighting and material galleries
 
 Try the [material and lighting showcases](docs/showcases.md) for textured PBR samples, fog, colored lighting and transform controls:

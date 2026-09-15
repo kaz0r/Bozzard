@@ -84,6 +84,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         .cpu_upload_ms
         .to_bits();
     let mut scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),

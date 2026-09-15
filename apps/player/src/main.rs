@@ -1,4 +1,6 @@
+mod accessibility;
 use anyhow::{Context, Result, bail, ensure};
+use std::path::Path;
 mod assets;
 mod flap_woods;
 mod game_flow;
@@ -162,6 +164,7 @@ fn options() -> Result<Option<Options>> {
 }
 
 struct View {
+    accessibility: accessibility::Accessibility,
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     gpu: Gpu,
@@ -176,12 +179,15 @@ impl View {
         let window = Arc::new(
             event_loop.create_window(
                 Window::default_attributes()
+                    .with_visible(false)
                     .with_title(
                         "Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload",
                     )
                     .with_inner_size(LogicalSize::new(1024.0, 640.0)),
             )?,
         );
+        let accessibility = accessibility::Accessibility::new(event_loop, &window);
+        window.set_visible(true);
         let instance = instance(options.backend);
         let surface = instance.create_surface(window.clone())?;
         let gpu = pollster::block_on(Gpu::request(&instance, Some(&surface), options.software))?;
@@ -199,6 +205,7 @@ impl View {
             window.focus_window();
         }
         Ok(Self {
+            accessibility,
             window,
             surface,
             gpu,
@@ -256,19 +263,20 @@ impl View {
             layer,
             self.config.width as f32 / self.config.height as f32,
         )?;
-        if let (Some(settings), Some(session)) =
-            (&demo.instance().document().game_flow, demo.game_session())
-        {
-            let scale = self.window.scale_factor() as f32;
-            scene.items.extend(bozzard_render_assets::game_menu(
-                settings,
-                session,
-                [
-                    self.config.width as f32 / scale,
-                    self.config.height as f32 / scale,
-                ],
-            ));
-        }
+        let scale = self.window.scale_factor() as f32;
+        let ui = demo.instance().ui_frame(
+            &demo.app.world,
+            layer,
+            [
+                self.config.width as f32 / scale,
+                self.config.height as f32 / scale,
+            ],
+        )?;
+        self.accessibility
+            .update(&ui, &demo.instance().document().name, scale);
+        scene
+            .items
+            .extend(bozzard_render_assets::widget_items(&ui, assets.store())?);
         if !assets.current() {
             scene.gi = None;
         }
@@ -318,6 +326,7 @@ struct Player {
     view: Option<View>,
     demo: SceneDemo,
     assets: assets::Assets,
+    audio: bozzard_audio::NativeAudio,
     paused: bool,
     menu_input: game_flow::MenuInput,
     gameplay_controls: gameplay_input::GameplayControls,
@@ -540,6 +549,7 @@ impl Player {
                     view.renderer = renderer;
                 }
                 self.assets = assets;
+                self.audio.stop();
                 self.demo = next;
                 self.gameplay_controls.reset();
                 if self.demo.accepts_gameplay_input() {
@@ -638,11 +648,55 @@ impl ApplicationHandler for Player {
         if self.view.as_ref().is_none_or(|v| id != v.window.id()) {
             return;
         }
-        if let Err(error) = self.game_pointer_event(&event) {
-            self.fail(event_loop, error);
-            return;
+        if let Some(view) = &mut self.view {
+            view.accessibility
+                .adapter
+                .process_event(&view.window, &event);
         }
-        if self.demo.accepts_gameplay_input() {
+        if matches!(event, WindowEvent::RedrawRequested) {
+            let view = self.view.as_ref().unwrap();
+            let scale = view.window.scale_factor() as f32;
+            let size = [
+                view.config.width.max(1) as f32 / scale,
+                view.config.height.max(1) as f32 / scale,
+            ];
+            let requests = view.accessibility.drain();
+            for request in requests {
+                let result = (|| -> Result<()> {
+                    let frame = self.demo.instance().ui_frame(
+                        &self.demo.app.world,
+                        self.options.layer,
+                        size,
+                    )?;
+                    if let Some(element) = frame
+                        .elements
+                        .iter()
+                        .find(|e| e.id == request.target_node.0)
+                        && let Some(input) =
+                            bozzard_render_assets::accessibility::action(element, &request)
+                    {
+                        self.ui_input(input)?;
+                    }
+                    Ok(())
+                })();
+                if let Err(error) = result {
+                    self.fail(event_loop, error);
+                    return;
+                }
+            }
+        }
+        let ui_consumed = match self.game_pointer_event(&event) {
+            Ok(consumed) => consumed,
+            Err(error) => {
+                self.fail(event_loop, error);
+                return;
+            }
+        };
+        if ui_consumed {
+            self.gameplay_controls.reset();
+            self.demo.clear_gameplay_input();
+        }
+        if !ui_consumed && self.demo.accepts_gameplay_input() {
             if let Some(input) = self.gameplay_controls.event(&event)
                 && (self.options.layer == Layer::ThreeD || self.demo.instance().has_blueprints())
             {
@@ -676,6 +730,8 @@ impl ApplicationHandler for Player {
         }
         let now = Instant::now();
         if matches!(event, WindowEvent::RedrawRequested) {
+            self.demo
+                .with_instance(|instance, _| instance.set_gpu_particles(true));
             if self.options.verify_first_trail {
                 if let Err(error) = project::route_tick(self, self.demo.app.ticks()) {
                     self.fail(event_loop, error);
@@ -687,6 +743,34 @@ impl ApplicationHandler for Player {
             if let Err(error) = self.demo.check_simulation() {
                 self.fail(event_loop, error);
                 return;
+            }
+            let audio_result = self
+                .demo
+                .instance()
+                .audio_frame(&self.demo.app.world, self.options.layer)
+                .and_then(|mut frame| {
+                    if self.paused {
+                        for source in &mut frame.sources {
+                            if source.transport
+                                == bozzard_scene::middleware::audio::Transport::Playing
+                            {
+                                source.transport =
+                                    bozzard_scene::middleware::audio::Transport::Paused;
+                            }
+                        }
+                    }
+                    let root = self
+                        .options
+                        .scene
+                        .as_deref()
+                        .and_then(Path::parent)
+                        .unwrap_or_else(|| Path::new("."));
+                    self.audio
+                        .sync(&frame, self.demo.instance().document(), root)
+                });
+            if let Err(error) = audio_result {
+                eprintln!("Audio: {error:#}");
+                self.command_error = Some(format!("Audio: {error:#}"));
             }
             self.last_frame = now;
         }
@@ -700,6 +784,7 @@ impl ApplicationHandler for Player {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. }
                 if self.demo.game_session().is_none()
+                    && !self.menu_input.consumed(KeyCode::Escape)
                     && event.state == ElementState::Pressed
                     && event.logical_key == Key::Named(NamedKey::Escape) =>
             {
@@ -795,6 +880,7 @@ fn main() -> Result<()> {
     let assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
     let mut player = Player {
         assets,
+        audio: Default::default(),
         options,
         view: None,
         demo,
@@ -847,6 +933,7 @@ mod controls_tests {
                 ..Default::default()
             },
             view: None,
+            audio: Default::default(),
             demo: SceneDemo::new(&document).unwrap(),
             paused: false,
             menu_input: Default::default(),
@@ -1309,6 +1396,7 @@ mod controls_tests {
             assets: assets::Assets::load(&bozzard_demo::scene_document().unwrap(), None).unwrap(),
             options: Options::default(),
             view: None,
+            audio: Default::default(),
             demo: SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap(),
             paused: false,
             menu_input: Default::default(),

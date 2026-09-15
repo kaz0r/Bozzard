@@ -18,6 +18,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         },
     };
     let scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),
@@ -63,6 +64,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         "batching or shadow counters incorrect"
     );
     let mut shadow_scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),

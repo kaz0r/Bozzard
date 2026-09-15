@@ -46,11 +46,12 @@ The minimal JSON manifest selects the starting scene and camera view:
 `start_scene` is relative to the manifest and must remain inside its directory. The scene's
 asset catalog declares the content to package. All declared assets are included, together
 with transitive prefab dependencies and external glTF/GLB/OBJ buffers, material libraries
-and supported images. Blueprint attachments are serialized in scenes and prefabs.
+and supported images. Compressed audio and scripts are included too. Blueprint attachments,
+cooked animation rigs, navigation bakes, curves and UI layouts are serialized in scenes and prefabs.
 Model source bytes and dependency names are preserved so surface overrides and baked GI
 fingerprints survive relocation. This is dependency packaging, without GPU-specific binary
 asset compression or feature stripping. The standard compiled runtime includes the current
-scene, physics, Blueprint and rendering systems.
+scene, physics, Blueprint, scripting, middleware and rendering systems.
 
 Export with the native player directly (no Python required):
 

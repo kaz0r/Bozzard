@@ -95,28 +95,29 @@ fn end_game_stops_other_events_and_requires_opt_in() {
 }
 
 #[test]
-fn menu_hit_targets_follow_resize_and_keys_follow_phase() {
-    use bozzard_scene::{GameKey as K, GameSession};
-    let mut s = GameSession::default();
-    assert_eq!(s.key_action(K::Enter), Some(A::Start));
-    assert_eq!(s.key_action(K::Escape), None);
-    for size in [[800., 500.], [1280., 800.]] {
-        assert_eq!(
-            s.hit(size, [size[0] / 2., size[1] / 2. + 24.]),
-            Some(A::Start)
-        );
-        assert_eq!(s.hit(size, [0., 0.]), None);
-        s.phase = P::Playing;
-        assert_eq!(s.hit(size, [size[0] - 92., 34.]), Some(A::Pause));
-        s.phase = P::Ready;
-    }
-    s.phase = P::Paused;
-    assert_eq!(s.key_action(K::Escape), Some(A::Resume));
-    s.phase = P::GameOver;
-    assert_eq!(s.key_action(K::Enter), Some(A::Restart));
-    assert!(s.end_game(&"x".repeat(241)).is_err());
+fn menus_are_editable_scene_widgets_and_game_metadata_is_validated() {
     let mut source = load();
-    source.game_flow.as_mut().unwrap().title = "".into();
+    let demo = SceneDemo::new(&source).unwrap();
+    assert!(
+        demo.instance()
+            .document()
+            .objects
+            .iter()
+            .any(|o| o.extras.contains_key("ui_canvas"))
+    );
+    assert!(
+        demo.instance()
+            .document()
+            .objects
+            .iter()
+            .any(|o| o.extras.contains_key("ui_widget") && !o.blueprints.is_empty())
+    );
+    assert!(
+        bozzard_scene::GameSession::default()
+            .end_game(&"x".repeat(241))
+            .is_err()
+    );
+    source.game_flow.as_mut().unwrap().title.clear();
     assert!(source.validate().is_err());
 }
 

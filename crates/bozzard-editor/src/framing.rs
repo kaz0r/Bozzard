@@ -40,6 +40,28 @@ impl Editor {
             if selection.is_some() && !included.contains(&object.id) {
                 continue;
             }
+            if let Some(entity) = demo.instance().entity(&object.id) {
+                use bozzard_scene::middleware::sprite::{Sprite, Tilemap};
+                let sprite = demo
+                    .app
+                    .world
+                    .get::<Sprite>(entity)
+                    .filter(|s| s.enabled && s.layer == layer)
+                    .map(Sprite::bounds);
+                let tiles = demo
+                    .app
+                    .world
+                    .get::<Tilemap>(entity)
+                    .filter(|s| s.enabled && s.layer == layer)
+                    .map(Tilemap::bounds);
+                for [min, max] in sprite.into_iter().chain(tiles) {
+                    for x in [min.x, max.x] {
+                        for y in [min.y, max.y] {
+                            include(matrices[&object.id].transform_point3(Vec3::new(x, y, 0.)))?;
+                        }
+                    }
+                }
+            }
             if let Some(text) = &object.text_rendering
                 && text.enabled
                 && text.screen.is_none()
