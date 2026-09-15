@@ -143,6 +143,7 @@ impl PbrRenderer {
                 buffers: &[
                     Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0=>Float32x3, 1=>Float32x3, 2=>Float32x2] }),
                     Some(wgpu::VertexBufferLayout { array_stride: 48, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![3=>Float32x4, 4=>Float32x2, 5=>Float32x2, 6=>Float32x2, 7=>Float32x2] }),
+                    Some(crate::scene::previous_vertex_layout()),
                 ] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(),
                 targets: &crate::scene::geometry::color_targets(format, transparent, auxiliary) }),
@@ -204,7 +205,7 @@ impl PbrRenderer {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PBR tangent and UV attributes"),
                 contents: &crate::scene::float_bytes(material.vertices.iter().flatten().copied()),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
             });
         self.bind(gpu, material, views, vertices)
     }

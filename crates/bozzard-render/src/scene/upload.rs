@@ -17,6 +17,9 @@ pub enum UploadData<'a> {
 /// importer dependency or an extra copy of decoded texture pixels.
 pub trait UploadSource: Send + Sync {
     fn data(&self) -> UploadData<'_>;
+    fn skin(&self) -> Option<SkinData<'_>> {
+        None
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -30,6 +33,7 @@ pub struct UploadProgress {
     pub cpu_ms: f64,
 }
 enum BufferSource {
+    Skin,
     Vertices,
     Indices(Option<usize>),
     Shading(usize),
@@ -60,6 +64,7 @@ enum Target {
 /// Staged GPU resources are invisible until finish. Dropping this value cancels
 /// publication; queued GPU work can finish safely against its retained handles.
 pub struct PendingUpload {
+    skin: Option<skinning::Source>,
     source: Arc<dyn UploadSource>,
     target: Target,
     buffers: Vec<BufferWrite>,
@@ -229,7 +234,7 @@ impl UploadContext {
                 let shared = buffer(
                     vertices.len(),
                     32,
-                    wgpu::BufferUsages::VERTEX,
+                    wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
                     BufferSource::Vertices,
                 )?;
                 if parts.is_empty() {
@@ -309,7 +314,7 @@ impl UploadContext {
                                 buffer(
                                     s.vertices.len(),
                                     48,
-                                    wgpu::BufferUsages::VERTEX,
+                                    wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
                                     BufferSource::Shading(part_index),
                                 )?,
                             ))
@@ -359,6 +364,29 @@ impl UploadContext {
                 }
             }
         };
+        let skin = if let Some(skin) = source.skin() {
+            let UploadData::Model { vertices, .. } = &data else {
+                anyhow::bail!("only models may have skins");
+            };
+            ensure!(
+                matches!(&target, Target::Model { .. }),
+                "skinning requires model surfaces"
+            );
+            Some(skinning::Source {
+                signature: skin.signature,
+                bindings: skin.bindings,
+                count: vertices.len(),
+                bounds: skinning::Source::bounds(&skin, vertices)?,
+                weights: buffer(
+                    skin.vertices.len(),
+                    32,
+                    wgpu::BufferUsages::STORAGE,
+                    BufferSource::Skin,
+                )?,
+            })
+        } else {
+            None
+        };
         let total = buffers.iter().map(|b| b.count * b.stride).sum::<usize>()
             + images
                 .iter()
@@ -380,6 +408,7 @@ impl UploadContext {
             .unwrap_or(4);
         drop(data);
         Ok(PendingUpload {
+            skin,
             source,
             target,
             buffers,
@@ -443,6 +472,11 @@ impl PendingUpload {
                 };
                 let range = write.offset..write.offset + count;
                 let bytes = match write.source {
+                    BufferSource::Skin => self.source.skin().unwrap().vertices[range]
+                        .iter()
+                        .flatten()
+                        .flat_map(|v| v.to_le_bytes())
+                        .collect(),
                     BufferSource::Vertices => {
                         float_bytes(vertices[range].iter().flatten().copied())
                     }
@@ -554,6 +588,9 @@ impl PendingUpload {
             "cannot publish an incomplete GPU upload"
         );
         renderer.remove_asset(id);
+        if let Some(skin) = self.skin {
+            renderer.skinning.sources.insert(id.into(), skin);
+        }
         match self.target {
             Target::Image => {
                 renderer.imported_textures.insert(

@@ -1,5 +1,6 @@
 //! CPU query geometry. Mesh rays use the same triangle/BVH primitives as editor picking.
 use super::*;
+use std::collections::BTreeSet;
 #[derive(Clone, Debug, PartialEq)]
 pub struct QueryHit {
     pub object: String,
@@ -302,18 +303,18 @@ impl CollisionSnapshot {
             return Ok(vec![]);
         }
         let shape = self.query_box(center, size)?;
-        let mut hits = Vec::new();
+        let mut hits = BTreeSet::new();
         for body in &self.boxes {
             charge(budget, 1)?;
             if ignore != Some(body.id.as_str())
                 && body.layers & mask != 0
                 && body.intersects(&shape)
             {
+                hits.insert(body.id.clone());
                 ensure!(
-                    hits.len() < capacity,
+                    hits.len() <= capacity,
                     "overlap result exceeds list capacity"
                 );
-                hits.push(body.id.clone());
             }
         }
         for mesh in &self.meshes {
@@ -322,15 +323,14 @@ impl CollisionSnapshot {
                 && mesh.layers & mask != 0
                 && mesh.overlap_budget(&shape, budget)?
             {
+                hits.insert(mesh.id.clone());
                 ensure!(
-                    hits.len() < capacity,
+                    hits.len() <= capacity,
                     "overlap result exceeds list capacity"
                 );
-                hits.push(mesh.id.clone());
             }
         }
-        hits.sort();
-        Ok(hits)
+        Ok(hits.into_iter().collect())
     }
     pub(crate) fn overlap_sphere_budget(
         &self,
@@ -352,15 +352,15 @@ impl CollisionSnapshot {
             return Ok(vec![]);
         }
         let shape = self.query_box(center, Vec3::splat((radius * 2.).max(0.0001)))?;
-        let mut hits = Vec::new();
+        let mut hits = BTreeSet::new();
         for b in &self.boxes {
             charge(budget, 1)?;
             if ignore != Some(b.id.as_str()) && b.layers & mask != 0 && b.sphere(center, radius) {
+                hits.insert(b.id.clone());
                 ensure!(
-                    hits.len() < capacity,
+                    hits.len() <= capacity,
                     "overlap result exceeds list capacity"
                 );
-                hits.push(b.id.clone());
             }
         }
         for mesh in &self.meshes {
@@ -390,15 +390,14 @@ impl CollisionSnapshot {
             });
             ensure!(!exhausted, "blueprint spatial query budget exceeded");
             if hit {
+                hits.insert(mesh.id.clone());
                 ensure!(
-                    hits.len() < capacity,
+                    hits.len() <= capacity,
                     "overlap result exceeds list capacity"
                 );
-                hits.push(mesh.id.clone());
             }
         }
-        hits.sort();
-        Ok(hits)
+        Ok(hits.into_iter().collect())
     }
 }
 impl SceneInstance {

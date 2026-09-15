@@ -25,6 +25,7 @@ enum AssetFilter {
     #[default]
     All,
     Images,
+    Audio,
     Models,
     Prefabs,
     Blueprints,
@@ -69,6 +70,7 @@ struct AssetSnapshot {
     revision: u64,
     users: usize,
     image: Option<(u32, u32)>,
+    audio: Option<(f64, u32)>,
     mesh: Option<Arc<MeshPreview>>,
     prefab_objects: Option<usize>,
 }
@@ -189,7 +191,7 @@ impl AssetBrowser {
         let selected_drawable = |asset: &AssetSnapshot| {
             editor
                 .selected_object()
-                .is_some_and(|object| object.drawable.is_some())
+                .is_some_and(|object| object.drawable.is_some() || asset.kind == AssetKind::Audio)
                 && (editor.selected_surface().is_none() || asset.kind == AssetKind::Image)
         };
 
@@ -202,6 +204,7 @@ impl AssetBrowser {
                 .selected_text(match self.filter {
                     AssetFilter::All => "All assets",
                     AssetFilter::Images => "Textures",
+                    AssetFilter::Audio => "Audio",
                     AssetFilter::Models => "Models",
                     AssetFilter::Prefabs => "Prefabs",
                     AssetFilter::Blueprints => "Blueprints",
@@ -210,6 +213,7 @@ impl AssetBrowser {
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.filter, AssetFilter::All, "All assets");
                     ui.selectable_value(&mut self.filter, AssetFilter::Images, "Textures");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Audio, "Audio");
                     ui.selectable_value(&mut self.filter, AssetFilter::Models, "Models");
                     ui.selectable_value(&mut self.filter, AssetFilter::Prefabs, "Prefabs");
                     ui.selectable_value(&mut self.filter, AssetFilter::Blueprints, "Blueprints");
@@ -222,7 +226,9 @@ impl AssetBrowser {
             ui.separator();
             if ui
                 .add_enabled(editing, egui::Button::new("Import…"))
-                .on_hover_text("Import PNG, JPEG, OBJ, glTF, GLB, or .prefab.json")
+                .on_hover_text(
+                    "Import PNG, JPEG, OBJ, glTF, GLB, WAV, OGG, MP3, FLAC or .prefab.json",
+                )
                 .clicked()
             {
                 if self.filter == AssetFilter::Blueprints {
@@ -292,7 +298,7 @@ impl AssetBrowser {
             if sidebar {
                 ui.allocate_ui_with_layout(Vec2::new(130.0, available.y), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.small("PROJECT");
-                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs")] {
+                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Audio, "Audio"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs")] {
                         ui.horizontal(|ui| {
                             let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 16.0), Sense::hover());
                             draw_folder(ui.painter(), rect);
@@ -809,6 +815,7 @@ impl AssetBrowser {
                         self.selected = Some(asset.id.clone());
                     }
                     ui.small(match asset.kind {
+                        AssetKind::Audio => "Audio",
                         AssetKind::Prefab => "Prefab",
                         AssetKind::Image => "Image",
                         AssetKind::Mesh => "Model",
@@ -839,7 +846,10 @@ impl AssetBrowser {
             .and_then(|entry| entry.data())
             .and_then(|data| match data {
                 AssetData::Image(image) => Some(image),
-                AssetData::Mesh(_) | AssetData::Prefab(_) | AssetData::Script(_) => None,
+                AssetData::Mesh(_)
+                | AssetData::Prefab(_)
+                | AssetData::Script(_)
+                | AssetData::Audio(_) => None,
             })?;
         let texture = ctx.load_texture(
             format!("asset-thumbnail-{}-{}", asset.id, asset.revision),
@@ -868,6 +878,10 @@ impl AssetBrowser {
         ui.add(egui::Label::new(&asset.path).wrap());
         ui.weak(format!("Used by {} object(s)", asset.users));
         match asset.kind {
+            AssetKind::Audio => ui.label(asset.audio.map_or_else(
+                || "Audio".into(),
+                |(duration, rate)| format!("Audio · {duration:.2} s · {rate} Hz"),
+            )),
             AssetKind::Prefab => ui.label(format!(
                 "Prefab · {} objects",
                 asset.prefab_objects.unwrap_or(0)
@@ -1039,7 +1053,9 @@ fn snapshots(
                     };
                     (None, Some(sampled))
                 }
-                Some(AssetData::Prefab(_) | AssetData::Script(_)) | None => (None, None),
+                Some(AssetData::Prefab(_) | AssetData::Script(_) | AssetData::Audio(_)) | None => {
+                    (None, None)
+                }
             };
             Some(AssetSnapshot {
                 id: entry.id.clone(),
@@ -1049,6 +1065,10 @@ fn snapshots(
                 revision: entry.revision(),
                 users: users.get(&entry.id).map_or(0, Vec::len),
                 image,
+                audio: match entry.data() {
+                    Some(AssetData::Audio(a)) => Some((a.duration, a.sample_rate)),
+                    _ => None,
+                },
                 mesh,
                 prefab_objects: match entry.data() {
                     Some(AssetData::Prefab(p)) => Some(p.objects.len()),
@@ -1153,6 +1173,7 @@ fn filter_button(ui: &mut egui::Ui, filter: &mut AssetFilter, value: AssetFilter
 fn matches_filter(filter: AssetFilter, kind: AssetKind) -> bool {
     matches!(filter, AssetFilter::All)
         || matches!((filter, kind), (AssetFilter::Images, AssetKind::Image))
+        || matches!((filter, kind), (AssetFilter::Audio, AssetKind::Audio))
         || matches!((filter, kind), (AssetFilter::Models, AssetKind::Mesh))
         || matches!((filter, kind), (AssetFilter::Prefabs, AssetKind::Prefab))
 }
@@ -1227,6 +1248,9 @@ fn draw_preview(
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 2.0, Color32::from_gray(25));
     match (asset.kind, thumbnail, asset.mesh.as_ref()) {
+        (AssetKind::Audio, _, _) => {
+            draw_shader_icon(&painter, rect);
+        }
         (AssetKind::Prefab, _, _) => {
             draw_node_graph_icon(&painter, rect, Color32::from_rgb(178, 155, 244));
         }
@@ -1363,6 +1387,7 @@ mod tests {
             indices.extend([base, base + 1, base + 2]);
         }
         let mesh = bozzard_assets::MeshData {
+            skin: None,
             vertices,
             indices,
             parts: vec![],

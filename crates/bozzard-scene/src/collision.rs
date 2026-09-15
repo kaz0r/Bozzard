@@ -153,6 +153,23 @@ impl SceneInstance {
         let matrices = self.global_transforms(world)?;
         let mut snapshot = CollisionSnapshot::default();
         for (id, &entity) in &self.entities {
+            if let Some(map) = world
+                .get::<crate::middleware::sprite::Tilemap>(entity)
+                .filter(|m| m.enabled && !m.solid.is_empty())
+            {
+                for collider in crate::middleware::sprite::collision_boxes(world, id, map).iter() {
+                    let (center, edges, corners) = collider.geometry(matrices[id])?;
+                    snapshot.boxes.push(CollisionBox {
+                        id: id.clone(),
+                        entity,
+                        center,
+                        edges,
+                        corners,
+                        layers: collider.layers,
+                        mask: collider.mask,
+                    });
+                }
+            }
             if let Some(collider) = world.get::<MeshCollider>(entity).filter(|c| c.enabled) {
                 ensure!(
                     world.get::<BoxCollider>(entity).is_none(),

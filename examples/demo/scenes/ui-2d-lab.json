@@ -1,0 +1,4480 @@
+{
+  "game_flow": {
+    "title": "Courier garden",
+    "instructions": "A small, editable scene: atlas animation, solid tilemap, localized nine-slice controls, and authored start/pause/retry menus."
+  },
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.15,
+      0.32,
+      0.65
+    ],
+    "horizon": [
+      0.65,
+      0.7,
+      0.8
+    ],
+    "ground": [
+      0.12,
+      0.1,
+      0.08
+    ],
+    "intensity": 0.35,
+    "background": true
+  },
+  "display": {
+    "temporal_aa": {
+      "enabled": false,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": false,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": false,
+      "strength": 1.0,
+      "max_distance": 30.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.65,
+      "steps": 64
+    },
+    "bloom": {
+      "enabled": false,
+      "intensity": 0.15,
+      "threshold": 1.0,
+      "scatter": 0.7,
+      "anamorphic": 0.0
+    },
+    "tone_mapper": "reinhard",
+    "color_grading": {
+      "temperature": 0.0,
+      "tint": 0.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "lift": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": false,
+      "intensity": 1.0,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": false,
+      "strength": 3.0,
+      "threshold": 2.0,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.0,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.0,
+      "roundness": 0.7,
+      "feather": 0.6
+    },
+    "depth_of_field": {
+      "enabled": false,
+      "focus_distance": 5.0,
+      "focal_length_mm": 50.0,
+      "aperture": 2.8,
+      "max_blur_radius": 18.0
+    },
+    "auto_exposure": {
+      "enabled": false,
+      "strength": 1.0,
+      "min_ev": -2.0,
+      "max_ev": 2.0,
+      "target_gray": 0.18,
+      "speed_up": 1.5,
+      "speed_down": 3.0,
+      "center_weight": 0.65
+    },
+    "volumetric_fog": {
+      "enabled": false,
+      "density": 0.035,
+      "albedo": [
+        0.9,
+        0.94,
+        1.0
+      ],
+      "anisotropy": 0.3,
+      "base_height": 0.0,
+      "height_falloff": 0.25,
+      "start_distance": 0.25,
+      "max_distance": 40.0,
+      "noise_amount": 0.65,
+      "noise_scale": 0.35,
+      "wind": [
+        0.15,
+        0.025,
+        0.07
+      ],
+      "light_intensity": 1.0,
+      "ambient": 0.25,
+      "steps": 48
+    },
+    "exposure_ev": 0.0,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.4,
+      0.8,
+      0.6
+    ],
+    "sun_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "sun_intensity": 3.0,
+    "ambient_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ambient_intensity": 0.03
+  },
+  "version": 1,
+  "name": "UI and 2D Lab",
+  "views": {
+    "2d": "camera-2d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "camera 3d",
+      "transform": {
+        "translation": [
+          10.0,
+          9.0,
+          15.0
+        ],
+        "rotation_degrees": [
+          -26.0,
+          30.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "far": 150.0,
+        "near": 0.10000000149011612,
+        "projection": "perspective",
+        "vertical_fov_degrees": 50.0
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "camera 2d",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "far": 100.0,
+        "near": 0.10000000149011612,
+        "projection": "orthographic",
+        "vertical_size": 10.0
+      }
+    },
+    {
+      "id": "ui-start-menu",
+      "name": "Start menu",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_canvas": {
+        "enabled": true,
+        "high_contrast": false,
+        "layer": "2d",
+        "order": 100,
+        "phase": "ready",
+        "reduced_motion": false,
+        "reference": [
+          1280.0,
+          720.0
+        ],
+        "scaling": "fit",
+        "text_scale": 1.0
+      }
+    },
+    {
+      "id": "ui-start-menu-backdrop",
+      "name": "Start menu backdrop",
+      "parent": "ui-start-menu",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            1.0,
+            1.0
+          ],
+          "min": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            0.0,
+            0.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.00800000037997961,
+          0.012000000104308128,
+          0.02500000037252903,
+          0.9399999976158142
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "panel",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-start-menu-contents",
+      "name": "Start menu contents",
+      "parent": "ui-start-menu-backdrop",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            520.0,
+            480.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 14.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "panel",
+        "layout": "column",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          24.0,
+          24.0,
+          24.0,
+          24.0
+        ],
+        "scrollable": true,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-start-menu-text-0",
+      "name": "Start menu text 0",
+      "parent": "ui-start-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            80.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "game.title",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 36.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-start-menu-text-1",
+      "name": "Start menu text 1",
+      "parent": "ui-start-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            76.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "game.instructions",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 1,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-start-menu-start-game",
+      "name": "Start menu Start game",
+      "parent": "ui-start-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Start game action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "start_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Enter",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 10,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Enter"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Start game",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-start-menu-quit",
+      "name": "Start menu Quit",
+      "parent": "ui-start-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Quit action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "quit_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Q",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 1,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 11,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Q"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Quit",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-hud",
+      "name": "Game HUD",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_canvas": {
+        "enabled": true,
+        "high_contrast": false,
+        "layer": "2d",
+        "order": 101,
+        "phase": "playing",
+        "reduced_motion": false,
+        "reference": [
+          1280.0,
+          720.0
+        ],
+        "scaling": "fit",
+        "text_scale": 1.0
+      }
+    },
+    {
+      "id": "ui-game-hud-pause",
+      "name": "Game HUD Pause",
+      "parent": "ui-game-hud",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Pause action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "pause_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            1.0,
+            0.0
+          ],
+          "min": [
+            1.0,
+            0.0
+          ],
+          "offset": [
+            -20.0,
+            20.0
+          ],
+          "pivot": [
+            1.0,
+            0.0
+          ],
+          "size": [
+            180.0,
+            52.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Escape",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 10,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Escape"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Pause",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu",
+      "name": "Pause menu",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_canvas": {
+        "enabled": true,
+        "high_contrast": false,
+        "layer": "2d",
+        "order": 102,
+        "phase": "paused",
+        "reduced_motion": false,
+        "reference": [
+          1280.0,
+          720.0
+        ],
+        "scaling": "fit",
+        "text_scale": 1.0
+      }
+    },
+    {
+      "id": "ui-pause-menu-backdrop",
+      "name": "Pause menu backdrop",
+      "parent": "ui-pause-menu",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            1.0,
+            1.0
+          ],
+          "min": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            0.0,
+            0.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.00800000037997961,
+          0.012000000104308128,
+          0.02500000037252903,
+          0.9399999976158142
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "panel",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu-contents",
+      "name": "Pause menu contents",
+      "parent": "ui-pause-menu-backdrop",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            520.0,
+            480.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 14.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "panel",
+        "layout": "column",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          24.0,
+          24.0,
+          24.0,
+          24.0
+        ],
+        "scrollable": true,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu-text-0",
+      "name": "Pause menu text 0",
+      "parent": "ui-pause-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            80.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 36.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Paused",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu-text-1",
+      "name": "Pause menu text 1",
+      "parent": "ui-pause-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            76.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "game.instructions",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 1,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu-resume",
+      "name": "Pause menu Resume",
+      "parent": "ui-pause-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Resume action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "resume_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Enter or Escape",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 10,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Enter",
+          "Escape"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Resume",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu-restart",
+      "name": "Pause menu Restart",
+      "parent": "ui-pause-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Restart action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "restart_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: R",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 1,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 11,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "R"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Restart",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-pause-menu-quit",
+      "name": "Pause menu Quit",
+      "parent": "ui-pause-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Quit action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "quit_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Q",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 2,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 12,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Q"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Quit",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-over-menu",
+      "name": "Game over menu",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_canvas": {
+        "enabled": true,
+        "high_contrast": false,
+        "layer": "2d",
+        "order": 103,
+        "phase": "game_over",
+        "reduced_motion": false,
+        "reference": [
+          1280.0,
+          720.0
+        ],
+        "scaling": "fit",
+        "text_scale": 1.0
+      }
+    },
+    {
+      "id": "ui-game-over-menu-backdrop",
+      "name": "Game over menu backdrop",
+      "parent": "ui-game-over-menu",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            1.0,
+            1.0
+          ],
+          "min": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            0.0,
+            0.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.00800000037997961,
+          0.012000000104308128,
+          0.02500000037252903,
+          0.9399999976158142
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "panel",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-over-menu-contents",
+      "name": "Game over menu contents",
+      "parent": "ui-game-over-menu-backdrop",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            520.0,
+            480.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 14.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "panel",
+        "layout": "column",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          24.0,
+          24.0,
+          24.0,
+          24.0
+        ],
+        "scrollable": true,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-over-menu-text-0",
+      "name": "Game over menu text 0",
+      "parent": "ui-game-over-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            80.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 36.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Game over",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-over-menu-text-1",
+      "name": "Game over menu text 1",
+      "parent": "ui-game-over-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            76.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "game.message",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 1,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-over-menu-retry",
+      "name": "Game over menu Retry",
+      "parent": "ui-game-over-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Retry action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "restart_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Enter or R",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 10,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Enter",
+          "R"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Retry",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "ui-game-over-menu-quit",
+      "name": "Game over menu Quit",
+      "parent": "ui-game-over-menu-contents",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Quit action",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec"
+                ],
+                "key": "jump",
+                "kind": "quit_game",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {},
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            440.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.07000000029802322,
+          0.14000000059604645,
+          0.20999999344348907,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "Shortcut: Q",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 1,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 11,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [
+          "Q"
+        ],
+        "step": 0.10000000149011612,
+        "text": "Quit",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "solid-tiles",
+      "name": "solid tiles",
+      "transform": {
+        "translation": [
+          -1.0,
+          -2.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "tilemap": {
+        "atlas": {
+          "columns": 5,
+          "rows": 1
+        },
+        "cells": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "dimensions": [
+          12,
+          3
+        ],
+        "enabled": true,
+        "image": "atlas",
+        "layer": "2d",
+        "solid": [
+          5
+        ],
+        "tile_size": [
+          0.6499999761581421,
+          0.6499999761581421
+        ]
+      }
+    },
+    {
+      "id": "courier-sprite",
+      "name": "courier sprite",
+      "transform": {
+        "translation": [
+          2.0,
+          -1.35,
+          0.1
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "sprite": {
+        "atlas": {
+          "columns": 5,
+          "rows": 1
+        },
+        "autoplay": true,
+        "clips": [
+          {
+            "events": [
+              {
+                "frame": 2,
+                "name": "Blink"
+              }
+            ],
+            "fps": 5.0,
+            "frames": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "name": "Idle",
+            "repeat": "loop"
+          }
+        ],
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true,
+        "flip": [
+          false,
+          false
+        ],
+        "frame": 0,
+        "image": "atlas",
+        "initial": "Idle",
+        "layer": "2d",
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "size": [
+          1.399999976158142,
+          1.399999976158142
+        ],
+        "speed": 1.0
+      }
+    },
+    {
+      "id": "floating-tiles",
+      "name": "floating tiles",
+      "transform": {
+        "translation": [
+          1.0,
+          0.2,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "tilemap": {
+        "atlas": {
+          "columns": 5,
+          "rows": 1
+        },
+        "cells": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ],
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "dimensions": [
+          5,
+          1
+        ],
+        "enabled": true,
+        "image": "atlas",
+        "layer": "2d",
+        "solid": [
+          5
+        ],
+        "tile_size": [
+          0.6499999761581421,
+          0.6499999761581421
+        ]
+      }
+    },
+    {
+      "id": "lab-canvas",
+      "name": "lab canvas",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_canvas": {
+        "enabled": true,
+        "high_contrast": false,
+        "layer": "2d",
+        "order": 0,
+        "phase": "playing",
+        "reduced_motion": false,
+        "reference": [
+          1280.0,
+          720.0
+        ],
+        "scaling": "fit",
+        "text_scale": 1.0
+      }
+    },
+    {
+      "id": "lab-controls",
+      "name": "lab controls",
+      "parent": "lab-canvas",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.0,
+            1.0
+          ],
+          "min": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ],
+          "pivot": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            330.0,
+            -48.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          8.0,
+          8.0,
+          8.0,
+          8.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 10.0,
+        "grow": 0.0,
+        "image": "panel",
+        "kind": "panel",
+        "layout": "column",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          20.0,
+          20.0,
+          20.0,
+          20.0
+        ],
+        "scrollable": true,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "lab-title",
+      "name": "lab title",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            74.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 29.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 31,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "COURIER\nGARDEN",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "lab-help",
+      "name": "lab help",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            115.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 16.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 32,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Everything on this screen is a scene object. Edit the Sprite atlas, paint solid Tiles, resize the nine-slice controls, or switch language. Escape opens the authored pause menu.",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "retry-animation",
+      "name": "retry animation",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "retry animation",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "Idle"
+                  },
+                  {
+                    "bool": true
+                  },
+                  {
+                    "object": {
+                      "id": "courier-sprite"
+                    }
+                  }
+                ],
+                "key": "jump",
+                "kind": "play_sprite",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "retry-animation",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 33,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Replay sprite clip",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "text-scale",
+      "name": "text scale",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "text scale",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_text_scale",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 2
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "slider",
+        "layout": "absolute",
+        "locale_key": "text-scale",
+        "max": 3.0,
+        "min": 1.0,
+        "order": 34,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Text size",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 1.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "english",
+      "name": "english",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "english",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "en"
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_language",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "english",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 35,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "English",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "swedish",
+      "name": "swedish",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "swedish",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "sv"
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_language",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "swedish",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 36,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Svenska",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "contrast",
+      "name": "contrast",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "contrast",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_contrast",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "contrast",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 37,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "High contrast",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "contrast-reset",
+      "name": "contrast reset",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "contrast reset",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_contrast",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "contrast-reset",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 38,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Standard contrast",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "translations",
+      "name": "translations",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "localization": {
+        "fallback": "en",
+        "language": "en",
+        "translations": {
+          "en": {
+            "contrast": "High contrast",
+            "contrast-reset": "Standard contrast",
+            "english": "English",
+            "retry-animation": "Replay sprite clip",
+            "swedish": "Svenska",
+            "text-scale": "Text size"
+          },
+          "sv": {
+            "blend": "Animationsblandning",
+            "contrast": "Hög kontrast",
+            "contrast-reset": "Standardkontrast",
+            "english": "English",
+            "play-chime": "Spela ljud",
+            "retry-animation": "Replay sprite clip",
+            "swedish": "Svenska",
+            "text-scale": "Textstorlek",
+            "volume": "Ljudvolym"
+          }
+        }
+      }
+    }
+  ],
+  "assets": {
+    "atlas": {
+      "kind": "image",
+      "path": "assets/middleware-atlas.png"
+    },
+    "panel": {
+      "kind": "image",
+      "path": "assets/middleware-panel.png"
+    }
+  }
+}

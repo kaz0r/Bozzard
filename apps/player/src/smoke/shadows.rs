@@ -67,6 +67,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         material: receiver.material.clone(),
     };
     let mut scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),

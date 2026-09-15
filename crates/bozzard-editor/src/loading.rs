@@ -48,10 +48,11 @@ impl Editor {
         let revision = self.revision;
         let cached = self.assets.clone();
         Job::start("Preparing scene save", move |progress| {
-            let scene = prepare_document_from(&scene, &path, Some(&original_path))?;
+            let mut scene = prepare_document_from(&scene, &path, Some(&original_path))?;
             let mut assets = cached.for_catalog(root(&path), &scene.assets)?;
             assets.refresh_with(&progress)?;
             assets.require_ready()?;
+            assets.bake_audio_metadata(&mut scene)?;
             Ok(PreparedSave {
                 loaded: LoadedScene {
                     scene,
@@ -99,11 +100,13 @@ impl Editor {
     }
     pub fn open_job(path: PathBuf) -> Result<Job<LoadedScene>> {
         Job::start("Opening scene", move |progress| {
-            let scene = Scene::from_json(&std::fs::read_to_string(&path)?)?;
+            let mut scene = Scene::from_json(&std::fs::read_to_string(&path)?)?;
+            scene.ensure_game_menus()?;
             scene.validate()?;
             let mut assets = AssetStore::new(root(&path), &scene.assets)?;
             assets.refresh_with(&progress)?;
             assets.require_ready()?;
+            assets.bake_audio_metadata(&mut scene)?;
             Ok(LoadedScene {
                 scene,
                 path,

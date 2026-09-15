@@ -96,6 +96,7 @@ fn fog_gpu_basic_pbr_distance_height_alpha_and_bypass() -> anyhow::Result<()> {
     ];
     let attributes = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 4];
     let mut scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: FogSettings {

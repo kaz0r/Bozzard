@@ -202,7 +202,15 @@ impl App {
         };
         // Check before any stage can return while waiting for graphics or I/O.
         if self.smoke_start.elapsed() > Duration::from_secs(30) {
-            eprintln!("editor_smoke_failed: no completed UI workflow within 30 seconds");
+            eprintln!(
+                "editor_smoke_failed: no completed UI workflow within 30 seconds; frame={} loading={} error={} screenshot_requested={} resident={} status={}",
+                self.smoke_frames,
+                self.loading.is_some(),
+                self.error,
+                self.smoke_requested,
+                self.residency.has_all(&self.editor.assets),
+                self.status,
+            );
             self.allow_close = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;

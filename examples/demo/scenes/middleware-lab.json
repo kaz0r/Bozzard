@@ -1,0 +1,7636 @@
+{
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.15,
+      0.32,
+      0.65
+    ],
+    "horizon": [
+      0.65,
+      0.7,
+      0.8
+    ],
+    "ground": [
+      0.12,
+      0.1,
+      0.08
+    ],
+    "intensity": 0.35,
+    "background": true
+  },
+  "display": {
+    "temporal_aa": {
+      "enabled": false,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": false,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": false,
+      "strength": 1.0,
+      "max_distance": 30.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.65,
+      "steps": 64
+    },
+    "bloom": {
+      "enabled": false,
+      "intensity": 0.15,
+      "threshold": 1.0,
+      "scatter": 0.7,
+      "anamorphic": 0.0
+    },
+    "tone_mapper": "reinhard",
+    "color_grading": {
+      "temperature": 0.0,
+      "tint": 0.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "lift": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": false,
+      "intensity": 1.0,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": false,
+      "strength": 3.0,
+      "threshold": 2.0,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.0,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.0,
+      "roundness": 0.7,
+      "feather": 0.6
+    },
+    "depth_of_field": {
+      "enabled": false,
+      "focus_distance": 5.0,
+      "focal_length_mm": 50.0,
+      "aperture": 2.8,
+      "max_blur_radius": 18.0
+    },
+    "auto_exposure": {
+      "enabled": false,
+      "strength": 1.0,
+      "min_ev": -2.0,
+      "max_ev": 2.0,
+      "target_gray": 0.18,
+      "speed_up": 1.5,
+      "speed_down": 3.0,
+      "center_weight": 0.65
+    },
+    "volumetric_fog": {
+      "enabled": false,
+      "density": 0.035,
+      "albedo": [
+        0.9,
+        0.94,
+        1.0
+      ],
+      "anisotropy": 0.3,
+      "base_height": 0.0,
+      "height_falloff": 0.25,
+      "start_distance": 0.25,
+      "max_distance": 40.0,
+      "noise_amount": 0.65,
+      "noise_scale": 0.35,
+      "wind": [
+        0.15,
+        0.025,
+        0.07
+      ],
+      "light_intensity": 1.0,
+      "ambient": 0.25,
+      "steps": 48
+    },
+    "exposure_ev": 0.0,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.4,
+      0.8,
+      0.6
+    ],
+    "sun_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "sun_intensity": 3.0,
+    "ambient_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ambient_intensity": 0.03
+  },
+  "version": 1,
+  "name": "Middleware Lab",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "camera 3d",
+      "transform": {
+        "translation": [
+          10.0,
+          9.0,
+          15.0
+        ],
+        "rotation_degrees": [
+          -26.0,
+          30.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "far": 150.0,
+        "near": 0.10000000149011612,
+        "projection": "perspective",
+        "vertical_fov_degrees": 50.0
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "camera 2d",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "far": 100.0,
+        "near": 0.10000000149011612,
+        "projection": "orthographic",
+        "vertical_size": 10.0
+      }
+    },
+    {
+      "id": "walkable-floor",
+      "name": "walkable floor",
+      "transform": {
+        "translation": [
+          0.0,
+          -0.5,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          12.0,
+          1.0,
+          12.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "enabled": true,
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "drawable": {
+        "color": [
+          0.07000000029802322,
+          0.12999999523162842,
+          0.18000000715255737
+        ],
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "navigation-obstacle",
+      "name": "navigation obstacle",
+      "transform": {
+        "translation": [
+          0.0,
+          0.65,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.6,
+          1.3,
+          2.5
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "enabled": true,
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "drawable": {
+        "color": [
+          0.2199999988079071,
+          0.3400000035762787,
+          0.41999998688697815
+        ],
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "animated-banner",
+      "name": "animated banner",
+      "transform": {
+        "translation": [
+          -3.0,
+          0.1,
+          -2.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          1.8,
+          1.8
+        ]
+      },
+      "animator": {
+        "asset": "banner",
+        "autoplay": true,
+        "enabled": true,
+        "initial": "Blend",
+        "parameters": {
+          "Blend": 0.5
+        },
+        "rig": {
+          "bindings": [
+            {
+              "inverse_bind": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "node": 1
+            },
+            {
+              "inverse_bind": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                -1.0,
+                0.0,
+                1.0
+              ],
+              "node": 2
+            }
+          ],
+          "clips": [
+            {
+              "channels": [
+                {
+                  "curves": [
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.5
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 1.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.8660253882408142
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 1.0
+                        }
+                      ]
+                    }
+                  ],
+                  "node": 2,
+                  "property": "rotation"
+                }
+              ],
+              "duration": 2.0,
+              "events": [
+                {
+                  "name": "Chime",
+                  "time": 0.5
+                }
+              ],
+              "name": "Bend"
+            },
+            {
+              "channels": [
+                {
+                  "curves": [
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 1.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 2.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    }
+                  ],
+                  "node": 1,
+                  "property": "translation"
+                }
+              ],
+              "duration": 2.0,
+              "events": [
+                {
+                  "name": "Chime",
+                  "time": 0.5
+                }
+              ],
+              "name": "Walk"
+            }
+          ],
+          "nodes": [
+            {
+              "name": "Banner",
+              "parent": null,
+              "rest": {
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "translation": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "name": "Root",
+              "parent": null,
+              "rest": {
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "translation": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "name": "Tip",
+              "parent": 1,
+              "rest": {
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "translation": [
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            }
+          ]
+        },
+        "root_motion": null,
+        "speed": 1.0,
+        "states": [
+          {
+            "motion": {
+              "kind": "blend1d",
+              "parameter": "Blend",
+              "samples": [
+                {
+                  "clip": 0,
+                  "threshold": 0.0
+                },
+                {
+                  "clip": 1,
+                  "threshold": 1.0
+                }
+              ]
+            },
+            "name": "Blend",
+            "repeat": "loop"
+          }
+        ],
+        "transitions": []
+      },
+      "audio_source": {
+        "asset": "chime-ogg",
+        "autoplay": false,
+        "bus": "sfx",
+        "duration": 1.0,
+        "enabled": true,
+        "looping": false,
+        "max_distance": 40.0,
+        "min_distance": 5.0,
+        "pan": 0.0,
+        "pause_with_game": true,
+        "pitch": 1.0,
+        "rolloff": 1.0,
+        "spatial": true,
+        "streaming": false,
+        "volume": 0.3499999940395355
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "Animation event sound",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "animation_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  },
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "key": "jump",
+                "kind": "play_audio",
+                "position": [
+                  320.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "drawable": {
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "banner"
+        },
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "root-motion-banner",
+      "name": "root motion banner",
+      "transform": {
+        "translation": [
+          1.5,
+          0.1,
+          -3.5
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "animator": {
+        "asset": "banner",
+        "autoplay": true,
+        "enabled": true,
+        "initial": "Walk once",
+        "parameters": {
+          "Blend": 0.5
+        },
+        "rig": {
+          "bindings": [
+            {
+              "inverse_bind": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "node": 1
+            },
+            {
+              "inverse_bind": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                -1.0,
+                0.0,
+                1.0
+              ],
+              "node": 2
+            }
+          ],
+          "clips": [
+            {
+              "channels": [
+                {
+                  "curves": [
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.5
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 1.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.8660253882408142
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 1.0
+                        }
+                      ]
+                    }
+                  ],
+                  "node": 2,
+                  "property": "rotation"
+                }
+              ],
+              "duration": 2.0,
+              "events": [
+                {
+                  "name": "Chime",
+                  "time": 0.5
+                }
+              ],
+              "name": "Bend"
+            },
+            {
+              "channels": [
+                {
+                  "curves": [
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 1.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 2.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    },
+                    {
+                      "interpolation": "linear",
+                      "keys": [
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 0.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 1.0,
+                          "value": 0.0
+                        },
+                        {
+                          "incoming": 0.0,
+                          "outgoing": 0.0,
+                          "time": 2.0,
+                          "value": 0.0
+                        }
+                      ]
+                    }
+                  ],
+                  "node": 1,
+                  "property": "translation"
+                }
+              ],
+              "duration": 2.0,
+              "events": [
+                {
+                  "name": "Chime",
+                  "time": 0.5
+                }
+              ],
+              "name": "Walk"
+            }
+          ],
+          "nodes": [
+            {
+              "name": "Banner",
+              "parent": null,
+              "rest": {
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "translation": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "name": "Root",
+              "parent": null,
+              "rest": {
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "translation": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "name": "Tip",
+              "parent": 1,
+              "rest": {
+                "rotation": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "scale": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "translation": [
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            }
+          ]
+        },
+        "root_motion": {
+          "node": 0,
+          "translation": [
+            true,
+            false,
+            true
+          ],
+          "yaw": false
+        },
+        "speed": 1.0,
+        "states": [
+          {
+            "motion": {
+              "clip": 1,
+              "kind": "clip"
+            },
+            "name": "Walk once",
+            "repeat": "once"
+          }
+        ],
+        "transitions": []
+      },
+      "drawable": {
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": {
+          "asset": "banner"
+        },
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "curve-cube",
+      "name": "curve cube",
+      "transform": {
+        "translation": [
+          3.0,
+          1.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      "drawable": {
+        "color": [
+          0.20000000298023224,
+          0.8999999761581421,
+          0.6499999761581421
+        ],
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "tween": {
+        "autoplay": true,
+        "duration": 2.0,
+        "ease": "smooth",
+        "enabled": true,
+        "repeat": "ping_pong",
+        "speed": 1.0,
+        "tracks": [
+          {
+            "channels": [
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.800000011920929
+                  },
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 2.0,
+                    "value": 2.5999999046325684
+                  }
+                ]
+              },
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            ],
+            "property": "translation",
+            "target": "self_object"
+          },
+          {
+            "channels": [
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 2.0,
+                    "value": 180.0
+                  }
+                ]
+              },
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            ],
+            "property": "rotation",
+            "target": "self_object"
+          },
+          {
+            "channels": [
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.15000000596046448
+                  },
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 2.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.8500000238418579
+                  },
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 2.0,
+                    "value": 0.30000001192092896
+                  }
+                ]
+              },
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.6000000238418579
+                  }
+                ]
+              }
+            ],
+            "property": "color",
+            "target": "self_object"
+          },
+          {
+            "channels": [
+              {
+                "interpolation": "linear",
+                "keys": [
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 0.0,
+                    "value": 0.07999999821186066
+                  },
+                  {
+                    "incoming": 0.0,
+                    "outgoing": 0.0,
+                    "time": 2.0,
+                    "value": 0.8999999761581421
+                  }
+                ]
+              }
+            ],
+            "property": "roughness",
+            "target": "self_object"
+          }
+        ]
+      }
+    },
+    {
+      "id": "curve-sparks",
+      "name": "curve sparks",
+      "transform": {
+        "translation": [
+          2.0,
+          0.2,
+          3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "particle_emitter": {
+        "color": [
+          1.0,
+          0.36000001430511475,
+          0.054999999701976776
+        ],
+        "drag": 0.15000000596046448,
+        "enabled": true,
+        "end_size": 0.00800000037997961,
+        "gravity": -0.8999999761581421,
+        "kind": "sparks",
+        "lifetime": 2.5,
+        "max_particles": 512,
+        "opacity": 1.0,
+        "radius": 0.25,
+        "rate": 18.0,
+        "seed": 1,
+        "softness": 0.10000000149011612,
+        "speed": 2.299999952316284,
+        "spread": 0.800000011920929,
+        "start_size": 0.04500000178813934,
+        "trail_length": 0.11999999731779099,
+        "turbulence": 0.4000000059604645,
+        "wind": [
+          0.15000000596046448,
+          0.0,
+          0.05000000074505806
+        ]
+      },
+      "particle_modules": {
+        "curves": {
+          "color": [
+            {
+              "interpolation": "linear",
+              "keys": [
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 0.0,
+                  "value": 1.0
+                }
+              ]
+            },
+            {
+              "interpolation": "linear",
+              "keys": [
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 0.0,
+                  "value": 1.0
+                },
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 1.0,
+                  "value": 0.25
+                }
+              ]
+            },
+            {
+              "interpolation": "linear",
+              "keys": [
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 0.0,
+                  "value": 0.25
+                }
+              ]
+            }
+          ],
+          "opacity": {
+            "interpolation": "linear",
+            "keys": [
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 0.0,
+                "value": 1.0
+              },
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 1.0,
+                "value": 0.0
+              }
+            ]
+          },
+          "size": {
+            "interpolation": "linear",
+            "keys": [
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 0.0,
+                "value": 1.0
+              },
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 1.0,
+                "value": 0.25
+              }
+            ]
+          },
+          "speed": {
+            "interpolation": "linear",
+            "keys": [
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 0.0,
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "enabled": true
+      }
+    },
+    {
+      "id": "curve-smoke",
+      "name": "curve smoke",
+      "transform": {
+        "translation": [
+          -2.0,
+          0.1,
+          3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "particle_emitter": {
+        "color": [
+          0.44999998807907104,
+          0.49000000953674316,
+          0.550000011920929
+        ],
+        "drag": 0.25,
+        "enabled": true,
+        "end_size": 2.200000047683716,
+        "gravity": 0.15000000596046448,
+        "kind": "smoke",
+        "lifetime": 5.0,
+        "max_particles": 512,
+        "opacity": 0.20000000298023224,
+        "radius": 0.25,
+        "rate": 14.0,
+        "seed": 1,
+        "softness": 0.5,
+        "speed": 0.699999988079071,
+        "spread": 0.30000001192092896,
+        "start_size": 0.44999998807907104,
+        "trail_length": 0.0,
+        "turbulence": 0.5,
+        "wind": [
+          0.15000000596046448,
+          0.0,
+          0.05000000074505806
+        ]
+      },
+      "particle_modules": {
+        "curves": {
+          "color": [
+            {
+              "interpolation": "linear",
+              "keys": [
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 0.0,
+                  "value": 1.0
+                }
+              ]
+            },
+            {
+              "interpolation": "linear",
+              "keys": [
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 0.0,
+                  "value": 1.0
+                }
+              ]
+            },
+            {
+              "interpolation": "linear",
+              "keys": [
+                {
+                  "incoming": 0.0,
+                  "outgoing": 0.0,
+                  "time": 0.0,
+                  "value": 1.0
+                }
+              ]
+            }
+          ],
+          "opacity": {
+            "interpolation": "linear",
+            "keys": [
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 0.0,
+                "value": 1.0
+              }
+            ]
+          },
+          "size": {
+            "interpolation": "linear",
+            "keys": [
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 0.0,
+                "value": 0.5
+              },
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 1.0,
+                "value": 2.0
+              }
+            ]
+          },
+          "speed": {
+            "interpolation": "linear",
+            "keys": [
+              {
+                "incoming": 0.0,
+                "outgoing": 0.0,
+                "time": 0.0,
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "enabled": true
+      }
+    },
+    {
+      "id": "streamed-music",
+      "name": "streamed music",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "audio_mixer": {
+        "buses": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "master": 1.0,
+        "muted": false
+      },
+      "audio_source": {
+        "asset": "chime-mp3",
+        "autoplay": false,
+        "bus": "music",
+        "duration": 1.0,
+        "enabled": true,
+        "looping": false,
+        "max_distance": 40.0,
+        "min_distance": 1.0,
+        "pan": 0.0,
+        "pause_with_game": false,
+        "pitch": 1.0,
+        "rolloff": 1.0,
+        "spatial": false,
+        "streaming": true,
+        "volume": 0.30000001192092896
+      }
+    },
+    {
+      "id": "cinematic-camera",
+      "name": "cinematic camera",
+      "transform": {
+        "translation": [
+          4.0,
+          5.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          -22.0,
+          22.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "far": 150.0,
+        "near": 0.10000000149011612,
+        "projection": "perspective",
+        "vertical_fov_degrees": 50.0
+      }
+    },
+    {
+      "id": "cinematic-timeline",
+      "name": "cinematic timeline",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "timeline": {
+        "cameras": [
+          {
+            "camera": "cinematic-camera",
+            "layer": "3d",
+            "time": 0.0
+          },
+          {
+            "camera": "camera-3d",
+            "layer": "3d",
+            "time": 4.0
+          }
+        ],
+        "markers": [
+          {
+            "name": "Begin",
+            "time": 0.0
+          },
+          {
+            "name": "End",
+            "time": 4.0
+          }
+        ],
+        "motion": {
+          "autoplay": false,
+          "duration": 4.0,
+          "ease": "linear",
+          "enabled": true,
+          "repeat": "once",
+          "speed": 1.0,
+          "tracks": []
+        }
+      }
+    },
+    {
+      "id": "baked-navigation",
+      "name": "baked navigation",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "nav_surface": {
+        "baked": {
+          "cells": [
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            },
+            {
+              "normal": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "y": 0.0
+            }
+          ],
+          "dimensions": [
+            22,
+            22
+          ],
+          "geometry_signature": 10691626292307723328,
+          "settings": {
+            "cell": 0.5,
+            "climb": 0.30000001192092896,
+            "height": 1.2000000476837158,
+            "max": [
+              5.5,
+              3.0,
+              5.5
+            ],
+            "min": [
+              -5.5,
+              -1.0,
+              -5.5
+            ],
+            "radius": 0.20000000298023224,
+            "slope_degrees": 45.0
+          }
+        },
+        "settings": {
+          "cell": 0.5,
+          "climb": 0.30000001192092896,
+          "height": 1.2000000476837158,
+          "max": [
+            5.5,
+            3.0,
+            5.5
+          ],
+          "min": [
+            -5.5,
+            -1.0,
+            -5.5
+          ],
+          "radius": 0.20000000298023224,
+          "slope_degrees": 45.0
+        }
+      }
+    },
+    {
+      "id": "patrol-agent",
+      "name": "patrol agent",
+      "transform": {
+        "translation": [
+          -3.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "nav_agent": {
+        "acceleration": 12.0,
+        "enabled": true,
+        "eye_height": 0.800000011920929,
+        "height": 1.2000000476837158,
+        "initial": "Patrol",
+        "perception_target": "curve-cube",
+        "radius": 0.20000000298023224,
+        "repath_seconds": 0.5,
+        "separation": 1.0,
+        "sight_degrees": 120.0,
+        "sight_range": 12.0,
+        "speed": 2.0,
+        "states": [
+          {
+            "behavior": "patrol",
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "name": "Patrol",
+            "patrol": [
+              [
+                -3.0,
+                0.0,
+                0.0
+              ],
+              [
+                3.0,
+                0.0,
+                0.0
+              ],
+              [
+                3.0,
+                0.0,
+                -3.0
+              ],
+              [
+                -3.0,
+                0.0,
+                -3.0
+              ]
+            ],
+            "speed": 1.0,
+            "target": null
+          },
+          {
+            "behavior": "idle",
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "name": "Watch",
+            "patrol": [],
+            "speed": 1.0,
+            "target": null
+          }
+        ],
+        "stopping_distance": 0.15000000596046448,
+        "surface": "baked-navigation",
+        "transitions": [
+          {
+            "condition": "see_target",
+            "from": "Patrol",
+            "seconds": 1.0,
+            "to": "Watch"
+          },
+          {
+            "condition": "after",
+            "from": "Watch",
+            "seconds": 1.5,
+            "to": "Patrol"
+          }
+        ]
+      }
+    },
+    {
+      "id": "agent-visual",
+      "name": "agent visual",
+      "parent": "patrol-agent",
+      "transform": {
+        "translation": [
+          0.0,
+          0.5,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          1.0,
+          0.5
+        ]
+      },
+      "drawable": {
+        "color": [
+          1.0,
+          0.6499999761581421,
+          0.20000000298023224
+        ],
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "lab-canvas",
+      "name": "lab canvas",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_canvas": {
+        "enabled": true,
+        "high_contrast": false,
+        "layer": "3d",
+        "order": 0,
+        "phase": "always",
+        "reduced_motion": false,
+        "reference": [
+          1280.0,
+          720.0
+        ],
+        "scaling": "fit",
+        "text_scale": 1.0
+      }
+    },
+    {
+      "id": "lab-controls",
+      "name": "lab controls",
+      "parent": "lab-canvas",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.0,
+            1.0
+          ],
+          "min": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ],
+          "pivot": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            330.0,
+            -48.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          8.0,
+          8.0,
+          8.0,
+          8.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 10.0,
+        "grow": 0.0,
+        "image": "panel",
+        "kind": "panel",
+        "layout": "column",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 0,
+        "padding": [
+          20.0,
+          20.0,
+          20.0,
+          20.0
+        ],
+        "scrollable": true,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "lab-title",
+      "name": "lab title",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            74.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 29.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 17,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "MIDDLEWARE\nLAB",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "lab-help",
+      "name": "lab help",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            115.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 16.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "label",
+        "layout": "absolute",
+        "locale_key": "",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 18,
+        "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Animated glTF, event-driven audio, authored curves, a baked patrol route and GPU particles. Tab or scroll through these Blueprint controls.",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "blend",
+      "name": "blend",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "blend",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "Blend"
+                  },
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "object": {
+                      "id": "animated-banner"
+                    }
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_animation_parameter",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 2
+                },
+                "to": {
+                  "node": 2,
+                  "port": 2
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "slider",
+        "layout": "absolute",
+        "locale_key": "blend",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 19,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Animation blend",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.5,
+        "visible": true
+      }
+    },
+    {
+      "id": "volume",
+      "name": "volume",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "volume",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "Sfx"
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_audio_bus_volume",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 2
+                },
+                "to": {
+                  "node": 2,
+                  "port": 2
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "slider",
+        "layout": "absolute",
+        "locale_key": "volume",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 20,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "SFX volume",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.5,
+        "visible": true
+      }
+    },
+    {
+      "id": "play-chime",
+      "name": "play chime",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "play chime",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  },
+                  {
+                    "object": {
+                      "id": "streamed-music"
+                    }
+                  }
+                ],
+                "key": "jump",
+                "kind": "play_audio",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "play-chime",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 21,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Play streamed MP3",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.5,
+        "visible": true
+      }
+    },
+    {
+      "id": "cinematic",
+      "name": "cinematic",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "cinematic",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  },
+                  {
+                    "object": {
+                      "id": "cinematic-timeline"
+                    }
+                  }
+                ],
+                "key": "jump",
+                "kind": "play_timeline",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "cinematic",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 22,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Play camera cuts",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.5,
+        "visible": true
+      }
+    },
+    {
+      "id": "text-scale",
+      "name": "text scale",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "text scale",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_text_scale",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 1,
+                  "port": 2
+                },
+                "to": {
+                  "node": 2,
+                  "port": 1
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "slider",
+        "layout": "absolute",
+        "locale_key": "text-scale",
+        "max": 3.0,
+        "min": 1.0,
+        "order": 23,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Text size",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 1.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "english",
+      "name": "english",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "english",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "en"
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_language",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "english",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 24,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "English",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "swedish",
+      "name": "swedish",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "swedish",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "sv"
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_language",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "swedish",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 25,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Svenska",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "contrast",
+      "name": "contrast",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "contrast",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": true
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_contrast",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "contrast",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 26,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "High contrast",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "contrast-reset",
+      "name": "contrast reset",
+      "parent": "lab-controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "name": "contrast reset",
+            "nodes": [
+              {
+                "comment": "",
+                "id": 1,
+                "inputs": [],
+                "key": "jump",
+                "kind": "ui_event",
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              },
+              {
+                "comment": "",
+                "id": 2,
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "key": "jump",
+                "kind": "set_ui_contrast",
+                "position": [
+                  300.0,
+                  40.0
+                ],
+                "prefab": "",
+                "scope": "graph",
+                "value_type": "number",
+                "variable": "value"
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            },
+            "version": 1,
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 2,
+                  "port": 0
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ui_widget": {
+        "accessible_name": "",
+        "anchors": {
+          "max": [
+            0.5,
+            0.5
+          ],
+          "min": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "size": [
+            280.0,
+            56.0
+          ]
+        },
+        "auto_text_height": true,
+        "background": [
+          0.03999999910593033,
+          0.11999999731779099,
+          0.17000000178813934,
+          1.0
+        ],
+        "binding": "",
+        "border": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "clip_children": true,
+        "columns": 2,
+        "description": "",
+        "enabled": true,
+        "event": "activate",
+        "focus_order": 0,
+        "font_size": 20.0,
+        "gap": 12.0,
+        "grow": 0.0,
+        "image": "",
+        "kind": "button",
+        "layout": "absolute",
+        "locale_key": "contrast-reset",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 27,
+        "padding": [
+          12.0,
+          12.0,
+          12.0,
+          12.0
+        ],
+        "scrollable": false,
+        "shortcuts": [],
+        "step": 0.10000000149011612,
+        "text": "Standard contrast",
+        "text_color": [
+          0.949999988079071,
+          0.9700000286102295,
+          1.0,
+          1.0
+        ],
+        "uv": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "value": 0.0,
+        "visible": true
+      }
+    },
+    {
+      "id": "translations",
+      "name": "translations",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "localization": {
+        "fallback": "en",
+        "language": "en",
+        "translations": {
+          "en": {
+            "blend": "Animation blend",
+            "cinematic": "Play camera cuts",
+            "contrast": "High contrast",
+            "contrast-reset": "Standard contrast",
+            "english": "English",
+            "play-chime": "Play streamed MP3",
+            "swedish": "Svenska",
+            "text-scale": "Text size",
+            "volume": "SFX volume"
+          },
+          "sv": {
+            "blend": "Animationsblandning",
+            "cinematic": "Play camera cuts",
+            "contrast": "Hög kontrast",
+            "contrast-reset": "Standardkontrast",
+            "english": "English",
+            "play-chime": "Spela ljud",
+            "swedish": "Svenska",
+            "text-scale": "Textstorlek",
+            "volume": "Ljudvolym"
+          }
+        }
+      }
+    }
+  ],
+  "assets": {
+    "banner": {
+      "kind": "mesh",
+      "path": "assets/animated-banner.gltf"
+    },
+    "chime-flac": {
+      "kind": "audio",
+      "path": "assets/middleware-chime.flac"
+    },
+    "chime-mp3": {
+      "kind": "audio",
+      "path": "assets/middleware-chime.mp3"
+    },
+    "chime-ogg": {
+      "kind": "audio",
+      "path": "assets/middleware-chime.ogg"
+    },
+    "chime-wav": {
+      "kind": "audio",
+      "path": "assets/middleware-chime.wav"
+    },
+    "panel": {
+      "kind": "image",
+      "path": "assets/middleware-panel.png"
+    }
+  }
+}

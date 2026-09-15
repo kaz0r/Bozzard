@@ -90,7 +90,7 @@ Editor Play, player, and server load referenced prefab templates and dependencie
 
 ## Current boundaries
 
-This is a working first **gameplay** graph system, not Unreal file/API compatibility or an animation/material graph editor. No skeletal animation, blend graphs, arbitrary code nodes, custom events/functions, audio, networking, or runtime graph editing is included. Imported surface entities support attachments; shared mesh asset defaults do not.
+Blueprints remain the gameplay authoring path. [Middleware nodes](middleware.md) control audio, skeletal clips/blend trees, timelines/tweens, navigation, UI and sprite animation through typed object references. Those components have dedicated inspector editors; shader graphs author materials. Arbitrary code nodes, custom functions, networking and runtime graph editing remain outside the current graph system. Imported surface entities support attachments; shared mesh asset defaults do not.
 
 Graphs are versioned, typed, and validated before acceptance. Cycles are rejected (use On Update plus variables); disconnected pins use their editable defaults and disconnected actions do nothing. Limits: 128 nodes, 512 wires, 64 declarations per blackboard (legacy number variables count toward the graph limit), 16 attachments per object, 1 MiB per imported graph, 100,000 event/action executions and 1,000,000 overlap tests per scene tick. Enabled blueprint owners and their descendants are excluded from static GI geometry, since graphs can move or recolor them. Scene templates and rendering assets are preloaded. Explicit Save/Load Game State performs bounded checkpoint I/O at a tick boundary; ordinary graph evaluation does not read assets or load code.
 

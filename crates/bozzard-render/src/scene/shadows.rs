@@ -22,6 +22,7 @@ struct ShadowLight {
 
 #[derive(Clone, PartialEq)]
 pub(super) struct ShadowCaster {
+    deformation: u64,
     model: Mat4,
     mesh: MeshKind,
     texture: TextureKind,
@@ -34,6 +35,7 @@ pub(super) struct ShadowCaster {
 impl ShadowCaster {
     pub fn new(d: &PreparedDraw) -> Self {
         Self {
+            deformation: d.deformation,
             model: d.object.model,
             mesh: d.object.mesh.clone(),
             texture: d.object.material.texture.clone(),
@@ -475,9 +477,13 @@ fn fit(
         .then_some((matrix, far - near, texel.max_element()))
 }
 impl SceneRenderer {
-    pub(super) fn mesh_for(&self, kind: &MeshKind) -> &MeshBuffers {
-        match kind {
+    pub(super) fn mesh_for(&self, object: &DrawItem) -> &MeshBuffers {
+        if let Some(mesh) = self.skinning.mesh(object) {
+            return mesh;
+        }
+        match &object.mesh {
             MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
+            MeshKind::Sprite(sprite) => self.sprites.mesh(sprite).unwrap(),
             MeshKind::Quad => &self.quad,
             MeshKind::Cube => &self.cube,
             MeshKind::Sphere => &self.sphere,
@@ -497,7 +503,7 @@ impl SceneRenderer {
                 .iter()
                 .filter(|d| d.object.material.lit)
                 .flat_map(|d| {
-                    corners(self.mesh_for(&d.object.mesh).bounds)
+                    corners(self.mesh_for(&d.object).bounds)
                         .map(|p| d.object.model.transform_point3(p))
                 }),
             Vec3::from(light.sun_direction).normalize(),
@@ -570,7 +576,7 @@ impl SceneRenderer {
             if draw.transparent || !draw.object.material.lit {
                 continue;
             }
-            let mesh = self.mesh_for(&draw.object.mesh);
+            let mesh = self.mesh_for(&draw.object);
             if self.culling
                 && projection
                     .is_some_and(|p| !visibility::visible(mesh.bounds, p * draw.object.model))

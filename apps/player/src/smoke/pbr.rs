@@ -51,6 +51,7 @@ impl Fixture<'_> {
             }],
         )?;
         let scene = RenderScene {
+            skin_poses: Default::default(),
             shader_time: 0.,
             particles: Vec::new(),
             fog: Default::default(),

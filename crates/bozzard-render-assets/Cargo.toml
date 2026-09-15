@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+accesskit = "0.24.1"
 bozzard-assets.workspace = true
 bozzard-scene.workspace = true
 bozzard-render.workspace = true

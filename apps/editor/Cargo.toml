@@ -10,6 +10,7 @@ name = "bozzard-editor"
 path = "src/main.rs"
 
 [dependencies]
+bozzard-audio.workspace = true
 bozzard-project = { path = "../../crates/bozzard-project" }
 bozzard-editor = { path = "../../crates/bozzard-editor" }
 bozzard-demo.workspace = true
@@ -24,7 +25,7 @@ serde_json.workspace = true
 pollster.workspace = true
 rfd = "0.17.2"
 open = "5.4.4"
-eframe = { version = "0.36.1", default-features = false, features = ["wgpu", "default_fonts", "x11", "wayland", "persistence"] }
+eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "wgpu", "default_fonts", "x11", "wayland", "persistence"] }
 
 [lints]
 workspace = true

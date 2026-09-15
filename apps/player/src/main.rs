@@ -1,4 +1,6 @@
+mod accessibility;
 use anyhow::{Context, Result, bail, ensure};
+use std::path::Path;
 mod assets;
 mod flap_woods;
 mod game_flow;
@@ -162,12 +164,15 @@ fn options() -> Result<Option<Options>> {
 }
 
 struct View {
+    accessibility: accessibility::Accessibility,
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     gpu: Gpu,
     config: wgpu::SurfaceConfiguration,
     renderer: SceneRenderer,
     drawable: bool,
+    /// Reuse the rendered layout's decision instead of laying out UI for every mouse event.
+    ui_wants_pointer: bool,
     surface_status: &'static str,
 }
 
@@ -176,12 +181,15 @@ impl View {
         let window = Arc::new(
             event_loop.create_window(
                 Window::default_attributes()
+                    .with_visible(false)
                     .with_title(
                         "Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload",
                     )
                     .with_inner_size(LogicalSize::new(1024.0, 640.0)),
             )?,
         );
+        let accessibility = accessibility::Accessibility::new(event_loop, &window);
+        window.set_visible(true);
         let instance = instance(options.backend);
         let surface = instance.create_surface(window.clone())?;
         let gpu = pollster::block_on(Gpu::request(&instance, Some(&surface), options.software))?;
@@ -199,12 +207,15 @@ impl View {
             window.focus_window();
         }
         Ok(Self {
+            accessibility,
             window,
             surface,
             gpu,
             config,
             renderer,
             drawable: size.width > 0 && size.height > 0,
+            // Keep the pointer free until the first visible frame establishes the UI policy.
+            ui_wants_pointer: true,
             surface_status: "awaiting first redraw",
         })
     }
@@ -256,19 +267,21 @@ impl View {
             layer,
             self.config.width as f32 / self.config.height as f32,
         )?;
-        if let (Some(settings), Some(session)) =
-            (&demo.instance().document().game_flow, demo.game_session())
-        {
-            let scale = self.window.scale_factor() as f32;
-            scene.items.extend(bozzard_render_assets::game_menu(
-                settings,
-                session,
-                [
-                    self.config.width as f32 / scale,
-                    self.config.height as f32 / scale,
-                ],
-            ));
-        }
+        let scale = self.window.scale_factor() as f32;
+        let ui = demo.instance().ui_frame(
+            &demo.app.world,
+            layer,
+            [
+                self.config.width as f32 / scale,
+                self.config.height as f32 / scale,
+            ],
+        )?;
+        self.ui_wants_pointer = ui.wants_pointer();
+        self.accessibility
+            .update(&ui, &demo.instance().document().name, scale);
+        scene
+            .items
+            .extend(bozzard_render_assets::widget_items(&ui, assets.store())?);
         if !assets.current() {
             scene.gi = None;
         }
@@ -298,19 +311,22 @@ struct CursorCaptureState {
     gameplay: bool,
     /// The simulation is actually running: Game Flow menus, pause and game over are not.
     running: bool,
-    /// Lock/Unlock Cursor request; None keeps the app policy (capture while playing).
+    /// Visible, enabled UI controls need the pointer even while gameplay is running.
+    ui_wants_pointer: bool,
+    /// Lock/Unlock Cursor request; None captures gameplay only when no UI needs the pointer.
     requested: Option<bool>,
 }
 
-/// Capture only while the game plays. A scene may opt out with Unlock Cursor, but nothing may
-/// hold the pointer on a menu: the run menu, pause overlay and win screen are clicked with it.
+/// Capture only while the game plays. Interactive UI keeps the default pointer free;
+/// scenes can explicitly request mouse-look with Lock Cursor while playing.
+/// Run, pause and game-over menus always release it, even with an explicit request.
 fn cursor_capture_wanted(state: CursorCaptureState) -> bool {
     state.gameplay
         && state.running
         && state.focused
         && !state.paused
         && state.layer == Layer::ThreeD
-        && state.requested.unwrap_or(true)
+        && state.requested.unwrap_or(!state.ui_wants_pointer)
 }
 
 struct Player {
@@ -318,6 +334,7 @@ struct Player {
     view: Option<View>,
     demo: SceneDemo,
     assets: assets::Assets,
+    audio: bozzard_audio::NativeAudio,
     paused: bool,
     menu_input: game_flow::MenuInput,
     gameplay_controls: gameplay_input::GameplayControls,
@@ -351,6 +368,7 @@ impl Player {
                 layer: self.options.layer,
                 gameplay: self.demo.accepts_gameplay_input(),
                 running,
+                ui_wants_pointer: self.view.as_ref().is_none_or(|view| view.ui_wants_pointer),
                 requested,
             });
         if self.look != gameplay_input::Look::Off {
@@ -540,6 +558,7 @@ impl Player {
                     view.renderer = renderer;
                 }
                 self.assets = assets;
+                self.audio.stop();
                 self.demo = next;
                 self.gameplay_controls.reset();
                 if self.demo.accepts_gameplay_input() {
@@ -638,11 +657,55 @@ impl ApplicationHandler for Player {
         if self.view.as_ref().is_none_or(|v| id != v.window.id()) {
             return;
         }
-        if let Err(error) = self.game_pointer_event(&event) {
-            self.fail(event_loop, error);
-            return;
+        if let Some(view) = &mut self.view {
+            view.accessibility
+                .adapter
+                .process_event(&view.window, &event);
         }
-        if self.demo.accepts_gameplay_input() {
+        if matches!(event, WindowEvent::RedrawRequested) {
+            let view = self.view.as_ref().unwrap();
+            let scale = view.window.scale_factor() as f32;
+            let size = [
+                view.config.width.max(1) as f32 / scale,
+                view.config.height.max(1) as f32 / scale,
+            ];
+            let requests = view.accessibility.drain();
+            for request in requests {
+                let result = (|| -> Result<()> {
+                    let frame = self.demo.instance().ui_frame(
+                        &self.demo.app.world,
+                        self.options.layer,
+                        size,
+                    )?;
+                    if let Some(element) = frame
+                        .elements
+                        .iter()
+                        .find(|e| e.id == request.target_node.0)
+                        && let Some(input) =
+                            bozzard_render_assets::accessibility::action(element, &request)
+                    {
+                        self.ui_input(input)?;
+                    }
+                    Ok(())
+                })();
+                if let Err(error) = result {
+                    self.fail(event_loop, error);
+                    return;
+                }
+            }
+        }
+        let ui_consumed = match self.game_pointer_event(&event) {
+            Ok(consumed) => consumed,
+            Err(error) => {
+                self.fail(event_loop, error);
+                return;
+            }
+        };
+        if ui_consumed {
+            self.gameplay_controls.reset();
+            self.demo.clear_gameplay_input();
+        }
+        if !ui_consumed && self.demo.accepts_gameplay_input() {
             if let Some(input) = self.gameplay_controls.event(&event)
                 && (self.options.layer == Layer::ThreeD || self.demo.instance().has_blueprints())
             {
@@ -676,6 +739,8 @@ impl ApplicationHandler for Player {
         }
         let now = Instant::now();
         if matches!(event, WindowEvent::RedrawRequested) {
+            self.demo
+                .with_instance(|instance, _| instance.set_gpu_particles(true));
             if self.options.verify_first_trail {
                 if let Err(error) = project::route_tick(self, self.demo.app.ticks()) {
                     self.fail(event_loop, error);
@@ -688,9 +753,36 @@ impl ApplicationHandler for Player {
                 self.fail(event_loop, error);
                 return;
             }
+            let audio_result = self
+                .demo
+                .instance()
+                .audio_frame(&self.demo.app.world, self.options.layer)
+                .and_then(|mut frame| {
+                    if self.paused {
+                        for source in &mut frame.sources {
+                            if source.transport
+                                == bozzard_scene::middleware::audio::Transport::Playing
+                            {
+                                source.transport =
+                                    bozzard_scene::middleware::audio::Transport::Paused;
+                            }
+                        }
+                    }
+                    let root = self
+                        .options
+                        .scene
+                        .as_deref()
+                        .and_then(Path::parent)
+                        .unwrap_or_else(|| Path::new("."));
+                    self.audio
+                        .sync(&frame, self.demo.instance().document(), root)
+                });
+            if let Err(error) = audio_result {
+                eprintln!("Audio: {error:#}");
+                self.command_error = Some(format!("Audio: {error:#}"));
+            }
             self.last_frame = now;
         }
-        self.sync_mouse_look();
         let title = self.window_title();
         let Some(view) = self.view.as_mut() else {
             return;
@@ -700,6 +792,7 @@ impl ApplicationHandler for Player {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. }
                 if self.demo.game_session().is_none()
+                    && !self.menu_input.consumed(KeyCode::Escape)
                     && event.state == ElementState::Pressed
                     && event.logical_key == Key::Named(NamedKey::Escape) =>
             {
@@ -730,6 +823,8 @@ impl ApplicationHandler for Player {
             }
             _ => {}
         }
+        // Apply the current rendered UI's policy before another pointer/device event arrives.
+        self.sync_mouse_look();
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -795,6 +890,7 @@ fn main() -> Result<()> {
     let assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
     let mut player = Player {
         assets,
+        audio: Default::default(),
         options,
         view: None,
         demo,
@@ -847,6 +943,7 @@ mod controls_tests {
                 ..Default::default()
             },
             view: None,
+            audio: Default::default(),
             demo: SceneDemo::new(&document).unwrap(),
             paused: false,
             menu_input: Default::default(),
@@ -868,6 +965,7 @@ mod controls_tests {
             layer: Layer::ThreeD,
             gameplay: true,
             running: true,
+            ui_wants_pointer: false,
             requested: None,
         };
         assert!(
@@ -903,6 +1001,62 @@ mod controls_tests {
             gameplay: false,
             ..base
         }));
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            ui_wants_pointer: true,
+            ..base
+        }));
+        assert!(
+            cursor_capture_wanted(CursorCaptureState {
+                ui_wants_pointer: true,
+                requested: Some(true),
+                ..base
+            }),
+            "an explicit Lock Cursor request controls mouse-look during gameplay"
+        );
+    }
+
+    #[test]
+    fn middleware_menu_keeps_a_free_pointer_and_accepts_slider_clicks() {
+        use bozzard_scene::middleware::ui::Input;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/middleware-lab.json");
+        let scene = load_document(Some(&path)).unwrap();
+        let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        let frame = demo
+            .instance()
+            .ui_frame(&demo.app.world, Layer::ThreeD, [1280., 720.])
+            .unwrap();
+        assert!(frame.wants_pointer());
+        assert!(
+            !cursor_capture_wanted(CursorCaptureState {
+                paused: false,
+                focused: true,
+                layer: Layer::ThreeD,
+                gameplay: demo.accepts_gameplay_input(),
+                running: true,
+                ui_wants_pointer: frame.wants_pointer(),
+                requested: None,
+            }),
+            "Blueprint menu actions must not hide or lock the pointer"
+        );
+        let slider = frame.element("volume").unwrap();
+        let point = [
+            slider.rect.min[0] + slider.rect.size[0] * 0.8,
+            slider.rect.min[1] + slider.rect.size[1] * 0.5,
+        ];
+        assert!(
+            demo.ui_input(Layer::ThreeD, frame.size, Input::PointerDown(point))
+                .unwrap()
+        );
+        assert!(
+            demo.ui_input(Layer::ThreeD, frame.size, Input::PointerUp(point))
+                .unwrap()
+        );
+        let updated = demo
+            .instance()
+            .ui_frame(&demo.app.world, Layer::ThreeD, frame.size)
+            .unwrap();
+        assert!(updated.element("volume").unwrap().value > slider.value);
     }
 
     #[test]
@@ -1309,6 +1463,7 @@ mod controls_tests {
             assets: assets::Assets::load(&bozzard_demo::scene_document().unwrap(), None).unwrap(),
             options: Options::default(),
             view: None,
+            audio: Default::default(),
             demo: SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap(),
             paused: false,
             menu_input: Default::default(),

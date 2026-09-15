@@ -7,7 +7,12 @@ pub struct EffectsPreview {
 }
 impl EffectsPreview {
     pub fn new(editor: &Editor) -> Result<Self> {
+        Self::with_gpu_particles(editor, false)
+    }
+    /// Native previews use persistent GPU particle motion; headless previews retain the CPU reference.
+    pub fn with_gpu_particles(editor: &Editor, gpu: bool) -> Result<Self> {
         let mut demo = SceneDemo::new(editor.scene())?;
+        demo.with_instance(|instance, _| instance.set_gpu_particles(gpu));
         if editor
             .scene()
             .objects
@@ -29,7 +34,7 @@ impl EffectsPreview {
     }
     pub fn advance(&mut self, editor: &Editor, delta: Duration, running: bool) -> Result<()> {
         if self.revision != editor.revision() {
-            *self = Self::new(editor)?;
+            *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
         }
         if running {
             let dt = delta.as_secs_f32().min(0.1);
@@ -48,7 +53,7 @@ impl EffectsPreview {
         // lagged a frame would move the stamp ahead of the pixels and leave the next frame with
         // nothing to redraw.
         if self.revision != editor.revision() {
-            *self = Self::new(editor)?;
+            *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
         }
         let mut scene = extract_with_gi(
             &self.demo,
@@ -202,21 +207,31 @@ mod tests {
     /// keeps the frame before it on screen until something else changes the stamp.
     #[test]
     fn an_edit_after_the_frame_rebuild_is_still_drawn() -> Result<()> {
-        let mut editor = Editor::new(
-            bozzard_demo::scene_document()?,
-            std::path::Path::new("/tmp/bozzard-effects-refresh.json"),
-        )?;
-        let mut preview = EffectsPreview::new(&editor)?;
-        let before = preview.render(&editor, Layer::ThreeD, 1.)?.items.len();
-        preview.advance(&editor, Duration::from_secs_f32(0.016), false)?;
-        editor.create(bozzard_scene::Mesh::Cube, Layer::ThreeD)?;
-        let after = preview.render(&editor, Layer::ThreeD, 1.)?;
-        assert_eq!(
-            after.items.len(),
-            before + 1,
-            "the added object was missing from the frame that edited it"
-        );
-        assert_eq!(preview.revision, editor.revision());
+        for gpu in [false, true] {
+            let mut editor = Editor::new(
+                bozzard_demo::scene_document()?,
+                std::path::Path::new("/tmp/bozzard-effects-refresh.json"),
+            )?;
+            editor.create_particle_emitter(bozzard_scene::ParticleKind::Smoke)?;
+            let mut preview = EffectsPreview::with_gpu_particles(&editor, gpu)?;
+            let before = preview.render(&editor, Layer::ThreeD, 1.)?.items.len();
+            preview.advance(&editor, Duration::from_secs_f32(0.016), false)?;
+            editor.create(bozzard_scene::Mesh::Cube, Layer::ThreeD)?;
+            let after = preview.render(&editor, Layer::ThreeD, 1.)?;
+            assert_eq!(
+                after.items.len(),
+                before + 1,
+                "the added object was missing from the frame that edited it"
+            );
+            assert_eq!(preview.revision, editor.revision());
+            assert!(!after.particles.is_empty());
+            assert!(
+                after
+                    .particles
+                    .iter()
+                    .all(|p| p.simulation.is_some() == gpu)
+            );
+        }
         Ok(())
     }
 

@@ -383,6 +383,7 @@ impl App {
             radius * 8. + 20.,
         );
         let scene = bozzard_render::RenderScene {
+            skin_poses: Default::default(),
             shader_time: self.preview_time,
             particles: Vec::new(),
             view_projection: lens * glam::camera::rh::view::look_at_mat4(eye, Vec3::ZERO, Vec3::Y),

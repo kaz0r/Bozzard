@@ -55,6 +55,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
                 let receiver = origin + forward * 4.;
                 // Large enough to cover seam pixels, small enough to leave a lit edge.
                 let mut scene = RenderScene {
+                    skin_poses: Default::default(),
                     shader_time: 0.,
                     particles: Vec::new(),
                     fog: Default::default(),
@@ -158,6 +159,7 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
         shadows: None,
     };
     let mut scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),

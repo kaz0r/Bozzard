@@ -24,7 +24,7 @@ Effect edits, material presets, particle creation, and volumes support ordinary 
 
 The scene-level `particle_emitter` component supports deterministic Smoke, Ash, and Sparks presets. Simulation uses bounded substeps, world-space wind, a smooth divergence-free curl field, drag, gravity, randomized lifetimes and size, and ash rotation. Old particles drain when emission is disabled. Removing an emitter removes its runtime particles.
 
-The renderer batches particles into one instanced draw, sorts them back to front, samples opaque depth for occlusion and soft intersections, and shares scene-light/shadow bindings. Smoke and ash scatter ambient, sun, and local illumination; sparks emit HDR color and stretch along velocity into tapered trails. Nearby point-light scattering is bounded to avoid glowing smoke discs.
+The native renderer integrates motion and sorts particles on the GPU, interleaving indirect batches with transparent scene surfaces. It samples opaque depth for occlusion and soft intersections, and shares scene-light/shadow bindings. Smoke and ash scatter ambient, sun, and local illumination; sparks emit HDR color and stretch along velocity into tapered trails. Nearby point-light scattering is bounded to avoid glowing smoke discs.
 
 Budgets are 2,048 particles per emitter and 16,384 globally. The Inspector allows lower budgets. Particle counts and triangle counts are separate from mesh statistics. Runtime particle positions, ages, and random sequences are not serialized.
 
@@ -42,8 +42,10 @@ The trace has a bounded 16–128 steps. Off-screen rays, missing geometry, backf
 
 ## Rendering and verification
 
-Geometry writes HDR plus normal/roughness, motion/reactivity, and Fresnel/occlusion buffers. Particles composite before reflections. SSAO, heat shimmer, and volumetrics follow; TAA and motion blur precede exposure metering, bokeh, bloom, grading, and film effects. Temporal history is ping-ponged, while downstream bokeh/bloom textures are reused when only the input binding changes. No new dependencies were added; the simulation remains headless.
+Geometry writes HDR plus normal/roughness, motion/reactivity, and Fresnel/occlusion buffers. Particles composite before reflections. SSAO, heat shimmer, and volumetrics follow; TAA and motion blur precede exposure metering, bokeh, bloom, grading, and film effects. Temporal history is ping-ponged, while downstream bokeh/bloom textures are reused when only the input binding changes. The simulation remains headless; native rendering owns GPU resources.
 
 Meaningful regression coverage lives in `bozzard-scene/tests/particles.rs`, `bozzard-render/tests/particles.rs`, `bozzard-render/tests/temporal.rs`, and the editor's effects tests. It covers simulation bounds, lighting, intersections, sorting, trails, thin-geometry accumulation, disocclusion, object identity, motion silhouettes, foreground protection, reflection hits/misses, pause, rewind, resize, material/volume save/undo, and 2D isolation. Native editor smoke checks exercise the existing edit/Play/save workflow with the Effects panel visible.
 
 Implementation references: [Karis, High-Quality Temporal Supersampling](https://www.advances.realtimerendering.com/s2014/index.html) and [McGuire and Mara, Efficient GPU Screen-Space Ray Tracing](https://jcgt.org/published/0003/04/04/paper.pdf). The implementation uses bounded traversal and conservative rejection tailored to Bozzard's renderer.
+
+Add **Particle Curves** in the Inspector for lifetime size, opacity, RGB and speed multipliers. The headless CPU reference shares emitter/curve data with native GPU playback. Paused frames reuse GPU state and sort order. See [middleware particles](middleware.md#particles) for limits and validation.

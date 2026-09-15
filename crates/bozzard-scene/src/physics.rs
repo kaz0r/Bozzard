@@ -5,6 +5,7 @@
 //! that does not start a Rigidbody of its own. Those descendants are compound shapes: contact
 //! events still name the object that owns the shape, but the solver moves one body.
 use super::*;
+use crate::middleware::sprite::{Tilemap, collision_boxes};
 use glam::Mat3;
 use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
 use rapier3d::math::Pose;
@@ -25,6 +26,8 @@ struct PartKey {
     linear: Mat3,
     collider: Option<BoxCollider>,
     mesh: Option<TriangleMesh>,
+    /// A tilemap's merged solid rectangles, as one compound shape.
+    tiles: Option<Tilemap>,
     /// A Player Controller's capsule, as (half cylinder height, radius), already scaled.
     capsule: Option<(f32, f32)>,
     dynamic: bool,
@@ -34,7 +37,40 @@ struct PartKey {
     offset: Pose,
 }
 impl PartKey {
+    /// Whether the object that owns this shape still offers it. The step prunes and rebuilds
+    /// bodies from the live ECS; this guards callers that read contacts before the next step.
+    fn is_live(&self, world: &World) -> bool {
+        if self.capsule.is_some() {
+            return world.get::<PlayerController>(self.entity).is_some();
+        }
+        if self.tiles.is_some() {
+            return world
+                .get::<Tilemap>(self.entity)
+                .is_some_and(|map| map.enabled && !map.solid.is_empty());
+        }
+        world
+            .get::<BoxCollider>(self.entity)
+            .is_some_and(|c| c.enabled)
+            || world
+                .get::<MeshCollider>(self.entity)
+                .is_some_and(|c| c.enabled)
+    }
     fn cook(&self) -> Result<SharedShape> {
+        if let Some(tiles) = &self.tiles {
+            let shapes = tiles
+                .solid_boxes()
+                .iter()
+                .map(|collider| -> Result<_> {
+                    let (_, _, corners) = collider.geometry(Mat4::from_mat3(self.linear))?;
+                    Ok((
+                        Pose::IDENTITY,
+                        SharedShape::convex_hull(&corners).context("invalid tile collider hull")?,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            ensure!(!shapes.is_empty(), "solid tilemap has no shapes");
+            return Ok(SharedShape::compound(shapes));
+        }
         if let Some((half_height, radius)) = self.capsule {
             ensure!(
                 half_height.is_finite() && radius.is_finite() && radius > 0.0,
@@ -243,14 +279,7 @@ impl Physics {
                 b.handles
                     .iter()
                     .zip(&b.keys)
-                    .filter(|(_, key)| {
-                        world
-                            .get::<BoxCollider>(key.entity)
-                            .is_some_and(|c| c.enabled)
-                            || world
-                                .get::<MeshCollider>(key.entity)
-                                .is_some_and(|c| c.enabled)
-                    })
+                    .filter(|(_, key)| key.is_live(world))
                     .map(|(handle, key)| (*handle, key.object.as_str()))
             })
             .collect()
@@ -353,6 +382,10 @@ impl Physics {
                 .get::<MeshCollider>(entity)
                 .filter(|c| c.enabled)
                 .cloned();
+            let tiles = world
+                .get::<Tilemap>(entity)
+                .filter(|t| t.enabled && !collision_boxes(world, id, t).is_empty())
+                .cloned();
             ensure!(
                 box_collider.is_none() || mesh.is_none(),
                 "choose one collider on '{id}'"
@@ -363,14 +396,19 @@ impl Physics {
                 .unwrap_or((DEFAULT_LAYERS, DEFAULT_MASK));
             // A Player Controller's collider is the authored capsule, not its Box Collider. The box
             // stays for the CPU queries (triggers, respawn, Blueprints) and for camera clearance.
-            let (collider, mesh, capsule) = match &player {
-                Some(config) => (
+            // A tilemap's merged solid rectangles take the place of a box or mesh collider.
+            let (collider, mesh, tiles, capsule) = if let Some(config) = &player {
+                (
+                    None,
                     None,
                     None,
                     // The controller is authored in world units, independent of the visual scale.
                     Some((config.capsule_half_height(), config.capsule_radius)),
-                ),
-                None => (box_collider, mesh, None),
+                )
+            } else if tiles.is_some() {
+                (None, None, tiles, None)
+            } else {
+                (box_collider, mesh, None, None)
             };
             // The world frame of the shape, and its pose relative to the body. The body pose
             // already carries the root's rotation, so a child cancels it out again.
@@ -403,6 +441,7 @@ impl Physics {
                 linear,
                 collider,
                 mesh,
+                tiles,
                 capsule,
                 dynamic,
                 groups,
@@ -621,7 +660,10 @@ impl Physics {
                 gravity.validate()?;
             }
             let colliding = world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
-                || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled);
+                || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled)
+                || world
+                    .get::<Tilemap>(entity)
+                    .is_some_and(|t| t.enabled && !collision_boxes(world, id, t).is_empty());
             if colliding {
                 roots
                     .entry(compound_root(&objects, id))

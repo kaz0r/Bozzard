@@ -2068,6 +2068,7 @@ pub fn register_component(entry: ComponentType) -> Result<()> {
     ensure!(
         COMPONENTS
             .iter()
+            .chain(crate::middleware::ENTRIES.iter().map(|e| &e.component))
             .all(|built_in| built_in.name != entry.name)
             && !components.contains_key(entry.name),
         "component '{}' is already registered",
@@ -2080,13 +2081,17 @@ pub fn register_component(entry: ComponentType) -> Result<()> {
 /// Every authorable component: the built-in table first, then registered ones.
 pub fn components() -> impl Iterator<Item = &'static ComponentType> {
     let registered: Vec<_> = registered().read().unwrap().values().copied().collect();
-    COMPONENTS.iter().chain(registered)
+    COMPONENTS
+        .iter()
+        .chain(crate::middleware::ENTRIES.iter().map(|e| &e.component))
+        .chain(registered)
 }
 
 /// The registry row for a scene key.
 pub fn component_type(name: &str) -> Option<&'static ComponentType> {
     COMPONENTS
         .iter()
+        .chain(crate::middleware::ENTRIES.iter().map(|e| &e.component))
         .find(|entry| entry.name == name)
         .or_else(|| registered().read().unwrap().get(name).copied())
 }

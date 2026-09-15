@@ -5,6 +5,7 @@ use std::sync::Arc;
 pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
     let scene = RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),
@@ -32,6 +33,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     };
     let model = |image: Arc<ImageData>| {
         AssetData::Mesh(MeshData {
+            skin: None,
             vertices: vec![
                 [-0.8, -0.8, 0., 0., 0., 1., 0., 1.],
                 [0.8, -0.8, 0., 0., 0., 1., 1., 1.],
@@ -133,6 +135,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         "staged texture sharing failed: {stats:?}"
     );
     let invalid = Arc::new(AssetData::Mesh(MeshData {
+        skin: None,
         vertices: vec![[0.; 8]],
         indices: vec![99; 3],
         parts: vec![],

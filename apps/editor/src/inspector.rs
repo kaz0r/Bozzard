@@ -118,6 +118,16 @@ impl App {
                                     Ok(_) => {}
                                     Err(error) => error_slot = Some(error),
                                 }
+                                if let Err(error) = crate::motion_ui::component(ui, &mut object, entry.name, &scene) {
+                                    error_slot = Some(error);
+                                }
+                                if let Err(error) = crate::navigation_ui::component(ui, &mut object, entry.name, &scene) { error_slot = Some(error); }
+                                if let Err(error) = crate::particle_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
+                                if let Err(error) = crate::widget_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
+                                if let Err(error) = crate::sprite_ui::component(ui, &mut object, entry.name, &self.editor.assets) { error_slot = Some(error); }
+                                if entry.name == "animator" && let Err(error) = crate::animation_ui::component(ui, &mut object, &self.editor.assets) {
+                                    error_slot = Some(error);
+                                }
                             });
                         }
                         // Selecting Checkpoint in the generic Action field must not leave a
@@ -128,6 +138,7 @@ impl App {
                         // Components another build wrote. They are preserved verbatim, so the
                         // honest thing is to show them rather than pretend the object is empty.
                         for name in object.extras.keys().cloned().collect::<Vec<_>>() {
+                            if bozzard_scene::component_type(&name).is_some() { continue; }
                             component_section(ui, &name, &mut remove, |ui| {
                                 ui.weak("Saved by another build. This build keeps it unchanged and cannot edit it.");
                             });
@@ -425,8 +436,7 @@ fn remove_component(
 }
 
 fn component_choices(object: &bozzard_scene::Object) -> Vec<(&'static str, bool)> {
-    bozzard_scene::COMPONENTS
-        .iter()
+    bozzard_scene::components()
         .map(|entry| {
             (
                 entry.label,

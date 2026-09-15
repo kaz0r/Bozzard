@@ -33,6 +33,23 @@ impl Editor {
         else {
             anyhow::bail!("load the model before making its children independent");
         };
+        if let Some(skin) = &mesh.skin {
+            let owner = scene.objects.iter_mut().find(|o| o.id == id).unwrap();
+            if bozzard_scene::middleware::registry::get::<
+                bozzard_scene::middleware::animation::Animator,
+            >(owner)?
+            .is_none()
+            {
+                bozzard_scene::middleware::registry::set(
+                    owner,
+                    &bozzard_scene::middleware::animation::Animator::from_rig(
+                        asset.clone(),
+                        skin.rig.clone(),
+                    ),
+                )?;
+            }
+            return Ok(Vec::new());
+        }
         if mesh.parts.is_empty() {
             return Ok(Vec::new());
         }
@@ -118,6 +135,10 @@ impl Editor {
         }) = &pick
         {
             let children = self.expand_model(object)?;
+            if children.is_empty() {
+                self.select_object(Some(object.clone()));
+                return Ok(());
+            }
             self.select_object(Some(
                 children
                     .get(*index)
