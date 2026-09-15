@@ -1039,6 +1039,47 @@ impl SceneInstance {
     ///
     /// Called for every `script` asset of the scene catalog when the scene loads, so a syntax error
     /// fails where the scene is opened instead of on the first tick that runs it.
+    /// Compile every loaded source and fail if an attachment has none.
+    ///
+    /// This is what a scene loader calls once: the check turns a scene whose catalog and
+    /// attachments disagree into an error where the scene is opened, instead of a simulation that
+    /// stops on the first tick that runs the script.
+    pub fn register_scripts(&mut self, sources: BTreeMap<String, String>) -> Result<()> {
+        for (asset, source) in sources {
+            self.register_script(asset, source)?;
+        }
+        for object in &self.document.objects {
+            for (index, attachment) in self
+                .document_attachments(&object.id)
+                .into_iter()
+                .enumerate()
+            {
+                ensure!(
+                    self.scripts.contains_key(&attachment),
+                    "script '{attachment}' on '{}' (attachment {index}) was not loaded; \
+                     the scene catalog does not list it as a script asset",
+                    object.id
+                );
+            }
+        }
+        Ok(())
+    }
+    /// Script asset IDs the object's attachments name, in order.
+    fn document_attachments(&self, object: &str) -> Vec<String> {
+        self.document
+            .objects
+            .iter()
+            .find(|candidate| candidate.id == object)
+            .and_then(|candidate| candidate.script_manager.as_ref())
+            .map(|manager| {
+                manager
+                    .scripts
+                    .iter()
+                    .map(|attachment| attachment.script.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
     pub fn register_script(&mut self, asset: String, source: String) -> Result<()> {
         ensure!(
             self.document
@@ -1202,7 +1243,15 @@ impl SceneInstance {
             let owner_contacts = contacts.get(&owner).cloned().unwrap_or_default();
             for (index, (enabled, compiled)) in attachments.into_iter().enumerate() {
                 let compiled = compiled.with_context(|| {
-                    format!("script on '{owner}' was never loaded; open the scene with its catalog")
+                    let asset = self
+                        .document_attachments(&owner)
+                        .get(index)
+                        .cloned()
+                        .unwrap_or_default();
+                    format!(
+                        "script '{asset}' on '{owner}': no compiled source is bound; the scene was \
+                         opened without loading its script catalog"
+                    )
                 })?;
                 let key = (owner.clone(), index);
                 let mut run = runtime.runs.remove(&key).unwrap_or_default();
@@ -1774,13 +1823,9 @@ pub fn load_sources(
     document: &Scene,
     path: Option<&std::path::Path>,
 ) -> Result<BTreeMap<String, String>> {
-    if !document
-        .objects
-        .iter()
-        .any(|object| object.script_manager.is_some())
-    {
-        return Ok(BTreeMap::new());
-    }
+    // Every `script` catalog entry is read, not only the ones an object names: a prefab member may
+    // carry a script, and the loader merges that prefab's catalog into the scene before calling
+    // this. Reading the whole catalog is cheap and leaves no source unbound.
     let root = path
         .and_then(std::path::Path::parent)
         .unwrap_or(std::path::Path::new("."));
@@ -1896,6 +1941,35 @@ mod tests {
             .step_scripts(&mut world, 1. / 60., GameplayInput::default())
             .unwrap_err();
         assert!(format!("{error:#}").contains("jump speed"), "{error:#}");
+    }
+
+    /// A scene whose attachment names an asset the catalog does not hold as a script cannot run:
+    /// the loader says so when the scene opens instead of the simulation stopping mid-run.
+    #[test]
+    fn registering_sources_reports_an_attachment_with_no_source() {
+        let json = r#"{"version":1,"name":"scripts","views":{},
+            "assets":{"drift":{"kind":"script","path":"drift.rs"}},
+            "objects":[{"id":"thing","name":"thing","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                "script_manager":{"scripts":[{"enabled":true,"script":"drift"}]}}]}"#;
+        let mut world = World::default();
+        let mut instance = Scene::from_json(json).unwrap().spawn(&mut world).unwrap();
+        // Nothing registered: the attachment has no source.
+        let error = format!(
+            "{:#}",
+            instance.register_scripts(BTreeMap::new()).unwrap_err()
+        );
+        assert!(
+            error.contains("script 'drift' on 'thing' (attachment 0)")
+                && error.contains("was not loaded"),
+            "{error}"
+        );
+        // With its source it compiles, and the check passes.
+        instance
+            .register_scripts(BTreeMap::from([(
+                "drift".into(),
+                "fn on_update(me, dt) {}".into(),
+            )]))
+            .unwrap();
     }
 
     /// A script names the prefab it spawns in source, which the loader cannot read, so the scene

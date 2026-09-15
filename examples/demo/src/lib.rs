@@ -219,17 +219,21 @@ impl SceneDemo {
     pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
         let mut scene = document.clone();
         let mut templates = std::collections::BTreeMap::new();
-        // Script sources are read once here, next to the prefabs: ticks never do file I/O.
-        let mut sources = bozzard_scene::load_sources(document, path)?;
+        // Prefabs first: loading them merges the catalog of every prefab a scene can spawn into the
+        // scene, and a prefab member may carry scripts of its own. Script sources are then read
+        // once, next to the prefabs, so ticks never do file I/O.
+        let mut sources = std::collections::BTreeMap::new();
         let (main, loaded) = prefabs::load(document, path)?;
         scene.assets = main.assets;
         templates.extend(loaded);
+        sources.extend(bozzard_scene::load_sources(&scene, path)?);
         for (name, level) in &document.runtime_scenes {
             let mut source = level.as_ref().clone();
             source.assets = scene.assets.clone();
-            sources.extend(bozzard_scene::load_sources(&source, path)?);
             let (mut prepared, loaded) = prefabs::load(&source, path)?;
             scene.assets.extend(prepared.assets.clone());
+            source.assets = scene.assets.clone();
+            sources.extend(bozzard_scene::load_sources(&source, path)?);
             templates.extend(loaded);
             prepared.runtime_scenes.clear();
             scene
@@ -266,9 +270,7 @@ impl SceneDemo {
             for (asset, prefab) in templates {
                 instance.register_prefab(asset, prefab)?;
             }
-            for (asset, source) in sources {
-                instance.register_script(asset, source)?;
-            }
+            instance.register_scripts(sources)?;
             Ok(())
         })?;
         Ok(demo)

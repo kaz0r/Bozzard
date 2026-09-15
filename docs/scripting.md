@@ -141,6 +141,10 @@ A prefab a script can spawn has to be in the scene's asset catalog: a graph name
 script source is opaque to the loader, so a scene that runs scripts preloads **every** prefab in its
 catalog before the first tick.
 
+A prefab member may carry scripts of its own. The loader merges each prefab's catalog into the scene
+before it reads sources, so a scripted prefab keeps its hooks when it is placed, spawned from a
+graph or spawned by a script — including a script it carries into the scene from the prefab file.
+
 1 MiB per script source, 1024 compiled scripts per scene, 2,000,000 interpreter operations per hook
 call (a runaway loop fails the tick instead of hanging), 32 call levels, 1024 results per overlap
 query, 16 attachments per object, 64 kept `print` lines, and 32 MiB of script source per scene.
