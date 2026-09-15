@@ -1,0 +1,627 @@
+{
+  "version": 1,
+  "name": "Bozzard — Script Lab",
+  "views": {
+    "3d": "camera"
+  },
+  "blackboard": {
+    "orbit-phase": {
+      "scalar": {
+        "number": 0.0
+      }
+    },
+    "passes": {
+      "scalar": {
+        "number": 0.0
+      }
+    }
+  },
+  "assets": {
+    "spin": {
+      "kind": "script",
+      "path": "scripts/spin.rs"
+    },
+    "orbit": {
+      "kind": "script",
+      "path": "scripts/orbit.rs"
+    },
+    "pulse": {
+      "kind": "script",
+      "path": "scripts/pulse.rs"
+    },
+    "gate": {
+      "kind": "script",
+      "path": "scripts/gate.rs"
+    },
+    "drop": {
+      "kind": "script",
+      "path": "scripts/drop.rs"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          0.0,
+          5.0,
+          11.0
+        ],
+        "rotation_degrees": [
+          -22.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 60.0,
+        "near": 0.1,
+        "far": 150.0
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0.0,
+          -0.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          14.0,
+          0.2,
+          14.0
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.35,
+          0.37,
+          0.4
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "spinner",
+      "name": "Spinner (spin.rs)",
+      "transform": {
+        "translation": [
+          -3.0,
+          1.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          1.2,
+          1.2
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.5,
+          0.2
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "spin"
+          }
+        ]
+      }
+    },
+    {
+      "id": "orbiter",
+      "name": "Orbiter (orbit.rs)",
+      "transform": {
+        "translation": [
+          3.0,
+          1.6,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.3,
+          0.8,
+          0.95
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "orbit"
+          }
+        ]
+      }
+    },
+    {
+      "blackboard": {
+        "hud": {
+          "scalar": {
+            "text": "hud-status"
+          }
+        }
+      },
+      "id": "gate",
+      "name": "Gate volume (gate.rs)",
+      "transform": {
+        "translation": [
+          3.0,
+          1.6,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "trigger": {
+        "volume": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "size": [
+            0.9,
+            1.6,
+            0.9
+          ],
+          "enabled": true
+        },
+        "action": {
+          "kind": "sensor"
+        }
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "gate"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dropper",
+      "name": "Dropper (drop.rs)",
+      "transform": {
+        "translation": [
+          -3.0,
+          4.0,
+          2.5
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.9,
+          0.45
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "gravity": {
+        "enabled": true,
+        "acceleration": 9.81,
+        "max_speed": 50.0,
+        "jump_speed": 5.0
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "drop"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lamp",
+      "name": "Lamp (pulse.rs)",
+      "transform": {
+        "translation": [
+          0.0,
+          3.4,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "light": {
+        "enabled": true,
+        "kind": "point",
+        "color": [
+          1.0,
+          0.86,
+          0.6
+        ],
+        "intensity": 5.0,
+        "range": 18.0,
+        "inner_angle_degrees": 30.0,
+        "outer_angle_degrees": 45.0,
+        "shadows": false,
+        "shadow_bias": 0.005,
+        "shadow_normal_bias": 0.01
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "pulse"
+          }
+        ]
+      }
+    },
+    {
+      "id": "hud-status",
+      "name": "HUD / status",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "PASSES 0",
+        "font": "sans",
+        "font_size": 22.0,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          1.0,
+          0.95,
+          0.8,
+          0.95
+        ]
+      }
+    },
+    {
+      "id": "hud-graph",
+      "name": "HUD / graph line",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            56.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "GRAPH PASSES 0",
+        "font": "sans",
+        "font_size": 22.0,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          0.75,
+          0.9,
+          1.0,
+          0.95
+        ]
+      },
+      "blueprints": [
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "HUD from scene variable",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 1,
+                "position": [
+                  40.0,
+                  40.0
+                ],
+                "kind": "update",
+                "inputs": [],
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 2,
+                "position": [
+                  360.0,
+                  240.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "scope": "scene",
+                "variable": "passes",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 3,
+                "position": [
+                  680.0,
+                  240.0
+                ],
+                "kind": "number_to_text",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 4,
+                "position": [
+                  360.0,
+                  420.0
+                ],
+                "kind": "text",
+                "inputs": [
+                  {
+                    "text": "GRAPH PASSES "
+                  }
+                ],
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 5,
+                "position": [
+                  1000.0,
+                  300.0
+                ],
+                "kind": "join_text",
+                "inputs": [
+                  {
+                    "text": ""
+                  },
+                  {
+                    "text": ""
+                  }
+                ],
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 6,
+                "position": [
+                  1320.0,
+                  40.0
+                ],
+                "kind": "set_text",
+                "inputs": [
+                  "exec",
+                  {
+                    "text": ""
+                  }
+                ],
+                "key": "jump"
+              }
+            ],
+            "wires": [
+              {
+                "from": {
+                  "node": 1,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 2,
+                  "port": 0
+                },
+                "to": {
+                  "node": 3,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 3,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 1
+                }
+              },
+              {
+                "from": {
+                  "node": 4,
+                  "port": 0
+                },
+                "to": {
+                  "node": 5,
+                  "port": 0
+                }
+              },
+              {
+                "from": {
+                  "node": 5,
+                  "port": 0
+                },
+                "to": {
+                  "node": 6,
+                  "port": 1
+                }
+              }
+            ],
+            "variables": {
+              "value": 0.0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
