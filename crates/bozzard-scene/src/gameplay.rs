@@ -14,6 +14,15 @@ pub struct PlayerController {
     pub camera_radius: f32,
     pub orbit_sensitivity: f32,
     pub fall_height: f32,
+    /// Capsule radius. The controller is this shape, not the authored Box Collider.
+    pub capsule_radius: f32,
+    /// Total capsule height, including both caps. Must be at least twice the radius.
+    pub capsule_height: f32,
+    /// Tallest obstacle the controller steps over without jumping.
+    pub step_height: f32,
+    pub slope_limit_degrees: f32,
+    /// Snap down to the ground within the step height instead of walking off small ledges.
+    pub snap_to_ground: bool,
 }
 impl Default for PlayerController {
     fn default() -> Self {
@@ -26,8 +35,25 @@ impl Default for PlayerController {
             camera_radius: 0.3,
             orbit_sensitivity: 0.2,
             fall_height: -10.0,
+            capsule_radius: 0.35,
+            capsule_height: 1.8,
+            step_height: 0.35,
+            slope_limit_degrees: 45.0,
+            snap_to_ground: true,
         }
     }
+}
+impl PlayerController {
+    /// Half the cylindrical part of the capsule, always nonnegative.
+    pub fn capsule_half_height(&self) -> f32 {
+        (self.capsule_height * 0.5 - self.capsule_radius).max(0.0)
+    }
+}
+/// This tick's desired controller translation, written by gameplay and consumed by the character
+/// controller inside the physics step so one move_shape handles walking, slopes, steps and gravity.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PlayerMotion {
+    pub desired: Vec3,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -170,6 +196,29 @@ pub(super) fn validate(scene: &Scene) -> Result<()> {
             config.camera_height.is_finite() && (0.0..=1000.0).contains(&config.camera_height),
             "camera height must be in 0..=1000"
         );
+        for (name, value, min, max) in [
+            ("capsule radius", config.capsule_radius, 0.01, 100.0),
+            ("capsule height", config.capsule_height, 0.02, 1000.0),
+            ("step height", config.step_height, 0.0, 100.0),
+        ] {
+            ensure!(
+                value.is_finite() && (min..=max).contains(&value),
+                "player {name} must be in {min}..={max}"
+            );
+        }
+        ensure!(
+            config.capsule_height >= config.capsule_radius * 2.0,
+            "player capsule height must be at least twice the radius"
+        );
+        ensure!(
+            config.step_height <= config.capsule_height * 0.5,
+            "player step height cannot exceed half the capsule height"
+        );
+        ensure!(
+            config.slope_limit_degrees.is_finite()
+                && (0.0..=89.0).contains(&config.slope_limit_degrees),
+            "player slope limit must be in 0..=89 degrees"
+        );
         ensure!(
             config.fall_height.is_finite() && player.transform.translation[1] > config.fall_height,
             "player start must be above a finite fall height"
@@ -240,6 +289,8 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
             center,
             edges,
             corners,
+            layers: collider.layers,
+            mask: collider.mask,
         })
     };
     let solids: Vec<_> = scene
@@ -271,6 +322,8 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
                         },
                         matrix: matrices[o.id.as_str()],
                         solid: o.gravity.is_some_and(|g| g.enabled),
+                        layers: c.layers,
+                        mask: c.mask,
                     })
                 })
         })
@@ -304,6 +357,7 @@ pub(super) fn validate_respawns(scene: &Scene, matrices: &BTreeMap<&str, Mat4>) 
 impl SceneInstance {
     pub fn initialize_gameplay(&self, world: &mut World) {
         world.insert_resource(GameplayInput::default());
+        world.insert_resource(PlayerMotion::default());
         if let Some(player) = self
             .document
             .objects
@@ -373,7 +427,15 @@ impl SceneInstance {
             let delta =
                 Quat::from_rotation_y(state.yaw.to_radians()) * direction * config.move_speed * dt;
             if delta != Vec3::ZERO {
-                self.move_box(world, &state.player, delta)?;
+                // The character controller applies this inside the physics step, together with
+                // gravity, so a slope or a step is resolved once per tick.
+                let motion = world
+                    .resource::<PlayerMotion>()
+                    .copied()
+                    .unwrap_or_default();
+                world.insert_resource(PlayerMotion {
+                    desired: motion.desired + delta,
+                });
             }
             if input.jump {
                 self.jump_box(world, &state.player, config.jump_speed)?;
@@ -424,8 +486,17 @@ impl SceneInstance {
                     center,
                     edges,
                     corners,
+                    layers: trigger.volume.layers,
+                    mask: trigger.volume.mask,
                 };
-                if !player_box.intersects(&volume) {
+                if !player_box.intersects(&volume)
+                    || !layers_interact(
+                        player_box.layers,
+                        player_box.mask,
+                        volume.layers,
+                        volume.mask,
+                    )
+                {
                     continue;
                 }
                 match &trigger.action {
@@ -513,6 +584,8 @@ impl SceneInstance {
                     },
                     matrix: matrices[id],
                     solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
+                    layers: collider.layers,
+                    mask: collider.mask,
                 };
                 // Conservative cube around the camera sphere also protects triangle edges/corners.
                 let (center, edges, corners) = BoxCollider {
@@ -526,6 +599,8 @@ impl SceneInstance {
                     center,
                     edges,
                     corners,
+                    layers: u32::MAX,
+                    mask: u32::MAX,
                 };
                 if mesh.penetration(&probe).is_some() {
                     fraction = 0.;

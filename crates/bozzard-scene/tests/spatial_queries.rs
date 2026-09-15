@@ -29,6 +29,8 @@ fn sphere_narrow_phase_rejects_box_corners_and_mesh_holes() {
     s.objects[0].collider = None;
     s.objects[0].mesh_collider = Some(MeshCollider {
         enabled: true,
+        layers: 1,
+        mask: u32::MAX,
         mesh: TriangleMesh::new(vec![
             [[-2., 0., 0.], [-1., 0., 0.], [-2., 1., 0.]],
             [[1., 0., 0.], [2., 0., 0.], [2., 1., 0.]],

@@ -81,3 +81,12 @@ Build both 2D and 3D reference scenes as engine acceptance fixtures. Each milest
 - [x] Comments, typed reroutes, find-in-graph, subgraph copy/paste, and stale-wire repair drafts.
 
 [Contracts, examples, tests, and optimization notes](blueprint-depth.md).
+
+## Physics surface
+
+- [x] Per-collider collision layers and masks, named for authoring and shared by Rapier, the CPU sweeps and overlap/contact events.
+- [x] Fix, Hinge, Ball socket, Slider and Rope joints through the component registry, with local anchors/axes and limits.
+- [x] Capsule Player Controller: step height, slope limit, ground snap, swept movement and moving-platform carry.
+- [x] Per-body linear drag and gravity scale, plus compound colliders composed from a Rigidbody's colliding descendants.
+
+[Contracts, tests, and limits](physics.md).

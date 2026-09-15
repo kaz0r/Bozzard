@@ -129,7 +129,8 @@ fn gold_yard_pickup_mouse_look_physics_pad_cleanup_and_restart() {
         movement: [0., 1.],
         ..Default::default()
     });
-    step(demo, 40); // Walk onto the pad; no scripted teleport needed to start the toy.
+    // The capsule follows the ramp's slope, so horizontal progress is cos(slope) of move speed.
+    step(demo, 60); // Walk onto the pad; no scripted teleport needed to start the toy.
     demo.clear_gameplay_input();
     assert_eq!(demo.instance().document().prefabs.len(), 1);
     let first_id = demo
