@@ -1703,6 +1703,52 @@ pub const COMPONENTS: &[ComponentType] = &[
         |object, _scene| object.text_rendering = None
     ),
     ComponentType {
+        name: ScriptManager::NAME,
+        label: ScriptManager::LABEL,
+        ui: ScriptManager::UI,
+        help: ScriptManager::HELP,
+        fields: ScriptManager::fields,
+        // A script list is not field-shaped: it is an ordered set of asset references, drawn by
+        // the editor's Script Manager section like the blueprint attachment list.
+        get: |_, _| None,
+        set: |_, key, _| anyhow::bail!("Script Manager has no field '{key}'"),
+        present: |object| object.script_manager.is_some(),
+        available: |object| {
+            object
+                .script_manager
+                .as_ref()
+                .is_none_or(|manager| manager.scripts.len() < MAX_SCRIPTS)
+        },
+        add: |object, _context| {
+            let manager = object.script_manager.get_or_insert_default();
+            manager.scripts.push(ScriptAttachment {
+                enabled: true,
+                script: String::new(),
+            });
+            Ok(())
+        },
+        remove: |object, _scene| object.script_manager = None,
+        merge: |current, old, source| {
+            merge_opt(
+                &mut current.script_manager,
+                &old.script_manager,
+                &source.script_manager,
+            )
+        },
+        load: |object, value| {
+            object.script_manager = Some(serde_json::from_value(value)?);
+            Ok(())
+        },
+        save: |object| {
+            object
+                .script_manager
+                .as_ref()
+                .map(serde_json::to_value)
+                .transpose()
+                .map_err(Into::into)
+        },
+    },
+    ComponentType {
         name: BlueprintAttachment::NAME,
         label: BlueprintAttachment::LABEL,
         ui: BlueprintAttachment::UI,
@@ -1932,6 +1978,7 @@ mod tests {
                 "spin",
                 "camera",
                 "text_rendering",
+                "script_manager",
                 "blueprints",
                 "blackboard",
                 "shader_graph",

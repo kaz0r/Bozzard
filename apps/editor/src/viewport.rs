@@ -576,7 +576,7 @@ impl App {
                         .editor
                         .play
                         .as_ref()
-                        .is_some_and(|p| p.instance().has_blueprints()))
+                        .is_some_and(|p| p.instance().has_gameplay_logic()))
                 && (response.hovered() || response.dragged_by(egui::PointerButton::Secondary))
                 && self.dialog.is_none()
                 && !self.confirm_discard

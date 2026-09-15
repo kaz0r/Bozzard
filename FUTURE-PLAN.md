@@ -46,8 +46,9 @@ component preserved.
 ## 2 — Blueprint authoring depth
 
 Blueprints are typed, validated and headless-testable — this is the differentiator and stays the
-primary gameplay path. It is also the only gameplay path, and its value types are the 6 scalars
-`Exec/Text/Number/Bool/Vector/Object`.
+primary gameplay path. Its value types are the 6 scalars `Exec/Text/Number/Bool/Vector/Object`, and
+the other authoring path is [Rhai scripting](docs/scripting.md), which calls the same engine actions
+and shares the same blackboards.
 
 - [ ] **M** Shared variable scopes: object-level and scene-level blackboards that several graphs can address. Variables are currently per graph attachment, which is why a single player controller ends up as one 97-node graph.
 - [ ] **S** Missing events: `On Destroy`, `On Enable`, `On Disable`, collision (non-trigger) entry with contact normal/impulse, and a stateful `Delay`/`After` node (`Elapsed Time` plus a comparison is not a timer).
@@ -56,6 +57,8 @@ primary gameplay path. It is also the only gameplay path, and its value types ar
 - [ ] **M** Container values (array, map) or a bounded list type, since no gameplay state that grows is expressible today.
 - [ ] **M** Runtime scene control: load/additive-load a scene, restart, and save/load game state. There is currently exactly one scene per process.
 - [ ] **S** Blueprint node UX: comments/reroute nodes, per-node search, copy/paste of subgraphs, and a stale-wire diff when a graph fails validation.
+- [x] **M** Scripting as the second gameplay path: a **Script Manager** component running Rhai scripts whose hooks call every engine action a blueprint node calls, reading and writing the same object and scene blackboards so one scene can mix both.
+- [ ] **S** Script authoring depth: reload a script while Play is running instead of on the next open, a script pane with completion for the exposed functions, and per-script hook/command statistics next to the blueprint stats.
 
 ## 3 — Physics surface
 

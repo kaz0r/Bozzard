@@ -32,6 +32,7 @@ mod lights;
 mod loading;
 mod post_processing;
 mod repaint;
+mod scripts;
 mod shaders;
 mod snapping;
 mod surfaces;
@@ -1223,7 +1224,7 @@ impl eframe::App for App {
                         .editor
                         .play
                         .as_ref()
-                        .is_some_and(|p| p.instance().has_blueprints())),
+                        .is_some_and(|p| p.instance().has_gameplay_logic())),
             self.editor.play.as_mut(),
         );
         let eligible = input.focused

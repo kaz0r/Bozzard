@@ -16,6 +16,10 @@ pub mod shader_graph;
 pub mod spatial;
 pub use blueprint::{Blueprint, BlueprintAttachment};
 pub use blueprint_runtime::{BlueprintHidden, BlueprintRuntime};
+pub mod script;
+pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
+mod script_runtime;
+pub use script_runtime::{ScriptRuntime, ScriptRuntimeStats, load_sources};
 mod fog;
 pub use fog::FogSettings;
 mod environment;
@@ -45,7 +49,7 @@ use anyhow::{Context, Result, ensure};
 use bozzard_ecs::{Entity, World};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::result::Result as StdResult;
 
 mod collision;
@@ -355,6 +359,7 @@ pub struct Object {
     pub gravity: Option<Gravity>,
     pub player_controller: Option<PlayerController>,
     pub trigger: Option<Trigger>,
+    pub script_manager: Option<ScriptManager>,
     /// Components this build does not recognize, kept verbatim. See [`Object::extra`].
     #[serde(skip)]
     pub extras: BTreeMap<String, serde_json::Value>,
@@ -480,6 +485,8 @@ pub enum AssetKind {
     Prefab,
     Image,
     Mesh,
+    /// A Rhai script file (`.rs` by project convention).
+    Script,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -639,6 +646,9 @@ impl Scene {
             }
             if let Some(text) = &object.text_rendering {
                 text.validate()?;
+            }
+            if let Some(manager) = &object.script_manager {
+                manager.validate()?;
             }
             if let Some(light) = object.light {
                 light.validate()?;
@@ -891,6 +901,8 @@ impl Scene {
             particle_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
+            script_engine: std::sync::OnceLock::new(),
+            scripts: BTreeMap::new(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -911,6 +923,9 @@ pub struct SceneInstance {
     document: Scene,
     entities: BTreeMap<String, Entity>,
     order: Vec<usize>,
+    /// Built on the first script registration, so a scene without scripts never pays for it.
+    script_engine: std::sync::OnceLock<std::sync::Arc<script_runtime::ScriptEngine>>,
+    scripts: BTreeMap<String, std::sync::Arc<script_runtime::CompiledScript>>,
 }
 
 impl SceneInstance {
@@ -1171,6 +1186,9 @@ impl Object {
                 dependencies.push((&node.prefab, AssetKind::Prefab));
             }
         }
+        if let Some(manager) = &self.script_manager {
+            dependencies.extend(manager.asset_dependencies());
+        }
         dependencies
     }
     pub fn remap_assets(&mut self, mapping: &BTreeMap<String, String>) {
@@ -1202,6 +1220,11 @@ impl Object {
                 remap(&mut node.prefab);
             }
         }
+        if let Some(manager) = &mut self.script_manager {
+            for attachment in &mut manager.scripts {
+                remap(&mut attachment.script);
+            }
+        }
     }
     pub fn effective_drawable(&self) -> Option<Drawable> {
         let mut drawable = self.drawable.clone()?;
@@ -1209,6 +1232,44 @@ impl Object {
             material.apply(&mut drawable);
         }
         Some(drawable)
+    }
+}
+
+impl Scene {
+    /// Whether any object carries a script, which makes the scene a gameplay scene.
+    pub fn has_scripts(&self) -> bool {
+        self.objects.iter().any(|object| {
+            object
+                .script_manager
+                .as_ref()
+                .is_some_and(|manager| !manager.scripts.is_empty())
+        })
+    }
+    /// Spawnable prefab asset IDs a runtime has to have ready before the first tick: every enabled
+    /// `Spawn Prefab` node, plus every prefab in the catalog of a scene that runs scripts.
+    ///
+    /// A script names its prefab in source, which is opaque here, so the catalog is the
+    /// declaration: a prefab a script can spawn has to be in `assets`, and the runtime loads the
+    /// lot once instead of guessing from the text.
+    pub fn spawn_asset_ids(&self) -> BTreeSet<String> {
+        let mut ids: BTreeSet<String> = self
+            .objects
+            .iter()
+            .flat_map(|object| &object.blueprints)
+            .filter(|attachment| attachment.enabled)
+            .flat_map(|attachment| &attachment.graph.nodes)
+            .filter(|node| node.kind == blueprint::NodeKind::SpawnPrefab && !node.prefab.is_empty())
+            .map(|node| node.prefab.clone())
+            .collect();
+        if self.has_scripts() {
+            ids.extend(
+                self.assets
+                    .iter()
+                    .filter(|(_, source)| source.kind == AssetKind::Prefab)
+                    .map(|(id, _)| id.clone()),
+            );
+        }
+        ids
     }
 }
 
@@ -1277,6 +1338,7 @@ mod tests {
             particle_emitter: None,
             material: None,
             blueprints: Vec::new(),
+            script_manager: None,
             shader_graph: None,
             light: None,
             id: id.into(),

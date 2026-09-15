@@ -447,10 +447,7 @@ impl SceneInstance {
         Ok(())
     }
     fn prepare_blueprints(&self, runtime: &mut BlueprintRuntime) {
-        if !runtime.initialized {
-            runtime.scene_board = self.document.blackboard.clone();
-            runtime.initialized = true;
-        }
+        runtime.initialize_boards(&self.document);
         for object in &self.document.objects {
             if object.blackboard.is_empty() && object.blueprints.is_empty() {
                 continue;
@@ -1405,6 +1402,61 @@ impl BlueprintRuntime {
                 .entry(k.clone())
                 .or_insert_with(|| v.clone());
         }
+    }
+    /// Seed the boards from the document, once, for whichever gameplay step runs first.
+    ///
+    /// Scripts and graphs share these boards and a script-only scene never runs the blueprint pass,
+    /// so the script step seeds them too. Both steps must set the same "seeded" flag: the blueprint
+    /// pass resets the scene board while the flag is clear, which would throw away a script write
+    /// made earlier in the same tick.
+    pub(crate) fn initialize_boards(&mut self, scene: &Scene) {
+        if self.initialized {
+            return;
+        }
+        self.scene_board = scene.blackboard.clone();
+        for object in &scene.objects {
+            if object.blackboard.is_empty() {
+                continue;
+            }
+            self.object_boards
+                .entry(object.id.clone())
+                .or_insert_with(|| object.blackboard.clone());
+        }
+        self.initialized = true;
+    }
+    /// Scripts share these boards with graphs, so an object that declares variables gets one even
+    /// when it carries no graph at all.
+    pub(crate) fn add_object_defaults(&mut self, owner: &str, defaults: &Blackboard) {
+        let board = self.object_boards.entry(owner.to_owned()).or_default();
+        for (name, value) in defaults {
+            board.entry(name.clone()).or_insert_with(|| value.clone());
+        }
+    }
+    /// Write one scalar through the same type check a `Set Variable` node performs.
+    pub(crate) fn set_board_scalar(
+        &mut self,
+        scope: Scope,
+        owner: &str,
+        name: &str,
+        value: Value,
+    ) -> Result<()> {
+        let board = match scope {
+            Scope::Object => self
+                .object_boards
+                .get_mut(owner)
+                .context("missing object board")?,
+            Scope::Scene => &mut self.scene_board,
+            Scope::Graph => anyhow::bail!("a graph-scoped variable needs a graph"),
+        };
+        let entry = board
+            .get_mut(name)
+            .with_context(|| format!("unknown {scope:?} variable '{name}'"))?;
+        ensure!(
+            matches!(entry, B::Scalar(old) if old.kind() == value.kind()),
+            "variable '{name}' type mismatch"
+        );
+        *entry = B::Scalar(value);
+        Ok(())
     }
 }
 

@@ -22,6 +22,7 @@ Validation rejects missing parents, cycles, duplicate/empty IDs, invalid camera 
 - `player_controller`: optional single-player movement/jump/follow-camera settings with a validated active 3D camera ID.
 - `trigger`: optional local box `volume` plus collectible/checkpoint/goal `action`; separate from solid colliders. See [gameplay format, constraints and runtime-state rules](playable-demo.md#authoring-contract). Both additions remain optional in schema v1.
 - `spin`: X/Y/Z angular rates in degrees per second. The demo registers a fixed-step system that updates local rotation, so children inherit parent motion.
+- `script_manager`: an ordered list of `{ "enabled", "script" }` attachments naming `script` catalog assets. Each attachment is a Rhai script whose hooks call the same engine actions blueprint nodes call, sharing the object and scene blackboards with graphs. See [gameplay scripts](scripting.md).
 
 An override uses a zero-based surface index and an importer-generated 16-character lowercase hexadecimal source signature. The signature is not an authored asset ID and includes structural node/mesh/primitive/material-slot identity, names, and indexed geometry; texture pixels and material factors are excluded. Tint is linear RGB and defaults to `[1, 1, 1]`; optional metallic and roughness values replace the source factors while retaining the source maps. Values are finite and constrained to 0..1:
 

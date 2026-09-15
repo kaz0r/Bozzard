@@ -1,6 +1,6 @@
 # Gameplay Blueprints
 
-Blueprints are the primary gameplay authoring path: typed, validated graphs run unchanged in editor Play, the native player, and the headless server. The six pin types are **Exec, Text, Number, Bool, Vector, and Object**. Shared blackboards and bounded typed lists let multiple graphs cooperate. Existing scenes with legacy components and private number variables remain compatible. See [authoring depth, scene control, and checkpoint semantics](blueprint-depth.md).
+Blueprints are the engine's no-code gameplay authoring path, and [gameplay scripts](scripting.md) are the coding one: both drive the same engine actions and share the same object and scene blackboards, so a scene may mix them. Blueprints are: typed, validated graphs run unchanged in editor Play, the native player, and the headless server. The six pin types are **Exec, Text, Number, Bool, Vector, and Object**. Shared blackboards and bounded typed lists let multiple graphs cooperate. Existing scenes with legacy components and private number variables remain compatible. See [authoring depth, scene control, and checkpoint semantics](blueprint-depth.md).
 
 ```sh
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/blueprint-lab.json
@@ -23,6 +23,10 @@ The **Hero Cube** has two blueprints: **Spin** rotates it, and **Space toggles v
 7. Click Play. Switch to Scene for keyboard input, or stay in Blueprint to inspect the latest **Print Number** message. Editing is disabled during Play. Stop to edit; Ctrl/Cmd+Z and Redo use normal scene history.
 
 For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scale Vector / Factor** (green), and **Scale Vector → Rotate / Value** (blue). Set the vector to `[0, 45, 0]`: the object rotates 45 degrees per second around Y. The Spin example contains this graph.
+
+The same game is also checked in as scripts — `examples/demo/scenes/target-range-rs.json`, every
+rule in `scenes/scripts/target-range/*.rs` and no graph of its own — so the two authoring paths can
+be compared rule for rule. See [gameplay scripts](scripting.md).
 
 ## Save, reuse, and attach multiple graphs
 

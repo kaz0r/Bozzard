@@ -173,7 +173,7 @@ impl SceneDemo {
         result
     }
     pub fn accepts_gameplay_input(&self) -> bool {
-        self.gameplay().is_some() || self.instance().has_blueprints()
+        self.gameplay().is_some() || self.instance().has_gameplay_logic()
     }
     pub fn gameplay(&self) -> Option<&GameplayState> {
         self.app.world.resource::<GameplayState>()
@@ -219,14 +219,21 @@ impl SceneDemo {
     pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
         let mut scene = document.clone();
         let mut templates = std::collections::BTreeMap::new();
+        // Prefabs first: loading them merges the catalog of every prefab a scene can spawn into the
+        // scene, and a prefab member may carry scripts of its own. Script sources are then read
+        // once, next to the prefabs, so ticks never do file I/O.
+        let mut sources = std::collections::BTreeMap::new();
         let (main, loaded) = prefabs::load(document, path)?;
         scene.assets = main.assets;
         templates.extend(loaded);
+        sources.extend(bozzard_scene::load_sources(&scene, path)?);
         for (name, level) in &document.runtime_scenes {
             let mut source = level.as_ref().clone();
             source.assets = scene.assets.clone();
             let (mut prepared, loaded) = prefabs::load(&source, path)?;
             scene.assets.extend(prepared.assets.clone());
+            source.assets = scene.assets.clone();
+            sources.extend(bozzard_scene::load_sources(&source, path)?);
             templates.extend(loaded);
             prepared.runtime_scenes.clear();
             scene
@@ -263,6 +270,7 @@ impl SceneDemo {
             for (asset, prefab) in templates {
                 instance.register_prefab(asset, prefab)?;
             }
+            instance.register_scripts(sources)?;
             Ok(())
         })?;
         Ok(demo)
@@ -327,6 +335,11 @@ impl SceneDemo {
                 .and_then(|()| gravity_instance.gameplay_motion(world, dt))
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
                 .and_then(|()| gravity_instance.gameplay_interactions(world))
+                // Scripts run before graphs: each step samples one snapshot of the world for its
+                // own events, so running them first keeps script reads on the tick's starting
+                // state and lets a graph see a variable a script wrote this tick. It also keeps a
+                // graph's Destroy Prefab from hiding a hit the scripts were meant to see.
+                .and_then(|()| gravity_instance.step_scripts(world, dt, input))
                 .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
                 .and_then(|()| {
                     if bozzard_scene::game_flow::simulation_running(world) {

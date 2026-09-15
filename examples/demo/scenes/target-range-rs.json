@@ -1,0 +1,979 @@
+{
+  "blackboard": {
+    "targets-down": {
+      "scalar": {
+        "number": 0.0
+      }
+    }
+  },
+  "game_flow": {
+    "title": "Target Range (scripts)",
+    "instructions": "First person: WASD to move, mouse to look, Space to jump, left-click to shoot.\nWalk to the table on the right and press E to swap between the AR, pistol and shotgun.\nDestroy all four cubes to win. Every rule is a Rhai script."
+  },
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.15,
+      0.32,
+      0.65
+    ],
+    "horizon": [
+      0.65,
+      0.7,
+      0.8
+    ],
+    "ground": [
+      0.12,
+      0.1,
+      0.08
+    ],
+    "intensity": 0.35,
+    "background": true
+  },
+  "display": {
+    "temporal_aa": {
+      "enabled": false,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": false,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": false,
+      "strength": 1.0,
+      "max_distance": 30.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.65,
+      "steps": 64
+    },
+    "bloom": {
+      "enabled": false,
+      "intensity": 0.15,
+      "threshold": 1.0,
+      "scatter": 0.7,
+      "anamorphic": 0.0
+    },
+    "tone_mapper": "reinhard",
+    "color_grading": {
+      "temperature": 0.0,
+      "tint": 0.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "lift": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": false,
+      "intensity": 1.0,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": false,
+      "strength": 3.0,
+      "threshold": 2.0,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.0,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.0,
+      "roundness": 0.7,
+      "feather": 0.6
+    },
+    "depth_of_field": {
+      "enabled": false,
+      "focus_distance": 5.0,
+      "focal_length_mm": 50.0,
+      "aperture": 2.8,
+      "max_blur_radius": 18.0
+    },
+    "auto_exposure": {
+      "enabled": false,
+      "strength": 1.0,
+      "min_ev": -2.0,
+      "max_ev": 2.0,
+      "target_gray": 0.18,
+      "speed_up": 1.5,
+      "speed_down": 3.0,
+      "center_weight": 0.65
+    },
+    "volumetric_fog": {
+      "enabled": false,
+      "density": 0.035,
+      "albedo": [
+        0.9,
+        0.94,
+        1.0
+      ],
+      "anisotropy": 0.3,
+      "base_height": 0.0,
+      "height_falloff": 0.25,
+      "start_distance": 0.25,
+      "max_distance": 40.0,
+      "noise_amount": 0.65,
+      "noise_scale": 0.35,
+      "wind": [
+        0.15,
+        0.025,
+        0.07
+      ],
+      "light_intensity": 1.0,
+      "ambient": 0.25,
+      "steps": 48
+    },
+    "exposure_ev": 0.0,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.4,
+      0.85,
+      0.35
+    ],
+    "sun_color": [
+      1.0,
+      0.95,
+      0.85
+    ],
+    "sun_intensity": 3.0,
+    "ambient_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ambient_intensity": 0.15
+  },
+  "version": 1,
+  "name": "Target Range (scripts)",
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Follow camera",
+      "transform": {
+        "translation": [
+          0.0,
+          3.15,
+          12.2
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 60.0,
+        "near": 0.1,
+        "far": 150.0
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player - first person, driven by scripts",
+      "transform": {
+        "translation": [
+          0.0,
+          0.65,
+          7.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          1.2,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.08,
+          0.62,
+          0.8
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "blackboard": {
+        "yaw": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "pitch": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "vy": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "kick": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "kick_amount": {
+          "scalar": {
+            "number": 0.8
+          }
+        },
+        "speed": {
+          "scalar": {
+            "number": 45.0
+          }
+        },
+        "size": {
+          "scalar": {
+            "number": 0.16
+          }
+        },
+        "camera": {
+          "scalar": {
+            "text": "camera"
+          }
+        },
+        "hud": {
+          "scalar": {
+            "text": "hud-weapon"
+          }
+        }
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "target-range-player"
+          },
+          {
+            "enabled": true,
+            "script": "target-range-weapon"
+          },
+          {
+            "enabled": true,
+            "script": "target-range-shoot"
+          }
+        ]
+      }
+    },
+    {
+      "id": "platform",
+      "name": "Platform",
+      "transform": {
+        "translation": [
+          0.0,
+          -0.5,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          18.0,
+          1.0,
+          18.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.26,
+          0.3,
+          0.34
+        ],
+        "uv_scale": [
+          18.0,
+          18.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "game-rules",
+      "name": "Game rules - win script, not rendered",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "target-range-win"
+          }
+        ]
+      }
+    },
+    {
+      "id": "target-1",
+      "name": "Target 1 - red",
+      "transform": {
+        "translation": [
+          -4.5,
+          0.75,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.5,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.85,
+          0.16,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "target-range-target"
+          }
+        ]
+      }
+    },
+    {
+      "id": "target-2",
+      "name": "Target 2 - orange",
+      "transform": {
+        "translation": [
+          -1.5,
+          0.75,
+          -5.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.5,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.92,
+          0.55,
+          0.1
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "target-range-target"
+          }
+        ]
+      }
+    },
+    {
+      "id": "target-3",
+      "name": "Target 3 - lime",
+      "transform": {
+        "translation": [
+          1.5,
+          0.75,
+          -5.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.5,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.45,
+          0.85,
+          0.2
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "target-range-target"
+          }
+        ]
+      }
+    },
+    {
+      "id": "target-4",
+      "name": "Target 4 - violet",
+      "transform": {
+        "translation": [
+          4.5,
+          0.75,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.5,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.3,
+          0.9
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "target-range-target"
+          }
+        ]
+      }
+    },
+    {
+      "id": "weapon-table",
+      "name": "Weapon table",
+      "transform": {
+        "translation": [
+          7.6,
+          0.45,
+          3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          0.9,
+          7.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.34,
+          0.26,
+          0.2
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "collider": {
+        "center": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "weapon-ar",
+      "name": "Weapon / AR",
+      "transform": {
+        "translation": [
+          7.6,
+          1.1,
+          5.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.4,
+          1.3
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.85,
+          0.2,
+          0.18
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "weapon-pistol",
+      "name": "Weapon / pistol",
+      "transform": {
+        "translation": [
+          7.6,
+          1.1,
+          3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.4,
+          0.6
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.9,
+          0.78,
+          0.25
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "weapon-shotgun",
+      "name": "Weapon / shotgun",
+      "transform": {
+        "translation": [
+          7.6,
+          1.1,
+          1.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          0.5,
+          1.4
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.3,
+          0.75,
+          0.9
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "WEAPON: AR",
+        "font": "sans",
+        "font_size": 24.0,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          1.0,
+          0.95,
+          0.8,
+          0.95
+        ]
+      },
+      "id": "hud-weapon",
+      "name": "HUD / hud-weapon",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            56.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "E  take the weapon in front of you",
+        "font": "sans",
+        "font_size": 18.0,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          0.55
+        ]
+      },
+      "id": "hud-hint",
+      "name": "HUD / hud-hint",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -15.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "+",
+        "font": "sans",
+        "font_size": 30.0,
+        "max_width": null,
+        "alignment": "center",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          0.9
+        ]
+      },
+      "id": "crosshair",
+      "name": "HUD / crosshair",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "target-range-player": {
+      "kind": "script",
+      "path": "scripts/target-range/player.rs"
+    },
+    "target-range-projectile": {
+      "kind": "prefab",
+      "path": "assets/target-range/projectile.prefab.json"
+    },
+    "target-range-shoot": {
+      "kind": "script",
+      "path": "scripts/target-range/shoot.rs"
+    },
+    "target-range-target": {
+      "kind": "script",
+      "path": "scripts/target-range/target.rs"
+    },
+    "target-range-weapon": {
+      "kind": "script",
+      "path": "scripts/target-range/weapon.rs"
+    },
+    "target-range-win": {
+      "kind": "script",
+      "path": "scripts/target-range/win.rs"
+    }
+  }
+}

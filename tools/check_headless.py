@@ -17,6 +17,11 @@ allowed |= {"rapier3d", "parry3d", "nalgebra", "nalgebra-macros", "glamx", "simb
             "foldhash", "hash32", "hashbrown", "heapless", "indexmap", "log", "ordered-float",
             "profiling", "profiling-procmacros", "rstar", "slab", "stable_deref_trait",
             "static_assertions", "thiserror", "thiserror-impl"}
+# Rhai scripting: a pure-Rust interpreter plus its hashing and string dependencies. No graphics,
+# window or audio crates, so a dedicated server still runs scripts headlessly.
+allowed |= {"rhai", "rhai_codegen", "ahash", "once_cell", "smartstring", "thin-vec",
+            "cfg-if", "crunchy", "const-random", "const-random-macro", "getrandom", "libc",
+            "portable-atomic", "tiny-keccak", "zerocopy"}
 unexpected = {line.split()[0] for line in output.splitlines() if line.strip()} - allowed
 if unexpected:
     raise SystemExit(f"Headless dependency boundary changed: {sorted(unexpected)}. Review before extending the allowlist.")

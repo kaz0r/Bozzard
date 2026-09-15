@@ -128,6 +128,7 @@ impl Editor {
             parent: None,
             material: None,
             blueprints: Vec::new(),
+            script_manager: None,
             shader_graph: None,
             light: None,
             camera: None,
