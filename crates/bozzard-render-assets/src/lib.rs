@@ -122,6 +122,14 @@ pub fn model_parts(mesh: &MeshData) -> Vec<ModelPart<'_>> {
         .collect()
 }
 
+/// Whether an imported asset has anything to put on the GPU.
+///
+/// Prefabs and scripts are gameplay data: the residency pass skips them and `upload_source` refuses
+/// them, and both ask this one function rather than listing the kinds again.
+pub fn needs_gpu(data: &AssetData) -> bool {
+    !matches!(data, AssetData::Prefab(_) | AssetData::Script(_))
+}
+
 struct SharedSource(Arc<AssetData>);
 impl bozzard_render::UploadSource for SharedSource {
     fn data(&self) -> bozzard_render::UploadData<'_> {
@@ -141,7 +149,7 @@ pub fn upload_source(
     data: Arc<AssetData>,
 ) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
     anyhow::ensure!(
-        !matches!(data.as_ref(), AssetData::Prefab(_) | AssetData::Script(_)),
+        needs_gpu(&data),
         "prefabs and scripts have no GPU resources"
     );
     Ok(Arc::new(SharedSource(data)))

@@ -39,7 +39,7 @@ impl Residency {
                 && self.preparing.is_none()
                 && store.entries().all(|entry| {
                     entry.shared_data().is_none_or(|data| {
-                        matches!(data.as_ref(), AssetData::Prefab(_))
+                        !crate::needs_gpu(&data)
                             || self
                                 .current
                                 .get(&entry.id)
@@ -75,9 +75,11 @@ impl Residency {
             .map(|(id, _, job)| (id.as_str(), job.cancelled()))
     }
     pub fn has_all(&self, store: &AssetStore) -> bool {
-        store.entries().all(|entry| {
-            matches!(entry.data(), Some(AssetData::Prefab(_)))
-                || (entry.data().is_some() && self.current.contains_key(&entry.id))
+        store.entries().all(|entry| match entry.data() {
+            // Gameplay data has nothing to upload, so it is always resident.
+            Some(data) if !crate::needs_gpu(data) => true,
+            Some(_) => self.current.contains_key(&entry.id),
+            None => false,
         })
     }
     /// Whether picking/inspection geometry matches the version currently on the GPU.
@@ -88,9 +90,12 @@ impl Residency {
             .and_then(|h| store.get(h))
             .and_then(|e| e.shared_data())
             .is_some_and(|data| {
-                self.current
-                    .get(id)
-                    .is_some_and(|current| Arc::ptr_eq(current, &data))
+                // Gameplay data is always ready: there is nothing to have uploaded.
+                !crate::needs_gpu(&data)
+                    || self
+                        .current
+                        .get(id)
+                        .is_some_and(|current| Arc::ptr_eq(current, &data))
             })
     }
     pub fn cancel(&mut self) {
@@ -114,7 +119,7 @@ impl Residency {
             .filter_map(|entry| {
                 entry
                     .shared_data()
-                    .filter(|d| !matches!(d.as_ref(), AssetData::Prefab(_)))
+                    .filter(|data| crate::needs_gpu(data))
                     .map(|data| (entry.id.clone(), data))
             })
             .collect();

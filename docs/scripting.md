@@ -34,6 +34,8 @@ not re-exposed: a script uses `sin(t)` and `a + b`, not an engine node name.
 
    Script files use the `.rs` extension by project convention (`.rhai` is also accepted on import).
    They are *not* Rust: nothing compiles them with cargo. Keep them outside any crate's `src/`.
+   Like a prefab, a script is gameplay data with nothing to put on the GPU: the viewer loads it,
+   skips it in the asset residency pass, and never waits on it before drawing a frame.
 
 2. Select the object, choose **Properties → Add Component → Script Manager**, and pick the script
    asset. **+ Add script** adds another attachment; **↑**/**↓** change the order and **Remove**
