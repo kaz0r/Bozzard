@@ -123,6 +123,9 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 - **`is_grounded` reports the last completed move**, not the one you are about to make: a move
   applies at the end of the step, so a hook cannot read back its own result. Decide gravity and
   jumping from it at the top of `on_update`, as `scenes/scripts/target-range/player.rs` does.
+  A resting body still has to move a little way down every tick, again as the Gravity component
+  does: a tick whose move is empty touches nothing, so it reports *not* grounded and a press on
+  that tick is lost. Cancel the accumulated fall on a resting tick, not the tick's own step.
 - **A restart, a scene change or a loaded save rebuilds the world without losing the scripts.**
   Loaded sources and the compiled engine are runtime state that follows the replacement scene, while
   attachment state (started, held keys, overlap sets) starts over, so `on_start` runs again in the

@@ -53,14 +53,15 @@ fn on_update(me, dt) {
     // Gravity, then the move. Grounded is the floor contact of the previous tick's move: a move
     // applies after this script has run, so it cannot be read back inside the same tick.
     let grounded = is_grounded(me);
-    let vy = get_object_variable("vy");
+    let vy = get_object_variable("vy") - GRAVITY * dt;
     if grounded {
-        vy = 0.0;
-    } else {
-        vy -= GRAVITY * dt;
-    }
-    if grounded && input_pressed("jump") {
-        vy = JUMP_SPEED;
+        // Keep pressing into the floor while it rests, the way the Gravity component does. A tick
+        // that moves nothing reports no contact at all, so cancelling the fall outright left the
+        // body "not grounded" every other tick and threw away every second jump press.
+        vy = -GRAVITY * dt;
+        if input_pressed("jump") {
+            vy = JUMP_SPEED;
+        }
     }
     set_object_variable("vy", vy);
     move_with_collision(me, add_vector(step, [0.0, vy * dt, 0.0]));
