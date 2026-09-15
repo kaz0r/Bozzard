@@ -524,13 +524,7 @@ impl Editor {
         bozzard_demo::save_json(&graph.to_json()?, path)
     }
     pub fn refresh_audio_metadata(&mut self) -> Result<()> {
-        if self.play.is_none()
-            && self
-                .scene
-                .objects
-                .iter()
-                .any(|o| o.extras.contains_key("audio_source"))
-        {
+        if self.play.is_none() && !self.assets.audio_metadata_current(&self.scene)? {
             let mut scene = self.scene.clone();
             if self.assets.bake_audio_metadata(&mut scene)? > 0 {
                 self.apply("Refresh audio clip lengths", scene)?;

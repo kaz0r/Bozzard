@@ -11,6 +11,38 @@ fn scene(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../examples/demo/scenes/{name}.json"))
 }
 #[test]
+fn play_refreshes_audio_lengths_when_only_runtime_scenes_have_sources() -> anyhow::Result<()> {
+    use bozzard_scene::middleware::registry;
+    let document = bozzard_scene::Scene::from_json(
+        r#"{"version":1,"name":"Silent entry scene","views":{},"objects":[],
+        "assets":{"chime":{"kind":"audio","path":"assets/middleware-chime.wav"}},
+        "runtime_scenes":{"level":{"version":1,"name":"Audio level","views":{},
+        "assets":{"chime":{"kind":"audio","path":"assets/middleware-chime.wav"}},
+        "objects":[{"id":"sound","name":"Sound","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"audio_source":{"asset":"chime","duration":0.25}}]}}}"#,
+    )?;
+    let mut editor = Editor::new(document.clone(), &scene("audio-library-test"))?;
+    // A stale authored clip length can also arrive in a refreshed runtime scene template.
+    editor.apply("Replace runtime scene template", document.clone())?;
+    editor.start_play()?;
+    let level = &editor
+        .play
+        .as_ref()
+        .unwrap()
+        .instance()
+        .document()
+        .runtime_scenes["level"];
+    let source = registry::get::<audio::AudioSource>(&level.objects[0])?.unwrap();
+    assert!(
+        (source.duration - 1.).abs() < 1e-6,
+        "stale runtime-scene audio duration: {}",
+        source.duration
+    );
+    editor.stop_play();
+    editor.undo()?;
+    assert_eq!(editor.scene(), &document);
+    Ok(())
+}
+#[test]
 fn middleware_lab_runs_controls_events_animation_navigation_and_restore() -> anyhow::Result<()> {
     let mut editor = Editor::open(&scene("middleware-lab"))?;
     let authored = editor.scene().clone();

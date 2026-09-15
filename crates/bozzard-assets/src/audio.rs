@@ -82,34 +82,47 @@ pub(super) fn probe(path: &Path, progress: &super::job::Progress) -> Result<Audi
     })
 }
 
+fn updates(
+    store: &super::AssetStore,
+    scene: &bozzard_scene::Scene,
+) -> Result<Vec<(usize, bozzard_scene::middleware::audio::AudioSource)>> {
+    use bozzard_scene::middleware::{audio::AudioSource, registry};
+    let mut result = Vec::new();
+    for (index, object) in scene.objects.iter().enumerate() {
+        let Some(mut source) = registry::get::<AudioSource>(object)? else {
+            continue;
+        };
+        let Some(super::AssetData::Audio(data)) = store
+            .handle(&source.asset)
+            .and_then(|h| store.get(h))
+            .and_then(|e| e.data())
+        else {
+            continue;
+        };
+        if source.duration != data.duration {
+            source.duration = data.duration;
+            result.push((index, source));
+        }
+    }
+    Ok(result)
+}
+
 impl super::AssetStore {
+    /// Read-only preflight lets authoring hosts avoid cloning an unchanged scene for an undo command.
+    pub fn audio_metadata_current(&self, scene: &bozzard_scene::Scene) -> Result<bool> {
+        for document in
+            std::iter::once(scene).chain(scene.runtime_scenes.values().map(AsRef::as_ref))
+        {
+            if !updates(self, document)?.is_empty() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     /// Bake clip lengths into documents so device playback and headless completion events agree.
     /// The catalog must be loaded first. Only changed sources detach shared level documents.
     pub fn bake_audio_metadata(&self, scene: &mut bozzard_scene::Scene) -> Result<usize> {
-        use bozzard_scene::middleware::{audio::AudioSource, registry};
-        fn updates(
-            store: &super::AssetStore,
-            scene: &bozzard_scene::Scene,
-        ) -> Result<Vec<(usize, AudioSource)>> {
-            let mut result = Vec::new();
-            for (index, object) in scene.objects.iter().enumerate() {
-                let Some(mut source) = registry::get::<AudioSource>(object)? else {
-                    continue;
-                };
-                let Some(super::AssetData::Audio(data)) = store
-                    .handle(&source.asset)
-                    .and_then(|h| store.get(h))
-                    .and_then(|e| e.data())
-                else {
-                    continue;
-                };
-                if source.duration != data.duration {
-                    source.duration = data.duration;
-                    result.push((index, source));
-                }
-            }
-            Ok(result)
-        }
+        use bozzard_scene::middleware::registry;
         let mut count = 0;
         for (index, source) in updates(self, scene)? {
             registry::set(&mut scene.objects[index], &source)?;
