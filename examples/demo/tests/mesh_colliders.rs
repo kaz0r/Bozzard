@@ -8,6 +8,8 @@ fn scene() -> Scene {
     let mut scene = Scene::from_json(r#"{"version":1,"name":"Mesh collision","views":{},"objects":[{"id":"floor","name":"Floor","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},{"id":"body","name":"Body","transform":{"translation":[0,3,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}]}"#).unwrap();
     scene.objects[0].mesh_collider = Some(MeshCollider {
         enabled: true,
+        layers: 1,
+        mask: u32::MAX,
         mesh: TriangleMesh::new(vec![
             [[-5., 0., -5.], [5., 0., -5.], [5., 0., 5.]],
             [[-5., 0., -5.], [5., 0., 5.], [-5., 0., 5.]],

@@ -149,7 +149,14 @@ impl CollisionSnapshot {
         distance: f32,
         ignore: Option<&str>,
     ) -> Result<Option<QueryHit>> {
-        self.raycast_budget(origin, direction, distance, ignore, &mut 1_000_000)
+        self.raycast_budget(
+            origin,
+            direction,
+            distance,
+            ignore,
+            u32::MAX,
+            &mut 1_000_000,
+        )
     }
     pub fn overlap_box(
         &self,
@@ -158,7 +165,7 @@ impl CollisionSnapshot {
         ignore: Option<&str>,
         capacity: usize,
     ) -> Result<Vec<String>> {
-        self.overlap_box_budget(center, size, ignore, capacity, &mut 1_000_000)
+        self.overlap_box_budget(center, size, ignore, u32::MAX, capacity, &mut 1_000_000)
     }
     pub fn overlap_sphere(
         &self,
@@ -167,7 +174,7 @@ impl CollisionSnapshot {
         ignore: Option<&str>,
         capacity: usize,
     ) -> Result<Vec<String>> {
-        self.overlap_sphere_budget(center, radius, ignore, capacity, &mut 1_000_000)
+        self.overlap_sphere_budget(center, radius, ignore, u32::MAX, capacity, &mut 1_000_000)
     }
 
     pub(crate) fn raycast_budget(
@@ -176,6 +183,7 @@ impl CollisionSnapshot {
         direction: Vec3,
         distance: f32,
         ignore: Option<&str>,
+        mask: u32,
         budget: &mut usize,
     ) -> Result<Option<QueryHit>> {
         ensure!(
@@ -191,7 +199,7 @@ impl CollisionSnapshot {
         let mut best: Option<QueryHit> = None;
         for body in &self.boxes {
             charge(budget, 1)?;
-            if ignore == Some(body.id.as_str()) {
+            if ignore == Some(body.id.as_str()) || body.layers & mask == 0 {
                 continue;
             }
             if let Some((t, n)) = body.ray(
@@ -215,7 +223,7 @@ impl CollisionSnapshot {
         }
         for mesh in &self.meshes {
             charge(budget, 1)?;
-            if ignore == Some(mesh.id.as_str()) {
+            if ignore == Some(mesh.id.as_str()) || mesh.layers & mask == 0 {
                 continue;
             }
             let inverse = mesh.matrix.inverse();
@@ -254,6 +262,7 @@ impl CollisionSnapshot {
             center: center.to_array(),
             size: size.to_array(),
             enabled: true,
+            ..Default::default()
         };
         let (center, edges, corners) = collider.geometry(Mat4::IDENTITY)?;
         // The entity is never used for a query shape.
@@ -269,6 +278,8 @@ impl CollisionSnapshot {
             center,
             edges,
             corners,
+            layers: u32::MAX,
+            mask: u32::MAX,
         })
     }
     pub(crate) fn overlap_box_budget(
@@ -276,6 +287,7 @@ impl CollisionSnapshot {
         center: Vec3,
         size: Vec3,
         ignore: Option<&str>,
+        mask: u32,
         capacity: usize,
         budget: &mut usize,
     ) -> Result<Vec<String>> {
@@ -283,6 +295,7 @@ impl CollisionSnapshot {
             center: center.to_array(),
             size: size.to_array(),
             enabled: true,
+            ..Default::default()
         }
         .validate()?;
         if self.boxes.is_empty() && self.meshes.is_empty() {
@@ -292,7 +305,10 @@ impl CollisionSnapshot {
         let mut hits = Vec::new();
         for body in &self.boxes {
             charge(budget, 1)?;
-            if ignore != Some(body.id.as_str()) && body.intersects(&shape) {
+            if ignore != Some(body.id.as_str())
+                && body.layers & mask != 0
+                && body.intersects(&shape)
+            {
                 ensure!(
                     hits.len() < capacity,
                     "overlap result exceeds list capacity"
@@ -302,7 +318,10 @@ impl CollisionSnapshot {
         }
         for mesh in &self.meshes {
             charge(budget, 1)?;
-            if ignore != Some(mesh.id.as_str()) && mesh.overlap_budget(&shape, budget)? {
+            if ignore != Some(mesh.id.as_str())
+                && mesh.layers & mask != 0
+                && mesh.overlap_budget(&shape, budget)?
+            {
                 ensure!(
                     hits.len() < capacity,
                     "overlap result exceeds list capacity"
@@ -318,6 +337,7 @@ impl CollisionSnapshot {
         center: Vec3,
         radius: f32,
         ignore: Option<&str>,
+        mask: u32,
         capacity: usize,
         budget: &mut usize,
     ) -> Result<Vec<String>> {
@@ -335,7 +355,7 @@ impl CollisionSnapshot {
         let mut hits = Vec::new();
         for b in &self.boxes {
             charge(budget, 1)?;
-            if ignore != Some(b.id.as_str()) && b.sphere(center, radius) {
+            if ignore != Some(b.id.as_str()) && b.layers & mask != 0 && b.sphere(center, radius) {
                 ensure!(
                     hits.len() < capacity,
                     "overlap result exceeds list capacity"
@@ -344,7 +364,7 @@ impl CollisionSnapshot {
             }
         }
         for mesh in &self.meshes {
-            if ignore == Some(mesh.id.as_str()) {
+            if ignore == Some(mesh.id.as_str()) || mesh.layers & mask == 0 {
                 continue;
             }
             charge(
@@ -465,6 +485,8 @@ mod tests {
             name: "mesh".into(),
             mesh_collider: Some(MeshCollider {
                 enabled: true,
+                layers: DEFAULT_LAYERS,
+                mask: DEFAULT_MASK,
                 mesh: TriangleMesh::new(vec![[[-1., -1., 0.], [1., -1., 0.], [0., 1., 0.]]])
                     .unwrap(),
             }),
@@ -474,15 +496,15 @@ mod tests {
         let instance = scene.spawn(&mut world).unwrap();
         let q = instance.query_geometry(&world).unwrap();
         assert!(
-            q.overlap_sphere_budget(Vec3::ZERO, 1., None, 8, &mut 1)
+            q.overlap_sphere_budget(Vec3::ZERO, 1., None, u32::MAX, 8, &mut 1)
                 .is_err()
         );
         assert!(
-            q.overlap_box_budget(Vec3::ZERO, Vec3::ONE, None, 8, &mut 1)
+            q.overlap_box_budget(Vec3::ZERO, Vec3::ONE, None, u32::MAX, 8, &mut 1)
                 .is_err()
         );
         assert!(
-            q.raycast_budget(Vec3::Z, Vec3::NEG_Z, 2., None, &mut 1)
+            q.raycast_budget(Vec3::Z, Vec3::NEG_Z, 2., None, u32::MAX, &mut 1)
                 .is_err()
         );
     }

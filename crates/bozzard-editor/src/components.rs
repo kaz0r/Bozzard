@@ -95,6 +95,7 @@ impl Editor {
                 gravity: None,
                 player_controller: None,
                 trigger: None,
+                ..Default::default()
             });
             children.push(id);
         }

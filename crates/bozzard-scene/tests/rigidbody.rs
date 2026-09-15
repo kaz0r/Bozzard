@@ -25,6 +25,8 @@ fn dynamic_hulls_are_solid_for_box_queries_and_recover_contained_movers() {
     s.objects[0].collider = None;
     s.objects[0].mesh_collider = Some(MeshCollider {
         enabled: true,
+        layers: 1,
+        mask: u32::MAX,
         mesh: cube(),
     });
     s.objects[0].transform = Transform {
@@ -69,6 +71,8 @@ fn tilted_boxes_and_convex_meshes_topple_and_settle_without_penetrating() {
             scene.objects[0].collider = None;
             scene.objects[0].mesh_collider = Some(MeshCollider {
                 enabled: true,
+                layers: 1,
+                mask: u32::MAX,
                 mesh: cube(),
             });
         }
@@ -106,6 +110,8 @@ fn dynamic_mesh_hulls_are_shared_and_flat_meshes_are_rejected() {
     scene.objects[0].collider = None;
     scene.objects[0].mesh_collider = Some(MeshCollider {
         enabled: true,
+        layers: 1,
+        mask: u32::MAX,
         mesh: TriangleMesh::new(vec![[[0., 0., 0.], [1., 0., 0.], [0., 0., 1.]]]).unwrap(),
     });
     assert!(scene.validate().is_err());
@@ -143,6 +149,8 @@ fn prefab_removal_releases_solver_bodies_and_fresh_instances_do_not_inherit_velo
     body.collider = None;
     body.mesh_collider = Some(MeshCollider {
         enabled: true,
+        layers: 1,
+        mask: u32::MAX,
         mesh: cube(),
     });
     s.assets.insert(

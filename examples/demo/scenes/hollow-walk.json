@@ -285,6 +285,8 @@
       },
       "player_controller": {
         "camera": "camera",
+        "capsule_radius": 0.4,
+        "capsule_height": 1.2,
         "move_speed": 3.6,
         "jump_speed": 6.0,
         "camera_distance": 3.6,

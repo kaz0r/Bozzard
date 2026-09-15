@@ -228,6 +228,29 @@ fn widget(
                         });
                 });
             }
+            FieldKind::Flags { labels } => {
+                let mut bits = value.flags().unwrap_or_default();
+                let mut named = 0u32;
+                ui.label(field.label);
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 3.0;
+                    for (index, label) in labels.iter().enumerate() {
+                        let bit = 1u32 << index;
+                        named |= bit;
+                        let mut on = bits & bit != 0;
+                        if hover(ui.toggle_value(&mut on, *label)).changed() {
+                            bits = if on { bits | bit } else { bits & !bit };
+                            changed = true;
+                        }
+                    }
+                });
+                if bits & !named != 0 {
+                    ui.weak(format!("plus reserved bits {:#034b}", bits & !named));
+                }
+                if changed {
+                    *value = FieldValue::Flags(bits);
+                }
+            }
             FieldKind::Object { filter, activates } => {
                 let selected = value.object().unwrap_or_default().to_owned();
                 let label = scene

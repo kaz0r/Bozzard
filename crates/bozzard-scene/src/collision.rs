@@ -16,6 +16,11 @@ pub struct BoxCollider {
     /// Full local dimensions, independent of the rendered mesh.
     pub size: [f32; 3],
     pub enabled: bool,
+    /// Layers this collider belongs to. Bit 0 is the default layer; see [`LAYER_NAMES`].
+    pub layers: u32,
+    /// Layers this collider interacts with. Two colliders meet only when each one's `layers`
+    /// intersects the other's `mask`, so an exclusion on either side is enough.
+    pub mask: u32,
 }
 impl Default for BoxCollider {
     fn default() -> Self {
@@ -23,8 +28,32 @@ impl Default for BoxCollider {
             center: [0.0; 3],
             size: [1.0; 3],
             enabled: true,
+            layers: DEFAULT_LAYERS,
+            mask: DEFAULT_MASK,
         }
     }
+}
+
+/// The authored layer names. Bits without a name stay reserved and are preserved on save.
+pub const LAYER_NAMES: &[&str] = &[
+    "Default",
+    "Player",
+    "Environment",
+    "Gameplay",
+    "Projectile",
+    "Character",
+    "Sensor",
+    "Reserved 7",
+];
+/// A new collider belongs to the default layer.
+pub const DEFAULT_LAYERS: u32 = 1;
+/// A new collider interacts with every layer, so existing scenes keep their behaviour.
+pub const DEFAULT_MASK: u32 = u32::MAX;
+
+/// Collision filtering, shared by Rapier (`InteractionGroups`) and the CPU sweeps and queries.
+/// Two colliders meet only when each one's membership intersects the other's filter.
+pub fn layers_interact(a_layers: u32, a_mask: u32, b_layers: u32, b_mask: u32) -> bool {
+    a_layers & b_mask != 0 && b_layers & a_mask != 0
 }
 impl BoxCollider {
     pub fn validate(&self) -> Result<()> {
@@ -68,6 +97,9 @@ pub struct CollisionBox {
     pub entity: Entity,
     /// Bit-indexed corners: X=bit0, Y=bit1, Z=bit2. Bit set selects the positive extent.
     pub corners: [Vec3; 8],
+    /// Collision filtering, copied from the authored collider. A query shape uses all bits.
+    pub layers: u32,
+    pub mask: u32,
     pub(super) center: DVec3,
     pub(super) edges: [DVec3; 3],
 }
@@ -137,6 +169,8 @@ impl SceneInstance {
                     },
                     matrix: matrices[id],
                     solid: world.get::<Gravity>(entity).is_some_and(|g| g.enabled),
+                    layers: collider.layers,
+                    mask: collider.mask,
                 });
             }
             if let Some(collider) = world.get::<BoxCollider>(entity) {
@@ -151,6 +185,8 @@ impl SceneInstance {
                     center,
                     edges,
                     corners,
+                    layers: collider.layers,
+                    mask: collider.mask,
                 });
             }
         }
@@ -166,17 +202,45 @@ impl SceneInstance {
     ) -> Result<(CollisionSnapshot, BTreeMap<String, Mat4>)> {
         let (mut snapshot, matrices) = self.collision_geometry(world)?;
         broad_phase::overlaps(&snapshot.boxes, &mut snapshot.overlaps);
-        for a in &snapshot.boxes {
-            for b in &snapshot.meshes {
-                if b.intersects(a) {
-                    snapshot.overlaps.push(if a.id < b.id {
-                        (a.id.clone(), b.id.clone())
+        // Layers gate overlap reporting exactly as they gate the solver, so a gameplay volume on
+        // its own layer stops firing On Overlap/On Collision events against everything.
+        let layers: BTreeMap<_, _> = snapshot
+            .boxes
+            .iter()
+            .map(|b| (b.id.clone(), (b.layers, b.mask)))
+            .chain(
+                snapshot
+                    .meshes
+                    .iter()
+                    .map(|m| (m.id.clone(), (m.layers, m.mask))),
+            )
+            .collect();
+        let interact = |a: &str, b: &str| {
+            layers.get(a).zip(layers.get(b)).is_some_and(
+                |(&(a_layers, a_mask), &(b_layers, b_mask))| {
+                    layers_interact(a_layers, a_mask, b_layers, b_mask)
+                },
+            )
+        };
+        snapshot.overlaps.retain(|(a, b)| interact(a, b));
+        let extra: Vec<_> = snapshot
+            .boxes
+            .iter()
+            .flat_map(|a| {
+                snapshot.meshes.iter().filter_map(move |b| {
+                    if interact(&a.id, &b.id) && b.intersects(a) {
+                        Some(if a.id < b.id {
+                            (a.id.clone(), b.id.clone())
+                        } else {
+                            (b.id.clone(), a.id.clone())
+                        })
                     } else {
-                        (b.id.clone(), a.id.clone())
-                    });
-                }
-            }
-        }
+                        None
+                    }
+                })
+            })
+            .collect();
+        snapshot.overlaps.extend(extra);
         if let Some(physics) = world.resource::<crate::physics::Physics>() {
             snapshot.overlaps.extend(physics.contacts(world, &matrices));
         }

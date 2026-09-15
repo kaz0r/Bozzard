@@ -73,6 +73,7 @@ fn collider_json_spawns_and_capture_roundtrips_live_ecs_data() {
             center: [0.0; 3],
             size: [1.0; 3],
             enabled: true,
+            ..Default::default()
         }
     );
     let scene = collision_scene(
@@ -91,6 +92,7 @@ fn collider_json_spawns_and_capture_roundtrips_live_ecs_data() {
             center: [0.25, -0.5, 1.0],
             size: [2.0, 3.0, 4.0],
             enabled: true,
+            ..Default::default()
         })
     );
 

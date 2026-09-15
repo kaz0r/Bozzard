@@ -76,6 +76,8 @@ mod tests {
                 corners: [Vec3::ZERO; 8],
                 center,
                 edges,
+                layers: u32::MAX,
+                mask: u32::MAX,
             });
             // Exact and epsilon-separated face contacts exercise the SAT tolerance.
             boxes.push(CollisionBox {
@@ -84,6 +86,8 @@ mod tests {
                 corners: [Vec3::ZERO; 8],
                 center: center + edges[0] * (2. + 1e-6),
                 edges,
+                layers: u32::MAX,
+                mask: u32::MAX,
             });
         }
         // Degenerate and nearly parallel edges conservatively fall back or expand.
@@ -94,6 +98,8 @@ mod tests {
                 corners: [Vec3::ZERO; 8],
                 center: DVec3::ZERO,
                 edges: [DVec3::X, DVec3::new(1., epsilon, 0.), DVec3::Z],
+                layers: u32::MAX,
+                mask: u32::MAX,
             });
         }
         let mut expected = Vec::new();

@@ -310,6 +310,7 @@ impl Editor {
                 color: [0.25, 0.8, 0.7],
                 uv_scale: [1.0; 2],
             }),
+            ..Default::default()
         });
         self.expand_model_objects(&mut scene, &id)?;
         self.apply("Create object", scene)?;
@@ -352,6 +353,7 @@ impl Editor {
             gravity: None,
             player_controller: None,
             trigger: None,
+            joint: None,
         });
         self.finish_gesture();
         self.apply("Create light", scene)?;
@@ -633,6 +635,7 @@ impl Editor {
                 color: [1.0; 3],
                 uv_scale: [1.0; 2],
             }),
+            ..Default::default()
         });
         self.expand_model_objects(&mut scene, &id)?;
         self.finish_gesture();

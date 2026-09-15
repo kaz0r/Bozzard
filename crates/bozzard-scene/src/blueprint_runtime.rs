@@ -567,6 +567,11 @@ impl SceneInstance {
                             center,
                             edges,
                             corners,
+                            layers: collider.layers,
+                            mask: collider.mask,
+                        };
+                        let meets = |other_layers: u32, other_mask: u32| {
+                            layers_interact(volume.layers, volume.mask, other_layers, other_mask)
                         };
                         for body in &collisions.boxes {
                             ensure!(
@@ -574,7 +579,10 @@ impl SceneInstance {
                                 "blueprint overlap budget exceeded (1000000 tests/tick)"
                             );
                             overlap_budget -= 1;
-                            if body.id != object.id && volume.intersects(body) {
+                            if body.id != object.id
+                                && meets(body.layers, body.mask)
+                                && volume.intersects(body)
+                            {
                                 overlap.insert(body.id.clone());
                             }
                         }
@@ -584,7 +592,10 @@ impl SceneInstance {
                                 "blueprint overlap budget exceeded (1000000 tests/tick)"
                             );
                             overlap_budget -= 1;
-                            if mesh.id != object.id && mesh.intersects(&volume) {
+                            if mesh.id != object.id
+                                && meets(mesh.layers, mesh.mask)
+                                && mesh.intersects(&volume)
+                            {
                                 overlap.insert(mesh.id.clone());
                             }
                         }
@@ -981,6 +992,7 @@ impl SceneInstance {
                                     Vec3::from(inputs[1].vector()?),
                                     inputs[2].number()?,
                                     ignore,
+                                    u32::MAX,
                                     &mut runtime.query_budget,
                                 )?;
                                 match hit {
@@ -1011,6 +1023,7 @@ impl SceneInstance {
                                             delta,
                                             delta.length(),
                                             ignore,
+                                            u32::MAX,
                                             &mut runtime.query_budget,
                                         )?
                                         .is_none()
@@ -1027,6 +1040,7 @@ impl SceneInstance {
                                         origin,
                                         inputs[1].number()?,
                                         ignore,
+                                        u32::MAX,
                                         capacity,
                                         &mut runtime.query_budget,
                                     )?
@@ -1035,6 +1049,7 @@ impl SceneInstance {
                                         origin,
                                         Vec3::from(inputs[1].vector()?),
                                         ignore,
+                                        u32::MAX,
                                         capacity,
                                         &mut runtime.query_budget,
                                     )?
