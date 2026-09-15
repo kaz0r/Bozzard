@@ -270,11 +270,11 @@ impl PostProcess {
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.targets.as_ref().map(|t| &t.color)
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn draw(&self, encoder: &mut crate::profiling::Encoder) {
         let Some(targets) = &self.targets else {
             return;
         };
-        let pass = |encoder: &mut wgpu::CommandEncoder,
+        let pass = |encoder: &mut crate::profiling::Encoder,
                     target: &wgpu::TextureView,
                     pipeline: &wgpu::RenderPipeline,
                     binding: &wgpu::BindGroup| {

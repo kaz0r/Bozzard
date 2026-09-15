@@ -9,6 +9,7 @@ rust-version = "1.95"
 publish = false
 
 [workspace.dependencies]
+bozzard-diagnostics = { path = "crates/bozzard-diagnostics" }
 bozzard-text = { path = "crates/bozzard-text" }
 bozzard-assets = { path = "crates/bozzard-assets" }
 bozzard-audio = { path = "crates/bozzard-audio" }
@@ -28,7 +29,7 @@ serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 anyhow = "1.0"
 pollster = "0.4"
-wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "metal", "vulkan", "dx12", "wgsl"] }
+wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "metal", "vulkan", "dx12", "wgsl", "counters"] }
 winit = "0.30"
 
 [workspace.lints.rust]

@@ -31,10 +31,11 @@ pub mod checkpoint;
 
 impl crate::SceneInstance {
     pub fn step_middleware(&self, world: &mut crate::World, dt: f32) -> anyhow::Result<()> {
-        self.step_tweens(world, dt)?;
-        self.step_timelines(world, dt)?;
-        self.step_animations(world, dt)?;
-        self.step_navigation(world, dt)?;
-        self.step_sprites(world, dt)
+        use bozzard_diagnostics::measure;
+        measure(world, "Tweens", |world| self.step_tweens(world, dt))?;
+        measure(world, "Timelines", |world| self.step_timelines(world, dt))?;
+        measure(world, "Animation", |world| self.step_animations(world, dt))?;
+        measure(world, "Navigation", |world| self.step_navigation(world, dt))?;
+        measure(world, "Sprites", |world| self.step_sprites(world, dt))
     }
 }

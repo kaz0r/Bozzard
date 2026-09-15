@@ -156,3 +156,7 @@ graph or spawned by a script — including a script it carries into the scene fr
 1 MiB per script source, 1024 compiled scripts per scene, 2,000,000 interpreter operations per hook
 call (a runaway loop fails the tick instead of hanging), 32 call levels, 1024 results per overlap
 query, 16 attachments per object, 64 kept `print` lines, and 32 MiB of script source per scene.
+
+## Debug console
+
+`print(message)` and `log_info(message)` write informational messages to **Debug → Console**. `log_warning(message)` and `log_error(message)` set their corresponding severity. The console retains the object source; runtime failures also include the script asset and attachment. Logging an error does not throw. See [debugging](debugging.md).

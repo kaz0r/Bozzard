@@ -560,3 +560,77 @@ fn a_scene_assigns_its_own_buttons_instead_of_the_fixed_seven() {
     assert_eq!(transform(&demo).translation[1], 2.);
     assert!((transform(&demo).translation[2] - 4.).abs() < 0.001);
 }
+
+#[test]
+fn diagnostics_identify_log_severity_graph_node_and_runtime_failure() {
+    use bozzard_diagnostics::{Diagnostics, Level};
+    let graphs = vec![
+        action(K::Start, K::LogInfo, Value::Text("Door ready".into())),
+        action(K::Start, K::LogWarning, Value::Text("Door blocked".into())),
+        action(K::Start, K::LogError, Value::Text("Door failed".into())),
+        action(
+            K::Start,
+            K::SetText,
+            Value::Text("No text component".into()),
+        ),
+    ];
+    let document = scene(graphs);
+    let mut demo = SceneDemo::new(&document).unwrap();
+    let diagnostics = demo.app.world.resource_mut::<Diagnostics>().unwrap();
+    diagnostics.profiler.recording = true;
+    diagnostics.profiler.begin_frame();
+    demo.app.step();
+    assert!(demo.check_simulation().is_err());
+    let diagnostics = demo.app.world.resource::<Diagnostics>().unwrap();
+    assert_eq!(diagnostics.console.events.len(), 4);
+    for (i, event) in diagnostics.console.events.iter().enumerate() {
+        assert_eq!(event.source, "Blueprint");
+        assert_eq!(event.location.object.as_deref(), Some("owner"));
+        assert_eq!(event.location.attachment, Some(i));
+        assert_eq!(event.location.node, Some(2));
+        assert!(event.tick.is_some());
+    }
+    assert_eq!(diagnostics.console.events[0].level, Level::Info);
+    assert_eq!(diagnostics.console.events[1].level, Level::Warning);
+    assert_eq!(diagnostics.console.events[2].level, Level::Error);
+    assert_eq!(diagnostics.console.events[3].level, Level::Error);
+    let names: Vec<_> = diagnostics.profiler.spans.iter().map(|s| s.name).collect();
+    for name in [
+        "Fixed tick",
+        "Physics",
+        "Blueprints",
+        "Animation",
+        "Navigation",
+    ] {
+        assert!(names.contains(&name), "missing {name} in {names:?}");
+    }
+    assert_eq!(demo.instance().document(), &document);
+}
+
+#[test]
+fn debug_lab_keys_log_and_fail_with_the_intended_source() {
+    use bozzard_diagnostics::{Diagnostics, Level};
+    let scene = Scene::from_json(include_str!("../scenes/debug-lab.json")).unwrap();
+    let mut demo = SceneDemo::new(&scene).unwrap();
+    demo.app.step();
+    for key in ["L", "W", "E"] {
+        demo.set_gameplay_input(GameplayInput {
+            keys: keys::bit(key),
+            ..Default::default()
+        });
+        demo.app.step();
+    }
+    assert!(demo.check_simulation().is_err());
+    let events = &demo
+        .app
+        .world
+        .resource::<Diagnostics>()
+        .unwrap()
+        .console
+        .events;
+    assert_eq!(events.len(), 4);
+    assert_eq!(events[1].message, "The hero says hello.");
+    assert_eq!(events[2].level, Level::Warning);
+    assert_eq!(events[3].location.attachment, Some(5));
+    assert_eq!(events[3].location.node, Some(2));
+}

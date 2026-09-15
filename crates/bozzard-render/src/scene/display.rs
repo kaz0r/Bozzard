@@ -295,7 +295,7 @@ impl Display {
     }
     pub fn draw(
         &self,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut crate::profiling::Encoder,
         target: &wgpu::TextureView,
         shadows: Option<&wgpu::BindGroup>,
         environment: Option<&wgpu::BindGroup>,
@@ -430,7 +430,8 @@ mod tests {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
                 view_formats: &[],
             });
-            let mut encoder = gpu.device.create_command_encoder(&Default::default());
+            let mut profiler = crate::profiling::GpuProfiler::default();
+            let mut encoder = profiler.encoder(&gpu);
             {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -453,7 +454,7 @@ mod tests {
                 None,
                 None,
             );
-            gpu.queue.submit([encoder.finish()]);
+            profiler.submit(&gpu, encoder);
             crate::read_texture(&gpu, &output, size[0], size[1])
         };
         let unorm = wgpu::TextureFormat::Rgba8Unorm;

@@ -239,6 +239,7 @@ impl Skinning {
         gpu: &Gpu,
         scene: &RenderScene,
         models: &BTreeMap<String, Vec<UploadedPart>>,
+        encoder: &mut crate::profiling::Encoder,
     ) -> Result<()> {
         let mut active: BTreeMap<String, BTreeSet<u64>> = BTreeMap::new();
         if scene.skin_poses.is_empty() {
@@ -246,12 +247,6 @@ impl Skinning {
             return Ok(());
         }
         self.pipeline(gpu);
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("skin poses"),
-            });
-        let mut work = false;
         for item in &scene.items {
             let Some(pose) = scene.skin_poses.get(&item.motion_id) else {
                 continue;
@@ -308,7 +303,6 @@ impl Skinning {
                         size,
                     );
                     instance.moved = false;
-                    work = true;
                 }
                 continue;
             }
@@ -375,7 +369,6 @@ impl Skinning {
             instance.revision = self.revision;
             instance.snapshot = Some(pose.clone());
             instance.moved = !first;
-            work = true;
         }
         self.instances.retain(|asset, instances| {
             let Some(ids) = active.get(asset) else {
@@ -384,10 +377,14 @@ impl Skinning {
             instances.retain(|id, _| ids.contains(id));
             !instances.is_empty()
         });
-        if work {
-            gpu.queue.submit([encoder.finish()]);
-        }
         Ok(())
+    }
+    pub fn invalidate(&mut self) {
+        for instances in self.instances.values_mut() {
+            for instance in instances.values_mut() {
+                instance.snapshot = None;
+            }
+        }
     }
     fn get(&self, item: &DrawItem) -> Option<(&Instance, usize)> {
         let MeshKind::ModelPart(asset, index) = &item.mesh else {

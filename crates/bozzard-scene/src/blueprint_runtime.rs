@@ -63,6 +63,10 @@ struct Timer {
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct Run {
     #[serde(skip)]
+    attachment: usize,
+    #[serde(skip)]
+    last_node: Option<u32>,
+    #[serde(skip)]
     program: Option<Arc<Program>>,
     started: bool,
     enabled: bool,
@@ -709,6 +713,7 @@ impl SceneInstance {
                     runtime.stats.compiled_graphs += 1;
                     run.program = Some(Arc::new(Program::new(&attachment.graph)));
                 }
+                run.attachment = index;
             }
         }
     }
@@ -884,6 +889,7 @@ impl SceneInstance {
                 for (index, enabled) in attachments.into_iter().enumerate() {
                     let key = (owner.clone(), index);
                     let mut run = runtime.runs.remove(&key).unwrap();
+                    run.last_node = None;
                     let program = run.program.clone().unwrap();
                     let step =
                         (|| -> Result<()> {
@@ -1053,6 +1059,21 @@ impl SceneInstance {
                             }
                             Ok(())
                         })();
+                    if let Err(error) = &step {
+                        bozzard_diagnostics::log(
+                            world,
+                            bozzard_diagnostics::Level::Error,
+                            "Blueprint",
+                            &format!("{error:#}"),
+                            bozzard_diagnostics::Location {
+                                object: Some(owner.clone()),
+                                attachment: Some(index),
+                                node: run.last_node,
+                                asset: None,
+                                ..Default::default()
+                            },
+                        );
+                    }
                     runtime.runs.insert(key, run);
                     step?;
                 }
@@ -1143,6 +1164,7 @@ impl SceneInstance {
                 *budget -= 1;
                 runtime.stats.actions += 1;
                 let node = program.node(id)?;
+                run.last_node = Some(id);
                 let mut eval = Eval {
                     program,
                     board: &run.board,
@@ -1676,13 +1698,31 @@ impl SceneInstance {
                             requested: Some(false),
                         });
                     }
-                    K::Print => {
-                        runtime.messages.push_back(format!(
-                            "{} / {}: {}",
-                            owner,
-                            program.graph.name,
-                            value.number()?
-                        ));
+                    K::Print | K::LogInfo | K::LogWarning | K::LogError => {
+                        use bozzard_diagnostics::Level;
+                        let message = if node.kind == K::Print {
+                            format!("{} / {}: {}", owner, program.graph.name, value.number()?)
+                        } else {
+                            value.text()?.to_owned()
+                        };
+                        bozzard_diagnostics::log(
+                            world,
+                            match node.kind {
+                                K::LogWarning => Level::Warning,
+                                K::LogError => Level::Error,
+                                _ => Level::Info,
+                            },
+                            "Blueprint",
+                            &message,
+                            bozzard_diagnostics::Location {
+                                object: Some(owner.into()),
+                                attachment: Some(run.attachment),
+                                node: Some(id),
+                                asset: None,
+                                ..Default::default()
+                            },
+                        );
+                        runtime.messages.push_back(message);
                         while runtime.messages.len() > 64 {
                             runtime.messages.pop_front();
                         }

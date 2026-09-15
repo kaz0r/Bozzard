@@ -427,7 +427,7 @@ impl Simulation {
     pub fn submitted(&mut self) {
         self.needs_submission = false;
     }
-    pub fn encode(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn encode(&self, encoder: &mut crate::profiling::Encoder) {
         if !self.dirty {
             return;
         }

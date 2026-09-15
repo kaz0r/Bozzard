@@ -258,7 +258,7 @@ impl Dof {
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.targets.as_ref().map(|t| &t.color)
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn draw(&self, encoder: &mut crate::profiling::Encoder) {
         let Some(t) = &self.targets else {
             return;
         };

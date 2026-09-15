@@ -535,6 +535,7 @@ dependencies = [
 name = "bozzard-app"
 version = "0.1.0"
 dependencies = [
+ "bozzard-diagnostics",
  "bozzard-ecs",
 ]
 
@@ -571,9 +572,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bozzard-app",
+ "bozzard-diagnostics",
  "bozzard-scene",
  "glam 0.33.6",
  "serde_json",
+]
+
+[[package]]
+name = "bozzard-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "bozzard-ecs",
+ "serde",
 ]
 
 [[package]]
@@ -604,6 +614,7 @@ dependencies = [
  "bozzard-assets",
  "bozzard-audio",
  "bozzard-demo",
+ "bozzard-diagnostics",
  "bozzard-editor",
  "bozzard-project",
  "bozzard-render",
@@ -659,6 +670,7 @@ dependencies = [
  "epaint",
  "glam 0.33.6",
  "pollster 0.4.0",
+ "serde",
  "wgpu",
 ]
 
@@ -680,6 +692,7 @@ name = "bozzard-scene"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bozzard-diagnostics",
  "bozzard-ecs",
  "bozzard-text",
  "glam 0.33.6",

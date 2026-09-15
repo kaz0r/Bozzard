@@ -179,7 +179,7 @@ impl ShadowMaps {
     pub fn draw(
         &self,
         renderer: &SceneRenderer,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut crate::profiling::Encoder,
         draws: &[PreparedDraw],
         pipeline: &wgpu::RenderPipeline,
         changes: &[Option<Vec<shadows::ShadowCaster>>],

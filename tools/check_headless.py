@@ -6,7 +6,7 @@ output = subprocess.check_output(
     ["cargo", "tree", "--locked", "--offline", "-p", "bozzard-server", "--edges", "normal", "--prefix", "none", "--format", "{p}"],
     text=True,
 )
-allowed = {"bozzard-server", "bozzard-demo", "bozzard-app", "bozzard-ecs", "bozzard-scene",
+allowed = {"bozzard-server", "bozzard-demo", "bozzard-app", "bozzard-ecs", "bozzard-scene", "bozzard-diagnostics",
            "anyhow", "glam", "serde", "serde_core", "serde_derive", "serde_json",
            "itoa", "memchr", "zmij", "proc-macro2", "quote", "syn", "unicode-ident"}
 # Reviewed Rapier/Parry CPU physics, math, collections and derive dependencies. No importers or presentation.
