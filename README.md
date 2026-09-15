@@ -171,6 +171,12 @@ Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/pressure-pl
 
 Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/shader-node-lab.json`: select **Pulse Cube**, open **Shader**, and watch its emissive glow breathe on the Scene tab. The **Fade Cube**'s graph cuts its checker texture out via Alpha. See [the node catalog, master-channel semantics, and current limits](docs/shader-editor.md).
 
+## Gameplay Scripts
+
+Prefer code? Add a **Script Manager** component and attach `.rs` files (Rhai) instead of graphs. Scripts call the same engine actions the blueprint nodes call — transforms, rigidbodies, spawning, cursor capture, spatial queries, scene control — through hooks such as `on_start`, `on_update(dt)`, `on_object_enter` and `on_collision_enter`, and they read and write the *same* object and scene blackboards a graph does, so the two paths can drive one piece of state together. Scripts are scene-catalog assets like prefabs, so they travel with the project and pack into exports.
+
+Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/script-lab.json`: a spinning cube, an orbiter that keeps its phase in a scene variable, a lamp faded with `sin`, a gate volume that counts what passes through it, a bouncing rigidbody, and a blueprint graph on the HUD line reading the same scene variable the scripts write. See [the hook list, function reference and runtime semantics](docs/scripting.md).
+
 ## Prefabs
 
 The prefab authoring workflow saves a selected hierarchy as a linked JSON asset, places linked instances, and supports component-level overrides with refresh, apply, and unpack operations. See the [prefab workflow and current limits](docs/prefabs.md).

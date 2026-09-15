@@ -1,6 +1,6 @@
 # Gameplay Blueprints
 
-Blueprints are the primary gameplay authoring path: typed, validated graphs run unchanged in editor Play, the native player, and the headless server. The six pin types are **Exec, Text, Number, Bool, Vector, and Object**. Shared blackboards and bounded typed lists let multiple graphs cooperate. Existing scenes with legacy components and private number variables remain compatible. See [authoring depth, scene control, and checkpoint semantics](blueprint-depth.md).
+Blueprints are the engine's no-code gameplay authoring path, and [gameplay scripts](scripting.md) are the coding one: both drive the same engine actions and share the same object and scene blackboards, so a scene may mix them. Blueprints are: typed, validated graphs run unchanged in editor Play, the native player, and the headless server. The six pin types are **Exec, Text, Number, Bool, Vector, and Object**. Shared blackboards and bounded typed lists let multiple graphs cooperate. Existing scenes with legacy components and private number variables remain compatible. See [authoring depth, scene control, and checkpoint semantics](blueprint-depth.md).
 
 ```sh
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/blueprint-lab.json
