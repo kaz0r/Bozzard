@@ -624,3 +624,38 @@ fn retrying_after_a_win_replays_the_run_with_its_scripts_intact() {
         "the projectile, the cube's script and the win counter must all work after Retry"
     );
 }
+
+/// The reported bug: jumping from a standstill needed the spacebar spammed, because a press landing
+/// on the wrong tick was dropped. The old script cancelled the fall while it rested, so a standstill
+/// tick moved nothing, reported no floor contact, and `is_grounded` was false every other tick.
+#[test]
+fn a_jump_from_a_standstill_works_on_every_tick() {
+    let mut demo = demo();
+    run(&mut demo, 60, GameplayInput::default());
+    let ground = position(&demo, "player");
+    // Press on each of two consecutive ticks: both are a plain standstill tick, so both must jump.
+    for waited in [0, 1] {
+        run(&mut demo, waited, GameplayInput::default());
+        tick(
+            &mut demo,
+            GameplayInput {
+                jump: true,
+                ..Default::default()
+            },
+        );
+        let mut peak = ground[1];
+        for _ in 0..90 {
+            tick(&mut demo, GameplayInput::default());
+            peak = peak.max(position(&demo, "player")[1]);
+        }
+        assert!(
+            (peak - ground[1] - 1.8).abs() < 0.1,
+            "a jump pressed after {waited} waiting ticks must rise 1.83 units, got {}",
+            peak - ground[1]
+        );
+        assert!(
+            (position(&demo, "player")[1] - ground[1]).abs() < 0.01,
+            "the jump must land"
+        );
+    }
+}

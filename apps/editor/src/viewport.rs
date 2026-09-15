@@ -730,14 +730,15 @@ impl App {
             });
         }
         let aspect = size[0] as f32 / size[1] as f32;
+        let layer = self.layer();
         let mut scene = if self.editor.play.is_none() {
-            if let Some(preview) = &self.effects_preview {
-                preview.render(&self.editor, self.layer(), aspect)?
+            if let Some(preview) = &mut self.effects_preview {
+                preview.render(&self.editor, layer, aspect)?
             } else {
-                self.editor.render(self.layer(), aspect)?
+                self.editor.render(layer, aspect)?
             }
         } else {
-            self.editor.render(self.layer(), aspect)?
+            self.editor.render(layer, aspect)?
         };
         if let Some(play) = &self.editor.play
             && let (Some(settings), Some(session)) =

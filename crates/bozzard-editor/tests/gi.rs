@@ -184,7 +184,7 @@ fn freshness_tracks_public_asset_reload_and_preview_revision() -> anyhow::Result
     )?));
     scene.gi.enabled = true;
     e.apply("GI fixture", scene)?;
-    let preview = bozzard_editor::EffectsPreview::new(&e)?;
+    let mut preview = bozzard_editor::EffectsPreview::new(&e)?;
     for _ in 0..2 {
         assert!(e.gi_current());
         assert!(e.render(Layer::ThreeD, 1.)?.gi.is_some());
