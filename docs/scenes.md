@@ -56,9 +56,10 @@ colour, UV repeat), single-line and body text, option lists, imported textures a
 object references with an optional eligibility filter, and asset references. A field can hide behind
 another field's value — while a screen HUD is off, or while a factor inherits its source material —
 and a tag change can carry values across variants (switching a camera between orthographic and
-perspective keeps near/far). Only `Trigger`, `Blueprint` and `Shader Graph` stay hand-written: their
-sections hold a node graph, an attachment list, or an action whose safe default comes from the rest
-of the scene, which a field list has no context for. Text Rendering, Mesh Renderer, Material, Mesh
+perspective keeps near/far). Only `Blueprint` and `Shader Graph` stay hand-written, because their
+sections hold a node graph and an attachment list. A trigger is field-driven like the rest; the one
+thing a field cannot do is *derive* its checkpoint's safe respawn point from the rest of the scene,
+so that is a small hook next to the fields rather than a second copy of the whole section. Text Rendering, Mesh Renderer, Material, Mesh
 Collider, Light, Camera, Spin, Rigidbody, Box Collider, Player Controller and Particle Emitter are
 all field-driven.
 

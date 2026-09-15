@@ -119,36 +119,11 @@ impl App {
                                 }
                             });
                         }
-                        if object.trigger.is_some() {
-                        component_section(ui, "TRIGGER", &mut remove, |ui| {
-                        let mut trigger = object.trigger.is_some();
-                        if ui.checkbox(&mut trigger, "Trigger volume").changed() {
-                            object.trigger = trigger.then(bozzard_scene::Trigger::default);
-                            if trigger { object.collider = None; object.gravity = None; object.player_controller = None; }
-                        }
-                        if let Some(trigger) = &mut object.trigger {
-                            ui.checkbox(&mut trigger.volume.enabled, "Trigger enabled");
-                            vector(ui, "Trigger center", &mut trigger.volume.center, 0.05);
-                            positive_vector(ui, "Trigger size", &mut trigger.volume.size, 0.05);
-                            use bozzard_scene::TriggerAction;
-                            egui::ComboBox::from_id_salt("trigger-action")
-                                .selected_text(match trigger.action { TriggerAction::Sensor => "Sensor (Blueprints)", TriggerAction::Collectible => "Collectible", TriggerAction::Checkpoint { .. } => "Checkpoint", TriggerAction::Goal => "Goal" })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut trigger.action, TriggerAction::Sensor, "Sensor (Blueprints)");
-                                    ui.selectable_value(&mut trigger.action, TriggerAction::Collectible, "Collectible");
-                                    let checkpoint = checkpoint_action(&trigger.action, checkpoint_start);
-                                    ui.selectable_value(&mut trigger.action, checkpoint, "Checkpoint");
-                                    ui.selectable_value(&mut trigger.action, TriggerAction::Goal, "Goal (all collectibles)");
-                                });
-                            if let TriggerAction::Checkpoint { respawn } = &mut trigger.action {
-                                vector(ui, "Respawn (world)", respawn, 0.1);
-                                ui.weak("Place above a safe floor, clear of solids and above Fall Y.");
-                            }
-                            ui.weak("Non-solid box. Collectibles hide once per run; progress survives falls, resets on Stop / Play or player R.");
-                        }
-                        });
-                        ui.separator();
-                        }
+                        // Selecting Checkpoint in the generic Action field must not leave a
+                        // placeholder point behind: the scene-derived safe start fills in, as the
+                        // hand-written combo used to do. `component_ui`'s trigger hook offers it
+                        // again for a checkpoint that already exists.
+                        fill_checkpoint_respawn(&original, &mut object, checkpoint_start);
                         // Components another build wrote. They are preserved verbatim, so the
                         // honest thing is to show them rather than pretend the object is empty.
                         for name in object.extras.keys().cloned().collect::<Vec<_>>() {
@@ -556,20 +531,6 @@ pub(super) fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed
         });
     });
 }
-fn positive_vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3], speed: f64) {
-    ui.label(label);
-    ui.horizontal(|ui| {
-        for (index, v) in value.iter_mut().enumerate() {
-            ui.add(
-                egui::DragValue::new(v)
-                    .speed(speed)
-                    .prefix(["X ", "Y ", "Z "][index])
-                    .range(0.0001..=f32::MAX)
-                    .max_decimals(3),
-            );
-        }
-    });
-}
 
 // Both camera widgets publish the active view and controller reference in one transaction.
 fn synchronize_follow_camera(scene: &mut bozzard_scene::Scene) {
@@ -582,19 +543,30 @@ fn synchronize_follow_camera(scene: &mut bozzard_scene::Scene) {
     }
 }
 
-fn checkpoint_action(
-    current: &bozzard_scene::TriggerAction,
-    start: [f32; 3],
-) -> bozzard_scene::TriggerAction {
+/// Selecting Checkpoint must never leave a placeholder respawn: when the generic Action field
+/// turns a trigger into a checkpoint, the scene-derived safe start fills in.
+fn fill_checkpoint_respawn(
+    before: &bozzard_scene::Object,
+    object: &mut bozzard_scene::Object,
+    safe: [f32; 3],
+) {
     use bozzard_scene::TriggerAction;
-    match current {
-        TriggerAction::Checkpoint { .. } => current.clone(),
-        _ => TriggerAction::Checkpoint { respawn: start },
+    let was_checkpoint = before
+        .trigger
+        .as_ref()
+        .is_some_and(|trigger| matches!(trigger.action, TriggerAction::Checkpoint { .. }));
+    let Some(trigger) = &mut object.trigger else {
+        return;
+    };
+    if !was_checkpoint && matches!(trigger.action, TriggerAction::Checkpoint { .. }) {
+        trigger.action = TriggerAction::Checkpoint { respawn: safe };
     }
 }
 
-// Called on the validated authored document, never a partially edited inspector draft.
-fn checkpoint_respawn(scene: &bozzard_scene::Scene, marker: &bozzard_scene::Object) -> [f32; 3] {
+pub(crate) fn checkpoint_respawn(
+    scene: &bozzard_scene::Scene,
+    marker: &bozzard_scene::Object,
+) -> [f32; 3] {
     if let Some(player) = scene.objects.iter().find(|o| o.player_controller.is_some()) {
         return player.transform.translation; // Validated controllers are roots with safe starts.
     }
@@ -821,22 +793,33 @@ mod tests {
     }
 
     #[test]
-    fn existing_checkpoint_respawn_is_preserved_when_building_choices() {
+    fn a_new_checkpoint_takes_the_safe_start_instead_of_a_placeholder() {
         let editor = editor();
         let marker = editor
             .scene()
             .objects
             .iter()
             .find(|o| o.id == "checkpoint")
-            .unwrap();
-        let current = &marker.trigger.as_ref().unwrap().action;
-        let start = checkpoint_respawn(editor.scene(), marker);
-        assert_ne!(*current, TriggerAction::Checkpoint { respawn: start });
-        assert_eq!(checkpoint_action(current, start), *current);
+            .unwrap()
+            .clone();
+        let safe = checkpoint_respawn(editor.scene(), &marker);
+        let authored = marker.trigger.as_ref().unwrap().action.clone();
+        assert_ne!(authored, TriggerAction::Checkpoint { respawn: safe });
+
+        let mut before = marker.clone();
+        before.trigger.as_mut().unwrap().action = TriggerAction::Goal;
+        let mut object = before.clone();
+        object.trigger.as_mut().unwrap().action = TriggerAction::Checkpoint { respawn: [0.0; 3] };
+        fill_checkpoint_respawn(&before, &mut object, safe);
         assert_eq!(
-            checkpoint_action(&TriggerAction::Goal, start),
-            TriggerAction::Checkpoint { respawn: start }
+            object.trigger.as_ref().unwrap().action,
+            TriggerAction::Checkpoint { respawn: safe }
         );
+
+        // An existing checkpoint keeps the point the author placed.
+        let mut kept = marker.clone();
+        fill_checkpoint_respawn(&marker, &mut kept, safe);
+        assert_eq!(kept.trigger.as_ref().unwrap().action, authored);
     }
 
     #[test]
@@ -867,7 +850,7 @@ mod tests {
             .trigger
             .as_mut()
             .unwrap()
-            .action = checkpoint_action(&TriggerAction::Goal, respawn);
+            .action = TriggerAction::Checkpoint { respawn };
         editor.apply("Checkpoint", scene.clone()).unwrap();
         editor.undo().unwrap();
         assert_eq!(editor.scene(), &original);

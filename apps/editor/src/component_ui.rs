@@ -434,6 +434,31 @@ fn extras(
                 changed = true;
             }
         }
+        "trigger" => {
+            let Some(trigger) = &object.trigger else {
+                return Ok(false);
+            };
+            let checkpoint = matches!(
+                trigger.action,
+                bozzard_scene::TriggerAction::Checkpoint { .. }
+            );
+            if checkpoint
+                && ui
+                    .small_button("Use the safe respawn")
+                    .on_hover_text(
+                        "The player start, or this object's world position when the scene has no \
+                         player. Place the trigger above a safe floor, clear of solids and above \
+                         Fall Y.",
+                    )
+                    .clicked()
+            {
+                let safe = crate::inspector::checkpoint_respawn(scene, object);
+                if let Some(trigger) = &mut object.trigger {
+                    trigger.action = bozzard_scene::TriggerAction::Checkpoint { respawn: safe };
+                }
+                changed = true;
+            }
+        }
         "camera" => {
             let Some(camera) = &object.camera else {
                 return Ok(false);
@@ -466,7 +491,6 @@ fn extras(
         }
         _ => {}
     }
-    let _ = scene;
     Ok(changed)
 }
 
@@ -530,5 +554,36 @@ mod tests {
             "every generic component is either drawn or reported as skipped"
         );
         assert!(drawn >= 9, "only {drawn} component sections drew");
+
+        // The loop reaches a Trigger's default Sensor action, so the Checkpoint fields and the
+        // safe-respawn hook need their own draw.
+        let mut checkpoint = scene
+            .objects
+            .iter()
+            .find(|object| {
+                object.trigger.as_ref().is_some_and(|trigger| {
+                    matches!(
+                        trigger.action,
+                        bozzard_scene::TriggerAction::Checkpoint { .. }
+                    )
+                })
+            })
+            .cloned()
+            .expect("first-trail authors a checkpoint");
+        let trigger = bozzard_scene::component_type("trigger").expect("trigger row");
+        let mut views = Default::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            let changed = fields(
+                ui,
+                &mut checkpoint,
+                trigger,
+                &scene,
+                &editor.assets,
+                &mut views,
+            )
+            .unwrap_or_else(|error| panic!("Trigger: {error}"));
+            assert!(!changed, "Trigger changed with no input");
+        });
+        output.textures_delta.clear();
     }
 }
