@@ -18,6 +18,8 @@ cargo run -p bozzard-player -- --scene examples/demo/scenes/ui-2d-lab.json --vie
 
 The 3D lab has a skinned banner, an animation-event chime, a separate root-motion clip, a cube with translation/rotation/color/roughness curves, a patrol agent, smoke and sparks with lifetime curves, and a cinematic camera-cut timeline. The side panel's sliders and buttons run ordinary Blueprint graphs. Change the blend, SFX volume, streamed MP3 playback, text size, language or contrast. Scroll the panel or use **Tab / Shift-Tab** to reach controls; **Enter / Space** activates and arrow keys adjust a slider.
 
+The native player keeps the mouse pointer visible and free while enabled UI controls or scroll areas are visible. Decorative HUD labels do not change mouse capture. A **Lock Cursor** Blueprint node can explicitly enable mouse-look during gameplay; **Unlock Cursor** releases it. Game Flow start, pause and game-over menus always release the pointer.
+
 The 2D lab contains a four-frame courier atlas, solid tilemaps, a nine-slice panel, English/Swedish strings and editable start/pause/retry menus. **Escape** pauses; **Enter** resumes. Select the corresponding objects after stopping Play to inspect their components, clip events, layouts and Blueprints. Changes are undoable; Play uses a separate world.
 
 The sample assets are original test content: a two-joint glTF, a one-second chime in four formats, and small procedural pixel images. Rebuild scenes with `cargo run -p bozzard-editor --example middleware_scenes`; rebuild images with `python3 tools/generate_middleware_art.py`.

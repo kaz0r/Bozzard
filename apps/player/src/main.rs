@@ -171,6 +171,8 @@ struct View {
     config: wgpu::SurfaceConfiguration,
     renderer: SceneRenderer,
     drawable: bool,
+    /// Reuse the rendered layout's decision instead of laying out UI for every mouse event.
+    ui_wants_pointer: bool,
     surface_status: &'static str,
 }
 
@@ -212,6 +214,8 @@ impl View {
             config,
             renderer,
             drawable: size.width > 0 && size.height > 0,
+            // Keep the pointer free until the first visible frame establishes the UI policy.
+            ui_wants_pointer: true,
             surface_status: "awaiting first redraw",
         })
     }
@@ -272,6 +276,7 @@ impl View {
                 self.config.height as f32 / scale,
             ],
         )?;
+        self.ui_wants_pointer = ui.wants_pointer();
         self.accessibility
             .update(&ui, &demo.instance().document().name, scale);
         scene
@@ -306,19 +311,22 @@ struct CursorCaptureState {
     gameplay: bool,
     /// The simulation is actually running: Game Flow menus, pause and game over are not.
     running: bool,
-    /// Lock/Unlock Cursor request; None keeps the app policy (capture while playing).
+    /// Visible, enabled UI controls need the pointer even while gameplay is running.
+    ui_wants_pointer: bool,
+    /// Lock/Unlock Cursor request; None captures gameplay only when no UI needs the pointer.
     requested: Option<bool>,
 }
 
-/// Capture only while the game plays. A scene may opt out with Unlock Cursor, but nothing may
-/// hold the pointer on a menu: the run menu, pause overlay and win screen are clicked with it.
+/// Capture only while the game plays. Interactive UI keeps the default pointer free;
+/// scenes can explicitly request mouse-look with Lock Cursor while playing.
+/// Run, pause and game-over menus always release it, even with an explicit request.
 fn cursor_capture_wanted(state: CursorCaptureState) -> bool {
     state.gameplay
         && state.running
         && state.focused
         && !state.paused
         && state.layer == Layer::ThreeD
-        && state.requested.unwrap_or(true)
+        && state.requested.unwrap_or(!state.ui_wants_pointer)
 }
 
 struct Player {
@@ -360,6 +368,7 @@ impl Player {
                 layer: self.options.layer,
                 gameplay: self.demo.accepts_gameplay_input(),
                 running,
+                ui_wants_pointer: self.view.as_ref().is_none_or(|view| view.ui_wants_pointer),
                 requested,
             });
         if self.look != gameplay_input::Look::Off {
@@ -774,7 +783,6 @@ impl ApplicationHandler for Player {
             }
             self.last_frame = now;
         }
-        self.sync_mouse_look();
         let title = self.window_title();
         let Some(view) = self.view.as_mut() else {
             return;
@@ -815,6 +823,8 @@ impl ApplicationHandler for Player {
             }
             _ => {}
         }
+        // Apply the current rendered UI's policy before another pointer/device event arrives.
+        self.sync_mouse_look();
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -955,6 +965,7 @@ mod controls_tests {
             layer: Layer::ThreeD,
             gameplay: true,
             running: true,
+            ui_wants_pointer: false,
             requested: None,
         };
         assert!(
@@ -990,6 +1001,62 @@ mod controls_tests {
             gameplay: false,
             ..base
         }));
+        assert!(!cursor_capture_wanted(CursorCaptureState {
+            ui_wants_pointer: true,
+            ..base
+        }));
+        assert!(
+            cursor_capture_wanted(CursorCaptureState {
+                ui_wants_pointer: true,
+                requested: Some(true),
+                ..base
+            }),
+            "an explicit Lock Cursor request controls mouse-look during gameplay"
+        );
+    }
+
+    #[test]
+    fn middleware_menu_keeps_a_free_pointer_and_accepts_slider_clicks() {
+        use bozzard_scene::middleware::ui::Input;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/middleware-lab.json");
+        let scene = load_document(Some(&path)).unwrap();
+        let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        let frame = demo
+            .instance()
+            .ui_frame(&demo.app.world, Layer::ThreeD, [1280., 720.])
+            .unwrap();
+        assert!(frame.wants_pointer());
+        assert!(
+            !cursor_capture_wanted(CursorCaptureState {
+                paused: false,
+                focused: true,
+                layer: Layer::ThreeD,
+                gameplay: demo.accepts_gameplay_input(),
+                running: true,
+                ui_wants_pointer: frame.wants_pointer(),
+                requested: None,
+            }),
+            "Blueprint menu actions must not hide or lock the pointer"
+        );
+        let slider = frame.element("volume").unwrap();
+        let point = [
+            slider.rect.min[0] + slider.rect.size[0] * 0.8,
+            slider.rect.min[1] + slider.rect.size[1] * 0.5,
+        ];
+        assert!(
+            demo.ui_input(Layer::ThreeD, frame.size, Input::PointerDown(point))
+                .unwrap()
+        );
+        assert!(
+            demo.ui_input(Layer::ThreeD, frame.size, Input::PointerUp(point))
+                .unwrap()
+        );
+        let updated = demo
+            .instance()
+            .ui_frame(&demo.app.world, Layer::ThreeD, frame.size)
+            .unwrap();
+        assert!(updated.element("volume").unwrap().value > slider.value);
     }
 
     #[test]

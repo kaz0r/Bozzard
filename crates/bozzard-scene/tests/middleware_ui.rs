@@ -45,6 +45,96 @@ fn wire(a: u32, b: u32) -> Wire {
     }
 }
 #[test]
+fn pointer_policy_follows_visible_enabled_controls_and_scroll_areas() {
+    let mut scene = base();
+    canvas(&mut scene);
+    widget(
+        &mut scene,
+        "panel",
+        "canvas",
+        Widget {
+            anchors: Anchors {
+                size: [300., 160.],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    widget(
+        &mut scene,
+        "control",
+        "panel",
+        Widget {
+            kind: WidgetKind::Button,
+            ..Default::default()
+        },
+    );
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    let wants = |world: &World| {
+        instance
+            .ui_frame(world, Layer::TwoD, [800., 600.])
+            .unwrap()
+            .wants_pointer()
+    };
+    assert!(wants(&world));
+    instance
+        .control_ui(&mut world, "panel", Control::Enabled(false))
+        .unwrap();
+    assert!(!wants(&world), "disabled parents disable their controls");
+    instance
+        .control_ui(&mut world, "panel", Control::Enabled(true))
+        .unwrap();
+    assert!(wants(&world));
+    instance
+        .control_ui(&mut world, "panel", Control::Visible(false))
+        .unwrap();
+    assert!(!wants(&world), "hidden parents hide their controls");
+    instance
+        .control_ui(&mut world, "panel", Control::Visible(true))
+        .unwrap();
+    let control = instance.entity("control").unwrap();
+    world.get_mut::<Widget>(control).unwrap().anchors.offset = [1000., 0.];
+    assert!(!wants(&world), "clipped controls do not take the pointer");
+    world.get_mut::<Widget>(control).unwrap().anchors.offset = [0.; 2];
+    assert!(wants(&world));
+    world.get_mut::<Widget>(control).unwrap().kind = WidgetKind::Label;
+    assert!(
+        !wants(&world),
+        "decorative HUD content does not take the pointer"
+    );
+    {
+        let mut label = world.get_mut::<Widget>(control).unwrap();
+        label.anchors.size[1] = 500.;
+        label.auto_text_height = false;
+    }
+    let panel = instance.entity("panel").unwrap();
+    world.get_mut::<Widget>(panel).unwrap().scrollable = true;
+    assert!(
+        wants(&world),
+        "overflowing scroll areas need a pointer without buttons"
+    );
+    let canvas = instance.entity("canvas").unwrap();
+    world.get_mut::<Canvas>(canvas).unwrap().phase = Phase::Paused;
+    assert!(
+        !wants(&world),
+        "inactive menu phases do not take the pointer"
+    );
+    world.insert_resource(GameSession {
+        phase: GamePhase::Paused,
+        ..Default::default()
+    });
+    assert!(wants(&world));
+    assert!(
+        !instance
+            .ui_frame(&world, Layer::ThreeD, [800., 600.])
+            .unwrap()
+            .wants_pointer()
+    );
+    world.get_mut::<Canvas>(canvas).unwrap().enabled = false;
+    assert!(!wants(&world));
+}
+#[test]
 fn authored_menu_migration_and_ui_actions_leave_simulation_unticked() {
     let mut scene = base();
     scene.game_flow = Some(Default::default());

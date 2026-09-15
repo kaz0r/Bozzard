@@ -63,6 +63,15 @@ pub struct Frame {
     pub size: [f32; 2],
 }
 impl Frame {
+    /// Visible controls and scroll areas need a free pointer. Decorative HUD elements do not.
+    pub fn wants_pointer(&self) -> bool {
+        self.elements.iter().any(|element| {
+            element.enabled
+                && element.clip.size.iter().all(|size| *size > 0.)
+                && (element.widget.kind.interactive()
+                    || element.widget.scrollable && element.scroll_max > 0.)
+        })
+    }
     pub fn element(&self, owner: &str) -> Option<&Element> {
         self.elements.iter().find(|e| e.owner == owner)
     }
