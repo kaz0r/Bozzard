@@ -35,6 +35,19 @@ impl Editor {
             size.iter().all(|v| *v > 0) && scale.is_finite() && scale > 0.,
             "invalid HUD viewport"
         );
+        let frame = self.ui_frame(layer, [size[0] as f32 / scale, size[1] as f32 / scale])?;
+        let point = [
+            (ndc[0] + 1.) * 0.5 * frame.size[0],
+            (1. - ndc[1]) * 0.5 * frame.size[1],
+        ];
+        if let Some(e) = frame
+            .elements
+            .iter()
+            .rev()
+            .find(|e| e.rect.contains(point) && e.clip.contains(point))
+        {
+            return Ok(Some(e.owner.clone()));
+        }
         let mut objects: Vec<_> = self.scene.objects.iter().collect();
         objects.sort_by(|a, b| b.id.cmp(&a.id));
         for object in objects {
@@ -248,6 +261,27 @@ impl Editor {
             let inverse = matrices[&object.id].inverse();
             let o = inverse.transform_point3(origin);
             let d = inverse.transform_vector3(direction);
+            if d.z.abs() >= 1e-8
+                && let Some(entity) = demo.instance().entity(&object.id)
+            {
+                use bozzard_scene::middleware::sprite::{Sprite, Tilemap};
+                let t = -o.z / d.z;
+                let p = o + d * t;
+                let hit = demo.app.world.get::<Sprite>(entity).is_some_and(|s| {
+                    s.enabled && s.layer == layer && s.color[3] > 0. && s.contains(p)
+                }) || demo.app.world.get::<Tilemap>(entity).is_some_and(|s| {
+                    s.enabled && s.layer == layer && s.color[3] > 0. && s.contains(p)
+                });
+                if t > 0. && hit && best.as_ref().is_none_or(|(distance, _)| t < *distance) {
+                    best = Some((
+                        t,
+                        Pick {
+                            object: object.id.clone(),
+                            surface: None,
+                        },
+                    ));
+                }
+            }
             if let Some(text) = &object.text_rendering
                 && text.enabled
                 && text.screen.is_none()

@@ -1,6 +1,7 @@
 //! Rapier owns non-player body velocities, contacts, inertia and sleeping.
 //! ECS transforms remain the public pose: external edits are teleports on the next tick.
 use super::*;
+use crate::middleware::sprite::{Tilemap, collision_boxes};
 use glam::Mat3;
 use rapier3d::math::Pose;
 use rapier3d::prelude::{
@@ -11,6 +12,7 @@ use rapier3d::prelude::{
 struct ShapeKey {
     linear: Mat3,
     collider: Option<BoxCollider>,
+    tiles: Option<Tilemap>,
     mesh: Option<TriangleMesh>,
     dynamic: bool,
 }
@@ -58,6 +60,21 @@ pub(crate) fn forward(transform: &Transform) -> Vec3 {
 }
 impl ShapeKey {
     fn cook(&self) -> Result<SharedShape> {
+        if let Some(tiles) = &self.tiles {
+            let shapes = tiles
+                .solid_boxes()
+                .iter()
+                .map(|collider| -> Result<_> {
+                    let (_, _, corners) = collider.geometry(Mat4::from_mat3(self.linear))?;
+                    Ok((
+                        Pose::IDENTITY,
+                        SharedShape::convex_hull(&corners).context("invalid tile collider hull")?,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            ensure!(!shapes.is_empty(), "solid tilemap has no shapes");
+            return Ok(SharedShape::compound(shapes));
+        }
         if let Some(collider) = self.collider {
             let (_, _, corners) = collider.geometry(Mat4::from_mat3(self.linear))?;
             return SharedShape::convex_hull(&corners).context("invalid Rigidbody box hull");
@@ -103,7 +120,10 @@ impl Physics {
                         .is_some_and(|c| c.enabled)
                         || world
                             .get::<MeshCollider>(b.entity)
-                            .is_some_and(|c| c.enabled))
+                            .is_some_and(|c| c.enabled)
+                        || world.get::<Tilemap>(b.entity).is_some_and(|t| {
+                            t.enabled && !collision_boxes(world, id, t).is_empty()
+                        }))
             })
             .map(|(id, b)| (b.collider, id))
             .collect();
@@ -177,7 +197,10 @@ impl Physics {
                     .is_some_and(|c| c.enabled)
                     || world
                         .get::<MeshCollider>(b.entity)
-                        .is_some_and(|c| c.enabled));
+                        .is_some_and(|c| c.enabled)
+                    || world
+                        .get::<Tilemap>(b.entity)
+                        .is_some_and(|t| t.enabled && !collision_boxes(world, id, t).is_empty()));
             if !keep {
                 self.simulation.remove_body(b.handle);
             }
@@ -204,7 +227,11 @@ impl Physics {
             {
                 world.insert(entity, GravityState::default())?;
             }
-            if collider.is_none() && mesh.is_none() {
+            let tiles = world
+                .get::<Tilemap>(entity)
+                .filter(|t| t.enabled && !collision_boxes(world, id, t).is_empty())
+                .cloned();
+            if collider.is_none() && mesh.is_none() && tiles.is_none() {
                 continue;
             }
             ensure!(
@@ -252,6 +279,7 @@ impl Physics {
             let key = ShapeKey {
                 linear,
                 collider,
+                tiles,
                 mesh,
                 dynamic,
             };

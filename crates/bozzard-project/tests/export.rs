@@ -295,3 +295,91 @@ fn runtime_scene_library_assets_are_relocated_and_load_without_sources() {
     assets.load_pending().unwrap();
     assets.require_ready().unwrap();
 }
+
+#[test]
+fn middleware_exports_keep_skin_audio_ui_nav_and_atlas_content_after_relocation() {
+    use bozzard_scene::middleware::{
+        animation::Animator, audio::AudioSource, navigation::NavSurface, registry, ui::Input,
+    };
+    for (name, view) in [
+        ("middleware-lab", Layer::ThreeD),
+        ("ui-2d-lab", Layer::TwoD),
+    ] {
+        let temp = Temp::new();
+        let source = temp.0.join("source");
+        fs::create_dir_all(source.join("assets")).unwrap();
+        let scene = load(&fixtures().join(format!("{name}.json")));
+        fs::write(source.join("scene.json"), scene.to_json().unwrap()).unwrap();
+        for asset in scene.assets.values() {
+            fs::copy(fixtures().join(&asset.path), source.join(&asset.path)).unwrap();
+        }
+        let mut project = project();
+        project.view = view;
+        prepare_export(
+            &project,
+            &scene,
+            &source.join("scene.json"),
+            &std::env::current_exe().unwrap(),
+            &temp.0.join("game"),
+            &Default::default(),
+        )
+        .unwrap()
+        .commit()
+        .unwrap();
+        fs::remove_dir_all(&source).unwrap();
+        fs::rename(temp.0.join("game"), temp.0.join("relocated game")).unwrap();
+        let root = data(&temp.0.join("relocated game"));
+        let cooked = load(&root.join("scene.json"));
+        let mut assets = bozzard_assets::AssetStore::new(&root, &cooked.assets).unwrap();
+        assets.load_pending().unwrap();
+        assets.require_ready().unwrap();
+        let mut demo =
+            bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&root.join("scene.json")))
+                .unwrap();
+        if view == Layer::TwoD {
+            demo.ui_input(view, [1280., 720.], Input::Key("Enter".into()))
+                .unwrap();
+        }
+        for _ in 0..120 {
+            demo.app.step();
+        }
+        demo.check_simulation().unwrap();
+        assert!(
+            !demo
+                .instance()
+                .ui_frame(&demo.app.world, view, [1280., 720.])
+                .unwrap()
+                .elements
+                .is_empty()
+        );
+        if view == Layer::ThreeD {
+            let object = cooked
+                .objects
+                .iter()
+                .find(|o| o.id == "animated-banner")
+                .unwrap();
+            let animator = registry::get::<Animator>(object).unwrap().unwrap();
+            assert_eq!(animator.rig.clips.len(), 2);
+            let source = registry::get::<AudioSource>(object).unwrap().unwrap();
+            let bozzard_assets::AssetData::Audio(audio) = assets
+                .get(assets.handle(&source.asset).unwrap())
+                .unwrap()
+                .data()
+                .unwrap()
+            else {
+                panic!()
+            };
+            assert_eq!(audio.duration, source.duration);
+            let nav = registry::get::<NavSurface>(
+                cooked
+                    .objects
+                    .iter()
+                    .find(|o| o.id == "baked-navigation")
+                    .unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+            assert!(nav.baked.unwrap().triangles().count() > 100);
+        }
+    }
+}

@@ -42,6 +42,7 @@ pub fn fixture() -> RenderScene {
         }
     }
     RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         items,

@@ -2,6 +2,7 @@ use bozzard_render::*;
 use glam::{Mat4, Vec3};
 fn scene() -> RenderScene {
     RenderScene {
+        skin_poses: Default::default(),
         shader_time: 0.,
         particles: Vec::new(),
         fog: Default::default(),

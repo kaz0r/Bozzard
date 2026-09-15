@@ -20,7 +20,7 @@ features, it is that the hardcoded scene schema makes every added feature cost 3
 - [x] Asset lifecycle: typed handles, pending/ready/failed, background jobs, staged GPU residency, last-good recovery, reverse dependency map (`docs/assets.md`).
 - [x] Game export: project manifest, transitive packaging, deterministic inventory/ZIP, verified on all three native targets (`docs/exporting.md`).
 - [x] Native CI matrix on macOS/Metal, Windows/DX12, Ubuntu/Vulkan; measured performance work with recorded medians (`docs/optimization-results.md`).
-- [x] Loud failure over silent loss: `deny_unknown_fields` everywhere, glTF skins/animations rejected rather than dropped, `unsafe_code = "forbid"`.
+- [x] Loud failure over silent loss: `deny_unknown_fields` everywhere, unsupported glTF features rejected rather than dropped, `unsafe_code = "forbid"`.
 
 ## 1 — Component model and change tracking (the blocker)
 
@@ -75,14 +75,16 @@ exposed to authors is thin.
 
 ## 4 — Middleware
 
-Each of these is a content class the engine cannot represent at all today.
+These content classes are authored through typed scene components and controlled by Blueprints.
+See [middleware authoring, limits and verification](docs/middleware.md), with complete 3D and 2D
+reference scenes in `examples/demo/scenes/middleware-lab.json` and `ui-2d-lab.json`.
 
-- [ ] **L** Audio: device output, mixing buses, 3D attenuation/panning, streaming and compressed formats, an audio component, and blueprint play/stop/parameter nodes.
-- [ ] **XL** Skeletal animation: glTF skin/animation import (currently rejected), skinning in the PBR pipeline, clips and a state machine with blend trees, events, root motion, and a timeline for cinematics.
-- [ ] **M** Tween/curve evaluation for authored motion (translation, rotation, scale, colour, material values) so simple motion stops needing hand-built graph chains.
-- [ ] **L** UI and 2D: widget/layout system, canvas and anchors, sprite atlases, 2D animation, tilemaps, nine-slice, localization, accessibility, and authorable menus replacing the engine-drawn game-flow overlays.
-- [ ] **L** AI/navigation: navmesh generation and baking, pathfinding, agents with steering, perception, and behavior trees or a state-machine authoring surface.
-- [ ] **M** Particles depth: authorable emitters in the inspector, curve modules, GPU simulation, and sorting against transparency (particles exist but are graph-driven).
+- [x] **L** Audio: device output, mixing buses, 3D attenuation/panning, streaming and compressed formats, an audio component, and blueprint play/stop/parameter nodes.
+- [x] **XL** Skeletal animation: glTF skin/animation import, skinning in the PBR pipeline, clips and a state machine with blend trees, events, root motion, and a timeline for cinematics.
+- [x] **M** Tween/curve evaluation for authored motion (translation, rotation, scale, colour, material values) so simple motion stops needing hand-built graph chains.
+- [x] **L** UI and 2D: widget/layout system, canvas and anchors, sprite atlases, 2D animation, tilemaps, nine-slice, localization, accessibility, and authorable menus replacing the engine-drawn game-flow overlays.
+- [x] **L** AI/navigation: navmesh generation and baking, pathfinding, agents with steering, perception, and a state-machine authoring surface.
+- [x] **M** Particles depth: authorable emitters in the inspector, curve modules, GPU simulation, and sorting against transparency.
 
 ## 5 — Scale and content pipeline
 
@@ -92,7 +94,7 @@ Each of these is a content class the engine cannot represent at all today.
 - [ ] **M** Prefab nesting, variants and source-hierarchy editing (`docs/prefabs.md` lists these as remaining).
 - [ ] **M** Material instances/inheritance and shader variants/keywords; the shader graph compiles per object today with a 32-entry source cache.
 - [ ] **M** Asset cooking and bundles: imported ONNX-free cooking to a platform format, dependency-driven incremental rebuilds, and downloadable/addressable content packs.
-- [ ] **S** More importers: FBX (or a documented conversion path), custom fonts (fonts are a fixed `TextFont` enum), and audio formats once audio exists.
+- [ ] **S** More importers: FBX (or a documented conversion path) and custom fonts (fonts are a fixed `TextFont` enum). WAV, OGG/Vorbis, MP3 and FLAC audio are supported by section 4.
 - [ ] **M** Authoring tools for level building: terrain/landscape, foliage scattering, blockout brushes, snapping, measurement and a grid, custom inspectors, and docking.
 - [ ] **S** Project ergonomics: template/project wizard, sample projects beyond the demo scenes, and a scene merge helper on top of the diffable JSON.
 

@@ -126,6 +126,23 @@ pub struct SceneDemo {
 }
 
 impl SceneDemo {
+    pub fn ui_input(
+        &mut self,
+        layer: bozzard_scene::Layer,
+        size: [f32; 2],
+        input: bozzard_scene::middleware::ui::Input,
+    ) -> anyhow::Result<bool> {
+        let phase = self.game_session().map(|s| s.phase);
+        let consumed = self.with_instance(|instance, world| -> anyhow::Result<bool> {
+            let consumed = instance.ui_input(world, layer, size, input)?;
+            instance.dispatch_ui_blueprints(world)?;
+            Ok(consumed)
+        })?;
+        if phase != self.game_session().map(|s| s.phase) {
+            self.clear_gameplay_input();
+        }
+        Ok(consumed)
+    }
     pub fn game_session(&self) -> Option<&bozzard_scene::GameSession> {
         self.app.world.resource::<bozzard_scene::GameSession>()
     }
@@ -276,6 +293,19 @@ impl SceneDemo {
         Ok(demo)
     }
     pub fn new(document: &Scene) -> anyhow::Result<Self> {
+        let mut migrated;
+        let document = if document.game_flow.is_some()
+            && !document
+                .objects
+                .iter()
+                .any(|o| o.extras.contains_key("ui_canvas"))
+        {
+            migrated = document.clone();
+            migrated.ensure_game_menus()?;
+            &migrated
+        } else {
+            document
+        };
         let mut app = App::default();
         let instance = document.spawn(&mut app.world)?;
         if document.game_flow.is_some() {
@@ -313,12 +343,29 @@ impl SceneDemo {
         });
         app.world.insert_resource(instance);
         app.world.insert_resource(SimulationStatus::default());
+        app.add_system(|world, _, tick| {
+            if world
+                .resource::<SimulationStatus>()
+                .is_some_and(|s| s.error.is_some())
+            {
+                return;
+            }
+            let instance = world
+                .remove_resource::<SceneInstance>()
+                .expect("scene instance");
+            let result = instance.step_audio(world, tick.delta.as_secs_f32());
+            world.insert_resource(instance);
+            if let Err(error) = result {
+                world.insert_resource(SimulationStatus {
+                    error: Some(format!("{error:#}")),
+                });
+            }
+        });
         app.add_system(move |world, _, tick| {
-            // Freeze on simulation failure rather than silently advancing a broken world.
-            if !bozzard_scene::game_flow::simulation_running(world)
-                || world
-                    .resource::<SimulationStatus>()
-                    .is_some_and(|status| status.error.is_some())
+            // UI and audio completion Blueprints remain responsive while gameplay is paused.
+            if world
+                .resource::<SimulationStatus>()
+                .is_some_and(|status| status.error.is_some())
             {
                 return;
             }
@@ -330,16 +377,19 @@ impl SceneDemo {
             let mut gravity_instance = world
                 .remove_resource::<SceneInstance>()
                 .expect("scene instance");
-            let error = gravity_instance
-                .advance_display(dt)
-                .and_then(|()| gravity_instance.gameplay_motion(world, dt))
-                .and_then(|()| gravity_instance.step_gravity(world, dt))
-                .and_then(|()| gravity_instance.gameplay_interactions(world))
-                // Scripts run before graphs: each step samples one snapshot of the world for its
-                // own events, so running them first keeps script reads on the tick's starting
-                // state and lets a graph see a variable a script wrote this tick. It also keeps a
-                // graph's Destroy Prefab from hiding a hit the scripts were meant to see.
-                .and_then(|()| gravity_instance.step_scripts(world, dt, input))
+            let simulation = if bozzard_scene::game_flow::simulation_running(world) {
+                gravity_instance
+                    .advance_display(dt)
+                    .and_then(|()| gravity_instance.gameplay_motion(world, dt))
+                    .and_then(|()| gravity_instance.step_gravity(world, dt))
+                    .and_then(|()| gravity_instance.gameplay_interactions(world))
+                    .and_then(|()| gravity_instance.step_middleware(world, dt))
+                    // Scripts precede graphs so graph reads observe this tick's script writes.
+                    .and_then(|()| gravity_instance.step_scripts(world, dt, input))
+            } else {
+                Ok(())
+            };
+            let error = simulation
                 .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
                 .and_then(|()| {
                     if bozzard_scene::game_flow::simulation_running(world) {

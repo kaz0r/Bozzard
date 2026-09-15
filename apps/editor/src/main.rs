@@ -15,6 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 mod acceptance;
+mod animation_ui;
 mod asset_browser;
 mod blueprints;
 mod cameras;
@@ -30,14 +31,19 @@ mod hierarchy;
 mod inspector;
 mod lights;
 mod loading;
+mod motion_ui;
+mod navigation_ui;
+mod particle_ui;
 mod post_processing;
 mod repaint;
 mod scripts;
 mod shaders;
 mod snapping;
+mod sprite_ui;
 mod surfaces;
 mod theme;
 mod viewport;
+mod widget_ui;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 enum Tool {
@@ -113,6 +119,7 @@ struct App {
     gpu: Gpu,
     renderer: SceneRenderer,
     residency: bozzard_render_assets::Residency,
+    audio: bozzard_audio::NativeAudio,
     target: Option<Target>,
     viewport_stamp: Option<repaint::ViewportStamp>,
     viewport_continuous: bool,
@@ -213,6 +220,7 @@ impl App {
             gpu,
             renderer,
             residency: bozzard_render_assets::Residency::default(),
+            audio: Default::default(),
             render_state: state,
             target: None,
             viewport_stamp: None,
@@ -382,6 +390,7 @@ impl App {
                 .entries()
                 .any(|entry| entry.data().is_none());
             self.editor.assets = store;
+            self.editor.refresh_audio_metadata()?;
             let mut reloaded = Vec::new();
             let mut failure = None;
             for handle in changed {
@@ -392,6 +401,9 @@ impl App {
                     .context("missing asset handle")?;
                 match entry.state() {
                     LoadState::Ready => {
+                        if matches!(entry.data(), Some(bozzard_assets::AssetData::Audio(_))) {
+                            self.audio.invalidate_assets();
+                        }
                         reloaded.push(entry.id.clone());
                     }
                     LoadState::Failed(message) => {
@@ -1050,7 +1062,12 @@ impl App {
                     self.reload_paused = false;
                     self.residency.retry_failed();
                     self.last_assets = Instant::now() - Duration::from_secs(1);
-                    let result = self.sync_assets();
+                    let result = self.editor.assets.refresh_job_forced(true).map(|job| {
+                        if let Some((_, previous)) = self.refresh.take() {
+                            previous.cancel();
+                        }
+                        self.refresh = Some((self.editor.asset_revision(), job));
+                    });
                     self.result(result);
                 }
                 if let Some(layer) = output.added_layer {
@@ -1255,11 +1272,38 @@ impl eframe::App for App {
         self.poll_loading();
         self.editor.repair_surface_selection();
         let now = Instant::now();
+        if let Some(play) = &mut self.editor.play {
+            play.with_instance(|instance, _| instance.set_gpu_particles(true));
+        }
         self.editor.advance(now.duration_since(self.last_frame));
+        if let Some(play) = &self.editor.play {
+            let layer = if self.workspace.layer_2d {
+                Layer::TwoD
+            } else {
+                Layer::ThreeD
+            };
+            let result = play
+                .instance()
+                .audio_frame(&play.app.world, layer)
+                .and_then(|frame| {
+                    self.audio.sync(
+                        &frame,
+                        play.instance().document(),
+                        bozzard_editor::root(&self.editor.path),
+                    )
+                });
+            if result.is_err() {
+                self.result(result);
+            }
+        } else {
+            self.audio.stop();
+        }
         if self.editor.play.is_none() && self.loading.is_none() {
             let result = (|| -> Result<()> {
                 if self.effects_preview.is_none() {
-                    self.effects_preview = Some(bozzard_editor::EffectsPreview::new(&self.editor)?);
+                    self.effects_preview = Some(
+                        bozzard_editor::EffectsPreview::with_gpu_particles(&self.editor, true)?,
+                    );
                 }
                 self.effects_preview.as_mut().unwrap().advance(
                     &self.editor,

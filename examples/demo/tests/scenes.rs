@@ -29,11 +29,18 @@ fn every_scene_round_trips_without_losing_a_component() {
         let reloaded = Scene::from_json(&saved).unwrap_or_else(|error| panic!("{name}: {error:#}"));
         assert_eq!(reloaded, scene, "{name} changed on the way out and back");
         for object in &scene.objects {
+            let unknown: Vec<_> = object
+                .extras
+                .keys()
+                .filter(|name| {
+                    !bozzard_scene::components().any(|entry| entry.name == name.as_str())
+                })
+                .collect();
             assert!(
-                object.extras.is_empty(),
+                unknown.is_empty(),
                 "{name}: '{}' has unrecognized components {:?}",
                 object.id,
-                object.extras.keys().collect::<Vec<_>>()
+                unknown
             );
         }
         // The saved form still lists every component as the object's own key.

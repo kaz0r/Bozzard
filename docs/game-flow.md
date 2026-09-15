@@ -14,6 +14,6 @@ Add **End Game** to a Blueprint execution chain to finish a run, optionally supp
 
 Retry restores the original scene, Blueprint variables, physics, particles and cached runtime prefab templates. It does not reread changed files or retain spawned objects. Stop Play to return to the authored scene; development scenes without Game Flow retain their existing reload controls.
 
-The initial menus use built-in text controls with shared logical-pixel hit areas. They support keyboard and mouse, window resizing and display scaling. Custom menu layouts, gamepad navigation, audio and persistent high scores are separate work.
+Scenes without a UI Canvas are migrated to ordinary editable canvas/widget objects when opened or run. Save the scene to keep that hierarchy, then change anchors/layout, images, translations, accessible labels and button Blueprints. Existing canvases take precedence. Keyboard, mouse, text scaling, high contrast, scrolling and native accessibility use the same widget layout. UI and audio completion chains can continue while gameplay is paused. See [middleware authoring](middleware.md). Gamepad navigation remains separate work.
 
 Try `examples/demo/scenes/game-flow-lab.json`: start, tap Space three times, then retry. Pause and retry also work before finishing.

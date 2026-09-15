@@ -116,6 +116,17 @@ pub fn particle_frame(source: &[bozzard_scene::Particle]) -> Vec<bozzard_render:
     source
         .iter()
         .map(|p| bozzard_render::Particle {
+            simulation: p.simulation.map(|s| bozzard_render::ParticleSimulation {
+                epoch: s.epoch,
+                age: s.age,
+                reference_age: s.reference_age,
+                time: s.time,
+                gravity: s.gravity,
+                drag: s.drag,
+                turbulence: s.turbulence,
+                wind: s.wind,
+                speed: s.speed,
+            }),
             id: p.id,
             position: p.position,
             velocity: p.velocity,

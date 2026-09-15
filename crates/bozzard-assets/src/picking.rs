@@ -138,6 +138,7 @@ mod tests {
             .map(|p| [p.x, p.y, p.z, 0., 0., 1., 0., 0.])
             .collect();
         MeshData {
+            skin: None,
             indices: (0..vertices.len() as u32).collect(),
             vertices,
             parts: Vec::new(),

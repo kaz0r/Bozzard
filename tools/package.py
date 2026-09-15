@@ -82,7 +82,7 @@ def main():
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
-        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json", "blueprint-lab.json", "pressure-plate-lab.json"]:
+        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json", "blueprint-lab.json", "pressure-plate-lab.json", "middleware-lab.json", "ui-2d-lab.json"]:
             shutil.copy2(ROOT / "examples/demo/scenes" / scene, stage / scene)
         shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")
         (stage / "README.txt").write_text(
@@ -96,6 +96,8 @@ def main():
             "Use --scene asset-lab.json for imported PNG textures and OBJ meshes.\n"
             "Open model-lab.json for textured glTF/GLB models, OBJ and transparent sprites.\n"
             "Open prefab-lab.json to try linked reusable object hierarchies.\n"
+            "Open middleware-lab.json for audio, skeletal animation, navigation and GPU particles.\n"
+            "Open ui-2d-lab.json in 2D for editable menus, sprite animation, tiles and accessibility controls.\n"
             "Open gravity-lab.json to try gravity, or response-lab.json for box movement against walls.\n"
             "File edits reload automatically; failed imports retain the last good asset.\n"
             "Requires the host OS graphics drivers and system runtime libraries.\n"
@@ -129,6 +131,8 @@ def main():
                 graphics.append("--hardware")
             run(server, "--ticks", "120", cwd=cwd)
             run(server, "--scene", str(package / "pressure-plate-lab.json"), "--ticks", "120", cwd=cwd)
+            run(server, "--scene", str(package / "middleware-lab.json"), "--ticks", "120", cwd=cwd)
+            run(server, "--scene", str(package / "ui-2d-lab.json"), "--ticks", "120", cwd=cwd)
             run(player, "--help", cwd=cwd)
             run(editor, "--help", cwd=cwd)
             saved = cwd / "saved-scene.json"

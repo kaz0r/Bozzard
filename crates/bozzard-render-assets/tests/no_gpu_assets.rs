@@ -51,6 +51,7 @@ fn drawable_assets_still_need_one() {
             indices: Vec::new(),
             parts: Vec::new(),
             warnings: Vec::new(),
+            skin: None,
         })
     )));
     assert!(
@@ -80,18 +81,40 @@ fn a_store_of_gameplay_assets_is_resident_without_a_gpu() {
         "fn on_update(me, dt) { rotate(me, [0.0, 1.0, 0.0]); }",
     )
     .unwrap();
-    let sources = BTreeMap::from([(
-        "spin".to_string(),
-        AssetSource {
-            kind: AssetKind::Script,
-            path: "spin.rs".into(),
-        },
-    )]);
+    std::fs::write(
+        root.join("chime.wav"),
+        include_bytes!("../../../examples/demo/scenes/assets/middleware-chime.wav"),
+    )
+    .unwrap();
+    let sources = BTreeMap::from([
+        (
+            "spin".to_string(),
+            AssetSource {
+                kind: AssetKind::Script,
+                path: "spin.rs".into(),
+            },
+        ),
+        (
+            "chime".to_string(),
+            AssetSource {
+                kind: AssetKind::Audio,
+                path: "chime.wav".into(),
+            },
+        ),
+    ]);
     let mut store = AssetStore::new(&root, &sources).unwrap();
     store.refresh();
     store.require_ready().unwrap();
     let residency = bozzard_render_assets::Residency::default();
     assert!(residency.is_current(&store, "spin"));
+    assert!(residency.is_current(&store, "chime"));
+    let audio = store
+        .get(store.handle("chime").unwrap())
+        .unwrap()
+        .shared_data()
+        .unwrap();
+    assert!(!bozzard_render_assets::needs_gpu(&audio));
+    assert!(bozzard_render_assets::upload_source(audio).is_err());
     assert!(residency.has_all(&store));
     // An id the catalog does not hold is still not current.
     assert!(!residency.is_current(&store, "missing"));

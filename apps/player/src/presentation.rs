@@ -45,6 +45,7 @@ pub fn extract(
     }
 
     Ok(RenderScene {
+        skin_poses: bozzard_render_assets::skin_poses(&view.skin_poses),
         shader_time: view.display_time,
         particles: bozzard_render_assets::particle_frame(&view.particles),
         fog: bozzard_render::FogSettings {
@@ -155,6 +156,7 @@ pub fn extract(
             )
             .collect::<Result<Vec<_>>>()?
             .into_iter()
+            .chain(bozzard_render_assets::sprite_items(&view.sprites)?)
             .chain(
                 view.texts
                     .into_iter()

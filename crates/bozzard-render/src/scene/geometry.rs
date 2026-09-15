@@ -154,6 +154,7 @@ struct PreviousFrame {
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum MotionMesh {
+    Sprite(u64),
     Quad,
     Cube,
     Sphere,
@@ -169,6 +170,7 @@ impl From<&MeshKind> for MotionMesh {
             MeshKind::Sphere => Self::Sphere,
             MeshKind::Imported(id) => Self::Imported(id.clone()),
             MeshKind::ModelPart(id, part) => Self::ModelPart(id.clone(), *part),
+            MeshKind::Sprite(sprite) => Self::Sprite(sprite.geometry.key()),
             MeshKind::Text(_) => Self::Text,
         }
     }

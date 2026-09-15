@@ -40,7 +40,11 @@ pub(super) fn overlaps(boxes: &[CollisionBox], output: &mut Vec<(String, String)
             if b[0][axis] > a[1][axis] {
                 break;
             }
-            if a[0].cmple(b[1]).all() && b[0].cmple(a[1]).all() && boxes[i].intersects(&boxes[j]) {
+            if boxes[i].id != boxes[j].id
+                && a[0].cmple(b[1]).all()
+                && b[0].cmple(a[1]).all()
+                && boxes[i].intersects(&boxes[j])
+            {
                 let (i, j) = (i.min(j), i.max(j));
                 output.push((boxes[i].id.clone(), boxes[j].id.clone()));
             }

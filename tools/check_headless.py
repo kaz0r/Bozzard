@@ -22,7 +22,16 @@ allowed |= {"rapier3d", "parry3d", "nalgebra", "nalgebra-macros", "glamx", "simb
 allowed |= {"rhai", "rhai_codegen", "ahash", "once_cell", "smartstring", "thin-vec",
             "cfg-if", "crunchy", "const-random", "const-random-macro", "getrandom", "libc",
             "portable-atomic", "tiny-keccak", "zerocopy"}
+# Reviewed CPU text shaping/metrics shared by authored UI layout and rendering. Epaint is
+# built without its window/GPU integration; no egui, winit, wgpu, importers, or audio devices.
+allowed |= {"bozzard-text", "epaint", "epaint_default_fonts", "ecolor", "emath", "ahash",
+            "bytemuck_derive", "cfg-if", "color", "euclid", "fearless_simd", "font-types",
+            "guillotiere", "harfrust", "kurbo", "libc", "linebender_resource_handle",
+            "lock_api", "nohash-hasher", "once_cell", "parking_lot", "parking_lot_core",
+            "peniko", "polycool", "read-fonts", "scopeguard", "self_cell", "skrifa",
+            "unicode-general-category", "unicode-segmentation", "vello_common", "vello_cpu",
+            "zerocopy", "windows-link"}
 unexpected = {line.split()[0] for line in output.splitlines() if line.strip()} - allowed
 if unexpected:
     raise SystemExit(f"Headless dependency boundary changed: {sorted(unexpected)}. Review before extending the allowlist.")
-print("headless_dependencies_ok: simulation, CPU physics, math, serialization; no graphics or window crates")
+print("headless_dependencies_ok: simulation, CPU physics/text metrics, math, serialization; no device, window or importer crates")

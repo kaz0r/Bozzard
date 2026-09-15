@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "Middleware Lab",
+  "start_scene": "scenes/middleware-lab.json",
+  "view": "3d"
+}

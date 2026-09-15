@@ -95,7 +95,7 @@ pub fn prepare_export(
             *asset = cooked.assets[id].clone();
         }
     }
-    fs::write(data.join("scene.json"), cooked.to_json()?)?;
+
     let mut runtime_project = project.clone();
     runtime_project.start_scene = "scene.json".into();
     fs::write(
@@ -108,6 +108,8 @@ pub fn prepare_export(
     let mut assets = AssetStore::new(&data, &runtime.instance().document().assets)?;
     assets.load_pending_with(progress)?;
     assets.require_ready()?;
+    assets.bake_audio_metadata(&mut cooked)?;
+    fs::write(data.join("scene.json"), cooked.to_json()?)?;
     progress.stage("Copying native player")?;
     let binary = prepared.stage.join(executable);
     fs::create_dir_all(binary.parent().unwrap())?;

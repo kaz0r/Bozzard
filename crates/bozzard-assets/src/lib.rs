@@ -1,4 +1,6 @@
 //! CPU imports and background loading. No GPU or window dependencies.
+pub mod animation;
+pub mod audio;
 mod collision;
 pub mod gi;
 pub mod job;
@@ -53,6 +55,7 @@ pub struct ImageData {
 
 #[derive(Clone, Debug)]
 pub struct MeshData {
+    pub skin: Option<animation::Skin>,
     /// Position, normal, UV. Right handed, Y up; UV origin at the top left.
     pub vertices: Vec<[f32; 8]>,
     pub indices: Vec<u32>,
@@ -146,6 +149,7 @@ fn inspection_name(name: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum AssetData {
+    Audio(audio::AudioData),
     Prefab(bozzard_scene::Prefab),
     Image(ImageData),
     Mesh(MeshData),
@@ -155,6 +159,7 @@ pub enum AssetData {
 
 #[derive(Clone)]
 pub struct Entry {
+    audio_stamp: Option<audio::Stamp>,
     pub id: String,
     source: AssetSource,
     state: LoadState,
@@ -275,6 +280,7 @@ impl AssetStore {
             .map(|(index, (name, source))| {
                 handles.insert(name.clone(), Handle { store: id, index });
                 Entry {
+                    audio_stamp: None,
                     id: name.clone(),
                     source: source.clone(),
                     state: LoadState::Pending,
@@ -392,7 +398,25 @@ impl AssetStore {
         for (index, entry) in self.entries.iter_mut().enumerate() {
             progress.stage(format!("Checking {} ({}/{total})", entry.id, index + 1))?;
             let path = self.root.join(&entry.source.path);
-            let snapshot = source_snapshot(&path).map_err(|error| format!("{error:#}"));
+            let audio_stamp = (entry.source.kind == AssetKind::Audio)
+                .then(|| audio::stamp(&path).ok())
+                .flatten();
+            if audio_stamp.is_some() && audio_stamp == entry.audio_stamp && entry.observed.is_some()
+            {
+                continue;
+            }
+            let snapshot = if entry.source.kind == AssetKind::Audio {
+                audio::probe(&path, progress).and_then(|metadata| {
+                    Ok(SourceSnapshot {
+                        primary: Ok(serde_json::to_vec(&metadata)?),
+                        dependencies: Vec::new(),
+                    })
+                })
+            } else {
+                source_snapshot(&path)
+            }
+            .map_err(|error| format!("{error:#}"));
+            entry.audio_stamp = audio_stamp;
             let snapshot = match snapshot {
                 Ok(snapshot) => snapshot,
                 Err(error) => SourceSnapshot {
@@ -442,7 +466,16 @@ impl AssetStore {
 
     /// The worker owns a cheap snapshot; callers publish only when their catalog still matches.
     pub fn refresh_job(&self) -> Result<job::Job<(Self, Vec<Handle>)>> {
+        self.refresh_job_forced(false)
+    }
+    /// Explicit reload also rechecks audio files whose size/timestamp was preserved externally.
+    pub fn refresh_job_forced(&self, force: bool) -> Result<job::Job<(Self, Vec<Handle>)>> {
         let mut store = self.clone();
+        if force {
+            for entry in &mut store.entries {
+                entry.audio_stamp = None;
+            }
+        }
         job::Job::start("Checking assets", move |progress| {
             let changed = store.refresh_with(&progress)?;
             Ok((store, changed))
@@ -575,6 +608,7 @@ fn import(
         .unwrap_or("")
         .to_ascii_lowercase();
     match kind {
+        AssetKind::Audio => Ok(AssetData::Audio(serde_json::from_slice(bytes)?)),
         AssetKind::Prefab => Ok(AssetData::Prefab(bozzard_scene::Prefab::from_json(
             std::str::from_utf8(bytes)?,
         )?)),
@@ -766,6 +800,7 @@ fn import(
             );
             Ok(AssetData::Mesh(
                 MeshData {
+                    skin: None,
                     vertices,
                     indices,
                     parts,
@@ -916,14 +951,6 @@ fn gltf_preflight(bytes: &[u8]) -> Result<serde_json::Value> {
             .is_none_or(Vec::is_empty),
         "required glTF extensions are not supported by this importer"
     );
-    for key in ["skins", "animations"] {
-        ensure!(
-            json.get(key)
-                .and_then(serde_json::Value::as_array)
-                .is_none_or(Vec::is_empty),
-            "static glTF import does not support {key}"
-        );
-    }
     if let Some(meshes) = json.get("meshes").and_then(serde_json::Value::as_array) {
         ensure!(
             meshes.iter().all(|mesh| mesh.get("weights").is_none()
@@ -993,6 +1020,7 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
     let mut parts = Vec::new();
     let mut images = ModelImages::default();
     let mut visited = BTreeSet::new();
+    let mut animation = animation::Import::new(&gltf, &buffers)?;
     for node in scene.nodes() {
         append_node(
             node,
@@ -1006,6 +1034,7 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
             &mut warnings,
             &mut images,
             &mut visited,
+            &mut animation,
             0,
         )?;
     }
@@ -1014,6 +1043,7 @@ fn import_gltf(path: &Path, bytes: &[u8], snapshot: &SourceSnapshot) -> Result<M
         "empty or oversized triangle mesh"
     );
     Ok(MeshData {
+        skin: animation.map(|a| a.finish(vertices.len())).transpose()?,
         vertices,
         indices,
         parts,
@@ -1036,6 +1066,7 @@ fn append_node(
     warnings: &mut Vec<String>,
     images: &mut ModelImages,
     visited: &mut BTreeSet<usize>,
+    animation: &mut Option<animation::Import>,
     depth: usize,
 ) -> Result<()> {
     ensure!(visited.len() < 65_536, "glTF scene exceeds 65536 nodes");
@@ -1046,10 +1077,6 @@ fn append_node(
     ensure!(
         depth <= MAX_NODE_DEPTH,
         "glTF node hierarchy exceeds 256 levels"
-    );
-    ensure!(
-        node.skin().is_none(),
-        "static glTF import does not support skinned nodes"
     );
     ensure!(
         node.weights().is_none(),
@@ -1079,10 +1106,28 @@ fn append_node(
                 primitive.index(),
                 primitive.material().index()
             );
+            let first_vertex = vertices.len();
             append_primitive(
-                primitive, transform, buffers, path, snapshot, vertices, indices, parts, warnings,
+                primitive.clone(),
+                transform,
+                buffers,
+                path,
+                snapshot,
+                vertices,
+                indices,
+                parts,
+                warnings,
                 images,
             )?;
+            if let Some(animation) = animation {
+                animation.primitive(
+                    &node,
+                    &primitive,
+                    transform,
+                    buffers,
+                    vertices.len() - first_vertex,
+                )?;
+            }
             let part = parts.last_mut().expect("appended primitive");
             part.name = name;
             part.source_key = source_identity;
@@ -1101,6 +1146,7 @@ fn append_node(
             warnings,
             images,
             visited,
+            animation,
             depth + 1,
         )?;
     }
@@ -2311,7 +2357,15 @@ mod tests {
         ] {
             let mut invalid = json.clone();
             invalid[key] = value;
-            assert!(gltf_preflight(&serde_json::to_vec(&invalid).unwrap()).is_err());
+            assert!(
+                import(
+                    AssetKind::Mesh,
+                    Path::new("invalid.gltf"),
+                    &serde_json::to_vec(&invalid).unwrap(),
+                    &no_dependencies()
+                )
+                .is_err()
+            );
         }
     }
     #[test]

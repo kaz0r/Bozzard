@@ -30,9 +30,9 @@ struct VertexOutput {
 };
 @vertex fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>,
     @location(3) tangent: vec4<f32>, @location(4) normal_uv: vec2<f32>, @location(5) mr_uv: vec2<f32>,
-    @location(6) ao_uv: vec2<f32>, @location(7) emissive_uv: vec2<f32>) -> VertexOutput {
+    @location(6) ao_uv: vec2<f32>, @location(7) emissive_uv: vec2<f32>, @location(8) previous_position: vec3<f32>) -> VertexOutput {
     var out: VertexOutput;
-    out.previous=object.previous_mvp*vec4<f32>(position,1.0);
+    out.previous=object.previous_mvp*vec4<f32>(previous_position,1.0);
     out.position = object.mvp * vec4<f32>(position,1.0);
     out.world = (object.model * vec4<f32>(position,1.0)).xyz;
     out.normal = (object.normal * vec4<f32>(normal,0.0)).xyz;

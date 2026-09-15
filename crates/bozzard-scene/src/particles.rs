@@ -1,7 +1,11 @@
+use crate::middleware::{
+    curve::Curve,
+    particle::{Curves, Modules},
+};
 use anyhow::{Result, ensure};
 use glam::{Mat4, Vec3};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 pub const MAX_PARTICLES: usize = 16_384;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,6 +151,7 @@ impl ParticleEmitter {
 /// Frame data only. Runtime particles never become authored scene objects.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Particle {
+    pub simulation: Option<ParticleSimulation>,
     pub id: u64,
     pub position: Vec3,
     pub velocity: Vec3,
@@ -158,6 +163,20 @@ pub struct Particle {
     pub softness: f32,
     pub trail_length: f32,
     pub seed: f32,
+}
+/// Initial CPU pose and a clock for the GPU motion integrator. Lifecycle and curves remain
+/// deterministic scene data; native renderers retain motion state between frames.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ParticleSimulation {
+    pub epoch: u64,
+    pub age: f32,
+    pub reference_age: f32,
+    pub time: f32,
+    pub gravity: f32,
+    pub drag: f32,
+    pub turbulence: f32,
+    pub wind: [f32; 3],
+    pub speed: f32,
 }
 #[derive(Clone)]
 struct Live {
@@ -171,6 +190,8 @@ struct Live {
     scale: f32,
     seed: f32,
     settings: ParticleEmitter,
+    curves: Option<Arc<Curves>>,
+    reference_age: f32,
 }
 #[derive(Clone, Default)]
 struct State {
@@ -180,6 +201,9 @@ struct State {
 }
 #[derive(Clone, Default)]
 pub(crate) struct ParticleSystem {
+    gpu: bool,
+    epoch: u64,
+    time: f32,
     emitters: BTreeMap<String, State>,
 }
 fn hash(mut x: u32) -> u32 {
@@ -208,7 +232,7 @@ fn curl(p: Vec3, t: f32) -> Vec3 {
 impl ParticleSystem {
     pub fn step(
         &mut self,
-        emitters: &[(String, Mat4, ParticleEmitter)],
+        emitters: &[(String, Mat4, ParticleEmitter, Option<Arc<Curves>>)],
         dt: f32,
         time: f32,
     ) -> Result<()> {
@@ -216,32 +240,42 @@ impl ParticleSystem {
             dt.is_finite() && (0.0..=1.).contains(&dt),
             "invalid particle timestep"
         );
-        for (_, model, settings) in emitters {
+        for (_, model, settings, _) in emitters {
             settings.validate()?;
             ensure!(model.is_finite(), "invalid particle emitter transform");
         }
-        self.emitters
-            .retain(|id, _| emitters.iter().any(|(key, _, _)| key == id));
+        self.time = time;
+        let owners: std::collections::BTreeSet<_> =
+            emitters.iter().map(|(id, _, _, _)| id.as_str()).collect();
+        self.emitters.retain(|id, _| owners.contains(id.as_str()));
         let mut total = self
             .emitters
             .values()
             .map(|state| state.particles.len())
             .sum::<usize>();
-        for (id, model, settings) in emitters {
+        for (id, model, settings, curves) in emitters {
             let state = self.emitters.entry(id.clone()).or_default();
             let before = state.particles.len();
             for p in &mut state.particles {
-                let steps = (dt * 60.).ceil().max(1.) as u32;
-                let step = dt / steps as f32;
-                for sub in 0..steps {
-                    p.velocity.y += p.settings.gravity * step;
-                    p.velocity += curl(
-                        p.position * 0.8,
-                        time - dt + step * sub as f32 + p.seed * 13.,
-                    ) * p.settings.turbulence
-                        * step;
-                    p.velocity *= (-p.settings.drag * step).exp();
-                    p.position += (p.velocity + Vec3::from(p.settings.wind)) * step;
+                if !self.gpu {
+                    let speed = p.curves.as_ref().map_or(1., |c| {
+                        c.speed
+                            .sample(((p.age + dt) / p.lifetime).clamp(0., 1.))
+                            .clamp(0., 8.)
+                    });
+                    let steps = (dt * 60.).ceil().max(1.) as u32;
+                    let step = dt / steps as f32;
+                    for sub in 0..steps {
+                        p.velocity.y += p.settings.gravity * step;
+                        p.velocity += curl(
+                            p.position * 0.8,
+                            time - dt + step * sub as f32 + p.seed * 13.,
+                        ) * p.settings.turbulence
+                            * step;
+                        p.velocity *= (-p.settings.drag * step).exp();
+                        p.position += (p.velocity + Vec3::from(p.settings.wind)) * step * speed;
+                    }
+                    p.reference_age = p.age + dt;
                 }
                 p.age += dt;
                 p.rotation += p.spin * dt;
@@ -291,6 +325,8 @@ impl ParticleSystem {
                     scale: scale * (0.75 + 0.5 * r(9)),
                     seed: r(10),
                     settings: *settings,
+                    curves: curves.clone(),
+                    reference_age: 0.,
                 });
             }
             total += count;
@@ -313,16 +349,39 @@ impl ParticleSystem {
                     } else {
                         1.
                     };
+                let factor = |curve: fn(&Curves) -> &Curve| {
+                    p.curves
+                        .as_ref()
+                        .map_or(1., |c| curve(c).sample(t).clamp(0., 8.))
+                };
                 Particle {
+                    simulation: self.gpu.then_some(ParticleSimulation {
+                        epoch: self.epoch,
+                        age: p.age,
+                        reference_age: p.reference_age,
+                        time: self.time,
+                        gravity: p.settings.gravity,
+                        drag: p.settings.drag,
+                        turbulence: p.settings.turbulence,
+                        wind: p.settings.wind,
+                        speed: factor(|c| &c.speed),
+                    }),
                     id: p.id,
                     position: p.position,
                     velocity: p.velocity + Vec3::from(p.settings.wind),
                     size: (p.settings.start_size
                         + (p.settings.end_size - p.settings.start_size) * t)
-                        * p.scale,
+                        * p.scale
+                        * factor(|c| &c.size).max(0.0001),
                     rotation: p.rotation,
-                    color: p.settings.color,
-                    opacity,
+                    color: std::array::from_fn(|i| {
+                        (p.settings.color[i]
+                            * p.curves
+                                .as_ref()
+                                .map_or(1., |c| c.color[i].sample(t).clamp(0., 8.)))
+                        .clamp(0., 1.)
+                    }),
+                    opacity: (opacity * factor(|c| &c.opacity)).clamp(0., 1.),
                     kind: p.settings.kind,
                     softness: p.settings.softness,
                     trail_length: p.settings.trail_length,
@@ -333,6 +392,19 @@ impl ParticleSystem {
     }
 }
 impl crate::SceneInstance {
+    pub fn gpu_particles_enabled(&self) -> bool {
+        self.particle_state.gpu
+    }
+    pub fn set_gpu_particles(&mut self, enabled: bool) {
+        if self.particle_state.gpu == enabled {
+            return;
+        }
+        static EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        self.particle_state.gpu = enabled;
+        self.particle_state.epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        // Switching backend starts a fresh decorative effect, so no stale GPU pose can leak.
+        self.particle_state.emitters.clear();
+    }
     pub fn step_particles(&mut self, world: &bozzard_ecs::World, dt: f32) -> Result<()> {
         if !self
             .entities
@@ -347,9 +419,17 @@ impl crate::SceneInstance {
             .entities
             .iter()
             .filter_map(|(id, entity)| {
-                world
-                    .get::<ParticleEmitter>(*entity)
-                    .map(|settings| (id.clone(), matrices[id], *settings))
+                world.get::<ParticleEmitter>(*entity).map(|settings| {
+                    (
+                        id.clone(),
+                        matrices[id],
+                        *settings,
+                        world
+                            .get::<Modules>(*entity)
+                            .filter(|m| m.enabled)
+                            .map(|m| m.curves.clone()),
+                    )
+                })
             })
             .collect();
         self.particle_state.step(&emitters, dt, self.display_time)

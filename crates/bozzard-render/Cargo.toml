@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+bozzard-text.workspace = true
 anyhow.workspace = true
 pollster.workspace = true
 wgpu.workspace = true

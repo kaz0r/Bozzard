@@ -24,6 +24,7 @@ pub fn static_objects(scene: &Scene) -> BTreeSet<String> {
         })
         .map(|o| o.id.clone())
         .collect();
+    dynamic.extend(bozzard_scene::middleware::registry::dynamic_targets(scene));
     for object in &scene.objects {
         for attachment in object.blueprints.iter().filter(|b| b.enabled) {
             match attachment.graph.write_targets(&object.id) {

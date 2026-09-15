@@ -151,7 +151,7 @@ impl ShadowMaps {
                     .filter(|d| {
                         !renderer.culling
                             || visibility::visible(
-                                renderer.mesh_for(&d.object.mesh).bounds,
+                                renderer.mesh_for(&d.object).bounds,
                                 *matrix * d.object.model,
                             )
                     })

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "Ui 2D Lab",
+  "start_scene": "scenes/ui-2d-lab.json",
+  "view": "2d"
+}

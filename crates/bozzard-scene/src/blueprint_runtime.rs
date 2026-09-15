@@ -45,10 +45,14 @@ impl Program {
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct EventContext {
+    #[serde(default)]
+    wall_clock: bool,
     event: u32,
     other: Option<String>,
     normal: [f32; 3],
     impulse: f32,
+    #[serde(default)]
+    message: String,
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Timer {
@@ -238,6 +242,239 @@ impl Eval<'_> {
                             && self.world.get::<PlayerController>(*e).is_none()
                     }),
             ),
+            K::TimelineEvent
+            | K::AnimationEvent
+            | K::NavigationEvent
+            | K::SpriteEvent
+            | K::UiEvent
+                if socket.port == 1 =>
+            {
+                Value::Text(if self.context.event == id {
+                    self.context.message.clone()
+                } else {
+                    String::new()
+                })
+            }
+            K::TimelineEvent
+            | K::AnimationEvent
+            | K::NavigationEvent
+            | K::SpriteEvent
+            | K::UiEvent
+                if socket.port == 2 =>
+            {
+                Value::Number(if self.context.event == id {
+                    self.context.impulse
+                } else {
+                    0.
+                })
+            }
+            K::UiValue => {
+                use crate::middleware::ui::{Runtime, Widget};
+                let owner =
+                    reference_id(v[0].object()?, self.owner).context("UI target is None")?;
+                let entity = self.entities.get(owner).context("UI target missing")?;
+                let widget = self
+                    .world
+                    .get::<Widget>(*entity)
+                    .context("target has no UI Widget")?;
+                Value::Number(
+                    self.world
+                        .resource::<Runtime>()
+                        .and_then(|r| r.widgets.get(owner))
+                        .and_then(|s| s.value)
+                        .unwrap_or(widget.value),
+                )
+            }
+            K::UiReducedMotion => Value::Bool(
+                self.world
+                    .resource::<crate::middleware::ui::Preferences>()
+                    .and_then(|p| p.reduced_motion)
+                    .unwrap_or_else(|| {
+                        self.world
+                            .query::<crate::middleware::ui::Canvas>()
+                            .any(|(_, c)| c.enabled && c.reduced_motion)
+                    }),
+            ),
+            K::SpriteFrame => {
+                use crate::middleware::sprite::{Runtime, Sprite};
+                let owner =
+                    reference_id(v[0].object()?, self.owner).context("sprite target is None")?;
+                let entity = self.entities.get(owner).context("sprite target missing")?;
+                let sprite = self
+                    .world
+                    .get::<Sprite>(*entity)
+                    .context("target has no Sprite")?;
+                Value::Number(
+                    self.world
+                        .resource::<Runtime>()
+                        .and_then(|r| r.players.get(owner))
+                        .map_or(sprite.frame, |r| r.frame) as f32,
+                )
+            }
+            K::GetTile => {
+                let owner =
+                    reference_id(v[2].object()?, self.owner).context("tilemap target is None")?;
+                let entity = self.entities.get(owner).context("tilemap target missing")?;
+                let map = self
+                    .world
+                    .get::<crate::middleware::sprite::Tilemap>(*entity)
+                    .context("target has no Tilemap")?;
+                let x = list_index(v[0].number()?)?;
+                let y = list_index(v[1].number()?)?;
+                ensure!(
+                    x < map.dimensions[0] as usize && y < map.dimensions[1] as usize,
+                    "tile coordinate outside map"
+                );
+                Value::Number(map.cells[y * map.dimensions[0] as usize + x] as f32)
+            }
+            K::NavigationEvent if socket.port == 3 => Value::Object(if self.context.event == id {
+                self.context
+                    .other
+                    .clone()
+                    .map_or(ObjectRef::None, ObjectRef::Id)
+            } else {
+                ObjectRef::None
+            }),
+            K::NavState | K::NavHasPath | K::NavSeesTarget | K::NavVelocity => {
+                use crate::middleware::navigation::{NavAgent, Runtime};
+                let owner = reference_id(v[0].object()?, self.owner)
+                    .context("navigation target is None")?;
+                let entity = self
+                    .entities
+                    .get(owner)
+                    .context("navigation target missing")?;
+                let agent = self
+                    .world
+                    .get::<NavAgent>(*entity)
+                    .context("target has no Navigation Agent")?;
+                let run = self
+                    .world
+                    .resource::<Runtime>()
+                    .and_then(|r| r.agents.get(owner));
+                match n.kind {
+                    K::NavState => Value::Text(run.map_or_else(
+                        || agent.initial.clone(),
+                        |r| agent.states[r.state].name.clone(),
+                    )),
+                    K::NavHasPath => Value::Bool(run.is_some_and(|r| {
+                        !r.halted && !r.arrived && !r.blocked && r.cursor < r.path.len()
+                    })),
+                    K::NavSeesTarget => Value::Bool(run.is_some_and(|r| r.sees_target)),
+                    _ => Value::Vector(run.map_or([0.; 3], |r| r.velocity)),
+                }
+            }
+            K::AudioPosition | K::AudioPlaying => {
+                use crate::middleware::audio::{AudioSource, Runtime, Transport};
+                let owner =
+                    reference_id(v[0].object()?, self.owner).context("audio target is None")?;
+                let entity = self
+                    .entities
+                    .get(owner)
+                    .context("audio target is missing")?;
+                let source = self
+                    .world
+                    .get::<AudioSource>(*entity)
+                    .context("target has no Audio Source")?;
+                let voice = self
+                    .world
+                    .resource::<Runtime>()
+                    .and_then(|r| r.voices.get(owner));
+                if n.kind == K::AudioPosition {
+                    Value::Number(voice.map_or(0., |v| v.position as f32))
+                } else {
+                    Value::Bool(
+                        source.enabled
+                            && voice.map_or(source.autoplay && !source.asset.is_empty(), |v| {
+                                v.transport == Transport::Playing
+                            }),
+                    )
+                }
+            }
+            K::AnimationProgress | K::AnimationState => {
+                use crate::middleware::animation::{Animator, Runtime};
+                let id =
+                    reference_id(v[0].object()?, self.owner).context("animation target is None")?;
+                let entity = self
+                    .entities
+                    .get(id)
+                    .context("animation target is missing")?;
+                let animator = self
+                    .world
+                    .get::<Animator>(*entity)
+                    .context("target has no Animator")?;
+                let player = self
+                    .world
+                    .resource::<Runtime>()
+                    .and_then(|r| r.players.get(id));
+                let state = player.and_then(|p| animator.states.get(p.state));
+                if n.kind == K::AnimationState {
+                    Value::Text(state.map_or_else(|| animator.initial.clone(), |s| s.name.clone()))
+                } else {
+                    Value::Number(
+                        player
+                            .zip(state)
+                            .map_or(0., |(p, s)| p.clock.position(1., s.repeat)),
+                    )
+                }
+            }
+            K::TimelineProgress => {
+                use crate::middleware::timeline::{Runtime, Timeline};
+                let id =
+                    reference_id(v[0].object()?, self.owner).context("timeline target is None")?;
+                let entity = self
+                    .entities
+                    .get(id)
+                    .context("timeline target is missing")?;
+                let timeline = self
+                    .world
+                    .get::<Timeline>(*entity)
+                    .context("target has no Timeline")?;
+                Value::Number(
+                    self.world
+                        .resource::<Runtime>()
+                        .and_then(|r| r.players.get(id))
+                        .map_or(0., |s| {
+                            s.clock
+                                .position(timeline.motion.duration, timeline.motion.repeat)
+                                / timeline.motion.duration
+                        }),
+                )
+            }
+            K::TweenProgress | K::SampleCurve => {
+                use crate::middleware::tween::{Runtime, Tween};
+                let port = n.kind.target_port().unwrap();
+                let id =
+                    reference_id(v[port].object()?, self.owner).context("motion target is None")?;
+                let entity = self.entities.get(id).context("motion target is missing")?;
+                let tween = self
+                    .world
+                    .get::<Tween>(*entity)
+                    .context("target has no Tween")?;
+                Value::Number(if n.kind == K::TweenProgress {
+                    self.world
+                        .resource::<Runtime>()
+                        .and_then(|r| r.players.get(id))
+                        .map_or(0., |s| {
+                            s.clock.position(tween.duration, tween.repeat) / tween.duration
+                        })
+                } else {
+                    let track = v[1].number()?;
+                    let channel = v[2].number()?;
+                    ensure!(
+                        track >= 0.
+                            && track.fract() == 0.
+                            && channel >= 0.
+                            && channel.fract() == 0.,
+                        "curve indices must be nonnegative integers"
+                    );
+                    tween
+                        .tracks
+                        .get(track as usize)
+                        .and_then(|t| t.channels.get(channel as usize))
+                        .context("motion curve index out of range")?
+                        .sample(v[0].number()?)
+                })
+            }
             K::DeltaTime => Value::Number(self.dt),
             K::ElapsedTime => Value::Number(self.elapsed),
             K::Position | K::Rotation | K::Scale => {
@@ -481,15 +718,29 @@ impl SceneInstance {
         dt: f32,
         input: GameplayInput,
     ) -> Result<()> {
-        if !crate::game_flow::simulation_running(world) {
-            return Ok(());
-        }
+        self.step_blueprints_inner(world, dt, input, false)
+    }
+    /// Dispatch native UI actions immediately without ticking gameplay or its timers.
+    pub fn dispatch_ui_blueprints(&mut self, world: &mut World) -> Result<()> {
+        self.step_blueprints_inner(world, 0., GameplayInput::default(), true)
+    }
+    fn step_blueprints_inner(
+        &mut self,
+        world: &mut World,
+        dt: f32,
+        input: GameplayInput,
+        ui_dispatch: bool,
+    ) -> Result<()> {
+        let ui_only = ui_dispatch || !crate::game_flow::simulation_running(world);
         if !self.has_blueprints() {
+            if let Some(signals) = world.resource_mut::<crate::middleware::signals::Signals>() {
+                signals.begin(crate::middleware::signals::Kind::Ui);
+            }
             return self.apply_scene_controls(world);
         }
         ensure!(
             dt.is_finite()
-                && dt > 0.
+                && (dt > 0. || ui_dispatch)
                 && input
                     .movement
                     .iter()
@@ -505,22 +756,26 @@ impl SceneInstance {
         runtime.stats.query_geometry_builds = 0;
         runtime.stats.actions = 0;
         let result = (|| -> Result<()> {
-            runtime.elapsed += dt;
+            if !ui_only {
+                runtime.elapsed += dt;
+            }
             ensure!(runtime.elapsed.is_finite(), "blueprint clock overflow");
-            let query_overlaps = self
-                .document
-                .objects
-                .iter()
-                .flat_map(|o| &o.blueprints)
-                .filter(|b| b.enabled)
-                .any(|b| needs_overlap(&b.graph));
-            let query_solids = self
-                .document
-                .objects
-                .iter()
-                .flat_map(|o| &o.blueprints)
-                .filter(|a| a.enabled)
-                .any(|a| a.graph.nodes.iter().any(|n| n.kind == K::CollisionEnter));
+            let query_overlaps = !ui_only
+                && self
+                    .document
+                    .objects
+                    .iter()
+                    .flat_map(|o| &o.blueprints)
+                    .filter(|b| b.enabled)
+                    .any(|b| needs_overlap(&b.graph));
+            let query_solids = !ui_only
+                && self
+                    .document
+                    .objects
+                    .iter()
+                    .flat_map(|o| &o.blueprints)
+                    .filter(|a| a.enabled)
+                    .any(|a| a.graph.nodes.iter().any(|n| n.kind == K::CollisionEnter));
             let collision_data = (query_overlaps || query_solids)
                 .then(|| self.collision_snapshot(world))
                 .transpose()?;
@@ -622,9 +877,11 @@ impl SceneInstance {
                     let step =
                         (|| -> Result<()> {
                             let mut events = Vec::new();
-                            if enabled {
+                            if enabled && !ui_dispatch {
                                 for timer in &mut run.timers {
-                                    timer.remaining -= dt;
+                                    if !ui_only || timer.context.wall_clock {
+                                        timer.remaining -= dt;
+                                    }
                                 }
                                 for timer in &run.timers {
                                     if timer.remaining <= 0. {
@@ -632,14 +889,30 @@ impl SceneInstance {
                                     }
                                 }
                                 run.timers.retain(|t| t.remaining > 0.);
-                            } else {
+                            } else if !enabled {
                                 run.timers.clear();
                             }
-                            for event in program.graph.nodes.iter().filter(|n| n.kind.event()) {
+                            for event in program.graph.nodes.iter().filter(|n| {
+                                n.kind.event()
+                                    && (!ui_dispatch || n.kind == K::UiEvent)
+                                    && (!ui_only || matches!(n.kind, K::UiEvent | K::AudioFinished))
+                            }) {
                                 let fire = match event.kind {
                                     K::Enable => enabled && !run.enabled,
                                     K::Disable => !enabled && run.enabled,
                                     K::Start => enabled && !run.started,
+                                    K::AudioFinished => {
+                                        enabled
+                                            && world
+                                                .resource::<crate::middleware::audio::Runtime>()
+                                                .is_some_and(|r| r.finished.contains(&owner))
+                                    }
+                                    K::TweenFinished => {
+                                        enabled
+                                            && world
+                                                .resource::<crate::middleware::tween::Runtime>()
+                                                .is_some_and(|r| r.finished.contains(&owner))
+                                    }
                                     K::Update => enabled,
                                     K::InputPressed => {
                                         enabled
@@ -657,6 +930,42 @@ impl SceneInstance {
                                 };
                                 let mut contexts = Vec::new();
                                 match event.kind {
+                                    K::TimelineEvent
+                                    | K::AnimationEvent
+                                    | K::NavigationEvent
+                                    | K::UiEvent
+                                    | K::SpriteEvent
+                                        if enabled =>
+                                    {
+                                        use crate::middleware::signals::{Kind, Signals};
+                                        if let Some(signals) = world.resource::<Signals>() {
+                                            contexts.extend(
+                                                signals
+                                                    .for_owner(
+                                                        &owner,
+                                                        if event.kind == K::TimelineEvent {
+                                                            Kind::Timeline
+                                                        } else if event.kind == K::NavigationEvent {
+                                                            Kind::Navigation
+                                                        } else if event.kind == K::UiEvent {
+                                                            Kind::Ui
+                                                        } else if event.kind == K::SpriteEvent {
+                                                            Kind::Sprite
+                                                        } else {
+                                                            Kind::Animation
+                                                        },
+                                                    )
+                                                    .map(|signal| EventContext {
+                                                        wall_clock: event.kind == K::UiEvent,
+                                                        event: event.id,
+                                                        message: signal.name.clone(),
+                                                        impulse: signal.value,
+                                                        other: signal.other.clone(),
+                                                        ..Default::default()
+                                                    }),
+                                            );
+                                        }
+                                    }
                                     K::BodyEnter if enabled => contexts.extend(
                                         overlap.difference(&run.overlap).map(|id| EventContext {
                                             event: event.id,
@@ -680,9 +989,11 @@ impl SceneInstance {
                                                 other: Some(c.other.clone()),
                                                 normal: c.normal.to_array(),
                                                 impulse: c.impulse,
+                                                ..Default::default()
                                             }),
                                     ),
                                     _ if fire => contexts.push(EventContext {
+                                        wall_clock: event.kind == K::AudioFinished,
                                         event: event.id,
                                         ..Default::default()
                                     }),
@@ -715,18 +1026,20 @@ impl SceneInstance {
                                     false,
                                 )?;
                             }
-                            if enabled {
-                                run.started = true;
-                                run.overlap = overlap.clone();
-                                run.collisions =
-                                    collisions.iter().map(|c| c.other.clone()).collect();
-                                run.held = input.binding_mask();
-                            } else {
-                                run.overlap.clear();
-                                run.collisions.clear();
-                                run.held = 0;
+                            if !ui_only {
+                                if enabled {
+                                    run.started = true;
+                                    run.overlap = overlap.clone();
+                                    run.collisions =
+                                        collisions.iter().map(|c| c.other.clone()).collect();
+                                    run.held = input.binding_mask();
+                                } else {
+                                    run.overlap.clear();
+                                    run.collisions.clear();
+                                    run.held = 0;
+                                }
+                                run.enabled = enabled;
                             }
-                            run.enabled = enabled;
                             Ok(())
                         })();
                     runtime.runs.insert(key, run);
@@ -775,6 +1088,9 @@ impl SceneInstance {
             Ok(())
         })();
         world.insert_resource(runtime);
+        if let Some(signals) = world.resource_mut::<crate::middleware::signals::Signals>() {
+            signals.begin(crate::middleware::signals::Kind::Ui);
+        }
         result?;
         self.apply_scene_controls(world)
     }
@@ -801,7 +1117,7 @@ impl SceneInstance {
         while let Some(output) = queue.pop_front() {
             for &id in program.outgoing.get(&output).into_iter().flatten() {
                 if !destroying
-                    && (!crate::game_flow::simulation_running(world)
+                    && (!context.wall_clock && !crate::game_flow::simulation_running(world)
                         || runtime.destroying.iter().any(|target| {
                             target == owner
                                 || self.document.prefabs.values().any(|p| {
@@ -1064,6 +1380,171 @@ impl SceneInstance {
                                 ""
                             },
                         )?;
+                    }
+                    K::SetUiText
+                    | K::SetUiValue
+                    | K::SetUiVisible
+                    | K::SetUiEnabled
+                    | K::FocusUi => {
+                        use crate::middleware::ui::Control;
+                        let control = match node.kind {
+                            K::SetUiText => Control::Text(value.text()?.into()),
+                            K::SetUiValue => Control::Value(value.number()?),
+                            K::SetUiVisible => Control::Visible(value.boolean()?),
+                            K::SetUiEnabled => Control::Enabled(value.boolean()?),
+                            _ => Control::Focus,
+                        };
+                        self.control_ui(world, &target, control)?;
+                    }
+                    K::SetUiLanguage => self.set_ui_language(world, value.text()?)?,
+                    K::SetUiTextScale | K::SetUiContrast | K::SetUiReducedMotion => {
+                        use crate::middleware::ui::Preferences;
+                        let scale = if node.kind == K::SetUiTextScale {
+                            let s = value.number()?;
+                            ensure!(
+                                s.is_finite() && (1.0..=3.).contains(&s),
+                                "UI text scale outside 1–3"
+                            );
+                            Some(s)
+                        } else {
+                            None
+                        };
+                        let enabled = if scale.is_none() {
+                            Some(value.boolean()?)
+                        } else {
+                            None
+                        };
+                        if world.resource::<Preferences>().is_none() {
+                            world.insert_resource(Preferences::default());
+                        }
+                        let preferences = world.resource_mut::<Preferences>().unwrap();
+                        match node.kind {
+                            K::SetUiTextScale => preferences.text_scale = scale,
+                            K::SetUiContrast => preferences.high_contrast = enabled,
+                            _ => preferences.reduced_motion = enabled,
+                        }
+                    }
+                    K::StartGame | K::PauseGame | K::ResumeGame | K::RestartGame | K::QuitGame => {
+                        use crate::game_flow::GamePhase as P;
+                        if node.kind == K::RestartGame {
+                            self.request_scene_control(world, K::RestartScene, "")?;
+                        } else {
+                            let session = world
+                                .resource_mut::<crate::GameSession>()
+                                .context("game flow is not enabled")?;
+                            match (node.kind, session.phase) {
+                                (K::StartGame, P::Ready) | (K::ResumeGame, P::Paused) => {
+                                    session.phase = P::Playing
+                                }
+                                (K::PauseGame, P::Playing) => session.phase = P::Paused,
+                                (K::QuitGame, _) => session.phase = P::Quit,
+                                _ => {}
+                            }
+                        }
+                    }
+                    K::PlaySprite | K::PauseSprite | K::StopSprite | K::SetSpriteFrame => {
+                        use crate::middleware::sprite::Control;
+                        let control = match node.kind {
+                            K::PlaySprite => Control::Play {
+                                clip: value.text()?.into(),
+                                restart: eval.input(node, 2)?.boolean()?,
+                            },
+                            K::PauseSprite => Control::Pause,
+                            K::StopSprite => Control::Stop,
+                            _ => Control::Frame(u32::try_from(list_index(value.number()?)?)?),
+                        };
+                        self.control_sprite(world, &target, control)?;
+                    }
+                    K::SetTile => {
+                        let x = u32::try_from(list_index(value.number()?)?)?;
+                        let y = u32::try_from(list_index(eval.input(node, 2)?.number()?)?)?;
+                        let tile = u32::try_from(list_index(eval.input(node, 3)?.number()?)?)?;
+                        self.set_tile(world, &target, x, y, tile)?;
+                    }
+                    K::SetNavDestination | K::SetNavState | K::SetNavTarget | K::StopNavigation => {
+                        use crate::middleware::navigation::Control;
+                        let control = match node.kind {
+                            K::SetNavDestination => Control::Destination(value.vector()?),
+                            K::SetNavState => Control::State(value.text()?.into()),
+                            K::SetNavTarget => Control::Target(
+                                reference_id(value.object()?, owner).map(str::to_owned),
+                            ),
+                            _ => Control::Stop,
+                        };
+                        self.control_navigation(world, &target, control)?;
+                    }
+                    K::PlayAudio
+                    | K::PauseAudio
+                    | K::StopAudio
+                    | K::SeekAudio
+                    | K::SetAudioVolume
+                    | K::SetAudioPitch
+                    | K::SetAudioPan => {
+                        use crate::middleware::audio::Control;
+                        let control = match node.kind {
+                            K::PlayAudio => Control::Play {
+                                restart: value.boolean()?,
+                            },
+                            K::PauseAudio => Control::Pause,
+                            K::StopAudio => Control::Stop,
+                            K::SeekAudio => Control::Seek(f64::from(value.number()?)),
+                            K::SetAudioVolume => Control::Volume(value.number()?),
+                            K::SetAudioPitch => Control::Pitch(value.number()?),
+                            _ => Control::Pan(value.number()?),
+                        };
+                        self.control_audio(world, &target, control)?;
+                    }
+                    K::SetAudioBusVolume => {
+                        let volume = eval.input(node, 2)?.number()?;
+                        self.set_audio_bus_volume(world, value.text()?, volume)?;
+                    }
+                    K::PlayAnimation
+                    | K::PauseAnimation
+                    | K::StopAnimation
+                    | K::SeekAnimation
+                    | K::SetAnimationParameter => {
+                        use crate::middleware::animation::Control;
+                        let control = match node.kind {
+                            K::PlayAnimation => Control::Play {
+                                state: value.text()?.into(),
+                                fade: eval.input(node, 2)?.number()?,
+                            },
+                            K::PauseAnimation => Control::Pause,
+                            K::StopAnimation => Control::Stop,
+                            K::SeekAnimation => Control::Seek(value.number()?),
+                            _ => Control::Parameter {
+                                name: value.text()?.into(),
+                                value: eval.input(node, 2)?.number()?,
+                            },
+                        };
+                        self.control_animation(world, &target, control)?;
+                    }
+                    K::PlayTween
+                    | K::PauseTween
+                    | K::StopTween
+                    | K::SeekTween
+                    | K::PlayTimeline
+                    | K::PauseTimeline
+                    | K::StopTimeline
+                    | K::SeekTimeline => {
+                        use crate::middleware::tween::Control;
+                        let control = match node.kind {
+                            K::PlayTween | K::PlayTimeline => Control::Play {
+                                restart: value.boolean()?,
+                            },
+                            K::PauseTween | K::PauseTimeline => Control::Pause,
+                            K::StopTween | K::StopTimeline => Control::Stop,
+                            _ => Control::Seek(value.number()?),
+                        };
+                        let transport = if matches!(
+                            node.kind,
+                            K::PlayTween | K::PauseTween | K::StopTween | K::SeekTween
+                        ) {
+                            Self::control_tween
+                        } else {
+                            Self::control_timeline
+                        };
+                        transport(self, world, &target, control)?;
                     }
                     K::Translate | K::Rotate | K::SetPosition | K::SetRotation | K::SetScale => {
                         let mut next = transform;
@@ -1328,9 +1809,12 @@ impl BlueprintRuntime {
                         && t.remaining >= 0.
                         && t.output.port == 0
                         && graph.node(t.output.node).is_ok_and(|n| n.kind == K::Delay)
-                        && graph.node(t.context.event).is_ok_and(|n| n.kind.event())
+                        && graph.node(t.context.event).is_ok_and(|n| n.kind.event()
+                            && t.context.wall_clock
+                                == matches!(n.kind, K::UiEvent | K::AudioFinished))
                         && t.context.normal.iter().all(|v| v.is_finite())
-                        && t.context.impulse.is_finite()),
+                        && t.context.impulse.is_finite()
+                        && t.context.message.len() <= 256),
                 "invalid saved timer"
             );
             ensure!(
