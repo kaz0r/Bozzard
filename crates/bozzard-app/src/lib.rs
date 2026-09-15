@@ -1,5 +1,5 @@
 //! Graphics-independent application, ordered systems, and fixed-step simulation.
-pub use bozzard_ecs::{Commands, Entity, World};
+pub use bozzard_ecs::{Commands, Entity, Mut, World};
 use std::{collections::HashSet, fmt, num::NonZeroU32, time::Duration};
 
 #[derive(Clone, Copy, Debug)]
@@ -95,6 +95,9 @@ impl App {
             number: self.ticks,
             delta: self.timestep,
         };
+        // Systems in one step share a change tick, so a reader that bookmarks `World::change_tick`
+        // when it finishes sees exactly the next step's writes as changed.
+        self.world.advance_change_tick();
         for system in &mut self.systems {
             system(&mut self.world, &mut self.commands, tick);
         }
@@ -172,6 +175,38 @@ mod tests {
         assert_eq!(result.steps, 2);
         assert_eq!(result.dropped, Duration::from_millis(80));
         assert_eq!(app.advance(Duration::from_millis(5)).steps, 1);
+    }
+
+    #[test]
+    fn a_reader_sees_exactly_what_the_last_step_wrote() {
+        let mut app = App::default();
+        let written = app.world.spawn();
+        let untouched = app.world.spawn();
+        app.world.insert(written, 0_i32).unwrap();
+        app.world.insert(untouched, 0_i32).unwrap();
+        let before_any_step = app.world.change_tick();
+        app.add_system(move |world, _, _| {
+            *world.get_mut::<i32>(written).unwrap() += 1;
+        });
+        app.step();
+        // The step advanced the tick and the writer's component carries it; the other one does not.
+        let after_first_step = app.world.change_tick();
+        assert!(after_first_step > before_any_step);
+        assert!(app.world.is_changed_since::<i32>(written, before_any_step));
+        assert!(
+            !app.world
+                .is_changed_since::<i32>(untouched, before_any_step)
+        );
+        assert!(!app.world.is_changed_since::<i32>(written, after_first_step));
+        app.step();
+        assert_eq!(
+            app.world
+                .changed_since::<i32>(before_any_step)
+                .map(|(entity, value)| (entity == written, *value))
+                .collect::<Vec<_>>(),
+            vec![(true, 2)]
+        );
+        assert_eq!(app.world.get::<i32>(untouched), Some(&0));
     }
 
     #[test]

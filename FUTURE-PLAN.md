@@ -36,7 +36,8 @@ whole component set. Field sites per component today: `collider` 58 sites/12 fil
 - [x] **M** Migrate the remaining hand-written inspector sections to fields: Text Rendering, Mesh Renderer (including mesh settings), Material, Mesh Collider and Particle Emitter. Field vocabulary grew to cover whole numbers, two-axis vectors with ranges, body text, and texture and mesh pickers; asset-derived readouts and scene-touching buttons stayed as small `extras` hooks. Trigger, Blueprint and Shader Graph keep hand-written sections: a graph, an attachment list and a scene-derived safe respawn are not field-shaped.
 - [x] **L** Forward-compatible components. An object's components are its own keys; a key with no registry row is preserved in `Object::extras`, written back unchanged, and listed in the Inspector as unrecognized. A typo inside a *known* component still fails loudly with the component and field named. No version bump was needed: the shape never changed, only the strictness of the component set, so v1 files load and save unchanged. `ComponentType::load` is the per-component migration seam for a future rename or reshape.
 - [x] **M** `register_component` puts a game-local row in the same registry, backed by `Object::extras`, so a gameplay type does not have to be compiled into the engine's schema; prefab refresh, add/remove, the field list and the generic UI treat it like a built-in. Typed Rust access still needs a built-in row.
-- [ ] **M** Change tracking per component. Investigated and moved to section 7: the two named caches do not want it (`binding.uniform` dedupe compares GPU-ready values, `ShadowFrame::same_sun` compares five `Lighting` fields, physics cooks colliders once at boot) and the editor already has a document `revision` counter for GI freshness. With today's model — typed fields mutated directly in many places, whole-object clone-then-apply edits — per-component revisions would have to be touched at every write site or lie. The maintainable home is the ECS component store, with a `DerefMut` guard bumping a tick, and its consumer is replication; do it there when section 7 starts.
+- [x] **M** Change tracking per component, in the ECS component store where it cannot lie (`crates/bozzard-ecs`): every component records the tick it was last written on, mutating access goes through a `Mut` guard that marks on `DerefMut`, and `changed_tick`/`is_changed_since`/`changed_since` answer what moved since a bookmark. `App::step` advances the tick once per step, so a bookmark taken at the end of one step sees exactly the next step's writes.  *Not* per component in the scene document: typed fields are mutated directly at ~200 sites and edits are whole-object clone-then-apply, so revisions there would have to be touched at every write site or lie. The scene document already has one `revision` counter for GI freshness.
+- [ ] **S** Consume the change ticks where rescanning is real work: replication in section 7 (what to send since the last acknowledgement) and animation once clips exist (which pose changed). Deliberately no consumer yet — the renderer never borrows a world and dedupes uniforms by value, `ShadowFrame::same_sun` compares five `Lighting` fields, physics cooks colliders once at boot, and the demo's spin and movement systems must run every step regardless.
 
 Definition of done: adding a component is a module plus one registry row; adding a node is one table
 row plus its runtime arm; and a scene saved by a newer engine loads in an older one with the unknown
@@ -104,8 +105,10 @@ Each of these is a content class the engine cannot represent at all today.
 
 ## 7 — Networking
 
-Blocked on section 1: replication needs per-component serialization and change tracking. The server
-is a fixed-step loop with no transport (`apps/server/src/main.rs`).
+Section 1 cleared the blocker: components have per-component load/save hooks, so a component can be
+serialized by name, and every component carries a change tick, so replication can ask what moved
+since the last acknowledgement instead of diffing the world. The server is a fixed-step loop with no
+transport (`apps/server/src/main.rs`).
 
 - [ ] **M** Real-time pacing, overload policy, graceful shutdown and operational diagnostics.
 - [ ] **L** Transport, entity replication, authority model, and interest management.

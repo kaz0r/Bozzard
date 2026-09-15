@@ -512,7 +512,7 @@ impl SceneInstance {
                                                 color.iter().all(|c| (0.0..=1.0).contains(c)),
                                                 "blueprint RGB must be in 0..1"
                                             );
-                                            let has_text = if let Some(text) =
+                                            let has_text = if let Some(mut text) =
                                                 world.get_mut::<TextRendering>(entity)
                                             {
                                                 text.color[..3].copy_from_slice(&color);
@@ -520,11 +520,11 @@ impl SceneInstance {
                                             } else {
                                                 false
                                             };
-                                            if let Some(material) =
+                                            if let Some(mut material) =
                                                 world.get_mut::<Material>(entity)
                                             {
                                                 material.color = color;
-                                            } else if let Some(drawable) =
+                                            } else if let Some(mut drawable) =
                                                 world.get_mut::<Drawable>(entity)
                                             {
                                                 // Legacy graphs also work on meshes using their source material.

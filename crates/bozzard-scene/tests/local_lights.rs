@@ -200,7 +200,7 @@ fn shadow_budget(kind: LightKind, limit: usize, other_kind: LightKind, other_lim
     );
     assert_eq!(view.lights[0].light.shadow_bias, 0.02);
     let entity = instance.entity("other-0").unwrap();
-    let point = world.get_mut::<Light>(entity).unwrap();
+    let mut point = world.get_mut::<Light>(entity).unwrap();
     point.kind = kind;
     point.enabled = false;
     assert!(instance.view(&world, Layer::ThreeD, 1.).is_err());
