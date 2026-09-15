@@ -273,6 +273,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "object");
         scene.objects.push(Object {
+            extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
             shader_graph: None,
@@ -317,6 +318,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "light");
         scene.objects.push(Object {
+            extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
             shader_graph: None,
@@ -593,6 +595,7 @@ impl Editor {
             transform.scale[0] = image.width as f32 / image.height as f32;
         }
         scene.objects.push(Object {
+            extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
             shader_graph: None,

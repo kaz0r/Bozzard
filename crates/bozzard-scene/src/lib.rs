@@ -44,8 +44,15 @@ use bozzard_ecs::{Entity, World};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
+use std::result::Result as StdResult;
 
 mod collision;
+mod component;
+pub use component::{
+    AddContext, COMPONENTS, Component, ComponentType, Field, FieldKind, FieldValue, Ui, VectorRole,
+    available_components, component_type, component_type_by_label, components,
+    eligible_follow_camera, register_component,
+};
 mod gameplay;
 pub mod keys;
 mod prefab;
@@ -62,6 +69,8 @@ pub use gameplay::{
 };
 pub use gravity::{Gravity, GravityState};
 
+/// Current scene schema. A component this build does not know is preserved rather than rejected,
+/// so files stay version 1: their shape never changed.
 pub const SCENE_VERSION: u32 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -314,43 +323,118 @@ impl Material {
 #[serde(transparent)]
 pub struct Spin(pub [f32; 3]);
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// An object is its identity (`id`, `name`, `parent`, `transform`) plus any number of components.
+///
+/// Components are siblings of the identity fields, and the [registry](component::components) owns
+/// every one of them. A component this build does not recognize is kept in [`Object::extras`] and
+/// written back unchanged, so a scene from a newer build survives a round trip through an older
+/// one. A typo in a *known* component's fields still fails loudly, because each component struct
+/// keeps `deny_unknown_fields`.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(try_from = "ObjectWire")]
 pub struct Object {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub particle_emitter: Option<ParticleEmitter>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_rendering: Option<TextRendering>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<Material>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blueprints: Vec<BlueprintAttachment>,
     /// Embedded surface shader graph; applies to the drawable's whole material.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shader_graph: Option<shader_graph::ShaderGraph>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<Light>,
     pub id: String,
     pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     pub transform: Transform,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<Camera>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drawable: Option<Drawable>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spin: Option<Spin>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collider: Option<BoxCollider>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mesh_collider: Option<MeshCollider>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gravity: Option<Gravity>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_controller: Option<PlayerController>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trigger: Option<Trigger>,
+    /// Components this build does not recognize, kept verbatim. See [`Object::extra`].
+    #[serde(skip)]
+    pub extras: BTreeMap<String, serde_json::Value>,
+}
+
+/// Wire form of an object: identity fields plus a flat map of components.
+///
+/// A flattened map cannot be combined with `deny_unknown_fields`, which is the point: an unknown
+/// *component* is data to preserve, while an unknown *field* inside a known component is a
+/// mistake. The component structs themselves stay strict.
+#[derive(Deserialize)]
+struct ObjectWire {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub parent: Option<String>,
+    pub transform: Transform,
+    #[serde(flatten)]
+    pub components: BTreeMap<String, serde_json::Value>,
+}
+
+impl Object {
+    /// An unrecognized component's value, exactly as it was loaded.
+    pub fn extra(&self, name: &str) -> Option<&serde_json::Value> {
+        self.extras.get(name)
+    }
+    /// Store a component value verbatim. Registered components use this for storage when their
+    /// types are not compiled into this crate.
+    pub fn set_extra(&mut self, name: impl Into<String>, value: serde_json::Value) {
+        self.extras.insert(name.into(), value);
+    }
+}
+
+impl TryFrom<ObjectWire> for Object {
+    type Error = anyhow::Error;
+    fn try_from(wire: ObjectWire) -> Result<Self> {
+        let mut object = Object {
+            id: wire.id,
+            name: wire.name,
+            parent: wire.parent,
+            transform: wire.transform,
+            ..Default::default()
+        };
+        for (name, value) in wire.components {
+            match component::component_type(&name) {
+                // serde can only carry a Display string out of `try_from`, so the cause chain is
+                // folded in here: a typo inside a component must name its component *and* field.
+                Some(entry) => (entry.load)(&mut object, value)
+                    .map_err(|error| anyhow::anyhow!("reading component '{name}': {error:#}"))?,
+                None => {
+                    object.extras.insert(name, value);
+                }
+            }
+        }
+        Ok(object)
+    }
+}
+
+impl Serialize for Object {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
+        use serde::ser::{Error as _, SerializeMap as _};
+        let mut components = serde_json::Map::new();
+        for entry in component::components() {
+            let saved = (entry.save)(self).map_err(|error| {
+                S::Error::custom(format!("writing component '{}': {error:#}", entry.name))
+            })?;
+            if let Some(value) = saved {
+                components.insert(entry.name.into(), value);
+            }
+        }
+        components.extend(self.extras.clone());
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("id", &self.id)?;
+        map.serialize_entry("name", &self.name)?;
+        if let Some(parent) = &self.parent {
+            map.serialize_entry("parent", parent)?;
+        }
+        map.serialize_entry("transform", &self.transform)?;
+        for (name, value) in &components {
+            map.serialize_entry(name, value)?;
+        }
+        map.end()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1162,6 +1246,7 @@ mod tests {
             gravity: None,
             player_controller: None,
             trigger: None,
+            extras: BTreeMap::new(),
         }
     }
     fn scene() -> Scene {
@@ -1173,7 +1258,7 @@ mod tests {
             display: DisplaySettings::default(),
             post_process_volumes: Vec::new(),
             lighting: Lighting::default(),
-            version: 1,
+            version: SCENE_VERSION,
             name: "test".into(),
             views: BTreeMap::new(),
             objects: vec![object("child"), object("parent")],
