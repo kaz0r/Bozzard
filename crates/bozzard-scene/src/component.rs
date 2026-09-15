@@ -1525,7 +1525,13 @@ pub const COMPONENTS: &[ComponentType] = &[
         material,
         |object| object.drawable.is_some() && object.material.is_none(),
         |object, _context| {
-            object.material = object.drawable.as_ref().map(Material::from_drawable);
+            // Loud rather than a silent no-op: the row is offered only for a mesh, but a caller
+            // that ignores availability should not end up with nothing.
+            let drawable = object
+                .drawable
+                .as_ref()
+                .context("Material needs a Mesh Renderer")?;
+            object.material = Some(Material::from_drawable(drawable));
             Ok(())
         },
         |object, _scene| object.material = None
@@ -1896,9 +1902,26 @@ mod tests {
     #[test]
     fn generic_components_round_trip_every_field_through_the_registry() {
         let scene = scene();
+        // Rows are offered where they are available, so a probe object either stays bare or takes
+        // the mesh some of them need first. Targets are remembered so a row that stops being
+        // exercised fails here instead of quietly dropping out of the loop.
+        let bare = object(&scene);
+        let mut meshed = object(&scene);
+        (component_type("drawable").expect("drawable row").add)(&mut meshed, &context(&scene))
+            .unwrap();
+        let mut covered = BTreeSet::new();
         for entry in COMPONENTS.iter().filter(|e| e.ui == Ui::Generic) {
-            let mut object = object(&scene);
-            (entry.add)(&mut object, &context(&scene)).unwrap();
+            let Some(mut object) = [bare.clone(), meshed.clone()]
+                .into_iter()
+                .find(|object| (entry.available)(object))
+            else {
+                continue;
+            };
+            if (entry.add)(&mut object, &context(&scene)).is_err() {
+                // Mesh Collider needs cooked geometry, which only a loaded asset store has.
+                continue;
+            }
+            covered.insert(entry.name);
             assert!((entry.present)(&object), "{} did not appear", entry.label);
             for field in (entry.fields)() {
                 if field.visible.is_some_and(|visible| !visible(&object)) {
@@ -1953,6 +1976,23 @@ mod tests {
                 entry.label
             );
         }
+        assert_eq!(
+            covered,
+            BTreeSet::from([
+                "drawable",
+                "material",
+                "collider",
+                "gravity",
+                "player_controller",
+                "light",
+                "particle_emitter",
+                "spin",
+                "camera",
+                "text_rendering",
+                "trigger",
+            ]),
+            "every generic component except Mesh Collider is covered here"
+        );
     }
 
     #[test]
