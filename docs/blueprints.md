@@ -16,7 +16,7 @@ The **Hero Cube** has two blueprints: **Spin** rotates it, and **Space toggles v
 
 1. Select an object or imported mesh child in Hierarchy. Components and graphs belong to that entity, not its shared mesh asset.
 2. Choose **Properties → Add Component**, search for **Blueprint**, and add it. Expand **BLUEPRINTS** for **+ New**, **+ Spin example**, or **Load…**. The **Blueprint** workspace tab opens its own node-editor pane, separate from the Scene viewport. **View → Blueprint Editor** switches to it too.
-3. Use **+ Add node** and search by name. Drag node headers to position them. Select a node and use **Delete node** or Delete to remove it and its wires.
+3. Use **+ Add node** for an alphabetical list, and type in **Search nodes…** to filter by name. Clicking the search field keeps the menu open; selecting a node, clicking outside, or pressing Escape closes it. Drag node headers to position them. Select a node and use **Delete node** or Delete to remove it and its wires.
 4. Click an output pin, then an input pin (drag/release also works). White pins carry execution; green numbers, red booleans, blue vectors, and purple object references carry data. Only matching types connect. A new connection replaces that input's existing wire. Right-click an input to disconnect. Escape cancels a pending connection/selection.
 5. Edit unconnected input values directly on nodes. **Blackboards** adds typed scalars or bounded lists to Graph, Object, or Scene scope. Select a Get/Set Variable or List node, choose its scope and declaration above the canvas. **Variables** retains legacy private number defaults. Referenced declarations cannot be removed from an accepted scene.
 6. Middle/right-drag or scroll pans; Ctrl+scroll/pinch zooms; **Fit graph** frames all nodes.
@@ -36,6 +36,14 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 - The checked-in reusable files are `examples/demo/scenes/assets/spin.blueprint.json` and `toggle-visibility.blueprint.json`.
 
 ## Nodes and runtime semantics
+
+Every node kind is one row of the table in `crates/bozzard-scene/src/blueprint.rs`. That row is the
+single declaration of a node: it generates the enum (whose snake_case names are the saved wire format),
+the default pin lists, the alphabetically sorted add-node menu, and the `event`/`action` classification
+the runtime uses to start chains. `Node::input_pins` and `Node::output_pins` resolve the declared type
+for variable, list and reroute pins. Adding a node is one row plus its runtime evaluation arm and any
+type-specific behavior. A test guards that the table stays complete, ordered, uniquely titled and
+round-trips every name through serde.
 
 | Category | Nodes |
 |---|---|

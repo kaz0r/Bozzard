@@ -289,7 +289,7 @@ impl SceneDemo {
                 })
                 .map(|(e, _)| e)
                 .collect();
-            for (entity, transform, spin) in world
+            for (entity, mut transform, spin) in world
                 .query_pair_mut::<Transform, Spin>()
                 .expect("distinct components")
             {
@@ -362,7 +362,7 @@ impl Plugin for MovementPlugin {
     }
     fn build(&self, app: &mut App) {
         app.add_system(|world, _, tick| {
-            for (_, position, velocity) in world
+            for (_, mut position, velocity) in world
                 .query_pair_mut::<Position, Velocity>()
                 .expect("distinct component types")
             {

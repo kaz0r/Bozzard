@@ -329,47 +329,7 @@ impl App {
             ui.horizontal_wrapped(|ui| {
                 ui.label("Name");
                 ui.add(egui::TextEdit::singleline(&mut graph.name).desired_width(170.));
-                ui.menu_button("+ Add node", |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.blueprint_pane.search)
-                            .hint_text("Search nodes…"),
-                    );
-                    egui::ScrollArea::vertical()
-                        .max_height(340.)
-                        .show(ui, |ui| {
-                            for kind in NodeKind::ALL {
-                                if kind
-                                    .title()
-                                    .to_lowercase()
-                                    .contains(&self.blueprint_pane.search.to_lowercase())
-                                    && ui.button(kind.title()).clicked()
-                                {
-                                    let id = graph
-                                        .nodes
-                                        .iter()
-                                        .map(|n| n.id)
-                                        .max()
-                                        .unwrap_or(0)
-                                        .saturating_add(1);
-                                    let mut node = Node::new(
-                                        id,
-                                        kind,
-                                        self.blueprint_pane.view.center().into(),
-                                    );
-                                    if matches!(kind, NodeKind::GetVariable | NodeKind::SetVariable)
-                                    {
-                                        graph.variables.entry("value".into()).or_insert(0.);
-                                        node.variable = "value".into();
-                                    }
-                                    graph.nodes.push(node);
-                                    self.blueprint_pane.selected = Some(id);
-                                    self.blueprint_pane.selection =
-                                        std::collections::BTreeSet::from([id]);
-                                    ui.close();
-                                }
-                            }
-                        });
-                });
+                self.blueprint_pane.add_node_menu(ui, &mut graph);
                 ui.menu_button("Blackboards", |ui| {
                     ui.label("Graph attachment");
                     board_editor(ui, &mut graph.blackboard, &mut self.blueprint_pane.variable);
@@ -1189,7 +1149,69 @@ impl BlueprintPane {
     }
 }
 
+// The catalog is immutable. Sort and normalize it once, rather than on every menu frame.
+fn node_menu_catalog() -> &'static [(&'static bozzard_scene::blueprint::NodeSpec, String)] {
+    static CATALOG: std::sync::LazyLock<
+        Vec<(&'static bozzard_scene::blueprint::NodeSpec, String)>,
+    > = std::sync::LazyLock::new(|| {
+        let mut nodes: Vec<_> = NodeKind::specs()
+            .iter()
+            .map(|spec| (spec, spec.title.to_lowercase()))
+            .collect();
+        nodes.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+        nodes
+    });
+    &CATALOG
+}
+
 impl BlueprintPane {
+    fn add_node_menu(&mut self, ui: &mut egui::Ui, graph: &mut Blueprint) -> egui::Response {
+        egui::containers::menu::MenuButton::new("+ Add node")
+            .config(
+                egui::containers::menu::MenuConfig::new()
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+            )
+            .ui(ui, |ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search nodes…"));
+                let query = self.search.trim().to_lowercase();
+                egui::ScrollArea::vertical()
+                    .max_height(340.)
+                    .show(ui, |ui| {
+                        let mut matched = false;
+                        for (spec, title) in node_menu_catalog() {
+                            if !title.contains(&query) {
+                                continue;
+                            }
+                            matched = true;
+                            if ui.button(spec.title).clicked() {
+                                let id = graph
+                                    .nodes
+                                    .iter()
+                                    .map(|n| n.id)
+                                    .max()
+                                    .unwrap_or(0)
+                                    .saturating_add(1);
+                                let mut node = Node::new(id, spec.kind, self.view.center().into());
+                                if matches!(
+                                    spec.kind,
+                                    NodeKind::GetVariable | NodeKind::SetVariable
+                                ) {
+                                    graph.variables.entry("value".into()).or_insert(0.);
+                                    node.variable = "value".into();
+                                }
+                                graph.nodes.push(node);
+                                self.selected = Some(id);
+                                self.selection = std::collections::BTreeSet::from([id]);
+                                ui.close();
+                            }
+                        }
+                        if !matched {
+                            ui.weak("No matching nodes");
+                        }
+                    });
+            })
+            .0
+    }
     fn copy(&mut self, ui: &egui::Ui, graph: &Blueprint) {
         let mut selected = self.selection.clone();
         if let Some(id) = self.selected {
@@ -1358,6 +1380,126 @@ mod tests {
                 modifiers: egui::Modifiers::NONE,
             },
         ]
+    }
+    fn menu_frame(
+        ctx: &egui::Context,
+        pane: &mut BlueprintPane,
+        graph: &mut Blueprint,
+        events: Vec<egui::Event>,
+    ) -> (Rect, Vec<(String, Rect)>) {
+        let mut button = Rect::NOTHING;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1000., 650.))),
+                focused: true,
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                button = pane.add_node_menu(ui, graph).rect;
+            },
+        );
+        fn collect(shape: &egui::Shape, clip: Rect, labels: &mut Vec<(String, Rect)>) {
+            match shape {
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, clip, labels);
+                    }
+                }
+                egui::Shape::Text(text) => {
+                    let rect = text.galley.rect.translate(text.pos.to_vec2());
+                    if clip.intersects(rect) {
+                        labels.push((text.galley.text().into(), rect));
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut labels = Vec::new();
+        for shape in &output.shapes {
+            collect(&shape.shape, shape.clip_rect, &mut labels);
+        }
+        output.textures_delta.clear();
+        (button, labels)
+    }
+    #[test]
+    fn add_node_search_stays_open_filters_sorted_nodes_and_selects_one() {
+        let ctx = egui::Context::default();
+        let mut pane = BlueprintPane::default();
+        let mut graph = Blueprint::default();
+        let button = menu_frame(&ctx, &mut pane, &mut graph, vec![]).0.center();
+        menu_frame(&ctx, &mut pane, &mut graph, pointer(button, true));
+        menu_frame(&ctx, &mut pane, &mut graph, pointer(button, false));
+        let (_, labels) = menu_frame(&ctx, &mut pane, &mut graph, vec![]);
+        let visible: Vec<_> = labels
+            .iter()
+            .filter(|(text, _)| NodeKind::specs().iter().any(|spec| spec.title == text))
+            .map(|(text, _)| text.to_lowercase())
+            .collect();
+        assert!(visible.len() > 5, "the open menu shows node choices");
+        assert!(visible.windows(2).all(|pair| pair[0] < pair[1]));
+        let search = labels
+            .iter()
+            .find(|(text, _)| text == "Search nodes…")
+            .unwrap()
+            .1
+            .center();
+        menu_frame(&ctx, &mut pane, &mut graph, pointer(search, true));
+        menu_frame(&ctx, &mut pane, &mut graph, pointer(search, false));
+        assert!(
+            egui::Popup::is_any_open(&ctx),
+            "clicking search must keep the menu open"
+        );
+        menu_frame(
+            &ctx,
+            &mut pane,
+            &mut graph,
+            vec![egui::Event::Text("dElAy".into())],
+        );
+        let (_, labels) = menu_frame(&ctx, &mut pane, &mut graph, vec![]);
+        assert_eq!(pane.search, "dElAy");
+        assert!(!labels.iter().any(|(text, _)| text == "Abs"));
+        let delay = labels
+            .iter()
+            .find(|(text, _)| text == "Delay / After")
+            .unwrap()
+            .1
+            .center();
+        menu_frame(&ctx, &mut pane, &mut graph, pointer(delay, true));
+        menu_frame(&ctx, &mut pane, &mut graph, pointer(delay, false));
+        assert_eq!(graph.nodes.len(), 3);
+        assert_eq!(graph.nodes.last().unwrap().kind, NodeKind::Delay);
+        assert_eq!(pane.selected, Some(graph.nodes.last().unwrap().id));
+        assert!(
+            !egui::Popup::is_any_open(&ctx),
+            "selecting a node closes the menu"
+        );
+
+        for dismiss in [None, Some(egui::Key::Escape)] {
+            menu_frame(&ctx, &mut pane, &mut graph, pointer(button, true));
+            menu_frame(&ctx, &mut pane, &mut graph, pointer(button, false));
+            assert!(egui::Popup::is_any_open(&ctx));
+            if let Some(key) = dismiss {
+                menu_frame(
+                    &ctx,
+                    &mut pane,
+                    &mut graph,
+                    vec![egui::Event::Key {
+                        key,
+                        physical_key: Some(key),
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    }],
+                );
+            } else {
+                let outside = Pos2::new(900., 600.);
+                menu_frame(&ctx, &mut pane, &mut graph, pointer(outside, true));
+                menu_frame(&ctx, &mut pane, &mut graph, pointer(outside, false));
+            }
+            assert!(!egui::Popup::is_any_open(&ctx));
+            assert_eq!(graph.nodes.len(), 3, "dismissing must not add another node");
+        }
     }
     #[test]
     fn canvas_connects_other_object_to_action_target() {

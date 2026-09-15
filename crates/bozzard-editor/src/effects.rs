@@ -117,6 +117,7 @@ impl Editor {
         let id = unique_id(&scene, "particles");
         scene.objects.push(Object {
             blackboard: Default::default(),
+            extras: Default::default(),
             particle_emitter: Some(bozzard_scene::ParticleEmitter::preset(kind)),
             id: id.clone(),
             name: kind.name().into(),

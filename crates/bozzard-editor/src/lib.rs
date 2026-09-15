@@ -274,6 +274,7 @@ impl Editor {
         let id = unique_id(&scene, "object");
         scene.objects.push(Object {
             blackboard: Default::default(),
+            extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
             shader_graph: None,
@@ -319,6 +320,7 @@ impl Editor {
         let id = unique_id(&scene, "light");
         scene.objects.push(Object {
             blackboard: Default::default(),
+            extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
             shader_graph: None,
@@ -596,6 +598,7 @@ impl Editor {
         }
         scene.objects.push(Object {
             blackboard: Default::default(),
+            extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
             shader_graph: None,

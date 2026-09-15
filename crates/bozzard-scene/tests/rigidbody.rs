@@ -207,7 +207,7 @@ fn body_impacts_transfer_motion_and_teleports_keep_scale() {
         "impact should push the other dynamic body: {:?}",
         world.get::<Transform>(entity)
     );
-    let t = world.get_mut::<Transform>(entity).unwrap();
+    let mut t = world.get_mut::<Transform>(entity).unwrap();
     t.translation = [5., 5., 5.];
     t.scale = [2., 1., 0.5];
     instance.step_gravity(&mut world, 1. / 60.).unwrap();
