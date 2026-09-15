@@ -1487,7 +1487,12 @@ impl Component for BlueprintAttachment {
     const NAME: &'static str = "blueprints";
     const LABEL: &'static str = "Blueprint";
     const HELP: &'static str =
-        "Attachment order defines execution order; each attachment owns its variables.";
+        "Attachment order defines execution order; variables use Graph, Object or Scene scope.";
+}
+impl Component for blueprint::Blackboard {
+    const NAME: &'static str = "blackboard";
+    const LABEL: &'static str = "Object Blackboard";
+    const HELP: &'static str = "Edit shared declarations in Blueprint → Blackboards → Object.";
 }
 impl Component for ShaderGraph {
     const NAME: &'static str = "shader_graph";
@@ -1742,6 +1747,40 @@ pub const COMPONENTS: &[ComponentType] = &[
                 .map_err(Into::into)
         },
     },
+    ComponentType {
+        name: blueprint::Blackboard::NAME,
+        label: blueprint::Blackboard::LABEL,
+        ui: blueprint::Blackboard::UI,
+        help: blueprint::Blackboard::HELP,
+        fields: blueprint::Blackboard::fields,
+        get: |_, _| None,
+        set: |object, key, value| object.blackboard.set_field(key, value),
+        present: |object| !object.blackboard.is_empty(),
+        available: |object| !object.blueprints.is_empty() && object.blackboard.is_empty(),
+        add: |object, _| {
+            object.blackboard.insert(
+                "shared".into(),
+                blueprint::BlackboardValue::Scalar(blueprint::Value::Number(0.)),
+            );
+            Ok(())
+        },
+        remove: |object, _| object.blackboard.clear(),
+        merge: |current, old, source| {
+            if current.blackboard == old.blackboard {
+                current.blackboard = source.blackboard.clone();
+            }
+        },
+        load: |object, value| {
+            object.blackboard = serde_json::from_value(value)?;
+            blueprint::validate_blackboard(&object.blackboard)
+        },
+        save: |object| {
+            (!object.blackboard.is_empty())
+                .then(|| serde_json::to_value(&object.blackboard))
+                .transpose()
+                .map_err(Into::into)
+        },
+    },
     component_row!(
         ShaderGraph,
         shader_graph,
@@ -1894,6 +1933,7 @@ mod tests {
                 "camera",
                 "text_rendering",
                 "blueprints",
+                "blackboard",
                 "shader_graph",
             ]
         );

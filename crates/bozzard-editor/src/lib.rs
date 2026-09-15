@@ -273,6 +273,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "object");
         scene.objects.push(Object {
+            blackboard: Default::default(),
             extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
@@ -318,6 +319,7 @@ impl Editor {
         let mut scene = self.scene.clone();
         let id = unique_id(&scene, "light");
         scene.objects.push(Object {
+            blackboard: Default::default(),
             extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
@@ -595,6 +597,7 @@ impl Editor {
             transform.scale[0] = image.width as f32 / image.height as f32;
         }
         scene.objects.push(Object {
+            blackboard: Default::default(),
             extras: Default::default(),
             particle_emitter: None,
             blueprints: Vec::new(),
@@ -1163,6 +1166,56 @@ fn extract_with_gi(
             )
             .collect(),
     })
+}
+
+impl Editor {
+    /// Embed a level with rebased, unique asset IDs so Play/export can preload one catalog.
+    pub fn import_runtime_scene(&mut self, name: &str, path: &Path) -> Result<()> {
+        let name = name.trim();
+        ensure!(
+            !name.is_empty() && name.len() <= 128,
+            "runtime scene needs a name"
+        );
+        let loaded = Scene::from_json(&std::fs::read_to_string(path)?)?;
+        ensure!(
+            loaded.runtime_scenes.is_empty(),
+            "import a scene without a nested runtime library"
+        );
+        let mut level = prepare_document_from(&loaded, &self.path, Some(path))?;
+        let mut scene = self.scene.clone();
+        ensure!(
+            !scene.runtime_scenes.contains_key(name),
+            "runtime scene '{name}' already exists"
+        );
+        let mapping: BTreeMap<_, _> = level
+            .assets
+            .keys()
+            .map(|id| (id.clone(), format!("level-{name}-{id}")))
+            .collect();
+        let assets = std::mem::take(&mut level.assets);
+        for (id, asset) in assets {
+            let new = &mapping[&id];
+            ensure!(
+                !scene.assets.contains_key(new),
+                "asset ID collision '{new}'"
+            );
+            level.assets.insert(new.clone(), asset.clone());
+            scene.assets.insert(new.clone(), asset);
+        }
+        for object in &mut level.objects {
+            object.remap_assets(&mapping);
+        }
+        for link in level.prefabs.values_mut() {
+            link.asset = mapping[&link.asset].clone();
+            for object in &mut link.baseline {
+                object.remap_assets(&mapping);
+            }
+        }
+        scene
+            .runtime_scenes
+            .insert(name.into(), std::sync::Arc::new(level));
+        self.apply("Import runtime scene", scene)
+    }
 }
 
 #[cfg(test)]

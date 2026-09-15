@@ -117,6 +117,65 @@ impl TriangleBvh {
     }
 }
 
+impl TriangleBvh {
+    /// Near-first traversal shared with collider queries, with distance pruning after every hit.
+    pub fn raycast(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        limit: f32,
+        test: &mut impl FnMut(u32) -> Option<f32>,
+    ) -> Option<(u32, f32)> {
+        fn visit(
+            tree: &TriangleBvh,
+            index: usize,
+            o: Vec3,
+            d: Vec3,
+            best: &mut Option<(u32, f32)>,
+            limit: f32,
+            test: &mut impl FnMut(u32) -> Option<f32>,
+        ) {
+            let node = tree.nodes[index];
+            let limit = best.map_or(limit, |h| h.1);
+            if crate::spatial::box_entry(node.bounds, o, d, limit).is_none() {
+                return;
+            }
+            if node.count > 0 {
+                for &id in
+                    &tree.triangle_order[node.first as usize..(node.first + node.count) as usize]
+                {
+                    if let Some(t) = test(id)
+                        && t <= limit
+                        && best.is_none_or(|(old, distance)| {
+                            t < distance || (t == distance && id < old)
+                        })
+                    {
+                        *best = Some((id, t));
+                    }
+                }
+            } else {
+                let left = node.first as usize;
+                let right = left + 1;
+                let a = crate::spatial::box_entry(tree.nodes[left].bounds, o, d, limit);
+                let b = crate::spatial::box_entry(tree.nodes[right].bounds, o, d, limit);
+                let order = if a.unwrap_or(f64::INFINITY) <= b.unwrap_or(f64::INFINITY) {
+                    [left, right]
+                } else {
+                    [right, left]
+                };
+                for child in order {
+                    visit(tree, child, o, d, best, limit, test);
+                }
+            }
+        }
+        let mut best = None;
+        if !self.nodes.is_empty() {
+            visit(self, 0, origin, direction, &mut best, limit, test);
+        }
+        best
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

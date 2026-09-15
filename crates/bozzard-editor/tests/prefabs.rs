@@ -259,6 +259,7 @@ fn refresh_adds_and_removes_children_but_rejects_local_conflicts_and_invalid_sou
 
 #[test]
 fn refresh_propagates_every_registered_component_not_a_hand_kept_list() {
+    use bozzard_scene::blueprint::{BlackboardValue, PinType, Value};
     use bozzard_scene::shader_graph::{Node, NodeKind, ShaderGraph};
     let t = Temp::new();
     let mut e = t.editor();
@@ -271,6 +272,17 @@ fn refresh_propagates_every_registered_component_not_a_hand_kept_list() {
     graph.nodes.push(Node::new(2, NodeKind::Time, [40., 40.]));
     let mut p = source(&e, &asset);
     p.objects[0].shader_graph = Some(graph.clone());
+    p.objects[0]
+        .blackboard
+        .insert("health".into(), BlackboardValue::Scalar(Value::Number(10.)));
+    p.objects[0].blackboard.insert(
+        "inventory".into(),
+        BlackboardValue::List {
+            element: PinType::Text,
+            capacity: 8,
+            values: vec![Value::Text("key".into())],
+        },
+    );
     std::fs::write(&path, p.to_json().unwrap()).unwrap();
     run(
         &mut e,
@@ -279,13 +291,23 @@ fn refresh_propagates_every_registered_component_not_a_hand_kept_list() {
         },
     );
     assert_eq!(object(&e, &id).shader_graph, Some(graph.clone()));
+    assert_eq!(object(&e, &id).blackboard, p.objects[0].blackboard);
+    assert!(!object(&e, &id).extras.contains_key("blackboard"));
     // A locally edited graph still survives a refresh.
     let local = ShaderGraph {
         name: "Local".into(),
         ..Default::default()
     };
-    edit(&mut e, &id, |o| o.shader_graph = Some(local.clone()));
+    edit(&mut e, &id, |o| {
+        o.shader_graph = Some(local.clone());
+        o.blackboard
+            .insert("health".into(), BlackboardValue::Scalar(Value::Number(25.)));
+    });
+    let local_board = object(&e, &id).blackboard.clone();
     p.objects[0].shader_graph = Some(ShaderGraph::default());
+    p.objects[0]
+        .blackboard
+        .insert("health".into(), BlackboardValue::Scalar(Value::Number(50.)));
     std::fs::write(&path, p.to_json().unwrap()).unwrap();
     run(
         &mut e,
@@ -294,6 +316,11 @@ fn refresh_propagates_every_registered_component_not_a_hand_kept_list() {
         },
     );
     assert_eq!(object(&e, &id).shader_graph, Some(local));
+    assert_eq!(object(&e, &id).blackboard, local_board);
+    let saved = t.0.join("with-blackboards.json");
+    e.save(&saved).unwrap();
+    let reopened = Editor::open(&saved).unwrap();
+    assert_eq!(object(&reopened, &id).blackboard, local_board);
 }
 
 #[test]

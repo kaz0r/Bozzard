@@ -235,14 +235,14 @@
           "enabled": true,
           "graph": {
             "version": 1,
-            "name": "Player / look, move, jump, weapons, shoot",
+            "name": "Player / look, move and jump",
             "nodes": [
               {
                 "prefab": "",
                 "id": 1,
                 "position": [
-                  40.0,
-                  40.0
+                  0.0,
+                  0.0
                 ],
                 "kind": "update",
                 "inputs": [],
@@ -253,20 +253,21 @@
                 "prefab": "",
                 "id": 2,
                 "position": [
-                  40.0,
-                  200.0
+                  310.0,
+                  0.0
                 ],
                 "kind": "get_variable",
                 "inputs": [],
                 "variable": "yaw",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 3,
                 "position": [
-                  40.0,
-                  330.0
+                  620.0,
+                  0.0
                 ],
                 "kind": "mouse_x",
                 "inputs": [],
@@ -277,8 +278,8 @@
                 "prefab": "",
                 "id": 4,
                 "position": [
-                  300.0,
-                  330.0
+                  930.0,
+                  0.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -296,8 +297,8 @@
                 "prefab": "",
                 "id": 5,
                 "position": [
-                  560.0,
-                  200.0
+                  1240.0,
+                  0.0
                 ],
                 "kind": "add",
                 "inputs": [
@@ -315,8 +316,8 @@
                 "prefab": "",
                 "id": 6,
                 "position": [
-                  820.0,
-                  40.0
+                  0.0,
+                  220.0
                 ],
                 "kind": "set_variable",
                 "inputs": [
@@ -326,26 +327,28 @@
                   }
                 ],
                 "variable": "yaw",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 7,
                 "position": [
-                  40.0,
-                  480.0
+                  310.0,
+                  220.0
                 ],
                 "kind": "get_variable",
                 "inputs": [],
                 "variable": "pitch",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 8,
                 "position": [
-                  40.0,
-                  610.0
+                  620.0,
+                  220.0
                 ],
                 "kind": "mouse_y",
                 "inputs": [],
@@ -356,8 +359,8 @@
                 "prefab": "",
                 "id": 9,
                 "position": [
-                  300.0,
-                  610.0
+                  930.0,
+                  220.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -375,8 +378,8 @@
                 "prefab": "",
                 "id": 10,
                 "position": [
-                  560.0,
-                  480.0
+                  1240.0,
+                  220.0
                 ],
                 "kind": "add",
                 "inputs": [
@@ -394,8 +397,8 @@
                 "prefab": "",
                 "id": 11,
                 "position": [
-                  820.0,
-                  480.0
+                  0.0,
+                  440.0
                 ],
                 "kind": "clamp",
                 "inputs": [
@@ -416,8 +419,8 @@
                 "prefab": "",
                 "id": 12,
                 "position": [
-                  1080.0,
-                  40.0
+                  310.0,
+                  440.0
                 ],
                 "kind": "set_variable",
                 "inputs": [
@@ -427,14 +430,15 @@
                   }
                 ],
                 "variable": "pitch",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 13,
                 "position": [
-                  1080.0,
-                  480.0
+                  620.0,
+                  440.0
                 ],
                 "kind": "make_vector",
                 "inputs": [
@@ -455,8 +459,8 @@
                 "prefab": "",
                 "id": 14,
                 "position": [
-                  1360.0,
-                  40.0
+                  930.0,
+                  440.0
                 ],
                 "kind": "set_rotation",
                 "inputs": [
@@ -481,8 +485,8 @@
                 "prefab": "",
                 "id": 15,
                 "position": [
-                  1360.0,
-                  330.0
+                  1240.0,
+                  440.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -500,20 +504,21 @@
                 "prefab": "",
                 "id": 16,
                 "position": [
-                  1360.0,
-                  480.0
+                  0.0,
+                  660.0
                 ],
                 "kind": "get_variable",
                 "inputs": [],
                 "variable": "vy",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 17,
                 "position": [
-                  1620.0,
-                  330.0
+                  310.0,
+                  660.0
                 ],
                 "kind": "subtract",
                 "inputs": [
@@ -531,8 +536,8 @@
                 "prefab": "",
                 "id": 18,
                 "position": [
-                  1900.0,
-                  40.0
+                  620.0,
+                  660.0
                 ],
                 "kind": "set_variable",
                 "inputs": [
@@ -542,14 +547,15 @@
                   }
                 ],
                 "variable": "vy",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 19,
                 "position": [
-                  1620.0,
-                  610.0
+                  930.0,
+                  660.0
                 ],
                 "kind": "delta_time",
                 "inputs": [],
@@ -560,8 +566,8 @@
                 "prefab": "",
                 "id": 20,
                 "position": [
-                  1900.0,
-                  480.0
+                  1240.0,
+                  660.0
                 ],
                 "kind": "forward_vector",
                 "inputs": [
@@ -578,8 +584,8 @@
                 "prefab": "",
                 "id": 21,
                 "position": [
-                  2160.0,
-                  480.0
+                  0.0,
+                  880.0
                 ],
                 "kind": "break_vector",
                 "inputs": [
@@ -598,8 +604,8 @@
                 "prefab": "",
                 "id": 22,
                 "position": [
-                  2160.0,
-                  610.0
+                  310.0,
+                  880.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -617,8 +623,8 @@
                 "prefab": "",
                 "id": 23,
                 "position": [
-                  2420.0,
-                  610.0
+                  620.0,
+                  880.0
                 ],
                 "kind": "make_vector",
                 "inputs": [
@@ -639,8 +645,8 @@
                 "prefab": "",
                 "id": 24,
                 "position": [
-                  2420.0,
-                  480.0
+                  930.0,
+                  880.0
                 ],
                 "kind": "make_vector",
                 "inputs": [
@@ -661,8 +667,8 @@
                 "prefab": "",
                 "id": 25,
                 "position": [
-                  2420.0,
-                  800.0
+                  1240.0,
+                  880.0
                 ],
                 "kind": "move_y",
                 "inputs": [],
@@ -673,8 +679,8 @@
                 "prefab": "",
                 "id": 26,
                 "position": [
-                  2680.0,
-                  480.0
+                  0.0,
+                  1100.0
                 ],
                 "kind": "scale_vector",
                 "inputs": [
@@ -696,8 +702,8 @@
                 "prefab": "",
                 "id": 27,
                 "position": [
-                  2420.0,
-                  930.0
+                  310.0,
+                  1100.0
                 ],
                 "kind": "move_x",
                 "inputs": [],
@@ -708,8 +714,8 @@
                 "prefab": "",
                 "id": 28,
                 "position": [
-                  2680.0,
-                  610.0
+                  620.0,
+                  1100.0
                 ],
                 "kind": "scale_vector",
                 "inputs": [
@@ -731,8 +737,8 @@
                 "prefab": "",
                 "id": 29,
                 "position": [
-                  2940.0,
-                  480.0
+                  930.0,
+                  1100.0
                 ],
                 "kind": "add_vector",
                 "inputs": [
@@ -758,8 +764,8 @@
                 "prefab": "",
                 "id": 30,
                 "position": [
-                  2940.0,
-                  800.0
+                  1240.0,
+                  1100.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -777,8 +783,8 @@
                 "prefab": "",
                 "id": 31,
                 "position": [
-                  3200.0,
-                  480.0
+                  0.0,
+                  1320.0
                 ],
                 "kind": "scale_vector",
                 "inputs": [
@@ -800,20 +806,21 @@
                 "prefab": "",
                 "id": 32,
                 "position": [
-                  2940.0,
-                  610.0
+                  310.0,
+                  1320.0
                 ],
                 "kind": "get_variable",
                 "inputs": [],
                 "variable": "vy",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 33,
                 "position": [
-                  3200.0,
-                  610.0
+                  620.0,
+                  1320.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -831,8 +838,8 @@
                 "prefab": "",
                 "id": 34,
                 "position": [
-                  3460.0,
-                  610.0
+                  930.0,
+                  1320.0
                 ],
                 "kind": "make_vector",
                 "inputs": [
@@ -853,8 +860,8 @@
                 "prefab": "",
                 "id": 35,
                 "position": [
-                  3720.0,
-                  480.0
+                  1240.0,
+                  1320.0
                 ],
                 "kind": "add_vector",
                 "inputs": [
@@ -880,8 +887,8 @@
                 "prefab": "",
                 "id": 36,
                 "position": [
-                  3980.0,
-                  40.0
+                  0.0,
+                  1540.0
                 ],
                 "kind": "move_with_collision",
                 "inputs": [
@@ -904,8 +911,8 @@
                 "prefab": "",
                 "id": 37,
                 "position": [
-                  3980.0,
-                  480.0
+                  310.0,
+                  1540.0
                 ],
                 "kind": "position",
                 "inputs": [
@@ -920,8 +927,8 @@
                 "prefab": "",
                 "id": 38,
                 "position": [
-                  3980.0,
-                  610.0
+                  620.0,
+                  1540.0
                 ],
                 "kind": "make_vector",
                 "inputs": [
@@ -942,8 +949,8 @@
                 "prefab": "",
                 "id": 39,
                 "position": [
-                  4240.0,
-                  480.0
+                  930.0,
+                  1540.0
                 ],
                 "kind": "add_vector",
                 "inputs": [
@@ -969,8 +976,8 @@
                 "prefab": "",
                 "id": 40,
                 "position": [
-                  4500.0,
-                  40.0
+                  1240.0,
+                  1540.0
                 ],
                 "kind": "set_position",
                 "inputs": [
@@ -995,8 +1002,8 @@
                 "prefab": "",
                 "id": 41,
                 "position": [
-                  4500.0,
-                  480.0
+                  0.0,
+                  1760.0
                 ],
                 "kind": "branch",
                 "inputs": [
@@ -1012,8 +1019,8 @@
                 "prefab": "",
                 "id": 42,
                 "position": [
-                  4780.0,
-                  480.0
+                  310.0,
+                  1760.0
                 ],
                 "kind": "set_variable",
                 "inputs": [
@@ -1023,14 +1030,15 @@
                   }
                 ],
                 "variable": "vy",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 43,
                 "position": [
-                  40.0,
-                  800.0
+                  620.0,
+                  1760.0
                 ],
                 "kind": "input_pressed",
                 "inputs": [],
@@ -1041,8 +1049,8 @@
                 "prefab": "",
                 "id": 44,
                 "position": [
-                  560.0,
-                  800.0
+                  930.0,
+                  1760.0
                 ],
                 "kind": "branch",
                 "inputs": [
@@ -1058,8 +1066,8 @@
                 "prefab": "",
                 "id": 45,
                 "position": [
-                  820.0,
-                  800.0
+                  1240.0,
+                  1760.0
                 ],
                 "kind": "set_variable",
                 "inputs": [
@@ -1069,26 +1077,28 @@
                   }
                 ],
                 "variable": "vy",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 46,
                 "position": [
-                  820.0,
-                  330.0
+                  0.0,
+                  1980.0
                 ],
                 "kind": "get_variable",
                 "inputs": [],
                 "variable": "kick",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 47,
                 "position": [
-                  980.0,
-                  330.0
+                  310.0,
+                  1980.0
                 ],
                 "kind": "multiply",
                 "inputs": [
@@ -1106,8 +1116,8 @@
                 "prefab": "",
                 "id": 93,
                 "position": [
-                  1120.0,
-                  200.0
+                  620.0,
+                  1980.0
                 ],
                 "kind": "set_variable",
                 "inputs": [
@@ -1117,26 +1127,28 @@
                   }
                 ],
                 "variable": "kick",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 48,
                 "position": [
-                  1080.0,
-                  480.0
+                  930.0,
+                  1980.0
                 ],
                 "kind": "get_variable",
                 "inputs": [],
                 "variable": "kick",
-                "key": "jump"
+                "key": "jump",
+                "scope": "object"
               },
               {
                 "prefab": "",
                 "id": 49,
                 "position": [
                   1240.0,
-                  480.0
+                  1980.0
                 ],
                 "kind": "add",
                 "inputs": [
@@ -1145,871 +1157,6 @@
                   },
                   {
                     "number": 0.0
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 94,
-                "position": [
-                  40.0,
-                  1100.0
-                ],
-                "kind": "input_pressed",
-                "inputs": [],
-                "variable": "",
-                "key": "fire"
-              },
-              {
-                "prefab": "",
-                "id": 50,
-                "position": [
-                  40.0,
-                  1260.0
-                ],
-                "kind": "get_variable",
-                "inputs": [],
-                "variable": "kick",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 51,
-                "position": [
-                  200.0,
-                  1260.0
-                ],
-                "kind": "get_variable",
-                "inputs": [],
-                "variable": "kick_amount",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 52,
-                "position": [
-                  380.0,
-                  1260.0
-                ],
-                "kind": "add",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 0.0
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 95,
-                "position": [
-                  360.0,
-                  1100.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 0.0
-                  }
-                ],
-                "variable": "kick",
-                "key": "jump"
-              },
-              {
-                "prefab": "target-range-projectile",
-                "id": 96,
-                "position": [
-                  680.0,
-                  1100.0
-                ],
-                "kind": "spawn_prefab",
-                "inputs": [
-                  "exec",
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 97,
-                "position": [
-                  1000.0,
-                  1100.0
-                ],
-                "kind": "set_scale",
-                "inputs": [
-                  "exec",
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  {
-                    "object": "none"
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 98,
-                "position": [
-                  1320.0,
-                  1100.0
-                ],
-                "kind": "set_velocity",
-                "inputs": [
-                  "exec",
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  {
-                    "object": "none"
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 56,
-                "position": [
-                  40.0,
-                  1420.0
-                ],
-                "kind": "position",
-                "inputs": [
-                  {
-                    "object": {
-                      "id": "camera"
-                    }
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 59,
-                "position": [
-                  360.0,
-                  1420.0
-                ],
-                "kind": "scale_vector",
-                "inputs": [
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  {
-                    "number": 0.8
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 60,
-                "position": [
-                  620.0,
-                  1420.0
-                ],
-                "kind": "add_vector",
-                "inputs": [
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 54,
-                "position": [
-                  680.0,
-                  1600.0
-                ],
-                "kind": "get_variable",
-                "inputs": [],
-                "variable": "size",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 55,
-                "position": [
-                  900.0,
-                  1600.0
-                ],
-                "kind": "make_vector",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 0.0
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 53,
-                "position": [
-                  1000.0,
-                  1780.0
-                ],
-                "kind": "get_variable",
-                "inputs": [],
-                "variable": "speed",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 58,
-                "position": [
-                  1240.0,
-                  1600.0
-                ],
-                "kind": "scale_vector",
-                "inputs": [
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  {
-                    "number": 0.0
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 99,
-                "position": [
-                  40.0,
-                  2200.0
-                ],
-                "kind": "input_pressed",
-                "inputs": [],
-                "variable": "",
-                "key": "interact"
-              },
-              {
-                "prefab": "",
-                "id": 62,
-                "position": [
-                  360.0,
-                  2200.0
-                ],
-                "kind": "break_vector",
-                "inputs": [
-                  {
-                    "vector": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 63,
-                "position": [
-                  620.0,
-                  2020.0
-                ],
-                "kind": "greater",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 6.0
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 64,
-                "position": [
-                  620.0,
-                  2140.0
-                ],
-                "kind": "less",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 6.9
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 65,
-                "position": [
-                  880.0,
-                  2080.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 66,
-                "position": [
-                  620.0,
-                  2520.0
-                ],
-                "kind": "greater",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 4.3
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 67,
-                "position": [
-                  620.0,
-                  2640.0
-                ],
-                "kind": "less",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 5.7
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 68,
-                "position": [
-                  880.0,
-                  2580.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 69,
-                "position": [
-                  1140.0,
-                  2400.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 70,
-                "position": [
-                  1180.0,
-                  2240.0
-                ],
-                "kind": "branch",
-                "inputs": [
-                  "exec",
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 71,
-                "position": [
-                  1440.0,
-                  2240.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 45.0
-                  }
-                ],
-                "variable": "speed",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 72,
-                "position": [
-                  1720.0,
-                  2240.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 0.8
-                  }
-                ],
-                "variable": "kick_amount",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 73,
-                "position": [
-                  2000.0,
-                  2240.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 0.16
-                  }
-                ],
-                "variable": "size",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 74,
-                "position": [
-                  2280.0,
-                  2240.0
-                ],
-                "kind": "set_text",
-                "inputs": [
-                  "exec",
-                  {
-                    "text": "WEAPON: AR"
-                  },
-                  {
-                    "object": {
-                      "id": "hud-weapon"
-                    }
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 75,
-                "position": [
-                  620.0,
-                  2840.0
-                ],
-                "kind": "greater",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 2.3
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 76,
-                "position": [
-                  620.0,
-                  2960.0
-                ],
-                "kind": "less",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 3.7
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 77,
-                "position": [
-                  880.0,
-                  2900.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 78,
-                "position": [
-                  1140.0,
-                  2720.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 79,
-                "position": [
-                  1180.0,
-                  2560.0
-                ],
-                "kind": "branch",
-                "inputs": [
-                  "exec",
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 80,
-                "position": [
-                  1440.0,
-                  2560.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 22.0
-                  }
-                ],
-                "variable": "speed",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 81,
-                "position": [
-                  1720.0,
-                  2560.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 1.6
-                  }
-                ],
-                "variable": "kick_amount",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 82,
-                "position": [
-                  2000.0,
-                  2560.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 0.22
-                  }
-                ],
-                "variable": "size",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 83,
-                "position": [
-                  2280.0,
-                  2560.0
-                ],
-                "kind": "set_text",
-                "inputs": [
-                  "exec",
-                  {
-                    "text": "WEAPON: PISTOL"
-                  },
-                  {
-                    "object": {
-                      "id": "hud-weapon"
-                    }
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 84,
-                "position": [
-                  620.0,
-                  3160.0
-                ],
-                "kind": "greater",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 0.3
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 85,
-                "position": [
-                  620.0,
-                  3280.0
-                ],
-                "kind": "less",
-                "inputs": [
-                  {
-                    "number": 0.0
-                  },
-                  {
-                    "number": 1.7
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 86,
-                "position": [
-                  880.0,
-                  3220.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 87,
-                "position": [
-                  1140.0,
-                  3040.0
-                ],
-                "kind": "and",
-                "inputs": [
-                  {
-                    "bool": false
-                  },
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 88,
-                "position": [
-                  1180.0,
-                  2880.0
-                ],
-                "kind": "branch",
-                "inputs": [
-                  "exec",
-                  {
-                    "bool": false
-                  }
-                ],
-                "variable": "",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 89,
-                "position": [
-                  1440.0,
-                  2880.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 60.0
-                  }
-                ],
-                "variable": "speed",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 90,
-                "position": [
-                  1720.0,
-                  2880.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 3.4
-                  }
-                ],
-                "variable": "kick_amount",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 91,
-                "position": [
-                  2000.0,
-                  2880.0
-                ],
-                "kind": "set_variable",
-                "inputs": [
-                  "exec",
-                  {
-                    "number": 0.34
-                  }
-                ],
-                "variable": "size",
-                "key": "jump"
-              },
-              {
-                "prefab": "",
-                "id": 92,
-                "position": [
-                  2280.0,
-                  2880.0
-                ],
-                "kind": "set_text",
-                "inputs": [
-                  "exec",
-                  {
-                    "text": "WEAPON: SHOTGUN"
-                  },
-                  {
-                    "object": {
-                      "id": "hud-weapon"
-                    }
                   }
                 ],
                 "variable": "",
@@ -2586,7 +1733,320 @@
                   "node": 13,
                   "port": 0
                 }
+              }
+            ],
+            "variables": {}
+          }
+        },
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Player / shoot and recoil",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 20,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "forward_vector",
+                "inputs": [
+                  {
+                    "object": {
+                      "id": "camera"
+                    }
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
               },
+              {
+                "prefab": "",
+                "id": 94,
+                "position": [
+                  310.0,
+                  0.0
+                ],
+                "kind": "input_pressed",
+                "inputs": [],
+                "variable": "",
+                "key": "fire"
+              },
+              {
+                "prefab": "",
+                "id": 50,
+                "position": [
+                  620.0,
+                  0.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "kick",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 51,
+                "position": [
+                  930.0,
+                  0.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "kick_amount",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 52,
+                "position": [
+                  1240.0,
+                  0.0
+                ],
+                "kind": "add",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 95,
+                "position": [
+                  0.0,
+                  220.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "kick",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "target-range-projectile",
+                "id": 96,
+                "position": [
+                  310.0,
+                  220.0
+                ],
+                "kind": "spawn_prefab",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 97,
+                "position": [
+                  620.0,
+                  220.0
+                ],
+                "kind": "set_scale",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "object": "none"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 98,
+                "position": [
+                  930.0,
+                  220.0
+                ],
+                "kind": "set_velocity",
+                "inputs": [
+                  "exec",
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "object": "none"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 56,
+                "position": [
+                  1240.0,
+                  220.0
+                ],
+                "kind": "position",
+                "inputs": [
+                  {
+                    "object": {
+                      "id": "camera"
+                    }
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 59,
+                "position": [
+                  0.0,
+                  440.0
+                ],
+                "kind": "scale_vector",
+                "inputs": [
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "number": 0.8
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 60,
+                "position": [
+                  310.0,
+                  440.0
+                ],
+                "kind": "add_vector",
+                "inputs": [
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 54,
+                "position": [
+                  620.0,
+                  440.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "size",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 55,
+                "position": [
+                  930.0,
+                  440.0
+                ],
+                "kind": "make_vector",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 53,
+                "position": [
+                  1240.0,
+                  440.0
+                ],
+                "kind": "get_variable",
+                "inputs": [],
+                "variable": "speed",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 58,
+                "position": [
+                  0.0,
+                  660.0
+                ],
+                "kind": "scale_vector",
+                "inputs": [
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "number": 0.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
               {
                 "from": {
                   "node": 94,
@@ -2786,7 +2246,631 @@
                   "node": 98,
                   "port": 2
                 }
+              }
+            ],
+            "variables": {}
+          }
+        },
+        {
+          "enabled": true,
+          "graph": {
+            "version": 1,
+            "name": "Player / weapon selection",
+            "nodes": [
+              {
+                "prefab": "",
+                "id": 37,
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "kind": "position",
+                "inputs": [
+                  {
+                    "object": "self_object"
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
               },
+              {
+                "prefab": "",
+                "id": 99,
+                "position": [
+                  310.0,
+                  0.0
+                ],
+                "kind": "input_pressed",
+                "inputs": [],
+                "variable": "",
+                "key": "interact"
+              },
+              {
+                "prefab": "",
+                "id": 62,
+                "position": [
+                  620.0,
+                  0.0
+                ],
+                "kind": "break_vector",
+                "inputs": [
+                  {
+                    "vector": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 63,
+                "position": [
+                  930.0,
+                  0.0
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 6.0
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 64,
+                "position": [
+                  1240.0,
+                  0.0
+                ],
+                "kind": "less",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 6.9
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 65,
+                "position": [
+                  0.0,
+                  220.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 66,
+                "position": [
+                  310.0,
+                  220.0
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 4.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 67,
+                "position": [
+                  620.0,
+                  220.0
+                ],
+                "kind": "less",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 5.7
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 68,
+                "position": [
+                  930.0,
+                  220.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 69,
+                "position": [
+                  1240.0,
+                  220.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 70,
+                "position": [
+                  0.0,
+                  440.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 71,
+                "position": [
+                  310.0,
+                  440.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 45.0
+                  }
+                ],
+                "variable": "speed",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 72,
+                "position": [
+                  620.0,
+                  440.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.8
+                  }
+                ],
+                "variable": "kick_amount",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 73,
+                "position": [
+                  930.0,
+                  440.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.16
+                  }
+                ],
+                "variable": "size",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 74,
+                "position": [
+                  1240.0,
+                  440.0
+                ],
+                "kind": "set_text",
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "WEAPON: AR"
+                  },
+                  {
+                    "object": {
+                      "id": "hud-weapon"
+                    }
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 75,
+                "position": [
+                  0.0,
+                  660.0
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 2.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 76,
+                "position": [
+                  310.0,
+                  660.0
+                ],
+                "kind": "less",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 3.7
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 77,
+                "position": [
+                  620.0,
+                  660.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 78,
+                "position": [
+                  930.0,
+                  660.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 79,
+                "position": [
+                  1240.0,
+                  660.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 80,
+                "position": [
+                  0.0,
+                  880.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 22.0
+                  }
+                ],
+                "variable": "speed",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 81,
+                "position": [
+                  310.0,
+                  880.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 1.6
+                  }
+                ],
+                "variable": "kick_amount",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 82,
+                "position": [
+                  620.0,
+                  880.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.22
+                  }
+                ],
+                "variable": "size",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 83,
+                "position": [
+                  930.0,
+                  880.0
+                ],
+                "kind": "set_text",
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "WEAPON: PISTOL"
+                  },
+                  {
+                    "object": {
+                      "id": "hud-weapon"
+                    }
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 84,
+                "position": [
+                  1240.0,
+                  880.0
+                ],
+                "kind": "greater",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 0.3
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 85,
+                "position": [
+                  0.0,
+                  1100.0
+                ],
+                "kind": "less",
+                "inputs": [
+                  {
+                    "number": 0.0
+                  },
+                  {
+                    "number": 1.7
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 86,
+                "position": [
+                  310.0,
+                  1100.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 87,
+                "position": [
+                  620.0,
+                  1100.0
+                ],
+                "kind": "and",
+                "inputs": [
+                  {
+                    "bool": false
+                  },
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 88,
+                "position": [
+                  930.0,
+                  1100.0
+                ],
+                "kind": "branch",
+                "inputs": [
+                  "exec",
+                  {
+                    "bool": false
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              },
+              {
+                "prefab": "",
+                "id": 89,
+                "position": [
+                  1240.0,
+                  1100.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 60.0
+                  }
+                ],
+                "variable": "speed",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 90,
+                "position": [
+                  0.0,
+                  1320.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 3.4
+                  }
+                ],
+                "variable": "kick_amount",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 91,
+                "position": [
+                  310.0,
+                  1320.0
+                ],
+                "kind": "set_variable",
+                "inputs": [
+                  "exec",
+                  {
+                    "number": 0.34
+                  }
+                ],
+                "variable": "size",
+                "key": "jump",
+                "scope": "object"
+              },
+              {
+                "prefab": "",
+                "id": 92,
+                "position": [
+                  620.0,
+                  1320.0
+                ],
+                "kind": "set_text",
+                "inputs": [
+                  "exec",
+                  {
+                    "text": "WEAPON: SHOTGUN"
+                  },
+                  {
+                    "object": {
+                      "id": "hud-weapon"
+                    }
+                  }
+                ],
+                "variable": "",
+                "key": "jump"
+              }
+            ],
+            "wires": [
               {
                 "from": {
                   "node": 37,
@@ -3168,15 +3252,7 @@
                 }
               }
             ],
-            "variables": {
-              "kick": 0.0,
-              "kick_amount": 0.8,
-              "pitch": 0.0,
-              "size": 0.16,
-              "speed": 45.0,
-              "vy": 0.0,
-              "yaw": 0.0
-            }
+            "variables": {}
           }
         },
         {
@@ -3474,6 +3550,43 @@
           1.0
         ],
         "enabled": true
+      },
+      "blackboard": {
+        "kick": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "kick_amount": {
+          "scalar": {
+            "number": 0.8
+          }
+        },
+        "pitch": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "size": {
+          "scalar": {
+            "number": 0.16
+          }
+        },
+        "speed": {
+          "scalar": {
+            "number": 45.0
+          }
+        },
+        "vy": {
+          "scalar": {
+            "number": 0.0
+          }
+        },
+        "yaw": {
+          "scalar": {
+            "number": 0.0
+          }
+        }
       }
     },
     {

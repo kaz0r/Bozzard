@@ -28,7 +28,7 @@ The current import slice supports static OBJ and glTF/GLB geometry, material dep
 - Implemented: project-local PNG/JPEG/OBJ/glTF/GLB imports with catalog assignment, background preparation, sun/display, point/spot light, and baked GI controls, and staged GPU uploads.
 - Implemented: first linked prefab workflow with expanded scene instances, component overrides, apply, refresh, and unpack; see [prefab workflow and limits](prefabs.md).
 
-- Implemented: optional typed gameplay Blueprints with a dedicated node pane, portable graph files, ordered object/prefab attachments, and a shared headless runtime; see [Blueprints](blueprints.md).
+- Implemented: typed gameplay Blueprints with a dedicated node pane, portable graph files, ordered object/prefab attachments, and a shared headless runtime; see [Blueprints](blueprints.md).
 - Implemented: per-object shader node graphs that compile to WGSL surface overrides (Base Color/Metallic/Roughness/Emissive/Alpha/Normal) over the existing material maps, with a dedicated editor pane and portable graph files; see [Shader Node Editor](shader-editor.md).
 
 Remaining editor extensions: generic component reflection, arbitrary tab docking, and production gizmo ergonomics.
@@ -68,3 +68,16 @@ See [export workflow, verification scope and distribution limits](exporting.md).
 - Multi-client integration tests with loss/latency scenarios.
 
 Build both 2D and 3D reference scenes as engine acceptance fixtures. Each milestone should exercise a complete workflow before expanding feature breadth.
+
+
+## Blueprint authoring depth
+
+- [x] Object and scene blackboards shared by multiple graphs, with typed scalar declarations.
+- [x] Enable/disable/destroy and solid collision entry events with contact normals/impulses; stateful Delay / After.
+- [x] Scalar/vector interpolation, min/max, absolute value, vector geometry, modulo/power, seeded random, angle and trig helpers.
+- [x] Raycast, sphere/box overlap, and line-of-sight using shared CPU collision/picking primitives.
+- [x] Bounded homogeneous lists with typed element pins and indexed mutations.
+- [x] Runtime scene replacement/additive loading/restart and persistent game checkpoints.
+- [x] Comments, typed reroutes, find-in-graph, subgraph copy/paste, and stale-wire repair drafts.
+
+[Contracts, examples, tests, and optimization notes](blueprint-depth.md).

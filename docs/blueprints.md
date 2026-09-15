@@ -1,6 +1,6 @@
 # Gameplay Blueprints
 
-Blueprints are an **optional alternative to writing gameplay code**. They run in the same fixed-step simulation as coded components, in editor Play, the native player, and the headless server. They do not replace Rust plugins or existing Spin/Gravity/Player Controller components.
+Blueprints are the primary gameplay authoring path: typed, validated graphs run unchanged in editor Play, the native player, and the headless server. The six pin types are **Exec, Text, Number, Bool, Vector, and Object**. Shared blackboards and bounded typed lists let multiple graphs cooperate. Existing scenes with legacy components and private number variables remain compatible. See [authoring depth, scene control, and checkpoint semantics](blueprint-depth.md).
 
 ```sh
 cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/blueprint-lab.json
@@ -16,9 +16,9 @@ The **Hero Cube** has two blueprints: **Spin** rotates it, and **Space toggles v
 
 1. Select an object or imported mesh child in Hierarchy. Components and graphs belong to that entity, not its shared mesh asset.
 2. Choose **Properties → Add Component**, search for **Blueprint**, and add it. Expand **BLUEPRINTS** for **+ New**, **+ Spin example**, or **Load…**. The **Blueprint** workspace tab opens its own node-editor pane, separate from the Scene viewport. **View → Blueprint Editor** switches to it too.
-3. Use **+ Add node** and search by name. Drag node headers to position them. Select a node and use **Delete node** or Delete to remove it and its wires.
+3. Use **+ Add node** for an alphabetical list, and type in **Search nodes…** to filter by name. Clicking the search field keeps the menu open; selecting a node, clicking outside, or pressing Escape closes it. Drag node headers to position them. Select a node and use **Delete node** or Delete to remove it and its wires.
 4. Click an output pin, then an input pin (drag/release also works). White pins carry execution; green numbers, red booleans, blue vectors, and purple object references carry data. Only matching types connect. A new connection replaces that input's existing wire. Right-click an input to disconnect. Escape cancels a pending connection/selection.
-5. Edit unconnected input values directly on nodes. **Variables** adds named numbers and their starting values; Get/Set Variable nodes select from those names. A referenced variable cannot be deleted.
+5. Edit unconnected input values directly on nodes. **Blackboards** adds typed scalars or bounded lists to Graph, Object, or Scene scope. Select a Get/Set Variable or List node, choose its scope and declaration above the canvas. **Variables** retains legacy private number defaults. Referenced declarations cannot be removed from an accepted scene.
 6. Middle/right-drag or scroll pans; Ctrl+scroll/pinch zooms; **Fit graph** frames all nodes.
 7. Click Play. Switch to Scene for keyboard input, or stay in Blueprint to inspect the latest **Print Number** message. Editing is disabled during Play. Stop to edit; Ctrl/Cmd+Z and Redo use normal scene history.
 
@@ -31,7 +31,7 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 - **Load copy…**, Properties **Load…**, or dropping a `.blueprint.json` file into the editor attaches an **independent copy** to the selected owner. It does not replace existing attachments. This is deliberately not a live source-file link: subsequent edits to a file or another attachment cannot silently change an object.
 - A scene embeds all attachments, node positions, constants, variable defaults, and wires. Normal Save/Open and Save As need no extra blueprint files at runtime. Shared mesh geometry is untouched.
 - Object data pins are typed **Object** pins. The **Object Reference** node supplies an explicitly bound scene object, while **Self** supplies the object that owns the graph. Action nodes with a **Target** pin default to Self, so older graphs keep their behavior after loading. **Same Object** compares two object references; **Is Valid Object** checks whether one currently resolves to an object with a transform.
-- Add up to 16 graphs per object. Checkboxes enable/disable individual graphs; **↑** changes their execution order; **×** detaches one. All are undoable. Graphs run top to bottom, each with private runtime variables and event state. Object duplication also creates independent state.
+- Add up to 16 graphs per object. Checkboxes enable/disable individual graphs; **↑** changes their execution order; **×** detaches one. All are undoable. Graphs run top to bottom, with private event/timer state and optional Graph, Object, or Scene variable scope. Object duplication creates a new object blackboard and remaps Object values in it.
 - Prefab capture includes each member's attachments. Explicit Object Reference bindings use persistent document IDs and are remapped when objects are duplicated or copied into prefabs. References to missing objects are rejected; clear or reassign bindings before deleting their target. Prefab sources must be self-contained, so capture/Apply rejects references outside the prefab subtree. A standalone **Load copy…** clears explicit bindings to **None** so they can be reassigned to the intended scene objects; choose their replacements in the Inspector or directly on an unconnected Object pin. **Apply to prefab** and **Refresh instances** propagate an unchanged attachment list; a locally edited list is retained as one component-level override. Root placement remains independent, as with other prefab components. Attach to a child mesh when that child, rather than the prefab root, should move.
 - The checked-in reusable files are `examples/demo/scenes/assets/spin.blueprint.json` and `toggle-visibility.blueprint.json`.
 
@@ -39,25 +39,28 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 
 Every node kind is one row of the table in `crates/bozzard-scene/src/blueprint.rs`. That row is the
 single declaration of a node: it generates the enum (whose snake_case names are the saved wire format),
-the pin lists the editor draws, the add-node menu, and the `event`/`action` classification the runtime
-uses to start chains. Adding a node is one row plus its arm in the runtime's evaluation match; nothing
-else lists node kinds. A test guards that the table stays complete, ordered, uniquely titled and
+the default pin lists, the alphabetically sorted add-node menu, and the `event`/`action` classification
+the runtime uses to start chains. `Node::input_pins` and `Node::output_pins` resolve the declared type
+for variable, list and reroute pins. Adding a node is one row plus its runtime evaluation arm and any
+type-specific behavior. A test guards that the table stays complete, ordered, uniquely titled and
 round-trips every name through serde.
 
 | Category | Nodes |
 |---|---|
-| Events | On Start, On Update, On Input Pressed (any assigned key), On Overlap Enter/Exit, On Object Enter/Exit |
+| Events | On Start/Update/Enable/Disable/Destroy, On Input Pressed, On Overlap Enter/Exit, On Object Enter/Exit, On Collision Enter (Other, Normal, Impulse) |
 | Inputs | Number, Boolean, Vector, Delta Seconds, Elapsed Seconds, Input Held, Move Axis X/Y, Mouse Delta X/Y |
 | Object reads | Object Reference, Self, Same Object, Is Valid Object, Is Rigidbody, Get Position, Get Rotation, Get Scale, Overlap Count |
-| State/flow | Get Variable, Set Variable, Branch, Print Number |
-| Number math | Add, Subtract, Multiply, Divide, Sine, Clamp, Greater Than, Less Than, Equal |
+| State/flow | Get/Set Variable (Graph/Object/Scene), List Get/Push/Set/Remove/Clear/Length, Branch, Delay / After, Set Graph Enabled, Print Number, typed Reroute, Comment |
+| Number math | Add/Subtract/Multiply/Divide, Lerp, Min/Max, Abs, Modulo, Power, seeded Random, Sine/Cosine/Tangent, Arc Sine/Arc Cosine/Atan2, Degrees↔Radians, Floor/Ceil/Round/Sqrt, Clamp, Greater/Less/Equal |
 | Boolean math | Not, And, Or |
-| Vector math | Make Vector, Scale Vector, Add Vectors, Forward Vector, Break Vector |
+| Vector math | Make/Break Vector, Scale/Add/Lerp Vectors, Forward Vector, Length, Normalize, Dot, Cross, Distance |
+| Queries | Raycast, Sphere Overlap, Box Overlap, Line of Sight |
+| Scene/state | Load Scene, Load Scene Additively, Restart Scene, Save Game State, Load Game State |
 | Actions | Translate, Rotate, Set Position/Rotation/Scale, Set Color, Set Visible, Set Text, Set Light Intensity, Move With Collision (Grounded output), Jump, Set Velocity, Lock Cursor, Unlock Cursor, Spawn Prefab, Destroy Prefab |
 
 Actions target their **Target** object, defaulting to the attached object (**Self**). Transform reads also accept a Target. Transform values are in parent/model coordinates; rotations are Y-X-Z Euler degrees. Translate and setters are direct transform edits, **not collision-safe movement**. Multiply rates by Delta Seconds for frame-rate-independent motion. **Move With Collision** accepts world-space displacement and requires an enabled box collider; **Jump** uses the existing grounded Gravity behavior. Existing limitations on compound colliders still apply.
 
-Set Color needs a mesh/Material or Text Rendering and linear RGB in `0..1`; it updates an attached Material when present, otherwise the drawable's base color, and also updates text RGB if attached (preserving its opacity). Set Visible affects the target's mesh and text, not descendants, collision, or lights. Text also follows existing Transform actions; Text, Number to Text (0–6 decimals), Join Text, Get Text, and Set Text support bounded dynamic labels. Text pins accept at most 4096 UTF-8 bytes; variables remain numeric. See [Text Rendering](text-rendering.md). Set Light Intensity needs a Light and accepts `0..100000`. Scale must remain finite and invertible. Invalid runtime values/missing required components freeze simulation and report an error instead of continuing a broken world. Stop, repair the graph/components, and Play again.
+Set Color needs a mesh/Material or Text Rendering and linear RGB in `0..1`; it updates an attached Material when present, otherwise the drawable's base color, and also updates text RGB if attached (preserving its opacity). Set Visible affects the target's mesh and text, not descendants, collision, or lights. Text also follows existing Transform actions; Text, Number to Text (0–6 decimals), Join Text, Get Text, and Set Text support bounded dynamic labels. Text pins accept at most 4096 UTF-8 bytes; blackboard variables can hold any data pin type. See [Text Rendering](text-rendering.md). Set Light Intensity needs a Light and accepts `0..100000`. Scale must remain finite and invertible. Invalid runtime values/missing required components freeze simulation and report an error instead of continuing a broken world. Stop, repair the graph/components, and Play again.
 
 **On Input Pressed** and **Input Held** each watch one button, and the scene picks it: the node's dropdown lists the seven aliases and every assignable key (`A`–`Z`, `0`–`9`, `Space`, `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Shift`, `Ctrl`, `Alt`, `ArrowUp`/`ArrowDown`/`ArrowLeft`/`ArrowRight`, `F1`–`F12`, `MouseLeft`, `MouseRight`, `MouseMiddle`). Typing the name in the scene file works too, and `KeyF`/`Digit1`/`Num1` spellings are accepted and normalized. An unbound name is a load error, so a typo cannot become a node that never fires.
 
@@ -71,7 +74,7 @@ Overlap events use the owner's enabled Trigger volume, Box Collider, or Mesh Col
 
 Actions resolve their Object **Target** at runtime. A **None** target is an error; use **Is Valid Object** to guard an action when a reference may be absent or removed. Explicit references are persistent IDs rather than ECS handles, and are only valid while their target object exists.
 
-On Start runs once at the first simulation tick; On Update runs each tick. Blueprints execute **after existing motion, gravity and gameplay interactions**. Objects use document order, attachments use list order, events use node order, and execution fan-out is queued in wire order. Get Variable/transform reads are evaluated afresh for each action, so later actions see earlier writes. Runtime variables, event state, visibility, and the bounded print log reset on Play; they are not saved-game checkpoints.
+On Start runs once at the first simulation tick; On Update runs each tick. Blueprints execute **after existing motion, gravity and gameplay interactions**. Objects use document order, attachments use list order, events use node order, and execution fan-out is queued in wire order. Get Variable/transform reads are evaluated afresh for each action, so later actions see earlier writes. Runtime variables, event state, visibility, and the bounded print log reset on Play. Save/Load Game State provides explicit checkpoints that also preserve timers and physics velocities.
 
 ## Spawn and destroy prefabs
 
@@ -85,7 +88,7 @@ Editor Play, player, and server load referenced prefab templates and dependencie
 
 This is a working first **gameplay** graph system, not Unreal file/API compatibility or an animation/material graph editor. No skeletal animation, blend graphs, arbitrary code nodes, custom events/functions, audio, networking, or runtime graph editing is included. Imported surface entities support attachments; shared mesh asset defaults do not.
 
-Graphs are versioned, typed, and validated before acceptance. Cycles are rejected (use On Update plus variables); disconnected pins use their editable defaults and disconnected actions do nothing. Limits: 128 nodes, 512 wires, 64 number variables per graph, 16 attachments per object, 1 MiB per imported graph, 100,000 event/action executions and 1,000,000 overlap tests per scene tick. Enabled blueprint owners and their descendants are excluded from static GI geometry, since graphs can move or recolor them. No runtime filesystem access, dynamic code loading, or new dependencies are needed.
+Graphs are versioned, typed, and validated before acceptance. Cycles are rejected (use On Update plus variables); disconnected pins use their editable defaults and disconnected actions do nothing. Limits: 128 nodes, 512 wires, 64 declarations per blackboard (legacy number variables count toward the graph limit), 16 attachments per object, 1 MiB per imported graph, 100,000 event/action executions and 1,000,000 overlap tests per scene tick. Enabled blueprint owners and their descendants are excluded from static GI geometry, since graphs can move or recolor them. Scene templates and rendering assets are preloaded. Explicit Save/Load Game State performs bounded checkpoint I/O at a tick boundary; ordinary graph evaluation does not read assets or load code.
 
 ## Pressure plate example
 
@@ -119,11 +122,11 @@ WASD walks, Space jumps, the mouse looks around (no button held), and left-click
 
 The player has **no Player Controller component and no Gravity**: movement, gravity, jumping, looking, the camera, the weapons and the shot are all graphs, using the pattern described above. The scene's camera is a plain object whose transform the graphs write every tick.
 
-- **Player / look, move, jump, weapons, shoot** keeps `yaw`, `pitch`, `vy`, `kick`, `kick_amount`, `speed` and `size`. Mouse Delta X/Y feed yaw and pitch (pitch through **Clamp**), the camera gets the fresh rotation plus a `+0.5` eye offset, gravity accumulates into `vy`, camera-relative movement comes from **Forward Vector** with its Y component zeroed through **Break Vector**/**Make Vector**, and one **Move With Collision** resolves the whole step. Its **Grounded** output zeroes the fall speed on landing and gates the jump in the same graph's On Input Pressed chain. The same graph's On Input Pressed (Fire) chain bumps the recoil, spawns the projectile from the eye and launches it along the camera's forward vector, so shots land at the crosshair, and its On Input Pressed (E) chain is the weapon switch below.
-- **Player controller / respawn below the world** puts the player back above the start when it falls past the platform edge. Variables are private per attachment, so it deliberately shares nothing with the controller graph; the landed-grounding branch recovers the fall speed on its own.
+- **Player / look, move and jump**, **Player / shoot and recoil**, and **Player / weapon selection** share an object blackboard containing `yaw`, `pitch`, `vy`, `kick`, `kick_amount`, `speed` and `size`. Mouse Delta X/Y feed yaw and pitch (pitch through **Clamp**), the camera gets the fresh rotation plus a `+0.5` eye offset, gravity accumulates into `vy`, camera-relative movement comes from **Forward Vector** with its Y component zeroed through **Break Vector**/**Make Vector**, and one **Move With Collision** resolves the whole step. Its **Grounded** output zeroes the fall speed on landing and gates the jump in its On Input Pressed chain. The shooting graph's On Input Pressed (Fire) chain bumps the recoil, spawns the projectile from the eye and launches it along the camera's forward vector, so shots land at the crosshair, and the weapon selection graph's On Input Pressed (E) chain is the weapon switch below.
+- **Player controller / respawn below the world** puts the player back above the start when it falls past the platform edge. The respawn graph needs no variables; the landed-grounding branch recovers the shared fall speed.
 - **First person / hide own body, lock cursor** hides the rendered mesh and runs **Lock Cursor** on start; the win graph runs **Unlock Cursor** just before **End Game**, so the pointer comes back with the retry menu.
 
-One graph holds all of that for a reason: **variables belong to a graph attachment**, not to the object, so a number the weapon switch writes is invisible to a second graph on the same object. Weapon numbers, the recoil and the shot all read each other, so they share one graph — which is also why the buttons are the last step: `speed`, `size` and `kick_amount` are ordinary variables the shot and the camera read.
+The former 97-node player graph is now three attachments (50, 16, and 33 nodes). Weapon selection writes `speed`, `size`, and `kick_amount` in Object scope; shooting and camera movement read the same declarations. Pure calculations needed by multiple event chains are copied, while the mutable values are shared. The existing movement, aiming, weapon-switch, recoil, and win regressions cover this split.
 
 ### The weapon table
 
@@ -141,6 +144,6 @@ Recoil is a `kick` variable rather than a permanent aim change: firing adds `kic
 
 A screen-anchored Text Rendering object holding `+` draws the crosshair, the same HUD mechanism as `hud-lab.json`: no depth, no camera transform, anchored at `[0.5, 0.5]`.
 
-The projectile prefab carries its own graphs: On Object Enter destroys the instance on any impact, and On Update retires it once it falls below the platform or leaves the arena (a squared radius of 14, since there is no Length node). That last part is not just tidiness: the sun shadow map is fitted to every lit draw, so a round that flew on into the void for 300 units would drag the fitted box and its texels along with it.
+The projectile prefab carries its own graphs: On Object Enter destroys the instance on any impact, and On Update retires it once it falls below the platform or leaves the arena (the original squared-radius test is retained; Length and Distance are now available). That last part is not just tidiness: the sun shadow map is fitted to every lit draw, so a round that flew on into the void for 300 units would drag the fitted box and its texels along with it.
 
 Each cube owns a **pop when hit by a physical body** graph: On Object Enter supplies **Other**, Is Rigidbody rejects the platform and the player, and a Branch hides the cube and moves it out of play. A non-rendered `game-rules` object polls the four cube positions in one On Update graph and fires **End Game** with "You win! All four targets destroyed." once every cube has dropped below the platform. Game Flow shows the controls before the run and the win message afterwards.

@@ -74,6 +74,7 @@ impl Editor {
                 .as_ref()
                 .map(|_| bozzard_scene::Material::from_drawable(&geometry));
             scene.objects.push(Object {
+                blackboard: Default::default(),
                 extras: Default::default(),
                 particle_emitter: None,
                 id: id.clone(),

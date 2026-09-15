@@ -262,3 +262,36 @@ fn project_rejects_unknown_versions_escaping_paths_and_missing_views() {
     .unwrap();
     assert!(Project::load(&temp.0.join("bad.json")).is_err());
 }
+
+#[test]
+fn runtime_scene_library_assets_are_relocated_and_load_without_sources() {
+    let temp = Temp::new();
+    let source = temp.0.join("source");
+    fs::create_dir_all(source.join("assets")).unwrap();
+    fs::copy(
+        fixtures().join("assets/octahedron.obj"),
+        source.join("assets/octahedron.obj"),
+    )
+    .unwrap();
+    let mut scene = load(&fixtures().join("first-trail.json"));
+    let mut level = scene.clone();
+    level.name = "Second trail".into();
+    scene.runtime_scenes.insert("second".into(), level.into());
+    let folder = temp.0.join("export");
+    export(&scene, &source.join("scene.json"), &folder);
+    fs::remove_dir_all(&source).unwrap();
+    let path = data(&folder).join("scene.json");
+    let cooked = load(&path);
+    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
+    runtime
+        .with_instance(|i, w| i.load_runtime_scene(w, "second", false))
+        .unwrap();
+    assert_eq!(runtime.instance().document().name, "Second trail");
+    let mut assets = bozzard_assets::AssetStore::new(
+        path.parent().unwrap(),
+        &runtime.instance().document().assets,
+    )
+    .unwrap();
+    assets.load_pending().unwrap();
+    assets.require_ready().unwrap();
+}

@@ -514,7 +514,7 @@ impl PostProcessVolume {
 }
 
 /// Transient graph overrides; capture/save never writes them to the scene document.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub(crate) struct DisplayOverrides {
     pub exposure: Option<f32>,
     pub bloom: Option<f32>,

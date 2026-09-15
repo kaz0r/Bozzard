@@ -3,8 +3,10 @@ use super::*;
 use glam::DVec3;
 mod broad_phase;
 mod mesh;
+mod queries;
 mod response;
 pub use mesh::{CollisionMesh, MeshCollider, TriangleMesh};
+pub use queries::{Contact, QueryHit};
 pub use response::MoveResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -112,7 +114,7 @@ pub struct CollisionSnapshot {
 }
 impl SceneInstance {
     // Movement needs validated geometry, but has no use for all scene overlaps.
-    fn collision_geometry(
+    pub(crate) fn collision_geometry(
         &self,
         world: &World,
     ) -> Result<(CollisionSnapshot, BTreeMap<String, Mat4>)> {
@@ -156,6 +158,12 @@ impl SceneInstance {
     }
 
     pub fn collisions(&self, world: &World) -> Result<CollisionSnapshot> {
+        Ok(self.collision_snapshot(world)?.0)
+    }
+    pub(crate) fn collision_snapshot(
+        &self,
+        world: &World,
+    ) -> Result<(CollisionSnapshot, BTreeMap<String, Mat4>)> {
         let (mut snapshot, matrices) = self.collision_geometry(world)?;
         broad_phase::overlaps(&snapshot.boxes, &mut snapshot.overlaps);
         for a in &snapshot.boxes {
@@ -174,6 +182,6 @@ impl SceneInstance {
         }
         snapshot.overlaps.sort();
         snapshot.overlaps.dedup();
-        Ok(snapshot)
+        Ok((snapshot, matrices))
     }
 }
