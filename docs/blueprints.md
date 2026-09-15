@@ -37,6 +37,13 @@ For rotation, connect **On Update → Rotate** (white), **Delta Seconds → Scal
 
 ## Nodes and runtime semantics
 
+Every node kind is one row of the table in `crates/bozzard-scene/src/blueprint.rs`. That row is the
+single declaration of a node: it generates the enum (whose snake_case names are the saved wire format),
+the pin lists the editor draws, the add-node menu, and the `event`/`action` classification the runtime
+uses to start chains. Adding a node is one row plus its arm in the runtime's evaluation match; nothing
+else lists node kinds. A test guards that the table stays complete, ordered, uniquely titled and
+round-trips every name through serde.
+
 | Category | Nodes |
 |---|---|
 | Events | On Start, On Update, On Input Pressed (any assigned key), On Overlap Enter/Exit, On Object Enter/Exit |
