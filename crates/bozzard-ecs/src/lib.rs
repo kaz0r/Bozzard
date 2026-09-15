@@ -2,10 +2,29 @@
 //!
 //! Entity handles belong to one world and are not persistent scene/network IDs.
 //! Query order is unspecified: removing a component can change iteration order.
+//!
+//! # Change tracking
+//!
+//! Every component carries the [tick](World::change_tick) it was last written on. A reader keeps
+//! the tick it last looked at and asks for what changed since, which is how a renderer, a network
+//! replicator or a dirty-flag inspector avoids rescanning the whole world every frame.
+//!
+//! Writes are recorded through [`Mut`], the guard [`World::get_mut`], [`World::query_mut`] and
+//! [`World::query_pair_mut`] return: merely holding the guard does not mark anything, dereferencing
+//! it mutably or calling [`Mut::into_inner`] does. [`World::insert`] marks the component changed on
+//! the current tick. Reads never mark. Removal and despawn are not tracked: presence is a query,
+//! not a tick, so ask [`World::changed_since`] for values and the world's length or a query for
+//! entities appearing and disappearing.
+//!
+//! Ticks are per world and advanced by the caller, not per system: [`World::advance_change_tick`]
+//! once per simulation step, which `bozzard_app::App::step` does. That is the honest granularity
+//! while systems run serially in one step; a system that needs its own window bookmarks the tick it
+//! started on. A bookmark of `0` sees everything ever written.
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_WORLD: AtomicU64 = AtomicU64::new(1);
@@ -57,10 +76,59 @@ trait ErasedStorage: Any + Send + Sync {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+/// A component value and the tick it was last written on.
+struct Entry<T> {
+    value: T,
+    changed: u64,
+}
+
+/// Mutable access that records a write, so readers can ask what changed since they last looked.
+///
+/// Holding the guard is a read: nothing is marked until it is dereferenced mutably, so
+/// `if guard.field > 0 { guard.field -= 1 }` marks the component only when it really changed.
+/// [`Mut::bypass_change_detection`] writes without marking, for a caller that owns the decision.
+pub struct Mut<'a, T: Component> {
+    entry: &'a mut Entry<T>,
+    tick: u64,
+}
+
+impl<'a, T: Component> Mut<'a, T> {
+    /// The tick this component was last written on, before this guard writes to it.
+    pub fn last_changed(&self) -> u64 {
+        self.entry.changed
+    }
+    /// Mutable value that is not recorded as a change.
+    pub fn bypass_change_detection(&mut self) -> &mut T {
+        &mut self.entry.value
+    }
+    /// The value, recording a change.
+    pub fn into_inner(self) -> &'a mut T {
+        self.entry.changed = self.tick;
+        &mut self.entry.value
+    }
+    fn mark(&mut self) {
+        self.entry.changed = self.tick;
+    }
+}
+
+impl<T: Component> Deref for Mut<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.entry.value
+    }
+}
+
+impl<T: Component> DerefMut for Mut<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.mark();
+        &mut self.entry.value
+    }
+}
+
 struct Storage<T> {
     sparse: Vec<Option<usize>>,
     entities: Vec<Entity>,
-    values: Vec<T>,
+    entries: Vec<Entry<T>>,
 }
 
 impl<T> Default for Storage<T> {
@@ -68,26 +136,30 @@ impl<T> Default for Storage<T> {
         Self {
             sparse: Vec::new(),
             entities: Vec::new(),
-            values: Vec::new(),
+            entries: Vec::new(),
         }
     }
 }
 
-impl<T> Storage<T> {
+impl<T: Component> Storage<T> {
     fn position(&self, entity: Entity) -> Option<usize> {
         let index = self.sparse.get(entity.index as usize).copied().flatten()?;
         (self.entities[index] == entity).then_some(index)
     }
 
-    fn insert(&mut self, entity: Entity, value: T) -> Option<T> {
+    fn insert(&mut self, entity: Entity, value: T, tick: u64) -> Option<T> {
+        let entry = Entry {
+            value,
+            changed: tick,
+        };
         if let Some(index) = self.position(entity) {
-            return Some(std::mem::replace(&mut self.values[index], value));
+            return Some(std::mem::replace(&mut self.entries[index], entry).value);
         }
         self.sparse
             .resize(self.sparse.len().max(entity.index as usize + 1), None);
-        self.sparse[entity.index as usize] = Some(self.values.len());
+        self.sparse[entity.index as usize] = Some(self.entries.len());
         self.entities.push(entity);
-        self.values.push(value);
+        self.entries.push(entry);
         None
     }
 
@@ -95,7 +167,7 @@ impl<T> Storage<T> {
         let index = self.position(entity)?;
         self.sparse[entity.index as usize] = None;
         self.entities.swap_remove(index);
-        let value = self.values.swap_remove(index);
+        let value = self.entries.swap_remove(index).value;
         if let Some(moved) = self.entities.get(index) {
             self.sparse[moved.index as usize] = Some(index);
         }
@@ -103,7 +175,21 @@ impl<T> Storage<T> {
     }
 
     fn get(&self, entity: Entity) -> Option<&T> {
-        self.position(entity).map(|index| &self.values[index])
+        self.position(entity)
+            .map(|index| &self.entries[index].value)
+    }
+
+    fn entry_mut(&mut self, entity: Entity, tick: u64) -> Option<Mut<'_, T>> {
+        let index = self.position(entity)?;
+        Some(Mut {
+            entry: &mut self.entries[index],
+            tick,
+        })
+    }
+
+    /// Entities with their values and change ticks, split so both can be borrowed at once.
+    fn split(&mut self) -> (&[Entity], &mut [Entry<T>]) {
+        (&self.entities, &mut self.entries)
     }
 }
 
@@ -127,6 +213,7 @@ pub struct World {
     len: usize,
     components: HashMap<TypeId, Box<dyn ErasedStorage>>,
     resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    change_tick: u64,
 }
 
 impl Default for World {
@@ -141,6 +228,8 @@ impl Default for World {
             len: 0,
             components: HashMap::new(),
             resources: HashMap::new(),
+            // Ticks start at 1 so that a bookmark of 0 means "everything ever written".
+            change_tick: 1,
         }
     }
 }
@@ -208,6 +297,7 @@ impl World {
         value: T,
     ) -> Result<Option<T>, InvalidEntity> {
         self.validate(entity)?;
+        let tick = self.change_tick;
         let storage = self
             .components
             .entry(TypeId::of::<T>())
@@ -216,17 +306,44 @@ impl World {
             .as_any_mut()
             .downcast_mut::<Storage<T>>()
             .expect("component storage type")
-            .insert(entity, value))
+            .insert(entity, value, tick))
     }
 
     pub fn get<T: Component>(&self, entity: Entity) -> Option<&T> {
         self.storage::<T>()?.get(entity)
     }
 
-    pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
-        let storage = self.storage_mut::<T>()?;
-        let index = storage.position(entity)?;
-        Some(&mut storage.values[index])
+    /// Mutable access. The returned [guard](Mut) records a write when it is dereferenced mutably.
+    pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<Mut<'_, T>> {
+        let tick = self.change_tick;
+        self.storage_mut::<T>()?.entry_mut(entity, tick)
+    }
+
+    /// The tick this component was last written on, `None` if the entity has no such component.
+    pub fn changed_tick<T: Component>(&self, entity: Entity) -> Option<u64> {
+        let storage = self.storage::<T>()?;
+        storage
+            .position(entity)
+            .map(|index| storage.entries[index].changed)
+    }
+
+    /// Whether the entity's component was written after `tick`.
+    pub fn is_changed_since<T: Component>(&self, entity: Entity, tick: u64) -> bool {
+        self.changed_tick::<T>(entity)
+            .is_some_and(|changed| changed > tick)
+    }
+
+    /// Every component of this type written after `tick`, with its value.
+    pub fn changed_since<T: Component>(&self, tick: u64) -> impl Iterator<Item = (Entity, &T)> {
+        self.storage::<T>().into_iter().flat_map(move |storage| {
+            storage
+                .entities
+                .iter()
+                .copied()
+                .zip(storage.entries.iter())
+                .filter(move |(_, entry)| entry.changed > tick)
+                .map(|(entity, entry)| (entity, &entry.value))
+        })
     }
 
     pub fn remove<T: Component>(&mut self, entity: Entity) -> Result<Option<T>, InvalidEntity> {
@@ -239,20 +356,30 @@ impl World {
     pub fn query<T: Component>(&self) -> impl Iterator<Item = (Entity, &T)> {
         self.storage::<T>()
             .into_iter()
-            .flat_map(|s| s.entities.iter().copied().zip(s.values.iter()))
+            .flat_map(|s| s.entities.iter().copied().zip(s.entries.iter()))
+            .map(|(entity, entry)| (entity, &entry.value))
     }
 
-    pub fn query_mut<T: Component>(&mut self) -> impl Iterator<Item = (Entity, &mut T)> {
-        self.storage_mut::<T>()
-            .into_iter()
-            .flat_map(|s| s.entities.iter().copied().zip(s.values.iter_mut()))
+    /// Mutable query. Each returned [guard](Mut) records a write when dereferenced mutably.
+    pub fn query_mut<T: Component>(&mut self) -> impl Iterator<Item = (Entity, Mut<'_, T>)> {
+        let tick = self.change_tick;
+        let (entities, entries): (&[Entity], &mut [Entry<T>]) = match self.storage_mut::<T>() {
+            Some(storage) => storage.split(),
+            None => (&[], &mut []),
+        };
+        entities
+            .iter()
+            .copied()
+            .zip(entries.iter_mut())
+            .map(move |(entity, entry)| (entity, Mut { entry, tick }))
     }
 
     /// Joins a mutable component with a read-only component, without unsafe aliasing.
     /// Missing storage produces an empty iterator; requesting the same type is an error.
     pub fn query_pair_mut<A: Component, B: Component>(
         &mut self,
-    ) -> Result<impl Iterator<Item = (Entity, &mut A, &B)>, AliasedQuery> {
+    ) -> Result<impl Iterator<Item = (Entity, Mut<'_, A>, &B)>, AliasedQuery> {
+        let tick = self.change_tick;
         let (a, b) = (TypeId::of::<A>(), TypeId::of::<B>());
         if a == b {
             return Err(AliasedQuery);
@@ -260,9 +387,29 @@ impl World {
         let [a, b] = self.components.get_disjoint_mut([&a, &b]);
         let a = a.and_then(|s| s.as_any_mut().downcast_mut::<Storage<A>>());
         let b = b.and_then(|s| s.as_any().downcast_ref::<Storage<B>>());
-        Ok(a.into_iter()
-            .flat_map(|s| s.entities.iter().copied().zip(s.values.iter_mut()))
-            .filter_map(move |(entity, value)| Some((entity, value, b?.get(entity)?))))
+        let (entities, entries): (&[Entity], &mut [Entry<A>]) = match a {
+            Some(a) => a.split(),
+            None => (&[], &mut []),
+        };
+        Ok(entities
+            .iter()
+            .copied()
+            .zip(entries.iter_mut())
+            .filter_map(move |(entity, entry)| {
+                Some((entity, Mut { entry, tick }, b?.get(entity)?))
+            }))
+    }
+
+    /// Advance the tick writes are recorded on. Call once per simulation step, before the systems
+    /// that write; a bookmark taken after the previous step then sees exactly this step's writes.
+    pub fn advance_change_tick(&mut self) -> u64 {
+        self.change_tick = self.change_tick.saturating_add(1);
+        self.change_tick
+    }
+
+    /// The tick writes are currently recorded on. See [`World::advance_change_tick`].
+    pub fn change_tick(&self) -> u64 {
+        self.change_tick
     }
 
     pub fn insert_resource<T: Component>(&mut self, value: T) -> Option<T> {
@@ -359,7 +506,7 @@ mod tests {
         for e in entities.iter().step_by(3) {
             world.despawn(*e).unwrap();
         }
-        for (_, value, multiplier) in world.query_pair_mut::<i32, u64>().unwrap() {
+        for (_, mut value, multiplier) in world.query_pair_mut::<i32, u64>().unwrap() {
             *value *= *multiplier as i32;
         }
         for (i, e) in entities.iter().enumerate() {
@@ -402,6 +549,95 @@ mod tests {
         *world.resource_mut::<u32>().unwrap() += 1;
         assert_eq!(world.insert_resource(7_u32), Some(43));
         assert_eq!(world.resource::<u32>(), Some(&7));
+    }
+
+    #[test]
+    fn a_write_records_a_tick_and_a_read_does_not() {
+        let mut world = World::new();
+        let entity = world.spawn();
+        let inserted = world.change_tick();
+        world.insert(entity, 1_i32).unwrap();
+        assert_eq!(world.changed_tick::<i32>(entity), Some(inserted));
+        assert!(world.is_changed_since::<i32>(entity, inserted - 1));
+        assert!(!world.is_changed_since::<i32>(entity, inserted));
+
+        // A shared read and a deref read through the guard are both free.
+        assert_eq!(world.get::<i32>(entity), Some(&1));
+        let later = world.advance_change_tick();
+        {
+            let value = world.get_mut::<i32>(entity).unwrap();
+            assert_eq!(value.last_changed(), inserted);
+            assert_eq!(*value, 1);
+            assert!(*value > 0);
+        }
+        assert_eq!(world.changed_tick::<i32>(entity), Some(inserted));
+        assert!(!world.is_changed_since::<i32>(entity, later - 1));
+
+        // A write through the guard, and `into_inner`, both mark it.
+        let mut value = world.get_mut::<i32>(entity).unwrap();
+        *value += 1;
+        assert_eq!(world.changed_tick::<i32>(entity), Some(later));
+        assert!(world.is_changed_since::<i32>(entity, later - 1));
+        let newest = world.advance_change_tick();
+        let mut value = world.get_mut::<i32>(entity).unwrap();
+        value.bypass_change_detection();
+        *value.into_inner() = 7;
+        assert_eq!(world.changed_tick::<i32>(entity), Some(newest));
+        assert_eq!(world.get::<i32>(entity), Some(&7));
+
+        // Replacing a component marks it too, and a despawn leaves no tick behind.
+        let replaced = world.advance_change_tick();
+        assert_eq!(world.insert(entity, 8_i32).unwrap(), Some(7));
+        assert_eq!(world.changed_tick::<i32>(entity), Some(replaced));
+        world.despawn(entity).unwrap();
+        assert_eq!(world.changed_tick::<i32>(entity), None);
+    }
+
+    #[test]
+    fn a_bookmark_reports_only_what_was_written_after_it() {
+        let mut world = World::new();
+        let entities: Vec<_> = (0..3)
+            .map(|value| {
+                let entity = world.spawn();
+                world.insert(entity, value).unwrap();
+                entity
+            })
+            .collect();
+        let bookmark = world.change_tick();
+        assert_eq!(world.changed_since::<i32>(bookmark).count(), 0);
+
+        world.advance_change_tick();
+        for (entity, mut value) in world.query_mut::<i32>() {
+            if entity == entities[1] {
+                *value += 10;
+            }
+        }
+        assert_eq!(
+            world
+                .changed_since::<i32>(bookmark)
+                .map(|(entity, value)| (entity, *value))
+                .collect::<Vec<_>>(),
+            vec![(entities[1], 11)]
+        );
+
+        // A pair query marks its mutable side and leaves the read side alone.
+        for entity in &entities {
+            world.insert(*entity, 0_u8).unwrap();
+        }
+        let bookmark = world.change_tick();
+        assert_eq!(world.changed_since::<u8>(bookmark).count(), 0);
+        world.advance_change_tick();
+        for (_, mut value, flag) in world.query_pair_mut::<i32, u8>().unwrap() {
+            if *flag == 0 {
+                *value = -1;
+            }
+        }
+        assert_eq!(world.changed_since::<i32>(bookmark).count(), 3);
+        assert_eq!(world.changed_since::<u8>(bookmark).count(), 0);
+        // Entity 1 was already marked by the query above, so it is not "new" for this bookmark.
+        let bookmark = world.change_tick();
+        assert_eq!(world.changed_since::<i32>(bookmark).count(), 0);
+        assert_eq!(world.changed_since::<u8>(bookmark).count(), 0);
     }
 
     #[test]

@@ -258,6 +258,45 @@ fn refresh_adds_and_removes_children_but_rejects_local_conflicts_and_invalid_sou
 }
 
 #[test]
+fn refresh_propagates_every_registered_component_not_a_hand_kept_list() {
+    use bozzard_scene::shader_graph::{Node, NodeKind, ShaderGraph};
+    let t = Temp::new();
+    let mut e = t.editor();
+    let asset = run(&mut e, PrefabCommand::Create);
+    let path = source_path(&e, &asset);
+    let id = e.scene().prefabs["root"].members["root"].clone();
+    // A shader graph is a component the old hand-written merge list forgot entirely, so a source
+    // edit never reached its instances.
+    let mut graph = ShaderGraph::default();
+    graph.nodes.push(Node::new(2, NodeKind::Time, [40., 40.]));
+    let mut p = source(&e, &asset);
+    p.objects[0].shader_graph = Some(graph.clone());
+    std::fs::write(&path, p.to_json().unwrap()).unwrap();
+    run(
+        &mut e,
+        PrefabCommand::Refresh {
+            asset: asset.clone(),
+        },
+    );
+    assert_eq!(object(&e, &id).shader_graph, Some(graph.clone()));
+    // A locally edited graph still survives a refresh.
+    let local = ShaderGraph {
+        name: "Local".into(),
+        ..Default::default()
+    };
+    edit(&mut e, &id, |o| o.shader_graph = Some(local.clone()));
+    p.objects[0].shader_graph = Some(ShaderGraph::default());
+    std::fs::write(&path, p.to_json().unwrap()).unwrap();
+    run(
+        &mut e,
+        PrefabCommand::Refresh {
+            asset: asset.clone(),
+        },
+    );
+    assert_eq!(object(&e, &id).shader_graph, Some(local));
+}
+
+#[test]
 fn stale_cancelled_and_external_source_changes_never_publish() {
     let t = Temp::new();
     let mut e = t.editor();

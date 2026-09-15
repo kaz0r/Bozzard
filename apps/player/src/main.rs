@@ -562,7 +562,7 @@ impl Player {
                 | NamedKey::ArrowDown),
             ) if self.demo.gameplay().is_none() => {
                 let entity = self.demo.instance().camera_entity(self.options.layer)?;
-                let camera = self
+                let mut camera = self
                     .demo
                     .app
                     .world

@@ -651,24 +651,21 @@ fn merge_instances(
                     .iter()
                     .find(|o| o.id == source.id)
                     .context("prefab baseline missing")?;
-                macro_rules! merge { ($($field:ident),*) => { $(if current.$field == old.$field { current.$field = source.$field.clone(); })* }; }
-                merge!(
-                    name,
-                    camera,
-                    drawable,
-                    material,
-                    spin,
-                    collider,
-                    mesh_collider,
-                    text_rendering,
-                    gravity,
-                    trigger,
-                    light,
-                    particle_emitter,
-                    blueprints
-                );
+                // Component rows own the merge, so a new component propagates on refresh instead
+                // of needing a parallel list here that is easy to forget.
+                if current.name == old.name {
+                    current.name = source.name.clone();
+                }
                 if current.id != root {
-                    merge!(transform, parent);
+                    if current.transform == old.transform {
+                        current.transform = source.transform;
+                    }
+                    if current.parent == old.parent {
+                        current.parent = source.parent.clone();
+                    }
+                }
+                for entry in bozzard_scene::components() {
+                    (entry.merge)(current, old, source);
                 }
             } else {
                 scene.objects.push(source.clone());

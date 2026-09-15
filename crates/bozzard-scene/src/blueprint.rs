@@ -146,326 +146,143 @@ impl<'de> Deserialize<'de> for InputKey {
         Self::parse(&name).map_err(serde::de::Error::custom)
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum NodeKind {
-    Text,
-    NumberToText,
-    JoinText,
-    GetText,
-    SetText,
-    EndGame,
-    Object,
-    SelfObject,
-    ObjectEqual,
-    IsValidObject,
-    BodyEnter,
-    BodyExit,
-    OverlapCount,
-    Start,
-    Update,
-    InputPressed,
-    TriggerEnter,
-    TriggerExit,
-    Number,
-    Boolean,
-    Vector,
-    DeltaTime,
-    ElapsedTime,
-    Position,
-    Rotation,
-    Scale,
-    InputHeld,
-    MoveX,
-    MoveY,
-    MouseX,
-    MouseY,
-    ForwardVector,
-    BreakVector,
-    IsRigidbody,
-    GetVariable,
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Sine,
-    Clamp,
-    Greater,
-    Less,
-    Equal,
-    Not,
-    And,
-    Or,
-    MakeVector,
-    ScaleVector,
-    AddVector,
-    Branch,
-    SetVariable,
-    Translate,
-    Rotate,
-    SetPosition,
-    SetRotation,
-    SetScale,
-    SetColor,
-    SetVisible,
-    SetLightIntensity,
-    SetFocusDistance,
-    SetAperture,
-    SetFogDensity,
-    SetFogLightIntensity,
-    SetExposure,
-    SetBloomIntensity,
-    SetSaturation,
-    SetHeatStrength,
-    SetGrainIntensity,
-    SetVignetteIntensity,
-
-    MoveWithCollision,
-    Jump,
-    SetVelocity,
-    LockCursor,
-    UnlockCursor,
-    Print,
-    SpawnPrefab,
-    DestroyPrefab,
+/// One blueprint node kind: its editor title and its pins.
+///
+/// The table below is the single declaration of a node. It generates the enum, the editor's
+/// add-node menu and every pin list, so adding a node is one row plus its runtime arm.
+#[derive(Clone, Copy, Debug)]
+pub struct NodeSpec {
+    pub kind: NodeKind,
+    pub title: &'static str,
+    pub inputs: &'static [(&'static str, PinType)],
+    pub outputs: &'static [(&'static str, PinType)],
 }
-impl NodeKind {
-    pub const ALL: [Self; 78] = [
-        Self::Text,
-        Self::NumberToText,
-        Self::JoinText,
-        Self::GetText,
-        Self::SetText,
-        Self::EndGame,
-        Self::Object,
-        Self::SelfObject,
-        Self::ObjectEqual,
-        Self::IsValidObject,
-        Self::BodyEnter,
-        Self::BodyExit,
-        Self::OverlapCount,
-        Self::Start,
-        Self::Update,
-        Self::InputPressed,
-        Self::TriggerEnter,
-        Self::TriggerExit,
-        Self::Number,
-        Self::Boolean,
-        Self::Vector,
-        Self::DeltaTime,
-        Self::ElapsedTime,
-        Self::Position,
-        Self::Rotation,
-        Self::Scale,
-        Self::InputHeld,
-        Self::MoveX,
-        Self::MoveY,
-        Self::MouseX,
-        Self::MouseY,
-        Self::ForwardVector,
-        Self::BreakVector,
-        Self::IsRigidbody,
-        Self::GetVariable,
-        Self::Add,
-        Self::Subtract,
-        Self::Multiply,
-        Self::Divide,
-        Self::Sine,
-        Self::Clamp,
-        Self::Greater,
-        Self::Less,
-        Self::Equal,
-        Self::Not,
-        Self::And,
-        Self::Or,
-        Self::MakeVector,
-        Self::ScaleVector,
-        Self::AddVector,
-        Self::Branch,
-        Self::SetVariable,
-        Self::Translate,
-        Self::Rotate,
-        Self::SetPosition,
-        Self::SetRotation,
-        Self::SetScale,
-        Self::SetColor,
-        Self::SetVisible,
-        Self::SetLightIntensity,
-        Self::SetFocusDistance,
-        Self::SetAperture,
-        Self::SetFogDensity,
-        Self::SetFogLightIntensity,
-        Self::SetExposure,
-        Self::SetBloomIntensity,
-        Self::SetSaturation,
-        Self::SetHeatStrength,
-        Self::SetGrainIntensity,
-        Self::SetVignetteIntensity,
-        Self::MoveWithCollision,
-        Self::Jump,
-        Self::SetVelocity,
-        Self::LockCursor,
-        Self::UnlockCursor,
-        Self::Print,
-        Self::SpawnPrefab,
-        Self::DestroyPrefab,
-    ];
-    pub fn title(self) -> &'static str {
-        match self {
-            Self::Text => "Text",
-            Self::NumberToText => "Number to Text",
-            Self::JoinText => "Join Text",
-            Self::GetText => "Get Text",
-            Self::SetText => "Set Text",
-            Self::EndGame => "End Game",
-            Self::Object => "Object Reference",
-            Self::SelfObject => "Self",
-            Self::ObjectEqual => "Same Object",
-            Self::IsValidObject => "Is Valid Object",
-            Self::BodyEnter => "On Object Enter",
-            Self::BodyExit => "On Object Exit",
-            Self::OverlapCount => "Overlap Count",
-            Self::Start => "On Start",
-            Self::Update => "On Update",
-            Self::InputPressed => "On Input Pressed",
-            Self::TriggerEnter => "On Overlap Enter",
-            Self::TriggerExit => "On Overlap Exit",
-            Self::Number => "Number",
-            Self::Boolean => "Boolean",
-            Self::Vector => "Vector",
-            Self::DeltaTime => "Delta Seconds",
-            Self::ElapsedTime => "Elapsed Seconds",
-            Self::Position => "Get Position",
-            Self::Rotation => "Get Rotation",
-            Self::Scale => "Get Scale",
-            Self::InputHeld => "Input Held",
-            Self::MoveX => "Move Axis X (A/D)",
-            Self::MoveY => "Move Axis Y (S/W)",
-            Self::MouseX => "Mouse Delta X (right-drag)",
-            Self::MouseY => "Mouse Delta Y (right-drag)",
-            Self::ForwardVector => "Forward Vector",
-            Self::BreakVector => "Break Vector",
-            Self::IsRigidbody => "Is Rigidbody (dynamic body)",
-            Self::GetVariable => "Get Variable",
-            Self::SetVariable => "Set Variable",
-            Self::Add => "Add",
-            Self::Subtract => "Subtract",
-            Self::Multiply => "Multiply",
-            Self::Divide => "Divide",
-            Self::Sine => "Sine (radians)",
-            Self::Clamp => "Clamp (min–max)",
-            Self::Greater => "Greater Than",
-            Self::Less => "Less Than",
-            Self::Equal => "Equal",
-            Self::Not => "Not",
-            Self::And => "And",
-            Self::Or => "Or",
-            Self::MakeVector => "Make Vector",
-            Self::ScaleVector => "Scale Vector",
-            Self::AddVector => "Add Vectors",
-            Self::Branch => "Branch",
-            Self::Translate => "Translate (local delta)",
-            Self::Rotate => "Rotate (degrees delta)",
-            Self::SetPosition => "Set Position",
-            Self::SetRotation => "Set Rotation",
-            Self::SetScale => "Set Scale",
-            Self::SetColor => "Set Color (RGB)",
-            Self::SetVisible => "Set Visible",
-            Self::SetLightIntensity => "Set Light Intensity",
-            Self::SetFocusDistance => "Set Focus Distance",
-            Self::SetAperture => "Set Aperture (f-stop)",
-            Self::SetFogDensity => "Set Volumetric Fog Density",
-            Self::SetFogLightIntensity => "Set Volumetric Light Intensity",
-            Self::SetExposure => "Set Exposure (EV)",
-            Self::SetBloomIntensity => "Set Bloom Intensity",
-            Self::SetSaturation => "Set Saturation",
-            Self::SetHeatStrength => "Set Heat Strength",
-            Self::SetGrainIntensity => "Set Grain Intensity",
-            Self::SetVignetteIntensity => "Set Vignette Intensity",
 
-            Self::MoveWithCollision => "Move With Collision",
-            Self::Jump => "Jump",
-            Self::SetVelocity => "Set Velocity",
-            Self::LockCursor => "Lock Cursor",
-            Self::UnlockCursor => "Unlock Cursor",
-            Self::Print => "Print Number",
-            Self::SpawnPrefab => "Spawn Prefab",
-            Self::DestroyPrefab => "Destroy Prefab",
+macro_rules! node_kinds {
+    ($($variant:ident => $title:literal { $($input_label:literal : $input_type:ident),* $(,)? } -> { $($output_label:literal : $output_type:ident),* $(,)? }),* $(,)?) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        pub enum NodeKind {
+            $($variant,)*
         }
+        /// Every node kind in declaration order, which is also the editor's menu order.
+        pub const NODE_SPECS: &[NodeSpec] = &[
+            $(NodeSpec {
+                kind: NodeKind::$variant,
+                title: $title,
+                inputs: &[$(($input_label, PinType::$input_type)),*],
+                outputs: &[$(($output_label, PinType::$output_type)),*],
+            },)*
+        ];
+    };
+}
+
+node_kinds! {
+    Text => "Text" { "Value": Text } -> { "Text": Text },
+    NumberToText => "Number to Text" { "Value": Number, "Decimals (0–6)": Number } -> { "Text": Text },
+    JoinText => "Join Text" { "A": Text, "B": Text } -> { "Text": Text },
+    GetText => "Get Text" { "Target": Object } -> { "Text": Text },
+    SetText => "Set Text" { "In": Exec, "Text": Text, "Target": Object } -> { "Then": Exec },
+    EndGame => "End Game" { "In": Exec, "Message": Text } -> {  },
+    Object => "Object Reference" { "Value": Object } -> { "Value": Object },
+    SelfObject => "Self" {  } -> { "Value": Object },
+    ObjectEqual => "Same Object" { "A": Object, "B": Object } -> { "Value": Bool },
+    IsValidObject => "Is Valid Object" { "Value": Object } -> { "Value": Bool },
+    BodyEnter => "On Object Enter" {  } -> { "Then": Exec, "Other": Object },
+    BodyExit => "On Object Exit" {  } -> { "Then": Exec, "Other": Object },
+    OverlapCount => "Overlap Count" {  } -> { "Value": Number },
+    Start => "On Start" {  } -> { "Then": Exec },
+    Update => "On Update" {  } -> { "Then": Exec },
+    InputPressed => "On Input Pressed" {  } -> { "Then": Exec },
+    TriggerEnter => "On Overlap Enter" {  } -> { "Then": Exec },
+    TriggerExit => "On Overlap Exit" {  } -> { "Then": Exec },
+    Number => "Number" { "Value": Number } -> { "Value": Number },
+    Boolean => "Boolean" { "Value": Bool } -> { "Value": Bool },
+    Vector => "Vector" { "Value": Vector } -> { "Value": Vector },
+    DeltaTime => "Delta Seconds" {  } -> { "Value": Number },
+    ElapsedTime => "Elapsed Seconds" {  } -> { "Value": Number },
+    Position => "Get Position" { "Target": Object } -> { "Value": Vector },
+    Rotation => "Get Rotation" { "Target": Object } -> { "Value": Vector },
+    Scale => "Get Scale" { "Target": Object } -> { "Value": Vector },
+    InputHeld => "Input Held" {  } -> { "Value": Bool },
+    MoveX => "Move Axis X (A/D)" {  } -> { "Value": Number },
+    MoveY => "Move Axis Y (S/W)" {  } -> { "Value": Number },
+    MouseX => "Mouse Delta X (right-drag)" {  } -> { "Value": Number },
+    MouseY => "Mouse Delta Y (right-drag)" {  } -> { "Value": Number },
+    ForwardVector => "Forward Vector" { "Target": Object } -> { "Value": Vector },
+    BreakVector => "Break Vector" { "Value": Vector } -> { "X": Number, "Y": Number, "Z": Number },
+    IsRigidbody => "Is Rigidbody (dynamic body)" { "Value": Object } -> { "Value": Bool },
+    GetVariable => "Get Variable" {  } -> { "Value": Number },
+    Add => "Add" { "A": Number, "B": Number } -> { "Value": Number },
+    Subtract => "Subtract" { "A": Number, "B": Number } -> { "Value": Number },
+    Multiply => "Multiply" { "A": Number, "B": Number } -> { "Value": Number },
+    Divide => "Divide" { "A": Number, "B": Number } -> { "Value": Number },
+    Sine => "Sine (radians)" { "Radians": Number } -> { "Value": Number },
+    Clamp => "Clamp (min–max)" { "Value": Number, "Min": Number, "Max": Number } -> { "Value": Number },
+    Greater => "Greater Than" { "A": Number, "B": Number } -> { "Value": Bool },
+    Less => "Less Than" { "A": Number, "B": Number } -> { "Value": Bool },
+    Equal => "Equal" { "A": Number, "B": Number } -> { "Value": Bool },
+    Not => "Not" { "Value": Bool } -> { "Value": Bool },
+    And => "And" { "A": Bool, "B": Bool } -> { "Value": Bool },
+    Or => "Or" { "A": Bool, "B": Bool } -> { "Value": Bool },
+    MakeVector => "Make Vector" { "X": Number, "Y": Number, "Z": Number } -> { "Value": Vector },
+    ScaleVector => "Scale Vector" { "Vector": Vector, "Factor": Number } -> { "Value": Vector },
+    AddVector => "Add Vectors" { "A": Vector, "B": Vector } -> { "Value": Vector },
+    Branch => "Branch" { "In": Exec, "Condition": Bool } -> { "True": Exec, "False": Exec },
+    SetVariable => "Set Variable" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    Translate => "Translate (local delta)" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    Rotate => "Rotate (degrees delta)" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    SetPosition => "Set Position" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    SetRotation => "Set Rotation" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    SetScale => "Set Scale" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    SetColor => "Set Color (RGB)" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    SetVisible => "Set Visible" { "In": Exec, "Visible": Bool, "Target": Object } -> { "Then": Exec },
+    SetLightIntensity => "Set Light Intensity" { "In": Exec, "Intensity": Number, "Target": Object } -> { "Then": Exec },
+    SetFocusDistance => "Set Focus Distance" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetAperture => "Set Aperture (f-stop)" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetFogDensity => "Set Volumetric Fog Density" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetFogLightIntensity => "Set Volumetric Light Intensity" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetExposure => "Set Exposure (EV)" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetBloomIntensity => "Set Bloom Intensity" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetSaturation => "Set Saturation" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetHeatStrength => "Set Heat Strength" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetGrainIntensity => "Set Grain Intensity" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SetVignetteIntensity => "Set Vignette Intensity" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    MoveWithCollision => "Move With Collision" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec, "Grounded": Bool },
+    Jump => "Jump" { "In": Exec, "Speed": Number, "Target": Object } -> { "Then": Exec },
+    SetVelocity => "Set Velocity" { "In": Exec, "Velocity": Vector, "Target": Object } -> { "Then": Exec },
+    LockCursor => "Lock Cursor" { "In": Exec } -> { "Then": Exec },
+    UnlockCursor => "Unlock Cursor" { "In": Exec } -> { "Then": Exec },
+    Print => "Print Number" { "In": Exec, "Value": Number } -> { "Then": Exec },
+    SpawnPrefab => "Spawn Prefab" { "In": Exec, "Position": Vector } -> { "Then": Exec, "Instance": Object },
+    DestroyPrefab => "Destroy Prefab" { "In": Exec, "Target": Object } -> { "Then": Exec },
+}
+
+impl NodeKind {
+    /// The whole table, for menus and validation over every kind.
+    pub fn specs() -> &'static [NodeSpec] {
+        NODE_SPECS
     }
-    pub fn event(self) -> bool {
-        matches!(
-            self,
-            Self::Start
-                | Self::Update
-                | Self::InputPressed
-                | Self::TriggerEnter
-                | Self::TriggerExit
-                | Self::BodyEnter
-                | Self::BodyExit
-        )
+    /// This kind's row. Declaration order makes the lookup an index.
+    pub fn spec(self) -> &'static NodeSpec {
+        &NODE_SPECS[self as usize]
+    }
+    pub fn title(self) -> &'static str {
+        self.spec().title
     }
     pub fn inputs(self) -> &'static [(&'static str, PinType)] {
-        use PinType::*;
-        match self {
-            Self::EndGame => &[("In", Exec), ("Message", Text)],
-            Self::Text => &[("Value", Text)],
-            Self::NumberToText => &[("Value", Number), ("Decimals (0–6)", Number)],
-            Self::JoinText => &[("A", Text), ("B", Text)],
-            Self::GetText => &[("Target", Object)],
-            Self::SetText => &[("In", Exec), ("Text", Text), ("Target", Object)],
-            Self::Object => &[("Value", Object)],
-            Self::LockCursor | Self::UnlockCursor => &[("In", Exec)],
-            Self::BreakVector => &[("Value", Vector)],
-            Self::IsRigidbody => &[("Value", Object)],
-            Self::Position | Self::Rotation | Self::Scale => &[("Target", Object)],
-            Self::ForwardVector => &[("Target", Object)],
-            Self::ObjectEqual => &[("A", Object), ("B", Object)],
-            Self::IsValidObject => &[("Value", Object)],
-            Self::Number => &[("Value", Number)],
-            Self::Boolean => &[("Value", Bool)],
-            Self::Vector => &[("Value", Vector)],
-            Self::Add
-            | Self::Subtract
-            | Self::Multiply
-            | Self::Divide
-            | Self::Greater
-            | Self::Less
-            | Self::Equal => &[("A", Number), ("B", Number)],
-            Self::Sine => &[("Radians", Number)],
-            Self::Clamp => &[("Value", Number), ("Min", Number), ("Max", Number)],
-            Self::Not => &[("Value", Bool)],
-            Self::And | Self::Or => &[("A", Bool), ("B", Bool)],
-            Self::MakeVector => &[("X", Number), ("Y", Number), ("Z", Number)],
-            Self::ScaleVector => &[("Vector", Vector), ("Factor", Number)],
-            Self::AddVector => &[("A", Vector), ("B", Vector)],
-            Self::Branch => &[("In", Exec), ("Condition", Bool)],
-            Self::SetFocusDistance
-            | Self::SetAperture
-            | Self::SetFogDensity
-            | Self::SetFogLightIntensity
-            | Self::SetExposure
-            | Self::SetBloomIntensity
-            | Self::SetSaturation
-            | Self::SetHeatStrength
-            | Self::SetGrainIntensity
-            | Self::SetVignetteIntensity => &[("In", Exec), ("Value", Number)],
-            Self::SetVariable | Self::Print => &[("In", Exec), ("Value", Number)],
-            Self::Translate
-            | Self::Rotate
-            | Self::SetPosition
-            | Self::SetRotation
-            | Self::SetScale
-            | Self::SetColor
-            | Self::MoveWithCollision => &[("In", Exec), ("Value", Vector), ("Target", Object)],
-            Self::SetVisible => &[("In", Exec), ("Visible", Bool), ("Target", Object)],
-            Self::SetLightIntensity => &[("In", Exec), ("Intensity", Number), ("Target", Object)],
-            Self::Jump => &[("In", Exec), ("Speed", Number), ("Target", Object)],
-            Self::SetVelocity => &[("In", Exec), ("Velocity", Vector), ("Target", Object)],
-            Self::SpawnPrefab => &[("In", Exec), ("Position", Vector)],
-            Self::DestroyPrefab => &[("In", Exec), ("Target", Object)],
-            _ => &[],
-        }
+        self.spec().inputs
+    }
+    pub fn outputs(self) -> &'static [(&'static str, PinType)] {
+        self.spec().outputs
+    }
+    /// Events start a chain from the simulation or input instead of an incoming wire.
+    pub fn event(self) -> bool {
+        self.inputs().is_empty()
+            && self
+                .outputs()
+                .first()
+                .is_some_and(|port| port.1 == PinType::Exec)
     }
     pub fn target_port(self) -> Option<usize> {
         self.inputs()
@@ -473,39 +290,9 @@ impl NodeKind {
             .position(|(label, kind)| *label == "Target" && *kind == PinType::Object)
     }
     pub fn action(self) -> bool {
-        self.inputs().first().is_some_and(|p| p.1 == PinType::Exec)
-    }
-    pub fn outputs(self) -> &'static [(&'static str, PinType)] {
-        use PinType::*;
-        match self {
-            Self::Text | Self::NumberToText | Self::JoinText | Self::GetText => &[("Text", Text)],
-            Self::MoveWithCollision => &[("Then", Exec), ("Grounded", Bool)],
-            Self::EndGame => &[],
-            Self::BodyEnter | Self::BodyExit => &[("Then", Exec), ("Other", Object)],
-            Self::SpawnPrefab => &[("Then", Exec), ("Instance", Object)],
-            Self::Object | Self::SelfObject => &[("Value", Object)],
-            Self::ObjectEqual | Self::IsValidObject | Self::IsRigidbody => &[("Value", Bool)],
-            Self::Branch => &[("True", Exec), ("False", Exec)],
-            kind if kind.event() || kind.action() => &[("Then", Exec)],
-            Self::Boolean
-            | Self::InputHeld
-            | Self::Greater
-            | Self::Less
-            | Self::Equal
-            | Self::Not
-            | Self::And
-            | Self::Or => &[("Value", Bool)],
-            Self::Vector
-            | Self::Position
-            | Self::Rotation
-            | Self::Scale
-            | Self::ForwardVector
-            | Self::MakeVector
-            | Self::ScaleVector
-            | Self::AddVector => &[("Value", Vector)],
-            Self::BreakVector => &[("X", Number), ("Y", Number), ("Z", Number)],
-            _ => &[("Value", Number)],
-        }
+        self.inputs()
+            .first()
+            .is_some_and(|port| port.1 == PinType::Exec)
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -880,5 +667,60 @@ impl Object {
         for attachment in &mut self.blueprints {
             attachment.graph.remap_objects(mapping);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_node_table_is_the_single_declaration_of_every_kind() {
+        let mut titles = BTreeSet::new();
+        for (index, spec) in NODE_SPECS.iter().enumerate() {
+            assert_eq!(
+                spec.kind as usize, index,
+                "{} is out of declaration order, so spec() would return the wrong row",
+                spec.title
+            );
+            assert_eq!(spec.kind.spec().title, spec.title);
+            assert!(titles.insert(spec.title), "duplicate title {}", spec.title);
+            // The snake_case name is the wire format saved graphs depend on.
+            let name = serde_json::to_string(&spec.kind).unwrap();
+            assert_eq!(name, format!("\"{}\"", name.trim_matches('"')));
+            assert_eq!(serde_json::from_str::<NodeKind>(&name).unwrap(), spec.kind);
+            // A target port is only meaningful where the pin exists.
+            assert!(
+                spec.kind.target_port().is_none()
+                    || spec.inputs[spec.kind.target_port().unwrap()].1 == PinType::Object
+            );
+        }
+        assert_eq!(titles.len(), NODE_SPECS.len());
+    }
+
+    #[test]
+    fn events_stay_the_nodes_the_simulation_starts() {
+        let events: Vec<_> = NodeKind::specs()
+            .iter()
+            .filter(|spec| spec.kind.event())
+            .map(|spec| spec.title)
+            .collect();
+        assert_eq!(
+            events,
+            [
+                "On Object Enter",
+                "On Object Exit",
+                "On Start",
+                "On Update",
+                "On Input Pressed",
+                "On Overlap Enter",
+                "On Overlap Exit",
+            ],
+            "the runtime starts chains from exactly these"
+        );
+        // An action consumes an Exec wire; a value node does neither.
+        assert!(NodeKind::Print.action() && !NodeKind::Print.event());
+        assert!(NodeKind::SelfObject.outputs()[0].1 == PinType::Object);
+        assert!(!NodeKind::SelfObject.event() && !NodeKind::SelfObject.action());
     }
 }

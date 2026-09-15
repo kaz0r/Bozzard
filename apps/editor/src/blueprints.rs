@@ -299,12 +299,13 @@ impl App {
                     egui::ScrollArea::vertical()
                         .max_height(340.)
                         .show(ui, |ui| {
-                            for kind in NodeKind::ALL {
-                                if kind
-                                    .title()
+                            for spec in NodeKind::specs() {
+                                let kind = spec.kind;
+                                if spec
+                                    .title
                                     .to_lowercase()
                                     .contains(&self.blueprint_pane.search.to_lowercase())
-                                    && ui.button(kind.title()).clicked()
+                                    && ui.button(spec.title).clicked()
                                 {
                                     let id = graph
                                         .nodes

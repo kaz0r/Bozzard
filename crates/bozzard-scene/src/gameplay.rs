@@ -472,7 +472,7 @@ impl SceneInstance {
             desired,
             config.camera_radius.max(near_radius),
         )?;
-        let transform = world
+        let mut transform = world
             .get_mut::<Transform>(camera)
             .context("follow camera transform missing")?;
         transform.translation = position.to_array();
