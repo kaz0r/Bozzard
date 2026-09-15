@@ -49,7 +49,7 @@ use anyhow::{Context, Result, ensure};
 use bozzard_ecs::{Entity, World};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::result::Result as StdResult;
 
 mod collision;
@@ -1232,6 +1232,44 @@ impl Object {
             material.apply(&mut drawable);
         }
         Some(drawable)
+    }
+}
+
+impl Scene {
+    /// Whether any object carries a script, which makes the scene a gameplay scene.
+    pub fn has_scripts(&self) -> bool {
+        self.objects.iter().any(|object| {
+            object
+                .script_manager
+                .as_ref()
+                .is_some_and(|manager| !manager.scripts.is_empty())
+        })
+    }
+    /// Spawnable prefab asset IDs a runtime has to have ready before the first tick: every enabled
+    /// `Spawn Prefab` node, plus every prefab in the catalog of a scene that runs scripts.
+    ///
+    /// A script names its prefab in source, which is opaque here, so the catalog is the
+    /// declaration: a prefab a script can spawn has to be in `assets`, and the runtime loads the
+    /// lot once instead of guessing from the text.
+    pub fn spawn_asset_ids(&self) -> BTreeSet<String> {
+        let mut ids: BTreeSet<String> = self
+            .objects
+            .iter()
+            .flat_map(|object| &object.blueprints)
+            .filter(|attachment| attachment.enabled)
+            .flat_map(|attachment| &attachment.graph.nodes)
+            .filter(|node| node.kind == blueprint::NodeKind::SpawnPrefab && !node.prefab.is_empty())
+            .map(|node| node.prefab.clone())
+            .collect();
+        if self.has_scripts() {
+            ids.extend(
+                self.assets
+                    .iter()
+                    .filter(|(_, source)| source.kind == AssetKind::Prefab)
+                    .map(|(id, _)| id.clone()),
+            );
+        }
+        ids
     }
 }
 

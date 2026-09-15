@@ -271,6 +271,10 @@ pub struct ScriptRuntimeStats {
 #[derive(Clone, Default)]
 pub struct ScriptRuntime {
     runs: BTreeMap<(String, usize), ScriptRun>,
+    /// The floor contact of each object's last `move_with_collision`, which is what a graph reads
+    /// from the move node's own Grounded output. Objects that never move keep using the physics
+    /// state of their Gravity/Rigidbody component instead.
+    moved: BTreeMap<String, bool>,
     tokens: BTreeMap<String, String>,
     messages: VecDeque<String>,
     elapsed: f32,
@@ -1082,12 +1086,7 @@ impl SceneInstance {
     }
     /// Whether any object carries a script, which makes the scene a gameplay scene.
     pub fn has_scripts(&self) -> bool {
-        self.document.objects.iter().any(|object| {
-            object
-                .script_manager
-                .as_ref()
-                .is_some_and(|manager| !manager.scripts.is_empty())
-        })
+        self.document.has_scripts()
     }
     pub fn set_script_enabled(&mut self, owner: &str, index: usize, enabled: bool) -> Result<()> {
         self.document
@@ -1130,7 +1129,7 @@ impl SceneInstance {
             let runtime = world
                 .resource_mut::<BlueprintRuntime>()
                 .expect("blueprint runtime");
-            runtime.add_scene_defaults(&self.document.blackboard);
+            runtime.initialize_boards(&self.document);
             for object in &self.document.objects {
                 if object.script_manager.is_some() {
                     runtime.add_object_defaults(&object.id, &object.blackboard);
@@ -1270,9 +1269,11 @@ impl SceneInstance {
                         .map(|text| text.text.clone()),
                     rigidbody: world.get::<Gravity>(*entity).is_some_and(|g| g.enabled)
                         && world.get::<PlayerController>(*entity).is_none(),
-                    grounded: world
-                        .get::<GravityState>(*entity)
-                        .is_some_and(|state| state.grounded),
+                    grounded: runtime.moved.get(id).copied().unwrap_or_else(|| {
+                        world
+                            .get::<GravityState>(*entity)
+                            .is_some_and(|state| state.grounded)
+                    }),
                     overlaps: overlaps.get(id.as_str()).copied().unwrap_or(0),
                 },
             );
@@ -1471,7 +1472,14 @@ impl SceneInstance {
                 }
                 Command::MoveWithCollision { target, delta } => {
                     let target = resolve(tokens, &target);
-                    self.move_box(world, &target, Vec3::from(delta))?;
+                    let movement = self.move_box(world, &target, Vec3::from(delta))?;
+                    runtime.moved.insert(
+                        target,
+                        movement
+                            .contact_normals
+                            .iter()
+                            .any(|normal| normal.y >= 0.5),
+                    );
                 }
                 Command::Jump { target, speed } => {
                     let target = resolve(tokens, &target);
@@ -1888,5 +1896,48 @@ mod tests {
             .step_scripts(&mut world, 1. / 60., GameplayInput::default())
             .unwrap_err();
         assert!(format!("{error:#}").contains("jump speed"), "{error:#}");
+    }
+
+    /// A script names the prefab it spawns in source, which the loader cannot read, so the scene
+    /// catalog is the declaration and a scripted scene preloads its prefabs.
+    #[test]
+    fn a_scene_with_scripts_preloads_the_prefabs_its_scripts_can_spawn() {
+        let scene = |object: &str| {
+            format!(
+                r#"{{"version":1,"name":"spawner","views":{{}},
+                    "assets":{{"shot":{{"kind":"prefab","path":"assets/shot.prefab.json"}}}},
+                    "objects":[{object}]}}"#
+            )
+        };
+        let transform =
+            r#""transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}"#;
+        // A graph names its prefab on the node, so exactly that prefab is loaded.
+        let node = Scene::from_json(&scene(&format!(
+            r#"{{"id":"gun","name":"gun",{transform},
+                "blueprints":[{{"enabled":true,"graph":{{"version":1,"name":"fire",
+                    "nodes":[{{"id":1,"position":[0,0],"kind":"spawn_prefab","prefab":"shot",
+                        "inputs":["exec",{{"vector":[0,0,0]}}]}}],"wires":[]}}}}]}}"#
+        )))
+        .unwrap();
+        assert_eq!(node.spawn_asset_ids(), BTreeSet::from(["shot".into()]));
+
+        // A script cannot, so every prefab in the catalog stays ready to be spawned by name.
+        let script = Scene::from_json(&format!(
+            r#"{{"version":1,"name":"spawner","views":{{}},
+                "assets":{{"shot":{{"kind":"prefab","path":"assets/shot.prefab.json"}},
+                    "fire":{{"kind":"script","path":"fire.rs"}}}},
+                "objects":[{{"id":"gun","name":"gun",{transform},
+                    "script_manager":{{"scripts":[{{"enabled":true,"script":"fire"}}]}}}}]}}"#
+        ))
+        .unwrap();
+        assert!(script.has_scripts());
+        assert_eq!(script.spawn_asset_ids(), BTreeSet::from(["shot".into()]));
+
+        // Without either authoring path there is nothing to preload.
+        let empty = Scene::from_json(&scene(&format!(
+            r#"{{"id":"gun","name":"gun",{transform}}}"#
+        )))
+        .unwrap();
+        assert!(empty.spawn_asset_ids().is_empty());
     }
 }

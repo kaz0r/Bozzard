@@ -14,28 +14,19 @@ pub(super) fn load(
     document.validate()?;
     let mut scene = document.clone();
     let mut templates = BTreeMap::new();
-    if !document
-        .objects
-        .iter()
-        .flat_map(|o| &o.blueprints)
-        .flat_map(|b| &b.graph.nodes)
-        .any(|n| n.kind == bozzard_scene::blueprint::NodeKind::SpawnPrefab)
-    {
+    let spawnable = document.spawn_asset_ids();
+    if spawnable.is_empty() {
         return Ok((scene, templates));
     }
     let root = path.and_then(Path::parent).unwrap_or(Path::new("."));
     let mut count = 0;
     let mut bytes = 0;
-    let mut pending: BTreeMap<_, _> = document
-        .objects
-        .iter()
-        .flat_map(|o| &o.blueprints)
-        .filter(|b| b.enabled)
-        .flat_map(|b| &b.graph.nodes)
-        .filter(|n| {
-            n.kind == bozzard_scene::blueprint::NodeKind::SpawnPrefab && !n.prefab.is_empty()
+    let mut pending: BTreeMap<_, _> = spawnable
+        .into_iter()
+        .map(|asset| {
+            let source = document.assets[&asset].clone();
+            (asset, source)
         })
-        .map(|n| (n.prefab.clone(), document.assets[&n.prefab].clone()))
         .collect();
     while let Some((asset, source)) = pending.pop_first() {
         if templates.contains_key(&asset) {

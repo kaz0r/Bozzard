@@ -447,10 +447,7 @@ impl SceneInstance {
         Ok(())
     }
     fn prepare_blueprints(&self, runtime: &mut BlueprintRuntime) {
-        if !runtime.initialized {
-            runtime.scene_board = self.document.blackboard.clone();
-            runtime.initialized = true;
-        }
+        runtime.initialize_boards(&self.document);
         for object in &self.document.objects {
             if object.blackboard.is_empty() && object.blueprints.is_empty() {
                 continue;
@@ -1405,6 +1402,27 @@ impl BlueprintRuntime {
                 .entry(k.clone())
                 .or_insert_with(|| v.clone());
         }
+    }
+    /// Seed the boards from the document, once, for whichever gameplay step runs first.
+    ///
+    /// Scripts and graphs share these boards and a script-only scene never runs the blueprint pass,
+    /// so the script step seeds them too. Both steps must set the same "seeded" flag: the blueprint
+    /// pass resets the scene board while the flag is clear, which would throw away a script write
+    /// made earlier in the same tick.
+    pub(crate) fn initialize_boards(&mut self, scene: &Scene) {
+        if self.initialized {
+            return;
+        }
+        self.scene_board = scene.blackboard.clone();
+        for object in &scene.objects {
+            if object.blackboard.is_empty() {
+                continue;
+            }
+            self.object_boards
+                .entry(object.id.clone())
+                .or_insert_with(|| object.blackboard.clone());
+        }
+        self.initialized = true;
     }
     /// Scripts share these boards with graphs, so an object that declares variables gets one even
     /// when it carries no graph at all.

@@ -333,8 +333,12 @@ impl SceneDemo {
                 .and_then(|()| gravity_instance.gameplay_motion(world, dt))
                 .and_then(|()| gravity_instance.step_gravity(world, dt))
                 .and_then(|()| gravity_instance.gameplay_interactions(world))
-                .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
+                // Scripts run before graphs: each step samples one snapshot of the world for its
+                // own events, so running them first keeps script reads on the tick's starting
+                // state and lets a graph see a variable a script wrote this tick. It also keeps a
+                // graph's Destroy Prefab from hiding a hit the scripts were meant to see.
                 .and_then(|()| gravity_instance.step_scripts(world, dt, input))
+                .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
                 .and_then(|()| {
                     if bozzard_scene::game_flow::simulation_running(world) {
                         gravity_instance.step_particles(world, dt)
