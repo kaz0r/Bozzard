@@ -1,0 +1,119 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Bozzard Gilded Hour / original CC0 geometry"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "armillary-filament"
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "armillary-filament.bin",
+      "byteLength": 68000
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 15132,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 15132,
+      "byteLength": 15132,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 30264,
+      "byteLength": 10088,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 40352,
+      "byteLength": 27648,
+      "target": 34963
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 1261,
+      "type": "VEC3",
+      "min": [
+        -0.8190000000000001,
+        -0.8190000000000001,
+        -0.009
+      ],
+      "max": [
+        0.8190000000000001,
+        0.8190000000000001,
+        0.009
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 1261,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 1261,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5125,
+      "count": 6912,
+      "type": "SCALAR"
+    }
+  ],
+  "materials": [
+    {
+      "name": "Satin bronze",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.72,
+          0.43,
+          0.16,
+          1
+        ],
+        "metallicFactor": 0.92,
+        "roughnessFactor": 0.24
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "armillary-filament",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    }
+  ]
+}

@@ -95,3 +95,10 @@ install `vulkan-intel`; `vulkaninfo --summary` from `vulkan-tools` checks discov
 ## Atmosphere and motion
 
 Open `examples/demo/scenes/atmosphere-lab.json` for the bonfire clearing with curling smoke, windblown ash and sparks, temporal anti-aliasing, motion blur, and wet ground reflections. The Effects panel has live preview, common controls and application shortcuts. See [atmosphere effects](atmosphere-effects.md).
+
+## Sponza — The Gilded Hour
+
+With the optional Sponza download installed, open `examples/sponza/showcase.json`
+for the warm atrium, baked GI, emissive bronze armillary and restrained haze and
+reflections. It keeps motion blur and depth of field off. See the
+[showcase guide](sponza-showcase.md) for setup, three cameras and real-renderer captures.
