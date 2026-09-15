@@ -41,7 +41,15 @@ impl EffectsPreview {
         }
         Ok(())
     }
-    pub fn render(&self, editor: &Editor, layer: Layer, aspect: f32) -> Result<RenderScene> {
+    pub fn render(&mut self, editor: &Editor, layer: Layer, aspect: f32) -> Result<RenderScene> {
+        // A frame's `advance` runs before any panel, and every panel edit lands after it, so the
+        // document can change between that rebuild and this call. Adopt it here as well: the
+        // viewport stamps the pixels it drew with the revision it drew them from, and a preview that
+        // lagged a frame would move the stamp ahead of the pixels and leave the next frame with
+        // nothing to redraw.
+        if self.revision != editor.revision() {
+            *self = Self::new(editor)?;
+        }
         let mut scene = extract_with_gi(
             &self.demo,
             &editor.assets,
@@ -188,6 +196,29 @@ mod tests {
         );
         Ok(())
     }
+    /// The order a real frame runs in: `advance` at the top, an edit from a panel after it, then the
+    /// viewport renders. The preview has to draw that edit in the same frame, or the editor viewport
+    /// keeps the frame before it on screen until something else changes the stamp.
+    #[test]
+    fn an_edit_after_the_frame_rebuild_is_still_drawn() -> Result<()> {
+        let mut editor = Editor::new(
+            bozzard_demo::scene_document()?,
+            std::path::Path::new("/tmp/bozzard-effects-refresh.json"),
+        )?;
+        let mut preview = EffectsPreview::new(&editor)?;
+        let before = preview.render(&editor, Layer::ThreeD, 1.)?.items.len();
+        preview.advance(&editor, Duration::from_secs_f32(0.016), false)?;
+        editor.create(bozzard_scene::Mesh::Cube, Layer::ThreeD)?;
+        let after = preview.render(&editor, Layer::ThreeD, 1.)?;
+        assert_eq!(
+            after.items.len(),
+            before + 1,
+            "the added object was missing from the frame that edited it"
+        );
+        assert_eq!(preview.revision, editor.revision());
+        Ok(())
+    }
+
     #[test]
     fn wet_material_volume_roundtrip_and_undo() -> Result<()> {
         let mut editor = Editor::new(

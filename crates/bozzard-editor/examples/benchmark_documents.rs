@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         bozzard_editor::extract(&demo, &editor.assets, Layer::ThreeD, 1.6)
     })?;
     measure("extract_authoring", || editor.render(Layer::ThreeD, 1.6))?;
-    let preview = EffectsPreview::new(&editor)?;
+    let mut preview = EffectsPreview::new(&editor)?;
     measure("extract_effects_preview", || {
         preview.render(&editor, Layer::ThreeD, 1.6)
     })?;
