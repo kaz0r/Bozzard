@@ -257,7 +257,7 @@ impl Volumetric {
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.targets.as_ref().map(|t| &t.color)
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, shadows: Option<&wgpu::BindGroup>) {
+    pub fn draw(&self, encoder: &mut crate::profiling::Encoder, shadows: Option<&wgpu::BindGroup>) {
         let Some(targets) = &self.targets else {
             return;
         };

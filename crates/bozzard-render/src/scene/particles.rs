@@ -330,7 +330,7 @@ impl Particles {
     pub fn submitted(&mut self) {
         self.simulation.submitted();
     }
-    pub fn encode(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn encode(&self, encoder: &mut crate::profiling::Encoder) {
         self.simulation.encode(encoder);
     }
     pub fn draw_bucket(

@@ -541,7 +541,7 @@ impl SceneRenderer {
     }
     pub(super) fn draw_shadows(
         &self,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut crate::profiling::Encoder,
         scene: &RenderScene,
         draws: &[PreparedDraw],
     ) -> (usize, u64) {

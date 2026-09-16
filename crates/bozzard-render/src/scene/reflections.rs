@@ -192,7 +192,11 @@ impl Reflections {
     pub fn output(&self) -> Option<&wgpu::TextureView> {
         self.active.then(|| &self.target.as_ref().unwrap().0)
     }
-    pub fn draw(&self, encoder: &mut wgpu::CommandEncoder, environment: Option<&wgpu::BindGroup>) {
+    pub fn draw(
+        &self,
+        encoder: &mut crate::profiling::Encoder,
+        environment: Option<&wgpu::BindGroup>,
+    ) {
         if !self.active {
             return;
         }

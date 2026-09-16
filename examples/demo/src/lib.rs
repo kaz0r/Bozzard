@@ -84,6 +84,14 @@ pub fn save_document(scene: &Scene, path: &Path) -> anyhow::Result<()> {
 
 /// Atomic replacement shared by scene and portable blueprint exports.
 pub fn save_json(json: &str, path: &Path) -> anyhow::Result<()> {
+    save_atomic(path, |file| Ok(file.write_all(json.as_bytes())?))
+}
+
+/// Stream a document/capture into a sibling file before replacing the destination.
+pub fn save_atomic(
+    path: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
     static NEXT_SAVE: AtomicU64 = AtomicU64::new(0);
     let parent = path
         .parent()
@@ -100,7 +108,7 @@ pub fn save_json(json: &str, path: &Path) -> anyhow::Result<()> {
         .write(true)
         .open(&temp)?;
     let result = (|| -> anyhow::Result<()> {
-        file.write_all(json.as_bytes())?;
+        write(&mut file)?;
         file.sync_all()?;
         drop(file);
         std::fs::rename(&temp, path)?;
@@ -312,7 +320,7 @@ impl SceneDemo {
             app.world
                 .insert_resource(bozzard_scene::GameSession::default());
         }
-        app.add_system(|world, _, tick| {
+        app.add_named_system("Spin", |world, _, tick| {
             if !bozzard_scene::game_flow::simulation_running(world)
                 || world
                     .resource::<SimulationStatus>()
@@ -343,7 +351,7 @@ impl SceneDemo {
         });
         app.world.insert_resource(instance);
         app.world.insert_resource(SimulationStatus::default());
-        app.add_system(|world, _, tick| {
+        app.add_named_system("Audio", |world, _, tick| {
             if world
                 .resource::<SimulationStatus>()
                 .is_some_and(|s| s.error.is_some())
@@ -361,7 +369,8 @@ impl SceneDemo {
                 });
             }
         });
-        app.add_system(move |world, _, tick| {
+        app.add_named_system("Gameplay", move |world, _, tick| {
+            use bozzard_diagnostics::measure;
             // UI and audio completion Blueprints remain responsive while gameplay is paused.
             if world
                 .resource::<SimulationStatus>()
@@ -380,20 +389,42 @@ impl SceneDemo {
             let simulation = if bozzard_scene::game_flow::simulation_running(world) {
                 gravity_instance
                     .advance_display(dt)
-                    .and_then(|()| gravity_instance.gameplay_motion(world, dt))
-                    .and_then(|()| gravity_instance.step_gravity(world, dt))
-                    .and_then(|()| gravity_instance.gameplay_interactions(world))
+                    .and_then(|()| {
+                        measure(world, "Character movement", |world| {
+                            gravity_instance.gameplay_motion(world, dt)
+                        })
+                    })
+                    .and_then(|()| {
+                        measure(world, "Physics", |world| {
+                            gravity_instance.step_gravity(world, dt)
+                        })
+                    })
+                    .and_then(|()| {
+                        measure(world, "Interactions", |world| {
+                            gravity_instance.gameplay_interactions(world)
+                        })
+                    })
                     .and_then(|()| gravity_instance.step_middleware(world, dt))
                     // Scripts precede graphs so graph reads observe this tick's script writes.
-                    .and_then(|()| gravity_instance.step_scripts(world, dt, input))
+                    .and_then(|()| {
+                        measure(world, "Scripts", |world| {
+                            gravity_instance.step_scripts(world, dt, input)
+                        })
+                    })
             } else {
                 Ok(())
             };
             let error = simulation
-                .and_then(|()| gravity_instance.step_blueprints(world, dt, input))
+                .and_then(|()| {
+                    measure(world, "Blueprints", |world| {
+                        gravity_instance.step_blueprints(world, dt, input)
+                    })
+                })
                 .and_then(|()| {
                     if bozzard_scene::game_flow::simulation_running(world) {
-                        gravity_instance.step_particles(world, dt)
+                        measure(world, "Particles", |world| {
+                            gravity_instance.step_particles(world, dt)
+                        })
                     } else {
                         Ok(())
                     }

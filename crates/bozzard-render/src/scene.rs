@@ -218,6 +218,7 @@ struct DepthTarget {
 /// Indexed geometry, per-object matrices/materials, sampled textures, and depth testing.
 /// HDR opaque/transparent passes. Imported color images are sRGB; procedural colors are linear.
 pub struct SceneRenderer {
+    profiler: crate::profiling::GpuProfiler,
     skinning: skinning::Skinning,
     sprites: sprites::Sprites,
     hud: Option<hud::HudRenderer>,
@@ -699,6 +700,7 @@ impl SceneRenderer {
             particles: None,
             text: None,
             stats: Default::default(),
+            profiler: Default::default(),
             culling: true,
             state_caching: true,
             environment,
@@ -1614,6 +1616,23 @@ impl SceneRenderer {
         scene: &RenderScene,
         raw: bool,
     ) -> Result<()> {
+        let result = self.draw_frame_inner(gpu, target, size, scene, raw);
+        if result.is_err() {
+            // Skin commands now share the frame encoder. A failed frame drops that
+            // encoder before submission, so its cached poses must be retried.
+            self.skinning.invalidate();
+            self.shadow_frame = None;
+        }
+        result
+    }
+    fn draw_frame_inner(
+        &mut self,
+        gpu: &Gpu,
+        target: &wgpu::TextureView,
+        size: [u32; 2],
+        scene: &RenderScene,
+        raw: bool,
+    ) -> Result<()> {
         let started = std::time::Instant::now();
         self.stats = FrameStats::default();
         ensure!(
@@ -1733,7 +1752,10 @@ impl SceneRenderer {
         gpu.queue
             .write_buffer(&self.shadows.local_lights, 0, &lights);
         self.prepare_text(gpu, scene)?;
-        self.skinning.prepare(gpu, scene, &self.models)?;
+        let mut encoder = self.profiler.encoder(gpu);
+        self.stats.frame_id = encoder.frame;
+        self.skinning
+            .prepare(gpu, scene, &self.models, &mut encoder)?;
         self.sprites.prepare(gpu, &scene.items)?;
         let draws = self.prepare(scene);
         // Keep all active pipelines and a bounded set of recently absent previews.
@@ -1949,11 +1971,6 @@ impl SceneRenderer {
         }
         self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
         let encode_started = std::time::Instant::now();
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("scene frame"),
-            });
         if has_particles {
             self.particles.as_ref().unwrap().encode(&mut encoder);
         }
@@ -2133,10 +2150,9 @@ impl SceneRenderer {
         } else {
             self.hud = None;
         }
-        let commands = encoder.finish();
         self.stats.encode_ms = encode_started.elapsed().as_secs_f64() * 1000.;
         let submit_started = std::time::Instant::now();
-        gpu.queue.submit([commands]);
+        self.profiler.submit(gpu, encoder);
         if has_particles {
             self.particles.as_mut().unwrap().submitted();
         }
@@ -2151,6 +2167,16 @@ impl SceneRenderer {
 }
 
 impl SceneRenderer {
+    /// Capture GPU passes when the device supports timestamps. Readback never blocks rendering.
+    pub fn set_profiling_enabled(&mut self, enabled: bool) {
+        self.profiler.enabled = enabled;
+    }
+    pub fn poll_gpu_profiles(&mut self, gpu: &Gpu) -> Result<Vec<crate::GpuFrameTiming>> {
+        self.profiler.poll(gpu)
+    }
+    pub fn skipped_gpu_profiles(&self) -> u64 {
+        self.profiler.skipped
+    }
     /// Discard eye-adaptation history on a camera cut, scene change, or independent capture.
     /// The next enabled auto-exposure frame starts from its current metered target.
     pub fn reset_display_history(&mut self) {

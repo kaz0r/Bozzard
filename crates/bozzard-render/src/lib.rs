@@ -4,6 +4,8 @@ pub use scene::{SkinData, SkinPose};
 pub use wgpu;
 mod mipmap;
 mod pbr;
+mod profiling;
+pub use profiling::{GpuFrameTiming, GpuPassTiming};
 mod scene;
 pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
@@ -108,7 +110,7 @@ impl Gpu {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("Bozzard device"),
-                required_features: wgpu::Features::empty(),
+                required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
                 // Keep baseline features while allowing native/Retina-sized render targets.
                 required_limits: wgpu::Limits::downlevel_defaults()
                     .using_resolution(adapter.limits()),

@@ -21,6 +21,7 @@ mod blueprints;
 mod cameras;
 mod colliders;
 mod component_ui;
+mod debug;
 mod export;
 mod files;
 mod fog;
@@ -63,6 +64,7 @@ struct Workspace {
     blueprints_visible: bool,
     shaders_visible: bool,
     stats_visible: bool,
+    debug_visible: bool,
     colliders_visible: bool,
     gi_visible: bool,
     tool: Tool,
@@ -83,6 +85,7 @@ impl Default for Workspace {
             blueprints_visible: false,
             shaders_visible: false,
             stats_visible: false,
+            debug_visible: false,
             colliders_visible: true,
             gi_visible: false,
             tool: Tool::Move,
@@ -115,6 +118,7 @@ struct Target {
     size: [u32; 2],
 }
 struct App {
+    debug: debug::DebugWorkspace,
     editor: Editor,
     gpu: Gpu,
     renderer: SceneRenderer,
@@ -216,6 +220,7 @@ impl App {
         workspace.restore_scene(&editor.path);
         let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb);
         Ok(Self {
+            debug: Default::default(),
             editor,
             gpu,
             renderer,
@@ -287,6 +292,14 @@ impl App {
         if let Err(error) = result {
             self.status = format!("{error:#}");
             self.error = true;
+            self.debug.console.push(
+                bozzard_diagnostics::Level::Error,
+                "Editor",
+                &self.status,
+                bozzard_diagnostics::Location::default(),
+                None,
+            );
+            self.debug.remember_status(&self.status);
         } else {
             self.error = false;
         }
@@ -556,12 +569,29 @@ impl App {
                             self.workspace.settings_visible = true;
                             self.workspace.effects_page = true;
                         }
+                        if ui
+                            .selectable_label(
+                                self.workspace.debug_visible,
+                                if self.debug.recording {
+                                    "Debug · Recording"
+                                } else {
+                                    "Debug"
+                                },
+                            )
+                            .clicked()
+                        {
+                            self.workspace.debug_visible = !self.workspace.debug_visible;
+                        }
                         ui.menu_button("View", |ui| {
                             ui.checkbox(&mut self.workspace.blueprints_visible, "Blueprint Editor");
                             ui.checkbox(&mut self.workspace.shaders_visible, "Shader Editor");
                             ui.checkbox(&mut self.workspace.assets_visible, "Content Browser");
                             ui.checkbox(&mut self.workspace.settings_visible, "Scene Settings");
                             ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
+                            ui.checkbox(
+                                &mut self.workspace.debug_visible,
+                                "Debug · Profiler and Console",
+                            );
                         });
                         ui.menu_button("Help", |ui| {
                             ui.label("Bozzard · Native scene editor");
@@ -1269,9 +1299,11 @@ impl eframe::App for App {
     }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let debug_started = self.debug_begin_frame();
         self.poll_loading();
         self.editor.repair_surface_selection();
         let now = Instant::now();
+        let debug_interval_ms = now.duration_since(self.last_frame).as_secs_f64() * 1000.;
         if let Some(play) = &mut self.editor.play {
             play.with_instance(|instance, _| instance.set_gpu_particles(true));
         }
@@ -1463,11 +1495,16 @@ impl eframe::App for App {
                 }
                 if self.error {
                     ui.colored_label(Color32::LIGHT_RED, &self.status);
+                    if ui.button("Open console").clicked() {
+                        self.workspace.debug_visible = true;
+                        self.debug.show_console();
+                    }
                 } else {
                     ui.label(&self.status);
                 }
             });
         });
+        self.debug_panel(ui);
         egui::Panel::left("entity-workspace")
             .default_size(290.0)
             .min_size(260.0)
@@ -1586,7 +1623,12 @@ impl eframe::App for App {
             || (self.viewport_continuous && !self.workspace.blueprints_visible)
             || self.fly_latched
             || self.mouse_captured;
-        ctx.request_repaint_after(Duration::from_millis(if active { 16 } else { 500 }));
+        self.debug_end_frame(debug_started, debug_interval_ms);
+        ctx.request_repaint_after(Duration::from_millis(if active || self.debug.recording {
+            16
+        } else {
+            500
+        }));
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.workspace.scene_path = Some(self.editor.path.clone());

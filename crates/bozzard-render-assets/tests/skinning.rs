@@ -91,6 +91,17 @@ fn gltf_skin_matches_cpu_reference_and_invalidates_shadows() -> anyhow::Result<(
     })?;
     let palette = skin.rig.palette(&skin.rig.sample(0, 1.)?)?;
     scene.skin_poses.get_mut(&1).unwrap().matrices = Arc::new(palette.clone());
+    // Fail after skinning was encoded but before the shared command buffer is
+    // submitted. Recovery must recompute the new pose, not retain the old pixels.
+    let valid_model = scene.items[0].model;
+    scene.items[0].model = Mat4::ZERO;
+    assert!(
+        capture_offscreen(&gpu, 64, 64, |target| {
+            renderer.draw_linear(&gpu, target, [64, 64], &scene)
+        })
+        .is_err()
+    );
+    scene.items[0].model = valid_model;
     let animated = capture_offscreen(&gpu, 64, 64, |target| {
         renderer.draw_linear(&gpu, target, [64, 64], &scene)
     })?;

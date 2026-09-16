@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+bozzard-diagnostics.workspace = true
 bozzard-app.workspace = true
 bozzard-scene.workspace = true
 anyhow.workspace = true

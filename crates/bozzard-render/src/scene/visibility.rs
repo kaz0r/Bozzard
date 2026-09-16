@@ -1,7 +1,9 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
 pub struct FrameStats {
+    /// Monotonic identity for matching asynchronous GPU results with their rendered frame.
+    pub frame_id: u64,
     pub particles: usize,
     /// Simulation/sort/gather/bucket compute dispatches; zero for an unchanged paused frame.
     pub particle_compute_dispatches: u32,
