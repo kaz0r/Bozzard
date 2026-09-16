@@ -4,6 +4,16 @@ use blueprint::{Blackboard, BlackboardValue as B, VariableScope as Scope};
 use blueprint::{Blueprint, Node, NodeKind as K, ObjectRef, Socket, Value};
 use std::collections::BTreeSet;
 use std::sync::Arc;
+mod debug;
+pub use debug::{
+    BlueprintDebugger, Breakpoint, DebugCommand, DebugPause, NodeSnapshot, PinWatch, VariableWatch,
+    WatchSnapshot,
+};
+use debug::{ExecTask, PendingTick};
+type EventContacts = (
+    BTreeMap<String, BTreeSet<String>>,
+    BTreeMap<String, Vec<Contact>>,
+);
 
 /// Indexed once per attachment; reused across all ticks and data evaluations.
 #[derive(Clone)]
@@ -67,6 +77,8 @@ struct Run {
     #[serde(skip)]
     last_node: Option<u32>,
     #[serde(skip)]
+    watch: Option<Box<debug::LastEvent>>,
+    #[serde(skip)]
     program: Option<Arc<Program>>,
     started: bool,
     enabled: bool,
@@ -90,6 +102,7 @@ pub struct BlueprintStats {
 #[derive(Clone, Default)]
 pub struct BlueprintRuntime {
     pub stats: BlueprintStats,
+    pending: Option<Box<PendingTick>>,
     query_budget: usize,
     runs: BTreeMap<(String, usize), Run>,
     pub messages: VecDeque<String>,
@@ -100,6 +113,12 @@ pub struct BlueprintRuntime {
     destroying: BTreeSet<String>,
 }
 impl BlueprintRuntime {
+    pub fn suspended(&self) -> bool {
+        self.pending.is_some()
+    }
+    pub fn pending_ui_dispatch(&self) -> bool {
+        self.pending.as_ref().is_some_and(|p| p.ui_dispatch)
+    }
     pub fn object_blackboard(&self, id: &str) -> Option<&Blackboard> {
         self.object_boards.get(id)
     }
@@ -107,7 +126,8 @@ impl BlueprintRuntime {
         &self.scene_board
     }
     pub fn pending_timers(&self) -> usize {
-        self.runs.values().map(|r| r.timers.len()).sum()
+        self.runs.values().map(|r| r.timers.len()).sum::<usize>()
+            + self.pending.as_ref().map_or(0, |p| p.pending_timers())
     }
 }
 #[derive(Clone, Copy)]
@@ -687,6 +707,258 @@ impl SceneInstance {
             .enabled = enabled;
         Ok(())
     }
+    fn blueprint_event_contacts(&self, world: &World, ui_only: bool) -> Result<EventContacts> {
+        let query_overlaps = !ui_only
+            && self
+                .document
+                .objects
+                .iter()
+                .flat_map(|o| &o.blueprints)
+                .filter(|b| b.enabled)
+                .any(|b| needs_overlap(&b.graph));
+        let query_solids = !ui_only
+            && self
+                .document
+                .objects
+                .iter()
+                .flat_map(|o| &o.blueprints)
+                .filter(|a| a.enabled)
+                .any(|a| a.graph.nodes.iter().any(|n| n.kind == K::CollisionEnter));
+        let collision_data = (query_overlaps || query_solids)
+            .then(|| self.collision_snapshot(world))
+            .transpose()?;
+        let collisions = collision_data.as_ref().map(|(snapshot, _)| snapshot);
+        let matrices = collision_data.as_ref().map(|(_, matrices)| matrices);
+        // Snapshot contacts once before graph actions. Order does not change this tick's events.
+        let mut contacts = BTreeMap::new();
+        let mut overlap_budget = 1_000_000usize;
+        if query_overlaps && let (Some(collisions), Some(matrices)) = (&collisions, &matrices) {
+            for object in self.document.objects.iter().filter(|o| {
+                o.blueprints
+                    .iter()
+                    .any(|b| b.enabled && needs_overlap(&b.graph))
+            }) {
+                contacts.insert(object.id.clone(), BTreeSet::new());
+            }
+            // Reuse solid pairs once, rather than scanning every pair for every graph owner.
+            for (a, b) in &collisions.overlaps {
+                ensure!(
+                    overlap_budget > 0,
+                    "blueprint overlap budget exceeded (1000000 tests/tick)"
+                );
+                overlap_budget -= 1;
+                if let Some(overlap) = contacts.get_mut(a) {
+                    overlap.insert(b.clone());
+                }
+                if let Some(overlap) = contacts.get_mut(b) {
+                    overlap.insert(a.clone());
+                }
+            }
+            for object in self.document.objects.iter().filter(|o| {
+                o.blueprints
+                    .iter()
+                    .any(|b| b.enabled && needs_overlap(&b.graph))
+            }) {
+                let entity = self.entities[&object.id];
+                let collider = world.get::<Trigger>(entity).map(|t| t.volume);
+                let mut overlap = contacts.remove(&object.id).unwrap_or_default();
+                if let Some(collider) = collider.filter(|c| c.enabled) {
+                    let (center, edges, corners) = collider.geometry(matrices[&object.id])?;
+                    let volume = CollisionBox {
+                        id: object.id.clone(),
+                        entity,
+                        center,
+                        edges,
+                        corners,
+                        layers: collider.layers,
+                        mask: collider.mask,
+                    };
+                    let meets = |other_layers: u32, other_mask: u32| {
+                        layers_interact(volume.layers, volume.mask, other_layers, other_mask)
+                    };
+                    for body in &collisions.boxes {
+                        ensure!(
+                            overlap_budget > 0,
+                            "blueprint overlap budget exceeded (1000000 tests/tick)"
+                        );
+                        overlap_budget -= 1;
+                        if body.id != object.id
+                            && meets(body.layers, body.mask)
+                            && volume.intersects(body)
+                        {
+                            overlap.insert(body.id.clone());
+                        }
+                    }
+                    for mesh in &collisions.meshes {
+                        ensure!(
+                            overlap_budget > 0,
+                            "blueprint overlap budget exceeded (1000000 tests/tick)"
+                        );
+                        overlap_budget -= 1;
+                        if mesh.id != object.id
+                            && meets(mesh.layers, mesh.mask)
+                            && mesh.intersects(&volume)
+                        {
+                            overlap.insert(mesh.id.clone());
+                        }
+                    }
+                }
+                contacts.insert(object.id.clone(), overlap);
+            }
+        }
+
+        let solid_contacts = if query_solids {
+            self.blueprint_contacts(world, collisions.unwrap(), matrices.unwrap())
+        } else {
+            BTreeMap::new()
+        };
+        Ok((contacts, solid_contacts))
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn blueprint_events(
+        &self,
+        world: &World,
+        program: &Program,
+        run: &mut Run,
+        owner: &str,
+        enabled: bool,
+        overlap: &BTreeSet<String>,
+        collisions: &[Contact],
+        dt: f32,
+        input: GameplayInput,
+        ui_dispatch: bool,
+        ui_only: bool,
+    ) -> Vec<(Socket, EventContext)> {
+        let mut events = Vec::new();
+        if enabled && !ui_dispatch {
+            for timer in &mut run.timers {
+                if !ui_only || timer.context.wall_clock {
+                    timer.remaining -= dt;
+                }
+            }
+            for timer in &run.timers {
+                if timer.remaining <= 0. {
+                    events.push((timer.output, timer.context.clone()));
+                }
+            }
+            run.timers.retain(|t| t.remaining > 0.);
+        } else if !enabled {
+            run.timers.clear();
+        }
+        for event in program.graph.nodes.iter().filter(|n| {
+            n.kind.event()
+                && (!ui_dispatch || n.kind == K::UiEvent)
+                && (!ui_only || matches!(n.kind, K::UiEvent | K::AudioFinished))
+        }) {
+            let fire = match event.kind {
+                K::Enable => enabled && !run.enabled,
+                K::Disable => !enabled && run.enabled,
+                K::Start => enabled && !run.started,
+                K::AudioFinished => {
+                    enabled
+                        && world
+                            .resource::<crate::middleware::audio::Runtime>()
+                            .is_some_and(|r| r.finished.contains(owner))
+                }
+                K::TweenFinished => {
+                    enabled
+                        && world
+                            .resource::<crate::middleware::tween::Runtime>()
+                            .is_some_and(|r| r.finished.contains(owner))
+                }
+                K::Update => enabled,
+                K::InputPressed => {
+                    enabled
+                        && event.key.active(input)
+                        && (event.key.instant() || run.held & event.key.bit() == 0)
+                }
+                K::TriggerEnter => enabled && !overlap.is_empty() && run.overlap.is_empty(),
+                K::TriggerExit => enabled && overlap.is_empty() && !run.overlap.is_empty(),
+                _ => false,
+            };
+            let mut contexts = Vec::new();
+            match event.kind {
+                K::TimelineEvent
+                | K::AnimationEvent
+                | K::NavigationEvent
+                | K::UiEvent
+                | K::SpriteEvent
+                    if enabled =>
+                {
+                    use crate::middleware::signals::{Kind, Signals};
+                    if let Some(signals) = world.resource::<Signals>() {
+                        contexts.extend(
+                            signals
+                                .for_owner(
+                                    owner,
+                                    if event.kind == K::TimelineEvent {
+                                        Kind::Timeline
+                                    } else if event.kind == K::NavigationEvent {
+                                        Kind::Navigation
+                                    } else if event.kind == K::UiEvent {
+                                        Kind::Ui
+                                    } else if event.kind == K::SpriteEvent {
+                                        Kind::Sprite
+                                    } else {
+                                        Kind::Animation
+                                    },
+                                )
+                                .map(|signal| EventContext {
+                                    wall_clock: event.kind == K::UiEvent,
+                                    event: event.id,
+                                    message: signal.name.clone(),
+                                    impulse: signal.value,
+                                    other: signal.other.clone(),
+                                    ..Default::default()
+                                }),
+                        );
+                    }
+                }
+                K::BodyEnter if enabled => {
+                    contexts.extend(overlap.difference(&run.overlap).map(|id| EventContext {
+                        event: event.id,
+                        other: Some(id.clone()),
+                        ..Default::default()
+                    }))
+                }
+                K::BodyExit if enabled => {
+                    contexts.extend(run.overlap.difference(overlap).map(|id| EventContext {
+                        event: event.id,
+                        other: Some(id.clone()),
+                        ..Default::default()
+                    }))
+                }
+                K::CollisionEnter if enabled => contexts.extend(
+                    collisions
+                        .iter()
+                        .filter(|c| !run.collisions.contains(&c.other))
+                        .map(|c| EventContext {
+                            event: event.id,
+                            other: Some(c.other.clone()),
+                            normal: c.normal.to_array(),
+                            impulse: c.impulse,
+                            ..Default::default()
+                        }),
+                ),
+                _ if fire => contexts.push(EventContext {
+                    wall_clock: event.kind == K::AudioFinished,
+                    event: event.id,
+                    ..Default::default()
+                }),
+                _ => {}
+            }
+            events.extend(contexts.into_iter().map(|c| {
+                (
+                    Socket {
+                        node: event.id,
+                        port: 0,
+                    },
+                    c,
+                )
+            }));
+        }
+        events
+    }
     fn prepare_blueprints(&self, runtime: &mut BlueprintRuntime) {
         runtime.initialize_boards(&self.document);
         for object in &self.document.objects {
@@ -736,6 +1008,15 @@ impl SceneInstance {
         input: GameplayInput,
         ui_dispatch: bool,
     ) -> Result<()> {
+        if world
+            .resource::<BlueprintDebugger>()
+            .is_some_and(|d| d.enabled)
+            || world
+                .resource::<BlueprintRuntime>()
+                .is_some_and(|r| r.pending.is_some())
+        {
+            return self.step_blueprints_debug(world, dt, input, ui_dispatch);
+        }
         let ui_only = ui_dispatch || !crate::game_flow::simulation_running(world);
         if !self.has_blueprints() {
             if let Some(signals) = world.resource_mut::<crate::middleware::signals::Signals>() {
@@ -765,110 +1046,7 @@ impl SceneInstance {
                 runtime.elapsed += dt;
             }
             ensure!(runtime.elapsed.is_finite(), "blueprint clock overflow");
-            let query_overlaps = !ui_only
-                && self
-                    .document
-                    .objects
-                    .iter()
-                    .flat_map(|o| &o.blueprints)
-                    .filter(|b| b.enabled)
-                    .any(|b| needs_overlap(&b.graph));
-            let query_solids = !ui_only
-                && self
-                    .document
-                    .objects
-                    .iter()
-                    .flat_map(|o| &o.blueprints)
-                    .filter(|a| a.enabled)
-                    .any(|a| a.graph.nodes.iter().any(|n| n.kind == K::CollisionEnter));
-            let collision_data = (query_overlaps || query_solids)
-                .then(|| self.collision_snapshot(world))
-                .transpose()?;
-            let collisions = collision_data.as_ref().map(|(snapshot, _)| snapshot);
-            let matrices = collision_data.as_ref().map(|(_, matrices)| matrices);
-            // Snapshot contacts once before graph actions. Order does not change this tick's events.
-            let mut contacts = BTreeMap::new();
-            let mut overlap_budget = 1_000_000usize;
-            if query_overlaps && let (Some(collisions), Some(matrices)) = (&collisions, &matrices) {
-                for object in self.document.objects.iter().filter(|o| {
-                    o.blueprints
-                        .iter()
-                        .any(|b| b.enabled && needs_overlap(&b.graph))
-                }) {
-                    contacts.insert(object.id.clone(), BTreeSet::new());
-                }
-                // Reuse solid pairs once, rather than scanning every pair for every graph owner.
-                for (a, b) in &collisions.overlaps {
-                    ensure!(
-                        overlap_budget > 0,
-                        "blueprint overlap budget exceeded (1000000 tests/tick)"
-                    );
-                    overlap_budget -= 1;
-                    if let Some(overlap) = contacts.get_mut(a) {
-                        overlap.insert(b.clone());
-                    }
-                    if let Some(overlap) = contacts.get_mut(b) {
-                        overlap.insert(a.clone());
-                    }
-                }
-                for object in self.document.objects.iter().filter(|o| {
-                    o.blueprints
-                        .iter()
-                        .any(|b| b.enabled && needs_overlap(&b.graph))
-                }) {
-                    let entity = self.entities[&object.id];
-                    let collider = world.get::<Trigger>(entity).map(|t| t.volume);
-                    let mut overlap = contacts.remove(&object.id).unwrap_or_default();
-                    if let Some(collider) = collider.filter(|c| c.enabled) {
-                        let (center, edges, corners) = collider.geometry(matrices[&object.id])?;
-                        let volume = CollisionBox {
-                            id: object.id.clone(),
-                            entity,
-                            center,
-                            edges,
-                            corners,
-                            layers: collider.layers,
-                            mask: collider.mask,
-                        };
-                        let meets = |other_layers: u32, other_mask: u32| {
-                            layers_interact(volume.layers, volume.mask, other_layers, other_mask)
-                        };
-                        for body in &collisions.boxes {
-                            ensure!(
-                                overlap_budget > 0,
-                                "blueprint overlap budget exceeded (1000000 tests/tick)"
-                            );
-                            overlap_budget -= 1;
-                            if body.id != object.id
-                                && meets(body.layers, body.mask)
-                                && volume.intersects(body)
-                            {
-                                overlap.insert(body.id.clone());
-                            }
-                        }
-                        for mesh in &collisions.meshes {
-                            ensure!(
-                                overlap_budget > 0,
-                                "blueprint overlap budget exceeded (1000000 tests/tick)"
-                            );
-                            overlap_budget -= 1;
-                            if mesh.id != object.id
-                                && meets(mesh.layers, mesh.mask)
-                                && mesh.intersects(&volume)
-                            {
-                                overlap.insert(mesh.id.clone());
-                            }
-                        }
-                    }
-                    contacts.insert(object.id.clone(), overlap);
-                }
-            }
-
-            let solid_contacts = if query_solids {
-                self.blueprint_contacts(world, collisions.unwrap(), matrices.unwrap())
-            } else {
-                BTreeMap::new()
-            };
+            let (contacts, solid_contacts) = self.blueprint_event_contacts(world, ui_only)?;
             let owners: Vec<_> = self
                 .document
                 .objects
@@ -891,174 +1069,54 @@ impl SceneInstance {
                     let mut run = runtime.runs.remove(&key).unwrap();
                     run.last_node = None;
                     let program = run.program.clone().unwrap();
-                    let step =
-                        (|| -> Result<()> {
-                            let mut events = Vec::new();
-                            if enabled && !ui_dispatch {
-                                for timer in &mut run.timers {
-                                    if !ui_only || timer.context.wall_clock {
-                                        timer.remaining -= dt;
-                                    }
-                                }
-                                for timer in &run.timers {
-                                    if timer.remaining <= 0. {
-                                        events.push((timer.output, timer.context.clone()));
-                                    }
-                                }
-                                run.timers.retain(|t| t.remaining > 0.);
-                            } else if !enabled {
-                                run.timers.clear();
+                    let step = (|| -> Result<()> {
+                        let events = self.blueprint_events(
+                            world,
+                            &program,
+                            &mut run,
+                            &owner,
+                            enabled,
+                            &overlap,
+                            &collisions,
+                            dt,
+                            input,
+                            ui_dispatch,
+                            ui_only,
+                        );
+                        for (output, context) in events {
+                            self.execute_blueprint(
+                                world,
+                                &mut runtime,
+                                &mut run,
+                                &owner,
+                                &program,
+                                output,
+                                &context,
+                                input,
+                                dt,
+                                overlap.len(),
+                                &mut budget,
+                                &mut geometry,
+                                false,
+                                None,
+                            )?;
+                        }
+                        if !ui_only {
+                            if enabled {
+                                run.started = true;
+                                run.overlap = overlap.clone();
+                                run.collisions =
+                                    collisions.iter().map(|c| c.other.clone()).collect();
+                                run.held = input.binding_mask();
+                            } else {
+                                run.overlap.clear();
+                                run.collisions.clear();
+                                run.held = 0;
                             }
-                            for event in program.graph.nodes.iter().filter(|n| {
-                                n.kind.event()
-                                    && (!ui_dispatch || n.kind == K::UiEvent)
-                                    && (!ui_only || matches!(n.kind, K::UiEvent | K::AudioFinished))
-                            }) {
-                                let fire = match event.kind {
-                                    K::Enable => enabled && !run.enabled,
-                                    K::Disable => !enabled && run.enabled,
-                                    K::Start => enabled && !run.started,
-                                    K::AudioFinished => {
-                                        enabled
-                                            && world
-                                                .resource::<crate::middleware::audio::Runtime>()
-                                                .is_some_and(|r| r.finished.contains(&owner))
-                                    }
-                                    K::TweenFinished => {
-                                        enabled
-                                            && world
-                                                .resource::<crate::middleware::tween::Runtime>()
-                                                .is_some_and(|r| r.finished.contains(&owner))
-                                    }
-                                    K::Update => enabled,
-                                    K::InputPressed => {
-                                        enabled
-                                            && event.key.active(input)
-                                            && (event.key.instant()
-                                                || run.held & event.key.bit() == 0)
-                                    }
-                                    K::TriggerEnter => {
-                                        enabled && !overlap.is_empty() && run.overlap.is_empty()
-                                    }
-                                    K::TriggerExit => {
-                                        enabled && overlap.is_empty() && !run.overlap.is_empty()
-                                    }
-                                    _ => false,
-                                };
-                                let mut contexts = Vec::new();
-                                match event.kind {
-                                    K::TimelineEvent
-                                    | K::AnimationEvent
-                                    | K::NavigationEvent
-                                    | K::UiEvent
-                                    | K::SpriteEvent
-                                        if enabled =>
-                                    {
-                                        use crate::middleware::signals::{Kind, Signals};
-                                        if let Some(signals) = world.resource::<Signals>() {
-                                            contexts.extend(
-                                                signals
-                                                    .for_owner(
-                                                        &owner,
-                                                        if event.kind == K::TimelineEvent {
-                                                            Kind::Timeline
-                                                        } else if event.kind == K::NavigationEvent {
-                                                            Kind::Navigation
-                                                        } else if event.kind == K::UiEvent {
-                                                            Kind::Ui
-                                                        } else if event.kind == K::SpriteEvent {
-                                                            Kind::Sprite
-                                                        } else {
-                                                            Kind::Animation
-                                                        },
-                                                    )
-                                                    .map(|signal| EventContext {
-                                                        wall_clock: event.kind == K::UiEvent,
-                                                        event: event.id,
-                                                        message: signal.name.clone(),
-                                                        impulse: signal.value,
-                                                        other: signal.other.clone(),
-                                                        ..Default::default()
-                                                    }),
-                                            );
-                                        }
-                                    }
-                                    K::BodyEnter if enabled => contexts.extend(
-                                        overlap.difference(&run.overlap).map(|id| EventContext {
-                                            event: event.id,
-                                            other: Some(id.clone()),
-                                            ..Default::default()
-                                        }),
-                                    ),
-                                    K::BodyExit if enabled => contexts.extend(
-                                        run.overlap.difference(&overlap).map(|id| EventContext {
-                                            event: event.id,
-                                            other: Some(id.clone()),
-                                            ..Default::default()
-                                        }),
-                                    ),
-                                    K::CollisionEnter if enabled => contexts.extend(
-                                        collisions
-                                            .iter()
-                                            .filter(|c| !run.collisions.contains(&c.other))
-                                            .map(|c| EventContext {
-                                                event: event.id,
-                                                other: Some(c.other.clone()),
-                                                normal: c.normal.to_array(),
-                                                impulse: c.impulse,
-                                                ..Default::default()
-                                            }),
-                                    ),
-                                    _ if fire => contexts.push(EventContext {
-                                        wall_clock: event.kind == K::AudioFinished,
-                                        event: event.id,
-                                        ..Default::default()
-                                    }),
-                                    _ => {}
-                                }
-                                events.extend(contexts.into_iter().map(|c| {
-                                    (
-                                        Socket {
-                                            node: event.id,
-                                            port: 0,
-                                        },
-                                        c,
-                                    )
-                                }));
-                            }
-                            for (output, context) in events {
-                                self.execute_blueprint(
-                                    world,
-                                    &mut runtime,
-                                    &mut run,
-                                    &owner,
-                                    &program,
-                                    output,
-                                    &context,
-                                    input,
-                                    dt,
-                                    overlap.len(),
-                                    &mut budget,
-                                    &mut geometry,
-                                    false,
-                                )?;
-                            }
-                            if !ui_only {
-                                if enabled {
-                                    run.started = true;
-                                    run.overlap = overlap.clone();
-                                    run.collisions =
-                                        collisions.iter().map(|c| c.other.clone()).collect();
-                                    run.held = input.binding_mask();
-                                } else {
-                                    run.overlap.clear();
-                                    run.collisions.clear();
-                                    run.held = 0;
-                                }
-                                run.enabled = enabled;
-                            }
-                            Ok(())
-                        })();
+                            run.enabled = enabled;
+                        }
+                        Ok(())
+                    })();
                     if let Err(error) = &step {
                         bozzard_diagnostics::log(
                             world,
@@ -1142,11 +1200,164 @@ impl SceneInstance {
         budget: &mut usize,
         geometry: &mut Option<CollisionSnapshot>,
         destroying: bool,
+        pending: Option<&mut VecDeque<ExecTask>>,
+    ) -> Result<bool> {
+        if world
+            .resource::<BlueprintDebugger>()
+            .is_some_and(|d| d.enabled)
+        {
+            let watch = run.watch.get_or_insert_with(Default::default);
+            watch.context.clone_from(context);
+            watch.input = input;
+            watch.dt = dt;
+            watch.overlap = overlap_count;
+        }
+        let Some(queue) = pending else {
+            self.execute_blueprint_atomic(
+                world,
+                runtime,
+                run,
+                owner,
+                program,
+                output,
+                context,
+                input,
+                dt,
+                overlap_count,
+                budget,
+                geometry,
+                destroying,
+            )?;
+            return Ok(true);
+        };
+        if queue.is_empty() {
+            ensure!(*budget > 0, "blueprint execution budget exceeded");
+            *budget -= 1;
+            queue.push_back(ExecTask::Output(output));
+        }
+        while let Some(task) = queue.front().copied() {
+            let id = match task {
+                ExecTask::Output(output) => {
+                    let node = program.node(output.node)?;
+                    if node.kind.event()
+                        && self.debug_before_node(
+                            world,
+                            runtime,
+                            run,
+                            owner,
+                            program,
+                            node,
+                            context,
+                            input,
+                            dt,
+                            overlap_count,
+                        )
+                    {
+                        return Ok(false);
+                    }
+
+                    queue.pop_front();
+                    for &id in program.outgoing.get(&output).into_iter().flatten().rev() {
+                        queue.push_front(ExecTask::Action(id));
+                    }
+                    continue;
+                }
+                ExecTask::Action(id) => id,
+            };
+            {
+                if !destroying
+                    && (!context.wall_clock && !crate::game_flow::simulation_running(world)
+                        || runtime.destroying.iter().any(|target| {
+                            target == owner
+                                || self.document.prefabs.values().any(|p| {
+                                    p.members.values().any(|id| id == target)
+                                        && p.members.values().any(|id| id == owner)
+                                })
+                        }))
+                {
+                    queue.clear();
+                    return Ok(true);
+                }
+                let node = program.node(id)?;
+                if self.debug_before_node(
+                    world,
+                    runtime,
+                    run,
+                    owner,
+                    program,
+                    node,
+                    context,
+                    input,
+                    dt,
+                    overlap_count,
+                ) {
+                    return Ok(false);
+                }
+
+                queue.pop_front();
+                if let Some(output) = self.execute_blueprint_action(
+                    world,
+                    runtime,
+                    run,
+                    owner,
+                    program,
+                    node,
+                    context,
+                    input,
+                    dt,
+                    overlap_count,
+                    budget,
+                    geometry,
+                )? {
+                    queue.push_back(ExecTask::Output(output));
+                }
+            }
+        }
+        Ok(true)
+    }
+    /// The disabled debugger keeps the original compact FIFO: one socket per action output,
+    /// no action-task expansion, retained continuation, or node snapshots.
+    #[allow(clippy::too_many_arguments)]
+    fn execute_blueprint_atomic(
+        &mut self,
+        world: &mut World,
+        runtime: &mut BlueprintRuntime,
+        run: &mut Run,
+        owner: &str,
+        program: &Program,
+        output: Socket,
+        context: &EventContext,
+        input: GameplayInput,
+        dt: f32,
+        overlap_count: usize,
+        budget: &mut usize,
+        geometry: &mut Option<CollisionSnapshot>,
+        destroying: bool,
     ) -> Result<()> {
         ensure!(*budget > 0, "blueprint execution budget exceeded");
         *budget -= 1;
+        let tracing = world
+            .resource::<BlueprintDebugger>()
+            .is_some_and(|d| d.enabled);
         let mut queue = VecDeque::from([output]);
         while let Some(output) = queue.pop_front() {
+            if tracing {
+                let node = program.node(output.node)?;
+                if node.kind.event() {
+                    self.debug_atomic_node(
+                        world,
+                        runtime,
+                        run,
+                        owner,
+                        program,
+                        node,
+                        context,
+                        input,
+                        dt,
+                        overlap_count,
+                    );
+                }
+            }
             for &id in program.outgoing.get(&output).into_iter().flatten() {
                 if !destroying
                     && (!context.wall_clock && !crate::game_flow::simulation_running(world)
@@ -1160,596 +1371,631 @@ impl SceneInstance {
                 {
                     return Ok(());
                 }
-                ensure!(*budget > 0, "blueprint execution budget exceeded");
-                *budget -= 1;
-                runtime.stats.actions += 1;
                 let node = program.node(id)?;
-                run.last_node = Some(id);
-                let mut eval = Eval {
-                    program,
-                    board: &run.board,
-                    object_board: &runtime.object_boards[owner],
-                    scene_board: &runtime.scene_board,
-                    results: &run.results,
-                    variables: &run.variables,
-                    spawned: &run.spawned,
-                    grounded: &run.grounded,
+                if tracing {
+                    self.debug_atomic_node(
+                        world,
+                        runtime,
+                        run,
+                        owner,
+                        program,
+                        node,
+                        context,
+                        input,
+                        dt,
+                        overlap_count,
+                    );
+                }
+                if let Some(output) = self.execute_blueprint_action(
                     world,
-                    entities: &self.entities,
+                    runtime,
+                    run,
                     owner,
+                    program,
+                    node,
                     context,
-                    overlap_count,
                     input,
                     dt,
-                    elapsed: runtime.elapsed,
-                    cache: BTreeMap::new(),
-                };
-                let value = if node.inputs.len() > 1 {
-                    eval.input(node, 1)?
-                } else {
-                    Value::Exec
-                };
-                ensure!(value.valid(), "invalid action value at node {id}");
-                let target = if let Some(port) = node.kind.target_port() {
-                    let v = eval.input(node, port)?;
-                    reference_id(v.object()?, owner)
-                        .context("action target is None")?
-                        .to_owned()
-                } else {
-                    owner.to_owned()
-                };
-                let entity = *self
-                    .entities
-                    .get(&target)
-                    .context("blueprint target does not exist")?;
-                let transform = *world
-                    .get::<Transform>(entity)
-                    .context("blueprint target was removed")?;
-                let mut port = 0;
-                match node.kind {
-                    K::SpawnPrefab => {
-                        let id = self.spawn_prefab(world, &node.prefab, value.vector()?)?;
-                        run.spawned.insert(node.id, ObjectRef::Id(id));
-                    }
-                    K::DestroyPrefab => {
-                        runtime.destroying.insert(target.clone());
-                    }
-                    K::Branch => port = usize::from(!value.boolean()?),
-                    K::SetVariable => {
-                        if node.scope == Scope::Graph && run.variables.contains_key(&node.variable)
-                        {
-                            run.variables.insert(node.variable.clone(), value.number()?);
-                        } else {
-                            let entry = variable_mut(runtime, run, owner, node)?;
-                            ensure!(
-                                matches!(entry,B::Scalar(old) if old.kind()==value.kind()),
-                                "variable type mismatch"
-                            );
-                            *entry = B::Scalar(bind_self(value.clone(), owner));
-                        }
-                    }
-                    K::ListPush | K::ListSet | K::ListRemove | K::ListClear => {
-                        let index = if node.kind == K::ListSet {
-                            Some(list_index(eval.input(node, 2)?.number()?)?)
-                        } else if node.kind == K::ListRemove {
-                            Some(list_index(value.number()?)?)
-                        } else {
-                            None
-                        };
-                        let B::List {
-                            element,
-                            capacity,
-                            values,
-                        } = variable_mut(runtime, run, owner, node)?
-                        else {
-                            anyhow::bail!("expected list")
-                        };
-                        match node.kind {
-                            K::ListPush => {
-                                ensure!(
-                                    values.len() < *capacity && value.kind() == *element,
-                                    "list full or value type mismatch"
-                                );
-                                values.push(bind_self(value.clone(), owner));
-                            }
-                            K::ListSet => {
-                                ensure!(value.kind() == *element, "list value type mismatch");
-                                *values
-                                    .get_mut(index.unwrap())
-                                    .context("list index out of bounds")? =
-                                    bind_self(value.clone(), owner);
-                            }
-                            K::ListRemove => {
-                                let i = index.unwrap();
-                                ensure!(i < values.len(), "list index out of bounds");
-                                values.remove(i);
-                            }
-                            _ => values.clear(),
-                        }
-                    }
-                    K::Reroute => {}
-                    K::Delay => {
-                        let seconds = value.number()?;
-                        ensure!(
-                            seconds.is_finite() && seconds >= 0.,
-                            "delay must be finite and nonnegative"
-                        );
-                        ensure!(
-                            run.timers.len() < 256,
-                            "timer limit: 256 pending per attachment"
-                        );
-                        run.timers.push(Timer {
-                            remaining: seconds,
-                            output: Socket {
-                                node: node.id,
-                                port: 0,
-                            },
-                            context: context.clone(),
-                        });
-                        continue;
-                    }
-                    K::SetGraphEnabled => {
-                        let index = list_index(eval.input(node, 3)?.number()?)?;
-                        self.set_blueprint_enabled(&target, index, value.boolean()?)?;
-                    }
-                    K::Random => {
-                        let min = value.number()?;
-                        let max = eval.input(node, 2)?.number()?;
-                        ensure!(
-                            min <= max && (max - min).is_finite(),
-                            "Random needs finite Min <= Max"
-                        );
-                        run.random = run
-                            .random
-                            .wrapping_mul(6364136223846793005)
-                            .wrapping_add(1442695040888963407);
-                        let fraction = (run.random >> 40) as f32 / 16777216.;
-                        run.results
-                            .insert(node.id, vec![Value::Number(min + (max - min) * fraction)]);
-                    }
-                    K::Raycast | K::SphereOverlap | K::BoxOverlap | K::LineOfSight => {
-                        let inputs = (1..node.inputs.len())
-                            .map(|p| eval.input(node, p))
-                            .collect::<Result<Vec<_>>>()?;
-                        if geometry.is_none() {
-                            ensure!(
-                                runtime.query_budget >= self.entities.len(),
-                                "blueprint spatial query budget exceeded"
-                            );
-                            runtime.query_budget -= self.entities.len();
-                            *geometry = Some(self.query_geometry(world)?);
-                            runtime.stats.query_geometry_builds += 1;
-                        }
-                        let query = geometry.as_ref().unwrap();
-                        let ignore = reference_id(inputs.last().unwrap().object()?, owner);
-                        let origin = Vec3::from(inputs[0].vector()?);
-                        let result = match node.kind {
-                            K::Raycast => {
-                                let hit = query.raycast_budget(
-                                    origin,
-                                    Vec3::from(inputs[1].vector()?),
-                                    inputs[2].number()?,
-                                    ignore,
-                                    u32::MAX,
-                                    &mut runtime.query_budget,
-                                )?;
-                                match hit {
-                                    Some(h) => vec![
-                                        Value::Bool(true),
-                                        Value::Object(ObjectRef::Id(h.object)),
-                                        Value::Vector(h.position.to_array()),
-                                        Value::Vector(h.normal.to_array()),
-                                        Value::Number(h.distance),
-                                    ],
-                                    None => vec![
-                                        Value::Bool(false),
-                                        Value::Object(ObjectRef::None),
-                                        Value::Vector([0.; 3]),
-                                        Value::Vector([0.; 3]),
-                                        Value::Number(0.),
-                                    ],
-                                }
-                            }
-                            K::LineOfSight => {
-                                let delta = Vec3::from(inputs[1].vector()?) - origin;
-                                let clear = if delta == Vec3::ZERO {
-                                    true
-                                } else {
-                                    query
-                                        .raycast_budget(
-                                            origin,
-                                            delta,
-                                            delta.length(),
-                                            ignore,
-                                            u32::MAX,
-                                            &mut runtime.query_budget,
-                                        )?
-                                        .is_none()
-                                };
-                                vec![Value::Bool(clear)]
-                            }
-                            _ => {
-                                let capacity = match variable_mut(runtime, run, owner, node)? {
-                                    B::List { capacity, .. } => *capacity,
-                                    _ => anyhow::bail!("overlap requires an Object list"),
-                                };
-                                let hits = if node.kind == K::SphereOverlap {
-                                    query.overlap_sphere_budget(
-                                        origin,
-                                        inputs[1].number()?,
-                                        ignore,
-                                        u32::MAX,
-                                        capacity,
-                                        &mut runtime.query_budget,
-                                    )?
-                                } else {
-                                    query.overlap_box_budget(
-                                        origin,
-                                        Vec3::from(inputs[1].vector()?),
-                                        ignore,
-                                        u32::MAX,
-                                        capacity,
-                                        &mut runtime.query_budget,
-                                    )?
-                                };
-                                let count = hits.len();
-                                let B::List { values, .. } =
-                                    variable_mut(runtime, run, owner, node)?
-                                else {
-                                    unreachable!()
-                                };
-                                *values = hits
-                                    .into_iter()
-                                    .map(|id| Value::Object(ObjectRef::Id(id)))
-                                    .collect();
-                                vec![Value::Number(count as f32)]
-                            }
-                        };
-                        run.results.insert(node.id, result);
-                    }
-                    K::LoadScene | K::AddScene | K::RestartScene | K::SaveGame | K::LoadGame => {
-                        self.request_scene_control(
-                            world,
-                            node.kind,
-                            if node.inputs.len() > 1 {
-                                value.text()?
-                            } else {
-                                ""
-                            },
-                        )?;
-                    }
-                    K::SetUiText
-                    | K::SetUiValue
-                    | K::SetUiVisible
-                    | K::SetUiEnabled
-                    | K::FocusUi => {
-                        use crate::middleware::ui::Control;
-                        let control = match node.kind {
-                            K::SetUiText => Control::Text(value.text()?.into()),
-                            K::SetUiValue => Control::Value(value.number()?),
-                            K::SetUiVisible => Control::Visible(value.boolean()?),
-                            K::SetUiEnabled => Control::Enabled(value.boolean()?),
-                            _ => Control::Focus,
-                        };
-                        self.control_ui(world, &target, control)?;
-                    }
-                    K::SetUiLanguage => self.set_ui_language(world, value.text()?)?,
-                    K::SetUiTextScale | K::SetUiContrast | K::SetUiReducedMotion => {
-                        use crate::middleware::ui::Preferences;
-                        let scale = if node.kind == K::SetUiTextScale {
-                            let s = value.number()?;
-                            ensure!(
-                                s.is_finite() && (1.0..=3.).contains(&s),
-                                "UI text scale outside 1–3"
-                            );
-                            Some(s)
-                        } else {
-                            None
-                        };
-                        let enabled = if scale.is_none() {
-                            Some(value.boolean()?)
-                        } else {
-                            None
-                        };
-                        if world.resource::<Preferences>().is_none() {
-                            world.insert_resource(Preferences::default());
-                        }
-                        let preferences = world.resource_mut::<Preferences>().unwrap();
-                        match node.kind {
-                            K::SetUiTextScale => preferences.text_scale = scale,
-                            K::SetUiContrast => preferences.high_contrast = enabled,
-                            _ => preferences.reduced_motion = enabled,
-                        }
-                    }
-                    K::StartGame | K::PauseGame | K::ResumeGame | K::RestartGame | K::QuitGame => {
-                        use crate::game_flow::GamePhase as P;
-                        if node.kind == K::RestartGame {
-                            self.request_scene_control(world, K::RestartScene, "")?;
-                        } else {
-                            let session = world
-                                .resource_mut::<crate::GameSession>()
-                                .context("game flow is not enabled")?;
-                            match (node.kind, session.phase) {
-                                (K::StartGame, P::Ready) | (K::ResumeGame, P::Paused) => {
-                                    session.phase = P::Playing
-                                }
-                                (K::PauseGame, P::Playing) => session.phase = P::Paused,
-                                (K::QuitGame, _) => session.phase = P::Quit,
-                                _ => {}
-                            }
-                        }
-                    }
-                    K::PlaySprite | K::PauseSprite | K::StopSprite | K::SetSpriteFrame => {
-                        use crate::middleware::sprite::Control;
-                        let control = match node.kind {
-                            K::PlaySprite => Control::Play {
-                                clip: value.text()?.into(),
-                                restart: eval.input(node, 2)?.boolean()?,
-                            },
-                            K::PauseSprite => Control::Pause,
-                            K::StopSprite => Control::Stop,
-                            _ => Control::Frame(u32::try_from(list_index(value.number()?)?)?),
-                        };
-                        self.control_sprite(world, &target, control)?;
-                    }
-                    K::SetTile => {
-                        let x = u32::try_from(list_index(value.number()?)?)?;
-                        let y = u32::try_from(list_index(eval.input(node, 2)?.number()?)?)?;
-                        let tile = u32::try_from(list_index(eval.input(node, 3)?.number()?)?)?;
-                        self.set_tile(world, &target, x, y, tile)?;
-                    }
-                    K::SetNavDestination | K::SetNavState | K::SetNavTarget | K::StopNavigation => {
-                        use crate::middleware::navigation::Control;
-                        let control = match node.kind {
-                            K::SetNavDestination => Control::Destination(value.vector()?),
-                            K::SetNavState => Control::State(value.text()?.into()),
-                            K::SetNavTarget => Control::Target(
-                                reference_id(value.object()?, owner).map(str::to_owned),
-                            ),
-                            _ => Control::Stop,
-                        };
-                        self.control_navigation(world, &target, control)?;
-                    }
-                    K::PlayAudio
-                    | K::PauseAudio
-                    | K::StopAudio
-                    | K::SeekAudio
-                    | K::SetAudioVolume
-                    | K::SetAudioPitch
-                    | K::SetAudioPan => {
-                        use crate::middleware::audio::Control;
-                        let control = match node.kind {
-                            K::PlayAudio => Control::Play {
-                                restart: value.boolean()?,
-                            },
-                            K::PauseAudio => Control::Pause,
-                            K::StopAudio => Control::Stop,
-                            K::SeekAudio => Control::Seek(f64::from(value.number()?)),
-                            K::SetAudioVolume => Control::Volume(value.number()?),
-                            K::SetAudioPitch => Control::Pitch(value.number()?),
-                            _ => Control::Pan(value.number()?),
-                        };
-                        self.control_audio(world, &target, control)?;
-                    }
-                    K::SetAudioBusVolume => {
-                        let volume = eval.input(node, 2)?.number()?;
-                        self.set_audio_bus_volume(world, value.text()?, volume)?;
-                    }
-                    K::PlayAnimation
-                    | K::PauseAnimation
-                    | K::StopAnimation
-                    | K::SeekAnimation
-                    | K::SetAnimationParameter => {
-                        use crate::middleware::animation::Control;
-                        let control = match node.kind {
-                            K::PlayAnimation => Control::Play {
-                                state: value.text()?.into(),
-                                fade: eval.input(node, 2)?.number()?,
-                            },
-                            K::PauseAnimation => Control::Pause,
-                            K::StopAnimation => Control::Stop,
-                            K::SeekAnimation => Control::Seek(value.number()?),
-                            _ => Control::Parameter {
-                                name: value.text()?.into(),
-                                value: eval.input(node, 2)?.number()?,
-                            },
-                        };
-                        self.control_animation(world, &target, control)?;
-                    }
-                    K::PlayTween
-                    | K::PauseTween
-                    | K::StopTween
-                    | K::SeekTween
-                    | K::PlayTimeline
-                    | K::PauseTimeline
-                    | K::StopTimeline
-                    | K::SeekTimeline => {
-                        use crate::middleware::tween::Control;
-                        let control = match node.kind {
-                            K::PlayTween | K::PlayTimeline => Control::Play {
-                                restart: value.boolean()?,
-                            },
-                            K::PauseTween | K::PauseTimeline => Control::Pause,
-                            K::StopTween | K::StopTimeline => Control::Stop,
-                            _ => Control::Seek(value.number()?),
-                        };
-                        let transport = if matches!(
-                            node.kind,
-                            K::PlayTween | K::PauseTween | K::StopTween | K::SeekTween
-                        ) {
-                            Self::control_tween
-                        } else {
-                            Self::control_timeline
-                        };
-                        transport(self, world, &target, control)?;
-                    }
-                    K::Translate | K::Rotate | K::SetPosition | K::SetRotation | K::SetScale => {
-                        let mut next = transform;
-                        let v = value.vector()?;
-                        match node.kind {
-                            K::Translate => {
-                                next.translation =
-                                    (Vec3::from(next.translation) + Vec3::from(v)).to_array()
-                            }
-                            K::Rotate => {
-                                next.rotation_degrees = (Vec3::from(next.rotation_degrees)
-                                    + Vec3::from(v))
-                                .to_array()
-                                .map(|r| r.rem_euclid(360.))
-                            }
-                            K::SetPosition => next.translation = v,
-                            K::SetRotation => next.rotation_degrees = v,
-                            K::SetScale => next.scale = v,
-                            _ => unreachable!(),
-                        }
-                        next.validate()?;
-                        world.insert(entity, next)?;
-                        if let Err(error) = self.validate_transform_change(world, &target) {
-                            world.insert(entity, transform)?;
-                            return Err(error);
-                        }
-                    }
-                    K::EndGame => {
-                        world
-                            .resource_mut::<crate::GameSession>()
-                            .context("End Game needs Game Flow enabled in scene settings")?
-                            .end_game(value.text()?)?;
-                    }
-                    K::SetText => {
-                        let next = value.text()?;
-                        ensure!(next.len() <= 4096, "text exceeds 4096 UTF-8 bytes");
-                        world
-                            .get_mut::<TextRendering>(entity)
-                            .context("Set Text needs Text Rendering")?
-                            .text = next.into();
-                    }
-                    K::SetColor => {
-                        let color = value.vector()?;
-                        ensure!(
-                            color.iter().all(|c| (0.0..=1.0).contains(c)),
-                            "blueprint RGB must be in 0..1"
-                        );
-                        let has_text =
-                            if let Some(mut text) = world.get_mut::<TextRendering>(entity) {
-                                text.color[..3].copy_from_slice(&color);
-                                true
-                            } else {
-                                false
-                            };
-                        if let Some(mut material) = world.get_mut::<Material>(entity) {
-                            material.color = color;
-                        } else if let Some(mut drawable) = world.get_mut::<Drawable>(entity) {
-                            // Legacy graphs also work on meshes using their source material.
-                            drawable.color = color;
-                        } else {
-                            ensure!(
-                                has_text,
-                                "Set Color needs a mesh, Material or Text Rendering"
-                            );
-                        }
-                    }
-                    K::SetVisible => {
-                        world.insert(entity, BlueprintHidden(!value.boolean()?))?;
-                    }
-                    K::SetFocusDistance
-                    | K::SetAperture
-                    | K::SetFogDensity
-                    | K::SetFogLightIntensity
-                    | K::SetExposure
-                    | K::SetBloomIntensity
-                    | K::SetSaturation
-                    | K::SetHeatStrength
-                    | K::SetGrainIntensity
-                    | K::SetVignetteIntensity => {
-                        self.set_display_parameter(node.kind, value.number()?)?
-                    }
-                    K::SetLightIntensity => {
-                        let mut light = *world
-                            .get::<Light>(entity)
-                            .context("Set Light Intensity needs a Light")?;
-                        light.intensity = value.number()?;
-                        light.validate()?;
-                        world.insert(entity, light)?;
-                    }
-                    K::MoveWithCollision => {
-                        let movement =
-                            self.move_box(world, &target, Vec3::from(value.vector()?))?;
-                        run.grounded.insert(
-                            node.id,
-                            movement
-                                .contact_normals
-                                .iter()
-                                .any(|normal| normal.y >= 0.5),
-                        );
-                    }
-                    K::Jump => {
-                        self.jump_box(world, &target, value.number()?)?;
-                    }
-                    K::SetVelocity => {
-                        self.set_velocity(world, &target, entity, Vec3::from(value.vector()?))?;
-                    }
-                    K::LockCursor => {
-                        world.insert_resource(CursorCapture {
-                            requested: Some(true),
-                        });
-                    }
-                    K::UnlockCursor => {
-                        world.insert_resource(CursorCapture {
-                            requested: Some(false),
-                        });
-                    }
-                    K::Print | K::LogInfo | K::LogWarning | K::LogError => {
-                        use bozzard_diagnostics::Level;
-                        let message = if node.kind == K::Print {
-                            format!("{} / {}: {}", owner, program.graph.name, value.number()?)
-                        } else {
-                            value.text()?.to_owned()
-                        };
-                        bozzard_diagnostics::log(
-                            world,
-                            match node.kind {
-                                K::LogWarning => Level::Warning,
-                                K::LogError => Level::Error,
-                                _ => Level::Info,
-                            },
-                            "Blueprint",
-                            &message,
-                            bozzard_diagnostics::Location {
-                                object: Some(owner.into()),
-                                attachment: Some(run.attachment),
-                                node: Some(id),
-                                asset: None,
-                                ..Default::default()
-                            },
-                        );
-                        runtime.messages.push_back(message);
-                        while runtime.messages.len() > 64 {
-                            runtime.messages.pop_front();
-                        }
-                    }
-                    _ => anyhow::bail!("invalid execution node"),
+                    overlap_count,
+                    budget,
+                    geometry,
+                )? {
+                    queue.push_back(output);
                 }
-
-                if matches!(
-                    node.kind,
-                    K::Translate
-                        | K::Rotate
-                        | K::SetPosition
-                        | K::SetRotation
-                        | K::SetScale
-                        | K::MoveWithCollision
-                        | K::SpawnPrefab
-                        | K::DestroyPrefab
-                ) {
-                    *geometry = None;
-                }
-                queue.push_back(Socket {
-                    node: node.id,
-                    port,
-                });
             }
         }
         Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn execute_blueprint_action(
+        &mut self,
+        world: &mut World,
+        runtime: &mut BlueprintRuntime,
+        run: &mut Run,
+        owner: &str,
+        program: &Program,
+        node: &Node,
+        context: &EventContext,
+        input: GameplayInput,
+        dt: f32,
+        overlap_count: usize,
+        budget: &mut usize,
+        geometry: &mut Option<CollisionSnapshot>,
+    ) -> Result<Option<Socket>> {
+        let id = node.id;
+        run.last_node = Some(id);
+        ensure!(*budget > 0, "blueprint execution budget exceeded");
+        *budget -= 1;
+        runtime.stats.actions += 1;
+        let mut eval = Eval {
+            program,
+            board: &run.board,
+            object_board: &runtime.object_boards[owner],
+            scene_board: &runtime.scene_board,
+            results: &run.results,
+            variables: &run.variables,
+            spawned: &run.spawned,
+            grounded: &run.grounded,
+            world,
+            entities: &self.entities,
+            owner,
+            context,
+            overlap_count,
+            input,
+            dt,
+            elapsed: runtime.elapsed,
+            cache: BTreeMap::new(),
+        };
+        let value = if node.inputs.len() > 1 {
+            eval.input(node, 1)?
+        } else {
+            Value::Exec
+        };
+        ensure!(value.valid(), "invalid action value at node {id}");
+        let target = if let Some(port) = node.kind.target_port() {
+            let v = eval.input(node, port)?;
+            reference_id(v.object()?, owner)
+                .context("action target is None")?
+                .to_owned()
+        } else {
+            owner.to_owned()
+        };
+        let entity = *self
+            .entities
+            .get(&target)
+            .context("blueprint target does not exist")?;
+        let transform = *world
+            .get::<Transform>(entity)
+            .context("blueprint target was removed")?;
+        let mut port = 0;
+        match node.kind {
+            K::SpawnPrefab => {
+                let id = self.spawn_prefab(world, &node.prefab, value.vector()?)?;
+                run.spawned.insert(node.id, ObjectRef::Id(id));
+            }
+            K::DestroyPrefab => {
+                runtime.destroying.insert(target.clone());
+            }
+            K::Branch => port = usize::from(!value.boolean()?),
+            K::SetVariable => {
+                if node.scope == Scope::Graph && run.variables.contains_key(&node.variable) {
+                    run.variables.insert(node.variable.clone(), value.number()?);
+                } else {
+                    let entry = variable_mut(runtime, run, owner, node)?;
+                    ensure!(
+                        matches!(entry,B::Scalar(old) if old.kind()==value.kind()),
+                        "variable type mismatch"
+                    );
+                    *entry = B::Scalar(bind_self(value.clone(), owner));
+                }
+            }
+            K::ListPush | K::ListSet | K::ListRemove | K::ListClear => {
+                let index = if node.kind == K::ListSet {
+                    Some(list_index(eval.input(node, 2)?.number()?)?)
+                } else if node.kind == K::ListRemove {
+                    Some(list_index(value.number()?)?)
+                } else {
+                    None
+                };
+                let B::List {
+                    element,
+                    capacity,
+                    values,
+                } = variable_mut(runtime, run, owner, node)?
+                else {
+                    anyhow::bail!("expected list")
+                };
+                match node.kind {
+                    K::ListPush => {
+                        ensure!(
+                            values.len() < *capacity && value.kind() == *element,
+                            "list full or value type mismatch"
+                        );
+                        values.push(bind_self(value.clone(), owner));
+                    }
+                    K::ListSet => {
+                        ensure!(value.kind() == *element, "list value type mismatch");
+                        *values
+                            .get_mut(index.unwrap())
+                            .context("list index out of bounds")? = bind_self(value.clone(), owner);
+                    }
+                    K::ListRemove => {
+                        let i = index.unwrap();
+                        ensure!(i < values.len(), "list index out of bounds");
+                        values.remove(i);
+                    }
+                    _ => values.clear(),
+                }
+            }
+            K::Reroute => {}
+            K::Delay => {
+                let seconds = value.number()?;
+                ensure!(
+                    seconds.is_finite() && seconds >= 0.,
+                    "delay must be finite and nonnegative"
+                );
+                ensure!(
+                    run.timers.len() < 256,
+                    "timer limit: 256 pending per attachment"
+                );
+                run.timers.push(Timer {
+                    remaining: seconds,
+                    output: Socket {
+                        node: node.id,
+                        port: 0,
+                    },
+                    context: context.clone(),
+                });
+                return Ok(None);
+            }
+            K::SetGraphEnabled => {
+                let index = list_index(eval.input(node, 3)?.number()?)?;
+                self.set_blueprint_enabled(&target, index, value.boolean()?)?;
+            }
+            K::Random => {
+                let min = value.number()?;
+                let max = eval.input(node, 2)?.number()?;
+                ensure!(
+                    min <= max && (max - min).is_finite(),
+                    "Random needs finite Min <= Max"
+                );
+                run.random = run
+                    .random
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let fraction = (run.random >> 40) as f32 / 16777216.;
+                run.results
+                    .insert(node.id, vec![Value::Number(min + (max - min) * fraction)]);
+            }
+            K::Raycast | K::SphereOverlap | K::BoxOverlap | K::LineOfSight => {
+                let inputs = (1..node.inputs.len())
+                    .map(|p| eval.input(node, p))
+                    .collect::<Result<Vec<_>>>()?;
+                if geometry.is_none() {
+                    ensure!(
+                        runtime.query_budget >= self.entities.len(),
+                        "blueprint spatial query budget exceeded"
+                    );
+                    runtime.query_budget -= self.entities.len();
+                    *geometry = Some(self.query_geometry(world)?);
+                    runtime.stats.query_geometry_builds += 1;
+                }
+                let query = geometry.as_ref().unwrap();
+                let ignore = reference_id(inputs.last().unwrap().object()?, owner);
+                let origin = Vec3::from(inputs[0].vector()?);
+                let result = match node.kind {
+                    K::Raycast => {
+                        let hit = query.raycast_budget(
+                            origin,
+                            Vec3::from(inputs[1].vector()?),
+                            inputs[2].number()?,
+                            ignore,
+                            u32::MAX,
+                            &mut runtime.query_budget,
+                        )?;
+                        match hit {
+                            Some(h) => vec![
+                                Value::Bool(true),
+                                Value::Object(ObjectRef::Id(h.object)),
+                                Value::Vector(h.position.to_array()),
+                                Value::Vector(h.normal.to_array()),
+                                Value::Number(h.distance),
+                            ],
+                            None => vec![
+                                Value::Bool(false),
+                                Value::Object(ObjectRef::None),
+                                Value::Vector([0.; 3]),
+                                Value::Vector([0.; 3]),
+                                Value::Number(0.),
+                            ],
+                        }
+                    }
+                    K::LineOfSight => {
+                        let delta = Vec3::from(inputs[1].vector()?) - origin;
+                        let clear = if delta == Vec3::ZERO {
+                            true
+                        } else {
+                            query
+                                .raycast_budget(
+                                    origin,
+                                    delta,
+                                    delta.length(),
+                                    ignore,
+                                    u32::MAX,
+                                    &mut runtime.query_budget,
+                                )?
+                                .is_none()
+                        };
+                        vec![Value::Bool(clear)]
+                    }
+                    _ => {
+                        let capacity = match variable_mut(runtime, run, owner, node)? {
+                            B::List { capacity, .. } => *capacity,
+                            _ => anyhow::bail!("overlap requires an Object list"),
+                        };
+                        let hits = if node.kind == K::SphereOverlap {
+                            query.overlap_sphere_budget(
+                                origin,
+                                inputs[1].number()?,
+                                ignore,
+                                u32::MAX,
+                                capacity,
+                                &mut runtime.query_budget,
+                            )?
+                        } else {
+                            query.overlap_box_budget(
+                                origin,
+                                Vec3::from(inputs[1].vector()?),
+                                ignore,
+                                u32::MAX,
+                                capacity,
+                                &mut runtime.query_budget,
+                            )?
+                        };
+                        let count = hits.len();
+                        let B::List { values, .. } = variable_mut(runtime, run, owner, node)?
+                        else {
+                            unreachable!()
+                        };
+                        *values = hits
+                            .into_iter()
+                            .map(|id| Value::Object(ObjectRef::Id(id)))
+                            .collect();
+                        vec![Value::Number(count as f32)]
+                    }
+                };
+                run.results.insert(node.id, result);
+            }
+            K::LoadScene | K::AddScene | K::RestartScene | K::SaveGame | K::LoadGame => {
+                self.request_scene_control(
+                    world,
+                    node.kind,
+                    if node.inputs.len() > 1 {
+                        value.text()?
+                    } else {
+                        ""
+                    },
+                )?;
+            }
+            K::SetUiText | K::SetUiValue | K::SetUiVisible | K::SetUiEnabled | K::FocusUi => {
+                use crate::middleware::ui::Control;
+                let control = match node.kind {
+                    K::SetUiText => Control::Text(value.text()?.into()),
+                    K::SetUiValue => Control::Value(value.number()?),
+                    K::SetUiVisible => Control::Visible(value.boolean()?),
+                    K::SetUiEnabled => Control::Enabled(value.boolean()?),
+                    _ => Control::Focus,
+                };
+                self.control_ui(world, &target, control)?;
+            }
+            K::SetUiLanguage => self.set_ui_language(world, value.text()?)?,
+            K::SetUiTextScale | K::SetUiContrast | K::SetUiReducedMotion => {
+                use crate::middleware::ui::Preferences;
+                let scale = if node.kind == K::SetUiTextScale {
+                    let s = value.number()?;
+                    ensure!(
+                        s.is_finite() && (1.0..=3.).contains(&s),
+                        "UI text scale outside 1–3"
+                    );
+                    Some(s)
+                } else {
+                    None
+                };
+                let enabled = if scale.is_none() {
+                    Some(value.boolean()?)
+                } else {
+                    None
+                };
+                if world.resource::<Preferences>().is_none() {
+                    world.insert_resource(Preferences::default());
+                }
+                let preferences = world.resource_mut::<Preferences>().unwrap();
+                match node.kind {
+                    K::SetUiTextScale => preferences.text_scale = scale,
+                    K::SetUiContrast => preferences.high_contrast = enabled,
+                    _ => preferences.reduced_motion = enabled,
+                }
+            }
+            K::StartGame | K::PauseGame | K::ResumeGame | K::RestartGame | K::QuitGame => {
+                use crate::game_flow::GamePhase as P;
+                if node.kind == K::RestartGame {
+                    self.request_scene_control(world, K::RestartScene, "")?;
+                } else {
+                    let session = world
+                        .resource_mut::<crate::GameSession>()
+                        .context("game flow is not enabled")?;
+                    match (node.kind, session.phase) {
+                        (K::StartGame, P::Ready) | (K::ResumeGame, P::Paused) => {
+                            session.phase = P::Playing
+                        }
+                        (K::PauseGame, P::Playing) => session.phase = P::Paused,
+                        (K::QuitGame, _) => session.phase = P::Quit,
+                        _ => {}
+                    }
+                }
+            }
+            K::PlaySprite | K::PauseSprite | K::StopSprite | K::SetSpriteFrame => {
+                use crate::middleware::sprite::Control;
+                let control = match node.kind {
+                    K::PlaySprite => Control::Play {
+                        clip: value.text()?.into(),
+                        restart: eval.input(node, 2)?.boolean()?,
+                    },
+                    K::PauseSprite => Control::Pause,
+                    K::StopSprite => Control::Stop,
+                    _ => Control::Frame(u32::try_from(list_index(value.number()?)?)?),
+                };
+                self.control_sprite(world, &target, control)?;
+            }
+            K::SetTile => {
+                let x = u32::try_from(list_index(value.number()?)?)?;
+                let y = u32::try_from(list_index(eval.input(node, 2)?.number()?)?)?;
+                let tile = u32::try_from(list_index(eval.input(node, 3)?.number()?)?)?;
+                self.set_tile(world, &target, x, y, tile)?;
+            }
+            K::SetNavDestination | K::SetNavState | K::SetNavTarget | K::StopNavigation => {
+                use crate::middleware::navigation::Control;
+                let control = match node.kind {
+                    K::SetNavDestination => Control::Destination(value.vector()?),
+                    K::SetNavState => Control::State(value.text()?.into()),
+                    K::SetNavTarget => {
+                        Control::Target(reference_id(value.object()?, owner).map(str::to_owned))
+                    }
+                    _ => Control::Stop,
+                };
+                self.control_navigation(world, &target, control)?;
+            }
+            K::PlayAudio
+            | K::PauseAudio
+            | K::StopAudio
+            | K::SeekAudio
+            | K::SetAudioVolume
+            | K::SetAudioPitch
+            | K::SetAudioPan => {
+                use crate::middleware::audio::Control;
+                let control = match node.kind {
+                    K::PlayAudio => Control::Play {
+                        restart: value.boolean()?,
+                    },
+                    K::PauseAudio => Control::Pause,
+                    K::StopAudio => Control::Stop,
+                    K::SeekAudio => Control::Seek(f64::from(value.number()?)),
+                    K::SetAudioVolume => Control::Volume(value.number()?),
+                    K::SetAudioPitch => Control::Pitch(value.number()?),
+                    _ => Control::Pan(value.number()?),
+                };
+                self.control_audio(world, &target, control)?;
+            }
+            K::SetAudioBusVolume => {
+                let volume = eval.input(node, 2)?.number()?;
+                self.set_audio_bus_volume(world, value.text()?, volume)?;
+            }
+            K::PlayAnimation
+            | K::PauseAnimation
+            | K::StopAnimation
+            | K::SeekAnimation
+            | K::SetAnimationParameter => {
+                use crate::middleware::animation::Control;
+                let control = match node.kind {
+                    K::PlayAnimation => Control::Play {
+                        state: value.text()?.into(),
+                        fade: eval.input(node, 2)?.number()?,
+                    },
+                    K::PauseAnimation => Control::Pause,
+                    K::StopAnimation => Control::Stop,
+                    K::SeekAnimation => Control::Seek(value.number()?),
+                    _ => Control::Parameter {
+                        name: value.text()?.into(),
+                        value: eval.input(node, 2)?.number()?,
+                    },
+                };
+                self.control_animation(world, &target, control)?;
+            }
+            K::PlayTween
+            | K::PauseTween
+            | K::StopTween
+            | K::SeekTween
+            | K::PlayTimeline
+            | K::PauseTimeline
+            | K::StopTimeline
+            | K::SeekTimeline => {
+                use crate::middleware::tween::Control;
+                let control = match node.kind {
+                    K::PlayTween | K::PlayTimeline => Control::Play {
+                        restart: value.boolean()?,
+                    },
+                    K::PauseTween | K::PauseTimeline => Control::Pause,
+                    K::StopTween | K::StopTimeline => Control::Stop,
+                    _ => Control::Seek(value.number()?),
+                };
+                let transport = if matches!(
+                    node.kind,
+                    K::PlayTween | K::PauseTween | K::StopTween | K::SeekTween
+                ) {
+                    Self::control_tween
+                } else {
+                    Self::control_timeline
+                };
+                transport(self, world, &target, control)?;
+            }
+            K::Translate | K::Rotate | K::SetPosition | K::SetRotation | K::SetScale => {
+                let mut next = transform;
+                let v = value.vector()?;
+                match node.kind {
+                    K::Translate => {
+                        next.translation = (Vec3::from(next.translation) + Vec3::from(v)).to_array()
+                    }
+                    K::Rotate => {
+                        next.rotation_degrees = (Vec3::from(next.rotation_degrees) + Vec3::from(v))
+                            .to_array()
+                            .map(|r| r.rem_euclid(360.))
+                    }
+                    K::SetPosition => next.translation = v,
+                    K::SetRotation => next.rotation_degrees = v,
+                    K::SetScale => next.scale = v,
+                    _ => unreachable!(),
+                }
+                next.validate()?;
+                world.insert(entity, next)?;
+                if let Err(error) = self.validate_transform_change(world, &target) {
+                    world.insert(entity, transform)?;
+                    return Err(error);
+                }
+            }
+            K::EndGame => {
+                world
+                    .resource_mut::<crate::GameSession>()
+                    .context("End Game needs Game Flow enabled in scene settings")?
+                    .end_game(value.text()?)?;
+            }
+            K::SetText => {
+                let next = value.text()?;
+                ensure!(next.len() <= 4096, "text exceeds 4096 UTF-8 bytes");
+                world
+                    .get_mut::<TextRendering>(entity)
+                    .context("Set Text needs Text Rendering")?
+                    .text = next.into();
+            }
+            K::SetColor => {
+                let color = value.vector()?;
+                ensure!(
+                    color.iter().all(|c| (0.0..=1.0).contains(c)),
+                    "blueprint RGB must be in 0..1"
+                );
+                let has_text = if let Some(mut text) = world.get_mut::<TextRendering>(entity) {
+                    text.color[..3].copy_from_slice(&color);
+                    true
+                } else {
+                    false
+                };
+                if let Some(mut material) = world.get_mut::<Material>(entity) {
+                    material.color = color;
+                } else if let Some(mut drawable) = world.get_mut::<Drawable>(entity) {
+                    // Legacy graphs also work on meshes using their source material.
+                    drawable.color = color;
+                } else {
+                    ensure!(
+                        has_text,
+                        "Set Color needs a mesh, Material or Text Rendering"
+                    );
+                }
+            }
+            K::SetVisible => {
+                world.insert(entity, BlueprintHidden(!value.boolean()?))?;
+            }
+            K::SetFocusDistance
+            | K::SetAperture
+            | K::SetFogDensity
+            | K::SetFogLightIntensity
+            | K::SetExposure
+            | K::SetBloomIntensity
+            | K::SetSaturation
+            | K::SetHeatStrength
+            | K::SetGrainIntensity
+            | K::SetVignetteIntensity => self.set_display_parameter(node.kind, value.number()?)?,
+            K::SetLightIntensity => {
+                let mut light = *world
+                    .get::<Light>(entity)
+                    .context("Set Light Intensity needs a Light")?;
+                light.intensity = value.number()?;
+                light.validate()?;
+                world.insert(entity, light)?;
+            }
+            K::MoveWithCollision => {
+                let movement = self.move_box(world, &target, Vec3::from(value.vector()?))?;
+                run.grounded.insert(
+                    node.id,
+                    movement
+                        .contact_normals
+                        .iter()
+                        .any(|normal| normal.y >= 0.5),
+                );
+            }
+            K::Jump => {
+                self.jump_box(world, &target, value.number()?)?;
+            }
+            K::SetVelocity => {
+                self.set_velocity(world, &target, entity, Vec3::from(value.vector()?))?;
+            }
+            K::LockCursor => {
+                world.insert_resource(CursorCapture {
+                    requested: Some(true),
+                });
+            }
+            K::UnlockCursor => {
+                world.insert_resource(CursorCapture {
+                    requested: Some(false),
+                });
+            }
+            K::Print | K::LogInfo | K::LogWarning | K::LogError => {
+                use bozzard_diagnostics::Level;
+                let message = if node.kind == K::Print {
+                    format!("{} / {}: {}", owner, program.graph.name, value.number()?)
+                } else {
+                    value.text()?.to_owned()
+                };
+                bozzard_diagnostics::log(
+                    world,
+                    match node.kind {
+                        K::LogWarning => Level::Warning,
+                        K::LogError => Level::Error,
+                        _ => Level::Info,
+                    },
+                    "Blueprint",
+                    &message,
+                    bozzard_diagnostics::Location {
+                        object: Some(owner.into()),
+                        attachment: Some(run.attachment),
+                        node: Some(id),
+                        asset: None,
+                        ..Default::default()
+                    },
+                );
+                runtime.messages.push_back(message);
+                while runtime.messages.len() > 64 {
+                    runtime.messages.pop_front();
+                }
+            }
+            _ => anyhow::bail!("invalid execution node"),
+        }
+
+        if matches!(
+            node.kind,
+            K::Translate
+                | K::Rotate
+                | K::SetPosition
+                | K::SetRotation
+                | K::SetScale
+                | K::MoveWithCollision
+                | K::SpawnPrefab
+                | K::DestroyPrefab
+        ) {
+            *geometry = None;
+        }
+        Ok(Some(Socket {
+            node: node.id,
+            port,
+        }))
     }
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn destroy_blueprint_events(
@@ -1790,6 +2036,7 @@ impl SceneInstance {
                     budget,
                     &mut None,
                     true,
+                    None,
                 )?;
             }
             runtime.runs.insert(key, run);

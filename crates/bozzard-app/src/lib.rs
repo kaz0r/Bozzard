@@ -41,6 +41,7 @@ pub struct Advance {
 pub struct App {
     pub world: World,
     systems: Vec<NamedSystem>,
+    resume_system: Option<usize>,
     plugins: HashSet<&'static str>,
     commands: Commands,
     timestep: Duration,
@@ -64,9 +65,11 @@ impl App {
         assert!(!timestep.is_zero(), "timestep must be positive");
         let mut world = World::new();
         world.insert_resource(bozzard_diagnostics::Diagnostics::default());
+        world.insert_resource(bozzard_diagnostics::ExecutionControl::default());
         Self {
             world,
             systems: Vec::new(),
+            resume_system: None,
             plugins: HashSet::new(),
             commands: Commands::default(),
             timestep,
@@ -106,15 +109,27 @@ impl App {
     pub fn ticks(&self) -> u64 {
         self.ticks
     }
-    /// Advances exactly one tick, independent of wall-clock time (replays, tests, servers).
+    /// Whether cooperative execution is suspended.
+    pub fn is_paused(&self) -> bool {
+        self.world
+            .resource::<bozzard_diagnostics::ExecutionControl>()
+            .is_some_and(|c| c.paused)
+    }
+    /// Advances or resumes one tick, stopping early if a system suspends execution.
     pub fn step(&mut self) {
+        if self.is_paused() {
+            return;
+        }
+        let first_system = self.resume_system.take();
         let tick = Tick {
             number: self.ticks,
             delta: self.timestep,
         };
         // Systems in one step share a change tick, so a reader that bookmarks `World::change_tick`
         // when it finishes sees exactly the next step's writes as changed.
-        self.world.advance_change_tick();
+        if first_system.is_none() {
+            self.world.advance_change_tick();
+        }
         let span = self
             .world
             .resource_mut::<bozzard_diagnostics::Diagnostics>()
@@ -122,10 +137,21 @@ impl App {
                 d.tick = Some(tick.number);
                 d.profiler.begin("Fixed tick", d.tick)
             });
-        for system in &mut self.systems {
+        for index in first_system.unwrap_or(0)..self.systems.len() {
+            let system = &mut self.systems[index];
             bozzard_diagnostics::measure(&mut self.world, system.name, |world| {
                 (system.run)(world, &mut self.commands, tick);
             });
+            if self.is_paused() {
+                self.resume_system = Some(index);
+                if let Some(d) = self
+                    .world
+                    .resource_mut::<bozzard_diagnostics::Diagnostics>()
+                {
+                    d.profiler.end(span);
+                }
+                return;
+            }
         }
         bozzard_diagnostics::measure(&mut self.world, "Deferred changes", |world| {
             self.commands.apply(world)
@@ -137,14 +163,42 @@ impl App {
             d.profiler.end(span);
         }
         self.ticks = self.ticks.checked_add(1).expect("tick counter exhausted");
+        if let Some(control) = self
+            .world
+            .resource_mut::<bozzard_diagnostics::ExecutionControl>()
+            && control.pause_after_tick
+        {
+            control.paused = true;
+            control.pause_after_tick = false;
+        }
     }
     pub fn advance(&mut self, elapsed: Duration) -> Advance {
+        if self.is_paused() {
+            self.accumulator = Duration::ZERO;
+            return Advance {
+                steps: 0,
+                dropped: elapsed,
+                interpolation: 0.,
+            };
+        }
         self.accumulator = self.accumulator.saturating_add(elapsed);
         let mut steps = 0;
         while self.accumulator >= self.timestep && steps < self.max_catch_up.get() {
+            let before = self.ticks;
             self.step();
-            self.accumulator -= self.timestep;
-            steps += 1;
+            if self.ticks != before {
+                self.accumulator -= self.timestep;
+                steps += 1;
+            }
+            if self.is_paused() {
+                let dropped = self.accumulator;
+                self.accumulator = Duration::ZERO;
+                return Advance {
+                    steps,
+                    dropped,
+                    interpolation: 0.,
+                };
+            }
         }
         let remainder = self.accumulator.as_nanos() % self.timestep.as_nanos();
         let remainder = Duration::new(
@@ -164,6 +218,41 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paused_system_resumes_without_repeating_prior_systems_or_flushing_commands() {
+        use bozzard_diagnostics::ExecutionControl;
+        let mut app = App::default();
+        app.world.insert_resource(Vec::<u32>::new());
+        app.add_system(|world, commands, _| {
+            world.resource_mut::<Vec<u32>>().unwrap().push(1);
+            commands.queue(|world| world.resource_mut::<Vec<u32>>().unwrap().push(4));
+        });
+        let mut waiting = false;
+        app.add_system(move |world, _, _| {
+            if !waiting {
+                world.resource_mut::<Vec<u32>>().unwrap().push(2);
+                world.resource_mut::<ExecutionControl>().unwrap().paused = true;
+                waiting = true;
+            } else {
+                waiting = false;
+            }
+        });
+        app.add_system(|world, _, _| world.resource_mut::<Vec<u32>>().unwrap().push(3));
+        app.step();
+        let change_tick = app.world.change_tick();
+        assert_eq!(app.world.resource::<Vec<u32>>().unwrap(), &[1, 2]);
+        assert_eq!(app.ticks, 0);
+        assert_eq!(app.advance(Duration::from_secs(600)).steps, 0);
+        let control = app.world.resource_mut::<ExecutionControl>().unwrap();
+        control.paused = false;
+        control.pause_after_tick = true;
+        app.step();
+        assert_eq!(app.world.resource::<Vec<u32>>().unwrap(), &[1, 2, 3, 4]);
+        assert_eq!(app.world.change_tick(), change_tick);
+        assert_eq!(app.ticks, 1);
+        assert!(app.is_paused());
+    }
 
     #[test]
     fn ordered_systems_and_end_of_tick_barrier() {

@@ -69,6 +69,15 @@ pub(crate) fn validate_library(scene: &Scene) -> Result<()> {
     }
     Ok(())
 }
+fn require_tick_boundary(world: &World) -> Result<()> {
+    ensure!(
+        !world
+            .resource::<BlueprintRuntime>()
+            .is_some_and(BlueprintRuntime::suspended),
+        "Finish the suspended Blueprint tick before saving or replacing game state"
+    );
+    Ok(())
+}
 impl SceneInstance {
     pub(crate) fn request_scene_control(
         &self,
@@ -186,6 +195,7 @@ impl SceneInstance {
         Ok(())
     }
     pub fn restart_runtime_scene(&mut self, world: &mut World) -> Result<()> {
+        require_tick_boundary(world)?;
         self.replace_runtime_scene(world, (*self.restart_document).clone())
     }
     /// Additive objects get unique persistent IDs; their references and prefab links follow them.
@@ -195,6 +205,7 @@ impl SceneInstance {
         name: &str,
         additive: bool,
     ) -> Result<()> {
+        require_tick_boundary(world)?;
         let mut level = self
             .document
             .runtime_scenes
@@ -307,6 +318,7 @@ impl SceneInstance {
         Ok(())
     }
     pub fn save_game_json(&self, world: &World) -> Result<String> {
+        require_tick_boundary(world)?;
         let save = GameSave {
             version: 1,
             middleware: crate::middleware::checkpoint::Save::capture(world),
@@ -343,6 +355,7 @@ impl SceneInstance {
         Ok(json)
     }
     pub fn load_game_json(&mut self, world: &mut World, json: &str) -> Result<()> {
+        require_tick_boundary(world)?;
         ensure!(json.len() <= 64 * 1024 * 1024, "save game exceeds 64 MiB");
         let save: GameSave = serde_json::from_str(json).context("parsing saved game")?;
         ensure!(save.version == 1, "unsupported save game version");

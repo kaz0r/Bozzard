@@ -556,6 +556,15 @@ impl Editor {
     }
     pub fn advance(&mut self, delta: Duration) {
         if let Some(play) = &mut self.play {
+            if let Err(error) = play.resume_debug_dispatch() {
+                bozzard_diagnostics::log(
+                    &mut play.app.world,
+                    bozzard_diagnostics::Level::Error,
+                    "Blueprint",
+                    &format!("{error:#}"),
+                    Default::default(),
+                );
+            }
             play.app.advance(delta);
         }
     }

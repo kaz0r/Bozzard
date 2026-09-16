@@ -57,6 +57,7 @@ and shares the same blackboards.
 - [ ] **M** Container values (array, map) or a bounded list type, since no gameplay state that grows is expressible today.
 - [ ] **M** Runtime scene control: load/additive-load a scene, restart, and save/load game state. There is currently exactly one scene per process.
 - [ ] **S** Blueprint node UX: comments/reroute nodes, per-node search, copy/paste of subgraphs, and a stale-wire diff when a graph fails validation.
+- [x] **M** Blueprint debugger: saved breakpoints, pause/continue, node/tick stepping, runtime instance selection, live pin/blackboard/timer watches, execution highlighting and bounded exportable traces. Headless continuations preserve simulation order; see [debugging](docs/debugging.md#blueprint-debugger).
 - [x] **M** Scripting as the second gameplay path: a **Script Manager** component running Rhai scripts whose hooks call every engine action a blueprint node calls, reading and writing the same object and scene blackboards so one scene can mix both.
 - [ ] **S** Script authoring depth: reload a script while Play is running instead of on the next open, a script pane with completion for the exposed functions, and per-script hook/command statistics next to the blueprint stats.
 
