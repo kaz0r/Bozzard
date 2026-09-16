@@ -17,6 +17,7 @@ use std::{
 mod acceptance;
 mod animation_ui;
 mod asset_browser;
+mod blueprint_debug;
 mod blueprints;
 mod cameras;
 mod colliders;
@@ -65,6 +66,7 @@ struct Workspace {
     shaders_visible: bool,
     stats_visible: bool,
     debug_visible: bool,
+    blueprint_debug: blueprint_debug::Preferences,
     colliders_visible: bool,
     gi_visible: bool,
     tool: Tool,
@@ -86,6 +88,7 @@ impl Default for Workspace {
             shaders_visible: false,
             stats_visible: false,
             debug_visible: false,
+            blueprint_debug: Default::default(),
             colliders_visible: true,
             gi_visible: false,
             tool: Tool::Move,
@@ -139,6 +142,7 @@ struct App {
     hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
     blueprint_pane: blueprints::BlueprintPane,
+    blueprint_debug: blueprint_debug::Workspace,
     shader_pane: shaders::ShaderPane,
     preview_target: Option<Target>,
     preview_time: f32,
@@ -241,6 +245,7 @@ impl App {
             hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),
             blueprint_pane: blueprints::BlueprintPane::default(),
+            blueprint_debug: Default::default(),
             shader_pane: shaders::ShaderPane::default(),
             preview_target: None,
             preview_time: 0.,
@@ -658,6 +663,7 @@ impl App {
                         self.gameplay_controls.reset();
                         self.editor.stop_play();
                     }
+                    self.blueprint_run_controls(ui);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.small(if playing { "PLAY MODE" } else { "EDIT MODE" });
                         ui.colored_label(if playing { theme::GREEN } else { theme::ACCENT }, "●");
@@ -1307,7 +1313,9 @@ impl eframe::App for App {
         if let Some(play) = &mut self.editor.play {
             play.with_instance(|instance, _| instance.set_gpu_particles(true));
         }
+        self.prepare_blueprint_debugger();
         self.editor.advance(now.duration_since(self.last_frame));
+        self.sync_blueprint_pause();
         if let Some(play) = &self.editor.play {
             let layer = if self.workspace.layer_2d {
                 Layer::TwoD
@@ -1317,7 +1325,17 @@ impl eframe::App for App {
             let result = play
                 .instance()
                 .audio_frame(&play.app.world, layer)
-                .and_then(|frame| {
+                .and_then(|mut frame| {
+                    if play.app.is_paused() {
+                        for voice in &mut frame.sources {
+                            if voice.transport
+                                == bozzard_scene::middleware::audio::Transport::Playing
+                            {
+                                voice.transport =
+                                    bozzard_scene::middleware::audio::Transport::Paused;
+                            }
+                        }
+                    }
                     self.audio.sync(
                         &frame,
                         play.instance().document(),
@@ -1357,6 +1375,7 @@ impl eframe::App for App {
         }
         self.last_frame = now;
         if !self.mouse_captured {
+            self.blueprint_debug_shortcuts(&ctx);
             self.shortcuts(&ctx);
         }
         if self.drag.is_none()

@@ -140,6 +140,9 @@ impl SceneDemo {
         size: [f32; 2],
         input: bozzard_scene::middleware::ui::Input,
     ) -> anyhow::Result<bool> {
+        if self.app.is_paused() {
+            return Ok(false);
+        }
         let phase = self.game_session().map(|s| s.phase);
         let consumed = self.with_instance(|instance, world| -> anyhow::Result<bool> {
             let consumed = instance.ui_input(world, layer, size, input)?;
@@ -150,6 +153,32 @@ impl SceneDemo {
             self.clear_gameplay_input();
         }
         Ok(consumed)
+    }
+    /// UI callbacks can suspend outside App::step; resume them before the next fixed tick.
+    pub fn resume_debug_dispatch(&mut self) -> anyhow::Result<()> {
+        if !self.app.is_paused()
+            && self
+                .app
+                .world
+                .resource::<bozzard_scene::BlueprintRuntime>()
+                .is_some_and(|r| r.pending_ui_dispatch())
+        {
+            self.with_instance(|instance, world| instance.dispatch_ui_blueprints(world))?;
+        }
+        Ok(())
+    }
+    pub fn debug_command(&mut self, command: bozzard_scene::DebugCommand) -> anyhow::Result<()> {
+        bozzard_scene::BlueprintDebugger::send(&mut self.app.world, command);
+        self.clear_gameplay_input();
+        if matches!(
+            command,
+            bozzard_scene::DebugCommand::StepNode | bozzard_scene::DebugCommand::StepTick
+        ) {
+            self.resume_debug_dispatch()?;
+            self.app.step();
+            self.check_simulation()?;
+        }
+        Ok(())
     }
     pub fn game_session(&self) -> Option<&bozzard_scene::GameSession> {
         self.app.world.resource::<bozzard_scene::GameSession>()
@@ -198,14 +227,14 @@ impl SceneDemo {
         result
     }
     pub fn accepts_gameplay_input(&self) -> bool {
-        self.gameplay().is_some() || self.instance().has_gameplay_logic()
+        !self.app.is_paused() && (self.gameplay().is_some() || self.instance().has_gameplay_logic())
     }
     pub fn gameplay(&self) -> Option<&GameplayState> {
         self.app.world.resource::<GameplayState>()
     }
     /// Preserve queued edges until a fixed tick; neutral input clears them on focus loss.
     pub fn set_gameplay_input(&mut self, input: GameplayInput) {
-        if !bozzard_scene::game_flow::simulation_running(&self.app.world) {
+        if self.app.is_paused() || !bozzard_scene::game_flow::simulation_running(&self.app.world) {
             self.clear_gameplay_input();
             return;
         }
@@ -386,7 +415,10 @@ impl SceneDemo {
             let mut gravity_instance = world
                 .remove_resource::<SceneInstance>()
                 .expect("scene instance");
-            let simulation = if bozzard_scene::game_flow::simulation_running(world) {
+            let resuming = world
+                .resource::<bozzard_scene::BlueprintRuntime>()
+                .is_some_and(|r| r.suspended());
+            let simulation = if !resuming && bozzard_scene::game_flow::simulation_running(world) {
                 gravity_instance
                     .advance_display(dt)
                     .and_then(|()| {
@@ -421,7 +453,11 @@ impl SceneDemo {
                     })
                 })
                 .and_then(|()| {
-                    if bozzard_scene::game_flow::simulation_running(world) {
+                    if !world
+                        .resource::<bozzard_diagnostics::ExecutionControl>()
+                        .is_some_and(|c| c.paused)
+                        && bozzard_scene::game_flow::simulation_running(world)
+                    {
                         measure(world, "Particles", |world| {
                             gravity_instance.step_particles(world, dt)
                         })
@@ -431,12 +467,17 @@ impl SceneDemo {
                 })
                 .err()
                 .map(|error| format!("{error:#}"));
-            world.insert_resource(GameplayInput {
-                // Movement and held keys are levels; edges and deltas are consumed per tick.
-                movement: input.movement,
-                keys: input.keys,
-                ..Default::default()
-            });
+            if !world
+                .resource::<bozzard_diagnostics::ExecutionControl>()
+                .is_some_and(|c| c.paused)
+            {
+                world.insert_resource(GameplayInput {
+                    // Movement and held keys are levels; edges and deltas are consumed per tick.
+                    movement: input.movement,
+                    keys: input.keys,
+                    ..Default::default()
+                });
+            }
             world.insert_resource(gravity_instance);
             world.insert_resource(SimulationStatus { error });
         });

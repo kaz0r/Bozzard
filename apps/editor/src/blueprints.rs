@@ -11,7 +11,10 @@ use bozzard_scene::{
 pub struct BlueprintPane {
     target: Option<(PathBuf, String)>,
     pub index: usize,
-    selected: Option<u32>,
+    pub(super) selected: Option<u32>,
+    pub(super) breakpoints: std::collections::BTreeSet<u32>,
+    pub(super) executing: Option<u32>,
+    pub(super) recent: std::collections::BTreeSet<u32>,
     selection: std::collections::BTreeSet<u32>,
     clipboard: Option<Blueprint>,
     draft: Option<Blueprint>,
@@ -31,6 +34,9 @@ impl Default for BlueprintPane {
             target: None,
             index: 0,
             selected: None,
+            breakpoints: Default::default(),
+            executing: None,
+            recent: Default::default(),
             selection: Default::default(),
             clipboard: None,
             draft: None,
@@ -81,12 +87,18 @@ impl BlueprintPane {
 }
 impl App {
     pub(super) fn focus_diagnostic_node(&mut self, owner: &str, index: usize, node: Option<u32>) {
-        let Some(object) = self.editor.scene().objects.iter().find(|o| o.id == owner) else {
+        let scene = self
+            .editor
+            .play
+            .as_ref()
+            .map_or_else(|| self.editor.scene(), |p| p.instance().document());
+        let Some(object) = scene.objects.iter().find(|o| o.id == owner) else {
             return;
         };
         let Some(attachment) = object.blueprints.get(index) else {
             return;
         };
+        self.blueprint_debug.runtime_owner = Some(owner.into());
         self.blueprint_pane
             .sync(&self.editor.path, owner, &object.blueprints);
         self.blueprint_pane.choose(index, &attachment.graph);
@@ -100,6 +112,12 @@ impl App {
     }
     pub fn blueprint_inspector(&mut self, ui: &mut egui::Ui, object: &mut bozzard_scene::Object) {
         if self.editor.selected_surface().is_some() {
+            return;
+        }
+        if self.editor.play.is_some() {
+            if !object.blueprints.is_empty() && ui.button("Inspect running Blueprints").clicked() {
+                self.focus_diagnostic_node(&object.id, 0, None);
+            }
             return;
         }
         self.blueprint_pane
@@ -252,13 +270,29 @@ impl App {
         if let Some(play) = &mut self.editor.play {
             play.clear_gameplay_input();
         }
-        let Some(object) = self.editor.selected_object().cloned() else {
+        self.blueprint_object_picker(ui);
+        let object = if let Some(play) = &self.editor.play {
+            let owner = self
+                .blueprint_debug
+                .runtime_owner
+                .as_ref()
+                .or(self.editor.selected.as_ref());
+            play.instance()
+                .document()
+                .objects
+                .iter()
+                .find(|o| Some(&o.id) == owner)
+                .cloned()
+        } else {
+            self.editor.selected_object().cloned()
+        };
+        let Some(object) = object else {
             ui.weak(
                 "Select an object or prefab member, then add or load a Blueprint in Properties.",
             );
             return;
         };
-        if self.editor.selected_surface().is_some() {
+        if self.editor.play.is_none() && self.editor.selected_surface().is_some() {
             ui.weak("Select the mesh owner in Hierarchy to edit its Blueprints (or Alt-click the model).");
             return;
         }
@@ -301,11 +335,15 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard;
         let index = self.blueprint_pane.index;
-        let mut graph = self
-            .blueprint_pane
-            .draft
-            .take()
-            .unwrap_or_else(|| object.blueprints[index].graph.clone());
+        let mut graph = if editing {
+            self.blueprint_pane
+                .draft
+                .take()
+                .unwrap_or_else(|| object.blueprints[index].graph.clone())
+        } else {
+            self.blueprint_pane.draft = None;
+            object.blueprints[index].graph.clone()
+        };
         let mut scene_board = self
             .blueprint_pane
             .draft_scene_board
@@ -343,79 +381,82 @@ impl App {
         if self.blueprint_pane.index != index {
             return;
         }
-        ui.add_enabled_ui(editing, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.label("Name");
-                ui.add(egui::TextEdit::singleline(&mut graph.name).desired_width(170.));
-                self.blueprint_pane.add_node_menu(ui, &mut graph);
-                ui.menu_button("Blackboards", |ui| {
-                    ui.label("Graph attachment");
-                    board_editor(ui, &mut graph.blackboard, &mut self.blueprint_pane.variable);
-                    ui.separator();
-                    ui.label("Object (shared by attachments)");
-                    board_editor(ui, &mut object_board, &mut self.blueprint_pane.variable);
-                    ui.separator();
-                    ui.label("Scene (shared by objects)");
-                    board_editor(ui, &mut scene_board, &mut self.blueprint_pane.variable);
-                });
-                ui.menu_button("Variables", |ui| {
-                    ui.weak("Number variables · Reset to defaults on each Play");
-                    let mut remove = None;
-                    for (name, value) in &mut graph.variables {
+        self.blueprint_debug_toolbar(ui, &object.id, &graph);
+        if self.editor.play.is_none() {
+            ui.add_enabled_ui(editing, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Name");
+                    ui.add(egui::TextEdit::singleline(&mut graph.name).desired_width(170.));
+                    self.blueprint_pane.add_node_menu(ui, &mut graph);
+                    ui.menu_button("Blackboards", |ui| {
+                        ui.label("Graph attachment");
+                        board_editor(ui, &mut graph.blackboard, &mut self.blueprint_pane.variable);
+                        ui.separator();
+                        ui.label("Object (shared by attachments)");
+                        board_editor(ui, &mut object_board, &mut self.blueprint_pane.variable);
+                        ui.separator();
+                        ui.label("Scene (shared by objects)");
+                        board_editor(ui, &mut scene_board, &mut self.blueprint_pane.variable);
+                    });
+                    ui.menu_button("Variables", |ui| {
+                        ui.weak("Number variables · Reset to defaults on each Play");
+                        let mut remove = None;
+                        for (name, value) in &mut graph.variables {
+                            ui.horizontal(|ui| {
+                                ui.label(name);
+                                ui.add(egui::DragValue::new(value).speed(0.1));
+                                if ui
+                                    .add_enabled(
+                                        !graph.nodes.iter().any(|n| {
+                                            matches!(
+                                                n.kind,
+                                                NodeKind::GetVariable | NodeKind::SetVariable
+                                            ) && n.variable == *name
+                                        }),
+                                        egui::Button::new("×"),
+                                    )
+                                    .clicked()
+                                {
+                                    remove = Some(name.clone());
+                                }
+                            });
+                        }
+                        if let Some(name) = remove {
+                            graph.variables.remove(&name);
+                        }
                         ui.horizontal(|ui| {
-                            ui.label(name);
-                            ui.add(egui::DragValue::new(value).speed(0.1));
-                            if ui
-                                .add_enabled(
-                                    !graph.nodes.iter().any(|n| {
-                                        matches!(
-                                            n.kind,
-                                            NodeKind::GetVariable | NodeKind::SetVariable
-                                        ) && n.variable == *name
-                                    }),
-                                    egui::Button::new("×"),
-                                )
-                                .clicked()
-                            {
-                                remove = Some(name.clone());
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.blueprint_pane.variable)
+                                    .hint_text("New variable")
+                                    .desired_width(120.),
+                            );
+                            if ui.button("Add").clicked() {
+                                graph
+                                    .variables
+                                    .entry(self.blueprint_pane.variable.trim().to_owned())
+                                    .or_insert(0.);
+                                self.blueprint_pane.variable.clear();
                             }
                         });
-                    }
-                    if let Some(name) = remove {
-                        graph.variables.remove(&name);
-                    }
-                    ui.horizontal(|ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.blueprint_pane.variable)
-                                .hint_text("New variable")
-                                .desired_width(120.),
-                        );
-                        if ui.button("Add").clicked() {
-                            graph
-                                .variables
-                                .entry(self.blueprint_pane.variable.trim().to_owned())
-                                .or_insert(0.);
-                            self.blueprint_pane.variable.clear();
-                        }
                     });
-                });
-                if ui
-                    .add_enabled(
-                        self.blueprint_pane.selected.is_some(),
-                        egui::Button::new("Delete node"),
-                    )
-                    .clicked()
-                {
-                    if let Some(id) = self.blueprint_pane.selected.take() {
-                        graph.remove_node(id);
-                        for id in std::mem::take(&mut self.blueprint_pane.selection) {
+                    if ui
+                        .add_enabled(
+                            self.blueprint_pane.selected.is_some(),
+                            egui::Button::new("Delete node"),
+                        )
+                        .clicked()
+                    {
+                        if let Some(id) = self.blueprint_pane.selected.take() {
                             graph.remove_node(id);
+                            for id in std::mem::take(&mut self.blueprint_pane.selection) {
+                                graph.remove_node(id);
+                            }
                         }
+                        self.blueprint_pane.connecting = None;
                     }
-                    self.blueprint_pane.connecting = None;
-                }
+                });
             });
-        });
+        }
         if let Some(node) = graph
             .nodes
             .iter_mut()
@@ -653,7 +694,11 @@ impl App {
             } else {
                 ui.colored_label(
                     theme::GREEN,
-                    "Running · Switch to Scene for WASD / Space input · Stop to edit",
+                    if play.app.is_paused() {
+                        "Simulation paused · use Continue, Step node, or Step tick"
+                    } else {
+                        "Running · Switch to Scene for WASD / Space input · Stop to edit"
+                    },
                 );
             }
             if let Some(runtime) = play.app.world.resource::<bozzard_scene::BlueprintRuntime>()
@@ -701,6 +746,7 @@ impl App {
                 }
             }
         }
+        self.blueprint_debug_inspector(ui, &object.id);
         let error = self
             .blueprint_pane
             .canvas(ui, &mut graph, editing, &objects);
@@ -886,9 +932,19 @@ impl BlueprintPane {
                         rect,
                         5.,
                         egui::Stroke::new(
-                            if selected { 2. } else { 1. },
-                            if selected {
+                            if self.executing == Some(node.id) {
+                                3.
+                            } else if selected {
+                                2.
+                            } else {
+                                1.
+                            },
+                            if self.executing == Some(node.id) {
+                                Color32::LIGHT_YELLOW
+                            } else if selected {
                                 theme::ACCENT
+                            } else if self.recent.contains(&node.id) {
+                                theme::GREEN
                             } else {
                                 Color32::from_gray(65)
                             },
@@ -907,6 +963,13 @@ impl BlueprintPane {
                             Color32::from_rgb(38, 76, 100)
                         },
                     );
+                    if self.breakpoints.contains(&node.id) {
+                        ui.painter().circle_filled(
+                            header.right_center() - Vec2::new(12., 0.),
+                            6.,
+                            Color32::LIGHT_RED,
+                        );
+                    }
                     ui.painter().text(
                         header.left_center() + Vec2::new(10., 0.),
                         egui::Align2::LEFT_CENTER,

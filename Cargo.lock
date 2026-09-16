@@ -597,6 +597,7 @@ dependencies = [
  "anyhow",
  "bozzard-assets",
  "bozzard-demo",
+ "bozzard-diagnostics",
  "bozzard-render",
  "bozzard-render-assets",
  "bozzard-scene",

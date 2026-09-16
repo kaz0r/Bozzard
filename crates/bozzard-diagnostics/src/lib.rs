@@ -218,6 +218,14 @@ pub struct Diagnostics {
     pub tick: Option<u64>,
 }
 
+/// Cooperative debugger control. A system that pauses mid-execution must retain its
+/// continuation: the application re-enters that system before advancing the tick.
+#[derive(Default)]
+pub struct ExecutionControl {
+    pub paused: bool,
+    pub pause_after_tick: bool,
+}
+
 /// Disabled capture does no clock reads, string construction or allocations.
 pub fn measure<T>(
     world: &mut World,

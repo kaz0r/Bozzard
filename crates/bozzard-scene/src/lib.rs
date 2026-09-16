@@ -16,7 +16,10 @@ pub mod scene_control;
 pub mod shader_graph;
 pub mod spatial;
 pub use blueprint::{Blueprint, BlueprintAttachment};
-pub use blueprint_runtime::{BlueprintHidden, BlueprintRuntime};
+pub use blueprint_runtime::{
+    BlueprintDebugger, BlueprintHidden, BlueprintRuntime, Breakpoint, DebugCommand, DebugPause,
+    NodeSnapshot, PinWatch, VariableWatch, WatchSnapshot,
+};
 pub mod script;
 pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
 mod script_runtime;

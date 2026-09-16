@@ -613,13 +613,20 @@ impl App {
         let Some(owner) = &location.object else {
             return;
         };
-        if !self.editor.scene().objects.iter().any(|o| &o.id == owner) {
+        let scene = self
+            .editor
+            .play
+            .as_ref()
+            .map_or_else(|| self.editor.scene(), |p| p.instance().document());
+        if !scene.objects.iter().any(|o| &o.id == owner) {
             self.status = format!(
                 "'{owner}' is a runtime-only or removed object. Its recorded source remains in the console."
             );
             return;
         }
-        self.editor.select_object(Some(owner.clone()));
+        if self.editor.play.is_none() {
+            self.editor.select_object(Some(owner.clone()));
+        }
         self.hierarchy_search.clear();
         if location.node.is_some() {
             self.focus_diagnostic_node(owner, location.attachment.unwrap_or(0), location.node);
