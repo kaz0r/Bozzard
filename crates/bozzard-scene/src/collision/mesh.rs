@@ -110,6 +110,12 @@ impl TriangleMesh {
 pub struct MeshCollider {
     #[serde(default = "crate::default_true")]
     pub enabled: bool,
+    /// Layers this collider belongs to; see [`crate::LAYER_NAMES`].
+    #[serde(default = "crate::default_layers")]
+    pub layers: u32,
+    /// Layers this collider interacts with.
+    #[serde(default = "crate::default_mask")]
+    pub mask: u32,
     /// Cooked local-space triangles. Independent of the renderer and source files.
     pub mesh: TriangleMesh,
 }
@@ -139,6 +145,9 @@ pub struct CollisionMesh {
     pub mesh: TriangleMesh,
     pub matrix: Mat4,
     pub solid: bool,
+    /// Collision filtering, copied from the authored collider.
+    pub layers: u32,
+    pub mask: u32,
 }
 impl CollisionMesh {
     /// Broad phase in local space, narrow phase in f64 world space (including scale/shear).

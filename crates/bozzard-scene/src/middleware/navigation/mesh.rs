@@ -326,6 +326,7 @@ impl SceneInstance {
                     -Vec3::Y,
                     settings.max[1] - settings.min[1],
                     None,
+                    u32::MAX,
                     &mut budget,
                 )? && hit.normal.y >= slope
                 {
@@ -349,6 +350,7 @@ impl SceneInstance {
                             Vec3::new(center.x, max + 0.02 + settings.height * 0.5, center.z),
                             Vec3::new(half * 2., settings.height, half * 2.),
                             None,
+                            u32::MAX,
                             geometry.boxes.len() + geometry.meshes.len(),
                             &mut budget,
                         )?

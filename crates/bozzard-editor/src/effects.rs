@@ -153,6 +153,7 @@ impl Editor {
             gravity: None,
             player_controller: None,
             trigger: None,
+            joint: None,
         });
         self.apply("Create particle effect", scene)?;
         self.selected = Some(id);

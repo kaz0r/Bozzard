@@ -64,15 +64,44 @@ and shares the same blackboards.
 ## 3 — Physics surface
 
 Rapier is in and owns velocities, inertia and sleeping (`crates/bozzard-scene/src/physics.rs`); what is
-exposed to authors is thin.
+exposed to authors was thin. See [the physics surface](docs/physics.md) for the authoring model and
+its limits.
 
-- [ ] **M** Collision layers/masks (Unity-style layers) so gameplay volumes stop interacting with everything.
-- [ ] **M** Raycast/overlap queries in blueprints, with results addressable as objects.
-- [ ] **M** Joints/constraints authoring, exposed through the component registry.
-- [ ] **M** Capsule character controller with step height, slope limit, moving-platform support and CCD — the current controller is a kinematic box.
-- [ ] **S** Per-body mass, drag, gravity scale, friction and restitution; compound colliders by composing child colliders.
-- [ ] **S** Contact events carrying impulse and normal for non-trigger collisions, matching the existing overlap events.
-- [ ] **S** Continuous collision for fast projectiles (the target-range projectile is swept by its own cleanup graph today, not by the solver).
+- [x] **M** Collision layers/masks. `layers`/`mask` live on Box Collider, Mesh Collider and Trigger;
+eight layers are named for authoring and the rest are reserved. One rule
+(`a.layers & b.mask != 0 && b.layers & a.mask != 0`) drives Rapier's `InteractionGroups`, the CPU
+swept-box mover and overlap/contact reporting, so a gameplay volume on its own layer stops seeing
+everything. `crates/bozzard-scene/tests/layers.rs`; registry fields in
+`crates/bozzard-scene/src/component.rs`.
+- [x] **M** Raycast/overlap queries in Blueprints, with results addressable as objects. Shipped with
+section 2 (Raycast, Sphere/Box Overlap, Line of Sight) and documented in
+[docs/blueprint-depth.md](docs/blueprint-depth.md#math-and-queries).
+- [x] **M** Joints/constraints through the component registry: Fixed, Hinge (revolute), Ball socket
+(spherical), Slider (prismatic) and Rope, with anchors and local axes per body and optional limits.
+Both endpoints resolve to their Rigidbody root, so a joint on a compound child constrains the body
+that owns it; a zero-anchor Fixed joint keeps the authored relative pose. Rapier impulse joints,
+rebuilt when their values or a body change. `crates/bozzard-scene/src/joint.rs`,
+`crates/bozzard-scene/tests/joints.rs`.
+- [x] **M** Capsule character controller. The Player Controller is a Rapier
+`KinematicCharacterController`: capsule radius/height in world units, step height, slope limit,
+ground snap and swept movement. One `move_shape` per tick combines walking, gravity and platform
+carry, and a teleported or dynamic platform's motion is passed through to its rider. The authored
+Box Collider stays for the CPU queries (triggers, respawn, camera, Blueprints).
+`crates/bozzard-scene/tests/capsule.rs`; demo routes re-verified in
+`crates/bozzard-scene/tests/gameplay.rs` and `crates/bozzard-editor/tests/gold_yard.rs`.
+- [x] **S** Per-body mass, drag, gravity scale, friction and restitution; compound colliders.
+Mass, friction and restitution existed; `linear_damping` and `gravity_scale` join them on the
+Rigidbody row. Colliding descendants now compose into one Rapier body with multiple shapes instead
+of being rejected, and contacts still name the object that owns the shape.
+`crates/bozzard-scene/tests/compound.rs`.
+- [x] **S** Contact events carrying impulse and normal for non-trigger collisions. Shipped with
+section 2 as **On Collision Enter** and documented in
+[docs/blueprint-depth.md](docs/blueprint-depth.md#events-and-timers); the geometric overlap events
+remain for trigger volumes.
+- [x] **S** Continuous collision for fast projectiles. Every dynamic body already has Rapier CCD
+enabled with four substeps (`crates/bozzard-scene/src/physics.rs`), and the player's controller is
+swept, so neither tunnels; the target-range projectile's cleanup graph is no longer the only thing
+keeping it inside the arena.
 
 ## 4 — Middleware
 

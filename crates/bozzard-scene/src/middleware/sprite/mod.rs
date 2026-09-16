@@ -795,6 +795,7 @@ impl Tilemap {
                         h as f32 * self.tile_size[1],
                         0.5,
                     ],
+                    ..Default::default()
                 });
             }
         }

@@ -11,10 +11,15 @@ pub struct Gravity {
     pub max_speed: f32,
     /// Upward launch speed used by editor Play controls, in world units / second.
     pub jump_speed: f32,
+    /// Total body mass, shared equally across a compound body's colliders.
     pub mass: f32,
     pub friction: f32,
     pub restitution: f32,
+    /// Linear velocity damping per second; 0 is no drag, 1 removes all velocity in one second.
+    pub linear_damping: f32,
     pub angular_damping: f32,
+    /// Multiplier on `acceleration`. 0 floats, 1 is normal, negative falls upward.
+    pub gravity_scale: f32,
 }
 impl Default for Gravity {
     fn default() -> Self {
@@ -26,7 +31,9 @@ impl Default for Gravity {
             mass: 1.0,
             friction: 0.6,
             restitution: 0.0,
+            linear_damping: 0.0,
             angular_damping: 0.1,
+            gravity_scale: 1.0,
         }
     }
 }
@@ -45,8 +52,16 @@ impl Gravity {
             "Rigidbody restitution must be in 0..=1"
         );
         ensure!(
+            self.linear_damping.is_finite() && (0.0..=100.0).contains(&self.linear_damping),
+            "Rigidbody linear damping must be in 0..=100"
+        );
+        ensure!(
             self.angular_damping.is_finite() && (0.0..=100.0).contains(&self.angular_damping),
             "Rigidbody angular damping must be in 0..=100"
+        );
+        ensure!(
+            self.gravity_scale.is_finite() && (-100.0..=100.0).contains(&self.gravity_scale),
+            "Rigidbody gravity scale must be in -100..=100"
         );
         ensure!(
             self.acceleration.is_finite() && self.acceleration > 0.0,
@@ -61,6 +76,11 @@ impl Gravity {
             "jump speed must be positive and finite"
         );
         Ok(())
+    }
+
+    /// Rapier's world gravity is 9.81 down, so this is the scale that reproduces `acceleration`.
+    pub fn rapier_gravity_scale(&self) -> f32 {
+        self.acceleration / 9.81 * self.gravity_scale
     }
 }
 /// Runtime-only state. Restarting/spawning a scene resets velocity and grounding.
@@ -133,23 +153,21 @@ impl SceneInstance {
                 state.vertical_velocity.is_finite(),
                 "invalid fall velocity on '{id}'"
             );
-            state.vertical_velocity =
-                (state.vertical_velocity - gravity.acceleration * dt).max(-gravity.max_speed);
-            let movement = self
-                .move_box(world, id, Vec3::new(0.0, state.vertical_velocity * dt, 0.0))
-                .with_context(|| format!("gravity on '{id}'"))?;
-            state.grounded = movement
-                .contact_normals
-                .iter()
-                .any(|normal| normal.y >= 0.5);
-            let hit_ceiling = state.vertical_velocity > 0.0
-                && movement
-                    .contact_normals
-                    .iter()
-                    .any(|normal| normal.y <= -0.5);
-            if state.grounded || hit_ceiling {
+            // The character controller reports grounding after the move; until then the previous
+            // tick's answer stands, which is also what a jump press should read.
+            if state.grounded && state.vertical_velocity < 0.0 {
                 state.vertical_velocity = 0.0;
             }
+            state.vertical_velocity = (state.vertical_velocity
+                - gravity.acceleration * gravity.gravity_scale * dt)
+                .max(-gravity.max_speed);
+            let motion = world
+                .resource::<PlayerMotion>()
+                .copied()
+                .unwrap_or_default();
+            world.insert_resource(PlayerMotion {
+                desired: motion.desired + Vec3::Y * state.vertical_velocity * dt,
+            });
             world.insert(entity, state)?;
         }
         self.step_bodies(world, dt)

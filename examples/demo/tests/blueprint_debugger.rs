@@ -1,9 +1,11 @@
 use bozzard_demo::SceneDemo;
 use bozzard_scene::{
-    Blueprint, BlueprintAttachment, BlueprintDebugger, BlueprintRuntime, Breakpoint, DebugCommand,
-    DebugPause, GameplayInput, Scene, Spin, Transform,
+    Blueprint, BlueprintAttachment, BlueprintDebugger, BlueprintRuntime, BoxCollider, Breakpoint,
+    DebugCommand, DebugPause, GameplayInput, MeshCollider, Object, Scene, Spin, Transform,
+    TriangleMesh, Trigger, TriggerAction,
     blueprint::{
-        BlackboardValue as B, Node, NodeKind as K, Socket, Value as V, VariableScope as Scope, Wire,
+        BlackboardValue as B, Node, NodeKind as K, ObjectRef, PinType, Socket, Value as V,
+        VariableScope as Scope, Wire,
     },
 };
 use std::time::Duration;
@@ -555,4 +557,186 @@ fn watches_keep_event_inputs_after_a_tick_and_stale_breakpoint_guards_do_not_pau
     );
     d.debug_command(DebugCommand::StepTick).unwrap();
     assert_eq!(d.app.ticks(), 2);
+}
+
+#[test]
+fn stepped_trigger_events_respect_both_collision_masks_for_boxes_and_meshes() {
+    for mesh in [false, true] {
+        for (sensor_mask, body_mask, expected_x) in [(2, 1, 1.), (0, 1, 0.), (2, 0, 0.)] {
+            let mut document = scene(vec![graph(
+                vec![node(1, K::TriggerEnter), translate(2, 1.)],
+                &[(1, 0, 2, 0)],
+            )]);
+            document.objects[0].trigger = Some(Trigger {
+                volume: BoxCollider {
+                    layers: 1,
+                    mask: sensor_mask,
+                    ..Default::default()
+                },
+                action: TriggerAction::Sensor,
+            });
+            let mut body = Object {
+                id: "body".into(),
+                name: "Body".into(),
+                ..Default::default()
+            };
+            if mesh {
+                body.mesh_collider = Some(MeshCollider {
+                    enabled: true,
+                    layers: 2,
+                    mask: body_mask,
+                    mesh: TriangleMesh::new(vec![[[-1., 0., -1.], [1., 0., -1.], [0., 0., 1.]]])
+                        .unwrap(),
+                });
+            } else {
+                body.collider = Some(BoxCollider {
+                    layers: 2,
+                    mask: body_mask,
+                    ..Default::default()
+                });
+            }
+            document.objects.push(body);
+            let mut normal = SceneDemo::new(&document).unwrap();
+            let mut stepped = SceneDemo::new(&document).unwrap();
+            enable(&mut stepped, &[]);
+            stepped.debug_command(DebugCommand::Pause).unwrap();
+            normal.app.step();
+            normal.check_simulation().unwrap();
+            for _ in 0..4 {
+                stepped.debug_command(DebugCommand::StepNode).unwrap();
+                if stepped.app.ticks() == 1 {
+                    break;
+                }
+            }
+            assert_eq!(stepped.app.ticks(), 1);
+            assert_eq!(position(&normal).translation[0], expected_x);
+            assert_eq!(position(&stepped), position(&normal));
+            assert_eq!(
+                normal.instance().save_game_json(&normal.app.world).unwrap(),
+                stepped
+                    .instance()
+                    .save_game_json(&stepped.app.world)
+                    .unwrap(),
+                "mesh={mesh}, masks={sensor_mask}/{body_mask}"
+            );
+        }
+    }
+}
+
+#[test]
+fn stepped_spatial_queries_keep_all_layers_and_reuse_geometry() {
+    let mut ray = node(2, K::Raycast);
+    ray.inputs[2] = V::Vector([0., 0., -1.]);
+    ray.inputs[3] = V::Number(10.);
+    let mut hit = node(3, K::SetVariable);
+    hit.scope = Scope::Scene;
+    hit.variable = "hit".into();
+    hit.value_type = PinType::Object;
+    hit.reset_inputs();
+    let overlap = |id, kind, variable: &str| {
+        let mut n = node(id, kind);
+        n.scope = Scope::Scene;
+        n.variable = variable.into();
+        n.inputs[1] = V::Vector([0., 0., -3.]);
+        n.inputs[2] = if kind == K::SphereOverlap {
+            V::Number(1.)
+        } else {
+            V::Vector([2.; 3])
+        };
+        n
+    };
+    let mut los = node(6, K::LineOfSight);
+    los.inputs[2] = V::Vector([0., 0., -5.]);
+    let mut visible = node(7, K::SetVariable);
+    visible.scope = Scope::Scene;
+    visible.variable = "visible".into();
+    visible.value_type = PinType::Bool;
+    visible.reset_inputs();
+    let mut document = scene(vec![graph(
+        vec![
+            node(1, K::Start),
+            ray,
+            hit,
+            overlap(4, K::SphereOverlap, "sphere"),
+            overlap(5, K::BoxOverlap, "box"),
+            los,
+            visible,
+        ],
+        &[
+            (1, 0, 2, 0),
+            (2, 0, 3, 0),
+            (2, 2, 3, 1),
+            (3, 0, 4, 0),
+            (4, 0, 5, 0),
+            (5, 0, 6, 0),
+            (6, 0, 7, 0),
+            (6, 1, 7, 1),
+        ],
+    )]);
+    document.objects.push(Object {
+        id: "body".into(),
+        name: "Body".into(),
+        transform: Transform {
+            translation: [0., 0., -3.],
+            ..Default::default()
+        },
+        collider: Some(BoxCollider {
+            layers: 1 << 7,
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    document
+        .blackboard
+        .insert("hit".into(), B::Scalar(V::Object(ObjectRef::None)));
+    document
+        .blackboard
+        .insert("visible".into(), B::Scalar(V::Bool(true)));
+    for variable in ["sphere", "box"] {
+        document.blackboard.insert(
+            variable.into(),
+            B::List {
+                element: PinType::Object,
+                capacity: 8,
+                values: vec![],
+            },
+        );
+    }
+    let mut normal = SceneDemo::new(&document).unwrap();
+    let mut stepped = SceneDemo::new(&document).unwrap();
+    enable(&mut stepped, &[]);
+    stepped.debug_command(DebugCommand::Pause).unwrap();
+    normal.app.step();
+    normal.check_simulation().unwrap();
+    for _ in 0..10 {
+        stepped.debug_command(DebugCommand::StepNode).unwrap();
+        if stepped.app.ticks() == 1 {
+            break;
+        }
+    }
+    assert_eq!(stepped.app.ticks(), 1);
+    assert_eq!(
+        normal.instance().save_game_json(&normal.app.world).unwrap(),
+        stepped
+            .instance()
+            .save_game_json(&stepped.app.world)
+            .unwrap()
+    );
+    for d in [&normal, &stepped] {
+        let runtime = d.app.world.resource::<BlueprintRuntime>().unwrap();
+        let board = runtime.scene_blackboard();
+        assert_eq!(
+            board["hit"],
+            B::Scalar(V::Object(ObjectRef::Id("body".into())))
+        );
+        assert_eq!(board["visible"], B::Scalar(V::Bool(false)));
+        for variable in ["sphere", "box"] {
+            let B::List { values, .. } = &board[variable] else {
+                panic!("overlap result must remain a list")
+            };
+            assert_eq!(values, &[V::Object(ObjectRef::Id("body".into()))]);
+        }
+        assert_eq!(runtime.stats.query_geometry_builds, 1);
+        assert_eq!(runtime.stats.actions, 6);
+    }
 }
