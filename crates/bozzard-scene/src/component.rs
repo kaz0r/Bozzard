@@ -75,6 +75,10 @@ pub enum FieldKind {
         filter: Option<fn(&Object) -> bool>,
         activates: Option<Layer>,
     },
+    /// A bit set drawn as labelled toggles, for collision layers and masks.
+    Flags {
+        labels: &'static [&'static str],
+    },
     /// Asset catalog ID of the given kind.
     Asset(AssetKind),
 }
@@ -284,6 +288,14 @@ impl Field {
             },
         )
     }
+    /// A bit field drawn as one labelled toggle per named bit.
+    pub const fn flags(
+        key: &'static str,
+        label: &'static str,
+        labels: &'static [&'static str],
+    ) -> Self {
+        Self::new(key, label, FieldKind::Flags { labels })
+    }
     pub const fn asset(key: &'static str, label: &'static str, kind: AssetKind) -> Self {
         Self::new(key, label, FieldKind::Asset(kind))
     }
@@ -337,6 +349,7 @@ pub enum FieldValue {
     Text(String),
     Index(usize),
     Object(String),
+    Flags(u32),
     Asset(Option<String>),
 }
 
@@ -384,6 +397,13 @@ impl FieldValue {
             Ok(value)
         } else {
             Err(self.expected("an object reference"))
+        }
+    }
+    pub fn flags(&self) -> Result<u32> {
+        if let Self::Flags(value) = self {
+            Ok(*value)
+        } else {
+            Err(self.expected("layer flags"))
         }
     }
     pub fn asset(&self) -> Result<&Option<String>> {
@@ -579,7 +599,13 @@ impl Component for Gravity {
                 .shown_when(|object| object.player_controller.is_none()),
             F::range("restitution", "Restitution", 0.01, 0.0, 1.0)
                 .shown_when(|object| object.player_controller.is_none()),
+            F::range("linear_damping", "Linear drag", 0.01, 0.0, 100.0)
+                .help("Per second. 0 keeps velocity; 1 removes it in one second.")
+                .shown_when(|object| object.player_controller.is_none()),
             F::range("angular_damping", "Angular damping", 0.01, 0.0, 100.0)
+                .shown_when(|object| object.player_controller.is_none()),
+            F::range("gravity_scale", "Gravity scale", 0.01, -100.0, 100.0)
+                .help("Multiplier on Acceleration. 0 floats, negative falls upward.")
                 .shown_when(|object| object.player_controller.is_none()),
         ];
         FIELDS
@@ -593,7 +619,9 @@ impl Component for Gravity {
             "mass" => self.mass,
             "friction" => self.friction,
             "restitution" => self.restitution,
+            "linear_damping" => self.linear_damping,
             "angular_damping" => self.angular_damping,
+            "gravity_scale" => self.gravity_scale,
             _ => return None,
         }))
     }
@@ -606,7 +634,9 @@ impl Component for Gravity {
             "mass" => self.mass = value.number()?,
             "friction" => self.friction = value.number()?,
             "restitution" => self.restitution = value.number()?,
+            "linear_damping" => self.linear_damping = value.number()?,
             "angular_damping" => self.angular_damping = value.number()?,
+            "gravity_scale" => self.gravity_scale = value.number()?,
             other => anyhow::bail!("Rigidbody has no field '{other}'"),
         }
         Ok(())
@@ -627,6 +657,10 @@ impl Component for BoxCollider {
             F::vector("center", "Center", VectorRole::Offset, 0.05),
             F::vector_min("size", "Size", VectorRole::Scale, 0.05, 0.0001)
                 .help("Full local dimensions, independent of the rendered mesh."),
+            F::flags("layers", "Layers", LAYER_NAMES),
+            F::flags("mask", "Collides with", LAYER_NAMES).help(
+                "Two colliders meet only when each one's Layers intersect the other's Collides with.",
+            ),
         ];
         FIELDS
     }
@@ -635,6 +669,8 @@ impl Component for BoxCollider {
             "enabled" => Some(FieldValue::Bool(self.enabled)),
             "center" => Some(FieldValue::Vector(self.center)),
             "size" => Some(FieldValue::Vector(self.size)),
+            "layers" => Some(FieldValue::Flags(self.layers)),
+            "mask" => Some(FieldValue::Flags(self.mask)),
             _ => None,
         }
     }
@@ -643,6 +679,8 @@ impl Component for BoxCollider {
             "enabled" => self.enabled = value.bool()?,
             "center" => self.center = value.vector()?,
             "size" => self.size = value.vector()?,
+            "layers" => self.layers = value.flags()?,
+            "mask" => self.mask = value.flags()?,
             other => anyhow::bail!("Box Collider has no field '{other}'"),
         }
         Ok(())
@@ -658,15 +696,31 @@ impl Component for MeshCollider {
     const HELP: &'static str =
         "Baked geometry follows Transform, but not later renderer or source edits.";
     fn fields() -> &'static [Field] {
-        const FIELDS: &[Field] = &[Field::bool("enabled", "Enabled")];
+        use Field as F;
+        const FIELDS: &[Field] = &[
+            F::bool("enabled", "Enabled"),
+            F::flags("layers", "Layers", LAYER_NAMES),
+            F::flags("mask", "Collides with", LAYER_NAMES).help(
+                "Two colliders meet only when each one's Layers intersect the other's Collides with.",
+            ),
+        ];
         FIELDS
     }
     fn field(&self, key: &str) -> Option<FieldValue> {
-        (key == "enabled").then_some(FieldValue::Bool(self.enabled))
+        match key {
+            "enabled" => Some(FieldValue::Bool(self.enabled)),
+            "layers" => Some(FieldValue::Flags(self.layers)),
+            "mask" => Some(FieldValue::Flags(self.mask)),
+            _ => None,
+        }
     }
     fn set_field(&mut self, key: &str, value: FieldValue) -> Result<()> {
-        ensure!(key == "enabled", "Mesh Collider has no field '{key}'");
-        self.enabled = value.bool()?;
+        match key {
+            "enabled" => self.enabled = value.bool()?,
+            "layers" => self.layers = value.flags()?,
+            "mask" => self.mask = value.flags()?,
+            other => anyhow::bail!("Mesh Collider has no field '{other}'"),
+        }
         Ok(())
     }
 }
@@ -688,6 +742,14 @@ impl Component for PlayerController {
             F::range("move_speed", "Move speed", 0.1, 0.0001, 10000.0),
             F::range("jump_speed", "Controller jump speed", 0.1, 0.0001, 10000.0)
                 .help("Overrides Rigidbody's legacy selected-box jump speed."),
+            F::range("capsule_radius", "Capsule radius", 0.01, 0.01, 100.0),
+            F::range("capsule_height", "Capsule height", 0.05, 0.02, 1000.0)
+                .help("Total height, caps included. At least twice the radius."),
+            F::range("step_height", "Step height", 0.01, 0.0, 100.0)
+                .help("Tallest obstacle auto-stepped, and the ground-snap distance."),
+            F::range("slope_limit_degrees", "Slope limit °", 0.5, 0.0, 89.0)
+                .help("Steeper floors slide the controller down instead of being climbed."),
+            F::bool("snap_to_ground", "Snap to ground"),
             F::range("camera_distance", "Follow distance", 0.1, 0.0001, 10000.0),
             F::range("camera_height", "Follow height", 0.1, 0.0001, 10000.0),
             F::range("camera_radius", "Camera clearance", 0.05, 0.0001, 100.0),
@@ -707,6 +769,11 @@ impl Component for PlayerController {
             "camera" => FieldValue::Object(self.camera.clone()),
             "move_speed" => FieldValue::Number(self.move_speed),
             "jump_speed" => FieldValue::Number(self.jump_speed),
+            "capsule_radius" => FieldValue::Number(self.capsule_radius),
+            "capsule_height" => FieldValue::Number(self.capsule_height),
+            "step_height" => FieldValue::Number(self.step_height),
+            "slope_limit_degrees" => FieldValue::Number(self.slope_limit_degrees),
+            "snap_to_ground" => FieldValue::Bool(self.snap_to_ground),
             "camera_distance" => FieldValue::Number(self.camera_distance),
             "camera_height" => FieldValue::Number(self.camera_height),
             "camera_radius" => FieldValue::Number(self.camera_radius),
@@ -720,6 +787,11 @@ impl Component for PlayerController {
             "camera" => self.camera = value.object()?.to_owned(),
             "move_speed" => self.move_speed = value.number()?,
             "jump_speed" => self.jump_speed = value.number()?,
+            "capsule_radius" => self.capsule_radius = value.number()?,
+            "capsule_height" => self.capsule_height = value.number()?,
+            "step_height" => self.step_height = value.number()?,
+            "slope_limit_degrees" => self.slope_limit_degrees = value.number()?,
+            "snap_to_ground" => self.snap_to_ground = value.bool()?,
             "camera_distance" => self.camera_distance = value.number()?,
             "camera_height" => self.camera_height = value.number()?,
             "camera_radius" => self.camera_radius = value.number()?,
@@ -789,6 +861,10 @@ impl Component for Trigger {
             F::bool("enabled", "Trigger enabled"),
             F::vector("center", "Trigger center", VectorRole::Offset, 0.05),
             F::vector("size", "Trigger size", VectorRole::Scale, 0.05),
+            F::flags("layers", "Layers", LAYER_NAMES),
+            F::flags("mask", "Detects", LAYER_NAMES).help(
+                "The volume only sees objects whose Layers intersect this. The player is on Default.",
+            ),
             F::options("action", "Action", TRIGGER_ACTIONS),
             F::vector("respawn", "Respawn (world)", VectorRole::Position, 0.1)
                 .shown_when(trigger_is_checkpoint)
@@ -801,6 +877,8 @@ impl Component for Trigger {
             "enabled" => FieldValue::Bool(self.volume.enabled),
             "center" => FieldValue::Vector(self.volume.center),
             "size" => FieldValue::Vector(self.volume.size),
+            "layers" => FieldValue::Flags(self.volume.layers),
+            "mask" => FieldValue::Flags(self.volume.mask),
             "action" => FieldValue::Index(trigger_action_index(&self.action)),
             "respawn" => match self.action {
                 TriggerAction::Checkpoint { respawn } => FieldValue::Vector(respawn),
@@ -814,6 +892,8 @@ impl Component for Trigger {
             "enabled" => self.volume.enabled = value.bool()?,
             "center" => self.volume.center = value.vector()?,
             "size" => self.volume.size = value.vector()?,
+            "layers" => self.volume.layers = value.flags()?,
+            "mask" => self.volume.mask = value.flags()?,
             "action" => {
                 let index = value.index()?;
                 // Re-selecting Checkpoint keeps the authored respawn point.
@@ -834,6 +914,114 @@ impl Component for Trigger {
                 }
             }
             other => anyhow::bail!("Trigger has no field '{other}'"),
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------- Joint
+
+const JOINT_KINDS: &[&str] = &["Fixed", "Hinge", "Ball socket", "Slider", "Rope"];
+
+fn joint_kind_index(kind: JointKind) -> usize {
+    match kind {
+        JointKind::Fixed => 0,
+        JointKind::Revolute => 1,
+        JointKind::Spherical => 2,
+        JointKind::Prismatic => 3,
+        JointKind::Rope => 4,
+    }
+}
+fn joint_from_index(index: usize) -> Result<JointKind> {
+    Ok(match index {
+        0 => JointKind::Fixed,
+        1 => JointKind::Revolute,
+        2 => JointKind::Spherical,
+        3 => JointKind::Prismatic,
+        4 => JointKind::Rope,
+        other => anyhow::bail!("unknown joint kind {other}"),
+    })
+}
+/// Objects a joint may name: an enabled collider or a Rigidbody root.
+pub fn joint_endpoint(object: &Object) -> bool {
+    object.collider.is_some_and(|c| c.enabled)
+        || object.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+        || object.gravity.is_some()
+}
+fn joint_has_axis(object: &Object) -> bool {
+    object
+        .joint
+        .as_ref()
+        .is_some_and(|joint| matches!(joint.kind, JointKind::Revolute | JointKind::Prismatic))
+}
+fn joint_has_limits(object: &Object) -> bool {
+    object.joint.as_ref().is_some_and(|joint| {
+        joint.limits && matches!(joint.kind, JointKind::Revolute | JointKind::Prismatic)
+    })
+}
+fn joint_is_rope(object: &Object) -> bool {
+    object
+        .joint
+        .as_ref()
+        .is_some_and(|joint| joint.kind == JointKind::Rope)
+}
+
+impl Component for Joint {
+    const NAME: &'static str = "joint";
+    const LABEL: &'static str = "Joint";
+    const UI: Ui = Ui::Generic;
+    const HELP: &'static str =
+        "Both endpoints need colliders. Anchors and axes are local to each body.";
+    fn fields() -> &'static [Field] {
+        use Field as F;
+        const FIELDS: &[Field] = &[
+            F::bool("enabled", "Enabled"),
+            F::object("other", "Other body").filtered(joint_endpoint),
+            F::options("kind", "Kind", JOINT_KINDS),
+            F::vector("anchor", "Anchor (self)", VectorRole::Offset, 0.05),
+            F::vector("other_anchor", "Anchor (other)", VectorRole::Offset, 0.05),
+            F::vector("axis", "Axis (self)", VectorRole::Offset, 0.05).shown_when(joint_has_axis),
+            F::vector("other_axis", "Axis (other)", VectorRole::Offset, 0.05)
+                .shown_when(joint_has_axis),
+            F::bool("limits", "Use limits").shown_when(|object| {
+                object.joint.as_ref().is_some_and(|joint| {
+                    matches!(joint.kind, JointKind::Revolute | JointKind::Prismatic)
+                })
+            }),
+            F::number("min_limit", "Min limit", 0.5).shown_when(joint_has_limits),
+            F::number("max_limit", "Max limit", 0.5)
+                .shown_when(|object| joint_has_limits(object) || joint_is_rope(object)),
+        ];
+        FIELDS
+    }
+    fn field(&self, key: &str) -> Option<FieldValue> {
+        Some(match key {
+            "enabled" => FieldValue::Bool(self.enabled),
+            "other" => FieldValue::Object(self.other.clone()),
+            "kind" => FieldValue::Index(joint_kind_index(self.kind)),
+            "anchor" => FieldValue::Vector(self.anchor),
+            "other_anchor" => FieldValue::Vector(self.other_anchor),
+            "axis" => FieldValue::Vector(self.axis),
+            "other_axis" => FieldValue::Vector(self.other_axis),
+            "limits" => FieldValue::Bool(self.limits),
+            "min_limit" => FieldValue::Number(self.min_limit),
+            "max_limit" => FieldValue::Number(self.max_limit),
+            _ => return None,
+        })
+    }
+    fn set_field(&mut self, key: &str, value: FieldValue) -> Result<()> {
+        match key {
+            "enabled" => self.enabled = value.bool()?,
+            "other" => self.other = value.object()?.to_owned(),
+            "kind" => self.kind = joint_from_index(value.index()?)?,
+            "anchor" => self.anchor = value.vector()?,
+            "other_anchor" => self.other_anchor = value.vector()?,
+            "axis" => self.axis = value.vector()?,
+            "other_axis" => self.other_axis = value.vector()?,
+            "limits" => self.limits = value.bool()?,
+            "min_limit" => self.min_limit = value.number()?,
+            "max_limit" => self.max_limit = value.number()?,
+            other => anyhow::bail!("Joint has no field '{other}'"),
         }
         Ok(())
     }
@@ -1643,6 +1831,16 @@ pub const COMPONENTS: &[ComponentType] = &[
         |object, _scene| object.trigger = None
     ),
     component_row!(
+        Joint,
+        joint,
+        |object| object.joint.is_none(),
+        |object, _context| {
+            object.joint = Some(Joint::default());
+            Ok(())
+        },
+        |object, _scene| object.joint = None
+    ),
+    component_row!(
         Light,
         light,
         |object| object.light.is_none(),
@@ -1978,6 +2176,7 @@ mod tests {
                 "gravity",
                 "player_controller",
                 "trigger",
+                "joint",
                 "light",
                 "particle_emitter",
                 "spin",
@@ -2038,6 +2237,9 @@ mod tests {
                     FieldKind::Mesh => FieldValue::Text("cube".into()),
                     FieldKind::Options { .. } => FieldValue::Index(0),
                     FieldKind::Object { .. } => FieldValue::Object("other".into()),
+                    FieldKind::Flags { labels } => {
+                        FieldValue::Flags((1u32 << labels.len().max(1)) - 1)
+                    }
                     FieldKind::Asset(_) => FieldValue::Asset(Some("asset".into())),
                 };
                 (entry.set)(&mut object, field.key, probe.clone())
@@ -2082,6 +2284,7 @@ mod tests {
                 "camera",
                 "text_rendering",
                 "trigger",
+                "joint",
             ]),
             "every generic component except Mesh Collider is covered here"
         );

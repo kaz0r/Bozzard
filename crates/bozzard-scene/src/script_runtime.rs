@@ -589,6 +589,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                         direction,
                         distance,
                         (!ignore.is_empty()).then_some(ignore.as_str()),
+                        u32::MAX,
                         &mut state.budget,
                     )
                     .map_err(|error| fail(format!("{error:#}")))?;
@@ -630,6 +631,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                         center,
                         radius,
                         ignore,
+                        u32::MAX,
                         MAX_SCRIPT_OVERLAP,
                         &mut state.budget,
                     )
@@ -642,6 +644,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                         center,
                         Vec3::from(size),
                         ignore,
+                        u32::MAX,
                         MAX_SCRIPT_OVERLAP,
                         &mut state.budget,
                     )
@@ -673,6 +676,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                         delta,
                         delta.length(),
                         (!ignore.is_empty()).then_some(ignore.as_str()),
+                        u32::MAX,
                         &mut state.budget,
                     )
                     .map_err(|error| fail(format!("{error:#}")))?;
@@ -1424,15 +1428,22 @@ impl SceneInstance {
                 center,
                 edges,
                 corners,
+                layers: volume.layers,
+                mask: volume.mask,
+            };
+            let meets = |other_layers: u32, other_mask: u32| {
+                layers_interact(volume.layers, volume.mask, other_layers, other_mask)
             };
             let overlap = result.get_mut(&object.id).expect("script owner");
             for body in &snapshot.boxes {
-                if body.id != object.id && volume.intersects(body) {
+                if body.id != object.id && meets(body.layers, body.mask) && volume.intersects(body)
+                {
                     overlap.insert(body.id.clone());
                 }
             }
             for mesh in &snapshot.meshes {
-                if mesh.id != object.id && mesh.intersects(&volume) {
+                if mesh.id != object.id && meets(mesh.layers, mesh.mask) && mesh.intersects(&volume)
+                {
                     overlap.insert(mesh.id.clone());
                 }
             }

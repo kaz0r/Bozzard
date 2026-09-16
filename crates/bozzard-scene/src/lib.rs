@@ -66,15 +66,18 @@ mod prefab;
 pub use prefab::{Prefab, PrefabInstance};
 pub mod bvh;
 mod gravity;
+mod joint;
 mod physics;
 pub use collision::{
-    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, Contact, MeshCollider, MoveResult,
-    QueryHit, TriangleMesh,
+    BoxCollider, CollisionBox, CollisionMesh, CollisionSnapshot, Contact, DEFAULT_LAYERS,
+    DEFAULT_MASK, LAYER_NAMES, MeshCollider, MoveResult, QueryHit, TriangleMesh, layers_interact,
 };
 pub use gameplay::{
-    CursorCapture, GameplayInput, GameplayState, PlayerController, Trigger, TriggerAction,
+    CursorCapture, GameplayInput, GameplayState, PlayerController, PlayerMotion, Trigger,
+    TriggerAction,
 };
 pub use gravity::{Gravity, GravityState};
+pub use joint::{Joint, JointKind};
 
 /// Current scene schema. A component this build does not know is preserved rather than rejected,
 /// so files stay version 1: their shape never changed.
@@ -360,6 +363,7 @@ pub struct Object {
     pub gravity: Option<Gravity>,
     pub player_controller: Option<PlayerController>,
     pub trigger: Option<Trigger>,
+    pub joint: Option<Joint>,
     pub script_manager: Option<ScriptManager>,
     /// Components this build does not recognize, kept verbatim. See [`Object::extra`].
     #[serde(skip)]
@@ -587,6 +591,23 @@ impl Scene {
         blueprint::validate_blackboard(&self.blackboard)?;
         let mut ids = BTreeMap::new();
         for (index, object) in self.objects.iter().enumerate() {
+            ensure!(!object.id.trim().is_empty(), "object ID is empty");
+            ensure!(
+                ids.insert(object.id.as_str(), index).is_none(),
+                "duplicate object ID '{}'",
+                object.id
+            );
+        }
+        // Every Rigidbody root that owns at least one authored collider, including compound
+        // children. Presence is enough here: a disabled collider is a paused body, not a typo.
+        let mut bodies_with_shapes = BTreeSet::new();
+        for object in &self.objects {
+            if object.collider.is_none() && object.mesh_collider.is_none() {
+                continue;
+            }
+            bodies_with_shapes.insert(body_root(self, &ids, &object.id).to_owned());
+        }
+        for object in &self.objects {
             ensure!(
                 object.blueprints.len() <= 16,
                 "at most 16 blueprints per object"
@@ -615,11 +636,6 @@ impl Scene {
                     .with_context(|| format!("shader graph on '{}'", object.id))?;
             }
             ensure!(!object.id.trim().is_empty(), "object ID is empty");
-            ensure!(
-                ids.insert(object.id.as_str(), index).is_none(),
-                "duplicate object ID '{}'",
-                object.id
-            );
             object
                 .transform
                 .validate()
@@ -627,8 +643,9 @@ impl Scene {
             if let Some(gravity) = object.gravity {
                 gravity.validate()?;
                 ensure!(
-                    !gravity.enabled || object.collider.is_some() || object.mesh_collider.is_some(),
-                    "Rigidbody needs a Box or Mesh Collider on '{}'",
+                    !gravity.enabled
+                        || bodies_with_shapes.contains(body_root(self, &ids, &object.id)),
+                    "Rigidbody needs a Box or Mesh Collider on '{}' or a colliding child",
                     object.id
                 );
             }
@@ -658,6 +675,26 @@ impl Scene {
             }
             if let Some(camera) = object.camera {
                 camera.validate()?;
+            }
+            if let Some(joint) = &object.joint {
+                joint.validate()?;
+                ensure!(
+                    !joint.other.is_empty() && ids.contains_key(joint.other.as_str()),
+                    "Joint on '{}' needs an existing Other object",
+                    object.id
+                );
+                let owner = body_root(self, &ids, &object.id);
+                let other = body_root(self, &ids, &joint.other);
+                ensure!(
+                    owner != other,
+                    "Joint on '{}' must connect two different bodies, not one body to itself",
+                    object.id
+                );
+                ensure!(
+                    bodies_with_shapes.contains(owner) && bodies_with_shapes.contains(other),
+                    "Joint on '{}' needs colliders on both bodies",
+                    object.id
+                );
             }
             for (id, kind) in object.asset_dependencies() {
                 ensure!(
@@ -819,11 +856,16 @@ impl Scene {
                 let mut ancestor = object.parent.as_deref();
                 while let Some(id) = ancestor {
                     let body = &self.objects[ids[id]];
-                    ensure!(
-                        !body.gravity.is_some_and(|g| g.enabled),
-                        "Rigidbody '{id}' cannot carry a colliding descendant '{}'; use one collider per body",
-                        object.id
-                    );
+                    if body.player_controller.is_none() && body.gravity.is_some() {
+                        // A compound shape rides the body pose, so a dynamic body needs the
+                        // child's relative transform to be a rigid, uniformly scaled one.
+                        if body.gravity.is_some_and(|g| g.enabled) {
+                            physics::parent_pose(matrices[id].inverse() * global).with_context(
+                                || format!("compound collider '{}' on Rigidbody '{id}'", object.id),
+                            )?;
+                        }
+                        break;
+                    }
                     ancestor = body.parent.as_deref();
                 }
             }
@@ -1161,6 +1203,7 @@ impl SceneInstance {
             object.gravity = world.get::<Gravity>(entity).copied();
             object.player_controller = world.get::<PlayerController>(entity).cloned();
             object.trigger = world.get::<Trigger>(entity).cloned();
+            object.joint = world.get::<Joint>(entity).cloned();
             object.shader_graph = world.get::<shader_graph::ShaderGraph>(entity).cloned();
         }
         scene.validate()?;
@@ -1205,6 +1248,7 @@ impl Object {
             mesh_collider,
             player_controller,
             trigger,
+            joint,
             spin,
             shader_graph
         );
@@ -1376,6 +1420,33 @@ fn default_true() -> bool {
     true
 }
 
+fn default_layers() -> u32 {
+    DEFAULT_LAYERS
+}
+
+fn default_mask() -> u32 {
+    DEFAULT_MASK
+}
+
+/// The Rigidbody that owns an object's collider: itself or its nearest ancestor with a `Gravity`
+/// component that is not a Player Controller. Without one, the object is its own body.
+fn body_root<'a>(scene: &'a Scene, ids: &BTreeMap<&'a str, usize>, id: &'a str) -> &'a str {
+    let mut root = id;
+    let mut current = Some(id);
+    // Bounded walk: a cyclic or dangling hierarchy fails elsewhere instead of looping here.
+    for _ in 0..=scene.objects.len() {
+        let Some(c) = current else { break };
+        let Some(&index) = ids.get(c) else { break };
+        let object = &scene.objects[index];
+        root = &object.id;
+        if object.player_controller.is_none() && object.gravity.is_some() {
+            return root;
+        }
+        current = object.parent.as_deref();
+    }
+    root
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1401,6 +1472,7 @@ mod tests {
             gravity: None,
             player_controller: None,
             trigger: None,
+            joint: None,
             extras: BTreeMap::new(),
         }
     }

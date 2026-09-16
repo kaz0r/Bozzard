@@ -242,7 +242,14 @@ impl SceneInstance {
                         false
                     } else {
                         geometry
-                            .raycast_budget(eye, delta, distance, Some(owner), &mut budget)?
+                            .raycast_budget(
+                                eye,
+                                delta,
+                                distance,
+                                Some(owner),
+                                u32::MAX,
+                                &mut budget,
+                            )?
                             .is_none_or(|hit| target.is_some_and(|id| &hit.object == id))
                     }
                 } else {
@@ -433,6 +440,7 @@ impl SceneInstance {
                         p + Vec3::Y * (agent.height * 0.5 + 0.03),
                         Vec3::new(agent.radius * 2., agent.height - 0.02, agent.radius * 2.),
                         Some(owner),
+                        u32::MAX,
                         geometry.boxes.len() + geometry.meshes.len(),
                         &mut budget,
                     )?;

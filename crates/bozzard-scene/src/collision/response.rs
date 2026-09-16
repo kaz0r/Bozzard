@@ -90,13 +90,16 @@ impl SceneInstance {
     pub fn move_box(&self, world: &mut World, id: &str, displacement: Vec3) -> Result<MoveResult> {
         ensure!(displacement.is_finite(), "movement must be finite");
         let (snapshot, matrices) = self.collision_geometry(world)?;
-        let meshes = snapshot.meshes;
+        let mut meshes = snapshot.meshes;
         let mut boxes = snapshot.boxes;
         let index = boxes
             .iter()
             .position(|b| b.id == id)
             .context("mover needs an enabled box collider")?;
         let mut mover = boxes.remove(index);
+        // A mover only meets obstacles its layer mask allows, matching the solver's groups.
+        boxes.retain(|b| layers_interact(mover.layers, mover.mask, b.layers, b.mask));
+        meshes.retain(|m| layers_interact(mover.layers, mover.mask, m.layers, m.mask));
         let parents: BTreeMap<_, _> = self
             .document
             .objects
@@ -192,15 +195,18 @@ impl SceneInstance {
         let validation = (|| -> Result<Vec3> {
             let (result, _) = self.collision_geometry(world)?;
             let actual = result.boxes.iter().find(|b| b.id == id).unwrap();
+            let allowed =
+                |layers: u32, mask: u32| layers_interact(actual.layers, actual.mask, layers, mask);
             ensure!(
                 result
                     .boxes
                     .iter()
-                    .filter(|b| b.id != id)
+                    .filter(|b| b.id != id && allowed(b.layers, b.mask))
                     .all(|b| penetration(actual, b).is_none())
                     && result
                         .meshes
                         .iter()
+                        .filter(|m| allowed(m.layers, m.mask))
                         .all(|m| m.penetration(actual).is_none()),
                 "movement cannot be represented without penetration at this world scale"
             );

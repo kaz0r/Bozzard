@@ -85,6 +85,8 @@ impl AssetStore {
         }
         Ok(MeshCollider {
             enabled: true,
+            layers: 1,
+            mask: u32::MAX,
             mesh: TriangleMesh::new(triangles)?,
         })
     }
