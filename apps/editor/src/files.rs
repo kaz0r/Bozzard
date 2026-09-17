@@ -107,7 +107,18 @@ impl App {
                                         Kind::Import => {
                                             matches!(
                                                 ext.as_str(),
-                                                "png" | "jpg" | "jpeg" | "obj" | "gltf" | "glb"
+                                                "png"
+                                                    | "jpg"
+                                                    | "jpeg"
+                                                    | "obj"
+                                                    | "gltf"
+                                                    | "glb"
+                                                    | "wgsl"
+                                                    | "rs"
+                                                    | "wav"
+                                                    | "ogg"
+                                                    | "mp3"
+                                                    | "flac"
                                             ) || path
                                                 .file_name()
                                                 .and_then(|p| p.to_str())

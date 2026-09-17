@@ -21,6 +21,9 @@ pub use blueprint_runtime::{
     NodeSnapshot, PinWatch, VariableWatch, WatchSnapshot,
 };
 pub mod script;
+pub use bozzard_compute as compute;
+mod compute_runtime;
+pub use compute_runtime::{SceneCompute, load_compute_kernels};
 pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
 mod script_runtime;
 pub use script_runtime::{ScriptRuntime, ScriptRuntimeStats, load_sources};
@@ -490,6 +493,7 @@ pub struct Scene {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetKind {
+    ComputeShader,
     Audio,
     Prefab,
     Image,
@@ -951,6 +955,9 @@ impl Scene {
             display_overrides: Default::default(),
             script_engine: std::sync::OnceLock::new(),
             scripts: BTreeMap::new(),
+            compute_kernels: BTreeMap::new(),
+            compute_state: std::sync::OnceLock::new(),
+            compute_capabilities: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -974,6 +981,10 @@ pub struct SceneInstance {
     /// Built on the first script registration, so a scene without scripts never pays for it.
     script_engine: std::sync::OnceLock<std::sync::Arc<script_runtime::ScriptEngine>>,
     scripts: BTreeMap<String, std::sync::Arc<script_runtime::CompiledScript>>,
+    compute_kernels: BTreeMap<String, std::sync::Arc<compute::Kernel>>,
+    compute_state:
+        std::sync::OnceLock<std::sync::Arc<std::sync::Mutex<compute_runtime::SceneCompute>>>,
+    compute_capabilities: compute::Capabilities,
 }
 
 impl SceneInstance {
@@ -1069,6 +1080,8 @@ impl SceneInstance {
         let view_projection = projection * matrices[camera_id].inverse();
         let mut objects = Vec::new();
         let mut object_ids = Vec::new();
+        let mut compute_textures = BTreeMap::new();
+        let compute_state = self.compute_if_initialized();
         let mut skin_poses = BTreeMap::new();
         let mut shader_graphs = Vec::new();
         let mut texts = Vec::new();
@@ -1100,6 +1113,12 @@ impl SceneInstance {
                 entity.hash(&mut hasher);
                 let motion_id = hasher.finish().max(1);
                 object_ids.push(motion_id);
+                if let Some(handle) = compute_state
+                    .as_ref()
+                    .and_then(|state| state.material_texture(id))
+                {
+                    compute_textures.insert(motion_id, handle);
+                }
                 if let Some(animator) = world.get::<middleware::animation::Animator>(*entity)
                     && !animator.rig.bindings.is_empty()
                 {
@@ -1179,6 +1198,7 @@ impl SceneInstance {
             view_projection,
             objects,
             object_ids,
+            compute_textures,
             shader_graphs,
             texts,
         })
@@ -1219,6 +1239,8 @@ pub struct SceneView {
     pub skin_poses: BTreeMap<u64, middleware::animation::Palette>,
     /// Runtime identities in the same order as objects; never serialized.
     pub object_ids: Vec<u64>,
+    /// GPU-free generated texture identities, separate from imported image asset IDs.
+    pub compute_textures: BTreeMap<u64, compute::Handle>,
     /// Surface shader graph per object, same order as `objects`.
     pub shader_graphs: Vec<Option<std::sync::Arc<shader_graph::ShaderGraph>>>,
     pub particles: Vec<Particle>,

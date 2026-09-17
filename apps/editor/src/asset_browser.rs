@@ -18,6 +18,7 @@ pub struct AssetBrowser {
     thumbnails: HashMap<String, Thumbnail>,
     meshes: HashMap<String, (u64, Arc<MeshPreview>)>,
     catalog_revision: u64,
+    compute_entry: String,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -30,6 +31,7 @@ enum AssetFilter {
     Prefabs,
     Blueprints,
     ShaderGraphs,
+    Compute,
 }
 
 struct Thumbnail {
@@ -73,6 +75,7 @@ struct AssetSnapshot {
     audio: Option<(f64, u32)>,
     mesh: Option<Arc<MeshPreview>>,
     prefab_objects: Option<usize>,
+    compute: Option<Arc<bozzard_scene::compute::Kernel>>,
 }
 
 #[derive(Clone)]
@@ -97,6 +100,7 @@ struct PendingDelete {
 }
 
 enum AssetCommand {
+    OpenSource(String),
     Delete(String),
     Add(String),
     Assign(String),
@@ -209,6 +213,7 @@ impl AssetBrowser {
                     AssetFilter::Prefabs => "Prefabs",
                     AssetFilter::Blueprints => "Blueprints",
                     AssetFilter::ShaderGraphs => "Shader graphs",
+                    AssetFilter::Compute => "Compute shaders",
                 })
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.filter, AssetFilter::All, "All assets");
@@ -217,6 +222,7 @@ impl AssetBrowser {
                     ui.selectable_value(&mut self.filter, AssetFilter::Models, "Models");
                     ui.selectable_value(&mut self.filter, AssetFilter::Prefabs, "Prefabs");
                     ui.selectable_value(&mut self.filter, AssetFilter::Blueprints, "Blueprints");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Compute, "Compute shaders");
                     ui.selectable_value(
                         &mut self.filter,
                         AssetFilter::ShaderGraphs,
@@ -227,7 +233,7 @@ impl AssetBrowser {
             if ui
                 .add_enabled(editing, egui::Button::new("Import…"))
                 .on_hover_text(
-                    "Import PNG, JPEG, OBJ, glTF, GLB, WAV, OGG, MP3, FLAC or .prefab.json",
+                    "Import images, models, audio, .rs scripts, .compute.wgsl shaders or .prefab.json",
                 )
                 .clicked()
             {
@@ -298,7 +304,7 @@ impl AssetBrowser {
             if sidebar {
                 ui.allocate_ui_with_layout(Vec2::new(130.0, available.y), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.small("PROJECT");
-                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Audio, "Audio"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs")] {
+                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Audio, "Audio"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs"), (AssetFilter::Compute, "Compute shaders")] {
                         ui.horizontal(|ui| {
                             let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 16.0), Sense::hover());
                             draw_folder(ui.painter(), rect);
@@ -378,6 +384,13 @@ impl AssetBrowser {
 
         if let Some(command) = command {
             match command {
+                AssetCommand::OpenSource(id) => {
+                    let path =
+                        bozzard_editor::root(&editor.path).join(&editor.scene().assets[&id].path);
+                    if let Err(error) = open::that(&path) {
+                        set_error(&mut output, error.into());
+                    }
+                }
                 AssetCommand::Delete(id) => self.request_delete(DeleteTarget::Asset(id), editor),
                 AssetCommand::RefreshPrefab(asset) => {
                     output.prefab_requested = Some(bozzard_editor::PrefabCommand::Refresh { asset })
@@ -757,7 +770,11 @@ impl AssetBrowser {
                         self.selected = Some(asset.id.clone());
                     }
                     if preview.1.double_clicked() && ready {
-                        *command = Some(AssetCommand::Add(asset.id.clone()));
+                        if asset.kind == AssetKind::ComputeShader {
+                            self.show_details = true;
+                        } else {
+                            *command = Some(AssetCommand::Add(asset.id.clone()));
+                        }
                     }
                     preview
                         .1
@@ -767,7 +784,10 @@ impl AssetBrowser {
                         ))
                         .context_menu(|ui| {
                             if ui
-                                .add_enabled(ready, egui::Button::new("Add to scene"))
+                                .add_enabled(
+                                    ready && asset.kind != AssetKind::ComputeShader,
+                                    egui::Button::new("Add to scene"),
+                                )
                                 .clicked()
                             {
                                 *command = Some(AssetCommand::Add(asset.id.clone()));
@@ -775,7 +795,12 @@ impl AssetBrowser {
                             }
                             if ui
                                 .add_enabled(
-                                    ready && selected_drawable && asset.kind != AssetKind::Prefab,
+                                    ready
+                                        && selected_drawable
+                                        && !matches!(
+                                            asset.kind,
+                                            AssetKind::Prefab | AssetKind::ComputeShader
+                                        ),
                                     egui::Button::new("Assign to selected"),
                                 )
                                 .clicked()
@@ -820,6 +845,7 @@ impl AssetBrowser {
                         AssetKind::Image => "Image",
                         AssetKind::Mesh => "Model",
                         AssetKind::Script => "Script",
+                        AssetKind::ComputeShader => "Compute",
                     });
                     if matches!(asset.state, LoadState::Failed(_)) {
                         ui.colored_label(Color32::LIGHT_RED, "Load failed");
@@ -849,6 +875,7 @@ impl AssetBrowser {
                 AssetData::Mesh(_)
                 | AssetData::Prefab(_)
                 | AssetData::Script(_)
+                | AssetData::ComputeShader(_)
                 | AssetData::Audio(_) => None,
             })?;
         let texture = ctx.load_texture(
@@ -867,7 +894,7 @@ impl AssetBrowser {
     }
 
     fn details(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         asset: &AssetSnapshot,
         editing: bool,
@@ -899,6 +926,7 @@ impl AssetBrowser {
                 None => ui.label("Model"),
             },
             AssetKind::Script => ui.label("Script · Rhai"),
+            AssetKind::ComputeShader => ui.label("Compute shader · WGSL"),
         };
         if let Some(mesh) = &asset.mesh {
             for warning in &mesh.warnings {
@@ -914,7 +942,7 @@ impl AssetBrowser {
             }
             LoadState::Failed(message) => {
                 ui.colored_label(Color32::LIGHT_RED, message);
-                if asset.image.is_some() || asset.mesh.is_some() {
+                if asset.image.is_some() || asset.mesh.is_some() || asset.compute.is_some() {
                     ui.colored_label(
                         Color32::YELLOW,
                         "Showing the last successfully loaded version",
@@ -922,6 +950,77 @@ impl AssetBrowser {
                 }
             }
         };
+        if let Some(kernel) = &asset.compute {
+            if kernel.entry(&self.compute_entry).is_err() {
+                self.compute_entry = kernel.entries().next().unwrap().name.clone();
+            }
+            egui::ComboBox::from_id_salt(("compute-entry", &asset.id))
+                .selected_text(&self.compute_entry)
+                .show_ui(ui, |ui| {
+                    for entry in kernel.entries() {
+                        ui.selectable_value(
+                            &mut self.compute_entry,
+                            entry.name.clone(),
+                            &entry.name,
+                        );
+                    }
+                });
+            let entry = kernel.entry(&self.compute_entry).unwrap();
+            ui.label(format!(
+                "Workgroup: {} × {} × {} · {} B shared memory",
+                entry.workgroup_size[0],
+                entry.workgroup_size[1],
+                entry.workgroup_size[2],
+                entry.workgroup_bytes
+            ));
+            for binding in &entry.bindings {
+                use bozzard_scene::compute::BindingKind as K;
+                let kind = match &binding.kind {
+                    K::Uniform(_) => "params uniform".to_owned(),
+                    K::Storage { writable, .. } => if *writable {
+                        "read/write storage"
+                    } else {
+                        "read-only storage"
+                    }
+                    .to_owned(),
+                    K::SampledTexture => "sampled 2D texture".to_owned(),
+                    K::StorageTexture(format) => format!("write-only 2D {}", format.name()),
+                    K::Sampler => "sampler".to_owned(),
+                };
+                ui.monospace(format!(
+                    "{}:{} {} · {kind}",
+                    binding.group, binding.binding, binding.name
+                ));
+                if let K::Uniform(layout) | K::Storage { layout, .. } = &binding.kind {
+                    egui::CollapsingHeader::new(format!("{} layout", binding.name))
+                        .id_salt((&asset.id, &self.compute_entry, &binding.name))
+                        .show(ui, |ui| compute_layout(ui, layout));
+                }
+            }
+            ui.weak("Dispatch from a script. Bind generated output with compute_bind_material.");
+            if ui.button("Open WGSL source").clicked() {
+                *command = Some(AssetCommand::OpenSource(asset.id.clone()));
+            }
+            if ui.button("Copy asset ID").clicked() {
+                ui.ctx().copy_text(asset.id.clone());
+            }
+            egui::CollapsingHeader::new("WGSL source").show(ui, |ui| {
+                egui::ScrollArea::both().max_height(240.).show(ui, |ui| {
+                    let source = kernel.source();
+                    let end = source.floor_char_boundary(source.len().min(16_384));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&source[..end]).monospace())
+                            .selectable(true)
+                            .wrap(),
+                    );
+                    if end < source.len() {
+                        ui.weak(
+                            "Preview limited to 16 KiB. Open WGSL source for the complete file.",
+                        );
+                    }
+                });
+            });
+        }
         ui.vertical(|ui| {
             if asset.kind == AssetKind::Prefab
                 && ui
@@ -935,7 +1034,9 @@ impl AssetBrowser {
             }
             if ui
                 .add_enabled(
-                    editing && matches!(asset.state, LoadState::Ready),
+                    editing
+                        && asset.kind != AssetKind::ComputeShader
+                        && matches!(asset.state, LoadState::Ready),
                     egui::Button::new("Add to scene"),
                 )
                 .clicked()
@@ -946,7 +1047,7 @@ impl AssetBrowser {
                 .add_enabled(
                     editing
                         && selected_drawable
-                        && asset.kind != AssetKind::Prefab
+                        && !matches!(asset.kind, AssetKind::Prefab | AssetKind::ComputeShader)
                         && matches!(asset.state, LoadState::Ready),
                     egui::Button::new("Assign to selected"),
                 )
@@ -1053,9 +1154,13 @@ fn snapshots(
                     };
                     (None, Some(sampled))
                 }
-                Some(AssetData::Prefab(_) | AssetData::Script(_) | AssetData::Audio(_)) | None => {
-                    (None, None)
-                }
+                Some(
+                    AssetData::Prefab(_)
+                    | AssetData::Script(_)
+                    | AssetData::Audio(_)
+                    | AssetData::ComputeShader(_),
+                )
+                | None => (None, None),
             };
             Some(AssetSnapshot {
                 id: entry.id.clone(),
@@ -1072,6 +1177,10 @@ fn snapshots(
                 mesh,
                 prefab_objects: match entry.data() {
                     Some(AssetData::Prefab(p)) => Some(p.objects.len()),
+                    _ => None,
+                },
+                compute: match entry.data() {
+                    Some(AssetData::ComputeShader(kernel)) => Some(kernel.clone()),
                     _ => None,
                 },
             })
@@ -1176,6 +1285,45 @@ fn matches_filter(filter: AssetFilter, kind: AssetKind) -> bool {
         || matches!((filter, kind), (AssetFilter::Audio, AssetKind::Audio))
         || matches!((filter, kind), (AssetFilter::Models, AssetKind::Mesh))
         || matches!((filter, kind), (AssetFilter::Prefabs, AssetKind::Prefab))
+        || matches!(
+            (filter, kind),
+            (AssetFilter::Compute, AssetKind::ComputeShader)
+        )
+}
+
+fn compute_layout(ui: &mut egui::Ui, layout: &bozzard_scene::compute::Layout) {
+    use bozzard_scene::compute::Shape;
+    ui.weak(format!(
+        "{} B minimum · {} B alignment",
+        layout.minimum_size(),
+        layout.alignment()
+    ));
+    match layout.shape() {
+        Shape::Struct(fields) => {
+            for (name, offset, field) in fields.iter().take(128) {
+                egui::CollapsingHeader::new(format!("{name} @ byte {offset}"))
+                    .id_salt((name, offset))
+                    .show(ui, |ui| compute_layout(ui, field));
+            }
+            if fields.len() > 128 {
+                ui.weak("First 128 fields shown; open the source for the rest.");
+            }
+        }
+        Shape::Array {
+            element,
+            count,
+            stride,
+        } => {
+            ui.label(format!(
+                "Array · {} · {stride} B stride",
+                count.map_or_else(|| "runtime length".into(), |n| format!("{n} elements"))
+            ));
+            compute_layout(ui, element);
+        }
+        shape => {
+            ui.monospace(format!("{shape:?}"));
+        }
+    }
 }
 
 /// Mini node-graph glyph used by prefab tiles.

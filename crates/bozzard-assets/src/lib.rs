@@ -149,6 +149,7 @@ fn inspection_name(name: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum AssetData {
+    ComputeShader(Arc<bozzard_compute::Kernel>),
     Audio(audio::AudioData),
     Prefab(bozzard_scene::Prefab),
     Image(ImageData),
@@ -608,6 +609,16 @@ fn import(
         .unwrap_or("")
         .to_ascii_lowercase();
     match kind {
+        AssetKind::ComputeShader => {
+            ensure!(
+                extension == "wgsl",
+                "compute shader import supports .compute.wgsl and .wgsl"
+            );
+            let source = std::str::from_utf8(bytes).context("compute shader is not UTF-8 text")?;
+            Ok(AssetData::ComputeShader(Arc::new(
+                bozzard_compute::Kernel::parse(source)?,
+            )))
+        }
         AssetKind::Audio => Ok(AssetData::Audio(serde_json::from_slice(bytes)?)),
         AssetKind::Prefab => Ok(AssetData::Prefab(bozzard_scene::Prefab::from_json(
             std::str::from_utf8(bytes)?,

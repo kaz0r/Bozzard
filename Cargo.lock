@@ -545,6 +545,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64",
+ "bozzard-compute",
  "bozzard-scene",
  "glam 0.33.6",
  "gltf",
@@ -564,6 +565,16 @@ dependencies = [
  "bozzard-scene",
  "glam 0.33.6",
  "kira",
+]
+
+[[package]]
+name = "bozzard-compute"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "naga",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -667,11 +678,13 @@ name = "bozzard-render"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bozzard-compute",
  "bozzard-text",
  "epaint",
  "glam 0.33.6",
  "pollster 0.4.0",
  "serde",
+ "serde_json",
  "wgpu",
 ]
 
@@ -693,6 +706,7 @@ name = "bozzard-scene"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bozzard-compute",
  "bozzard-diagnostics",
  "bozzard-ecs",
  "bozzard-text",

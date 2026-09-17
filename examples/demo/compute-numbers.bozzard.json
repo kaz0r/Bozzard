@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "Compute Numbers",
+  "start_scene": "scenes/compute-numbers.json",
+  "view": "3d"
+}

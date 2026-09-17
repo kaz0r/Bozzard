@@ -181,6 +181,11 @@ The [Target Range](docs/blueprints.md#target-range-example) shooting game exists
 
 Try `cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/script-lab.json`: a spinning cube, an orbiter that keeps its phase in a scene variable, a lamp faded with `sin`, a gate volume that counts what passes through it, a bouncing rigidbody, and a blueprint graph on the HUD line reading the same scene variable the scripts write. See [the hook list, function reference and runtime semantics](docs/scripting.md).
 
+Scripts and compiled Rust systems can also dispatch [WGSL compute shaders](docs/compute.md),
+reuse buffers/textures, display generated material textures, and collect asynchronous results.
+Try `cargo run -p bozzard-player -- --scene examples/demo/scenes/compute-waves.json` or
+`compute-numbers.json`. The editor's **View → Compute resources and jobs** inspects live output.
+
 ## Prefabs
 
 The prefab authoring workflow saves a selected hierarchy as a linked JSON asset, places linked instances, and supports component-level overrides with refresh, apply, and unpack operations. See the [prefab workflow and current limits](docs/prefabs.md).

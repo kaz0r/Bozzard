@@ -297,6 +297,7 @@ impl SceneDemo {
         for level in scene.runtime_scenes.values_mut() {
             std::sync::Arc::make_mut(level).assets = scene.assets.clone();
         }
+        let kernels = bozzard_scene::load_compute_kernels(&scene, path)?;
         let mut demo = Self::new(&scene)?;
         let directory = std::env::var_os("BOZZARD_SAVE_DIR")
             .map(std::path::PathBuf::from)
@@ -325,6 +326,7 @@ impl SceneDemo {
                 instance.register_prefab(asset, prefab)?;
             }
             instance.register_scripts(sources)?;
+            instance.register_compute_kernels(kernels)?;
             Ok(())
         })?;
         Ok(demo)

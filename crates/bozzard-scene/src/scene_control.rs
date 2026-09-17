@@ -308,6 +308,8 @@ impl SceneInstance {
         next.templates = templates;
         next.script_engine = std::mem::take(&mut self.script_engine);
         next.scripts = std::mem::take(&mut self.scripts);
+        next.compute_kernels = std::mem::take(&mut self.compute_kernels);
+        next.compute_capabilities = self.compute_capabilities.clone();
         if scene.game_flow.is_some() {
             world.insert_resource(GameSession {
                 phase: GamePhase::Playing,

@@ -77,6 +77,52 @@ fn export(scene: &Scene, source: &Path, destination: &Path) {
 }
 
 #[test]
+fn declared_compute_assets_survive_relocation_and_source_removal() {
+    let temp = Temp::new();
+    let source = temp.0.join("source");
+    fs::create_dir_all(source.join("assets")).unwrap();
+    copy_tree(
+        &fixtures().join("assets/compute"),
+        &source.join("assets/compute"),
+    );
+    for name in ["compute-waves", "compute-numbers"] {
+        fs::copy(
+            fixtures().join(format!("{name}.json")),
+            source.join(format!("{name}.json")),
+        )
+        .unwrap();
+        let path = source.join(format!("{name}.json"));
+        export(&load(&path), &path, &temp.0.join(name));
+        fs::rename(temp.0.join(name), temp.0.join(format!("relocated {name}"))).unwrap();
+    }
+    fs::remove_dir_all(source).unwrap();
+    for name in ["compute-waves", "compute-numbers"] {
+        let root = data(&temp.0.join(format!("relocated {name}")));
+        let (_, path) = Project::load(&root.join(bozzard_project::MANIFEST)).unwrap();
+        let cooked = load(&path);
+        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
+        assert_eq!(runtime.instance().compute_kernels().len(), 1);
+        let mut assets = bozzard_assets::AssetStore::new(&root, &cooked.assets).unwrap();
+        assets.load_pending().unwrap();
+        assets.require_ready().unwrap();
+        assert!(
+            cooked
+                .assets
+                .keys()
+                .filter_map(|id| assets.handle(id))
+                .filter_map(|h| assets.get(h))
+                .any(|entry| matches!(
+                    entry.data(),
+                    Some(bozzard_assets::AssetData::ComputeShader(_))
+                ))
+        );
+        runtime.app.step();
+        runtime.check_simulation().unwrap();
+        assert!(!runtime.instance().compute_capabilities().available());
+    }
+}
+
+#[test]
 fn export_survives_source_removal_and_runs_the_whole_trail() {
     let temp = Temp::new();
     let source = temp.0.join("source");

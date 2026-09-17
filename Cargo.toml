@@ -9,6 +9,8 @@ rust-version = "1.95"
 publish = false
 
 [workspace.dependencies]
+bozzard-compute = { path = "crates/bozzard-compute" }
+naga = { version = "30.0.1", default-features = false, features = ["wgsl-in"] }
 bozzard-diagnostics = { path = "crates/bozzard-diagnostics" }
 bozzard-text = { path = "crates/bozzard-text" }
 bozzard-assets = { path = "crates/bozzard-assets" }

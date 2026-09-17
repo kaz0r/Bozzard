@@ -13,6 +13,7 @@ use blueprint::{BlackboardValue as B, InputKey, ObjectRef, PinType, Value, Varia
 use rhai::{AST, Array, Dynamic, Engine, EvalAltResult, ImmutableString, Map, Position, Scope};
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
+mod compute_api;
 
 /// Largest accepted script source, matching the blueprint document limit.
 const MAX_SCRIPT_BYTES: usize = 1024 * 1024;
@@ -155,6 +156,11 @@ enum Command {
 struct Host {
     /// The attachment currently running, which bare `me` arguments resolve to.
     owner: String,
+    attachment: usize,
+    compute: Option<Arc<Mutex<crate::SceneCompute>>>,
+    compute_ready: bool,
+    compute_capabilities: crate::compute::Capabilities,
+    compute_kernels: BTreeMap<String, Arc<crate::compute::Kernel>>,
     dt: f32,
     elapsed: f32,
     input: GameplayInput,
@@ -412,6 +418,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         .set_max_string_size(MAX_SCRIPT_BYTES)
         .set_max_array_size(1 << 16)
         .set_max_map_size(1 << 16);
+    compute_api::register(&mut engine, host.clone());
     macro_rules! borrow {
         ($host:expr) => {
             $host.lock().unwrap_or_else(|error| error.into_inner())
@@ -1180,6 +1187,7 @@ impl SceneInstance {
         if !crate::game_flow::simulation_running(world) {
             return Ok(());
         }
+        self.begin_compute_tick(world);
         if !self.has_scripts() {
             return Ok(());
         }
@@ -1285,6 +1293,7 @@ impl SceneInstance {
                     )
                 })?;
                 let key = (owner.clone(), index);
+                engine.lock().attachment = index;
                 let mut run = runtime.runs.remove(&key).unwrap_or_default();
                 let result = self.run_attachment(
                     &engine,
@@ -1298,6 +1307,7 @@ impl SceneInstance {
                     dt,
                 );
                 runtime.runs.insert(key, run);
+                self.adopt_script_compute(&engine);
                 if let Err(error) = &result {
                     bozzard_diagnostics::log(
                         world,
@@ -1334,6 +1344,7 @@ impl SceneInstance {
         input: GameplayInput,
     ) {
         host.dt = dt;
+        self.prepare_script_compute(host);
         host.elapsed = runtime.elapsed;
         host.input = input;
         host.tokens = runtime.tokens.clone();
@@ -1550,6 +1561,10 @@ impl SceneInstance {
             .map(|contact| contact.other.clone())
             .collect();
         run.enabled = enabled;
+        let attachment = engine.lock().attachment;
+        if !enabled && let Some(mut compute) = self.compute_if_initialized() {
+            compute.cancel_owner(&crate::compute::Owner::new(owner, attachment), false)?;
+        }
         Ok(())
     }
     /// Applies queued script commands in order, then the destroys they asked for.
@@ -1755,6 +1770,12 @@ impl SceneInstance {
             return Ok(());
         };
         for (index, attachment) in manager.scripts.iter().enumerate() {
+            {
+                let mut host = engine.lock();
+                host.owner = owner.to_owned();
+                host.attachment = index;
+                self.prepare_script_compute(&mut host);
+            }
             let Some(compiled) = self.scripts.get(&attachment.script).cloned() else {
                 continue;
             };
@@ -1769,9 +1790,41 @@ impl SceneInstance {
                 .call_fn::<Dynamic>(&mut run.scope, &compiled.ast, "on_destroy", args)
                 .map_err(|error| anyhow::anyhow!("script hook on_destroy on '{owner}': {error}"));
             runtime.runs.insert(key, run);
+            self.adopt_script_compute(engine);
             result.map(|_| ())?;
         }
+        if let Some(mut compute) = self.compute_if_initialized() {
+            for index in 0..manager.scripts.len() {
+                compute.cancel_owner(&crate::compute::Owner::new(owner, index), true)?;
+            }
+            compute.materials.remove(owner);
+        }
         Ok(())
+    }
+    // Seed an allocation-free context for ordinary scenes. Only an actual compute API call
+    // creates runtime state; this also handles indirect Rhai calls without scanning source text.
+    fn prepare_script_compute(&self, host: &mut Host) {
+        host.compute_ready = true;
+        host.compute = self.compute_state.get().cloned();
+        if host.compute.is_none() {
+            host.compute_capabilities = self.compute_capabilities.clone();
+            if host.compute_kernels.len() != self.compute_kernels.len()
+                || self.compute_kernels.iter().any(|(id, kernel)| {
+                    host.compute_kernels
+                        .get(id)
+                        .is_none_or(|k| k.id() != kernel.id())
+                })
+            {
+                host.compute_kernels.clone_from(&self.compute_kernels);
+            }
+        }
+    }
+    fn adopt_script_compute(&self, engine: &ScriptEngine) {
+        if self.compute_state.get().is_none()
+            && let Some(state) = &engine.lock().compute
+        {
+            let _ = self.compute_state.set(state.clone());
+        }
     }
     /// One transform write, shared by every script transform function.
     fn apply_transform(

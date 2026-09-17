@@ -27,6 +27,10 @@ struct Frame {
     omitted_spans: u64,
     render: Option<bozzard_render::FrameStats>,
     gpu: Option<bozzard_render::GpuFrameTiming>,
+    compute_gpu: Option<bozzard_render::GpuFrameTiming>,
+    compute_frame: Option<u64>,
+    compute: Option<bozzard_scene::compute::Statistics>,
+    compute_executor: bozzard_render::compute::ExecutorStats,
     entities: usize,
     assets: usize,
 }
@@ -273,6 +277,19 @@ impl DebugWorkspace {
                     ui.weak("Live backend counters, sampled once per second. Includes editor graphics; not total process RAM or total VRAM use.");
                 }
             });
+            egui::CollapsingHeader::new("Compute · scripts and Rust").default_open(true).show(ui, |ui| {
+                if let Some(compute) = selected.compute {
+                    ui.label(format!("{} queued commands · {} jobs · {} resources · {:.2} MiB", compute.queued_commands, compute.jobs, compute.resources, compute.resource_bytes as f64 / 1048576.));
+                    ui.weak(format!("Cumulative uploads {:.2} MiB · Readbacks {:.2} MiB", compute.uploaded_bytes as f64 / 1048576., compute.readback_bytes as f64 / 1048576.));
+                }
+                if selected.compute_frame.is_some() {
+                    ui.label(format!("Encode {:.3} ms · Submit {:.3} ms", selected.compute_executor.encode_ms, selected.compute_executor.submit_ms));
+                    if let Some(gpu) = &selected.compute_gpu {
+                        for pass in &gpu.passes { ui.label(format!("{} · {}", pass.name, pass.milliseconds.map_or_else(|| "Timing unavailable".into(), |ms| format!("{ms:.3} ms")))); }
+                        if gpu.omitted > 0 { ui.weak(format!("{} additional dispatch timings omitted", gpu.omitted)); }
+                    } else { ui.weak("GPU timing pending, unsupported, or the timestamp pool was busy."); }
+                } else { ui.weak("No new authored compute submission in this frame."); }
+            });
         });
     }
     fn console_ui(&mut self, ui: &mut egui::Ui) -> Option<Location> {
@@ -418,7 +435,7 @@ impl DebugWorkspace {
     }
 }
 impl App {
-    pub(super) fn debug_begin_frame(&mut self) -> Option<(Instant, u64)> {
+    pub(super) fn debug_begin_frame(&mut self) -> Option<(Instant, u64, u64)> {
         if let Some(play) = &mut self.editor.play
             && let Some(d) = play.app.world.resource_mut::<Diagnostics>()
         {
@@ -426,16 +443,38 @@ impl App {
             d.profiler.begin_frame();
         }
         self.renderer.set_profiling_enabled(self.debug.recording);
+        self.compute.executor.set_profiling(self.debug.recording);
         self.debug.gpu_supported = self
             .gpu
             .device
             .features()
             .contains(wgpu::Features::TIMESTAMP_QUERY);
-        self.debug
-            .recording
-            .then(|| (Instant::now(), self.viewport_draws))
+        self.debug.recording.then(|| {
+            (
+                Instant::now(),
+                self.viewport_draws,
+                self.compute.executor.statistics().submissions,
+            )
+        })
     }
-    pub(super) fn debug_end_frame(&mut self, started: Option<(Instant, u64)>, interval_ms: f64) {
+    pub(super) fn debug_compute_profiles(&mut self, profiles: Vec<bozzard_render::GpuFrameTiming>) {
+        for profile in profiles {
+            if let Some(frame) = self
+                .debug
+                .frames
+                .iter_mut()
+                .rev()
+                .find(|frame| frame.compute_frame == Some(profile.frame))
+            {
+                frame.compute_gpu = Some(profile);
+            }
+        }
+    }
+    pub(super) fn debug_end_frame(
+        &mut self,
+        started: Option<(Instant, u64, u64)>,
+        interval_ms: f64,
+    ) {
         if let Some(play) = &mut self.editor.play
             && let Some(d) = play.app.world.resource_mut::<Diagnostics>()
             && !d.console.events.is_empty()
@@ -463,7 +502,7 @@ impl App {
             );
             self.debug.last_status.clone_from(&self.status);
         }
-        if let Some((start, draws)) = started
+        if let Some((start, draws, submissions)) = started
             && self.debug.recording
         {
             let mut spare = if self.debug.frames.len() == HISTORY {
@@ -491,6 +530,15 @@ impl App {
                 omitted_spans: omitted,
                 render: (self.viewport_draws != draws).then(|| self.renderer.frame_stats()),
                 gpu: None,
+                compute_gpu: None,
+                compute_frame: (self.compute.executor.statistics().submissions != submissions)
+                    .then_some(self.compute.executor.statistics().profile_frame),
+                compute: self.editor.play.as_ref().and_then(|play| {
+                    play.instance()
+                        .compute_if_initialized()
+                        .map(|state| state.runtime.statistics())
+                }),
+                compute_executor: self.compute.executor.statistics(),
                 entities: self
                     .editor
                     .play

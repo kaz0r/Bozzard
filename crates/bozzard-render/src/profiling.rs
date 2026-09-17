@@ -415,11 +415,7 @@ mod tests {
             gpu.adapter
                 .request_device(&wgpu::DeviceDescriptor::default()),
         )?;
-        let baseline = Gpu {
-            adapter: gpu.adapter.clone(),
-            device,
-            queue,
-        };
+        let baseline = Gpu::from_device(gpu.adapter.clone(), device, queue);
         let mut unavailable = GpuProfiler {
             enabled: true,
             ..Default::default()
