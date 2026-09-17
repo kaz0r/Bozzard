@@ -36,6 +36,7 @@ pub struct TextMesh {
     pub font_size: f32,
     pub max_width: Option<f32>,
     pub monospace: bool,
+    pub custom_font: Option<bozzard_text::Font>,
     pub alignment: TextAlignment,
     pub opacity: f32,
 }
@@ -48,12 +49,13 @@ impl Default for TextMesh {
             font_size: 0.5,
             max_width: None,
             monospace: false,
+            custom_font: None,
             alignment: TextAlignment::Left,
             opacity: 1.,
         }
     }
 }
-type Key = (String, u32, Option<u32>, bool, TextAlignment);
+type Key = (String, u32, Option<u32>, bool, TextAlignment, Option<u64>);
 impl TextMesh {
     fn key(&self) -> Key {
         (
@@ -62,6 +64,7 @@ impl TextMesh {
             self.max_width.map(f32::to_bits),
             self.monospace,
             self.alignment,
+            self.custom_font.as_ref().map(bozzard_text::Font::id),
         )
     }
     fn validate(&self) -> Result<()> {
@@ -120,7 +123,9 @@ fn layout(fonts: &mut Fonts, text: &TextMesh) -> Result<Arc<epaint::text::Galley
         text.text.clone(),
         FontId::new(
             EM,
-            if text.monospace {
+            if let Some(font) = &text.custom_font {
+                font.family()
+            } else if text.monospace {
                 FontFamily::Monospace
             } else {
                 FontFamily::Proportional
@@ -145,12 +150,13 @@ fn layout(fonts: &mut Fonts, text: &TextMesh) -> Result<Arc<epaint::text::Galley
 /// Local layout envelope, shared with headless widget layout. No GPU required.
 pub fn text_bounds(text: &TextMesh) -> Result<Option<[Vec3; 2]>> {
     text.validate()?;
-    Ok(bozzard_text::bounds(
+    Ok(bozzard_text::bounds_with_font(
         &text.text,
         text.font_size,
         text.max_width,
         text.monospace,
         text.alignment as u8,
+        text.custom_font.as_ref(),
     )?
     .map(|[min, max]| {
         [
@@ -162,6 +168,7 @@ pub fn text_bounds(text: &TextMesh) -> Result<Option<[Vec3; 2]>> {
 
 pub(super) struct TextRenderer {
     fonts: Fonts,
+    custom_fonts: Vec<u64>,
     meshes: BTreeMap<Key, MeshBuffers>,
     texture: Option<wgpu::Texture>,
     pub view: Option<wgpu::TextureView>,
@@ -171,6 +178,7 @@ impl TextRenderer {
     fn new() -> Self {
         Self {
             fonts: fonts(),
+            custom_fonts: Vec::new(),
             meshes: BTreeMap::new(),
             texture: None,
             view: None,
@@ -185,7 +193,26 @@ impl TextRenderer {
             gpu.device.limits().max_texture_dimension_2d >= 4096,
             "text requires a 4096-pixel font atlas limit"
         );
-        let reset = self.fonts.font_atlas_fill_ratio() > 0.8;
+        let custom: BTreeMap<_, _> = items
+            .iter()
+            .filter_map(|item| {
+                if let MeshKind::Text(text) = &item.mesh {
+                    text.custom_font.as_ref().map(|font| (font.id(), font))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let ids: Vec<_> = custom.keys().copied().collect();
+        let reset = self.fonts.font_atlas_fill_ratio() > 0.8 || ids != self.custom_fonts;
+        if reset {
+            let mut definitions = FontDefinitions::default();
+            for font in custom.values() {
+                font.install(&mut definitions);
+            }
+            self.fonts = Fonts::new(options(), definitions);
+            self.custom_fonts = ids;
+        }
         self.fonts.begin_pass(options());
         let mut galleys = BTreeMap::new();
         let mut bytes = 0;

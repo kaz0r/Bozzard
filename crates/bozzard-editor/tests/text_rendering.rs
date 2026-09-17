@@ -86,9 +86,10 @@ fn text_component_roundtrip_layers_bounds_picking_and_play_isolation() {
         .unwrap();
     label.parent = Some("parent".into());
     label.transform = Transform::default();
-    let local = bozzard_render::text_bounds(&bozzard_render_assets::text_mesh(
-        label.text_rendering.as_ref().unwrap(),
-    ))
+    let local = bozzard_render::text_bounds(
+        &bozzard_render_assets::text_mesh(label.text_rendering.as_ref().unwrap(), &editor.assets)
+            .unwrap(),
+    )
     .unwrap()
     .unwrap();
     scene.objects.push(parent);

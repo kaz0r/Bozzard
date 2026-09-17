@@ -1459,7 +1459,8 @@ impl Component for TextRendering {
                 .shown_when(is_screen_text),
             F::options("layer", "Layer", &["3D", "2D"]),
             F::body_text("text", "Text").help("Plain text · max 4096 UTF-8 bytes"),
-            F::options("font", "Font", &["Sans", "Monospace"]),
+            F::options("font", "Font", &["Sans", "Monospace", "Custom"]),
+            F::asset("custom_font", "Custom font", AssetKind::Font),
             F::range("font_size", "Font size", 0.01, 0.001, 1000.0)
                 .help("Pixels in a screen HUD, local units otherwise."),
             F::bool("word_wrap", "Word wrap"),
@@ -1482,7 +1483,16 @@ impl Component for TextRendering {
             "offset" => FieldValue::Vector([screen.offset[0], screen.offset[1], 0.0]),
             "layer" => FieldValue::Index(if self.layer == Layer::ThreeD { 0 } else { 1 }),
             "text" => FieldValue::Text(self.text.clone()),
-            "font" => FieldValue::Index(if self.font == TextFont::Sans { 0 } else { 1 }),
+            "font" => FieldValue::Index(match self.font {
+                TextFont::Sans => 0,
+                TextFont::Monospace => 1,
+                TextFont::Custom(_) => 2,
+            }),
+            "custom_font" => FieldValue::Asset(if let TextFont::Custom(id) = &self.font {
+                Some(id.clone())
+            } else {
+                None
+            }),
             "font_size" => return number(self.font_size),
             "word_wrap" => FieldValue::Bool(self.max_width.is_some()),
             "max_width" => return number(self.max_width?),
@@ -1524,11 +1534,18 @@ impl Component for TextRendering {
             }
             "text" => self.text = value.text()?.to_owned(),
             "font" => {
-                self.font = if value.index()? == 0 {
-                    TextFont::Sans
-                } else {
-                    TextFont::Monospace
+                self.font = match value.index()? {
+                    0 => TextFont::Sans,
+                    1 => TextFont::Monospace,
+                    2 if matches!(self.font, TextFont::Custom(_)) => self.font.clone(),
+                    _ => anyhow::bail!("Choose a custom font asset first"),
                 }
+            }
+            "custom_font" => {
+                self.font = value
+                    .asset()?
+                    .as_ref()
+                    .map_or(TextFont::Sans, |id| TextFont::Custom(id.clone()))
             }
             "font_size" => self.font_size = value.number()?,
             "word_wrap" => {

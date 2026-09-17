@@ -66,8 +66,9 @@ impl Editor {
                 && text.enabled
                 && text.screen.is_none()
                 && text.layer == layer
-                && let Some([min, max]) =
-                    bozzard_render::text_bounds(&bozzard_render_assets::text_mesh(text))?
+                && let Some([min, max]) = bozzard_render::text_bounds(
+                    &bozzard_render_assets::text_mesh(text, &self.assets)?,
+                )?
             {
                 for x in [min.x, max.x] {
                     for y in [min.y, max.y] {

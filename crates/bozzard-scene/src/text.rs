@@ -2,12 +2,15 @@ use crate::Layer;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// A font family: the two built-ins or a font asset id (`AssetKind::Font`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextFont {
     #[default]
     Sans,
     Monospace,
+    /// A font asset; the scene's assets map must contain this id.
+    Custom(String),
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -91,6 +94,12 @@ impl TextRendering {
             screen.validate()?;
         }
         ensure!(self.text.len() <= 4096, "text exceeds 4096 UTF-8 bytes");
+        if let TextFont::Custom(id) = &self.font {
+            ensure!(
+                !id.is_empty() && id.len() <= 128,
+                "custom font needs an asset id"
+            );
+        }
         ensure!(
             self.font_size.is_finite() && (0.001..=1000.).contains(&self.font_size),
             "invalid text font size"

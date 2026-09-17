@@ -800,7 +800,11 @@ impl AssetBrowser {
                                         && !matches!(
                                             asset.kind,
                                             AssetKind::Prefab | AssetKind::ComputeShader
-                                        ),
+                                        )
+                                        && (asset.kind != AssetKind::Font
+                                            || editor.selected_object().is_some_and(|object| {
+                                                object.text_rendering.is_some()
+                                            })),
                                     egui::Button::new("Assign to selected"),
                                 )
                                 .clicked()
@@ -845,6 +849,7 @@ impl AssetBrowser {
                         AssetKind::Image => "Image",
                         AssetKind::Mesh => "Model",
                         AssetKind::Script => "Script",
+                        AssetKind::Font => "Font",
                         AssetKind::ComputeShader => "Compute",
                     });
                     if matches!(asset.state, LoadState::Failed(_)) {
@@ -875,6 +880,7 @@ impl AssetBrowser {
                 AssetData::Mesh(_)
                 | AssetData::Prefab(_)
                 | AssetData::Script(_)
+                | AssetData::Font(_)
                 | AssetData::ComputeShader(_)
                 | AssetData::Audio(_) => None,
             })?;
@@ -926,6 +932,7 @@ impl AssetBrowser {
                 None => ui.label("Model"),
             },
             AssetKind::Script => ui.label("Script · Rhai"),
+            AssetKind::Font => ui.label("Font · TTF/OTF"),
             AssetKind::ComputeShader => ui.label("Compute shader · WGSL"),
         };
         if let Some(mesh) = &asset.mesh {
@@ -1157,6 +1164,7 @@ fn snapshots(
                 Some(
                     AssetData::Prefab(_)
                     | AssetData::Script(_)
+                    | AssetData::Font(_)
                     | AssetData::Audio(_)
                     | AssetData::ComputeShader(_),
                 )

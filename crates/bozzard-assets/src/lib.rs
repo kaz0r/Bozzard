@@ -149,6 +149,7 @@ fn inspection_name(name: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum AssetData {
+    Font(bozzard_text::Font),
     ComputeShader(Arc<bozzard_compute::Kernel>),
     Audio(audio::AudioData),
     Prefab(bozzard_scene::Prefab),
@@ -609,6 +610,13 @@ fn import(
         .unwrap_or("")
         .to_ascii_lowercase();
     match kind {
+        AssetKind::Font => {
+            ensure!(
+                matches!(extension.as_str(), "ttf" | "otf"),
+                "font import supports TTF/OTF"
+            );
+            Ok(AssetData::Font(bozzard_text::Font::parse(bytes.to_vec())?))
+        }
         AssetKind::ComputeShader => {
             ensure!(
                 extension == "wgsl",

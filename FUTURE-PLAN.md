@@ -126,7 +126,7 @@ reference scenes in `examples/demo/scenes/middleware-lab.json` and `ui-2d-lab.js
 - [ ] **M** Prefab nesting, variants and source-hierarchy editing (`docs/prefabs.md` lists these as remaining).
 - [ ] **M** Material instances/inheritance and shader variants/keywords; the shader graph compiles per object today with a 32-entry source cache.
 - [ ] **M** Asset cooking and bundles: imported ONNX-free cooking to a platform format, dependency-driven incremental rebuilds, and downloadable/addressable content packs.
-- [ ] **S** More importers: FBX (or a documented conversion path) and custom fonts (fonts are a fixed `TextFont` enum). WAV, OGG/Vorbis, MP3 and FLAC audio are supported by section 4.
+- [ ] **S** More importers: FBX (or a documented conversion path). WAV, OGG/Vorbis, MP3 and FLAC audio are supported by section 4. Custom fonts are done: `TextFont::Custom(asset_id)` references `AssetKind::Font` TTF/OTF imports (validated with skrifa before atlas use, up to 4 MiB), wired through asset dependencies/remapping, editor picking/bounds, and the GPU text atlas; see [text rendering](docs/text-rendering.md). Variable-font axes and fallback chains remain open.
 - [ ] **M** Authoring tools for level building: terrain/landscape, foliage scattering, blockout brushes, snapping, measurement and a grid, custom inspectors, and docking.
 - [ ] **S** Project ergonomics: template/project wizard, sample projects beyond the demo scenes, and a scene merge helper on top of the diffable JSON.
 

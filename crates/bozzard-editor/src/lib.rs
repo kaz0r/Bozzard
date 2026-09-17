@@ -611,6 +611,7 @@ impl Editor {
             "repair or reload this asset before adding it"
         );
         let (layer, mesh, texture) = match source.kind {
+            AssetKind::Font => anyhow::bail!("Assign a font to a Text Rendering component"),
             AssetKind::ComputeShader => {
                 anyhow::bail!("Dispatch a compute shader from a script instead of placing it")
             }
@@ -726,11 +727,21 @@ impl Editor {
             self.finish_gesture();
             return self.apply("Assign audio clip", scene);
         }
+        if source.kind == AssetKind::Font {
+            object
+                .text_rendering
+                .as_mut()
+                .context("selected object has no Text Rendering component")?
+                .font = bozzard_scene::TextFont::Custom(asset_id.into());
+            self.finish_gesture();
+            return self.apply("Assign font", scene);
+        }
         let drawable = object
             .drawable
             .as_mut()
             .context("selected object has no drawable")?;
         match source.kind {
+            AssetKind::Font => unreachable!("handled above"),
             AssetKind::ComputeShader => {
                 anyhow::bail!("Bind a compute shader's output from its script")
             }
@@ -795,6 +806,7 @@ impl Editor {
             "png" | "jpg" | "jpeg" => AssetKind::Image,
             "obj" | "gltf" | "glb" => AssetKind::Mesh,
             "rs" | "rhai" => AssetKind::Script,
+            "ttf" | "otf" => AssetKind::Font,
             "wgsl" => AssetKind::ComputeShader,
             "json"
                 if source
@@ -1301,7 +1313,8 @@ fn extract_with_gi(
             .chain(
                 view.texts
                     .into_iter()
-                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text)),
+                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text, assets))
+                    .collect::<Result<Vec<_>>>()?,
             )
             .collect(),
     })

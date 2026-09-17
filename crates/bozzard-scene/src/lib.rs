@@ -498,6 +498,8 @@ pub enum AssetKind {
     Prefab,
     Image,
     Mesh,
+    /// A TrueType/OpenType font file (`.ttf`, `.otf`).
+    Font,
     /// A Rhai script file (`.rs` by project convention).
     Script,
 }
@@ -1303,6 +1305,13 @@ impl Object {
         if let Some(manager) = &self.script_manager {
             dependencies.extend(manager.asset_dependencies());
         }
+        if let Some(TextRendering {
+            font: TextFont::Custom(id),
+            ..
+        }) = &self.text_rendering
+        {
+            dependencies.push((id, AssetKind::Font));
+        }
         dependencies.extend(middleware::registry::dependencies(self));
         dependencies
     }
@@ -1313,6 +1322,13 @@ impl Object {
                 *id = new.clone();
             }
         };
+        if let Some(TextRendering {
+            font: TextFont::Custom(id),
+            ..
+        }) = &mut self.text_rendering
+        {
+            remap(id);
+        }
         if let Some(material) = &mut self.material
             && let Some(Texture::Asset(id)) = &mut material.texture
         {

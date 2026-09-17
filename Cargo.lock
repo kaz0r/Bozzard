@@ -547,6 +547,7 @@ dependencies = [
  "base64",
  "bozzard-compute",
  "bozzard-scene",
+ "bozzard-text",
  "glam 0.33.6",
  "gltf",
  "image",
@@ -731,6 +732,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "epaint",
+ "skrifa",
 ]
 
 [[package]]

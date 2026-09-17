@@ -57,7 +57,7 @@ impl Editor {
             if !text.enabled || text.layer != layer || text.color[3] == 0. {
                 continue;
             }
-            let mesh = bozzard_render_assets::text_mesh(text);
+            let mesh = bozzard_render_assets::text_mesh(text, &self.assets)?;
             let Some(screen) = mesh.screen else {
                 continue;
             };
@@ -288,8 +288,9 @@ impl Editor {
                 && text.color[3] > 0.
                 && text.layer == layer
                 && d.z.abs() >= 1e-8
-                && let Some([min, max]) =
-                    bozzard_render::text_bounds(&bozzard_render_assets::text_mesh(text))?
+                && let Some([min, max]) = bozzard_render::text_bounds(
+                    &bozzard_render_assets::text_mesh(text, &self.assets)?,
+                )?
             {
                 let t = -o.z / d.z;
                 let p = o + d * t;

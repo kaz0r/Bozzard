@@ -163,7 +163,8 @@ pub fn extract(
             .chain(
                 view.texts
                     .into_iter()
-                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text)),
+                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text, assets))
+                    .collect::<Result<Vec<_>>>()?,
             )
             .collect(),
     })

@@ -31,8 +31,24 @@ pub fn skin_poses(
 }
 
 /// The same text settings feed rendering, editor bounds, and picking.
-pub fn text_mesh(text: &bozzard_scene::TextRendering) -> bozzard_render::TextMesh {
-    bozzard_render::TextMesh {
+pub fn text_mesh(
+    text: &bozzard_scene::TextRendering,
+    assets: &bozzard_assets::AssetStore,
+) -> anyhow::Result<bozzard_render::TextMesh> {
+    let custom_font = if let bozzard_scene::TextFont::Custom(id) = &text.font {
+        let data = assets
+            .handle(id)
+            .and_then(|handle| assets.get(handle))
+            .and_then(|entry| entry.data());
+        let Some(AssetData::Font(font)) = data else {
+            anyhow::bail!("custom font '{id}' is not loaded");
+        };
+        Some(font.clone())
+    } else {
+        None
+    };
+    Ok(bozzard_render::TextMesh {
+        custom_font,
         clip: None,
         screen: text.screen.map(|s| bozzard_render::ScreenText {
             anchor: s.anchor,
@@ -48,16 +64,17 @@ pub fn text_mesh(text: &bozzard_scene::TextRendering) -> bozzard_render::TextMes
             bozzard_scene::TextAlignment::Right => bozzard_render::TextAlignment::Right,
         },
         opacity: text.color[3],
-    }
+    })
 }
 pub fn text_item(
     model: glam::Mat4,
     text: &bozzard_scene::TextRendering,
-) -> bozzard_render::DrawItem {
-    bozzard_render::DrawItem {
+    assets: &bozzard_assets::AssetStore,
+) -> anyhow::Result<bozzard_render::DrawItem> {
+    Ok(bozzard_render::DrawItem {
         motion_id: 0,
         model,
-        mesh: bozzard_render::MeshKind::Text(text_mesh(text)),
+        mesh: bozzard_render::MeshKind::Text(text_mesh(text, assets)?),
         material: bozzard_render::Material {
             metallic: None,
             roughness: None,
@@ -68,7 +85,7 @@ pub fn text_item(
             lit: false,
             shader: None,
         },
-    }
+    })
 }
 
 fn image(source: &ImageData) -> ModelImage<'_> {
@@ -166,6 +183,7 @@ impl bozzard_render::UploadSource for SharedSource {
     fn data(&self) -> bozzard_render::UploadData<'_> {
         match self.0.as_ref() {
             AssetData::Prefab(_)
+            | AssetData::Font(_)
             | AssetData::Audio(_)
             | AssetData::Script(_)
             | AssetData::ComputeShader(_) => {
@@ -194,6 +212,7 @@ pub fn upload(
 ) -> anyhow::Result<()> {
     match data {
         AssetData::Prefab(_)
+        | AssetData::Font(_)
         | AssetData::Audio(_)
         | AssetData::Script(_)
         | AssetData::ComputeShader(_) => Ok(()),
