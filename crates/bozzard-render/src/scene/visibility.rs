@@ -15,6 +15,13 @@ pub struct FrameStats {
     pub visible_surfaces: usize,
     pub culled_surfaces: usize,
     pub color_triangles: u64,
+    /// Actual color-pass mesh draws, excluding particles, sky, HUD and post-processing.
+    pub color_draws: usize,
+    pub instanced_draws: usize,
+    /// Visible surfaces represented by draws with more than one instance.
+    pub instanced_surfaces: usize,
+    /// Additional packed instance uniform bytes uploaded this frame.
+    pub instance_uniform_bytes: usize,
     pub shadow_draws: usize,
     /// Depth passes encoded this frame, including clears of empty maps.
     pub shadow_maps_rendered: usize,

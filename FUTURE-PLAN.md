@@ -120,7 +120,7 @@ reference scenes in `examples/demo/scenes/middleware-lab.json` and `ui-2d-lab.js
 
 ## 5 — Scale and content pipeline
 
-- [ ] **L** Batching/instancing and LOD. The renderer issues one draw per object with no instancing, LOD or occlusion culling; Sponza's 89 visible surfaces are fine, a real level is not.
+- [ ] **L** Batching/instancing and LOD. The renderer issues one draw per object with no LOD or occlusion culling; Sponza's 89 visible surfaces are fine, a real level is not. Consecutive visible opaque surfaces sharing a mesh and texture now batch into one instanced call of up to 32 objects (uniform-binding bounded), with stock shaders selecting the per-invocation object uniform; skinned geometry, shader graphs, alpha cutoff, text and sprites stay single-draw, order is unchanged, and `set_instancing_enabled(false)` restores the reference path. Measured on an RTX 3060 (Vulkan) at 800×500 with 1,024 lit checker cubes: 1,024 → 32 color draws, CPU 1.32 → 0.87 ms static and 2.77 → 2.29 ms rotating, output byte-identical to the reference path; see [asset rendering](assets.md). LOD and occlusion culling remain open.
 - [ ] **M** Texture compression (BC/ASTC) and a GPU memory budget with eviction. `docs/architecture.md` already lists memory budgets and streaming as deliberate omissions.
 - [ ] **M** Async and additive scene loading, plus multi-scene editing in the editor.
 - [ ] **M** Prefab nesting, variants and source-hierarchy editing (`docs/prefabs.md` lists these as remaining).
