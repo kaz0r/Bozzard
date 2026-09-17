@@ -388,6 +388,80 @@ fn extras(
 ) -> Result<bool> {
     let mut changed = false;
     match entry.name {
+        "lod" => {
+            let Some(lod) = &mut object.lod else {
+                return Ok(false);
+            };
+            let mut remove = None;
+            for (index, level) in lod.levels.iter_mut().enumerate() {
+                ui.push_id(index, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("From distance");
+                        changed |= ui
+                            .add(
+                                egui::DragValue::new(&mut level.switch)
+                                    .speed(1.)
+                                    .range(0.001..=f32::MAX),
+                            )
+                            .changed();
+                        if ui.small_button("Remove").clicked() {
+                            remove = Some(index);
+                        }
+                    });
+                    egui::ComboBox::from_id_salt("mesh")
+                        .selected_text(match &level.mesh {
+                            None => "Cull".into(),
+                            Some(bozzard_scene::Mesh::Quad) => "Quad".into(),
+                            Some(bozzard_scene::Mesh::Cube) => "Cube".into(),
+                            Some(bozzard_scene::Mesh::Asset(id)) => id.clone(),
+                            Some(bozzard_scene::Mesh::Surface { asset, index, .. }) => {
+                                format!("{asset} surface {index}")
+                            }
+                        })
+                        .show_ui(ui, |ui| {
+                            for (mesh, label) in [
+                                (None, "Cull"),
+                                (Some(bozzard_scene::Mesh::Quad), "Quad"),
+                                (Some(bozzard_scene::Mesh::Cube), "Cube"),
+                            ] {
+                                changed |=
+                                    ui.selectable_value(&mut level.mesh, mesh, label).changed();
+                            }
+                            for (id, source) in &scene.assets {
+                                if source.kind == AssetKind::Mesh {
+                                    changed |= ui
+                                        .selectable_value(
+                                            &mut level.mesh,
+                                            Some(bozzard_scene::Mesh::Asset(id.clone())),
+                                            id,
+                                        )
+                                        .changed();
+                                }
+                            }
+                        });
+                });
+            }
+            if let Some(index) = remove {
+                lod.levels.remove(index);
+                changed = true;
+            }
+            if ui
+                .add_enabled(lod.levels.len() < 32, egui::Button::new("Add LOD level"))
+                .clicked()
+            {
+                lod.levels.push(bozzard_scene::LodLevel {
+                    switch: lod.levels.last().map_or(100., |level| level.switch + 100.),
+                    mesh: object
+                        .drawable
+                        .as_ref()
+                        .map(|drawable| drawable.mesh.clone()),
+                });
+                changed = true;
+            }
+            if changed {
+                lod.validate()?;
+            }
+        }
         "mesh_collider" => {
             let Some(collider) = &mut object.mesh_collider else {
                 return Ok(false);

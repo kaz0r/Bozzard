@@ -339,6 +339,64 @@ impl Material {
 #[serde(transparent)]
 pub struct Spin(pub [f32; 3]);
 
+/// One level of a distance-based mesh swap. `switch` is the camera distance in world units at
+/// which this level starts applying; levels are ordered nearest first.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LodLevel {
+    pub switch: f32,
+    /// Replacement mesh, or `null` to cull the drawable at this distance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mesh: Option<Mesh>,
+}
+impl Default for LodLevel {
+    fn default() -> Self {
+        Self {
+            switch: 100.,
+            mesh: Some(Mesh::Quad),
+        }
+    }
+}
+impl LodLevel {
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.switch.is_finite() && self.switch > 0.,
+            "invalid LOD switch distance"
+        );
+        Ok(())
+    }
+}
+/// Distance-based level of detail. Below the first switch the base mesh is used;
+/// each switch replaces it from that distance onward. A null mesh culls the drawable.
+/// Distances use world units between the object and view camera origins.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Lod {
+    pub levels: Vec<LodLevel>,
+}
+impl Lod {
+    /// The level for a camera distance: `Some(Some(mesh))` replaces the drawable's mesh,
+    /// `Some(None)` culls it, `None` keeps the base mesh. The last reached switch wins.
+    pub fn level(&self, distance: f32) -> Option<Option<Mesh>> {
+        self.levels
+            .iter()
+            .rev()
+            .find(|level| distance >= level.switch)
+            .map(|level| level.mesh.clone())
+    }
+    pub fn validate(&self) -> Result<()> {
+        ensure!(self.levels.len() <= 32, "LOD supports at most 32 levels");
+        for level in &self.levels {
+            level.validate()?;
+        }
+        ensure!(
+            self.levels.is_sorted_by(|a, b| a.switch < b.switch),
+            "LOD levels must be ordered by increasing switch distance"
+        );
+        Ok(())
+    }
+}
+
 /// An object is its identity (`id`, `name`, `parent`, `transform`) plus any number of components.
 ///
 /// Components are siblings of the identity fields, and the [registry](component::components) owns
@@ -364,6 +422,7 @@ pub struct Object {
     pub camera: Option<Camera>,
     pub drawable: Option<Drawable>,
     pub spin: Option<Spin>,
+    pub lod: Option<Lod>,
     pub collider: Option<BoxCollider>,
     pub mesh_collider: Option<MeshCollider>,
     pub gravity: Option<Gravity>,
@@ -675,6 +734,14 @@ impl Scene {
             }
             if let Some(text) = &object.text_rendering {
                 text.validate()?;
+            }
+            if let Some(lod) = &object.lod {
+                lod.validate()?;
+                ensure!(
+                    object.drawable.is_some(),
+                    "LOD on '{}' needs a Mesh Renderer to swap",
+                    object.id
+                );
             }
             if let Some(manager) = &object.script_manager {
                 manager.validate()?;
@@ -1107,6 +1174,27 @@ impl SceneInstance {
                     .is_some_and(|s| s.collected.contains(id))
             {
                 let mut drawable = drawable.clone();
+                if let Some(lod) = world.get::<Lod>(*entity)
+                    && world
+                        .get::<middleware::animation::Animator>(*entity)
+                        .is_none_or(|animator| animator.rig.bindings.is_empty())
+                {
+                    lod.validate()?;
+                    let distance = matrices[id]
+                        .transform_point3(Vec3::ZERO)
+                        .distance(matrices[camera_id].transform_point3(Vec3::ZERO));
+                    match lod.level(distance) {
+                        Some(Some(mesh)) if drawable.mesh != mesh => {
+                            // Surface overrides belong to the original mesh, not the replacement.
+                            drawable.material_overrides.clear();
+                            drawable.mesh = mesh;
+                        }
+                        // ponytail: hysteresis needs a per-object frame history; add it if
+                        // switch flicker is reported at boundary distances.
+                        Some(None) => continue,
+                        _ => {}
+                    }
+                }
                 if let Some(material) = world.get::<Material>(*entity) {
                     material.apply(&mut drawable);
                 }
@@ -1223,6 +1311,7 @@ impl SceneInstance {
             object.camera = world.get::<Camera>(entity).copied();
             object.drawable = world.get::<Drawable>(entity).cloned();
             object.spin = world.get::<Spin>(entity).copied();
+            object.lod = world.get::<Lod>(entity).cloned();
             object.collider = world.get::<BoxCollider>(entity).copied();
             object.mesh_collider = world.get::<MeshCollider>(entity).cloned();
             object.gravity = world.get::<Gravity>(entity).copied();
@@ -1277,6 +1366,7 @@ impl Object {
             trigger,
             joint,
             spin,
+            lod,
             shader_graph
         );
         if self.gravity.is_some() {
@@ -1290,6 +1380,11 @@ impl Object {
             .as_ref()
             .map(Drawable::asset_dependencies)
             .unwrap_or_default();
+        for level in self.lod.iter().flat_map(|lod| &lod.levels) {
+            if let Some(Mesh::Asset(id) | Mesh::Surface { asset: id, .. }) = &level.mesh {
+                dependencies.push((id, AssetKind::Mesh));
+            }
+        }
         if let Some(Material {
             texture: Some(Texture::Asset(id)),
             ..
@@ -1328,6 +1423,11 @@ impl Object {
         }) = &mut self.text_rendering
         {
             remap(id);
+        }
+        for level in self.lod.iter_mut().flat_map(|lod| &mut lod.levels) {
+            if let Some(Mesh::Asset(id) | Mesh::Surface { asset: id, .. }) = &mut level.mesh {
+                remap(id);
+            }
         }
         if let Some(material) = &mut self.material
             && let Some(Texture::Asset(id)) = &mut material.texture
@@ -1507,6 +1607,7 @@ mod tests {
             camera: None,
             drawable: None,
             spin: None,
+            lod: None,
             collider: None,
             mesh_collider: None,
             text_rendering: None,

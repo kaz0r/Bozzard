@@ -352,6 +352,7 @@ impl Editor {
             camera: None,
             drawable: None,
             spin: None,
+            lod: None,
             collider: None,
             gravity: None,
             player_controller: None,

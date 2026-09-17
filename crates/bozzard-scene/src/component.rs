@@ -551,6 +551,15 @@ macro_rules! component_row {
     };
 }
 
+// ---------------------------------------------------------------- Lod
+
+impl Component for Lod {
+    const NAME: &'static str = "lod";
+    const LABEL: &'static str = "LOD";
+    const UI: Ui = Ui::Generic;
+    const HELP: &'static str = "Base mesh below the first switch; each level applies from its distance onward. World units, nearest first. Skinned objects keep their base mesh.";
+}
+
 // ---------------------------------------------------------------- Spin
 
 impl Component for Spin {
@@ -1728,6 +1737,7 @@ pub const COMPONENTS: &[ComponentType] = &[
         |object, _scene| {
             object.drawable = None;
             object.material = None;
+            object.lod = None;
         }
     ),
     component_row!(
@@ -1886,6 +1896,17 @@ pub const COMPONENTS: &[ComponentType] = &[
             Ok(())
         },
         |object, _scene| object.spin = None
+    ),
+    component_row!(
+        Lod,
+        lod,
+        |object| object.lod.is_none() && object.drawable.is_some(),
+        |object, _context| {
+            ensure!(object.drawable.is_some(), "LOD needs a Mesh Renderer");
+            object.lod = Some(Lod::default());
+            Ok(())
+        },
+        |object, _scene| object.lod = None
     ),
     component_row!(
         Camera,
@@ -2197,6 +2218,7 @@ mod tests {
                 "light",
                 "particle_emitter",
                 "spin",
+                "lod",
                 "camera",
                 "text_rendering",
                 "script_manager",
@@ -2298,6 +2320,7 @@ mod tests {
                 "light",
                 "particle_emitter",
                 "spin",
+                "lod",
                 "camera",
                 "text_rendering",
                 "trigger",

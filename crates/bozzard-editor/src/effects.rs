@@ -147,6 +147,7 @@ impl Editor {
             camera: None,
             drawable: None,
             spin: None,
+            lod: None,
             collider: None,
             mesh_collider: None,
             text_rendering: None,
