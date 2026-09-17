@@ -70,6 +70,8 @@ pub enum MeshKind {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TextureKind {
+    /// Linear color with straight alpha; identity includes the runtime world generation.
+    Generated(bozzard_compute::Handle),
     Text,
     White,
     Checker,
@@ -258,6 +260,8 @@ pub struct SceneRenderer {
     models: BTreeMap<String, Vec<UploadedPart>>,
     transparent_textures: BTreeSet<String>,
     imported_textures: BTreeMap<String, wgpu::TextureView>,
+    generated_textures: BTreeMap<bozzard_compute::Handle, wgpu::TextureView>,
+    generated_revision: (u64, u64),
     model_upload_stats: BTreeMap<String, ModelUploadStats>,
 }
 
@@ -744,6 +748,8 @@ impl SceneRenderer {
             models: BTreeMap::new(),
             transparent_textures: BTreeSet::new(),
             imported_textures: BTreeMap::new(),
+            generated_textures: BTreeMap::new(),
+            generated_revision: (0, 0),
             model_upload_stats: BTreeMap::new(),
         }
     }
@@ -874,6 +880,10 @@ impl SceneRenderer {
 
     fn texture_view(&self, key: &TextureKind) -> Result<&wgpu::TextureView> {
         Ok(match key {
+            // A backpressured creation may reach extraction before its first GPU submission.
+            TextureKind::Generated(handle) => {
+                self.generated_textures.get(handle).unwrap_or(&self.white)
+            }
             TextureKind::Text => self
                 .text
                 .as_ref()
@@ -905,6 +915,25 @@ impl SceneRenderer {
         self.shadow_frame = None;
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
+    }
+
+    /// Update only when resource identities change. Dispatching into an existing texture keeps
+    /// object bind groups intact; the GPU sees the new pixels through the same texture view.
+    pub fn set_generated_textures(
+        &mut self,
+        revision: (u64, u64),
+        views: impl Iterator<Item = (bozzard_compute::Handle, wgpu::TextureView)>,
+    ) {
+        if self.generated_revision == revision {
+            return;
+        }
+        self.generated_revision = revision;
+        let next: BTreeMap<_, _> = views.collect();
+        if self.generated_textures.keys().eq(next.keys()) {
+            return;
+        }
+        self.generated_textures = next;
+        self.invalidate_object_bindings();
     }
 
     pub fn clear_imported(&mut self) {
@@ -1522,6 +1551,7 @@ impl SceneRenderer {
                     } else {
                         part.color[3] < 1.0
                             || matches!(&item.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
+                            || matches!(&item.material.texture, TextureKind::Generated(_))
                     };
                     if let Some(value) = override_value {
                         for (tint, multiplier) in item.material.tint.iter_mut().zip(value.tint) {
@@ -1553,7 +1583,8 @@ impl SceneRenderer {
                     );
                 }
             } else {
-                let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id));
+                let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
+                    || matches!(&object.material.texture, TextureKind::Generated(_));
                 add(
                     object.clone(),
                     1.0,

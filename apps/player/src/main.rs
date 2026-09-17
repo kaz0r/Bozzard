@@ -170,6 +170,7 @@ struct View {
     gpu: Gpu,
     config: wgpu::SurfaceConfiguration,
     renderer: SceneRenderer,
+    compute: bozzard_render_assets::ComputeBridge,
     drawable: bool,
     /// Reuse the rendered layout's decision instead of laying out UI for every mouse event.
     ui_wants_pointer: bool,
@@ -202,6 +203,7 @@ impl View {
             .context("surface is unsupported by selected adapter")?;
         config.present_mode = wgpu::PresentMode::Fifo;
         let renderer = SceneRenderer::new(&gpu, config.format);
+        let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         surface.configure(&gpu.device, &config);
         if options.frames.is_some() {
             window.focus_window();
@@ -213,6 +215,7 @@ impl View {
             gpu,
             config,
             renderer,
+            compute,
             drawable: size.width > 0 && size.height > 0,
             // Keep the pointer free until the first visible frame establishes the UI policy.
             ui_wants_pointer: true,
@@ -663,6 +666,21 @@ impl ApplicationHandler for Player {
                 .process_event(&view.window, &event);
         }
         if matches!(event, WindowEvent::RedrawRequested) {
+            if let Some(view) = &mut self.view {
+                let refreshed = self.demo.with_instance(|instance, _| {
+                    view.compute.prepare(instance);
+                    view.compute
+                        .refresh(&view.gpu, instance, self.assets.store())
+                });
+                if let Err(error) = refreshed {
+                    self.fail(event_loop, error);
+                    return;
+                }
+                if let Err(error) = view.compute.poll(&view.gpu) {
+                    self.fail(event_loop, error);
+                    return;
+                }
+            }
             let view = self.view.as_ref().unwrap();
             let scale = view.window.scale_factor() as f32;
             let size = [
@@ -753,6 +771,13 @@ impl ApplicationHandler for Player {
                 self.fail(event_loop, error);
                 return;
             }
+            if let Some(view) = &mut self.view {
+                if let Err(error) = view.compute.submit(&view.gpu, self.demo.instance()) {
+                    self.fail(event_loop, error);
+                    return;
+                }
+                view.compute.sync_renderer(&mut view.renderer);
+            }
             let audio_result = self
                 .demo
                 .instance()
@@ -830,6 +855,19 @@ impl ApplicationHandler for Player {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if event_loop.exiting() {
             return;
+        }
+        // Some window systems stop redraw events while minimized. Accepted compute requests and
+        // async maps still progress; result delivery waits for the next actual simulation tick.
+        if let Some(view) = &mut self.view {
+            let result = view
+                .compute
+                .poll(&view.gpu)
+                .and_then(|_| view.compute.submit(&view.gpu, self.demo.instance()));
+            if let Err(error) = result {
+                self.fail(event_loop, error);
+                return;
+            }
+            view.compute.sync_renderer(&mut view.renderer);
         }
         if self.options.frames.is_some() && self.last_present.elapsed() > Duration::from_secs(30) {
             self.fail(

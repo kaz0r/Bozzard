@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "Compute Waves",
+  "start_scene": "scenes/compute-waves.json",
+  "view": "3d"
+}

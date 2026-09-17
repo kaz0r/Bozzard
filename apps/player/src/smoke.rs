@@ -5,6 +5,7 @@ use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscree
 use glam::{Mat4, Vec3};
 mod benchmark;
 mod bloom;
+mod compute;
 mod display;
 mod environment;
 mod gi;
@@ -666,6 +667,13 @@ fn check_document(
     prefix: &str,
     animated: bool,
 ) -> Result<()> {
+    if document
+        .assets
+        .values()
+        .any(|asset| asset.kind == bozzard_scene::AssetKind::ComputeShader)
+    {
+        return compute::check_document(gpu, renderer, document, assets, options);
+    }
     for (layer, label, size) in [
         (Layer::TwoD, "2d", [640, 400]),
         (Layer::ThreeD, "3d", [800, 500]),

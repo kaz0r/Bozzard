@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+bozzard-compute.workspace = true
 serde.workspace = true
 bozzard-text.workspace = true
 anyhow.workspace = true
@@ -16,3 +17,6 @@ epaint = { version = "0.36.1", default-features = false, features = ["default_fo
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

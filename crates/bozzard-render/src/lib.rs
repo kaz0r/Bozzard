@@ -2,6 +2,7 @@
 pub use scene::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
 pub use scene::{SkinData, SkinPose};
 pub use wgpu;
+pub mod compute;
 mod mipmap;
 mod pbr;
 mod profiling;
@@ -73,6 +74,7 @@ pub struct Gpu {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+    failure: std::sync::Arc<std::sync::OnceLock<String>>,
 }
 
 impl Gpu {
@@ -118,11 +120,22 @@ impl Gpu {
             })
             .await
             .context("creating graphics device")?;
-        Ok(Self {
+        Ok(Self::from_device(adapter, device, queue))
+    }
+
+    /// Wrap the device supplied by a native host (including the editor's egui renderer).
+    pub fn from_device(adapter: wgpu::Adapter, device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        let failure = std::sync::Arc::new(std::sync::OnceLock::new());
+        let signal = failure.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            let _ = signal.set(format!("GPU device lost ({reason:?}): {message}"));
+        });
+        Self {
             adapter,
             device,
             queue,
-        })
+            failure,
+        }
     }
 
     pub fn wait(&self) -> Result<()> {
@@ -133,6 +146,9 @@ impl Gpu {
             })
             .context("GPU completion timeout or device failure")?;
         Ok(())
+    }
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.get().map(String::as_str)
     }
 }
 

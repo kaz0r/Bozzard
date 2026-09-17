@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "Compute Waves — animated GPU texture",
+  "views": { "3d": "camera" },
+  "assets": {
+    "waves": { "kind": "compute_shader", "path": "assets/compute/waves.compute.wgsl" },
+    "controller": { "kind": "script", "path": "assets/compute/waves.rs" }
+  },
+  "objects": [
+    {
+      "id": "camera", "name": "Camera",
+      "transform": { "translation": [0, 0, 6], "rotation_degrees": [0, 0, 0], "scale": [1, 1, 1] },
+      "camera": { "projection": "perspective", "vertical_fov_degrees": 50, "near": 0.1, "far": 100 }
+    },
+    {
+      "id": "water", "name": "Compute water surface",
+      "transform": { "translation": [0, 0, 0], "rotation_degrees": [0, 0, 0], "scale": [7.5, 3.75, 1] },
+      "drawable": { "layer": "3d", "mesh": "quad", "texture": "white", "color": [1, 1, 1], "uv_scale": [1, 1] },
+      "script_manager": { "scripts": [{ "enabled": true, "script": "controller" }] }
+    }
+  ]
+}

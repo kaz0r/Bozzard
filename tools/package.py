@@ -82,7 +82,7 @@ def main():
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
-        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json", "blueprint-lab.json", "pressure-plate-lab.json", "middleware-lab.json", "ui-2d-lab.json"]:
+        for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json", "blueprint-lab.json", "pressure-plate-lab.json", "middleware-lab.json", "ui-2d-lab.json", "compute-waves.json", "compute-numbers.json"]:
             shutil.copy2(ROOT / "examples/demo/scenes" / scene, stage / scene)
         shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")
         (stage / "README.txt").write_text(
@@ -98,6 +98,7 @@ def main():
             "Open prefab-lab.json to try linked reusable object hierarchies.\n"
             "Open middleware-lab.json for audio, skeletal animation, navigation and GPU particles.\n"
             "Open ui-2d-lab.json in 2D for editable menus, sprite animation, tiles and accessibility controls.\n"
+            "Open compute-waves.json for a script-driven GPU texture, or compute-numbers.json for asynchronous buffer readback.\n"
             "Open gravity-lab.json to try gravity, or response-lab.json for box movement against walls.\n"
             "File edits reload automatically; failed imports retain the last good asset.\n"
             "Requires the host OS graphics drivers and system runtime libraries.\n"

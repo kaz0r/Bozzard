@@ -2,7 +2,9 @@
 //! Neither the CPU importer nor the renderer depends on this bridge.
 mod ui;
 pub use ui::{nine_slice, widget_items};
+mod compute;
 mod residency;
+pub use compute::ComputeBridge;
 
 use bozzard_assets::{
     AssetData, Filter, ImageData, MeshData, Sampler, SurfaceShading, TextureMap, Wrap,
@@ -163,7 +165,10 @@ impl bozzard_render::UploadSource for SharedSource {
     }
     fn data(&self) -> bozzard_render::UploadData<'_> {
         match self.0.as_ref() {
-            AssetData::Prefab(_) | AssetData::Audio(_) | AssetData::Script(_) => {
+            AssetData::Prefab(_)
+            | AssetData::Audio(_)
+            | AssetData::Script(_)
+            | AssetData::ComputeShader(_) => {
                 unreachable!("non-rendered assets are excluded by upload_source")
             }
             AssetData::Image(data) => bozzard_render::UploadData::Image(image(data)),
@@ -188,7 +193,10 @@ pub fn upload(
     data: &AssetData,
 ) -> anyhow::Result<()> {
     match data {
-        AssetData::Prefab(_) | AssetData::Audio(_) | AssetData::Script(_) => Ok(()),
+        AssetData::Prefab(_)
+        | AssetData::Audio(_)
+        | AssetData::Script(_)
+        | AssetData::ComputeShader(_) => Ok(()),
         AssetData::Image(image) => {
             renderer.upload_image(gpu, id, image.width, image.height, &image.rgba)
         }

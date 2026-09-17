@@ -1,0 +1,32 @@
+{
+  "adapter": "Apple M2 Pro",
+  "backend": "metal",
+  "kernel": "32 dependent sin/scale/add iterations per element",
+  "profile": "release",
+  "workloads": [
+    {
+      "bytes": 1024,
+      "cpu_encode_ms": 0.0017605500000000007,
+      "cpu_ms": 0.044525,
+      "elements": 256,
+      "gpu_pass_ms": 0.01414155,
+      "queue_submit_ms": 0.02752715,
+      "resident_roundtrip_ms": 0.2936021,
+      "typed_readback_roundtrip_ms": 0.20886659999999999,
+      "typed_upload_roundtrip_ms": 0.170375,
+      "warm_gpu_allocations": 0
+    },
+    {
+      "bytes": 1048576,
+      "cpu_encode_ms": 0.0013583000000000002,
+      "cpu_ms": 46.024150000000006,
+      "elements": 262144,
+      "gpu_pass_ms": 0.2726561,
+      "queue_submit_ms": 0.022514600000000003,
+      "resident_roundtrip_ms": 0.5573707,
+      "typed_readback_roundtrip_ms": 2.9059502000000004,
+      "typed_upload_roundtrip_ms": 1.5582918000000003,
+      "warm_gpu_allocations": 0
+    }
+  ]
+}

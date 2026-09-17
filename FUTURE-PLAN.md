@@ -61,6 +61,8 @@ and shares the same blackboards.
 - [x] **M** Scripting as the second gameplay path: a **Script Manager** component running Rhai scripts whose hooks call every engine action a blueprint node calls, reading and writing the same object and scene blackboards so one scene can mix both.
 - [ ] **S** Script authoring depth: reload a script while Play is running instead of on the next open, a script pane with completion for the exposed functions, and per-script hook/command statistics next to the blueprint stats.
 
+- [x] **L** Script-accessible compute: validated WGSL assets, shared Rust/Rhai resource and dispatch API, asynchronous readback, generated material textures, hot reload, runtime inspection, profiling, export, and sample scenes. See [compute authoring](docs/compute.md) and [measurements](docs/compute-validation.md).
+
 ## 3 — Physics surface
 
 Rapier is in and owns velocities, inertia and sleeping (`crates/bozzard-scene/src/physics.rs`); what is

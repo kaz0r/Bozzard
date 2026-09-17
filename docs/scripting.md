@@ -22,6 +22,11 @@ Rhai is a small, Rust-like, dynamically typed language with its own `if`/`while`
 arrays, maps, strings and math (`sin`, `sqrt`, `min`, `abs`, …). Anything Rhai already provides is
 not re-exposed: a script uses `sin(t)` and `a + b`, not an engine node name.
 
+Scripts can also [dispatch WGSL compute shaders](compute.md), display generated textures and
+collect asynchronous buffer results. Compute uses dedicated named resource/job state, separate
+from blackboards. Its CPU reservations are visible immediately to later compute calls in the
+same hook; completion results become visible only at a later simulation boundary.
+
 ## Attach a script
 
 1. Put the source next to the scene and add it to the scene's asset catalog:

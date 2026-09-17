@@ -22,6 +22,7 @@ mod blueprints;
 mod cameras;
 mod colliders;
 mod component_ui;
+mod compute_ui;
 mod debug;
 mod export;
 mod files;
@@ -66,6 +67,7 @@ struct Workspace {
     shaders_visible: bool,
     stats_visible: bool,
     debug_visible: bool,
+    compute_visible: bool,
     blueprint_debug: blueprint_debug::Preferences,
     colliders_visible: bool,
     gi_visible: bool,
@@ -88,6 +90,7 @@ impl Default for Workspace {
             shaders_visible: false,
             stats_visible: false,
             debug_visible: false,
+            compute_visible: false,
             blueprint_debug: Default::default(),
             colliders_visible: true,
             gi_visible: false,
@@ -125,6 +128,8 @@ struct App {
     editor: Editor,
     gpu: Gpu,
     renderer: SceneRenderer,
+    compute: bozzard_render_assets::ComputeBridge,
+    compute_pane: compute_ui::Pane,
     residency: bozzard_render_assets::Residency,
     audio: bozzard_audio::NativeAudio,
     target: Option<Target>,
@@ -208,11 +213,11 @@ impl App {
             .wgpu_render_state
             .clone()
             .context("editor requires native WebGPU")?;
-        let gpu = Gpu {
-            adapter: state.adapter.clone(),
-            device: state.device.clone(),
-            queue: state.queue.clone(),
-        };
+        let gpu = Gpu::from_device(
+            state.adapter.clone(),
+            state.device.clone(),
+            state.queue.clone(),
+        );
         theme::install(&cc.egui_ctx);
         let mut workspace: Workspace = if smoke.is_none() {
             cc.storage
@@ -223,11 +228,14 @@ impl App {
         };
         workspace.restore_scene(&editor.path);
         let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb);
+        let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         Ok(Self {
             debug: Default::default(),
             editor,
             gpu,
             renderer,
+            compute,
+            compute_pane: Default::default(),
             residency: bozzard_render_assets::Residency::default(),
             audio: Default::default(),
             render_state: state,
@@ -593,6 +601,10 @@ impl App {
                             ui.checkbox(&mut self.workspace.assets_visible, "Content Browser");
                             ui.checkbox(&mut self.workspace.settings_visible, "Scene Settings");
                             ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
+                            ui.checkbox(
+                                &mut self.workspace.compute_visible,
+                                "Compute resources and jobs",
+                            );
                             ui.checkbox(
                                 &mut self.workspace.debug_visible,
                                 "Debug · Profiler and Console",
@@ -1311,10 +1323,39 @@ impl eframe::App for App {
         let now = Instant::now();
         let debug_interval_ms = now.duration_since(self.last_frame).as_secs_f64() * 1000.;
         if let Some(play) = &mut self.editor.play {
-            play.with_instance(|instance, _| instance.set_gpu_particles(true));
+            let refreshed = play.with_instance(|instance, _| {
+                instance.set_gpu_particles(true);
+                self.compute.prepare(instance);
+                self.compute
+                    .refresh(&self.gpu, instance, &self.editor.assets)
+            });
+            if let Err(error) = refreshed {
+                self.status = format!("Compute: {error:#}");
+                self.error = true;
+            }
+        }
+        match self.compute.poll(&self.gpu) {
+            Ok(profiles) => self.debug_compute_profiles(profiles),
+            Err(error) => {
+                self.status = format!("Compute: {error:#}");
+                self.error = true;
+            }
         }
         self.prepare_blueprint_debugger();
         self.editor.advance(now.duration_since(self.last_frame));
+        if let Some(play) = &self.editor.play {
+            match self.compute.submit(&self.gpu, play.instance()) {
+                Ok(true) => self.viewport_stamp = None,
+                Ok(false) => {}
+                Err(error) => {
+                    self.status = format!("Compute: {error:#}");
+                    self.error = true;
+                }
+            }
+        } else {
+            self.compute.stop();
+        }
+        self.compute.sync_renderer(&mut self.renderer);
         self.sync_blueprint_pause();
         if let Some(play) = &self.editor.play {
             let layer = if self.workspace.layer_2d {
@@ -1626,6 +1667,7 @@ impl eframe::App for App {
                 }
             });
         self.file_dialog(&ctx);
+        self.compute_ui(&ctx);
         self.discard_dialog(&ctx);
         if self.smoke_start.elapsed() > Duration::from_secs(30)
             || (self.loading.is_none() && self.editor.assets.require_ready().is_ok())
@@ -1633,6 +1675,7 @@ impl eframe::App for App {
             self.smoke_step(&ctx);
         }
         let active = self.smoke.is_some()
+            || self.compute.executor.has_pending()
             || self.editor.play.is_some()
             || self.loading.is_some()
             || self.refresh.is_some()

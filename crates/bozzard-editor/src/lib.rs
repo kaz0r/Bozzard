@@ -611,6 +611,9 @@ impl Editor {
             "repair or reload this asset before adding it"
         );
         let (layer, mesh, texture) = match source.kind {
+            AssetKind::ComputeShader => {
+                anyhow::bail!("Dispatch a compute shader from a script instead of placing it")
+            }
             AssetKind::Audio => (Layer::ThreeD, Mesh::Cube, Texture::White),
             AssetKind::Prefab => {
                 anyhow::bail!("Place prefabs using the background prefab operation")
@@ -728,6 +731,9 @@ impl Editor {
             .as_mut()
             .context("selected object has no drawable")?;
         match source.kind {
+            AssetKind::ComputeShader => {
+                anyhow::bail!("Bind a compute shader's output from its script")
+            }
             AssetKind::Audio => anyhow::bail!("audio asset data is unavailable"),
             AssetKind::Prefab => anyhow::bail!(
                 "Place a prefab as a linked hierarchy instead of assigning it to a drawable"
@@ -789,6 +795,7 @@ impl Editor {
             "png" | "jpg" | "jpeg" => AssetKind::Image,
             "obj" | "gltf" | "glb" => AssetKind::Mesh,
             "rs" | "rhai" => AssetKind::Script,
+            "wgsl" => AssetKind::ComputeShader,
             "json"
                 if source
                     .file_name()
@@ -798,7 +805,7 @@ impl Editor {
                 AssetKind::Prefab
             }
             _ => anyhow::bail!(
-                "Choose PNG, JPEG, OBJ, glTF, GLB, WAV, OGG, MP3, FLAC, .rs, or .prefab.json"
+                "Choose PNG, JPEG, OBJ, glTF, GLB, WAV, OGG, MP3, FLAC, .rs, .compute.wgsl, or .prefab.json"
             ),
         };
         if kind == AssetKind::Prefab {
@@ -1277,7 +1284,10 @@ fn extract_with_gi(
                         tint: d.color,
                         uv_scale: d.uv_scale,
                         lit: layer == Layer::ThreeD,
-                        texture: render_texture(d.texture),
+                        texture: view.compute_textures.get(&motion_id).map_or_else(
+                            || render_texture(d.texture),
+                            |handle| TextureKind::Generated(*handle),
+                        ),
                         shader: shader
                             .as_deref()
                             .map(bozzard_render_assets::shader_source)

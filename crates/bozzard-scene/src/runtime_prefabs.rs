@@ -165,6 +165,9 @@ impl SceneInstance {
                 .all(|id| self.entity(id).is_some_and(|e| world.contains(e))),
             "prefab member was removed outside the scene"
         );
+        if let Some(mut compute) = self.compute_if_initialized() {
+            compute.release_objects(&ids)?;
+        }
         for id in &ids {
             let entity = self.entities.remove(id).unwrap();
             if let Some(physics) = world.resource_mut::<crate::physics::Physics>() {

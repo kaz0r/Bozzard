@@ -31,6 +31,10 @@ allowed |= {"bozzard-text", "epaint", "epaint_default_fonts", "ecolor", "emath",
             "peniko", "polycool", "read-fonts", "scopeguard", "self_cell", "skrifa",
             "unicode-general-category", "unicode-segmentation", "vello_common", "vello_cpu",
             "zerocopy", "windows-link"}
+# Compute authoring validates WGSL and host layouts on the CPU. Naga uses only its WGSL
+# frontend here: no wgpu/device, backend compiler, window system, or asset importer.
+allowed |= {"bozzard-compute", "naga", "naga-types", "bit-set", "bit-vec",
+            "codespan-reporting", "half", "rustc-hash", "unicode-width", "zerocopy-derive"}
 unexpected = {line.split()[0] for line in output.splitlines() if line.strip()} - allowed
 if unexpected:
     raise SystemExit(f"Headless dependency boundary changed: {sorted(unexpected)}. Review before extending the allowlist.")

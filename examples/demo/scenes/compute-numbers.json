@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "Compute Numbers — asynchronous readback",
+  "views": { "3d": "camera" },
+  "assets": {
+    "numbers": { "kind": "compute_shader", "path": "assets/compute/numbers.compute.wgsl" },
+    "controller": { "kind": "script", "path": "assets/compute/numbers.rs" }
+  },
+  "objects": [
+    {
+      "id": "camera", "name": "Camera",
+      "transform": { "translation": [0, 0, 6], "rotation_degrees": [0, 0, 0], "scale": [1, 1, 1] },
+      "camera": { "projection": "perspective", "vertical_fov_degrees": 50, "near": 0.1, "far": 100 }
+    },
+    {
+      "id": "result", "name": "Green when the CPU receives the GPU result",
+      "transform": { "translation": [0, 0, 0], "rotation_degrees": [18, 30, 0], "scale": [2, 2, 2] },
+      "drawable": { "layer": "3d", "mesh": "cube", "texture": "white", "color": [0.8, 0.45, 0.1], "uv_scale": [1, 1] },
+      "script_manager": { "scripts": [{ "enabled": true, "script": "controller" }] }
+    }
+  ]
+}

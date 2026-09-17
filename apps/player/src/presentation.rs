@@ -144,7 +144,10 @@ pub fn extract(
                                 .collect(),
                             tint: drawable.color,
                             uv_scale: drawable.uv_scale,
-                            texture: render_texture(drawable.texture),
+                            texture: view.compute_textures.get(&motion_id).map_or_else(
+                                || render_texture(drawable.texture),
+                                |handle| TextureKind::Generated(*handle),
+                            ),
                             lit: layer == Layer::ThreeD,
                             shader: shader
                                 .as_deref()
