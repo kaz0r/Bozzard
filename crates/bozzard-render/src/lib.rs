@@ -90,6 +90,23 @@ impl Gpu {
         Ok(())
     }
 
+    /// A software adapter is requested first on non-macOS CI so pixels are
+    /// verified on headless runners. CI installs `mesa-vulkan-drivers` for it;
+    /// a desktop without one still renders on the hardware adapter instead of
+    /// failing, while no adapter at all remains a loud error.
+    pub async fn request_prefer_software(instance: &wgpu::Instance) -> Result<Self> {
+        if cfg!(target_os = "macos") {
+            return Self::request(instance, None, false).await;
+        }
+        match Self::request(instance, None, true).await {
+            Ok(gpu) => Ok(gpu),
+            Err(software) => match Self::request(instance, None, false).await {
+                Ok(gpu) => Ok(gpu),
+                Err(_) => Err(software),
+            },
+        }
+    }
+
     pub async fn request(
         instance: &wgpu::Instance,
         surface: Option<&wgpu::Surface<'_>>,

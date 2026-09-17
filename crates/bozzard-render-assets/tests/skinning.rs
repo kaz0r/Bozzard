@@ -36,11 +36,7 @@ fn gltf_skin_matches_cpu_reference_and_invalidates_shadows() -> anyhow::Result<(
             .collect::<Vec<_>>(),
         ["Bend", "Walk"]
     );
-    let gpu = pollster::block_on(Gpu::request(
-        &instance(Backend::native()),
-        None,
-        cfg!(not(target_os = "macos")),
-    ))?;
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
     let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut upload =
         renderer.begin_upload(&gpu, bozzard_render_assets::upload_source(data.clone())?)?;

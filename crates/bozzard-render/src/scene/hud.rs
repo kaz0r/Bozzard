@@ -242,11 +242,7 @@ mod tests {
     #[test]
     fn hud_pixels_ignore_camera_and_effects_follow_resize_and_release_resources() -> Result<()> {
         let instance = crate::instance(crate::Backend::native());
-        let gpu = pollster::block_on(Gpu::request(
-            &instance,
-            None,
-            cfg!(not(target_os = "macos")),
-        ))?;
+        let gpu = pollster::block_on(Gpu::request_prefer_software(&instance))?;
         let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
         let mut scene = RenderScene {
             skin_poses: Default::default(),

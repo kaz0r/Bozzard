@@ -7,11 +7,7 @@ use glam::Mat4;
 fn atlas_sprites_and_screen_clipping_share_color_without_camera_or_display_effects()
 -> anyhow::Result<()> {
     let instance = bozzard_render::instance(bozzard_render::Backend::native());
-    let gpu = pollster::block_on(Gpu::request(
-        &instance,
-        None,
-        cfg!(not(target_os = "macos")),
-    ))?;
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance))?;
     let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let atlas: Vec<u8> = (0..16)
         .flat_map(|i| {
