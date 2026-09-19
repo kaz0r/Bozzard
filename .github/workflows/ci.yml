@@ -64,6 +64,8 @@ jobs:
         run: cargo test --workspace --locked --offline
       - name: Check headless dependency boundary
         run: python3 tools/check_headless.py
+      - name: Development package layout tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Non-Steam editor error paths
         run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
       - name: Build native release executables
