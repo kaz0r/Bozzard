@@ -24,10 +24,19 @@ mod hierarchy;
 mod prefabs;
 pub use prefabs::{PrefabCommand, PreparedPrefab};
 mod loading;
+mod lod;
+pub use lod::{GeneratedLod, LodRequest, PreparedLods};
 mod materials;
+pub use materials::PreparedMaterial;
+mod terrain;
+pub use terrain::{PreparedGeometry, TerrainRequest, TerrainSource};
+mod foliage;
+pub use foliage::{FoliageSettings, PreparedFoliage};
 mod selection;
-pub use loading::{LoadedScene, PreparedImport, PreparedSave};
+mod workspace;
+pub use loading::{LoadedScene, PreparedImport, PreparedPlay, PreparedSave};
 pub use selection::{Pick, SelectedSurface};
+pub use workspace::{OpenScenes, SceneId};
 
 const HISTORY_LIMIT: usize = 100;
 struct Change {
@@ -38,6 +47,7 @@ struct Change {
 }
 
 pub struct Editor {
+    prefab_source: Option<prefabs::PrefabSource>,
     scene: Scene,
     saved: Scene,
     pub path: PathBuf,
@@ -51,6 +61,7 @@ pub struct Editor {
     pub assets: AssetStore,
     revision: u64,
     asset_revision: u64,
+    runtime_asset_generation: u64,
     scene_snapshot: std::cell::RefCell<Option<(u64, std::sync::Arc<Scene>)>>,
     gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
     edit_demo: std::cell::RefCell<Option<(u64, SceneDemo)>>,
@@ -59,6 +70,10 @@ pub struct Editor {
 
 impl Editor {
     pub fn open(path: &Path) -> Result<Self> {
+        if prefabs::is_prefab_path(path) {
+            return prefabs::load_source(path.to_path_buf(), &Default::default())
+                .map(LoadedScene::into_editor);
+        }
         Self::new(Scene::from_json(&std::fs::read_to_string(path)?)?, path)
     }
     pub fn new(mut scene: Scene, path: &Path) -> Result<Self> {
@@ -76,6 +91,7 @@ impl Editor {
     }
     fn from_loaded(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
         Self {
+            prefab_source: None,
             saved: scene.clone(),
             scene,
             path,
@@ -89,6 +105,7 @@ impl Editor {
             assets,
             revision: 1,
             asset_revision: 1,
+            runtime_asset_generation: 0,
             scene_snapshot: Default::default(),
             gi_freshness: Default::default(),
             edit_demo: Default::default(),
@@ -97,6 +114,9 @@ impl Editor {
     }
     pub fn scene(&self) -> &Scene {
         &self.scene
+    }
+    pub fn is_prefab_source(&self) -> bool {
+        self.prefab_source.is_some()
     }
     /// An immutable document snapshot shared by UI panels until the next transaction.
     pub fn scene_snapshot(&self) -> std::sync::Arc<Scene> {
@@ -173,7 +193,7 @@ impl Editor {
             self.play.is_none(),
             "Stop Play before editing the authored scene"
         );
-        scene.validate()?;
+        self.validate_document(&scene)?;
         if scene == self.scene {
             return Ok(());
         }
@@ -183,6 +203,10 @@ impl Editor {
         } else {
             None
         };
+        assets
+            .as_ref()
+            .unwrap_or(&self.assets)
+            .validate_scene_resources(&scene)?;
         if self.gesture.is_none() {
             self.record(Change {
                 label: label.into(),
@@ -207,6 +231,13 @@ impl Editor {
         if self.selected_object().is_none() {
             self.selected = None;
         }
+    }
+    fn validate_document(&self, scene: &Scene) -> Result<()> {
+        scene.validate()?;
+        if let Some(source) = &self.prefab_source {
+            source.validate_assets(scene)?;
+        }
+        Ok(())
     }
     pub fn undo(&mut self) -> Result<()> {
         ensure!(self.play.is_none(), "Stop Play before undo");
@@ -536,12 +567,18 @@ impl Editor {
         Ok(())
     }
     pub fn start_play(&mut self) -> Result<()> {
+        ensure!(
+            !self.is_prefab_source(),
+            "Place this prefab in a scene to Play it"
+        );
         self.refresh_audio_metadata()?;
         self.surface_selection = None;
         self.finish_gesture();
         if self.play.is_none() {
-            let play = SceneDemo::new_with_prefabs(&self.scene, Some(&self.path))?;
+            let mut play = SceneDemo::new_with_prefabs(&self.scene, Some(&self.path))?;
             let assets = self.cached_assets(play.instance().document(), &self.path)?;
+            bozzard_project::streaming::install(&mut play.app.world, &self.path, &assets)?;
+            self.runtime_asset_generation = 0;
             self.edit_assets = Some(std::mem::replace(&mut self.assets, assets));
             self.asset_revision += 1;
             self.play = Some(play);
@@ -567,6 +604,16 @@ impl Editor {
                 );
             }
             play.app.advance(delta);
+            if let Some(loaded) = play
+                .app
+                .world
+                .resource::<bozzard_project::streaming::SceneAssets>()
+                && loaded.generation != self.runtime_asset_generation
+            {
+                self.assets = loaded.store.clone();
+                self.runtime_asset_generation = loaded.generation;
+                self.asset_revision += 1;
+            }
         }
     }
     pub fn save(&mut self, path: &Path) -> Result<()> {
@@ -576,7 +623,14 @@ impl Editor {
         let assets = load_assets(&rebased, path)?;
         assets.bake_audio_metadata(&mut rebased)?;
         // Complete all fallible preparation before the atomic destination replacement.
-        save_document(&rebased, path)?;
+        if let Some(source) = &self.prefab_source {
+            let (write, updated) =
+                source.prepare_save(&rebased, &self.path, path, &Default::default())?;
+            prefabs::publish(&write)?;
+            self.prefab_source = Some(updated);
+        } else {
+            save_document(&rebased, path)?;
+        }
         if path != self.path {
             // History contains paths relative to the old root; discard it on Save As.
             self.past.clear();
@@ -612,6 +666,7 @@ impl Editor {
             "repair or reload this asset before adding it"
         );
         let (layer, mesh, texture) = match source.kind {
+            AssetKind::Material => anyhow::bail!("Assign a material to a Mesh Renderer"),
             AssetKind::Font => anyhow::bail!("Assign a font to a Text Rendering component"),
             AssetKind::ComputeShader => {
                 anyhow::bail!("Dispatch a compute shader from a script instead of placing it")
@@ -729,11 +784,17 @@ impl Editor {
             return self.apply("Assign audio clip", scene);
         }
         if source.kind == AssetKind::Font {
-            object
+            let text = object
                 .text_rendering
                 .as_mut()
-                .context("selected object has no Text Rendering component")?
-                .font = bozzard_scene::TextFont::Custom(asset_id.into());
+                .context("selected object has no Text Rendering component")?;
+            let next = bozzard_scene::TextFont::Custom(asset_id.into());
+            if text.font != next {
+                text.font = next;
+                text.font_axes.clear();
+                text.font_fallbacks.clear();
+                text.builtin_font_fallback = false;
+            }
             self.finish_gesture();
             return self.apply("Assign font", scene);
         }
@@ -742,6 +803,14 @@ impl Editor {
             .as_mut()
             .context("selected object has no drawable")?;
         match source.kind {
+            AssetKind::Material => {
+                let material = object
+                    .material
+                    .get_or_insert_with(|| bozzard_scene::Material::from_drawable(drawable));
+                material.shared = Some(std::sync::Arc::new(
+                    bozzard_scene::material_asset::MaterialInstance::new(asset_id.into()),
+                ));
+            }
             AssetKind::Font => unreachable!("handled above"),
             AssetKind::ComputeShader => {
                 anyhow::bail!("Bind a compute shader's output from its script")
@@ -762,6 +831,10 @@ impl Editor {
                     .material
                     .get_or_insert_with(|| bozzard_scene::Material::from_drawable(drawable));
                 material.texture = Some(Texture::Asset(asset_id.into()));
+                if let Some(shared) = &mut material.shared {
+                    std::sync::Arc::make_mut(shared).texture =
+                        Some(Texture::Asset(asset_id.into()));
+                }
             }
             AssetKind::Script => {
                 anyhow::bail!("Assign a script to an object through its Script Manager component")
@@ -804,11 +877,19 @@ impl Editor {
             .to_ascii_lowercase();
         let kind = match extension.as_str() {
             "wav" | "ogg" | "mp3" | "flac" => AssetKind::Audio,
-            "png" | "jpg" | "jpeg" => AssetKind::Image,
-            "obj" | "gltf" | "glb" => AssetKind::Mesh,
+            "png" | "jpg" | "jpeg" | "btex" => AssetKind::Image,
+            "obj" | "gltf" | "glb" | "bmesh" => AssetKind::Mesh,
             "rs" | "rhai" => AssetKind::Script,
             "ttf" | "otf" => AssetKind::Font,
             "wgsl" => AssetKind::ComputeShader,
+            "json"
+                if source
+                    .file_name()
+                    .and_then(|p| p.to_str())
+                    .is_some_and(|n| n.ends_with(".material.json")) =>
+            {
+                AssetKind::Material
+            }
             "json"
                 if source
                     .file_name()
@@ -818,7 +899,7 @@ impl Editor {
                 AssetKind::Prefab
             }
             _ => anyhow::bail!(
-                "Choose PNG, JPEG, OBJ, glTF, GLB, WAV, OGG, MP3, FLAC, .rs, .compute.wgsl, or .prefab.json"
+                "Choose PNG, JPEG, BTEX, BMESH, OBJ, glTF, GLB, TTF, OTF, WAV, OGG, MP3, FLAC, .rs, .compute.wgsl,  .material.json, or .prefab.json"
             ),
         };
         if kind == AssetKind::Prefab {
@@ -826,7 +907,12 @@ impl Editor {
         }
         progress.stage("Reading model and packing textures")?;
         let package = if matches!(extension.as_str(), "gltf" | "glb") {
-            Some(bozzard_assets::package_gltf(source, progress)?)
+            Some(bozzard_assets::SourcePackage {
+                primary: "model.gltf".into(),
+                files: bozzard_assets::package_gltf(source, progress)?.files,
+            })
+        } else if kind == AssetKind::Material {
+            Some(bozzard_assets::materials::package_material(source, progress)?.source)
         } else {
             None
         };
@@ -866,8 +952,8 @@ impl Editor {
             }
             number += 1;
         };
-        let relative = if package.is_some() {
-            format!("assets/{id}/model.gltf")
+        let relative = if let Some(package) = &package {
+            format!("assets/{id}/{}", package.primary)
         } else {
             format!("assets/{id}.{extension}")
         };
@@ -1015,6 +1101,14 @@ impl Editor {
         demo.instance().ui_frame(&demo.app.world, layer, size)
     }
     pub fn render(&self, layer: Layer, aspect: f32) -> Result<RenderScene> {
+        self.render_from_camera(layer, aspect, None)
+    }
+    pub fn render_from_camera(
+        &self,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+    ) -> Result<RenderScene> {
         let edit;
         let demo = if let Some(play) = &self.play {
             play
@@ -1028,6 +1122,7 @@ impl Editor {
             layer,
             aspect,
             self.play.is_none().then(|| self.gi_current()),
+            inspection_pose,
         )
     }
     /// Authoring queries share one immutable world until a document transaction changes
@@ -1117,6 +1212,7 @@ fn load_assets(scene: &Scene, path: &Path) -> Result<AssetStore> {
     let mut store = AssetStore::new(root(path), &scene.assets)?;
     store.refresh();
     store.require_ready()?;
+    store.validate_scene_resources(scene)?;
     Ok(store)
 }
 fn unique_id(scene: &Scene, prefix: &str) -> String {
@@ -1159,7 +1255,7 @@ pub fn extract(
     layer: Layer,
     aspect: f32,
 ) -> Result<RenderScene> {
-    extract_with_gi(demo, assets, layer, aspect, None)
+    extract_with_gi(demo, assets, layer, aspect, None, None)
 }
 
 fn extract_with_gi(
@@ -1168,9 +1264,12 @@ fn extract_with_gi(
     layer: Layer,
     aspect: f32,
     authored_gi: Option<bool>,
+    inspection_pose: Option<Mat4>,
 ) -> Result<RenderScene> {
     demo.check_simulation()?;
-    let view = demo.instance().view(&demo.app.world, layer, aspect)?;
+    let view = demo
+        .instance()
+        .view_from_camera(&demo.app.world, layer, aspect, inspection_pose)?;
     let mut gi = None;
     if layer == Layer::ThreeD
         && demo.instance().document().gi.enabled
@@ -1262,52 +1361,58 @@ fn extract_with_gi(
             .into_iter()
             .zip(view.object_ids)
             .zip(view.shader_graphs)
-            .filter(|(((_, d), _), _)| {
+            .zip(view.material_instances)
+            .filter(|((((_, d), _), _), _)| {
                 !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
             })
-            .map(|(((model, d), motion_id), shader)| -> Result<DrawItem> {
-                Ok(DrawItem {
-                    motion_id,
-                    model,
-                    mesh: match d.mesh {
-                        Mesh::Quad => MeshKind::Quad,
-                        Mesh::Cube => MeshKind::Cube,
-                        Mesh::Asset(id) => MeshKind::Imported(id),
-                        Mesh::Surface { asset, index, .. } => {
-                            MeshKind::ModelPart(asset, index as usize)
-                        }
-                    },
-                    material: Material {
-                        metallic: d.metallic,
-                        roughness: d.roughness,
-                        surface_overrides: d
-                            .material_overrides
-                            .into_iter()
-                            .map(|value| bozzard_render::SurfaceMaterialOverride {
-                                surface: value.surface,
-                                source: value.source,
-                                transform: value.transform.matrix(),
-                                texture: value.texture.map(render_texture),
-                                uv_scale: value.uv_scale,
-                                tint: value.tint,
-                                metallic: value.metallic,
-                                roughness: value.roughness,
-                            })
-                            .collect(),
-                        tint: d.color,
-                        uv_scale: d.uv_scale,
-                        lit: layer == Layer::ThreeD,
-                        texture: view.compute_textures.get(&motion_id).map_or_else(
-                            || render_texture(d.texture),
-                            |handle| TextureKind::Generated(*handle),
-                        ),
-                        shader: shader
-                            .as_deref()
-                            .map(bozzard_render_assets::shader_source)
-                            .transpose()?,
-                    },
-                })
-            })
+            .map(
+                |((((model, mut d), motion_id), shader), binding)| -> Result<DrawItem> {
+                    let shader = bozzard_render_assets::material_binding(
+                        &mut d,
+                        binding.as_deref(),
+                        shader.as_deref(),
+                        assets,
+                    )?;
+                    Ok(DrawItem {
+                        motion_id,
+                        model,
+                        mesh: match d.mesh {
+                            Mesh::Quad => MeshKind::Quad,
+                            Mesh::Cube => MeshKind::Cube,
+                            Mesh::Asset(id) => MeshKind::Imported(id),
+                            Mesh::Surface { asset, index, .. } => {
+                                MeshKind::ModelPart(asset, index as usize)
+                            }
+                        },
+                        material: Material {
+                            metallic: d.metallic,
+                            roughness: d.roughness,
+                            surface_overrides: d
+                                .material_overrides
+                                .into_iter()
+                                .map(|value| bozzard_render::SurfaceMaterialOverride {
+                                    surface: value.surface,
+                                    source: value.source,
+                                    transform: value.transform.matrix(),
+                                    texture: value.texture.map(render_texture),
+                                    uv_scale: value.uv_scale,
+                                    tint: value.tint,
+                                    metallic: value.metallic,
+                                    roughness: value.roughness,
+                                })
+                                .collect(),
+                            tint: d.color,
+                            uv_scale: d.uv_scale,
+                            lit: layer == Layer::ThreeD,
+                            texture: view.compute_textures.get(&motion_id).map_or_else(
+                                || render_texture(d.texture),
+                                |handle| TextureKind::Generated(*handle),
+                            ),
+                            shader,
+                        },
+                    })
+                },
+            )
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .chain(bozzard_render_assets::sprite_items(&view.sprites)?)
@@ -1322,6 +1427,33 @@ fn extract_with_gi(
 }
 
 impl Editor {
+    /// Register a lazy input without doing disk/network work in an authoring transaction.
+    pub fn set_runtime_scene_source(
+        &mut self,
+        name: &str,
+        source: Option<bozzard_scene::scene_loading::SceneSource>,
+    ) -> Result<()> {
+        ensure!(
+            self.play.is_none(),
+            "Stop Play before editing scene sources"
+        );
+        let name = name.trim();
+        ensure!(
+            !name.is_empty() && name.len() <= 128,
+            "runtime scene needs a name"
+        );
+        ensure!(
+            !self.scene.runtime_scenes.contains_key(name),
+            "runtime scene '{name}' is already embedded"
+        );
+        let mut scene = self.scene.clone();
+        if let Some(source) = source {
+            scene.runtime_scene_sources.insert(name.into(), source);
+        } else {
+            scene.runtime_scene_sources.remove(name);
+        }
+        self.apply("Edit runtime scene source", scene)
+    }
     /// Embed a level with rebased, unique asset IDs so Play/export can preload one catalog.
     pub fn import_runtime_scene(&mut self, name: &str, path: &Path) -> Result<()> {
         let name = name.trim();
@@ -1331,13 +1463,14 @@ impl Editor {
         );
         let loaded = Scene::from_json(&std::fs::read_to_string(path)?)?;
         ensure!(
-            loaded.runtime_scenes.is_empty(),
+            loaded.runtime_scenes.is_empty() && loaded.runtime_scene_sources.is_empty(),
             "import a scene without a nested runtime library"
         );
         let mut level = prepare_document_from(&loaded, &self.path, Some(path))?;
         let mut scene = self.scene.clone();
         ensure!(
-            !scene.runtime_scenes.contains_key(name),
+            !scene.runtime_scenes.contains_key(name)
+                && !scene.runtime_scene_sources.contains_key(name),
             "runtime scene '{name}' already exists"
         );
         let mapping: BTreeMap<_, _> = level

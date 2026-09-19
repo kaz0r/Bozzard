@@ -17,9 +17,172 @@ pub enum UploadData<'a> {
 /// importer dependency or an extra copy of decoded texture pixels.
 pub trait UploadSource: Send + Sync {
     fn data(&self) -> UploadData<'_>;
+    /// Potentially expensive CPU integrity checks run on the preparation worker.
+    fn validate(&self) -> Result<()> {
+        Ok(())
+    }
+    /// Offline mips selected for this device. None uses the original RGBA pixels.
+    fn compressed(
+        &self,
+        _image: Option<(usize, usize)>,
+        _srgb: bool,
+    ) -> Option<CompressedImage<'_>> {
+        None
+    }
     fn skin(&self) -> Option<SkinData<'_>> {
         None
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum BlockCompression {
+    Bc3,
+    Astc4x4,
+}
+impl BlockCompression {
+    fn texture_format(self, srgb: bool) -> wgpu::TextureFormat {
+        match self {
+            Self::Bc3 => {
+                if srgb {
+                    wgpu::TextureFormat::Bc3RgbaUnormSrgb
+                } else {
+                    wgpu::TextureFormat::Bc3RgbaUnorm
+                }
+            }
+            Self::Astc4x4 => wgpu::TextureFormat::Astc {
+                block: wgpu::AstcBlock::B4x4,
+                channel: if srgb {
+                    wgpu::AstcChannel::UnormSrgb
+                } else {
+                    wgpu::AstcChannel::Unorm
+                },
+            },
+        }
+    }
+    fn feature(self) -> wgpu::Features {
+        match self {
+            Self::Bc3 => wgpu::Features::TEXTURE_COMPRESSION_BC,
+            Self::Astc4x4 => wgpu::Features::TEXTURE_COMPRESSION_ASTC,
+        }
+    }
+}
+pub struct CompressedImage<'a> {
+    pub format: BlockCompression,
+    pub levels: &'a [Vec<u8>],
+}
+fn compressed_bytes(
+    image: &CompressedImage<'_>,
+    width: u32,
+    height: u32,
+    mips: bool,
+) -> Result<usize> {
+    ensure!(
+        width.is_multiple_of(4) && height.is_multiple_of(4),
+        "compressed base dimensions must be multiples of four"
+    );
+    let count = if mips {
+        crate::mipmap::levels(width, height) as usize
+    } else {
+        1
+    };
+    ensure!(
+        image.levels.len() >= count && image.levels.len() <= 13,
+        "invalid compressed mip count"
+    );
+    let mut total = 0;
+    for (level, bytes) in image.levels.iter().take(count).enumerate() {
+        let size = (width >> level).max(1).div_ceil(4) as usize
+            * (height >> level).max(1).div_ceil(4) as usize
+            * 16;
+        ensure!(bytes.len() == size, "invalid compressed mip payload");
+        total += size;
+    }
+    Ok(total)
+}
+
+/// Logical GPU bytes owned by one imported asset: vertex/index/skin/attribute
+/// buffers, material uniforms and unique image mip chains. Driver allocation
+/// overhead, samplers and shared renderer targets are outside this asset pool.
+/// This does not allocate GPU resources and can be used before making room for an upload.
+pub fn upload_memory_bytes(source: &dyn UploadSource) -> Result<usize> {
+    let data = source.data();
+    let mut bytes = 0_usize;
+    let mut add = |count: usize, stride: usize| -> Result<()> {
+        bytes = bytes
+            .checked_add(count.checked_mul(stride).context("asset size overflow")?)
+            .context("asset size overflow")?;
+        Ok(())
+    };
+    let mut images = BTreeMap::new();
+    let mut image = |image: &ModelImage<'_>, locator, srgb: bool, mips: bool| -> Result<()> {
+        ensure!(
+            (1..=4096).contains(&image.width)
+                && (1..=4096).contains(&image.height)
+                && image.rgba.len() == image.width as usize * image.height as usize * 4,
+            "invalid image for memory accounting"
+        );
+        let key = (
+            image.rgba.as_ptr() as usize,
+            image.width,
+            image.height,
+            srgb,
+            mips,
+        );
+        if let std::collections::btree_map::Entry::Vacant(entry) = images.entry(key) {
+            let size = if let Some(encoded) = source.compressed(locator, srgb) {
+                compressed_bytes(&encoded, image.width, image.height, mips)?
+            } else if mips {
+                crate::mipmap::texture_bytes(image.width, image.height)
+            } else {
+                image.width as usize * image.height as usize * 4
+            };
+            entry.insert(size);
+        }
+        Ok(())
+    };
+    match &data {
+        UploadData::Image(pixels) => image(pixels, None, true, false)?,
+        UploadData::Model {
+            vertices,
+            indices,
+            parts,
+        } => {
+            add(vertices.len(), 32)?;
+            if parts.is_empty() {
+                add(indices.len(), 4)?;
+            }
+            for (part_index, part) in parts.iter().enumerate() {
+                add(part.count as usize, 4)?;
+                if let Some(pixels) = &part.image {
+                    image(pixels, Some((part_index, 0)), true, true)?;
+                }
+                if let Some(shading) = &part.shading {
+                    add(shading.vertices.len(), 48)?;
+                    add(1, 32)?; // PbrRenderer::bind's eight f32 factors.
+                    for (slot, map) in [
+                        &shading.normal,
+                        &shading.metallic_roughness,
+                        &shading.occlusion,
+                        &shading.emissive,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        if let Some(map) = map {
+                            image(&map.image, Some((part_index, slot + 1)), slot == 3, true)?;
+                        }
+                    }
+                }
+            }
+            if let Some(skin) = source.skin() {
+                add(skin.vertices.len(), 32)?;
+            }
+        }
+    }
+    for size in images.into_values() {
+        add(size, 1)?;
+    }
+    Ok(bytes)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -52,6 +215,30 @@ struct ImageWrite {
     row: u32,
     translucent: bool,
     srgb: bool,
+    compressed: bool,
+}
+impl ImageWrite {
+    fn bytes(&self) -> usize {
+        (0..self.texture.mip_level_count())
+            .map(|level| self.row_bytes(level) * self.rows(level) as usize)
+            .sum()
+    }
+    fn row_bytes(&self, level: u32) -> usize {
+        let width = (self.texture.width() >> level).max(1);
+        if self.compressed {
+            width.div_ceil(4) as usize * 16
+        } else {
+            width as usize * 4
+        }
+    }
+    fn rows(&self, level: u32) -> u32 {
+        let height = (self.texture.height() >> level).max(1);
+        if self.compressed {
+            height.div_ceil(4)
+        } else {
+            height
+        }
+    }
 }
 enum Target {
     Image,
@@ -119,6 +306,7 @@ impl SceneRenderer {
 impl UploadContext {
     pub fn begin_upload(&self, gpu: &Gpu, source: Arc<dyn UploadSource>) -> Result<PendingUpload> {
         let started = Instant::now();
+        source.validate()?;
         let data = source.data();
         let mut buffers = Vec::new();
         let mut images = Vec::new();
@@ -170,6 +358,14 @@ impl UploadContext {
             if let Some((index, view)) = cache.get(&key) {
                 return Ok((*index, wgpu::TextureView::clone(view)));
             }
+            let encoded = source.compressed(locator, srgb);
+            if let Some(encoded) = &encoded {
+                compressed_bytes(encoded, pixels.width, pixels.height, mips)?;
+                ensure!(
+                    gpu.device.features().contains(encoded.format.feature()),
+                    "compressed texture format is not enabled on this device"
+                );
+            }
             let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("staged asset texture"),
                 size: wgpu::Extent3d {
@@ -184,14 +380,20 @@ impl UploadContext {
                 },
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: if srgb {
+                format: if let Some(encoded) = &encoded {
+                    encoded.format.texture_format(srgb)
+                } else if srgb {
                     wgpu::TextureFormat::Rgba8UnormSrgb
                 } else {
                     wgpu::TextureFormat::Rgba8Unorm
                 },
                 usage: wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::COPY_DST
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    | if encoded.is_some() {
+                        wgpu::TextureUsages::empty()
+                    } else {
+                        wgpu::TextureUsages::RENDER_ATTACHMENT
+                    },
                 view_formats: &[],
             });
             let view = texture.create_view(&Default::default());
@@ -201,8 +403,9 @@ impl UploadContext {
                 source: locator,
                 level: 0,
                 row: 0,
-                translucent: false,
+                translucent: encoded.is_some() && pixels.rgba.chunks_exact(4).any(|p| p[3] < 255),
                 srgb,
+                compressed: encoded.is_some(),
             });
             cache.insert(key, (index, view.clone()));
             Ok((index, view))
@@ -388,22 +591,11 @@ impl UploadContext {
             None
         };
         let total = buffers.iter().map(|b| b.count * b.stride).sum::<usize>()
-            + images
-                .iter()
-                .map(|i| {
-                    (0..i.texture.mip_level_count())
-                        .map(|level| {
-                            ((i.texture.width() >> level).max(1)
-                                * (i.texture.height() >> level).max(1)
-                                * 4) as usize
-                        })
-                        .sum::<usize>()
-                })
-                .sum::<usize>();
+            + images.iter().map(ImageWrite::bytes).sum::<usize>();
         let minimum = buffers
             .iter()
             .map(|b| b.stride)
-            .chain(images.iter().map(|i| i.texture.width() as usize * 4))
+            .chain(images.iter().map(|i| i.row_bytes(0)))
             .max()
             .unwrap_or(4);
         drop(data);
@@ -428,6 +620,15 @@ impl UploadContext {
 }
 
 impl PendingUpload {
+    pub fn memory_bytes(&self) -> usize {
+        self.total
+            + match &self.target {
+                Target::Model { parts, .. } => {
+                    parts.iter().filter(|p| p.shading.is_some()).count() * 32
+                }
+                _ => 0,
+            }
+    }
     pub fn progress(&self) -> UploadProgress {
         UploadProgress {
             bytes_done: self.done,
@@ -507,6 +708,55 @@ impl PendingUpload {
                     self.buffer_cursor += 1;
                 }
             } else if let Some(write) = self.images.get_mut(self.image_cursor) {
+                if write.compressed {
+                    let row_bytes = write.row_bytes(write.level);
+                    let height = write.rows(write.level);
+                    let rows = (remaining.min(256 * 1024) / row_bytes)
+                        .min((height - write.row) as usize) as u32;
+                    if rows == 0 {
+                        break;
+                    }
+                    let image = self
+                        .source
+                        .compressed(write.source, write.srgb)
+                        .expect("immutable cooked source");
+                    let start = write.row as usize * row_bytes;
+                    let bytes = &image.levels[write.level as usize]
+                        [start..start + rows as usize * row_bytes];
+                    gpu.queue.write_texture(
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &write.texture,
+                            mip_level: write.level,
+                            origin: wgpu::Origin3d {
+                                x: 0,
+                                y: write.row * 4,
+                                z: 0,
+                            },
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        bytes,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(row_bytes as u32),
+                            rows_per_image: Some(rows),
+                        },
+                        wgpu::Extent3d {
+                            width: (write.texture.width() >> write.level).max(1).div_ceil(4) * 4,
+                            height: rows * 4,
+                            depth_or_array_layers: 1,
+                        },
+                    );
+                    write.row += rows;
+                    self.done += rows as usize * row_bytes;
+                    if write.row == height {
+                        write.row = 0;
+                        write.level += 1;
+                        if write.level == write.texture.mip_level_count() {
+                            self.image_cursor += 1;
+                        }
+                    }
+                    continue;
+                }
                 let width = (write.texture.width() >> write.level).max(1);
                 let height = (write.texture.height() >> write.level).max(1);
                 let chunk = if write.level == 0 {
@@ -618,13 +868,7 @@ impl PendingUpload {
                     ModelUploadStats {
                         surfaces: parts.len(),
                         unique_images: self.images.len(),
-                        texture_bytes: self
-                            .images
-                            .iter()
-                            .map(|i| {
-                                crate::mipmap::texture_bytes(i.texture.width(), i.texture.height())
-                            })
-                            .sum(),
+                        texture_bytes: self.images.iter().map(ImageWrite::bytes).sum(),
                         cpu_upload_ms: self.prepare_ms + self.cpu_ms,
                         prepare_ms: self.prepare_ms,
                         upload_slices: self.slices,

@@ -12,6 +12,9 @@ pub use bake::bake;
 
 /// Objects with simulation motion (and their descendants) cannot be static casters.
 pub fn static_objects(scene: &Scene) -> BTreeSet<String> {
+    static_objects_with_assets(scene, None)
+}
+fn static_objects_with_assets(scene: &Scene, assets: Option<&AssetStore>) -> BTreeSet<String> {
     let mut dynamic: BTreeSet<_> = scene
         .objects
         .iter()
@@ -19,6 +22,11 @@ pub fn static_objects(scene: &Scene) -> BTreeSet<String> {
             o.spin.is_some()
                 || o.blueprints.iter().any(|b| b.enabled)
                 || o.shader_graph.is_some()
+                || o.material
+                    .as_ref()
+                    .and_then(|m| m.shared.as_deref())
+                    .and_then(|binding| assets.and_then(|a| a.material(&binding.asset).ok()))
+                    .is_some_and(|material| material.shader.is_some())
                 || o.gravity.is_some_and(|g| g.enabled)
                 || o.player_controller.is_some()
         })
@@ -93,7 +101,7 @@ fn source_with(
         scene.environment.ground,
         scene.environment.intensity,
     ))?);
-    let statics = static_objects(scene);
+    let statics = static_objects_with_assets(scene, Some(assets));
     let mut dependencies = BTreeSet::new();
     // Stable ID order prevents a hierarchy reorder alone from expiring a bake.
     let sorted: BTreeMap<_, _> = scene.objects.iter().map(|o| (&o.id, o)).collect();
@@ -101,7 +109,13 @@ fn source_with(
         if statics.contains(id) {
             write(id.as_bytes());
             write(&serde_json::to_vec(&matrices[id].to_cols_array())?);
-            write(&serde_json::to_vec(&object.effective_drawable().unwrap())?);
+            let mut drawable = object.effective_drawable().unwrap();
+            if let Some(binding) = object.material.as_ref().and_then(|m| m.shared.as_deref()) {
+                assets
+                    .material(&binding.asset)?
+                    .apply(binding, &mut drawable);
+            }
+            write(&serde_json::to_vec(&drawable)?);
             dependencies.extend(object.asset_dependencies().into_iter().map(|(id, _)| id));
         }
         if let Some(mut light) = object.light.filter(|l| l.enabled) {
@@ -141,7 +155,7 @@ pub fn is_current(scene: &Scene, assets: &AssetStore) -> Result<bool> {
 
 pub fn fit_volume(scene: &Scene, assets: &AssetStore) -> Result<GiVolumeSettings> {
     let matrices = scene.global_transforms()?;
-    let statics = static_objects(scene);
+    let statics = static_objects_with_assets(scene, Some(assets));
     let mut bounds = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
     for object in &scene.objects {
         if !statics.contains(&object.id) {

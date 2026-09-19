@@ -1,4 +1,4 @@
-use super::{sampling, static_objects};
+use super::{sampling, static_objects_with_assets};
 use crate::{
     AssetData, AssetStore, Filter, MeshData, MeshPart, Sampler, job::Progress, picking::MeshIndex,
 };
@@ -74,7 +74,7 @@ pub(super) struct TraceScene {
 impl TraceScene {
     pub fn new(scene: &Scene, assets: &AssetStore, progress: &Progress) -> Result<Self> {
         let matrices = scene.global_transforms()?;
-        let statics = static_objects(scene);
+        let statics = static_objects_with_assets(scene, Some(assets));
         ensure!(
             statics.len() <= 1024,
             "GI bake supports at most1024 static mesh instances"
@@ -88,7 +88,12 @@ impl TraceScene {
                 continue;
             }
             progress.stage(format!("Preparing GI geometry: {}", object.name))?;
-            let drawable = object.effective_drawable().unwrap();
+            let mut drawable = object.effective_drawable().unwrap();
+            if let Some(binding) = object.material.as_ref().and_then(|m| m.shared.as_deref()) {
+                assets
+                    .material(&binding.asset)?
+                    .apply(binding, &mut drawable);
+            }
             if matches!(drawable.mesh, Mesh::Surface { .. })
                 && assets.mesh_surface(&drawable.mesh).is_none()
             {
@@ -195,6 +200,10 @@ impl TraceScene {
                 };
                 let texture_blended = texture.as_deref().is_some_and(|data| match data {
                     AssetData::Image(image) => image.rgba.chunks_exact(4).any(|p| p[3] < 255),
+                    AssetData::Material(material) => material
+                        .image
+                        .as_deref()
+                        .is_some_and(|image| image.rgba.chunks_exact(4).any(|p| p[3] < 255)),
                     _ => false,
                 });
                 instances.push(Instance {
@@ -516,7 +525,11 @@ impl Instance {
     }
     fn fallback_texture(&self, uv: Vec2) -> Vec4 {
         if let Some(data) = &self.texture
-            && let AssetData::Image(image) = data.as_ref()
+            && let Some(image) = match data.as_ref() {
+                AssetData::Image(image) => Some(image),
+                AssetData::Material(material) => material.image.as_deref(),
+                _ => None,
+            }
         {
             return sampling::image(
                 image,
@@ -598,6 +611,7 @@ mod tests {
             width: 1,
             height: 1,
             rgba: rgba.to_vec(),
+            compressed: None,
         })
     }
     fn surface(mesh: MeshData, drawable: Drawable) -> Instance {
@@ -742,6 +756,7 @@ mod tests {
                         width: 2,
                         height: 1,
                         rgba: vec![255, 0, 0, 255, 0, 128, 0, 255],
+                        compressed: None,
                     }),
                     sampler: Sampler {
                         mag: Filter::Nearest,

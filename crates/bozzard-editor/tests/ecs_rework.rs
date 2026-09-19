@@ -49,6 +49,8 @@ fn spawned_graphs_rebase_prefab_dependencies_and_preload_cycles_once() {
         let mut object = editor.selected_object().unwrap().clone();
         object.blueprints = vec![graph("next", enabled)];
         let prefab = Prefab {
+            nested: Default::default(),
+            base: None,
             version: 1,
             name: name.into(),
             root: object.id.clone(),
@@ -136,6 +138,7 @@ fn optional_material_and_blueprint_prefab_lifecycle_survive_history_play_and_sav
     );
     let mut scene = editor.scene().clone();
     let material = Material {
+        shared: None,
         metallic: None,
         roughness: None,
         texture: None,
@@ -181,6 +184,7 @@ fn optional_material_and_blueprint_prefab_lifecycle_survive_history_play_and_sav
     root.collider = Some(BoxCollider::default());
     root.drawable.as_mut().unwrap().mesh = Mesh::Asset("shape".into());
     root.material = Some(Material {
+        shared: None,
         metallic: None,
         roughness: None,
         texture: Some(Texture::Asset("paint".into())),
@@ -205,6 +209,8 @@ fn optional_material_and_blueprint_prefab_lifecycle_survive_history_play_and_sav
         graph: spin,
     });
     let prefab = Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "Body".into(),
         root: root.id.clone(),

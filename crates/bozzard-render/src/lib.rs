@@ -10,14 +10,15 @@ pub use profiling::{GpuFrameTiming, GpuPassTiming};
 mod scene;
 pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
-    AmbientOcclusion, AutoExposure, BloomSettings, ColorGrading, DepthOfField, DisplaySettings,
-    DrawItem, EnvironmentSettings, FilmGrain, FogSettings, FrameStats, HeatDistortion,
-    IrradianceVolume, Lighting, LocalLight, LocalShadowSettings, MAX_LOCAL_LIGHTS,
-    MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart,
-    ModelUploadStats, Particle, ParticleKind, PendingUpload, RenderScene, SceneRenderer,
-    ScreenText, ShaderSource, SpotShadowSettings, SurfaceMaterialOverride, TextAlignment, TextMesh,
-    TextureKind, ToneMapper, UploadContext, UploadData, UploadProgress, UploadSource, Vignette,
-    VolumetricFog, text_bounds,
+    AmbientOcclusion, AutoExposure, BlockCompression, BloomSettings, ColorGrading, CompressedImage,
+    DepthOfField, DisplaySettings, DrawItem, EnvironmentSettings, FilmGrain, FogSettings,
+    FrameStats, HeatDistortion, IrradianceVolume, Lighting, LocalLight, LocalShadowSettings,
+    MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind,
+    ModelImage, ModelPart, ModelUploadStats, OcclusionResult, Particle, ParticleKind,
+    PendingUpload, RenderScene, SceneRenderer, ScreenText, ShaderSource, SpotShadowSettings,
+    SurfaceMaterialOverride, TextAlignment, TextMesh, TextureKind, ToneMapper, UploadContext,
+    UploadData, UploadProgress, UploadSource, Vignette, VolumetricFog, text_bounds,
+    upload_memory_bytes,
 };
 
 use anyhow::{Context, Result, ensure};
@@ -129,7 +130,10 @@ impl Gpu {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("Bozzard device"),
-                required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
+                required_features: adapter.features()
+                    & (wgpu::Features::TIMESTAMP_QUERY
+                        | wgpu::Features::TEXTURE_COMPRESSION_BC
+                        | wgpu::Features::TEXTURE_COMPRESSION_ASTC),
                 // Keep baseline features while allowing native/Retina-sized render targets.
                 required_limits: wgpu::Limits::downlevel_defaults()
                     .using_resolution(adapter.limits()),

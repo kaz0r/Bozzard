@@ -43,10 +43,12 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     };
     renderer.set_culling_enabled(false);
     renderer.set_state_caching_enabled(false);
+    renderer.set_instancing_enabled(false);
     let reference = capture(gpu, &mut renderer, &scene, [128, 128])?;
     let all = renderer.frame_stats();
     renderer.set_culling_enabled(true);
     renderer.set_state_caching_enabled(true);
+    renderer.set_instancing_enabled(true);
     let optimized = capture(gpu, &mut renderer, &scene, [128, 128])?;
     let reduced = renderer.frame_stats();
     ensure!(
@@ -60,8 +62,10 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     ensure!(
         reduced.pipeline_binds == 1
             && all.pipeline_binds == 4
+            && all.color_draws == 4
+            && reduced.color_draws == 2
             && reduced.shadow_draws == all.shadow_draws,
-        "batching or shadow counters incorrect"
+        "batching or shadow counters incorrect: {all:?} {reduced:?}"
     );
     let mut shadow_scene = RenderScene {
         skin_poses: Default::default(),

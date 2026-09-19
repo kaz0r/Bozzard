@@ -55,7 +55,14 @@ impl Default for TextMesh {
         }
     }
 }
-type Key = (String, u32, Option<u32>, bool, TextAlignment, Option<u64>);
+type Key = (
+    String,
+    u32,
+    Option<u32>,
+    bool,
+    TextAlignment,
+    Option<bozzard_text::FontKey>,
+);
 impl TextMesh {
     fn key(&self) -> Key {
         (
@@ -64,7 +71,7 @@ impl TextMesh {
             self.max_width.map(f32::to_bits),
             self.monospace,
             self.alignment,
-            self.custom_font.as_ref().map(bozzard_text::Font::id),
+            self.custom_font.as_ref().map(bozzard_text::Font::key),
         )
     }
     fn validate(&self) -> Result<()> {
@@ -168,7 +175,7 @@ pub fn text_bounds(text: &TextMesh) -> Result<Option<[Vec3; 2]>> {
 
 pub(super) struct TextRenderer {
     fonts: Fonts,
-    custom_fonts: Vec<u64>,
+    custom_fonts: Vec<bozzard_text::FontKey>,
     meshes: BTreeMap<Key, MeshBuffers>,
     texture: Option<wgpu::Texture>,
     pub view: Option<wgpu::TextureView>,
@@ -197,13 +204,13 @@ impl TextRenderer {
             .iter()
             .filter_map(|item| {
                 if let MeshKind::Text(text) = &item.mesh {
-                    text.custom_font.as_ref().map(|font| (font.id(), font))
+                    text.custom_font.as_ref().map(|font| (font.key(), font))
                 } else {
                     None
                 }
             })
             .collect();
-        let ids: Vec<_> = custom.keys().copied().collect();
+        let ids: Vec<_> = custom.keys().cloned().collect();
         let reset = self.fonts.font_atlas_fill_ratio() > 0.8 || ids != self.custom_fonts;
         if reset {
             let mut definitions = FontDefinitions::default();

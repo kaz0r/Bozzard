@@ -4,6 +4,49 @@ use bozzard_render::*;
 use bozzard_scene::shader_graph::{Node, NodeKind, ShaderGraph, Value};
 use glam::{Mat4, Vec3};
 
+#[test]
+fn static_keywords_render_distinct_variants_and_reuse_pipelines() -> anyhow::Result<()> {
+    use bozzard_scene::shader_graph::{Socket, Wire};
+    use std::collections::BTreeMap;
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let mut graph = ShaderGraph::default();
+    graph.keywords.insert("BLUE".into(), false);
+    let mut switch = Node::new(2, NodeKind::StaticSwitchVector, [0.; 2]);
+    switch.keyword = "BLUE".into();
+    switch.inputs = vec![
+        Value::Vector([0.9, 0.1, 0.1]),
+        Value::Vector([0.1, 0.1, 0.9]),
+    ];
+    graph.nodes.push(switch);
+    graph.connect(Wire {
+        from: Socket { node: 2, port: 0 },
+        to: Socket { node: 1, port: 0 },
+    })?;
+    for (enabled, compilations) in [(false, 1), (true, 1), (false, 0), (true, 0)] {
+        let shader = bozzard_render_assets::shader_variant_source(
+            &graph,
+            &BTreeMap::from([("BLUE".into(), enabled)]),
+        )?;
+        let rendered = scene(vec![item(Some(shader))]);
+        let frame = capture_offscreen(&gpu, 32, 24, |target| {
+            renderer.draw_linear(&gpu, target, [32, 24], &rendered)
+        })?;
+        let color = pixel(&frame, 16, 12);
+        let bright = if enabled { 2 } else { 0 };
+        assert!((226..=232).contains(&color[bright]), "{enabled}: {color:?}");
+        assert!(
+            (22..=28).contains(&color[2 - bright]),
+            "{enabled}: {color:?}"
+        );
+        assert_eq!(renderer.frame_stats().graph_compilations, compilations);
+        graph.name.push('x');
+        graph.nodes[0].position[0] += 1.;
+    }
+    assert_eq!(renderer.frame_stats().resident_graphs, 2);
+    Ok(())
+}
+
 fn graph_surface(graph: ShaderGraph) -> std::sync::Arc<ShaderSource> {
     bozzard_render_assets::shader_source(&graph).unwrap()
 }

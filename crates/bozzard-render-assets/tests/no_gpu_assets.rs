@@ -43,6 +43,7 @@ fn drawable_assets_still_need_one() {
             width: 1,
             height: 1,
             rgba: vec![255, 255, 255, 255],
+            compressed: None,
         })
     )));
     assert!(bozzard_render_assets::needs_gpu(&Arc::new(
@@ -59,6 +60,7 @@ fn drawable_assets_still_need_one() {
             width: 1,
             height: 1,
             rgba: vec![255, 255, 255, 255],
+            compressed: None,
         })))
         .is_ok()
     );

@@ -21,7 +21,7 @@ Select the first **Body**, change its tint, and choose **Apply to prefab**. The 
 
 Applying a prefab overwrites the source file after preparation succeeds. The scene change is recorded in editor history, but the source-file write is not undone by scene **Undo**. Treat **Apply to prefab** as an explicit source edit and keep normal file backups or version control for source recovery.
 
-The merge keeps a local component when it differs from the saved baseline; an unchanged local component receives the newer source component. Every component in the [registry](scenes.md#component-registry) merges, so a new component propagates on refresh without a second list to maintain; a source-side shader graph now reaches untouched instances the same way its material and mesh settings already did. Transform fields (position, rotation, and scale) are one transform override for merge purposes, including on children. `Drawable` and optional `Material` are separate component overrides. Older scenes retain their drawable tint; newly added Material edits merge independently of mesh settings. The root transform is always preserved as the instance's placement; the source never receives the current instance placement. Source-added children are added to linked instances. If a source deletes a child that was locally changed, refresh stops safely and asks for the instance to be unpacked; unpack before deleting or restructuring that child locally. Hierarchy edits such as reparenting also require **Unpack** first. Linked instances cannot overlap or contain one another.
+The merge keeps a local component when it differs from the saved baseline; an unchanged local component receives the newer source component. Every component in the [registry](scenes.md#component-registry) merges, so a new component propagates on refresh without a second list to maintain; a source-side shader graph now reaches untouched instances the same way its material and mesh settings already did. Transform fields (position, rotation, and scale) are one transform override for merge purposes, including on children. `Drawable` and optional `Material` are separate component overrides. Older scenes retain their drawable tint; newly added Material edits merge independently of mesh settings. The root transform is always preserved as the instance's placement; the source never receives the current instance placement. Source-added children are added to linked instances. If a source deletes a child that was locally changed, refresh stops safely and asks for the instance to be unpacked; unpack before deleting or restructuring that child locally. Hierarchy edits such as reparenting also require **Unpack** first. Scene instances have one outer owner. Nested relationships are stored in prefab source files, keeping the scene’s expanded objects under that owner.
 
 To check the linked behavior quickly, save a small hierarchy as a prefab, then use **Add to scene** twice (or drag the card twice) and move the two roots to different positions. Change a component on one instance, apply it with **Apply to prefab**, and confirm the other instance updates while both root placements remain different. Then make a source change and use **Refresh instances** to confirm the local component override remains while unchanged components update.
 
@@ -31,8 +31,57 @@ Prefab files can be imported through the asset browser as `.prefab.json`. Import
 
 [Gameplay Blueprint](blueprints.md) attachments are captured per prefab member, including their order, enabled flags, and graph data. The attachment list is one component-level override: unchanged lists receive Apply/Refresh updates, while locally edited lists are preserved. Every placed instance has independent runtime variables; graphs target their own member, not the shared mesh asset.
 
-Blueprints can [spawn and destroy prefab instances](blueprints.md#spawn-and-destroy-prefabs), including from graphs on imported surface children. Referenced templates load before Play in editor, player, and server. Spawned graphs may reference further prefab assets; this does not create nested linked hierarchies.
+Blueprints can [spawn and destroy prefab instances](blueprints.md#spawn-and-destroy-prefabs), including from graphs on imported surface children. Referenced templates load before Play in editor, player, and server. Spawned graphs may reference further prefab assets. Structural nesting and variant bases resolve before templates are registered, so fixed ticks never read prefab files.
 
 Legacy whole-model drawables must be **Unpacked** before converting surfaces into child entities; save the converted hierarchy as a prefab to reuse it.
 
-Nested linked prefabs, prefab variants, and `Player Controller` prefabs are not supported yet. A hierarchy containing a `Player Controller` must be unpacked or authored at scene level. The editor also requires Play to be stopped before prefab authoring operations.
+`Player Controller` prefabs remain unsupported because their camera wiring belongs to the containing scene. A hierarchy containing a `Player Controller` must be unpacked or authored at scene level. The editor also requires Play to be stopped before prefab authoring operations.
+
+
+## Nested prefabs and variants
+
+To build a nested prefab, create an ordinary parent object, parent one or more complete
+prefab instances underneath it, then select that parent and choose **Save as prefab**.
+The new source retains each nested instance’s source link and baseline. The scene uses
+one expanded outer instance, so normal object references, runtime spawning and unload
+ownership continue to identify the complete hierarchy. Nesting may continue through
+other source files, up to 32 levels. Cycles are rejected before publication.
+
+**Refresh instances** reads the outer source and its current nested/base dependencies.
+Unchanged components receive source changes; local component overrides and nested root
+placement remain. Added source children receive stable fresh instance IDs. Removing a
+locally edited child reports a conflict without publishing the candidate. Scene Undo/Redo
+covers the entire refreshed hierarchy and its asset catalog.
+
+Select an existing instance and choose **Create variant** to save a new prefab that
+inherits from its current source. The selected instance switches to the variant; other
+instances still use the original source. Its component edits become variant overrides.
+Variants can inherit from variants and contain nested instances. **Apply to prefab** on
+a variant writes the variant file, preserving its base relationship. It never applies
+those changes to the base file. Renaming a base’s root ID is rejected because it would
+break persistent identity. Conflicting source changes to a locally removed child require
+an explicit hierarchy decision rather than silently restoring or deleting it.
+
+## Editing a source hierarchy
+
+Choose **Edit source hierarchy** on a linked instance, or open its `.prefab.json` through
+File → Open scene. The source becomes an independent editor document with its own
+Undo/Redo history and an isolated preview. Its inspection cameras are temporary and never
+enter the prefab. Normal hierarchy operations can add, remove or reparent ordinary
+members. Add a new object, then parent it beneath the source’s root before saving; a
+prefab must retain one complete hierarchy and its root ID.
+
+Nested instances keep their links in this document. To restructure their internals,
+open the nested source in turn, or explicitly Unpack it. Save writes the active source;
+switch back to a containing source/scene and **Refresh instances** to adopt changes.
+Reopening a variant source resolves current inherited dependencies. Source Save validates
+that its dependency graph remains resolvable, rejects changed source bytes while a save
+is pending, and retains variant/nested metadata. Save As requires a `.prefab.json` filename
+and cannot overwrite another open document. Play runs placed scene instances; it is
+disabled while editing a source.
+
+Dependency reads are cancellable and bounded to 1,024 files, 32 MiB of source JSON and
+100,000 resolved objects. Preparation caches each source within a load and shares its
+immutable byte snapshots. Editor acceptance rejects dependency changes made during a
+prepared operation. Runtime loading and portable export use the same resolver, including
+current inherited components and transitive image/model/script dependencies.

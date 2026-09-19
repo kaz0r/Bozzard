@@ -1,10 +1,18 @@
 //! Native user-game projects and relocatable exports shared by editor and player CLI.
+pub mod content;
+mod cook;
 mod export;
+pub mod streaming;
+pub use cook::{CookReport, CookTarget};
+mod merge;
 use anyhow::{Context, Result, ensure};
 use bozzard_scene::{Layer, Scene};
 pub use export::{PreparedExport, prepare_export};
+pub use merge::{MergeConflict, SceneMerge, merge_scenes};
+mod templates;
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
+pub use templates::{ProjectTemplate, create_project};
 
 pub const MANIFEST: &str = "bozzard.project.json";
 
@@ -16,6 +24,9 @@ pub struct Project {
     /// Relative to the manifest, independent of the process working directory.
     pub start_scene: String,
     pub view: Layer,
+    /// Offline representation used when exporting. Existing manifests keep source assets.
+    #[serde(default, skip_serializing_if = "CookTarget::is_source")]
+    pub cook: CookTarget,
 }
 
 impl Project {

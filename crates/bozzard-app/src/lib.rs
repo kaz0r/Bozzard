@@ -1,4 +1,5 @@
 //! Graphics-independent application, ordered systems, and fixed-step simulation.
+pub mod job;
 pub use bozzard_ecs::{Commands, Entity, Mut, World};
 use std::{collections::HashSet, fmt, num::NonZeroU32, time::Duration};
 

@@ -245,8 +245,15 @@ impl DebugWorkspace {
             egui::CollapsingHeader::new("CPU · viewport rendering").default_open(true).show(ui, |ui| {
                 if let Some(render) = selected.render {
                     ui.label(format!("Prepare {:.3} ms · Encode {:.3} ms · Submit {:.3} ms", render.prepare_ms, render.encode_ms, render.submit_ms));
-                    ui.label(format!("{} visible mesh draws · {} culled surfaces · {} shadow draws · {} particles", render.visible_surfaces, render.culled_surfaces, render.shadow_draws, render.particles));
-                    ui.label(format!("{} color triangles · {} shadow triangles · {} particle dispatches", render.color_triangles, render.shadow_triangles, render.particle_compute_dispatches));
+                    ui.label(format!("{} mesh draw commands · {} frustum-culled surfaces · {} shadow draws · {} particles", render.color_draws, render.culled_surfaces, render.shadow_draws, render.particles));
+                    ui.label(format!("{} submitted color triangles · {} shadow triangles · {} particle dispatches", render.color_triangles, render.shadow_triangles, render.particle_compute_dispatches));
+                    if render.occlusion_candidates > 0 {
+                        ui.label(format!("Occlusion: {} candidate batches · {} depth draws · {:.2} MiB", render.occlusion_candidates, render.occlusion_depth_draws, render.occlusion_bytes as f64 / (1024. * 1024.)));
+                        if render.occlusion_cache_hit { ui.label("Unchanged view: visibility reused; hidden draw commands omitted."); }
+                    }
+                    if let Some(result) = render.occlusion_result {
+                        ui.label(format!("GPU frame {}: skipped {} hidden surfaces in {} batches ({} triangles)", result.frame_id, result.culled_surfaces, result.culled_batches, result.skipped_triangles));
+                    }
                     ui.weak("Mesh/shadow counters exclude full-screen effects, text overlays and particle draw batches.");
                 } else { ui.weak("Viewport reused or not drawn. No new renderer work is attributed to this frame."); }
             });
@@ -582,13 +589,13 @@ impl App {
             self.debug.memory_read = Instant::now();
         }
     }
-    pub(super) fn debug_panel(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn debug_content(&mut self, ui: &mut egui::Ui) {
         if !self.workspace.debug_visible {
             return;
         }
         let mut jump = None;
         let mut export = false;
-        egui::Panel::bottom("debug-workspace").default_size(340.).min_size(180.).max_size(650.).resizable(true).show(ui, |ui| {
+        ui.scope(|ui| {
             ui.set_min_height(ui.available_height());
             ui.horizontal(|ui| {
                 ui.strong("Debug");

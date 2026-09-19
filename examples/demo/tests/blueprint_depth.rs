@@ -634,6 +634,8 @@ fn destroy_event_can_read_its_owner_and_write_scene_state_before_removal() {
         ),
     });
     let prefab = bozzard_scene::Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "part".into(),
         root: "root".into(),

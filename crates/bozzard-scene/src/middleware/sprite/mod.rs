@@ -205,6 +205,9 @@ impl Component for Sprite {
     }
 }
 impl Authored for Sprite {
+    fn accept_prepared(prepared: &mut World, live: &mut World) {
+        accept_runtime(prepared, live);
+    }
     fn validate(&self) -> Result<()> {
         self.atlas.validate()?;
         ensure!(
@@ -387,6 +390,9 @@ impl Component for Tilemap {
     }
 }
 impl Authored for Tilemap {
+    fn accept_prepared(prepared: &mut World, live: &mut World) {
+        accept_runtime(prepared, live);
+    }
     fn validate_scene(&self, owner: &Object, _scene: &Scene, _ids: &BTreeSet<&str>) -> Result<()> {
         self.validate()?;
         ensure!(
@@ -499,6 +505,22 @@ pub struct Runtime {
     pub players: BTreeMap<String, Player>,
     #[serde(skip)]
     tiles: BTreeMap<String, TileCache>,
+}
+impl Runtime {
+    pub(crate) fn remove_objects(&mut self, ids: &std::collections::BTreeSet<String>) {
+        self.players.retain(|id, _| !ids.contains(id));
+        self.tiles.retain(|id, _| !ids.contains(id));
+    }
+}
+fn accept_runtime(prepared: &mut World, live: &mut World) {
+    if let Some(runtime) = prepared.remove_resource::<Runtime>() {
+        if let Some(current) = live.resource_mut::<Runtime>() {
+            current.players.extend(runtime.players);
+            current.tiles.extend(runtime.tiles);
+        } else {
+            live.insert_resource(runtime);
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct Visual {

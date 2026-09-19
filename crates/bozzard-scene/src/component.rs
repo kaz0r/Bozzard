@@ -558,6 +558,24 @@ impl Component for Lod {
     const LABEL: &'static str = "LOD";
     const UI: Ui = Ui::Generic;
     const HELP: &'static str = "Base mesh below the first switch; each level applies from its distance onward. World units, nearest first. Skinned objects keep their base mesh.";
+    fn fields() -> &'static [Field] {
+        const FIELDS: &[Field] = &[Field::range(
+            "hysteresis",
+            "Switch hysteresis",
+            0.01,
+            0.,
+            0.49,
+        )];
+        FIELDS
+    }
+    fn field(&self, key: &str) -> Option<FieldValue> {
+        (key == "hysteresis").then_some(FieldValue::Number(self.hysteresis))
+    }
+    fn set_field(&mut self, key: &str, value: FieldValue) -> Result<()> {
+        ensure!(key == "hysteresis", "LOD has no field '{key}'");
+        self.hysteresis = value.number()?;
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------- Spin
@@ -1350,21 +1368,29 @@ impl Component for Material {
             "texture" => self.texture = Some(texture_from_id(value.text()?)),
             "color" => {
                 let vector = value.vector()?;
-                self.color = [vector[0], vector[1], vector[2]];
+                self.set_color([vector[0], vector[1], vector[2]]);
             }
             "uv_scale" => {
                 let vector = value.vector()?;
                 self.uv_scale = [vector[0], vector[1]];
             }
             "metallic_override" => {
-                self.metallic = value.bool()?.then_some(self.metallic.unwrap_or(0.0));
+                self.set_metallic(value.bool()?.then_some(self.metallic.unwrap_or(0.0)));
             }
-            "metallic" => self.metallic = Some(value.number()?),
+            "metallic" => self.set_metallic(Some(value.number()?)),
             "roughness_override" => {
-                self.roughness = value.bool()?.then_some(self.roughness.unwrap_or(1.0));
+                self.set_roughness(value.bool()?.then_some(self.roughness.unwrap_or(1.0)));
             }
-            "roughness" => self.roughness = Some(value.number()?),
+            "roughness" => self.set_roughness(Some(value.number()?)),
             _ => anyhow::bail!("Material has no field '{key}'"),
+        }
+        if let Some(binding) = &mut self.shared {
+            let binding = std::sync::Arc::make_mut(binding);
+            match key {
+                "texture" | "texture_override" => binding.texture = self.texture.clone(),
+                "uv_scale" => binding.properties.uv_scale = Some(self.uv_scale),
+                _ => {}
+            }
         }
         Ok(())
     }
@@ -1543,18 +1569,30 @@ impl Component for TextRendering {
             }
             "text" => self.text = value.text()?.to_owned(),
             "font" => {
+                let previous = self.font.clone();
                 self.font = match value.index()? {
                     0 => TextFont::Sans,
                     1 => TextFont::Monospace,
                     2 if matches!(self.font, TextFont::Custom(_)) => self.font.clone(),
                     _ => anyhow::bail!("Choose a custom font asset first"),
+                };
+                if self.font != previous {
+                    self.font_axes.clear();
+                    self.font_fallbacks.clear();
+                    self.builtin_font_fallback = false;
                 }
             }
             "custom_font" => {
+                let previous = self.font.clone();
                 self.font = value
                     .asset()?
                     .as_ref()
-                    .map_or(TextFont::Sans, |id| TextFont::Custom(id.clone()))
+                    .map_or(TextFont::Sans, |id| TextFont::Custom(id.clone()));
+                if self.font != previous {
+                    self.font_axes.clear();
+                    self.font_fallbacks.clear();
+                    self.builtin_font_fallback = false;
+                }
             }
             "font_size" => self.font_size = value.number()?,
             "word_wrap" => {

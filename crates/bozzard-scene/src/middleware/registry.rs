@@ -20,6 +20,8 @@ pub trait Authored: Component + Default + Serialize + DeserializeOwned {
     fn initialize_runtime(&self, _world: &mut World, _owner: &str) -> Result<()> {
         Ok(())
     }
+    /// Move initialization data built by a scene worker into the live world.
+    fn accept_prepared(_prepared: &mut World, _live: &mut World) {}
 }
 type FieldValues = fn(&Object) -> Result<Vec<(crate::Field, FieldValue)>>;
 pub struct Entry {
@@ -30,6 +32,7 @@ pub struct Entry {
     remap: fn(&mut Object, &BTreeMap<String, String>) -> Result<()>,
     write_targets: fn(&Object) -> Result<Vec<String>>,
     field_values: FieldValues,
+    accept_prepared: fn(&mut World, &mut World),
 }
 pub fn get<T: Authored>(object: &Object) -> Result<Option<T>> {
     object
@@ -114,6 +117,7 @@ fn remap<T: Authored>(object: &mut Object, mapping: &BTreeMap<String, String>) -
 }
 pub const fn entry<T: Authored>() -> Entry {
     Entry {
+        accept_prepared: T::accept_prepared,
         component: ComponentType {
             name: T::NAME,
             label: T::LABEL,
@@ -147,6 +151,11 @@ pub const fn entry<T: Authored>() -> Entry {
         write_targets: |object| {
             Ok(get::<T>(object)?.map_or_else(Vec::new, |c| c.write_targets(&object.id)))
         },
+    }
+}
+pub(crate) fn accept_prepared(prepared: &mut World, live: &mut World) {
+    for entry in super::ENTRIES {
+        (entry.accept_prepared)(prepared, live);
     }
 }
 /// Baking excludes every object a middleware component can animate, even before playback.

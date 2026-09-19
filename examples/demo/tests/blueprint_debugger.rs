@@ -306,6 +306,8 @@ fn spawned_instance_destroy_handlers_suspend_before_removal_and_keep_their_watch
     set.variable = "destroyed".into();
     set.inputs[1] = V::Number(1.);
     let prefab = Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "part".into(),
         root: "root".into(),

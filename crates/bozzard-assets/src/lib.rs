@@ -2,18 +2,30 @@
 pub mod animation;
 pub mod audio;
 mod collision;
+mod cook_source;
+pub use cook_source::CookSource;
+pub mod cooked_model;
+mod fonts;
 pub mod gi;
 pub mod job;
+mod mesh_export;
 mod package;
 mod pbr;
 mod picking;
+mod simplify;
+pub mod texture;
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bozzard_scene::{AssetKind, AssetSource};
 use glam::{Mat3, Mat4, Vec3};
+pub use mesh_export::mesh_gltf;
 pub use package::{ModelPackage, SourcePackage, package_gltf, package_model};
 pub use pbr::{Filter, PbrMaterial, Sampler, SurfaceShading, TextureMap, Wrap};
+pub mod materials;
 pub use picking::{MeshHit, MeshPickStats};
+pub use simplify::{Simplification, SimplifySettings, simplify_mesh};
+pub mod blockout;
+pub mod terrain;
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Cursor, Read},
@@ -51,6 +63,8 @@ pub struct ImageData {
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
+    /// Offline block-compressed mip chains; original pixels remain available to CPU tools.
+    pub compressed: Option<Arc<texture::CookedTexture>>,
 }
 
 #[derive(Clone, Debug)]
@@ -149,6 +163,7 @@ fn inspection_name(name: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum AssetData {
+    Material(Box<materials::MaterialData>),
     Font(bozzard_text::Font),
     ComputeShader(Arc<bozzard_compute::Kernel>),
     Audio(audio::AudioData),
@@ -180,6 +195,17 @@ struct SourceSnapshot {
 }
 
 impl Entry {
+    /// Ready data decoded from these exact bytes without external dependencies.
+    pub fn matches_standalone_source(&self, bytes: &[u8]) -> bool {
+        matches!(self.state, LoadState::Ready)
+            && self.observed.as_ref().is_some_and(|source| {
+                source.dependencies.is_empty()
+                    && source
+                        .primary
+                        .as_deref()
+                        .is_ok_and(|original| original == bytes)
+            })
+    }
     /// Paths observed by the latest source read, for safe project-file deletion.
     pub fn source_dependencies(&self) -> impl Iterator<Item = &Path> {
         self.observed
@@ -338,6 +364,30 @@ impl AssetStore {
         self.entries.iter()
     }
 
+    /// Compose an editor-only catalog from decoded entries. No files are read and
+    /// mesh data, texture pixels and picking indexes retain their shared storage.
+    /// Names are supplied by the document owner to isolate scene-local asset IDs.
+    pub fn shared_catalog<'a>(
+        entries: impl IntoIterator<Item = (String, &'a Entry)>,
+    ) -> Result<Self> {
+        let mut store = Self::new(Path::new("."), &BTreeMap::new())?;
+        for (id, entry) in entries {
+            ensure!(
+                !store.handles.contains_key(&id),
+                "duplicate shared asset ID '{id}'"
+            );
+            let handle = Handle {
+                store: store.id,
+                index: store.entries.len(),
+            };
+            let mut shared = entry.clone();
+            shared.id = id.clone();
+            store.entries.push(shared);
+            store.handles.insert(id, handle);
+        }
+        Ok(store)
+    }
+
     /// Reuse decoded data when catalog paths still resolve to the same file.
     pub fn for_catalog(
         &self,
@@ -345,10 +395,12 @@ impl AssetStore {
         sources: &BTreeMap<String, AssetSource>,
     ) -> Result<Self> {
         let mut next = Self::new(root, sources)?;
+        let mut paths: Option<BTreeMap<PathBuf, Vec<&Entry>>> = None;
         for entry in &mut next.entries {
+            let new_path = root.join(&entry.source.path);
+            let mut reused = false;
             if let Some(old) = self.handle(&entry.id).and_then(|h| self.get(h)) {
                 let old_path = self.root.join(&old.source.path);
-                let new_path = root.join(&entry.source.path);
                 let same_path = old_path == new_path
                     || std::fs::canonicalize(&old_path)
                         .ok()
@@ -357,6 +409,32 @@ impl AssetStore {
                 if old.source.kind == entry.source.kind && same_path {
                     let source = entry.source.clone();
                     *entry = old.clone();
+                    entry.source = source;
+                    reused = true;
+                }
+            }
+            if !reused {
+                // Different scenes can name the same packed asset differently. Build
+                // this index only when ID-based reuse misses, then share its decoded
+                // data and picking index instead of reading/decoding it again.
+                let paths = paths.get_or_insert_with(|| {
+                    let mut paths: BTreeMap<PathBuf, Vec<&Entry>> = BTreeMap::new();
+                    for old in &self.entries {
+                        paths
+                            .entry(self.root.join(&old.source.path))
+                            .or_default()
+                            .push(old);
+                    }
+                    paths
+                });
+                if let Some(old) = paths.get(&new_path).and_then(|entries| {
+                    entries
+                        .iter()
+                        .find(|old| old.source.kind == entry.source.kind)
+                }) {
+                    let (id, source) = (entry.id.clone(), entry.source.clone());
+                    *entry = (*old).clone();
+                    entry.id = id;
                     entry.source = source;
                 }
             }
@@ -414,6 +492,8 @@ impl AssetStore {
                         dependencies: Vec::new(),
                     })
                 })
+            } else if entry.source.kind == AssetKind::Material {
+                materials::snapshot(&path, progress)
             } else {
                 source_snapshot(&path)
             }
@@ -497,14 +577,23 @@ impl AssetStore {
 }
 
 fn read_source(path: &Path) -> Result<Vec<u8>> {
+    let limit = if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("bmesh"))
+    {
+        cooked_model::MAX_FILE_BYTES as u64
+    } else {
+        MAX_SOURCE_BYTES
+    };
     let mut bytes = Vec::new();
     std::fs::File::open(path)
         .with_context(|| format!("opening {}", path.display()))?
-        .take(MAX_SOURCE_BYTES + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)?;
     ensure!(
-        bytes.len() as u64 <= MAX_SOURCE_BYTES,
-        "source exceeds 32 MiB: {}",
+        bytes.len() as u64 <= limit,
+        "source exceeds {} MiB: {}",
+        limit / (1024 * 1024),
         path.display()
     );
     Ok(bytes)
@@ -610,6 +699,9 @@ fn import(
         .unwrap_or("")
         .to_ascii_lowercase();
     match kind {
+        AssetKind::Material => {
+            materials::decode(path, bytes, snapshot).map(|data| AssetData::Material(Box::new(data)))
+        }
         AssetKind::Font => {
             ensure!(
                 matches!(extension.as_str(), "ttf" | "otf"),
@@ -645,23 +737,37 @@ fn import(
         }
         AssetKind::Image => {
             ensure!(
-                matches!(extension.as_str(), "png" | "jpg" | "jpeg"),
-                "image import supports PNG/JPEG"
+                matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "btex"),
+                "image import supports PNG/JPEG/BTEX"
             );
-            let mut reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
-            let mut limits = image::Limits::default();
-            limits.max_image_width = Some(4096);
-            limits.max_image_height = Some(4096);
-            limits.max_alloc = Some(128 * 1024 * 1024);
-            reader.limits(limits);
-            let image = reader.decode().context("decoding image")?.into_rgba8();
-            Ok(AssetData::Image(ImageData {
-                width: image.width(),
-                height: image.height(),
-                rgba: image.into_raw(),
+            Ok(AssetData::Image(if extension == "btex" {
+                texture::decode(bytes)?
+            } else {
+                decoded_image(bytes, "image asset")?
             }))
         }
         AssetKind::Mesh => {
+            if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with(".brush.json"))
+            {
+                return blockout::Blockout::from_json(bytes)?
+                    .mesh(&job::Progress::default())
+                    .map(AssetData::Mesh);
+            }
+            if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with(".terrain.json"))
+            {
+                return terrain::Terrain::from_json(bytes)?
+                    .mesh(&job::Progress::default())
+                    .map(AssetData::Mesh);
+            }
+            if extension == "bmesh" {
+                return cooked_model::decode(bytes).map(AssetData::Mesh);
+            }
             if matches!(extension.as_str(), "gltf" | "glb") {
                 return Ok(AssetData::Mesh(import_gltf(path, bytes, snapshot)?));
             }
@@ -954,6 +1060,7 @@ fn decoded_image(bytes: &[u8], label: &str) -> Result<ImageData> {
         width: image.width(),
         height: image.height(),
         rgba: image.into_raw(),
+        compressed: None,
     })
 }
 
@@ -1455,7 +1562,13 @@ pub fn portable_model(path: &Path) -> Result<Option<Vec<u8>>> {
     if matches!(extension.as_str(), "gltf" | "glb") {
         return portable_gltf(path).map(Some);
     }
-    ensure!(extension == "obj", "portable model supports OBJ/glTF/GLB");
+    if extension == "bmesh" {
+        return Ok(None);
+    }
+    ensure!(
+        extension == "obj",
+        "portable model supports OBJ/glTF/GLB/BMESH"
+    );
     let snapshot = source_snapshot(path)?;
     let bytes = snapshot
         .primary
@@ -1467,145 +1580,8 @@ pub fn portable_model(path: &Path) -> Result<Option<Vec<u8>>> {
     if mesh.parts.is_empty() {
         Ok(None)
     } else {
-        portable_mesh_gltf(&mesh).map(Some)
+        mesh_gltf(&mesh, &job::Progress::default()).map(Some)
     }
-}
-
-fn portable_mesh_gltf(mesh: &MeshData) -> Result<Vec<u8>> {
-    let mut data = Vec::new();
-    let append = |data: &mut Vec<u8>, bytes: Vec<u8>| {
-        while !data.len().is_multiple_of(4) {
-            data.push(0);
-        }
-        let offset = data.len();
-        data.extend(bytes);
-        (offset, data.len() - offset)
-    };
-    let mut views = Vec::new();
-    let mut accessors = Vec::new();
-    let fallback = MeshPart {
-        source_key: String::new(),
-        name: "Mesh".into(),
-        material_name: None,
-        start: 0,
-        count: u32::try_from(mesh.indices.len()).context("mesh index count overflow")?,
-        color: [1.0; 4],
-        image: None,
-        alpha_cutoff: None,
-        shading: None,
-    };
-    let source_parts: Vec<&MeshPart> = if mesh.parts.is_empty() {
-        vec![&fallback]
-    } else {
-        mesh.parts.iter().collect()
-    };
-    let mut materials = Vec::new();
-    let mut images = Vec::new();
-    let mut textures = Vec::new();
-    let mut primitives = Vec::new();
-    for part in source_parts {
-        let start = usize::try_from(part.start).context("mesh part offset overflow")?;
-        let count = usize::try_from(part.count).context("mesh part count overflow")?;
-        let values = mesh
-            .indices
-            .get(
-                start
-                    ..start
-                        .checked_add(count)
-                        .context("mesh part range overflow")?,
-            )
-            .context("mesh part range exceeds indices")?;
-        let mut remap = BTreeMap::new();
-        let mut compact = Vec::new();
-        let local_indices: Vec<u32> = values
-            .iter()
-            .map(|index| {
-                *remap.entry(*index).or_insert_with(|| {
-                    let next = compact.len() as u32;
-                    compact.push(mesh.vertices[*index as usize]);
-                    next
-                })
-            })
-            .collect();
-        let mut attributes = serde_json::Map::new();
-        for (name, range, kind) in [
-            ("POSITION", 0..3, "VEC3"),
-            ("NORMAL", 3..6, "VEC3"),
-            ("TEXCOORD_0", 6..8, "VEC2"),
-        ] {
-            let bytes = compact
-                .iter()
-                .flat_map(|v| v[range.clone()].iter().flat_map(|x| x.to_le_bytes()))
-                .collect();
-            let (offset, length) = append(&mut data, bytes);
-            let view = views.len();
-            views.push(serde_json::json!({"buffer":0,"byteOffset":offset,"byteLength":length}));
-            let mut accessor = serde_json::json!({"bufferView":view,"componentType":5126,"count":compact.len(),"type":kind});
-            if name == "POSITION" {
-                let mut min = [f32::INFINITY; 3];
-                let mut max = [f32::NEG_INFINITY; 3];
-                for v in &compact {
-                    for axis in 0..3 {
-                        min[axis] = min[axis].min(v[axis]);
-                        max[axis] = max[axis].max(v[axis]);
-                    }
-                }
-                accessor["min"] = serde_json::json!(min);
-                accessor["max"] = serde_json::json!(max);
-            }
-            attributes.insert(name.into(), serde_json::json!(accessors.len()));
-            accessors.push(accessor);
-        }
-        let index_bytes: Vec<u8> = local_indices
-            .iter()
-            .flat_map(|index| index.to_le_bytes())
-            .collect();
-        let (offset, length) = append(&mut data, index_bytes);
-        let view = views.len();
-        views.push(
-            serde_json::json!({"buffer":0,"byteOffset":offset,"byteLength":length,"target":34963}),
-        );
-        let accessor = accessors.len();
-        accessors.push(serde_json::json!({"bufferView":view,"componentType":5125,"count":count,"type":"SCALAR"}));
-        let texture_index = if let Some(image) = &part.image {
-            let rgba = image::RgbaImage::from_raw(image.width, image.height, image.rgba.clone())
-                .context("invalid decoded image dimensions")?;
-            let mut png = Cursor::new(Vec::new());
-            image::DynamicImage::ImageRgba8(rgba)
-                .write_to(&mut png, image::ImageFormat::Png)
-                .context("encoding portable PNG")?;
-            let image_index = images.len();
-            images.push(serde_json::json!({"uri":format!("data:image/png;base64,{}", STANDARD.encode(png.into_inner()))}));
-            let texture_index = textures.len();
-            textures.push(serde_json::json!({"source":image_index}));
-            Some(texture_index)
-        } else {
-            None
-        };
-        let mut pbr = serde_json::json!({"baseColorFactor":part.color});
-        if let Some(index) = texture_index {
-            pbr["baseColorTexture"] = serde_json::json!({"index":index});
-        }
-        let has_alpha = part.color[3] < 1.0
-            || part
-                .image
-                .as_ref()
-                .is_some_and(|image| image.rgba.chunks_exact(4).any(|pixel| pixel[3] != 255));
-        let mut material = serde_json::json!({"pbrMetallicRoughness":pbr});
-        if let Some(name) = &part.material_name {
-            material["name"] = serde_json::json!(name);
-        }
-        if let Some(cutoff) = part.alpha_cutoff {
-            material["alphaMode"] = serde_json::json!("MASK");
-            material["alphaCutoff"] = serde_json::json!(cutoff);
-        } else if has_alpha {
-            material["alphaMode"] = serde_json::json!("BLEND");
-        }
-        let material_index = materials.len();
-        materials.push(material);
-        primitives.push(serde_json::json!({"attributes":attributes,"indices":accessor,"material":material_index,"mode":4}));
-    }
-    serde_json::to_vec(&serde_json::json!({"asset":{"version":"2.0","generator":"bozzard-assets"},"buffers":[{"byteLength":data.len(),"uri":format!("data:application/octet-stream;base64,{}", STANDARD.encode(data))}],"bufferViews":views,"accessors":accessors,"images":images,"textures":textures,"materials":materials,"meshes":[{"primitives":primitives}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0})).context("serializing portable OBJ glTF")
 }
 
 fn mime_for_uri(uri: &str) -> &'static str {
@@ -1797,6 +1773,20 @@ mod tests {
                 .mesh_index
                 .as_ref()
                 .unwrap()
+        ));
+        let renamed = BTreeMap::from([("other-scene-mesh".into(), sources["mesh"].clone())]);
+        let renamed = store.for_catalog(&dir.0, &renamed).unwrap();
+        let renamed_entry = renamed
+            .get(renamed.handle("other-scene-mesh").unwrap())
+            .unwrap();
+        assert_eq!(renamed_entry.id, "other-scene-mesh");
+        assert!(Arc::ptr_eq(
+            old_index,
+            renamed_entry.mesh_index.as_ref().unwrap()
+        ));
+        assert!(Arc::ptr_eq(
+            original.get(handle).unwrap().data.as_ref().unwrap(),
+            renamed_entry.data.as_ref().unwrap()
         ));
         std::fs::write(&path, "broken mesh").unwrap();
         store.refresh();
@@ -2262,6 +2252,48 @@ mod tests {
         assert_eq!(&shading.vertices[1][6..8], &[1., 0.]);
         // Normal UV1 swaps UV axes; mirrored node flips tangent handedness back.
         assert_eq!(&shading.vertices[0][..4], &[0., 1., 0., 1.]);
+        // Generated LODs use this same portable material path. Verify all maps,
+        // alternate UV channels, alpha policy and samplers survive re-import.
+        let portable = mesh_gltf(&mesh, &job::Progress::default()).unwrap();
+        let portable: serde_json::Value = serde_json::from_slice(&portable).unwrap();
+        assert_eq!(portable["images"].as_array().unwrap().len(), 1);
+        let AssetData::Mesh(roundtrip) = load(&portable).unwrap() else {
+            panic!()
+        };
+        let rematerial = &roundtrip.parts[0].shading.as_ref().unwrap().material;
+        assert_eq!(roundtrip.indices.len(), mesh.indices.len());
+        for (&before, &after) in mesh.indices.iter().zip(&roundtrip.indices) {
+            assert_eq!(
+                roundtrip.vertices[after as usize],
+                mesh.vertices[before as usize]
+            );
+            assert_eq!(
+                roundtrip.parts[0].shading.as_ref().unwrap().vertices[after as usize],
+                shading.vertices[before as usize]
+            );
+        }
+        assert_eq!(roundtrip.parts[0].color, part.color);
+        assert_eq!(roundtrip.parts[0].alpha_cutoff, part.alpha_cutoff);
+        assert_eq!(rematerial.metallic, m.metallic);
+        assert_eq!(rematerial.roughness, m.roughness);
+        assert_eq!(rematerial.normal_scale, m.normal_scale);
+        assert_eq!(rematerial.occlusion_strength, m.occlusion_strength);
+        assert_eq!(rematerial.double_sided, m.double_sided);
+        assert_eq!(rematerial.emissive_factor, m.emissive_factor);
+        assert_eq!(rematerial.base_color_sampler, m.base_color_sampler);
+        for (before, after) in [&m.normal, &m.metallic_roughness, &m.occlusion, &m.emissive]
+            .into_iter()
+            .zip([
+                &rematerial.normal,
+                &rematerial.metallic_roughness,
+                &rematerial.occlusion,
+                &rematerial.emissive,
+            ])
+        {
+            let (before, after) = (before.as_ref().unwrap(), after.as_ref().unwrap());
+            assert_eq!(before.sampler, after.sampler);
+            assert_eq!(before.image.rgba, after.image.rgba);
+        }
         let mut missing_uv = json.clone();
         missing_uv["materials"][0]["emissiveTexture"]["texCoord"] = serde_json::json!(3);
         assert!(

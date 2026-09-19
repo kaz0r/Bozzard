@@ -65,7 +65,7 @@ fn compatible(a: &PreparedDraw, b: &PreparedDraw) -> bool {
 fn batches(draws: &[PreparedDraw], visible: &[bool], enabled: bool) -> Vec<Batch> {
     let mut result: Vec<Batch> = Vec::new();
     for (index, draw) in draws.iter().enumerate().filter(|(i, _)| visible[*i]) {
-        // ponytail: consecutive runs only, preserving equal-depth winner/order exactly.
+        // Consecutive runs preserve the equal-depth winner and submission order.
         // A measured need for cross-run grouping must define coplanar ordering first.
         if enabled
             && let Some(last) = result.last_mut()
@@ -156,7 +156,7 @@ impl SceneRenderer {
                     buffer,
                     binding,
                     texture: texture.clone(),
-                    bytes: Vec::new(),
+                    bytes: Vec::with_capacity(BUFFER_BYTES),
                 };
                 if slot == self.instancing.bindings.len() {
                     self.instancing.bindings.push(value);
@@ -165,14 +165,21 @@ impl SceneRenderer {
                 }
             }
             let binding = &mut self.instancing.bindings[slot];
-            let bytes: Vec<u8> = self.objects[batch.range.clone()]
-                .iter()
-                .flat_map(|b| b.uniform.as_ref().unwrap().iter().copied())
-                .collect();
-            if !self.state_caching || binding.bytes != bytes {
-                gpu.queue.write_buffer(&binding.buffer, 0, &bytes);
-                self.stats.instance_uniform_bytes += bytes.len();
-                binding.bytes = bytes;
+            let uniforms = &self.objects[batch.range.clone()];
+            let unchanged = binding.bytes.len() == uniforms.len() * OBJECT_UNIFORM_BYTES
+                && uniforms
+                    .iter()
+                    .zip(binding.bytes.chunks_exact(OBJECT_UNIFORM_BYTES))
+                    .all(|(object, bytes)| object.uniform.as_ref().unwrap().as_slice() == bytes);
+            if !self.state_caching || !unchanged {
+                binding.bytes.clear();
+                for object in uniforms {
+                    binding
+                        .bytes
+                        .extend_from_slice(object.uniform.as_ref().unwrap());
+                }
+                gpu.queue.write_buffer(&binding.buffer, 0, &binding.bytes);
+                self.stats.instance_uniform_bytes += binding.bytes.len();
             }
             batch.slot = Some(slot);
         }

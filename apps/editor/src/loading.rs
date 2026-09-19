@@ -2,49 +2,98 @@ use super::*;
 use bozzard_assets::{AssetStore, Handle, job::Job};
 
 pub enum Loading {
+    Play(Job<bozzard_editor::PreparedPlay>),
+    Bundle(Job<bozzard_project::content::PreparedPack>),
+    Lods(Job<bozzard_editor::PreparedLods>),
     Export(Job<bozzard_project::PreparedExport>),
     Prefab(Job<bozzard_editor::PreparedPrefab>),
     BakeGi(Job<bozzard_editor::PreparedGi>),
     Import(Job<bozzard_editor::PreparedImport>),
     Open(Job<bozzard_editor::LoadedScene>),
+    OpenAdditive(Job<bozzard_editor::LoadedScene>),
     Save(Job<bozzard_editor::PreparedSave>),
 }
 impl Loading {
+    pub fn fraction(&self) -> f32 {
+        match self {
+            Self::Play(job) => job.fraction(),
+            Self::Bundle(job) => job.fraction(),
+            Self::Lods(job) => job.fraction(),
+            Self::Export(job) => job.fraction(),
+            Self::Prefab(job) => job.fraction(),
+            Self::BakeGi(job) => job.fraction(),
+            Self::Import(job) => job.fraction(),
+            Self::Open(job) | Self::OpenAdditive(job) => job.fraction(),
+            Self::Save(job) => job.fraction(),
+        }
+    }
     pub fn label(&self) -> String {
         match self {
+            Self::Play(job) => job.label(),
+            Self::Bundle(job) => job.label(),
+            Self::Lods(job) => job.label(),
             Self::Prefab(job) => job.label(),
             Self::BakeGi(job) => job.label(),
             Self::Import(job) => job.label(),
-            Self::Open(job) => job.label(),
+            Self::Open(job) | Self::OpenAdditive(job) => job.label(),
             Self::Save(job) => job.label(),
             Self::Export(job) => job.label(),
         }
     }
     pub fn cancel(&self) {
         match self {
+            Self::Play(job) => job.cancel(),
+            Self::Bundle(job) => job.cancel(),
+            Self::Lods(job) => job.cancel(),
             Self::Prefab(job) => job.cancel(),
             Self::BakeGi(job) => job.cancel(),
             Self::Import(job) => job.cancel(),
-            Self::Open(job) => job.cancel(),
+            Self::Open(job) | Self::OpenAdditive(job) => job.cancel(),
             Self::Save(job) => job.cancel(),
             Self::Export(job) => job.cancel(),
         }
     }
     pub fn cancelled(&self) -> bool {
         match self {
+            Self::Play(job) => job.cancelled(),
+            Self::Bundle(job) => job.cancelled(),
+            Self::Lods(job) => job.cancelled(),
             Self::Prefab(job) => job.cancelled(),
             Self::BakeGi(job) => job.cancelled(),
             Self::Import(job) => job.cancelled(),
-            Self::Open(job) => job.cancelled(),
+            Self::Open(job) | Self::OpenAdditive(job) => job.cancelled(),
             Self::Save(job) => job.cancelled(),
             Self::Export(job) => job.cancelled(),
         }
     }
 }
-pub type Refresh = (u64, Job<(AssetStore, Vec<Handle>)>);
+pub struct Refresh {
+    pub owner: bozzard_editor::SceneId,
+    pub workspace: u64,
+    pub revision: u64,
+    pub job: Job<(AssetStore, Vec<Handle>)>,
+}
 
 impl App {
-    pub fn start_export(&mut self, destination: PathBuf, name: String) -> bool {
+    pub fn start_play(&mut self) {
+        let result = (|| {
+            ensure!(
+                self.loading.is_none(),
+                "Wait for the current operation first"
+            );
+            self.drag = None;
+            self.gameplay_controls.reset();
+            self.loading = Some(Loading::Play(self.editor.play_job()?));
+            Ok(())
+        })();
+        self.result(result);
+    }
+    pub fn start_export(
+        &mut self,
+        destination: PathBuf,
+        name: String,
+        cook: bozzard_project::CookTarget,
+    ) -> bool {
         let result = (|| {
             ensure!(
                 self.loading.is_none(),
@@ -58,6 +107,7 @@ impl App {
                 version: 1,
                 name,
                 start_scene: "scene.json".into(),
+                cook,
                 view: if scene.views.contains_key(&Layer::ThreeD) {
                     Layer::ThreeD
                 } else {
@@ -124,11 +174,45 @@ impl App {
     pub fn poll_loading(&mut self) {
         let cancelled = self.loading.as_ref().is_some_and(Loading::cancelled);
         let completion = match self.loading.as_ref() {
+            Some(Loading::Play(job)) => job.poll().map(|result| {
+                result.and_then(|prepared| {
+                    self.editor.accept_play(prepared)?;
+                    self.status = "Play started".into();
+                    Ok(())
+                })
+            }),
+            Some(Loading::Bundle(job)) => job.poll().map(|result| {
+                result.and_then(|prepared| {
+                    let report = prepared.report();
+                    let path = prepared.commit()?;
+                    self.status = format!("Content pack ready: {}. Cooked {}, reused {} cached assets.", path.display(), report.built, report.reused);
+                    Ok(())
+                })
+            }),
+            Some(Loading::Lods(job)) => job.poll().map(|result| {
+                result.and_then(|prepared| {
+                    let levels = self.editor.accept_lods(prepared)?;
+                    self.status = format!(
+                        "Generated LODs: {}. Save the scene to keep them.",
+                        levels
+                            .iter()
+                            .map(|level| format!(
+                                "{} → {} triangles",
+                                level.source_triangles, level.triangles
+                            ))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                    self.workspace.assets_visible = true;
+                    Ok(())
+                })
+            }),
             Some(Loading::Export(job)) => job.poll().map(|result| {
                 result.and_then(|prepared| {
+                    let report = prepared.report();
                     let folder = prepared.commit()?;
                     self.status =
-                        format!("Game exported to {}. Open Game to play.", folder.display());
+                        format!("Game exported to {}. Cooked {}, reused {} cached assets. Open Game to play.", folder.display(), report.built, report.reused);
                     self.dialog = Some(files::Dialog::new(files::Kind::Exported, &folder));
                     Ok(())
                 })
@@ -171,17 +255,25 @@ impl App {
                 })
             }),
             Some(Loading::Open(job)) => job.poll().map(|result| {
-                result.map(|loaded| {
-                    self.editor = loaded.into_editor();
-                    self.viewport_stamp = None;
-                    self.hierarchy_state = hierarchy::HierarchyState::default();
-                    self.workspace.camera = None;
-                    self.workspace.ortho_zoom = 1.0;
-                    self.residency.retry_failed();
-                    // Catalog revisions are local to an editor; an older scene's refresh must never land here.
-                    self.refresh = None;
-                    self.reload_paused = false;
+                result.and_then(|loaded| {
+                    let incoming = loaded.into_editor();
+                    if let Some(id) = self.open_scenes.find_path(&self.editor, &incoming.path)
+                        && id != self.open_scenes.active() {
+                        self.open_scenes.activate(&mut self.editor, id)?;
+                    } else {
+                        self.open_scenes.replace(&mut self.editor, incoming)?;
+                    }
+                    self.scene_activated(false);
                     self.status = format!("Opened {}", self.editor.path.display());
+                    Ok(())
+                })
+            }),
+            Some(Loading::OpenAdditive(job)) => job.poll().map(|result| {
+                result.and_then(|loaded| {
+                    self.open_scenes.add(&mut self.editor, loaded.into_editor())?;
+                    self.scene_activated(true);
+                    self.status = format!("Opened {} scenes · Editing {}", self.open_scenes.len(), self.editor.scene().name);
+                    Ok(())
                 })
             }),
             None => None,

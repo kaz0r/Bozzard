@@ -10,9 +10,11 @@ mod surface;
 pub use surface::SurfaceMaterialOverride;
 pub mod blueprint;
 mod blueprint_runtime;
+pub mod material_asset;
 pub mod middleware;
 mod runtime_prefabs;
 pub mod scene_control;
+pub mod scene_loading;
 pub mod shader_graph;
 pub mod spatial;
 pub use blueprint::{Blueprint, BlueprintAttachment};
@@ -23,10 +25,12 @@ pub use blueprint_runtime::{
 pub mod script;
 pub use bozzard_compute as compute;
 mod compute_runtime;
-pub use compute_runtime::{SceneCompute, load_compute_kernels};
+pub use compute_runtime::{SceneCompute, load_compute_kernels, load_compute_kernels_with_progress};
 pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
 mod script_runtime;
-pub use script_runtime::{ScriptRuntime, ScriptRuntimeStats, load_sources};
+pub use script_runtime::{
+    ScriptRuntime, ScriptRuntimeStats, load_sources, load_sources_with_progress,
+};
 mod fog;
 pub use fog::FogSettings;
 mod environment;
@@ -50,6 +54,7 @@ pub use light::{
     WorldLight,
 };
 mod lighting;
+mod lod;
 pub use lighting::Lighting;
 
 use anyhow::{Context, Result, ensure};
@@ -69,7 +74,7 @@ pub use component::{
 mod gameplay;
 pub mod keys;
 mod prefab;
-pub use prefab::{Prefab, PrefabInstance};
+pub use prefab::{Prefab, PrefabBase, PrefabInstance, merge_objects as merge_prefab_objects};
 pub mod bvh;
 mod gravity;
 mod joint;
@@ -278,6 +283,10 @@ pub struct Drawable {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Material {
+    /// Shared asset plus independent instance overrides. Immutable storage is
+    /// reused across scene extraction and history until an override changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<std::sync::Arc<material_asset::MaterialInstance>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metallic: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -291,6 +300,7 @@ pub struct Material {
 impl Material {
     pub fn from_drawable(drawable: &Drawable) -> Self {
         Self {
+            shared: None,
             metallic: None,
             roughness: None,
             texture: None,
@@ -299,6 +309,9 @@ impl Material {
         }
     }
     pub fn apply(&self, drawable: &mut Drawable) {
+        if self.shared.is_some() {
+            return;
+        } // resolved by the asset-to-renderer bridge
         if let Some(texture) = &self.texture {
             drawable.texture = texture.clone();
         }
@@ -331,6 +344,24 @@ impl Material {
             if let Some(roughness) = self.roughness {
                 value.roughness = Some(roughness);
             }
+        }
+    }
+    pub fn set_color(&mut self, color: [f32; 3]) {
+        self.color = color;
+        if let Some(shared) = &mut self.shared {
+            std::sync::Arc::make_mut(shared).properties.color = Some(color);
+        }
+    }
+    pub fn set_metallic(&mut self, value: Option<f32>) {
+        self.metallic = value;
+        if let Some(binding) = &mut self.shared {
+            std::sync::Arc::make_mut(binding).properties.metallic = value;
+        }
+    }
+    pub fn set_roughness(&mut self, value: Option<f32>) {
+        self.roughness = value;
+        if let Some(binding) = &mut self.shared {
+            std::sync::Arc::make_mut(binding).properties.roughness = value;
         }
     }
 }
@@ -373,6 +404,10 @@ impl LodLevel {
 #[serde(deny_unknown_fields)]
 pub struct Lod {
     pub levels: Vec<LodLevel>,
+    /// Fraction of each switch distance retained on either side of the boundary.
+    /// Zero preserves exact thresholds for existing documents.
+    #[serde(default)]
+    pub hysteresis: f32,
 }
 impl Lod {
     /// The level for a camera distance: `Some(Some(mesh))` replaces the drawable's mesh,
@@ -385,6 +420,10 @@ impl Lod {
             .map(|level| level.mesh.clone())
     }
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.hysteresis.is_finite() && (0.0..=0.49).contains(&self.hysteresis),
+            "LOD hysteresis must be between 0 and 0.49"
+        );
         ensure!(self.levels.len() <= 32, "LOD supports at most 32 levels");
         for level in &self.levels {
             level.validate()?;
@@ -521,6 +560,9 @@ pub struct Scene {
     /// Embedded levels share this document's preloaded asset catalog. Nested libraries are forbidden.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub runtime_scenes: BTreeMap<String, std::sync::Arc<Scene>>,
+    /// Named lazy scene inputs. Hosts acquire these only when an async load is requested.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub runtime_scene_sources: BTreeMap<String, scene_loading::SceneSource>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub blackboard: blueprint::Blackboard,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -552,6 +594,7 @@ pub struct Scene {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetKind {
+    Material,
     ComputeShader,
     Audio,
     Prefab,
@@ -790,6 +833,9 @@ impl Scene {
                 );
             }
             if let Some(material) = &object.material {
+                if let Some(shared) = &material.shared {
+                    shared.validate()?;
+                }
                 ensure!(
                     object.drawable.is_some(),
                     "Material needs a mesh on '{}'",
@@ -980,11 +1026,22 @@ impl Scene {
 
     /// Validates the entire document before making any changes to the destination world.
     pub fn spawn(&self, world: &mut World) -> Result<SceneInstance> {
+        self.spawn_reporting(world, |_, _| Ok(()))
+    }
+
+    fn spawn_reporting(
+        &self,
+        world: &mut World,
+        mut progress: impl FnMut(usize, usize) -> Result<()>,
+    ) -> Result<SceneInstance> {
+        progress(0, self.objects.len())?;
         let order = self.order()?;
         let mut entities = BTreeMap::new();
-        for object in &self.objects {
+        for (index, object) in self.objects.iter().enumerate() {
+            progress(index, self.objects.len())?;
             entities.insert(object.id.clone(), object.spawn_in(world)?);
         }
+        progress(self.objects.len(), self.objects.len())?;
         let templates = self
             .prefabs
             .iter()
@@ -992,6 +1049,8 @@ impl Scene {
                 (
                     link.asset.clone(),
                     Prefab {
+                        nested: Default::default(),
+                        base: None,
                         version: 1,
                         name: link.asset.clone(),
                         root: root.clone(),
@@ -1007,6 +1066,8 @@ impl Scene {
             })
             .collect();
         let instance = SceneInstance {
+            instance_id: scene_loading::next_instance_id(),
+            additive_scenes: BTreeMap::new(),
             document: self.clone(),
             entities,
             order,
@@ -1027,6 +1088,7 @@ impl Scene {
             compute_kernels: BTreeMap::new(),
             compute_state: std::sync::OnceLock::new(),
             compute_capabilities: Default::default(),
+            lod_history: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -1036,6 +1098,8 @@ impl Scene {
 /// Runtime scene membership and live ECS components. Authored documents remain independent.
 #[derive(Clone)]
 pub struct SceneInstance {
+    instance_id: u64,
+    additive_scenes: BTreeMap<String, scene_loading::LoadedScene>,
     particle_state: particles::ParticleSystem,
     display_time: f32,
     display_overrides: display::DisplayOverrides,
@@ -1054,6 +1118,7 @@ pub struct SceneInstance {
     compute_state:
         std::sync::OnceLock<std::sync::Arc<std::sync::Mutex<compute_runtime::SceneCompute>>>,
     compute_capabilities: compute::Capabilities,
+    lod_history: lod::History,
 }
 
 impl SceneInstance {
@@ -1127,6 +1192,18 @@ impl SceneInstance {
     }
 
     pub fn view(&self, world: &World, layer: Layer, aspect: f32) -> Result<SceneView> {
+        self.view_from_camera(world, layer, aspect, None)
+    }
+
+    /// Extract from a host's inspection camera without editing the authored camera.
+    /// Its LOD history is separate from the gameplay camera, independently per layer.
+    pub fn view_from_camera(
+        &self,
+        world: &World,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+    ) -> Result<SceneView> {
         let matrices = self.global_transforms(world)?;
         let camera_id = world
             .resource::<middleware::timeline::Runtime>()
@@ -1146,13 +1223,29 @@ impl SceneInstance {
             .get::<Camera>(camera)
             .context("view camera component was removed")?
             .projection(aspect)?;
-        let view_projection = projection * matrices[camera_id].inverse();
+        let camera_pose = inspection_pose.unwrap_or(matrices[camera_id]);
+        ensure!(
+            camera_pose.is_finite() && camera_pose.inverse().is_finite(),
+            "invalid inspection camera pose"
+        );
+        let view_projection = projection * camera_pose.inverse();
+        let camera_position = camera_pose.transform_point3(Vec3::ZERO);
+        let mut lod_history = self.lod_history.lock()?;
+        let (lod_camera, lod_view) = lod_history
+            .entry((layer, inspection_pose.is_some()))
+            .or_insert_with(|| (camera, Default::default()));
+        if *lod_camera != camera {
+            *lod_camera = camera;
+            lod_view.clear();
+        }
+        lod_view.retain(|entity, _| world.get::<Lod>(*entity).is_some());
         let mut objects = Vec::new();
         let mut object_ids = Vec::new();
         let mut compute_textures = BTreeMap::new();
         let compute_state = self.compute_if_initialized();
         let mut skin_poses = BTreeMap::new();
         let mut shader_graphs = Vec::new();
+        let mut material_instances = Vec::new();
         let mut texts = Vec::new();
         for (id, entity) in &self.entities {
             if let Some(text) = world.get::<TextRendering>(*entity)
@@ -1182,15 +1275,13 @@ impl SceneInstance {
                     lod.validate()?;
                     let distance = matrices[id]
                         .transform_point3(Vec3::ZERO)
-                        .distance(matrices[camera_id].transform_point3(Vec3::ZERO));
-                    match lod.level(distance) {
+                        .distance(camera_position);
+                    match lod::select(lod_view, *entity, lod, distance) {
                         Some(Some(mesh)) if drawable.mesh != mesh => {
                             // Surface overrides belong to the original mesh, not the replacement.
                             drawable.material_overrides.clear();
                             drawable.mesh = mesh;
                         }
-                        // ponytail: hysteresis needs a per-object frame history; add it if
-                        // switch flicker is reported at boundary distances.
                         Some(None) => continue,
                         _ => {}
                     }
@@ -1236,6 +1327,11 @@ impl SceneInstance {
                         .get::<shader_graph::ShaderGraph>(*entity)
                         .map(|g| std::sync::Arc::new(g.clone())),
                 );
+                material_instances.push(
+                    world
+                        .get::<Material>(*entity)
+                        .and_then(|material| material.shared.clone()),
+                );
                 objects.push((matrices[id], drawable));
             }
         }
@@ -1279,10 +1375,7 @@ impl SceneInstance {
             fog: self.document.fog,
             lights,
             environment: self.document.environment,
-            display: self.display_at(
-                matrices[camera_id].transform_point3(glam::Vec3::ZERO),
-                layer,
-            ),
+            display: self.display_at(camera_position, layer),
             display_time: self.display_time,
             lighting: self.document.lighting,
             view_projection,
@@ -1290,6 +1383,7 @@ impl SceneInstance {
             object_ids,
             compute_textures,
             shader_graphs,
+            material_instances,
             texts,
         })
     }
@@ -1334,6 +1428,7 @@ pub struct SceneView {
     pub compute_textures: BTreeMap<u64, compute::Handle>,
     /// Surface shader graph per object, same order as `objects`.
     pub shader_graphs: Vec<Option<std::sync::Arc<shader_graph::ShaderGraph>>>,
+    pub material_instances: Vec<Option<std::sync::Arc<material_asset::MaterialInstance>>>,
     pub particles: Vec<Particle>,
     pub display_time: f32,
     pub texts: Vec<(Mat4, TextRendering)>,
@@ -1392,6 +1487,16 @@ impl Object {
         {
             dependencies.push((id, AssetKind::Image));
         }
+        if let Some(shared) = self
+            .material
+            .as_ref()
+            .and_then(|material| material.shared.as_ref())
+        {
+            dependencies.push((&shared.asset, AssetKind::Material));
+            if let Some(Texture::Asset(id)) = &shared.texture {
+                dependencies.push((id, AssetKind::Image));
+            }
+        }
         for node in self.blueprints.iter().flat_map(|b| &b.graph.nodes) {
             if node.kind == blueprint::NodeKind::SpawnPrefab && !node.prefab.is_empty() {
                 dependencies.push((&node.prefab, AssetKind::Prefab));
@@ -1406,6 +1511,13 @@ impl Object {
         }) = &self.text_rendering
         {
             dependencies.push((id, AssetKind::Font));
+        }
+        if let Some(text) = &self.text_rendering {
+            dependencies.extend(
+                text.font_fallbacks
+                    .iter()
+                    .map(|id| (id.as_str(), AssetKind::Font)),
+            );
         }
         dependencies.extend(middleware::registry::dependencies(self));
         dependencies
@@ -1424,6 +1536,11 @@ impl Object {
         {
             remap(id);
         }
+        if let Some(text) = &mut self.text_rendering {
+            for id in &mut text.font_fallbacks {
+                remap(id);
+            }
+        }
         for level in self.lod.iter_mut().flat_map(|lod| &mut lod.levels) {
             if let Some(Mesh::Asset(id) | Mesh::Surface { asset: id, .. }) = &mut level.mesh {
                 remap(id);
@@ -1433,6 +1550,17 @@ impl Object {
             && let Some(Texture::Asset(id)) = &mut material.texture
         {
             remap(id);
+        }
+        if let Some(shared) = self
+            .material
+            .as_mut()
+            .and_then(|material| material.shared.as_mut())
+        {
+            let shared = std::sync::Arc::make_mut(shared);
+            remap(&mut shared.asset);
+            if let Some(Texture::Asset(id)) = &mut shared.texture {
+                remap(id);
+            }
         }
         if let Some(drawable) = &mut self.drawable {
             if let Mesh::Asset(id) | Mesh::Surface { asset: id, .. } = &mut drawable.mesh {
@@ -1622,6 +1750,7 @@ mod tests {
         Scene {
             blackboard: Default::default(),
             runtime_scenes: Default::default(),
+            runtime_scene_sources: Default::default(),
             game_flow: None,
             fog: Default::default(),
             gi: Default::default(),

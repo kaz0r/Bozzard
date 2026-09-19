@@ -23,6 +23,17 @@ pub struct Signals {
     count: usize,
 }
 impl Signals {
+    pub(crate) fn remove_objects(&mut self, ids: &std::collections::BTreeSet<String>) {
+        self.owners.retain(|id, _| !ids.contains(id));
+        for signals in self.owners.values_mut() {
+            for signal in signals {
+                if signal.other.as_ref().is_some_and(|id| ids.contains(id)) {
+                    signal.other = None;
+                }
+            }
+        }
+        self.count = self.owners.values().map(Vec::len).sum();
+    }
     pub const LIMIT: usize = 4096;
     pub fn begin(&mut self, kind: Kind) {
         self.count = 0;

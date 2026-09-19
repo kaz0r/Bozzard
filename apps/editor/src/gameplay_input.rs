@@ -12,6 +12,7 @@ pub struct GameplayControls {
     pressed: u128,
     // Keys gameplay may act on this frame.
     keys: u128,
+    pressed_keys: u128,
     // Only focus discontinuities can hide releases. Same-window cancellation
     // retains the press latch without suggesting that focus was lost.
     rearm: u128,
@@ -23,6 +24,7 @@ pub struct GameplayControls {
 impl GameplayControls {
     pub fn reset(&mut self) {
         self.keys = 0;
+        self.pressed_keys = 0;
         self.jump = false;
         self.fire = false;
         self.interact = false;
@@ -54,6 +56,7 @@ impl GameplayControls {
         }
         if fresh {
             self.keys |= bit;
+            self.pressed_keys |= bit;
         }
         if !self.focused {
             self.rearm |= bit;
@@ -151,6 +154,7 @@ impl GameplayControls {
         GameplayInput {
             movement: [down("D") - down("A"), down("W") - down("S")],
             keys: self.keys,
+            pressed_keys: std::mem::take(&mut self.pressed_keys),
             jump: std::mem::take(&mut self.jump),
             fire: std::mem::take(&mut self.fire),
             interact: std::mem::take(&mut self.interact),
@@ -318,6 +322,66 @@ mod tests {
         );
         controls.prepare(&raw(vec![]), Modifiers::NONE, false, Some(&mut demo));
         assert!(!controls.take_input([0.; 2]).jump);
+    }
+
+    #[test]
+    fn a_tap_between_frames_reaches_blueprints_once_without_holding_the_key() {
+        let scene = bozzard_scene::Scene::from_json(
+            &include_str!("../../../examples/demo/scenes/blueprint-lab.json")
+                .replace("\"key\": \"jump\"", "\"key\": \"U\""),
+        )
+        .unwrap();
+        let mut demo = SceneDemo::new(&scene).unwrap();
+        let mut controls = GameplayControls::default();
+        let release = Event::Key {
+            key: Key::U,
+            physical_key: Some(Key::U),
+            pressed: false,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        };
+        controls.prepare(
+            &raw(vec![key(Key::U, Key::U, false), release]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        let sample = controls.take_input([0.; 2]);
+        assert_eq!(sample.keys, 0);
+        assert_eq!(sample.pressed_keys, keys::bit("U"));
+        demo.set_gameplay_input(sample);
+        // Several render frames can precede a fixed simulation tick.
+        for _ in 0..3 {
+            demo.set_gameplay_input(controls.take_input([0.; 2]));
+        }
+        demo.app.step();
+        demo.check_simulation().unwrap();
+        let hero = demo.instance().entity("hero-cube").unwrap();
+        assert!(
+            demo.app
+                .world
+                .get::<bozzard_scene::BlueprintHidden>(hero)
+                .unwrap()
+                .0
+        );
+        demo.app.step();
+        demo.check_simulation().unwrap();
+        assert!(
+            demo.app
+                .world
+                .get::<bozzard_scene::BlueprintHidden>(hero)
+                .unwrap()
+                .0,
+            "the tap must not toggle visibility a second time"
+        );
+        assert_eq!(
+            demo.app
+                .world
+                .resource::<GameplayInput>()
+                .unwrap()
+                .pressed_keys,
+            0
+        );
     }
 
     #[test]
@@ -525,6 +589,7 @@ mod tests {
                 fire: true,
                 interact: true,
                 orbit: [30.0, 10.0],
+                ..Default::default()
             });
             controls.prepare(
                 &raw(vec![Event::ModifiersChanged(modifiers)]),

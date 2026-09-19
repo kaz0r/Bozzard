@@ -217,6 +217,10 @@ impl InputKey {
     pub fn instant(&self) -> bool {
         matches!(self.0.as_str(), "jump" | "fire")
     }
+    pub(crate) fn pressed(&self, input: GameplayInput, held: u128) -> bool {
+        input.pressed_keys & self.bit() != 0
+            || (self.active(input) && (self.instant() || held & self.bit() == 0))
+    }
 }
 impl Default for InputKey {
     fn default() -> Self {
@@ -396,6 +400,11 @@ node_kinds! {
     ListLength => "List Length" { } -> { "Value": Number },
     LoadScene => "Load Scene" { "In": Exec, "Scene": Text } -> { "Then": Exec },
     AddScene => "Load Scene Additively" { "In": Exec, "Scene": Text } -> { "Then": Exec },
+    LoadSceneAsync => "Load Scene Async" { "In": Exec, "Scene": Text } -> { "Then": Exec },
+    AddSceneAsync => "Load Scene Additively Async" { "In": Exec, "Scene": Text } -> { "Then": Exec },
+    CancelSceneLoad => "Cancel Scene Loading" { "In": Exec } -> { "Then": Exec },
+    UnloadScene => "Unload Scene" { "In": Exec, "Handle": Text } -> { "Then": Exec },
+    SceneLoadStatus => "Scene Loading Status" { } -> { "Loading": Bool, "Progress": Number, "Handle": Text, "Error": Text },
     RestartScene => "Restart Scene" { "In": Exec } -> { "Then": Exec },
     SaveGame => "Save Game State" { "In": Exec, "Slot": Text } -> { "Then": Exec },
     LoadGame => "Load Game State" { "In": Exec, "Slot": Text } -> { "Then": Exec },

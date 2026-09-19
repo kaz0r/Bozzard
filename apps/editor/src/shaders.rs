@@ -10,6 +10,7 @@ pub struct ShaderPane {
     connecting: Option<Socket>,
     view: Rect,
     search: String,
+    keyword_name: String,
 }
 impl Default for ShaderPane {
     fn default() -> Self {
@@ -19,6 +20,7 @@ impl Default for ShaderPane {
             connecting: None,
             view: Rect::from_min_size(Pos2::ZERO, Vec2::new(900., 560.)),
             search: String::new(),
+            keyword_name: String::new(),
         }
     }
 }
@@ -136,6 +138,7 @@ impl App {
 
     pub fn open_shader_editor(&mut self) {
         self.workspace.shaders_visible = true;
+        self.dock_focus = Some(docking::Pane::Scene);
         if let Some(object) = self.editor.selected_object() {
             self.shader_pane.sync(&self.editor.path, &object.id);
             if let Some(graph) = &object.shader_graph {
@@ -202,63 +205,7 @@ impl App {
                 }
             });
         });
-        ui.add_enabled_ui(editing, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.label("Name");
-                ui.add(
-                    egui::TextEdit::singleline(&mut graph.name)
-                        .desired_width(170.)
-                        .char_limit(128),
-                );
-                ui.menu_button("+ Add node", |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.shader_pane.search)
-                            .hint_text("Search nodes…"),
-                    );
-                    egui::ScrollArea::vertical()
-                        .max_height(340.)
-                        .show(ui, |ui| {
-                            for kind in NodeKind::ALL {
-                                if kind
-                                    .label()
-                                    .to_lowercase()
-                                    .contains(&self.shader_pane.search.to_lowercase())
-                                    && ui.button(kind.label()).clicked()
-                                {
-                                    let id = graph
-                                        .nodes
-                                        .iter()
-                                        .map(|n| n.id)
-                                        .max()
-                                        .unwrap_or(0)
-                                        .saturating_add(1);
-                                    graph.nodes.push(Node::new(
-                                        id,
-                                        kind,
-                                        self.shader_pane.view.center().into(),
-                                    ));
-                                    self.shader_pane.selected = Some(id);
-                                    ui.close();
-                                }
-                            }
-                        });
-                });
-                if ui
-                    .add_enabled(
-                        self.shader_pane.selected.is_some_and(|id| {
-                            graph.node(id).is_ok_and(|n| n.kind != NodeKind::Master)
-                        }),
-                        egui::Button::new("Delete node"),
-                    )
-                    .clicked()
-                {
-                    if let Some(id) = self.shader_pane.selected.take() {
-                        graph.remove_node(id);
-                    }
-                    self.shader_pane.connecting = None;
-                }
-            });
-        });
+        self.shader_pane.toolbar(ui, &mut graph, editing);
         ui.small("Drag headers to move · Output → input to connect · Right-click input to disconnect · Middle-drag / scroll to pan · Ctrl+scroll to zoom · Live preview on the right");
         ui.horizontal_top(|ui| {
             let preview_width = (ui.available_width() * 0.34).clamp(240., 480.);
@@ -438,7 +385,10 @@ fn node_rect(node: &Node) -> Rect {
         Vec2::new(
             WIDTH,
             70. + 28. * node.kind.inputs().len().max(node.kind.outputs().len()) as f32
-                + if node.kind == NodeKind::TextureSample {
+                + if matches!(
+                    node.kind,
+                    NodeKind::TextureSample | NodeKind::StaticSwitch | NodeKind::StaticSwitchVector
+                ) {
                     26.
                 } else {
                     0.
@@ -473,7 +423,99 @@ fn curve(painter: &egui::Painter, from: Pos2, to: Pos2, tint: Color32) {
     ));
 }
 impl ShaderPane {
-    fn canvas(
+    pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, graph: &mut ShaderGraph, editing: bool) {
+        ui.add_enabled_ui(editing, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Name");
+                ui.add(
+                    egui::TextEdit::singleline(&mut graph.name)
+                        .desired_width(170.)
+                        .char_limit(128),
+                );
+                egui::containers::menu::MenuButton::new("Keywords")
+                    .config(egui::containers::menu::MenuConfig::new().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside))
+                    .ui(ui, |ui| {
+                        ui.label("Static defaults · up to eight keywords");
+                        let mut remove = None;
+                        for (name, enabled) in &mut graph.keywords {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(enabled, name);
+                                if ui.add_enabled(!graph.nodes.iter().any(|n| &n.keyword == name), egui::Button::new("Remove")).on_hover_text("Change or delete this keyword's static switches before removing it").clicked() {
+                                    remove = Some(name.clone());
+                                }
+                            });
+                        }
+                        if let Some(name) = remove { graph.keywords.remove(&name); }
+                        ui.separator();
+                        ui.add(egui::TextEdit::singleline(&mut self.keyword_name).hint_text("FEATURE_NAME").char_limit(32));
+                        let name = self.keyword_name.trim();
+                        let valid = bozzard_scene::shader_graph::valid_keyword(name) && !graph.keywords.contains_key(name) && graph.keywords.len() < 8;
+                        if ui.add_enabled(valid, egui::Button::new("Add keyword")).clicked() {
+                            graph.keywords.insert(name.to_string(), false);
+                            self.keyword_name.clear();
+                        }
+                    });
+                egui::containers::menu::MenuButton::new("+ Add node")
+                    .config(egui::containers::menu::MenuConfig::new().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside))
+                    .ui(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.search)
+                            .hint_text("Search nodes…"),
+                    );
+                    egui::ScrollArea::vertical()
+                        .max_height(340.)
+                        .show(ui, |ui| {
+                            let mut kinds = NodeKind::ALL;
+                            kinds.sort_by_key(|kind| kind.label());
+                            let query = self.search.trim().to_lowercase();
+                            for kind in kinds {
+                                if kind
+                                    .label()
+                                    .to_lowercase()
+                                    .contains(&query)
+                                    && ui.button(kind.label()).clicked()
+                                {
+                                    let id = graph
+                                        .nodes
+                                        .iter()
+                                        .map(|n| n.id)
+                                        .max()
+                                        .unwrap_or(0)
+                                        .saturating_add(1);
+                                    let mut node = Node::new(
+                                        id,
+                                        kind,
+                                        self.view.center().into(),
+                                    );
+                                    if matches!(kind, NodeKind::StaticSwitch | NodeKind::StaticSwitchVector) {
+                                        if graph.keywords.is_empty() { graph.keywords.insert("FEATURE".into(), false); }
+                                        node.keyword = graph.keywords.keys().next().unwrap().clone();
+                                    }
+                                    graph.nodes.push(node);
+                                    self.selected = Some(id);
+                                    ui.close();
+                                }
+                            }
+                        });
+                });
+                if ui
+                    .add_enabled(
+                        self.selected.is_some_and(|id| {
+                            graph.node(id).is_ok_and(|n| n.kind != NodeKind::Master)
+                        }),
+                        egui::Button::new("Delete node"),
+                    )
+                    .clicked()
+                {
+                    if let Some(id) = self.selected.take() {
+                        graph.remove_node(id);
+                    }
+                    self.connecting = None;
+                }
+            });
+        });
+    }
+    pub(crate) fn canvas(
         &mut self,
         ui: &mut egui::Ui,
         graph: &mut ShaderGraph,
@@ -599,6 +641,32 @@ impl ShaderPane {
                                                     &mut node.slot,
                                                     slot,
                                                     format!("{slot:?}"),
+                                                );
+                                            }
+                                        });
+                                });
+                            }
+                            if matches!(
+                                node.kind,
+                                NodeKind::StaticSwitch | NodeKind::StaticSwitchVector
+                            ) {
+                                let config = Rect::from_min_size(
+                                    rect.min
+                                        + Vec2::new(
+                                            12.,
+                                            59. + 28. * node.kind.inputs().len() as f32,
+                                        ),
+                                    Vec2::new(WIDTH - 24., 24.),
+                                );
+                                ui.scope_builder(egui::UiBuilder::new().max_rect(config), |ui| {
+                                    egui::ComboBox::from_id_salt("static-keyword")
+                                        .selected_text(&node.keyword)
+                                        .show_ui(ui, |ui| {
+                                            for name in graph.keywords.keys() {
+                                                ui.selectable_value(
+                                                    &mut node.keyword,
+                                                    name.clone(),
+                                                    name,
                                                 );
                                             }
                                         });

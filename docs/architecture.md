@@ -71,3 +71,9 @@ The scene document owns stable asset IDs and source paths, and exposes reverse o
 The player uploads CPU data into renderer-owned caches keyed by asset ID. The renderer accepts vertices, indices, and RGBA pixels and retains no dependency on the importer or scene crate. Changed textures invalidate object bind groups; changed meshes replace their buffers. Replacing a scene first loads a complete new store/world/renderer, then swaps them in. Suspending and recreating a window uploads the retained CPU assets to the new device.
 
 Asset refresh runs in cancellable workers at a bounded interval. Images/models compare source/dependency contents; audio uses size/time as a fast path and streams a digest plus metadata when changed, retaining no compressed file bytes in the catalog. Explicit reload bypasses the audio fast path. Failed imports retain the last good data/revision. Native sound decoding uses a separate bounded cache or streaming reader. See `assets.md` and [middleware](middleware.md) for current limits.
+
+Editor/player GPU residency requests the imported assets used by the extracted view,
+including material overrides and shadow casters. A configurable soft budget reserves
+upload storage, evicts unused assets in LRU order, and restores them through the same
+staged queue. Required resources remain pinned and report budget pressure. CPU
+catalog decoding remains separate. See [asset budget scope](assets.md#gpu-asset-budget).

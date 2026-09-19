@@ -4,3 +4,5 @@
 .DS_Store
 .bozzard-trash/
 __pycache__/
+
+.bozzard-cache/

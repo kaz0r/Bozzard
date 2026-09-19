@@ -210,6 +210,8 @@ fn text_prefabs_are_independent_and_blueprint_color_visibility_work_headlessly()
         ],"wires":[{"from":{"node":1,"port":0},"to":{"node":2,"port":0}},{"from":{"node":2,"port":0},"to":{"node":3,"port":0}}]})).unwrap(),
     });
     let prefab = Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "Text label".into(),
         root: label.id.clone(),

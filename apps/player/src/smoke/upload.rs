@@ -66,6 +66,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             width: 1,
             height: 1,
             rgba: vec![255, 0, 0, 255],
+            compressed: None,
         })),
     )?;
     let old = capture(gpu, &mut renderer, &scene, [64, 64])?;
@@ -82,6 +83,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         width: 64,
         height: 64,
         rgba: pixels,
+        compressed: None,
     })));
     let weak = Arc::downgrade(&source);
     let mut cancelled =

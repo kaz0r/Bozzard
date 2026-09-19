@@ -589,7 +589,7 @@ fn source_reparent_preserves_local_child_transform_and_rejects_deleted_active_ca
 }
 
 #[test]
-fn malformed_metadata_and_nested_prefabs_are_rejected() {
+fn malformed_metadata_and_overlapping_members_are_rejected() {
     let t = Temp::new();
     let mut e = t.editor();
     run(&mut e, PrefabCommand::Create);
@@ -616,6 +616,17 @@ fn malformed_metadata_and_nested_prefabs_are_rejected() {
     p.assets.insert(
         "nested".into(),
         e.scene().assets.values().next().unwrap().clone(),
+    );
+    assert!(p.validate().is_ok());
+    let mut malformed = p.objects[0].clone();
+    malformed.parent = Some(malformed.id.clone());
+    p.nested.insert(
+        "root".into(),
+        bozzard_scene::PrefabInstance {
+            asset: "nested".into(),
+            members: [("root".into(), "root".into())].into(),
+            baseline: vec![malformed],
+        },
     );
     assert!(p.validate().is_err());
 }
@@ -813,4 +824,259 @@ fn duplicating_only_owner_preserves_external_reference_but_prefab_capture_reject
     let job = e.prefab_job(PrefabCommand::Create).unwrap();
     assert!(wait(&job).is_err());
     assert_eq!(e.scene(), &before);
+}
+
+#[test]
+fn nested_sources_refresh_through_the_outer_instance_preserving_overrides_and_history() {
+    let t = Temp::new();
+    let mut e = t.editor();
+    let inner = run(&mut e, PrefabCommand::Create);
+    let inner_path = source_path(&e, &inner);
+    e.create_empty().unwrap();
+    let group = e.selected.clone().unwrap();
+    e.reparent("root", Some(&group)).unwrap();
+    e.selected = Some(group.clone());
+    let outer = run(&mut e, PrefabCommand::Create);
+    assert_eq!(e.scene().prefabs.len(), 1);
+    assert_eq!(source(&e, &outer).nested.len(), 1);
+    let nested_root_position = object(&e, "root").transform;
+    edit(&mut e, "root", |o| {
+        o.drawable.as_mut().unwrap().color = [1., 0., 0.]
+    });
+    let before = e.scene().clone();
+    let mut changed = source(&e, &inner);
+    changed
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "child")
+        .unwrap()
+        .light
+        .as_mut()
+        .unwrap()
+        .intensity = 22.;
+    std::fs::write(&inner_path, changed.to_json().unwrap()).unwrap();
+    run(
+        &mut e,
+        PrefabCommand::Refresh {
+            asset: outer.clone(),
+        },
+    );
+    assert_eq!(object(&e, "child").light.unwrap().intensity, 22.);
+    assert_eq!(
+        object(&e, "root").drawable.as_ref().unwrap().color,
+        [1., 0., 0.]
+    );
+    assert_eq!(object(&e, "root").transform, nested_root_position);
+    let refreshed = e.scene().clone();
+    e.undo().unwrap();
+    assert_eq!(e.scene(), &before);
+    e.redo().unwrap();
+    assert_eq!(e.scene(), &refreshed);
+    e.selected = Some(group);
+    run(&mut e, PrefabCommand::Apply);
+    assert_eq!(source(&e, &outer).nested.len(), 1);
+    run(
+        &mut e,
+        PrefabCommand::Instantiate {
+            asset: outer,
+            position: Some([10., 0., 0.]),
+        },
+    );
+    let placed = e.scene().prefabs[e.selected.as_ref().unwrap()].clone();
+    assert_eq!(placed.members.len(), 3);
+    assert_eq!(
+        object(&e, &placed.members["child"])
+            .light
+            .unwrap()
+            .intensity,
+        22.
+    );
+}
+
+#[test]
+fn variants_inherit_new_source_components_keep_local_overrides_and_apply_to_the_variant() {
+    let t = Temp::new();
+    let mut e = t.editor();
+    let base = run(&mut e, PrefabCommand::Create);
+    let base_path = source_path(&e, &base);
+    edit(&mut e, "root", |o| {
+        o.drawable.as_mut().unwrap().color = [1., 0., 0.]
+    });
+    let variant = run(&mut e, PrefabCommand::Variant);
+    assert_ne!(base, variant);
+    let saved = source(&e, &variant);
+    assert!(saved.base.is_some());
+    let mut changed = source(&e, &base);
+    changed.objects[1].light.as_mut().unwrap().intensity = 30.;
+    changed.objects[0].drawable.as_mut().unwrap().color = [0., 0., 1.];
+    std::fs::write(&base_path, changed.to_json().unwrap()).unwrap();
+    run(
+        &mut e,
+        PrefabCommand::Refresh {
+            asset: variant.clone(),
+        },
+    );
+    assert_eq!(object(&e, "child").light.unwrap().intensity, 30.);
+    assert_eq!(
+        object(&e, "root").drawable.as_ref().unwrap().color,
+        [1., 0., 0.]
+    );
+    edit(&mut e, "child", |o| o.name = "Variant bulb".into());
+    e.selected = Some("root".into());
+    run(&mut e, PrefabCommand::Apply);
+    assert!(source(&e, &variant).base.is_some());
+    assert_eq!(source(&e, &base), changed);
+    let variant_of_variant = run(&mut e, PrefabCommand::Variant);
+    let resolved =
+        bozzard_demo::load_prefab(&source_path(&e, &variant_of_variant), &Default::default())
+            .unwrap();
+    assert_eq!(resolved.sources.len(), 3);
+    assert_eq!(
+        resolved
+            .prefab
+            .objects
+            .iter()
+            .find(|o| o.id == "child")
+            .unwrap()
+            .name,
+        "Variant bulb"
+    );
+}
+
+#[test]
+fn changed_nested_dependency_rejects_prepared_publication() {
+    let t = Temp::new();
+    let mut e = t.editor();
+    let inner = run(&mut e, PrefabCommand::Create);
+    e.create_empty().unwrap();
+    let group = e.selected.clone().unwrap();
+    e.reparent("root", Some(&group)).unwrap();
+    e.selected = Some(group);
+    let outer = run(&mut e, PrefabCommand::Create);
+    let before = e.scene().clone();
+    let job = e
+        .prefab_job(PrefabCommand::Refresh { asset: outer })
+        .unwrap();
+    let prepared = wait(&job).unwrap();
+    let mut changed = source(&e, &inner);
+    changed.objects[1].name = "Changed during worker".into();
+    std::fs::write(source_path(&e, &inner), changed.to_json().unwrap()).unwrap();
+    assert!(e.accept_prefab(prepared).is_err());
+    assert_eq!(e.scene(), &before);
+}
+
+#[test]
+fn prefab_source_hierarchy_edits_round_trip_with_undo_and_no_inspection_cameras() {
+    let t = Temp::new();
+    let mut scene = t.editor();
+    let asset = run(&mut scene, PrefabCommand::Create);
+    let path = source_path(&scene, &asset);
+    let mut editor = Editor::open(&path).unwrap();
+    assert!(editor.is_prefab_source());
+    assert!(editor.start_play().is_err());
+    let original = editor.scene().clone();
+    editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
+    let child = editor.selected.clone().unwrap();
+    editor.reparent(&child, Some("root")).unwrap();
+    let edited = editor.scene().clone();
+    editor.undo().unwrap();
+    editor.undo().unwrap();
+    assert_eq!(editor.scene(), &original);
+    editor.redo().unwrap();
+    editor.redo().unwrap();
+    assert_eq!(editor.scene(), &edited);
+    let mut workspace = bozzard_editor::OpenScenes::default();
+    workspace.sync_view(&editor).unwrap();
+    assert!(workspace.view(&editor).render(Layer::ThreeD, 1.).is_ok());
+    assert!(editor.scene().views.is_empty());
+    assert!(editor.scene().objects.iter().all(|o| o.camera.is_none()));
+    let job = editor.save_job(path.clone()).unwrap();
+    editor.accept_save(wait(&job).unwrap()).unwrap();
+    let saved = source(&scene, &asset);
+    assert_eq!(saved.objects.len(), 3);
+    assert!(saved.objects.iter().all(|o| o.camera.is_none()));
+    run(&mut scene, PrefabCommand::Refresh { asset });
+    assert_eq!(scene.scene().objects.len(), 3);
+    assert_eq!(Editor::open(&path).unwrap().scene(), editor.scene());
+    let relocated = t.0.join("new-folder/deeper/copy.prefab.json");
+    editor.save(&relocated).unwrap();
+    assert!(Editor::open(&relocated).unwrap().is_prefab_source());
+}
+
+#[test]
+fn variant_source_protects_base_assets_and_rejects_external_overwrite() {
+    let t = Temp::new();
+    let mut scene = t.editor();
+    run(&mut scene, PrefabCommand::Create);
+    let asset = run(&mut scene, PrefabCommand::Variant);
+    let path = source_path(&scene, &asset);
+    let mut editor = Editor::open(&path).unwrap();
+    let base = source(&scene, &asset).base.unwrap().asset;
+    assert!(editor.remove_asset(&base).is_err());
+    let base_path = path
+        .parent()
+        .unwrap()
+        .join(&editor.scene().assets[&base].path);
+    let base_bytes = std::fs::read(&base_path).unwrap();
+    assert!(format!("{:#}", editor.save(&base_path).unwrap_err()).contains("cycle"));
+    assert_eq!(std::fs::read(&base_path).unwrap(), base_bytes);
+    edit(&mut editor, "child", |o| {
+        o.name = "Source hierarchy edit".into()
+    });
+    editor.save(&path).unwrap();
+    assert!(source(&scene, &asset).base.is_some());
+    let job = editor.save_job(path.clone()).unwrap();
+    let prepared = wait(&job).unwrap();
+    let external = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("Source hierarchy edit", "External source edit");
+    std::fs::write(&path, &external).unwrap();
+    assert!(editor.accept_save(prepared).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), external);
+}
+
+#[test]
+fn structural_cycles_are_rejected_but_spawn_only_cycles_remain_valid() {
+    let t = Temp::new();
+    let mut editor = t.editor();
+    let asset = run(&mut editor, PrefabCommand::Create);
+    let first_path = source_path(&editor, &asset);
+    let mut first = source(&editor, &asset);
+    let mut second = first.clone();
+    first.assets.insert(
+        "base".into(),
+        bozzard_scene::AssetSource {
+            kind: AssetKind::Prefab,
+            path: "second.prefab.json".into(),
+        },
+    );
+    first.base = Some(bozzard_scene::PrefabBase {
+        asset: "base".into(),
+        baseline: first.objects.clone(),
+        nested: Default::default(),
+    });
+    second.assets.insert(
+        "base".into(),
+        bozzard_scene::AssetSource {
+            kind: AssetKind::Prefab,
+            path: first_path.file_name().unwrap().to_str().unwrap().into(),
+        },
+    );
+    second.base = Some(bozzard_scene::PrefabBase {
+        asset: "base".into(),
+        baseline: second.objects.clone(),
+        nested: Default::default(),
+    });
+    let second_path = first_path.parent().unwrap().join("second.prefab.json");
+    std::fs::write(&first_path, first.to_json().unwrap()).unwrap();
+    std::fs::write(&second_path, second.to_json().unwrap()).unwrap();
+    let error = bozzard_demo::load_prefab(&first_path, &Default::default())
+        .err()
+        .unwrap();
+    assert!(format!("{error:#}").contains("cycle"));
+    first.base = None;
+    second.base = None;
+    std::fs::write(&first_path, first.to_json().unwrap()).unwrap();
+    std::fs::write(&second_path, second.to_json().unwrap()).unwrap();
+    assert!(bozzard_demo::load_prefab(&first_path, &Default::default()).is_ok());
 }

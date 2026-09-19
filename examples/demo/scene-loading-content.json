@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "id": "scene-loading-lab",
+  "name": "Scene Loading Lab",
+  "cook": "universal",
+  "scenes": {"labs/loading": "scenes/scene-loading-lab.json"}
+}

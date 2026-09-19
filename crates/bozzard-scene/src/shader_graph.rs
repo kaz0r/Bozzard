@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// Surface pins. Float and Vector (linear RGB or 3D) only; texturing comes from
 /// the drawable's existing five material map slots.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PinType {
     Float,
@@ -32,7 +32,7 @@ impl Value {
     }
 }
 /// Material map a Texture Sample node reads. Names match the renderer's bindings.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextureSlot {
     #[default]
@@ -63,7 +63,7 @@ impl TextureSlot {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
     Master,
@@ -93,10 +93,12 @@ pub enum NodeKind {
     Normalize,
     Append,
     Split,
+    StaticSwitch,
+    StaticSwitchVector,
 }
 impl NodeKind {
     /// Palette order for the node editor; Master is managed automatically.
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 28] = [
         Self::Time,
         Self::UV,
         Self::WorldNormal,
@@ -122,6 +124,9 @@ impl NodeKind {
         Self::Dot,
         Self::Normalize,
         Self::Append,
+        Self::Split,
+        Self::StaticSwitch,
+        Self::StaticSwitchVector,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -152,6 +157,8 @@ impl NodeKind {
             Self::Normalize => "Normalize",
             Self::Append => "Make Vector",
             Self::Split => "Split Vector",
+            Self::StaticSwitch => "Static Switch",
+            Self::StaticSwitchVector => "Static Switch Vector",
         }
     }
     pub fn inputs(self) -> &'static [(&'static str, PinType)] {
@@ -182,6 +189,8 @@ impl NodeKind {
             Self::Normalize => &[("Value", Vector)],
             Self::Append => &[("X", Float), ("Y", Float), ("Z", Float)],
             Self::Split => &[("Value", Vector)],
+            Self::StaticSwitch => &[("Off", Float), ("On", Float)],
+            Self::StaticSwitchVector => &[("Off", Vector), ("On", Vector)],
             _ => &[],
         }
     }
@@ -200,7 +209,8 @@ impl NodeKind {
             | Self::Clamp
             | Self::Lerp
             | Self::OneMinus
-            | Self::Dot => &[("Value", Float)],
+            | Self::Dot
+            | Self::StaticSwitch => &[("Value", Float)],
             Self::UV
             | Self::WorldNormal
             | Self::WorldPosition
@@ -212,7 +222,8 @@ impl NodeKind {
             | Self::ScaleVector
             | Self::LerpVector
             | Self::Normalize
-            | Self::Append => &[("Value", Vector)],
+            | Self::Append
+            | Self::StaticSwitchVector => &[("Value", Vector)],
             Self::TextureSample => &[("Color", Vector), ("Alpha", Float)],
             Self::Split => &[("X", Float), ("Y", Float), ("Z", Float)],
         }
@@ -236,6 +247,9 @@ pub struct Node {
     pub inputs: Vec<Value>,
     #[serde(default)]
     pub slot: TextureSlot,
+    /// Named compile-time keyword used by a static switch.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub keyword: String,
 }
 impl Node {
     pub fn new(id: u32, kind: NodeKind, position: [f32; 2]) -> Self {
@@ -262,16 +276,17 @@ impl Node {
                 })
                 .collect(),
             slot: TextureSlot::BaseColor,
+            keyword: String::new(),
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Socket {
     pub node: u32,
     pub port: usize,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Wire {
     pub from: Socket,
@@ -284,6 +299,9 @@ pub struct ShaderGraph {
     pub name: String,
     pub nodes: Vec<Node>,
     pub wires: Vec<Wire>,
+    /// At most eight boolean defaults: a graph has at most 256 specializations.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub keywords: BTreeMap<String, bool>,
 }
 impl Default for ShaderGraph {
     fn default() -> Self {
@@ -292,6 +310,7 @@ impl Default for ShaderGraph {
             name: "New Shader".into(),
             nodes: vec![Node::new(1, NodeKind::Master, [300., 40.])],
             wires: vec![],
+            keywords: BTreeMap::new(),
         }
     }
 }
@@ -327,11 +346,9 @@ impl ShaderGraph {
         self.wires.retain(|w| w.from.node != id && w.to.node != id);
     }
     pub fn validate(&self) -> Result<()> {
+        self.validate_presentation()?;
         ensure!(self.version == 1, "unsupported shader graph version");
-        ensure!(
-            !self.name.trim().is_empty() && self.name.len() <= 128,
-            "shader graph needs a name (1–128 bytes)"
-        );
+        self.keyword_mask(&BTreeMap::new())?;
         ensure!(
             self.nodes.len() <= 128 && self.wires.len() <= 512,
             "shader graph limit: 128 nodes, 512 wires"
@@ -340,12 +357,21 @@ impl ShaderGraph {
         let mut masters = 0;
         for n in &self.nodes {
             ensure!(ids.insert(n.id), "duplicate shader graph node ID");
-            ensure!(
-                n.position
-                    .iter()
-                    .all(|v| v.is_finite() && v.abs() <= 1_000_000.),
-                "invalid node position"
-            );
+            if matches!(
+                n.kind,
+                NodeKind::StaticSwitch | NodeKind::StaticSwitchVector
+            ) {
+                ensure!(
+                    self.keywords.contains_key(&n.keyword),
+                    "static switch {} requires a declared keyword",
+                    n.id
+                );
+            } else {
+                ensure!(
+                    n.keyword.is_empty(),
+                    "only static switches accept a keyword"
+                );
+            }
             ensure!(
                 n.inputs.len() == n.kind.inputs().len()
                     && n.inputs
@@ -397,14 +423,155 @@ impl ShaderGraph {
         ensure!(visited == self.nodes.len(), "shader graphs cannot cycle");
         Ok(())
     }
+    /// Presentation is excluded from compiled-source identities, but must still
+    /// be checked when an edited layout reuses a previously validated program.
+    pub fn validate_presentation(&self) -> Result<()> {
+        ensure!(
+            !self.name.trim().is_empty() && self.name.len() <= 128,
+            "shader graph needs a name (1–128 bytes)"
+        );
+        ensure!(
+            self.nodes.iter().all(|n| n
+                .position
+                .iter()
+                .all(|v| v.is_finite() && v.abs() <= 1_000_000.)),
+            "invalid node position"
+        );
+        Ok(())
+    }
+    pub fn keyword_mask(&self, overrides: &BTreeMap<String, bool>) -> Result<u8> {
+        self.layered_keyword_mask(std::iter::once(overrides))
+    }
+    /// Later layers override earlier ones without allocating a combined map.
+    pub fn layered_keyword_mask<'a>(
+        &self,
+        layers: impl IntoIterator<Item = &'a BTreeMap<String, bool>>,
+    ) -> Result<u8> {
+        ensure!(
+            self.keywords.len() <= 8,
+            "shader graph limit: eight keywords"
+        );
+        for name in self.keywords.keys() {
+            ensure!(
+                valid_keyword(name),
+                "invalid shader keyword '{name}': use 1–32 ASCII letters, digits or underscores, starting with a letter or underscore"
+            );
+        }
+        let mut mask = self
+            .keywords
+            .iter()
+            .enumerate()
+            .fold(0, |mask, (index, (_, default))| {
+                mask | (u8::from(*default) << index)
+            });
+        for overrides in layers {
+            for (name, enabled) in overrides {
+                let index = self
+                    .keywords
+                    .keys()
+                    .position(|key| key == name)
+                    .with_context(|| format!("material uses undeclared shader keyword '{name}'"))?;
+                let bit = 1 << index;
+                mask = if *enabled { mask | bit } else { mask & !bit };
+            }
+        }
+        Ok(mask)
+    }
+    /// Exact program comparison avoids hash collisions and ignores editor layout.
+    pub fn same_program(&self, other: &Self) -> bool {
+        self.version == other.version
+            && self.keywords == other.keywords
+            && self.wires == other.wires
+            && self.nodes.len() == other.nodes.len()
+            && self.nodes.iter().zip(&other.nodes).all(|(a, b)| {
+                a.id == b.id
+                    && a.kind == b.kind
+                    && a.inputs.len() == b.inputs.len()
+                    && a.inputs.iter().zip(&b.inputs).all(|(a, b)| match (a, b) {
+                        (Value::Float(a), Value::Float(b)) => a.to_bits() == b.to_bits(),
+                        (Value::Vector(a), Value::Vector(b)) => {
+                            a.map(f32::to_bits) == b.map(f32::to_bits)
+                        }
+                        _ => false,
+                    })
+                    && a.slot == b.slot
+                    && a.keyword == b.keyword
+            })
+    }
+    /// Fast lookup hint; callers must also compare the actual program on a hit.
+    pub fn program_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        self.version.hash(&mut hash);
+        self.keywords.hash(&mut hash);
+        self.wires.hash(&mut hash);
+        for node in &self.nodes {
+            node.id.hash(&mut hash);
+            node.kind.hash(&mut hash);
+            node.slot.hash(&mut hash);
+            node.keyword.hash(&mut hash);
+            for value in &node.inputs {
+                std::mem::discriminant(value).hash(&mut hash);
+                match value {
+                    Value::Float(v) => v.to_bits().hash(&mut hash),
+                    Value::Vector(v) => v.map(f32::to_bits).hash(&mut hash),
+                }
+            }
+        }
+        hash.finish()
+    }
     /// Topologically ordered evaluation plan: (node, per-input resolved expressions).
-    fn plan(&self) -> Result<Vec<(&Node, Vec<String>)>> {
+    fn plan(&self, mask: u8) -> Result<Vec<(&Node, Vec<String>)>> {
+        let selected_port = |node: &Node| {
+            matches!(
+                node.kind,
+                NodeKind::StaticSwitch | NodeKind::StaticSwitchVector
+            )
+            .then(|| {
+                let bit = self
+                    .keywords
+                    .keys()
+                    .position(|name| *name == node.keyword)
+                    .unwrap();
+                usize::from(mask & (1 << bit) != 0)
+            })
+        };
+        // Traverse only connected Master inputs and selected static branches.
+        // Unselected texture samples never reach WGSL or a GPU compiler.
+        let nodes: BTreeMap<_, _> = self.nodes.iter().map(|n| (n.id, n)).collect();
+        let master = self
+            .nodes
+            .iter()
+            .find(|n| n.kind == NodeKind::Master)
+            .unwrap()
+            .id;
+        let active_wires: Vec<_> = self
+            .wires
+            .iter()
+            .filter(|w| selected_port(nodes[&w.to.node]).is_none_or(|port| w.to.port == port))
+            .collect();
+        let mut needed = BTreeSet::new();
+        let mut stack = vec![master];
+        while let Some(id) = stack.pop() {
+            if needed.insert(id) {
+                stack.extend(
+                    active_wires
+                        .iter()
+                        .filter(|w| w.to.node == id)
+                        .map(|w| w.from.node),
+                );
+            }
+        }
+        let wires: Vec<_> = active_wires
+            .into_iter()
+            .filter(|w| needed.contains(&w.to.node))
+            .collect();
         let mut source_of: BTreeMap<Socket, (u32, usize)> = BTreeMap::new();
-        for w in &self.wires {
+        for w in &wires {
             source_of.insert(w.to, (w.from.node, w.from.port));
         }
-        let mut degrees: BTreeMap<u32, usize> = self.nodes.iter().map(|n| (n.id, 0)).collect();
-        for w in &self.wires {
+        let mut degrees: BTreeMap<u32, usize> = needed.iter().map(|id| (*id, 0)).collect();
+        for w in &wires {
             *degrees.get_mut(&w.to.node).unwrap() += 1;
         }
         let mut order = Vec::new();
@@ -415,7 +582,7 @@ impl ShaderGraph {
             .collect();
         while let Some(id) = queue.pop_front() {
             order.push(id);
-            for w in self.wires.iter().filter(|w| w.from.node == id) {
+            for w in wires.iter().filter(|w| w.from.node == id) {
                 let degree = degrees.get_mut(&w.to.node).unwrap();
                 *degree -= 1;
                 if *degree == 0 {
@@ -423,7 +590,7 @@ impl ShaderGraph {
                 }
             }
         }
-        debug_assert_eq!(order.len(), self.nodes.len());
+        debug_assert_eq!(order.len(), needed.len());
         Ok(order
             .iter()
             .map(|id| {
@@ -451,7 +618,13 @@ impl ShaderGraph {
             .collect())
     }
     /// Statement for one node in topological order; inputs are already WGSL expressions.
-    fn statement(kind: NodeKind, id: u32, slot: TextureSlot, inputs: &[String]) -> String {
+    fn statement(
+        kind: NodeKind,
+        id: u32,
+        slot: TextureSlot,
+        inputs: &[String],
+        enabled: bool,
+    ) -> String {
         let [a, b, c] = match inputs {
             [a] => [a.as_str(), "0", "0"],
             [a, b] => [a.as_str(), b.as_str(), "0"],
@@ -485,6 +658,9 @@ impl ShaderGraph {
             NodeKind::Normalize => format!("normalize({a})"),
             NodeKind::Append => format!("vec3<f32>({a}, {b}, {c})"),
             NodeKind::Split | NodeKind::Float | NodeKind::Color | NodeKind::Vector => a.to_owned(),
+            NodeKind::StaticSwitch | NodeKind::StaticSwitchVector => {
+                if enabled { b } else { a }.to_owned()
+            }
             NodeKind::Master => unreachable!("master has no outputs"),
         };
         format!("    let v{id} = {expr};")
@@ -502,14 +678,32 @@ impl ShaderGraph {
     /// The host provides `default_material_surface` with the same signature and the
     /// `SurfaceParams` struct, `time`, and the material map bindings.
     pub fn surface_function(&self) -> Result<String> {
+        self.surface_function_variant(&BTreeMap::new())
+    }
+    pub fn surface_function_variant(&self, overrides: &BTreeMap<String, bool>) -> Result<String> {
+        self.surface_function_mask(self.keyword_mask(overrides)?)
+    }
+    pub fn surface_function_mask(&self, mask: u8) -> Result<String> {
         self.validate()?;
+        ensure!(
+            (mask as u16) < (1u16 << self.keywords.len()),
+            "invalid shader keyword mask"
+        );
         let connected: BTreeSet<Socket> = self.wires.iter().map(|w| w.to).collect();
         let mut code = String::from(
             "fn graph_material_surface(uv: vec2<f32>, normal_uv: vec2<f32>, mr_uv: vec2<f32>, ao_uv: vec2<f32>, emissive_uv: vec2<f32>, world_normal: vec3<f32>, tangent: vec4<f32>, world: vec3<f32>, view: vec3<f32>, front: bool, time: f32) -> SurfaceParams {\n    var params = default_material_surface(uv, normal_uv, mr_uv, ao_uv, emissive_uv, world_normal, tangent, world, view, front, time);\n",
         );
-        for (node, inputs) in self.plan()? {
+        let plan = self.plan(mask)?;
+        for (node, inputs) in &plan {
             if node.kind != NodeKind::Master {
-                code.push_str(&Self::statement(node.kind, node.id, node.slot, &inputs));
+                let enabled = self
+                    .keywords
+                    .keys()
+                    .position(|name| *name == node.keyword)
+                    .is_some_and(|bit| mask & (1 << bit) != 0);
+                code.push_str(&Self::statement(
+                    node.kind, node.id, node.slot, inputs, enabled,
+                ));
                 code.push('\n');
             }
         }
@@ -518,7 +712,6 @@ impl ShaderGraph {
             .iter()
             .find(|n| n.kind == NodeKind::Master)
             .unwrap();
-        let plan = self.plan()?;
         let (_, master_inputs) = plan.iter().find(|(n, _)| n.id == master.id).unwrap();
         for (port, field, clamp) in Self::MASTER_FIELDS {
             if connected.contains(&Socket {
@@ -536,6 +729,15 @@ impl ShaderGraph {
         Ok(code)
     }
 }
+pub fn valid_keyword(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 32
+        && name
+            .bytes()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == b'_')
+        && name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+}
 fn wgsl_float(v: f32) -> String {
     let mut text = format!("{v}");
     if !text.contains('.') && !text.contains('e') {
@@ -546,12 +748,69 @@ fn wgsl_float(v: f32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn static_variants_remove_unused_branches_and_validate_both_sides() {
+        let mut graph = graph(
+            vec![
+                Node::new(1, NodeKind::Master, [0.; 2]),
+                Node::new(2, NodeKind::TextureSample, [0.; 2]),
+                Node::new(3, NodeKind::StaticSwitchVector, [0.; 2]),
+                Node::new(4, NodeKind::Color, [0.; 2]),
+                Node::new(5, NodeKind::Time, [0.; 2]),
+            ],
+            vec![wire(2, 0, 3, 1), wire(4, 0, 3, 0), wire(3, 0, 1, 0)],
+        );
+        graph.keywords.insert("DETAIL".into(), false);
+        graph.nodes[2].keyword = "DETAIL".into();
+        let off = graph.surface_function().unwrap();
+        let on = graph
+            .surface_function_variant(&BTreeMap::from([("DETAIL".into(), true)]))
+            .unwrap();
+        assert!(!off.contains("textureSample("));
+        assert!(!off.contains("let v2") && off.contains("let v4"));
+        assert!(on.contains("textureSample(") && !on.contains("let v4"));
+        assert!(!off.contains("let v5") && !on.contains("let v5"));
+        assert_eq!(
+            graph,
+            ShaderGraph::from_json(&graph.to_json().unwrap()).unwrap()
+        );
+        assert!(
+            graph
+                .surface_function_variant(&BTreeMap::from([("MISSING".into(), true)]))
+                .is_err()
+        );
+        // Invalid inactive branches still fail authoring validation.
+        graph.nodes[1].inputs[0] = Value::Vector([f32::NAN; 3]);
+        assert!(graph.surface_function().is_err());
+    }
+    #[test]
+    fn keyword_names_and_variant_count_are_bounded() {
+        let mut graph = ShaderGraph::default();
+        for index in 0..8 {
+            graph.keywords.insert(format!("FEATURE_{index}"), true);
+        }
+        assert_eq!(graph.keyword_mask(&BTreeMap::new()).unwrap(), 255);
+        graph.keywords.insert("NINTH".into(), false);
+        assert!(graph.validate().is_err());
+        for bad in [
+            "",
+            "9X",
+            "a b",
+            "x;return",
+            "é",
+            "abcdefghijklmnopqrstuvwxyz0123456789",
+        ] {
+            graph.keywords = BTreeMap::from([(bad.into(), false)]);
+            assert!(graph.validate().is_err(), "{bad}");
+        }
+    }
     fn graph(nodes: Vec<Node>, wires: Vec<Wire>) -> ShaderGraph {
         ShaderGraph {
             version: 1,
             name: "Test".into(),
             nodes,
             wires,
+            keywords: BTreeMap::new(),
         }
     }
     fn wire(from: u32, from_port: usize, to: u32, to_port: usize) -> Wire {
@@ -696,6 +955,7 @@ mod tests {
             vec![],
         );
         divide.nodes[1].inputs = vec![Value::Float(1.), Value::Float(0.)];
+        divide.wires.push(wire(2, 0, 1, 1));
         assert!(divide.surface_function().unwrap().contains("sign(0.0)"));
     }
 }

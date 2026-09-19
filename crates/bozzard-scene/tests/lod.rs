@@ -88,6 +88,7 @@ fn replacement_clears_source_overrides_then_applies_object_material() {
         .insert(
             entity,
             Material {
+                shared: None,
                 metallic: Some(0.7),
                 roughness: None,
                 texture: Some(Texture::Checker),
@@ -161,6 +162,7 @@ fn lod_validates_and_tracks_imported_mesh_dependencies() {
         vec![1.; 33],
     ] {
         let lod = Lod {
+            hysteresis: 0.,
             levels: distances
                 .into_iter()
                 .map(|switch| LodLevel { switch, mesh: None })
@@ -195,4 +197,126 @@ fn lod_validates_and_tracks_imported_mesh_dependencies() {
     );
     object.drawable = None;
     assert!(scene.validate().is_err());
+}
+
+#[test]
+fn hysteresis_retains_levels_until_exit_band_and_resets_on_edits() {
+    let mut scene = scene();
+    scene.objects[1].lod.as_mut().unwrap().hysteresis = 0.1;
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    let camera = instance.entity("camera").unwrap();
+    let mut at = |distance: f32| {
+        world.get_mut::<Transform>(camera).unwrap().translation[2] = distance - 40.;
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects
+    };
+    assert_eq!(at(39.)[0].1.mesh, Mesh::Cube);
+    assert_eq!(at(41.)[0].1.mesh, Mesh::Cube);
+    assert_eq!(at(44.1)[0].1.mesh, Mesh::Quad);
+    assert_eq!(at(39.)[0].1.mesh, Mesh::Quad);
+    assert_eq!(at(35.)[0].1.mesh, Mesh::Cube);
+    assert_eq!(at(65.)[0].1.mesh, Mesh::Quad);
+    assert_eq!(at(66.1).len(), 1);
+    assert_eq!(at(55.).len(), 1);
+    assert_eq!(at(53.)[0].1.mesh, Mesh::Quad);
+    let far = instance.entity("far").unwrap();
+    world.get_mut::<Lod>(far).unwrap().levels[0].switch = 55.;
+    assert_eq!(
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects[0]
+            .1
+            .mesh,
+        Mesh::Cube
+    );
+    for hysteresis in [f32::NAN, -0.1, 0.5] {
+        assert!(
+            Lod {
+                levels: vec![],
+                hysteresis
+            }
+            .validate()
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn camera_cuts_reset_the_previous_cameras_hysteresis() {
+    use bozzard_scene::middleware::timeline;
+    let mut scene = scene();
+    scene.objects[1].lod.as_mut().unwrap().hysteresis = 0.1;
+    scene.objects[0].transform.translation[2] = -1.; // 39 units: base mesh.
+    let mut next = scene.objects[0].clone();
+    next.id = "cut-camera".into();
+    next.transform.translation[2] = 1.; // 41 units, inside the switch band.
+    scene.objects.push(next);
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    assert_eq!(
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects[0]
+            .1
+            .mesh,
+        Mesh::Cube
+    );
+    let mut runtime = timeline::Runtime::default();
+    runtime.cameras.insert(Layer::ThreeD, "cut-camera".into());
+    world.insert_resource(runtime);
+    assert_eq!(
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects[0]
+            .1
+            .mesh,
+        Mesh::Quad
+    );
+    world
+        .resource_mut::<timeline::Runtime>()
+        .unwrap()
+        .cameras
+        .clear();
+    assert_eq!(
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects[0]
+            .1
+            .mesh,
+        Mesh::Cube
+    );
+}
+
+#[test]
+fn inspection_camera_has_separate_lod_history_and_never_edits_authored_camera() {
+    use glam::{Mat4, Vec3};
+    let mut scene = scene();
+    scene.objects[1].lod.as_mut().unwrap().hysteresis = 0.1;
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    // Gameplay starts 43 units away, already using the low-detail mesh.
+    assert_eq!(
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects[0]
+            .1
+            .mesh,
+        Mesh::Quad
+    );
+    let inspect = |distance: f32| {
+        instance
+            .view_from_camera(
+                &world,
+                Layer::ThreeD,
+                1.,
+                Some(Mat4::from_translation(Vec3::new(0., 0., distance - 40.))),
+            )
+            .unwrap()
+    };
+    assert_eq!(inspect(39.).objects[0].1.mesh, Mesh::Cube);
+    assert_eq!(inspect(43.).objects[0].1.mesh, Mesh::Cube);
+    assert_eq!(
+        instance.view(&world, Layer::ThreeD, 1.).unwrap().objects[0]
+            .1
+            .mesh,
+        Mesh::Quad
+    );
+    assert_eq!(inspect(100.).objects.len(), 0);
+    assert_eq!(inspect(10.).objects.len(), 2);
+    assert_eq!(instance.capture(&world).unwrap(), scene);
+    assert!(
+        instance
+            .view_from_camera(&world, Layer::ThreeD, 1., Some(Mat4::ZERO))
+            .is_err()
+    );
 }

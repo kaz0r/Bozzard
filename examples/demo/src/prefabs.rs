@@ -3,14 +3,15 @@ use anyhow::{Context, Result, ensure};
 use bozzard_scene::{AssetKind, Prefab, Scene};
 use std::{
     collections::BTreeMap,
-    io::Read,
     path::{Component, Path, PathBuf},
 };
 
 pub(super) fn load(
     document: &Scene,
     path: Option<&Path>,
+    progress: &bozzard_app::job::Progress,
 ) -> Result<(Scene, BTreeMap<String, Prefab>)> {
+    progress.check()?;
     document.validate()?;
     let mut scene = document.clone();
     let mut templates = BTreeMap::new();
@@ -20,7 +21,7 @@ pub(super) fn load(
     }
     let root = path.and_then(Path::parent).unwrap_or(Path::new("."));
     let mut count = 0;
-    let mut bytes = 0;
+    let mut loader = crate::prefab_sources::Loader::new(progress);
     let mut pending: BTreeMap<_, _> = spawnable
         .into_iter()
         .map(|asset| {
@@ -29,18 +30,14 @@ pub(super) fn load(
         })
         .collect();
     while let Some((asset, source)) = pending.pop_first() {
+        progress.stage(format!("Loading prefab {asset}"))?;
         if templates.contains_key(&asset) {
             continue;
         }
         ensure!(templates.len() < 1024, "spawn templates exceed 1024 files");
-        let mut json = String::new();
-        std::fs::File::open(root.join(&source.path))
-            .with_context(|| format!("loading spawn prefab '{asset}'"))?
-            .take(32 * 1024 * 1024 + 1)
-            .read_to_string(&mut json)?;
-        bytes += json.len();
-        ensure!(bytes <= 32 * 1024 * 1024, "spawn templates exceed 32 MiB");
-        let mut prefab = Prefab::from_json(&json)?;
+        let mut prefab = loader
+            .load(&root.join(&source.path))
+            .with_context(|| format!("loading spawn prefab '{asset}'"))?;
         count += prefab.objects.len();
         ensure!(count <= 100_000, "spawn templates exceed 100000 objects");
         let directory = Path::new(&source.path).parent().unwrap_or(Path::new("."));
@@ -77,9 +74,7 @@ pub(super) fn load(
             }
             bound.insert(new, dependency);
         }
-        for object in &mut prefab.objects {
-            object.remap_assets(&mapping);
-        }
+        prefab.remap_assets(&mapping);
         prefab.assets = bound;
         templates.insert(asset.clone(), prefab);
     }
@@ -87,7 +82,7 @@ pub(super) fn load(
     Ok((scene, templates))
 }
 
-fn normalize(path: &Path) -> PathBuf {
+pub(super) fn normalize(path: &Path) -> PathBuf {
     let mut result = PathBuf::new();
     for part in path.components() {
         match part {

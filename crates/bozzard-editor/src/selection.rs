@@ -233,7 +233,9 @@ impl Editor {
         projection: Mat4,
         ndc: [f32; 2],
     ) -> Result<Option<Pick>> {
-        self.pick_surface_impl(layer, projection, ndc, false)
+        Ok(self
+            .pick_surface_impl(layer, projection, ndc, false)?
+            .map(|(pick, _)| pick))
     }
     /// Diagnostic reference retaining the full triangle scan for correctness/performance checks.
     pub fn pick_surface_reference_with_projection(
@@ -242,7 +244,18 @@ impl Editor {
         projection: Mat4,
         ndc: [f32; 2],
     ) -> Result<Option<Pick>> {
-        self.pick_surface_impl(layer, projection, ndc, true)
+        Ok(self
+            .pick_surface_impl(layer, projection, ndc, true)?
+            .map(|(pick, _)| pick))
+    }
+    /// World-space point on the same geometry/BVH used by ordinary editor picking.
+    pub fn pick_point_with_projection(
+        &self,
+        layer: Layer,
+        projection: Mat4,
+        ndc: [f32; 2],
+    ) -> Result<Option<(Pick, Vec3)>> {
+        self.pick_surface_impl(layer, projection, ndc, false)
     }
     fn pick_surface_impl(
         &self,
@@ -250,11 +263,19 @@ impl Editor {
         projection: Mat4,
         ndc: [f32; 2],
         reference: bool,
-    ) -> Result<Option<Pick>> {
+    ) -> Result<Option<(Pick, Vec3)>> {
         let demo = self.edit_demo()?;
         let inv = projection.inverse();
+        ensure!(
+            inv.is_finite() && ndc.iter().all(|v| v.is_finite()),
+            "invalid picking projection or pointer"
+        );
         let origin = inv.project_point3(Vec3::new(ndc[0], ndc[1], 0.0));
         let direction = (inv.project_point3(Vec3::new(ndc[0], ndc[1], 1.0)) - origin).normalize();
+        ensure!(
+            origin.is_finite() && direction.is_finite(),
+            "invalid picking ray"
+        );
         let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let mut best: Option<(f32, Pick)> = None;
         for object in &self.scene.objects {
@@ -432,7 +453,7 @@ impl Editor {
                 ));
             }
         }
-        Ok(best.map(|(_, id)| id))
+        Ok(best.map(|(distance, pick)| (pick, origin + direction * distance)))
     }
 }
 

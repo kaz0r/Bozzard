@@ -72,6 +72,7 @@ struct Slot {
 
 trait ErasedStorage: Any + Send + Sync {
     fn remove_entity(&mut self, entity: Entity);
+    fn append_into(self: Box<Self>, world: &mut World, mapping: &HashMap<Entity, Entity>);
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -194,6 +195,23 @@ impl<T: Component> Storage<T> {
 }
 
 impl<T: Component> ErasedStorage for Storage<T> {
+    fn append_into(self: Box<Self>, world: &mut World, mapping: &HashMap<Entity, Entity>) {
+        let storage = world
+            .components
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(Storage::<T>::default()))
+            .as_any_mut()
+            .downcast_mut::<Storage<T>>()
+            .expect("component storage type");
+        storage
+            .sparse
+            .resize(storage.sparse.len().max(world.slots.len()), None);
+        storage.entities.reserve(self.entities.len());
+        storage.entries.reserve(self.entries.len());
+        for (entity, entry) in self.entities.into_iter().zip(self.entries) {
+            storage.insert(mapping[&entity], entry.value, world.change_tick);
+        }
+    }
     fn remove_entity(&mut self, entity: Entity) {
         self.remove(entity);
     }
@@ -243,6 +261,35 @@ impl World {
     }
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    /// Move a prepared world's entities and components into this world. Resources
+    /// are intentionally not transferred: the host owns singleton lifecycle.
+    ///
+    /// Returns old-to-new handles. Component values are moved unchanged, so a caller
+    /// whose components contain Entity handles must remap those values explicitly.
+    /// Persistent scene object IDs do not need such a remap. Existing destination
+    /// entities keep their handles and state; imported values change at this tick.
+    pub fn append_entities(&mut self, source: World) -> HashMap<Entity, Entity> {
+        let mut mapping = HashMap::with_capacity(source.len);
+        self.slots
+            .reserve(source.len.saturating_sub(self.free.len()));
+        for (index, slot) in source.slots.iter().enumerate() {
+            if slot.alive {
+                mapping.insert(
+                    Entity {
+                        world: source.id,
+                        index: index as u32,
+                        generation: slot.generation,
+                    },
+                    self.spawn(),
+                );
+            }
+        }
+        for storage in source.components.into_values() {
+            storage.append_into(self, &mapping);
+        }
+        mapping
     }
 
     pub fn spawn(&mut self) -> Entity {
@@ -651,5 +698,42 @@ mod tests {
         };
         world.despawn(e).unwrap();
         assert_ne!(world.spawn().index, e.index);
+    }
+
+    #[test]
+    fn prepared_entities_move_without_cloning_values_or_replacing_live_state() {
+        struct Owned(Box<u32>);
+        let mut live = World::new();
+        let existing = live.spawn();
+        live.insert(existing, String::from("live")).unwrap();
+        live.insert_resource(17_u32);
+        let mut source = World::new();
+        source.insert_resource(99_u32);
+        let dead = source.spawn();
+        source.despawn(dead).unwrap();
+        let first = source.spawn();
+        let second = source.spawn();
+        let value = Box::new(42);
+        let allocation = &*value as *const u32;
+        source.insert(first, Owned(value)).unwrap();
+        source.insert(first, String::from("prepared")).unwrap();
+        source.insert(second, 3.5_f32).unwrap();
+        let bookmark = live.change_tick();
+        live.advance_change_tick();
+        let mapping = live.append_entities(source);
+        assert_eq!(mapping.len(), 2);
+        assert!(!mapping.contains_key(&dead));
+        assert!(!live.contains(first));
+        assert_eq!(live.len(), 3);
+        assert_eq!(live.get::<String>(existing).unwrap(), "live");
+        assert_eq!(live.resource::<u32>(), Some(&17));
+        assert_eq!(live.get::<String>(mapping[&first]).unwrap(), "prepared");
+        assert_eq!(
+            &*live.get::<Owned>(mapping[&first]).unwrap().0 as *const u32,
+            allocation
+        );
+        assert!(live.is_changed_since::<Owned>(mapping[&first], bookmark));
+        assert!(!live.is_changed_since::<String>(existing, bookmark));
+        assert_eq!(live.get::<f32>(mapping[&second]), Some(&3.5));
     }
 }

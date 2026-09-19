@@ -26,11 +26,13 @@ enum AssetFilter {
     #[default]
     All,
     Images,
+    Fonts,
     Audio,
     Models,
     Prefabs,
     Blueprints,
     ShaderGraphs,
+    Materials,
     Compute,
 }
 
@@ -41,6 +43,9 @@ struct Thumbnail {
 
 #[derive(Default)]
 pub struct AssetBrowserOutput {
+    pub material_opened: Option<String>,
+    pub material_create: bool,
+    pub material_variant: Option<String>,
     pub blueprint_opened: bool,
     pub blueprint_import_requested: bool,
     pub blueprint_path: Option<std::path::PathBuf>,
@@ -72,6 +77,7 @@ struct AssetSnapshot {
     revision: u64,
     users: usize,
     image: Option<(u32, u32)>,
+    compressed: Option<Arc<bozzard_assets::texture::CookedTexture>>,
     audio: Option<(f64, u32)>,
     mesh: Option<Arc<MeshPreview>>,
     prefab_objects: Option<usize>,
@@ -100,6 +106,8 @@ struct PendingDelete {
 }
 
 enum AssetCommand {
+    EditMaterial(String),
+    MaterialVariant(String),
     OpenSource(String),
     Delete(String),
     Add(String),
@@ -210,9 +218,11 @@ impl AssetBrowser {
                     AssetFilter::Images => "Textures",
                     AssetFilter::Audio => "Audio",
                     AssetFilter::Models => "Models",
+                    AssetFilter::Fonts => "Fonts",
                     AssetFilter::Prefabs => "Prefabs",
                     AssetFilter::Blueprints => "Blueprints",
                     AssetFilter::ShaderGraphs => "Shader graphs",
+                    AssetFilter::Materials => "Materials",
                     AssetFilter::Compute => "Compute shaders",
                 })
                 .show_ui(ui, |ui| {
@@ -220,7 +230,9 @@ impl AssetBrowser {
                     ui.selectable_value(&mut self.filter, AssetFilter::Images, "Textures");
                     ui.selectable_value(&mut self.filter, AssetFilter::Audio, "Audio");
                     ui.selectable_value(&mut self.filter, AssetFilter::Models, "Models");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Fonts, "Fonts");
                     ui.selectable_value(&mut self.filter, AssetFilter::Prefabs, "Prefabs");
+                    ui.selectable_value(&mut self.filter, AssetFilter::Materials, "Materials");
                     ui.selectable_value(&mut self.filter, AssetFilter::Blueprints, "Blueprints");
                     ui.selectable_value(&mut self.filter, AssetFilter::Compute, "Compute shaders");
                     ui.selectable_value(
@@ -233,7 +245,7 @@ impl AssetBrowser {
             if ui
                 .add_enabled(editing, egui::Button::new("Import…"))
                 .on_hover_text(
-                    "Import images, models, audio, .rs scripts, .compute.wgsl shaders or .prefab.json",
+                    "Import images, models, audio, .rs scripts, .compute.wgsl shaders, .material.json or .prefab.json",
                 )
                 .clicked()
             {
@@ -244,6 +256,9 @@ impl AssetBrowser {
                 } else {
                     output.import_requested = true;
                 }
+            }
+            if ui.add_enabled(editing, egui::Button::new("New material")).clicked() {
+                output.material_create = true;
             }
             if ui
                 .add_enabled(editing, egui::Button::new("Reload"))
@@ -304,7 +319,7 @@ impl AssetBrowser {
             if sidebar {
                 ui.allocate_ui_with_layout(Vec2::new(130.0, available.y), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.small("PROJECT");
-                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Audio, "Audio"), (AssetFilter::Models, "Models"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs"), (AssetFilter::Compute, "Compute shaders")] {
+                    for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Fonts, "Fonts"), (AssetFilter::Audio, "Audio"), (AssetFilter::Models, "Models"), (AssetFilter::Materials, "Materials"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs"), (AssetFilter::Compute, "Compute shaders")] {
                         ui.horizontal(|ui| {
                             let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 16.0), Sense::hover());
                             draw_folder(ui.painter(), rect);
@@ -384,6 +399,8 @@ impl AssetBrowser {
 
         if let Some(command) = command {
             match command {
+                AssetCommand::EditMaterial(id) => output.material_opened = Some(id),
+                AssetCommand::MaterialVariant(id) => output.material_variant = Some(id),
                 AssetCommand::OpenSource(id) => {
                     let path =
                         bozzard_editor::root(&editor.path).join(&editor.scene().assets[&id].path);
@@ -772,6 +789,8 @@ impl AssetBrowser {
                     if preview.1.double_clicked() && ready {
                         if asset.kind == AssetKind::ComputeShader {
                             self.show_details = true;
+                        } else if asset.kind == AssetKind::Material {
+                            *command = Some(AssetCommand::EditMaterial(asset.id.clone()));
                         } else {
                             *command = Some(AssetCommand::Add(asset.id.clone()));
                         }
@@ -785,7 +804,11 @@ impl AssetBrowser {
                         .context_menu(|ui| {
                             if ui
                                 .add_enabled(
-                                    ready && asset.kind != AssetKind::ComputeShader,
+                                    ready
+                                        && !matches!(
+                                            asset.kind,
+                                            AssetKind::ComputeShader | AssetKind::Material
+                                        ),
                                     egui::Button::new("Add to scene"),
                                 )
                                 .clicked()
@@ -850,6 +873,7 @@ impl AssetBrowser {
                         AssetKind::Mesh => "Model",
                         AssetKind::Script => "Script",
                         AssetKind::Font => "Font",
+                        AssetKind::Material => "Material",
                         AssetKind::ComputeShader => "Compute",
                     });
                     if matches!(asset.state, LoadState::Failed(_)) {
@@ -877,6 +901,7 @@ impl AssetBrowser {
             .and_then(|entry| entry.data())
             .and_then(|data| match data {
                 AssetData::Image(image) => Some(image),
+                AssetData::Material(material) => material.image.as_deref(),
                 AssetData::Mesh(_)
                 | AssetData::Prefab(_)
                 | AssetData::Script(_)
@@ -933,11 +958,33 @@ impl AssetBrowser {
             },
             AssetKind::Script => ui.label("Script · Rhai"),
             AssetKind::Font => ui.label("Font · TTF/OTF"),
+            AssetKind::Material => {
+                ui.label("Shared material · inherited properties and shader keywords")
+            }
             AssetKind::ComputeShader => ui.label("Compute shader · WGSL"),
         };
         if let Some(mesh) = &asset.mesh {
             for warning in &mesh.warnings {
                 ui.colored_label(Color32::YELLOW, warning);
+            }
+        }
+        if let Some(cooked) = &asset.compressed {
+            ui.label("Cooked GPU formats");
+            for variant in cooked.variants() {
+                ui.small(format!(
+                    "{:?} · {} · {} mips · {} B",
+                    variant.format(),
+                    if variant.srgb() { "sRGB" } else { "linear" },
+                    variant.levels().len(),
+                    variant.bytes()
+                ));
+            }
+            ui.weak("Lossless CPU pixels and RGBA fallback included");
+            if asset
+                .image
+                .is_some_and(|(w, h)| !w.is_multiple_of(4) || !h.is_multiple_of(4))
+            {
+                ui.weak("GPU uses RGBA: width and height must be multiples of four for compressed upload.");
             }
         }
         match &asset.state {
@@ -1029,6 +1076,23 @@ impl AssetBrowser {
             });
         }
         ui.vertical(|ui| {
+            if asset.kind == AssetKind::Material {
+                if ui
+                    .add_enabled(editing, egui::Button::new("Edit material source"))
+                    .clicked()
+                {
+                    *command = Some(AssetCommand::EditMaterial(asset.id.clone()));
+                }
+                if ui
+                    .add_enabled(
+                        editing && matches!(asset.state, LoadState::Ready),
+                        egui::Button::new("Create material variant"),
+                    )
+                    .clicked()
+                {
+                    *command = Some(AssetCommand::MaterialVariant(asset.id.clone()));
+                }
+            }
             if asset.kind == AssetKind::Prefab
                 && ui
                     .add_enabled(
@@ -1042,7 +1106,7 @@ impl AssetBrowser {
             if ui
                 .add_enabled(
                     editing
-                        && asset.kind != AssetKind::ComputeShader
+                        && !matches!(asset.kind, AssetKind::ComputeShader | AssetKind::Material)
                         && matches!(asset.state, LoadState::Ready),
                     egui::Button::new("Add to scene"),
                 )
@@ -1149,6 +1213,13 @@ fn snapshots(
             let source = editor.scene().assets.get(&entry.id)?;
             let (image, mesh) = match entry.data() {
                 Some(AssetData::Image(image)) => (Some((image.width, image.height)), None),
+                Some(AssetData::Material(material)) => (
+                    material
+                        .image
+                        .as_ref()
+                        .map(|image| (image.width, image.height)),
+                    None,
+                ),
                 Some(AssetData::Mesh(mesh)) => {
                     let revision = entry.revision();
                     let sampled = match mesh_cache.get(&entry.id) {
@@ -1178,6 +1249,14 @@ fn snapshots(
                 revision: entry.revision(),
                 users: users.get(&entry.id).map_or(0, Vec::len),
                 image,
+                compressed: match entry.data() {
+                    Some(AssetData::Image(image)) => image.compressed.clone(),
+                    Some(AssetData::Material(material)) => material
+                        .image
+                        .as_ref()
+                        .and_then(|image| image.compressed.clone()),
+                    _ => None,
+                },
                 audio: match entry.data() {
                     Some(AssetData::Audio(a)) => Some((a.duration, a.sample_rate)),
                     _ => None,
@@ -1290,8 +1369,13 @@ fn filter_button(ui: &mut egui::Ui, filter: &mut AssetFilter, value: AssetFilter
 fn matches_filter(filter: AssetFilter, kind: AssetKind) -> bool {
     matches!(filter, AssetFilter::All)
         || matches!((filter, kind), (AssetFilter::Images, AssetKind::Image))
+        || matches!(
+            (filter, kind),
+            (AssetFilter::Materials, AssetKind::Material)
+        )
         || matches!((filter, kind), (AssetFilter::Audio, AssetKind::Audio))
         || matches!((filter, kind), (AssetFilter::Models, AssetKind::Mesh))
+        || matches!((filter, kind), (AssetFilter::Fonts, AssetKind::Font))
         || matches!((filter, kind), (AssetFilter::Prefabs, AssetKind::Prefab))
         || matches!(
             (filter, kind),
@@ -1404,13 +1488,22 @@ fn draw_preview(
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 2.0, Color32::from_gray(25));
     match (asset.kind, thumbnail, asset.mesh.as_ref()) {
+        (AssetKind::Font, _, _) => {
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "Aa",
+                egui::FontId::proportional(30.),
+                Color32::from_rgb(204, 177, 124),
+            );
+        }
         (AssetKind::Audio, _, _) => {
             draw_shader_icon(&painter, rect);
         }
         (AssetKind::Prefab, _, _) => {
             draw_node_graph_icon(&painter, rect, Color32::from_rgb(178, 155, 244));
         }
-        (AssetKind::Image, Some(texture), _) => {
+        (AssetKind::Image | AssetKind::Material, Some(texture), _) => {
             let size = texture.size_vec2();
             let scale = (rect.width() / size.x).min(rect.height() / size.y).min(1.0);
             let image_rect = Rect::from_center_size(rect.center(), size * scale);
@@ -1424,6 +1517,7 @@ fn draw_preview(
         (AssetKind::Mesh, _, Some(mesh)) => {
             draw_mesh_preview(&painter, rect.shrink(8.0), &mesh.vertices, &mesh.indices);
         }
+        (AssetKind::Material, _, _) => draw_shader_icon(&painter, rect),
         (AssetKind::Mesh, _, _) => {
             painter.text(
                 rect.center(),

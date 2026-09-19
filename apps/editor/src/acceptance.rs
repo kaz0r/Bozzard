@@ -208,7 +208,7 @@ impl App {
                 self.loading.is_some(),
                 self.error,
                 self.smoke_requested,
-                self.residency.has_all(&self.editor.assets),
+                self.residency.has_required(&self.editor.assets),
                 self.status,
             );
             self.allow_close = true;
@@ -487,7 +487,7 @@ impl App {
             && !self.error
             && (self.viewport_rect.is_some() || self.smoke_blueprint_frame.is_some())
             && self.target.is_some()
-            && self.residency.has_all(&self.editor.assets)
+            && self.residency.has_required(&self.editor.assets)
         {
             self.smoke_requested = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
@@ -561,7 +561,7 @@ impl App {
                             "prefab selection missing"
                         );
                         ensure!(
-                            self.residency.has_all(&self.editor.assets),
+                            self.residency.has_required(&self.editor.assets),
                             "CPU-only prefab blocks GPU residency"
                         );
                         println!(
@@ -979,6 +979,7 @@ impl App {
                             self.start_export(
                                 output.join("exported-game"),
                                 "Editor exported game".into(),
+                                bozzard_project::CookTarget::Universal,
                             );
                             ensure!(
                                 self.loading.is_some(),

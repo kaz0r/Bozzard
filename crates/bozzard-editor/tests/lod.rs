@@ -3,6 +3,35 @@ use bozzard_render::{Gpu, SceneRenderer, capture_offscreen, wgpu};
 use bozzard_scene::{Layer, Scene};
 
 #[test]
+fn inspection_and_effects_preview_choose_lod_from_their_actual_camera() -> anyhow::Result<()> {
+    let scene = Scene::from_json(
+        r#"{"version":1,"name":"inspection LOD","views":{"3d":"camera"},"objects":[
+      {"id":"camera","name":"Camera","transform":{"translation":[0,0,100],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"camera":{"projection":"perspective","vertical_fov_degrees":60,"near":0.1,"far":1000}},
+      {"id":"mesh","name":"Mesh","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"drawable":{"layer":"3d","mesh":"cube","texture":"white","color":[1,1,1],"uv_scale":[1,1]},"lod":{"levels":[{"switch":10,"mesh":"quad"},{"switch":50}]}}
+    ]}"#,
+    )?;
+    let editor = Editor::new(scene.clone(), std::path::Path::new("inspection-lod.json"))?;
+    let mut preview = bozzard_editor::EffectsPreview::new(&editor)?;
+    assert!(editor.render(Layer::ThreeD, 1.)?.items.is_empty());
+    for (distance, expected) in [
+        (3., bozzard_render::MeshKind::Cube),
+        (20., bozzard_render::MeshKind::Quad),
+    ] {
+        let pose = Some(glam::Mat4::from_translation(glam::Vec3::new(
+            0., 0., distance,
+        )));
+        let frame = editor.render_from_camera(Layer::ThreeD, 1., pose)?;
+        assert_eq!(frame.items[0].mesh, expected);
+        let effects = preview.render_from_camera(&editor, Layer::ThreeD, 1., pose)?;
+        assert_eq!(effects.items[0].mesh, expected);
+        assert_eq!(effects.view_projection, frame.view_projection);
+    }
+    assert_eq!(editor.scene(), &scene);
+    assert!(editor.render(Layer::ThreeD, 1.)?.items.is_empty());
+    Ok(())
+}
+
+#[test]
 fn imported_lod_renders_matches_reference_and_supports_undo() -> anyhow::Result<()> {
     let directory = std::env::temp_dir().join(format!("bozzard-lod-{}", std::process::id()));
     std::fs::create_dir_all(&directory)?;

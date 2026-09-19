@@ -1,71 +1,19 @@
 //! CPU font metrics shared by headless UI layout, renderer picking, and framing.
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use epaint::{
     Color32, FontFamily, FontId,
-    text::{FontData, FontDefinitions, Fonts, LayoutJob, TextOptions},
+    text::{FontDefinitions, Fonts, LayoutJob, TextOptions},
 };
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-};
+use std::{cell::RefCell, collections::BTreeMap};
 
-/// Validated immutable font snapshot. Identity follows the snapshot, not an asset
-/// name: two projects can use the same name without sharing fonts or stale metrics.
-#[derive(Clone, Debug)]
-pub struct Font {
-    id: u64,
-    data: Arc<FontData>,
-}
-impl PartialEq for Font {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-impl Font {
-    pub fn parse(bytes: Vec<u8>) -> Result<Self> {
-        ensure!(
-            !bytes.is_empty() && bytes.len() <= 4 * 1024 * 1024,
-            "font must be 1 byte..4 MiB"
-        );
-        let font = skrifa::FontRef::from_index(&bytes, 0).context("invalid TTF/OTF font")?;
-        use skrifa::raw::TableProvider;
-        font.head().context("font has no valid head table")?;
-        font.maxp().context("font has no valid maxp table")?;
-        font.cmap().context("font has no valid character map")?;
-        ensure!(
-            font.glyf().is_ok() || font.cff().is_ok() || font.cff2().is_ok(),
-            "font needs outline glyphs"
-        );
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        Ok(Self {
-            id: NEXT.fetch_add(1, Ordering::Relaxed),
-            data: Arc::new(FontData::from_owned(bytes)),
-        })
-    }
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-    pub fn family(&self) -> FontFamily {
-        FontFamily::Name(format!("asset-font-{}", self.id).into())
-    }
-    pub fn install(&self, definitions: &mut FontDefinitions) {
-        let name = format!("asset-font-{}", self.id);
-        definitions
-            .font_data
-            .insert(name.clone(), self.data.clone());
-        definitions.families.insert(self.family(), vec![name]);
-    }
-}
+mod font;
+pub use font::{Font, FontKey, VariationAxis};
 
-type Key = (u32, Option<u32>, bool, u8);
+type Key = (u32, Option<u32>, bool, u8, Option<FontKey>);
 type Bounds = Option<[[f32; 2]; 2]>;
 struct Cache {
     fonts: Fonts,
-    custom: Option<u64>,
+    custom: BTreeMap<FontKey, Font>,
     metrics: BTreeMap<Key, BTreeMap<String, Bounds>>,
     entries: usize,
     bytes: usize,
@@ -76,7 +24,7 @@ fn options() -> TextOptions {
         ..Default::default()
     }
 }
-thread_local! {static CACHE:RefCell<Cache>=RefCell::new(Cache{fonts:Fonts::new(options(),FontDefinitions::default()),custom:None,metrics:BTreeMap::new(),entries:0,bytes:0});}
+thread_local! {static CACHE:RefCell<Cache>=RefCell::new(Cache{fonts:Fonts::new(options(),FontDefinitions::default()),custom:BTreeMap::new(),metrics:BTreeMap::new(),entries:0,bytes:0});}
 /// Alignment: 0 left, 1 center, 2 right. Positions use XY with positive Y downward.
 pub fn bounds(
     text: &str,
@@ -111,17 +59,25 @@ pub fn bounds_with_font(
         max_width.map(f32::to_bits),
         monospace,
         alignment,
+        custom.map(Font::key),
     );
     CACHE.with_borrow_mut(|cache| {
-        // ponytail: one active custom font per thread; a bounded multi-font metrics
-        // cache only if alternating font families becomes a measured layout cost.
-        if cache.custom != custom.map(Font::id) || cache.fonts.font_atlas_fill_ratio() > 0.8 {
+        // Keep mixed labels warm. At most eight styles, each with one primary and
+        // four fallback faces, share one bounded glyph atlas and metrics cache.
+        let added = custom.is_some_and(|font| !cache.custom.contains_key(&font.key()));
+        if added {
+            if cache.custom.len() == 8 {
+                cache.custom.clear();
+            }
+            let font = custom.unwrap();
+            cache.custom.insert(font.key(), font.clone());
+        }
+        if added || cache.fonts.font_atlas_fill_ratio() > 0.8 {
             let mut definitions = FontDefinitions::default();
-            if let Some(font) = custom {
+            for font in cache.custom.values() {
                 font.install(&mut definitions);
             }
             cache.fonts = Fonts::new(options(), definitions);
-            cache.custom = custom.map(Font::id);
             cache.metrics.clear();
             cache.entries = 0;
             cache.bytes = 0;
@@ -187,6 +143,30 @@ pub fn bounds_with_font(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mixed_font_labels_keep_warm_metrics_and_bound_retained_sources() -> Result<()> {
+        let bytes = FontDefinitions::default().font_data["Hack"].font.to_vec();
+        let a = Font::parse(bytes.clone())?;
+        let b = Font::parse(bytes.clone())?;
+        let measure = |font: Option<&Font>| bounds_with_font("Label", 1., None, false, 0, font);
+        measure(Some(&a))?;
+        measure(Some(&b))?;
+        let expected = [measure(None)?, measure(Some(&a))?, measure(Some(&b))?];
+        let entries = CACHE.with_borrow(|cache| cache.entries);
+        for _ in 0..32 {
+            assert_eq!(
+                [measure(None)?, measure(Some(&a))?, measure(Some(&b))?],
+                expected
+            );
+            assert_eq!(CACHE.with_borrow(|cache| cache.entries), entries);
+        }
+        for _ in 0..16 {
+            measure(Some(&Font::parse(bytes.clone())?))?;
+            assert!(CACHE.with_borrow(|cache| cache.custom.len()) <= 8);
+        }
+        assert_eq!(measure(Some(&a))?, expected[1]);
+        Ok(())
+    }
     #[test]
     fn custom_font_validation_metrics_and_snapshot_isolation() -> Result<()> {
         assert!(Font::parse(vec![]).is_err());

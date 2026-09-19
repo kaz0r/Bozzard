@@ -10,7 +10,7 @@ use bozzard_assets::{
     AssetData, Filter, ImageData, MeshData, Sampler, SurfaceShading, TextureMap, Wrap,
 };
 use bozzard_render::{Gpu, MaterialMap, ModelImage, ModelPart, ModelShading, SceneRenderer, wgpu};
-pub use residency::{Residency, ResidencyReport};
+pub use residency::{Residency, ResidencyReport, ResidencyStats, required_assets};
 use std::sync::Arc;
 
 pub fn skin_poses(
@@ -35,18 +35,7 @@ pub fn text_mesh(
     text: &bozzard_scene::TextRendering,
     assets: &bozzard_assets::AssetStore,
 ) -> anyhow::Result<bozzard_render::TextMesh> {
-    let custom_font = if let bozzard_scene::TextFont::Custom(id) = &text.font {
-        let data = assets
-            .handle(id)
-            .and_then(|handle| assets.get(handle))
-            .and_then(|entry| entry.data());
-        let Some(AssetData::Font(font)) = data else {
-            anyhow::bail!("custom font '{id}' is not loaded");
-        };
-        Some(font.clone())
-    } else {
-        None
-    };
+    let custom_font = assets.text_font(text)?;
     Ok(bozzard_render::TextMesh {
         custom_font,
         clip: None,
@@ -165,10 +154,113 @@ pub fn model_parts(mesh: &MeshData) -> Vec<ModelPart<'_>> {
 /// `upload_source` share this classification.
 pub fn needs_gpu(data: &AssetData) -> bool {
     matches!(data, AssetData::Image(_) | AssetData::Mesh(_))
+        || matches!(data, AssetData::Material(material) if material.image.is_some())
 }
 
-struct SharedSource(Arc<AssetData>);
+struct SharedSource(Arc<AssetData>, wgpu::Features);
 impl bozzard_render::UploadSource for SharedSource {
+    fn validate(&self) -> anyhow::Result<()> {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut check = |image: &ImageData| -> anyhow::Result<()> {
+            if let Some(cooked) = &image.compressed
+                && seen.insert(image.rgba.as_ptr() as usize)
+            {
+                anyhow::ensure!(
+                    cooked.matches(image),
+                    "stale cooked texture; recook modified pixels"
+                );
+            }
+            Ok(())
+        };
+        match self.0.as_ref() {
+            AssetData::Material(material) => check(
+                material
+                    .image
+                    .as_deref()
+                    .expect("material requires an image upload"),
+            )?,
+            AssetData::Image(image) => check(image)?,
+            AssetData::Mesh(mesh) => {
+                for p in &mesh.parts {
+                    if let Some(image) = &p.image {
+                        check(image)?;
+                    }
+                    if let Some(shading) = &p.shading {
+                        let s = &shading.material;
+                        for map in [&s.normal, &s.metallic_roughness, &s.occlusion, &s.emissive]
+                            .into_iter()
+                            .flatten()
+                        {
+                            check(&map.image)?;
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    fn compressed(
+        &self,
+        locator: Option<(usize, usize)>,
+        srgb: bool,
+    ) -> Option<bozzard_render::CompressedImage<'_>> {
+        let image = match (self.0.as_ref(), locator) {
+            (AssetData::Material(material), None) => material.image.as_deref()?,
+            (AssetData::Image(image), None) => image,
+            (AssetData::Mesh(mesh), Some((part, slot))) => {
+                let part = mesh.parts.get(part)?;
+                if slot == 0 {
+                    part.image.as_deref()?
+                } else {
+                    let s = &part.shading.as_ref()?.material;
+                    [&s.normal, &s.metallic_roughness, &s.occlusion, &s.emissive]
+                        .get(slot.checked_sub(1)?)?
+                        .as_ref()?
+                        .image
+                        .as_ref()
+                }
+            }
+            _ => return None,
+        };
+        // WebGPU requires block-aligned base dimensions. Do not resize authored
+        // textures or change their UV mapping just to make compression fit.
+        if !image.width.is_multiple_of(4) || !image.height.is_multiple_of(4) {
+            return None;
+        }
+        let cooked = image.compressed.as_ref()?;
+        use bozzard_assets::texture::Compression;
+        let selected = [
+            (
+                Compression::Astc4x4,
+                wgpu::Features::TEXTURE_COMPRESSION_ASTC,
+                bozzard_render::BlockCompression::Astc4x4,
+            ),
+            (
+                Compression::Bc3,
+                wgpu::Features::TEXTURE_COMPRESSION_BC,
+                bozzard_render::BlockCompression::Bc3,
+            ),
+        ]
+        .into_iter()
+        .find_map(|(format, feature, gpu_format)| {
+            self.1
+                .contains(feature)
+                .then(|| {
+                    cooked
+                        .variants()
+                        .iter()
+                        .find(|v| v.format() == format && v.srgb() == srgb)
+                        .map(|v| (v, gpu_format))
+                })
+                .flatten()
+        })?;
+        Some(bozzard_render::CompressedImage {
+            format: selected.1,
+            levels: selected.0.levels(),
+        })
+    }
     fn skin(&self) -> Option<bozzard_render::SkinData<'_>> {
         let AssetData::Mesh(mesh) = self.0.as_ref() else {
             return None;
@@ -182,6 +274,12 @@ impl bozzard_render::UploadSource for SharedSource {
     }
     fn data(&self) -> bozzard_render::UploadData<'_> {
         match self.0.as_ref() {
+            AssetData::Material(material) => bozzard_render::UploadData::Image(image(
+                material
+                    .image
+                    .as_deref()
+                    .expect("material requires an image upload"),
+            )),
             AssetData::Prefab(_)
             | AssetData::Font(_)
             | AssetData::Audio(_)
@@ -201,8 +299,16 @@ impl bozzard_render::UploadSource for SharedSource {
 pub fn upload_source(
     data: Arc<AssetData>,
 ) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
+    upload_source_with_features(data, wgpu::Features::empty())
+}
+/// Select only enabled device formats; an unsupported or unaligned texture uses
+/// original pixels. The default upload_source remains an exact RGBA reference path.
+pub fn upload_source_with_features(
+    data: Arc<AssetData>,
+    features: wgpu::Features,
+) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
     anyhow::ensure!(needs_gpu(&data), "this asset has no GPU resources");
-    Ok(Arc::new(SharedSource(data)))
+    Ok(Arc::new(SharedSource(data, features)))
 }
 pub fn upload(
     gpu: &Gpu,
@@ -211,6 +317,13 @@ pub fn upload(
     data: &AssetData,
 ) -> anyhow::Result<()> {
     match data {
+        AssetData::Material(material) => {
+            if let Some(image) = &material.image {
+                renderer.upload_image(gpu, id, image.width, image.height, &image.rgba)
+            } else {
+                Ok(())
+            }
+        }
         AssetData::Prefab(_)
         | AssetData::Font(_)
         | AssetData::Audio(_)
@@ -250,8 +363,18 @@ pub fn shader_source(
 ) -> anyhow::Result<Arc<bozzard_render::ShaderSource>> {
     shaders::source(graph)
 }
+/// Select static branches before WGSL compilation. Values outside the graph's
+/// declared keyword set are rejected instead of silently selecting a fallback.
+pub fn shader_variant_source(
+    graph: &bozzard_scene::shader_graph::ShaderGraph,
+    keywords: &std::collections::BTreeMap<String, bool>,
+) -> anyhow::Result<Arc<bozzard_render::ShaderSource>> {
+    shaders::variant(graph, keywords)
+}
 
 mod shaders;
+mod shared_materials;
+pub use shared_materials::material_binding;
 
 /// Shared atlas geometry uses content-cached GPU meshes, including an entire tilemap in one draw.
 pub fn sprite_items(

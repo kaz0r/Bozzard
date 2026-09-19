@@ -1,22 +1,26 @@
 use crate::{ImageData, ModelImages, SourceSnapshot};
 use anyhow::{Context, Result, ensure};
 use glam::{Mat3, Mat4, Vec2, Vec3};
+use serde::{Deserialize, Serialize};
 use std::{path::Path, sync::Arc};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Wrap {
     Repeat,
     Clamp,
     Mirror,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Filter {
     Nearest,
     Linear,
 }
 
 /// Texture sampling is independent of the shared decoded image.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Sampler {
     pub wrap_u: Wrap,
     pub wrap_v: Wrap,

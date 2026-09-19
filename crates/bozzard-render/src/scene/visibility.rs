@@ -14,9 +14,21 @@ pub struct FrameStats {
     pub surfaces: usize,
     pub visible_surfaces: usize,
     pub culled_surfaces: usize,
+    /// Submitted upper bound; subtract completed occlusion savings only when
+    /// the result's frame_id matches the frame being inspected. Cached occlusion
+    /// already omits hidden commands, so do not subtract its savings again.
     pub color_triangles: u64,
-    /// Actual color-pass mesh draws, excluding particles, sky, HUD and post-processing.
+    /// Color-pass mesh draw commands, excluding particles, sky, HUD and post-processing.
+    /// An indirect command can skip its instances; completed GPU savings are in
+    /// `occlusion_result`, with that result's own frame identity.
     pub color_draws: usize,
+    pub occlusion_depth_draws: usize,
+    pub occlusion_depth_triangles: u64,
+    pub occlusion_candidates: usize,
+    /// Identical depth inputs and bounds reused completed visibility on the CPU.
+    pub occlusion_cache_hit: bool,
+    pub occlusion_bytes: u64,
+    pub occlusion_result: Option<OcclusionResult>,
     pub instanced_draws: usize,
     /// Visible surfaces represented by draws with more than one instance.
     pub instanced_surfaces: usize,

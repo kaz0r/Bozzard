@@ -2,6 +2,22 @@ use super::*;
 
 pub fn resolve(options: &mut Options) -> Result<()> {
     ensure!(
+        options.content_catalog.is_some() == options.content_address.is_some(),
+        "--content-catalog and --content must be supplied together"
+    );
+    ensure!(
+        options.content_cache.is_none() || options.content_catalog.is_some(),
+        "--content-cache needs --content-catalog and --content"
+    );
+    if options.content_catalog.is_some() {
+        ensure!(
+            options.project.is_none()
+                && options.scene.is_none()
+                && options.export_project.is_none(),
+            "addressable content cannot be combined with --project, --scene or export"
+        );
+    }
+    ensure!(
         options.project.is_none() || options.scene.is_none(),
         "--project and --scene are mutually exclusive"
     );
@@ -37,6 +53,24 @@ pub fn resolve(options: &mut Options) -> Result<()> {
                 && options.frames.is_none_or(|n| n == 340)),
         "--verify-first-trail is standalone; optional --frames must be 340"
     );
+    if let Some(location) = &options.content_catalog {
+        let progress = bozzard_assets::job::Progress::default();
+        let catalog = bozzard_project::content::load_catalog(location, &progress)?;
+        let cache = match &options.content_cache {
+            Some(path) => path.clone(),
+            None => bozzard_project::content::default_cache_directory()?,
+        };
+        let mut store = bozzard_project::content::ContentStore::new(cache);
+        let resolved = store.resolve(
+            &catalog,
+            options.content_address.as_ref().unwrap(),
+            &progress,
+        )?;
+        options.layer = resolved.scene_view()?;
+        options.scene = Some(resolved.path());
+        options.game_name = Some(resolved.pack().name().into());
+        options.content_handle = Some(resolved);
+    }
     if options.project.is_none() && options.scene.is_none() {
         options.project = bozzard_project::bundled_project(&std::env::current_exe()?);
     }
