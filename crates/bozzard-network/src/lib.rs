@@ -1,5 +1,6 @@
 //! Bounded, host-authoritative Flap Woods protocol. Steam authenticates sender IDs;
 //! the protocol additionally confines messages to a lobby, round and member roster.
+pub mod chat;
 pub mod flap;
 #[cfg(feature = "steam")]
 pub mod steam;
@@ -9,7 +10,7 @@ use std::time::Duration;
 
 pub type Peer = u64;
 pub const MAX_PLAYERS: usize = 4;
-pub const PROTOCOL: u32 = 1;
+pub const PROTOCOL: u32 = 2;
 pub const MAX_PACKET: usize = 16 * 1024;
 pub const STEP: Duration = Duration::from_nanos(16_666_667);
 pub const DT: f32 = 1. / 60.;

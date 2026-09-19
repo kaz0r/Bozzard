@@ -4,7 +4,9 @@ Stage 7 uses Steam friends-only lobbies and Steam Networking Messages. The lobby
 runs a listen server in the player or editor Play. Two to four Steam accounts control separate coloured
 birds through shared pipes; each bird has its own score and elimination state. A round
 ends when every bird is out. Only the original host can start or retry, after a friend
-has completed the protocol handshake. Guests never send Start, score or position commands.
+has completed the protocol handshake. A shared **5, 4, 3, 2, 1** countdown precedes every
+round; birds, pipes and flap input wait until it finishes. Guests never send Start, score
+or position commands. If the last guest leaves during the countdown, it returns to the lobby.
 
 The example uses Valve's **Spacewar App ID 480**. This is a development example; publishing
 requires your own Steam App ID. No Steam emulator or account credentials are included.
@@ -39,11 +41,21 @@ Steam-independent.
 3. Friends launch this example and accept the invite. The running player handles
    `GameLobbyJoinRequested`. Names appear in the lobby; the host's Start button enables
    only after at least one guest has exchanged valid packets.
-4. Only the host clicks **Start game** (Enter). Tap Space to flap your bird. The scoreboard
+4. Only the host clicks **Start game** (Enter). Both players see the five-second countdown,
+   then can tap Space to flap their birds. The scoreboard
    identifies your slot with YOU; eliminated birds shrink and their score shows OUT.
 5. After all birds are out, only the host can retry (Enter/R). L leaves the lobby;
    Q or Escape quits. There is no shared pause: opening the Steam overlay or losing focus
    does not pause the host. Closing the host ends the session for everyone.
+
+Click **Lobby chat** before or between rounds to talk to everyone in the lobby, without
+requiring the overlay. Type a message and press Enter or click Send; Backspace edits and
+Escape returns to the lobby. Gameplay shortcuts are suppressed while typing. Messages
+are limited to 160 characters; the panel keeps the four most recent messages, and leaving
+the lobby clears its history. Steam sends messages to all lobby members, including the
+sender. The chat panel closes when the host starts the countdown.
+
+This revision uses network protocol 2; all friends should rebuild/update together.
 
 Steam’s overlay availability depends on the local Steam/graphics setup. Invitations now
 work through the in-game friend picker as well. As another fallback, share the displayed

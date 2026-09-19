@@ -479,6 +479,27 @@ impl App {
                 });
                 for event in ui.input(|i| i.events.clone()) {
                     match event {
+                        egui::Event::Text(text) | egui::Event::Paste(text)
+                            if response.hovered()
+                                && (!ui.ctx().egui_wants_keyboard_input() || ui_focused)
+                                && play.multiplayer_chatting() =>
+                        {
+                            ui_consumed |= play.multiplayer_text(&text);
+                        }
+                        egui::Event::Key {
+                            key,
+                            pressed: true,
+                            repeat,
+                            ..
+                        } if response.hovered()
+                            && (!ui.ctx().egui_wants_keyboard_input() || ui_focused)
+                            && play.multiplayer_chatting() =>
+                        {
+                            if !repeat || key == egui::Key::Backspace {
+                                play.multiplayer_key(&format!("{key:?}"));
+                            }
+                            ui_consumed = true;
+                        }
                         egui::Event::PointerMoved(pos) => {
                             ui_consumed |= play.ui_input(
                                 layer,

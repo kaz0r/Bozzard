@@ -7,7 +7,7 @@ use bozzard_demo::{
 use bozzard_editor::Editor;
 use bozzard_network::{
     Message,
-    flap::{Host, InputFrame, Phase, Replica},
+    flap::{COUNTDOWN_TICKS, Host, InputFrame, Replica},
 };
 use bozzard_scene::{Layer, Scene, Transform, middleware::ui::Input};
 use std::{
@@ -21,6 +21,8 @@ use std::{
 
 struct FakeSteam {
     host: Host,
+    local: u64,
+    chat: bozzard_network::chat::ChatLog,
     replica: Replica,
     members: BTreeMap<u64, String>,
     lobby: Option<u64>,
@@ -40,6 +42,8 @@ impl FakeSteam {
         host.join(20).unwrap();
         Self {
             host,
+            local: 10,
+            chat: Default::default(),
             replica: Replica::default(),
             members: [(10, "Host".into()), (20, "Guest".into())].into(),
             lobby: None,
@@ -57,15 +61,24 @@ impl Drop for FakeSteam {
     }
 }
 impl Backend for FakeSteam {
+    fn chat(&self) -> bozzard_network::chat::ChatLog {
+        self.chat.clone()
+    }
     fn update(&mut self) -> Result<()> {
         self.updates.fetch_add(1, Ordering::SeqCst);
         self.host.step();
-        self.replica.apply(10, 10, 10, self.host.snapshot(10)?)?;
+        self.replica
+            .apply(10, 10, self.local, self.host.snapshot(self.local)?)?;
         Ok(())
     }
     fn action(&mut self, action: Action) -> Result<()> {
-        self.calls.lock().unwrap().push(action);
+        self.calls.lock().unwrap().push(action.clone());
         match action {
+            Action::Chat(text) => {
+                let mut bytes = bozzard_network::chat::CHAT_PREFIX.to_vec();
+                bytes.extend_from_slice(text.as_bytes());
+                self.chat.receive(&self.members[&self.local], &bytes);
+            }
             Action::Create => self.lobby = Some(999),
             Action::Join(id) => self.lobby = Some(id),
             Action::Start => self.host.start(10)?,
@@ -102,9 +115,9 @@ impl Backend for FakeSteam {
             members: &self.members,
             lobby: self.lobby,
             owner: Some(10),
-            local: 10,
-            host: true,
-            can_start: self.lobby.is_some() && self.host.phase != Phase::Playing,
+            local: self.local,
+            host: self.local == 10,
+            can_start: self.local == 10 && self.lobby.is_some() && !self.host.phase.round_active(),
             busy: false,
             overlay: false,
             alpha: 1.,
@@ -131,6 +144,114 @@ fn wait_until(mut ready: impl FnMut() -> bool) {
         assert!(start.elapsed() < Duration::from_secs(3));
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+#[test]
+fn host_and_guest_show_countdown_then_remove_it_when_play_begins() {
+    for local in [10, 20] {
+        let source = scene();
+        let mut backend =
+            FakeSteam::new(Default::default(), Default::default(), Default::default());
+        backend.local = local;
+        backend.lobby = Some(999);
+        backend.host.start(10).unwrap();
+        let mut play = SceneDemo::new(&source).unwrap();
+        play.attach_multiplayer(
+            Multiplayer::with_backend(&source, Box::new(backend), None).unwrap(),
+        )
+        .unwrap();
+        // Pump uses one fake host tick per update, independently of renderer timing.
+        for tick in 1..COUNTDOWN_TICKS {
+            let frame = play
+                .instance()
+                .ui_frame(&play.app.world, Layer::ThreeD, [1280., 720.])
+                .unwrap();
+            assert_eq!(
+                frame.element("steam-countdown").unwrap().text,
+                (5 - tick / 60).to_string()
+            );
+            assert!(frame.element("steam-start").is_none());
+            assert!(frame.element("steam-chat").is_none());
+            let bird = play.instance().entity("bird-0").unwrap();
+            assert_eq!(
+                play.app.world.get::<Transform>(bird).unwrap().translation[1],
+                0.65
+            );
+            play.pump_multiplayer().unwrap();
+        }
+        let frame = play
+            .instance()
+            .ui_frame(&play.app.world, Layer::ThreeD, [1280., 720.])
+            .unwrap();
+        assert!(frame.element("steam-countdown").is_none());
+        assert!(frame.element("steam-start").is_none());
+    }
+}
+
+#[test]
+fn lobby_chat_types_without_triggering_game_keys_and_clears_on_leave() {
+    let source = scene();
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let backend = FakeSteam::new(calls.clone(), Default::default(), Default::default());
+    let mut play = SceneDemo::new(&source).unwrap();
+    play.attach_multiplayer(Multiplayer::with_backend(&source, Box::new(backend), None).unwrap())
+        .unwrap();
+    click(&mut play, "steam-create");
+    click(&mut play, "steam-chat");
+    assert!(play.multiplayer_chatting());
+    for key in ["Q", "L", "Space"] {
+        assert!(play.multiplayer_key(key));
+    }
+    assert!(play.multiplayer_text("Hello Q L 🌲!"));
+    play.multiplayer_key("Backspace");
+    play.multiplayer_key("Enter");
+    play.pump_multiplayer().unwrap();
+    let frame = play
+        .instance()
+        .ui_frame(&play.app.world, Layer::ThreeD, [1280., 720.])
+        .unwrap();
+    assert!(
+        frame
+            .element("steam-chat-log")
+            .unwrap()
+            .text
+            .contains("Host: Hello Q L 🌲")
+    );
+    assert!(
+        !frame
+            .element("steam-chat-draft")
+            .unwrap()
+            .text
+            .contains("Hello")
+    );
+    assert!(frame.element("steam-start").is_none());
+    assert!(!play.multiplayer_quit());
+    assert_eq!(
+        *calls.lock().unwrap(),
+        vec![Action::Create, Action::Chat("Hello Q L 🌲".into())]
+    );
+    play.multiplayer_key("Escape");
+    play.pump_multiplayer().unwrap();
+    assert!(!play.multiplayer_chatting());
+    click(&mut play, "steam-chat");
+    play.multiplayer_text("Unsent");
+    play.multiplayer_key("Escape");
+    play.pump_multiplayer().unwrap();
+    click(&mut play, "steam-leave");
+    play.pump_multiplayer().unwrap();
+    click(&mut play, "steam-create");
+    click(&mut play, "steam-chat");
+    let frame = play
+        .instance()
+        .ui_frame(&play.app.world, Layer::ThreeD, [1280., 720.])
+        .unwrap();
+    assert!(
+        !frame
+            .element("steam-chat-draft")
+            .unwrap()
+            .text
+            .contains("Unsent")
+    );
 }
 
 #[test]
@@ -165,6 +286,10 @@ fn editor_routes_lobby_ui_flaps_and_overlay_free_invites_without_touching_edit_s
     click(play, "steam-friends-back");
     click(play, "steam-start");
     assert!(play.multiplayer_key("Space"));
+    for _ in 0..COUNTDOWN_TICKS {
+        editor.advance(Duration::from_millis(17));
+    }
+    assert!(editor.play.as_mut().unwrap().multiplayer_key("Space"));
     editor.advance(Duration::from_millis(17));
     let play = editor.play.as_ref().unwrap();
     let bird = play.instance().entity("bird-0").unwrap();

@@ -11,19 +11,21 @@ use std::{
     time::Instant,
 };
 use steamworks::{Client, LobbyId, LobbyType, SteamId, networking_types::SendFlags};
-const GAME: &str = "bozzard-flap-woods-v1";
+const GAME: &str = "bozzard-flap-woods-v2";
 const CHANNEL: u32 = 7;
 const TIMEOUT: Duration = Duration::from_secs(15);
 static CLIENT: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
 enum Event {
     Invite(LobbyId),
     Joined(u64, bool, std::result::Result<LobbyId, String>),
+    Chat(LobbyId, Peer, Vec<u8>),
 }
 
 pub struct Session {
     client: Client,
     _invite: steamworks::CallbackHandle,
     _rich_invite: steamworks::CallbackHandle,
+    _chat: steamworks::CallbackHandle,
     events: mpsc::Receiver<Event>,
     sender: mpsc::SyncSender<Event>,
     allowed: Arc<Mutex<BTreeSet<Peer>>>,
@@ -32,6 +34,8 @@ pub struct Session {
     pub owner: Option<Peer>,
     pub members: BTreeMap<Peer, String>,
     pub replica: Replica,
+    pub chat: chat::ChatLog,
+    last_chat: Option<Instant>,
     host: Option<Host>,
     pub status: String,
     pub pacer: Pacer,
@@ -67,6 +71,20 @@ impl Session {
                     let _ = tx.try_send(Event::Invite(LobbyId::from_raw(id)));
                 }
             });
+        let tx = sender.clone();
+        let chat_client = client.clone();
+        let chat = client.register_callback(move |e: steamworks::LobbyChatMsg| {
+            if e.chat_entry_type != steamworks::ChatEntryType::ChatMsg {
+                return;
+            }
+            // Steam's chat ID is only valid inside this callback.
+            let mut buffer = [0; 4096];
+            let bytes = chat_client
+                .matchmaking()
+                .get_lobby_chat_entry(e.lobby, e.chat_id, &mut buffer)
+                .to_vec();
+            let _ = tx.try_send(Event::Chat(e.lobby, e.user.raw(), bytes));
+        });
         let allowed = Arc::new(Mutex::new(BTreeSet::new()));
         let access = Arc::clone(&allowed);
         client
@@ -86,6 +104,7 @@ impl Session {
             client,
             _invite: invite,
             _rich_invite: rich_invite,
+            _chat: chat,
             events,
             sender,
             allowed,
@@ -94,6 +113,8 @@ impl Session {
             owner: None,
             members: BTreeMap::new(),
             replica: Replica::default(),
+            chat: chat::ChatLog::default(),
+            last_chat: None,
             host: None,
             status: "Create a lobby or accept a friend's Steam invite.".into(),
             pacer: Pacer::default(),
@@ -120,7 +141,7 @@ impl Session {
     }
     pub fn can_start(&self) -> bool {
         self.is_host()
-            && self.replica.phase != Phase::Playing
+            && !self.replica.phase.round_active()
             && self.members.len() >= 2
             && self
                 .members
@@ -196,7 +217,7 @@ impl Session {
     pub fn invite_friend(&mut self, id: Peer) -> Result<()> {
         let lobby = self.lobby.context("create or join a lobby first")?;
         ensure!(
-            self.replica.phase != Phase::Playing,
+            !self.replica.phase.round_active(),
             "wait for the round to finish before inviting"
         );
         let friend = self.client.friends().get_friend(SteamId::from_raw(id));
@@ -242,6 +263,24 @@ impl Session {
             self.flap = true;
         }
     }
+    pub fn send_chat(&mut self, text: &str) -> Result<()> {
+        let lobby = self.lobby.context("join a lobby before chatting")?;
+        ensure!(
+            self.last_chat
+                .is_none_or(|sent| sent.elapsed() >= Duration::from_millis(500)),
+            "Please wait a moment before sending again."
+        );
+        let text = chat::clean_text(text, chat::MAX_CHAT_CHARS);
+        ensure!(!text.trim().is_empty(), "Enter a message first.");
+        let mut bytes = chat::CHAT_PREFIX.to_vec();
+        bytes.extend_from_slice(text.trim().as_bytes());
+        self.client
+            .matchmaking()
+            .send_lobby_chat_message(lobby, &bytes)?;
+        self.last_chat = Some(Instant::now());
+        self.status = "Message sent.".into();
+        Ok(())
+    }
     pub fn leave(&mut self) {
         if let Some(lobby) = self.lobby {
             let recipients: Vec<_> = self
@@ -261,6 +300,8 @@ impl Session {
         self.owner = None;
         self.host = None;
         self.replica = Replica::default();
+        self.chat = chat::ChatLog::default();
+        self.last_chat = None;
         self.members.clear();
         self.seen.clear();
         self.ready.clear();
@@ -324,6 +365,22 @@ impl Session {
         self.client.run_callbacks();
         while let Ok(event) = self.events.try_recv() {
             match event {
+                Event::Chat(lobby, sender, bytes) => {
+                    if self.lobby == Some(lobby)
+                        && self
+                            .client
+                            .matchmaking()
+                            .lobby_members(lobby)
+                            .contains(&SteamId::from_raw(sender))
+                    {
+                        let name = self
+                            .client
+                            .friends()
+                            .get_friend(SteamId::from_raw(sender))
+                            .name();
+                        self.chat.receive(&name, &bytes);
+                    }
+                }
                 Event::Invite(id) => {
                     if !self.busy() && self.lobby != Some(id) {
                         self.join(id.raw())?;
@@ -506,7 +563,7 @@ impl Session {
                     self.send_errors += 1;
                 }
             }
-            mm.set_lobby_joinable(lobby, self.replica.phase != Phase::Playing);
+            mm.set_lobby_joinable(lobby, !self.replica.phase.round_active());
         }
         if now.duration_since(self.diagnostics_at) >= Duration::from_secs(5) {
             eprintln!(

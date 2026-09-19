@@ -66,7 +66,10 @@ pub fn register_component() -> Result<()> {
         .map_err(anyhow::Error::msg)
 }
 
-const ACTIONS: [&str; 12] = [
+const ACTIONS: [&str; 15] = [
+    "steam-chat",
+    "steam-chat-send",
+    "steam-chat-back",
     "steam-create",
     "steam-invite",
     "steam-start",
@@ -86,6 +89,8 @@ pub struct Multiplayer {
     friends: Vec<(Peer, String)>,
     friend_page: usize,
     picking: bool,
+    pub chatting: bool,
+    draft: String,
 }
 impl Multiplayer {
     pub fn new(scene: &Scene, join: Option<u64>) -> Result<Self> {
@@ -126,9 +131,41 @@ impl Multiplayer {
             friends: Vec::new(),
             friend_page: 0,
             picking: false,
+            chatting: false,
+            draft: String::new(),
         })
     }
+    pub fn text(&mut self, text: &str) -> bool {
+        if !self.chatting {
+            return false;
+        }
+        let available =
+            bozzard_network::chat::MAX_CHAT_CHARS.saturating_sub(self.draft.chars().count());
+        self.draft
+            .push_str(&bozzard_network::chat::clean_text(text, available));
+        true
+    }
+    fn send_chat(&mut self) {
+        if self.draft.trim().is_empty() {
+            return;
+        }
+        match self.backend.action(Action::Chat(self.draft.clone())) {
+            Ok(()) => self.draft.clear(),
+            Err(error) => self.backend.error(error.to_string()),
+        }
+    }
     pub fn key(&mut self, key: &str) -> bool {
+        if self.chatting {
+            match key {
+                "Escape" => self.chatting = false,
+                "Enter" | "NumpadEnter" => self.send_chat(),
+                "Backspace" => {
+                    self.draft.pop();
+                }
+                _ => {}
+            }
+            return true;
+        }
         let action = match key {
             "Space" => Action::Flap,
             "L" => Action::Leave,
@@ -144,6 +181,8 @@ impl Multiplayer {
     fn command(&mut self, action: Action) {
         if matches!(action, Action::Leave | Action::Join(_)) {
             self.picking = false;
+            self.chatting = false;
+            self.draft.clear();
         }
         if let Err(error) = self.backend.action(action) {
             self.backend.error(error.to_string());
@@ -196,6 +235,19 @@ impl Multiplayer {
         }
         for action in actions {
             let result = match action {
+                "steam-chat" => {
+                    self.chatting = true;
+                    self.picking = false;
+                    Ok(())
+                }
+                "steam-chat-send" => {
+                    self.send_chat();
+                    Ok(())
+                }
+                "steam-chat-back" => {
+                    self.chatting = false;
+                    Ok(())
+                }
                 "steam-create" => self.backend.action(Action::Create),
                 "steam-invite" => {
                     if self.backend.view().overlay {
@@ -249,6 +301,11 @@ impl Multiplayer {
         self.backend.update()?;
         if self.backend.view().lobby.is_none() {
             self.picking = false;
+            self.draft.clear();
+        }
+        if self.backend.view().lobby.is_none() || self.backend.view().replica.phase.round_active() {
+            self.picking = false;
+            self.chatting = false;
         }
         self.present(demo)
     }
@@ -259,7 +316,15 @@ impl Multiplayer {
     }
     fn present(&self, demo: &mut SceneDemo) -> Result<()> {
         let net = self.backend.view();
-        let playing = net.replica.phase == Phase::Playing;
+        let playing = net.replica.phase.round_active();
+        Self::control(
+            demo,
+            "steam-countdown",
+            Control::Visible(net.replica.phase.countdown_seconds().is_some()),
+        )?;
+        if let Some(seconds) = net.replica.phase.countdown_seconds() {
+            Self::control(demo, "steam-countdown", Control::Text(seconds.to_string()))?;
+        }
         let joined = net.lobby.is_some();
         let mut status = net.status.to_owned();
         if let Some(lobby) = net.lobby {
@@ -291,8 +356,13 @@ impl Multiplayer {
             status.push_str(net.status);
         }
         Self::control(demo, "steam-status", Control::Text(status))?;
-        Self::control(demo, "steam-status", Control::Visible(!playing))?;
+        Self::control(
+            demo,
+            "steam-status",
+            Control::Visible(!playing && !self.chatting),
+        )?;
         for (id, enabled) in [
+            ("steam-chat", joined),
             ("steam-create", !joined && !net.busy),
             ("steam-invite", joined),
             ("steam-friends", joined),
@@ -301,7 +371,38 @@ impl Multiplayer {
             ("steam-quit", true),
         ] {
             Self::control(demo, id, Control::Enabled(enabled))?;
-            Self::control(demo, id, Control::Visible(!playing && !self.picking))?;
+            Self::control(
+                demo,
+                id,
+                Control::Visible(!playing && !self.picking && !self.chatting),
+            )?;
+        }
+        let chatting = self.chatting && joined && !playing;
+        for id in [
+            "steam-chat-log",
+            "steam-chat-draft",
+            "steam-chat-send",
+            "steam-chat-back",
+        ] {
+            Self::control(demo, id, Control::Visible(chatting))?;
+        }
+        if chatting {
+            let history = self.backend.chat().text();
+            let history = format!(
+                "{}\n\n{}",
+                net.status,
+                if history.is_empty() {
+                    "Say hello to your friends.".into()
+                } else {
+                    history
+                }
+            );
+            Self::control(demo, "steam-chat-log", Control::Text(history))?;
+            Self::control(
+                demo,
+                "steam-chat-draft",
+                Control::Text(format!("> {}▏", self.draft)),
+            )?;
         }
         // Picker buttons are optional for older authored copies of the scene.
         if self.picking && !playing {
@@ -449,7 +550,7 @@ fn validate_config(config: &serde_json::Value) -> Result<()> {
     ensure!(
         config.as_object().is_some_and(|value| value.len() == 4)
             && config["game"] == "flap_woods"
-            && config["protocol"] == 1
+            && config["protocol"] == bozzard_network::PROTOCOL
             && config["max_players"] == 4
             && config["app_id"]
                 .as_u64()
@@ -458,9 +559,10 @@ fn validate_config(config: &serde_json::Value) -> Result<()> {
     );
     Ok(())
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     Create,
+    Chat(String),
     Join(u64),
     Overlay,
     Invite(Peer),
@@ -474,6 +576,9 @@ pub trait Backend: Send {
     fn action(&mut self, action: Action) -> Result<()>;
     fn error(&mut self, message: String);
     fn view(&self) -> View<'_>;
+    fn chat(&self) -> bozzard_network::chat::ChatLog {
+        Default::default()
+    }
     fn friends(&self) -> Vec<(Peer, String)> {
         Vec::new()
     }
@@ -493,12 +598,16 @@ pub struct View<'a> {
 }
 #[cfg(feature = "steam")]
 impl Backend for bozzard_network::steam::Session {
+    fn chat(&self) -> bozzard_network::chat::ChatLog {
+        self.chat.clone()
+    }
     fn update(&mut self) -> Result<()> {
         self.update()
     }
     fn action(&mut self, action: Action) -> Result<()> {
         match action {
             Action::Create => self.create(),
+            Action::Chat(text) => self.send_chat(&text),
             Action::Join(id) => self.join(id),
             Action::Overlay => self.invite(),
             Action::Invite(id) => self.invite_friend(id),
@@ -559,11 +668,13 @@ struct OwnedView {
     overlay: bool,
     alpha: f32,
     friends: Vec<(Peer, String)>,
+    chat: bozzard_network::chat::ChatLog,
 }
 impl OwnedView {
     fn capture(backend: &dyn Backend, friends: Vec<(Peer, String)>) -> Self {
         let v = backend.view();
         Self {
+            chat: backend.chat(),
             replica: v.replica.clone(),
             status: v.status.into(),
             members: v.members.clone(),
@@ -641,6 +752,9 @@ impl Threaded {
     }
 }
 impl Backend for Threaded {
+    fn chat(&self) -> bozzard_network::chat::ChatLog {
+        self.cached.chat.clone()
+    }
     fn update(&mut self) -> Result<()> {
         ensure!(
             !self.worker.as_ref().is_some_and(|w| w.is_finished()),

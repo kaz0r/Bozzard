@@ -6,6 +6,12 @@ fn host() -> Host {
     h.join(30).unwrap();
     h
 }
+fn start_round(h: &mut Host) {
+    h.start(10).unwrap();
+    for _ in 0..COUNTDOWN_TICKS {
+        h.step();
+    }
+}
 fn input(round: u64, seq: u64, flap: bool, ack: u64) -> Message {
     Message::Input {
         round,
@@ -18,11 +24,127 @@ fn input(round: u64, seq: u64, flap: bool, ack: u64) -> Message {
 }
 
 #[test]
+fn countdown_is_host_owned_replicated_and_freezes_everyone_for_five_seconds() {
+    let mut h = host();
+    h.start(10).unwrap();
+    assert!(h.start(20).is_err());
+    assert!(h.start(10).is_err());
+    assert!(h.join(40).is_err());
+    let mut replicas = [Replica::default(), Replica::default()];
+    let pipes = h.pipes;
+    let first = h.snapshot(20).unwrap();
+    for tick in 0..COUNTDOWN_TICKS {
+        for (replica, id) in replicas.iter_mut().zip([10, 20]) {
+            let bytes = encode(777, Message::Snapshot(h.snapshot(id).unwrap())).unwrap();
+            let Message::Snapshot(snapshot) = decode(777, &bytes).unwrap() else {
+                panic!()
+            };
+            replica.apply(10, 10, id, snapshot).unwrap();
+            assert_eq!(replica.phase.countdown_seconds(), Some(5 - tick / 60));
+            replica.input(true);
+            let Message::Input { frames, .. } = replica.message() else {
+                panic!()
+            };
+            assert!(frames.is_empty());
+            assert_eq!(replica.predicted, h.bird(id));
+        }
+        h.receive(20, input(h.round, 1, true, 0)).unwrap();
+        h.step();
+        assert_eq!(h.bird(20), Some(Bird::new(1)));
+        assert_eq!(h.pipes, pipes);
+    }
+    assert_eq!(h.phase, Phase::Playing);
+    replicas[1]
+        .apply(10, 10, 20, h.snapshot(20).unwrap())
+        .unwrap();
+    assert!(
+        !replicas[1].apply(10, 10, 20, first).unwrap(),
+        "late countdown cannot restart it"
+    );
+    h.step();
+    assert!(
+        h.bird(20).unwrap().velocity < 0.,
+        "early flap was discarded"
+    );
+    assert_ne!(h.pipes, pipes);
+    for _ in 0..300 {
+        h.step();
+    }
+    h.start(10).unwrap();
+    assert_eq!(
+        h.phase.countdown_seconds(),
+        Some(5),
+        "retries also count down"
+    );
+}
+
+#[test]
+fn countdown_cancels_when_last_guest_leaves_and_recovers_lost_snapshots() {
+    let mut h = host();
+    h.start(10).unwrap();
+    let mut r = Replica::default();
+    r.apply(10, 10, 20, h.snapshot(20).unwrap()).unwrap();
+    h.receive(20, r.message()).unwrap();
+    for _ in 0..121 {
+        h.step();
+    }
+    let snapshot = h.snapshot(20).unwrap();
+    assert!(
+        snapshot.birds.is_empty(),
+        "countdown travels even in empty deltas"
+    );
+    r.apply(10, 10, 20, snapshot).unwrap();
+    assert_eq!(r.phase.countdown_seconds(), Some(3));
+    h.leave(30);
+    assert!(h.phase.round_active());
+    h.leave(20);
+    assert_eq!(h.phase, Phase::Lobby);
+    h.join(40).unwrap();
+    h.start(10).unwrap();
+    assert_eq!(h.phase.countdown_seconds(), Some(5));
+    let mut invalid = h.snapshot(40).unwrap();
+    invalid.phase = Phase::Countdown { ticks_remaining: 0 };
+    assert!(Replica::default().apply(10, 10, 40, invalid).is_err());
+}
+
+#[test]
+fn lobby_chat_bounds_unicode_history_and_rejects_foreign_or_invalid_payloads() {
+    use bozzard_network::chat::*;
+    let mut host = ChatLog::default();
+    let mut guest = ChatLog::default();
+    assert!(!host.receive("Guest", b"other-game: hello"));
+    for index in 0..10 {
+        let text = clean_text(
+            &format!("{index} Héj!\n{}", "🌲".repeat(200)),
+            MAX_CHAT_CHARS,
+        );
+        assert_eq!(text.chars().count(), MAX_CHAT_CHARS);
+        let mut bytes = CHAT_PREFIX.to_vec();
+        bytes.extend_from_slice(text.as_bytes());
+        for log in [&mut host, &mut guest] {
+            assert!(log.receive("Friend\n", &bytes));
+        }
+    }
+    assert_eq!(host.text(), guest.text());
+    assert_eq!(host.text().lines().count(), MAX_CHAT_LINES);
+    assert!(host.text().starts_with("Friend: 6 Héj!"));
+    for payload in [
+        vec![0xff],
+        vec![b'a'; MAX_CHAT_CHARS * 4 + 1],
+        b" \n\t".to_vec(),
+    ] {
+        let mut bytes = CHAT_PREFIX.to_vec();
+        bytes.extend(payload);
+        assert!(!host.receive("Guest", &bytes));
+    }
+}
+
+#[test]
 fn only_host_starts_and_only_members_send_owned_inputs() {
     let mut h = host();
     assert!(h.start(20).is_err());
     assert_eq!(h.phase, Phase::Lobby);
-    h.start(10).unwrap();
+    start_round(&mut h);
     assert!(h.start(10).is_err());
     assert!(h.join(40).is_err());
     assert!(h.receive(999, input(h.round, 1, true, 0)).is_err());
@@ -85,7 +207,7 @@ fn acknowledged_deltas_recover_dropped_updates_and_remove_departed_members() {
 #[test]
 fn three_clients_converge_with_scripted_loss_latency_duplicates_and_reordering() {
     let mut h = host();
-    h.start(10).unwrap();
+    start_round(&mut h);
     let mut clients: BTreeMap<u64, Replica> =
         [10, 20, 30].map(|id| (id, Replica::default())).into();
     for (&id, replica) in &mut clients {
@@ -181,7 +303,7 @@ fn three_clients_converge_with_scripted_loss_latency_duplicates_and_reordering()
 #[test]
 fn reset_rejects_old_round_and_bounds_prediction_and_input_queues() {
     let mut h = host();
-    h.start(10).unwrap();
+    start_round(&mut h);
     let mut r = Replica::default();
     r.apply(10, 10, 20, h.snapshot(20).unwrap()).unwrap();
     for _ in 0..500 {
@@ -196,7 +318,7 @@ fn reset_rejects_old_round_and_bounds_prediction_and_input_queues() {
     }
     assert_eq!(h.phase, Phase::Finished);
     assert!(h.start(20).is_err());
-    h.start(10).unwrap();
+    start_round(&mut h);
     assert!(h.receive(20, stale).is_err());
     r.apply(10, 10, 20, h.snapshot(20).unwrap()).unwrap();
     assert_eq!(r.predicted.unwrap().y, 0.65);
@@ -238,7 +360,7 @@ fn packets_and_pacing_are_bounded() {
 #[test]
 fn collision_eliminates_only_one_bird_and_scoring_is_host_owned() {
     let mut h = host();
-    h.start(10).unwrap();
+    start_round(&mut h);
     let mut seq = 0;
     for _ in 0..1800 {
         seq += 1;

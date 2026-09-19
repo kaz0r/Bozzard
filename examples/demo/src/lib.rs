@@ -300,6 +300,12 @@ impl SceneDemo {
     pub fn multiplayer_title(&self) -> Option<String> {
         self.multiplayer.as_ref().map(|net| net.title())
     }
+    pub fn multiplayer_chatting(&self) -> bool {
+        self.multiplayer.as_ref().is_some_and(|net| net.chatting)
+    }
+    pub fn multiplayer_text(&mut self, text: &str) -> bool {
+        self.multiplayer.as_mut().is_some_and(|net| net.text(text))
+    }
     pub fn multiplayer_key(&mut self, key: &str) -> bool {
         self.multiplayer.as_mut().is_some_and(|net| net.key(key))
     }

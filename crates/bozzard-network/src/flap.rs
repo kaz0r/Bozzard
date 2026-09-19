@@ -4,12 +4,28 @@ use crate::*;
 use bozzard_ecs::{Entity, World};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+pub const COUNTDOWN_TICKS: u16 = 5 * 60;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Phase {
     #[default]
     Lobby,
+    Countdown {
+        ticks_remaining: u16,
+    },
     Playing,
     Finished,
+}
+impl Phase {
+    pub fn round_active(self) -> bool {
+        matches!(self, Self::Countdown { .. } | Self::Playing)
+    }
+    pub fn countdown_seconds(self) -> Option<u16> {
+        match self {
+            Self::Countdown { ticks_remaining } => Some(ticks_remaining.div_ceil(60)),
+            _ => None,
+        }
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -125,7 +141,7 @@ impl Host {
             return Ok(());
         }
         ensure!(
-            peer != 0 && self.phase != Phase::Playing && self.entities.len() < MAX_PLAYERS,
+            peer != 0 && !self.phase.round_active() && self.entities.len() < MAX_PLAYERS,
             "lobby full or round in progress"
         );
         self.world.advance_change_tick();
@@ -148,6 +164,9 @@ impl Host {
             let _ = self.world.despawn(e);
         }
         self.peers.remove(&peer);
+        if matches!(self.phase, Phase::Countdown { .. }) && self.entities.len() < 2 {
+            self.phase = Phase::Lobby;
+        }
     }
     pub fn members(&self) -> Vec<Peer> {
         self.entities.keys().copied().collect()
@@ -163,10 +182,12 @@ impl Host {
             actor == self.owner && self.entities.contains_key(&actor),
             "only the original lobby host can start"
         );
-        ensure!(self.phase != Phase::Playing, "round already running");
+        ensure!(!self.phase.round_active(), "round already running");
         ensure!(self.entities.len() >= 2, "invite at least one friend first");
         self.round += 1;
-        self.phase = Phase::Playing;
+        self.phase = Phase::Countdown {
+            ticks_remaining: COUNTDOWN_TICKS,
+        };
         self.pipes = pipes();
         self.world.advance_change_tick();
         for (_, mut bird) in self.world.query_mut::<Bird>() {
@@ -207,6 +228,16 @@ impl Host {
     }
     pub fn step(&mut self) {
         self.world.advance_change_tick();
+        if let Phase::Countdown { ticks_remaining } = self.phase {
+            self.phase = if ticks_remaining <= 1 {
+                Phase::Playing
+            } else {
+                Phase::Countdown {
+                    ticks_remaining: ticks_remaining - 1,
+                }
+            };
+            return;
+        }
         if self.phase != Phase::Playing {
             return;
         }
@@ -305,6 +336,12 @@ impl Replica {
             return Ok(false);
         }
         ensure!(snapshot.base <= self.tick, "missing snapshot baseline");
+        if let Phase::Countdown { ticks_remaining } = snapshot.phase {
+            ensure!(
+                (1..=COUNTDOWN_TICKS).contains(&ticks_remaining),
+                "invalid countdown"
+            );
+        }
         let roster: BTreeSet<_> = snapshot.roster.iter().copied().collect();
         ensure!(
             !roster.contains(&0)

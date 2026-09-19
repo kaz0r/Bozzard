@@ -521,6 +521,19 @@ impl Player {
         repeat: bool,
         synthetic: bool,
     ) -> Result<()> {
+        if self.demo.multiplayer_chatting() {
+            if state == ElementState::Pressed
+                && !synthetic
+                && let PhysicalKey::Code(code) = physical
+            {
+                let name = format!("{code:?}");
+                if !repeat || code == KeyCode::Backspace {
+                    self.demo
+                        .multiplayer_key(bozzard_scene::keys::canonical(&name).unwrap_or(&name));
+                }
+            }
+            return Ok(());
+        }
         if self.demo.multiplayer_active() {
             if !repeat
                 && !synthetic
@@ -838,6 +851,16 @@ impl ApplicationHandler for Player {
         }
         if let WindowEvent::KeyboardInput {
             event,
+            is_synthetic: false,
+            ..
+        } = &event
+            && event.state == ElementState::Pressed
+            && let Some(text) = &event.text
+        {
+            self.demo.multiplayer_text(text);
+        }
+        if let WindowEvent::KeyboardInput {
+            event,
             is_synthetic,
             ..
         } = &event
@@ -934,6 +957,7 @@ impl ApplicationHandler for Player {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. }
                 if self.demo.game_session().is_none()
+                    && !self.demo.multiplayer_active()
                     && !self.menu_input.consumed(KeyCode::Escape)
                     && event.state == ElementState::Pressed
                     && event.logical_key == Key::Named(NamedKey::Escape) =>

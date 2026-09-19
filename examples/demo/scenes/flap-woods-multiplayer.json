@@ -262,7 +262,7 @@
       },
       "steam_multiplayer": {
         "game": "flap_woods",
-        "protocol": 1,
+        "protocol": 2,
         "app_id": 480,
         "max_players": 4
       }
@@ -1277,6 +1277,73 @@
       }
     },
     {
+      "id": "steam-countdown",
+      "name": "5",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "label",
+        "text": "5",
+        "accessible_name": "5",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "size": [
+            112.0,
+            160.0
+          ]
+        },
+        "font_size": 96.0,
+        "event": "steam-countdown",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false,
+        "padding": [
+          24.0,
+          24.0,
+          24.0,
+          24.0
+        ],
+        "auto_text_height": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
       "id": "steam-status",
       "name": "Create a lobby or accept a Steam invite.",
       "parent": "steam-menu",
@@ -1681,6 +1748,307 @@
           0.96
         ],
         "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-chat",
+      "name": "Lobby chat",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Lobby chat",
+        "accessible_name": "Lobby chat",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            265.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-chat",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-chat-log",
+      "name": "Lobby chat",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "label",
+        "text": "Lobby chat",
+        "accessible_name": "Lobby chat",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -100.0
+          ],
+          "size": [
+            700.0,
+            380.0
+          ]
+        },
+        "font_size": 18.0,
+        "event": "steam-chat-log",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": true,
+        "auto_text_height": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-chat-draft",
+      "name": "> ",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "label",
+        "text": "> ",
+        "accessible_name": "> ",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            150.0
+          ],
+          "size": [
+            700.0,
+            112.0
+          ]
+        },
+        "font_size": 18.0,
+        "event": "steam-chat-draft",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": true,
+        "auto_text_height": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-chat-send",
+      "name": "Send (Enter)",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Send (Enter)",
+        "accessible_name": "Send (Enter)",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            240.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-chat-send",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-chat-back",
+      "name": "Back to lobby (Esc)",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Back to lobby (Esc)",
+        "accessible_name": "Back to lobby (Esc)",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            295.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-chat-back",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
       },
       "transform": {
         "translation": [
