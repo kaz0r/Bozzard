@@ -53,6 +53,11 @@ same hook; completion results become visible only at a later simulation boundary
 The example scene `examples/demo/scenes/script-lab.json` shows four scripts (`scenes/scripts/*.rs`)
 next to a blueprint graph that reads the same scene variable they write.
 
+**Flap Woods Together** is also a scripted example. Its player, round and pipe
+scripts are in `scenes/scripts/flap-woods-multiplayer/`, attached through Script
+Manager. It uses the same Rhai runtime for host rules, prediction/replay and
+ordinary presentation hooks. See [the multiplayer scripting contract](multiplayer.md#scenes-scripts-and-export).
+
 ## Hooks
 
 A hook is a script function the engine calls. Missing hooks are simply not called; a hook declared
@@ -89,6 +94,9 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `is_rigidbody(target)`, `is_grounded(target)` | `bool` |
 | `get_position(target)`, `get_rotation(target)`, `get_scale(target)`, `forward_vector(target)` | `[x, y, z]` |
 | `get_text(target)` | `string` |
+| `network_active()` | Whether a multiplayer presentation frame is available; false in ordinary solo/editor simulation |
+| `network_object(target)` | Read-only map for a locally bound network object; empty when its slot has no player/state |
+| `network_state()` | Read-only session presentation map; the current reference provides `players`, including each player's `local` flag |
 | `overlap_count(target)` | number of overlapping objects |
 | `delta_time()`, `elapsed_time()` | seconds |
 | `input_held(key)`, `input_pressed(key)` | `bool` — any name the Input Held node accepts (`"jump"`, `"fire"`, `"interact"`, `"w"`, …) |

@@ -116,6 +116,27 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
         let snapshot = empty.join("snapshot.json");
         let saved = run(&["--write-scene", snapshot.to_str().unwrap()]);
         assert!(saved.status.success(), "{saved:?}");
+        let relocated = bozzard_demo::load_document(Some(&snapshot)).unwrap();
+        let demo = bozzard_demo::SceneDemo::new_with_prefabs(&relocated, Some(&snapshot)).unwrap();
+        let rules = bozzard_demo::multiplayer::rules_for(demo.instance()).unwrap();
+        let mut bird = rules.spawn(0).unwrap();
+        rules.predict(&mut bird, true).unwrap();
+        assert!(
+            bird.y > 0.65,
+            "relocated export executes the bundled player script"
+        );
+        for asset in ["flap-player", "flap-round", "flap-pipes"] {
+            let path = snapshot
+                .parent()
+                .unwrap()
+                .join(&relocated.assets[asset].path);
+            assert!(
+                path.canonicalize()
+                    .unwrap()
+                    .starts_with(moved.canonicalize().unwrap()),
+                "exported scripts must not point back to authoring sources"
+            );
+        }
         assert_eq!(
             bozzard_demo::multiplayer::app_id(
                 &bozzard_demo::load_document(Some(&snapshot)).unwrap()

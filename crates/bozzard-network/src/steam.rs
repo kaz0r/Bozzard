@@ -11,7 +11,6 @@ use std::{
     time::Instant,
 };
 use steamworks::{Client, LobbyId, LobbyType, SteamId, networking_types::SendFlags};
-const GAME: &str = "bozzard-flap-woods-v2";
 const CHANNEL: u32 = 7;
 const TIMEOUT: Duration = Duration::from_secs(15);
 static CLIENT: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
@@ -22,6 +21,8 @@ enum Event {
 }
 
 pub struct Session {
+    rules: Arc<crate::rules::Rules>,
+    game: String,
     client: Client,
     _invite: steamworks::CallbackHandle,
     _rich_invite: steamworks::CallbackHandle,
@@ -54,7 +55,7 @@ pub struct Session {
     diagnostics_at: Instant,
 }
 impl Session {
-    pub fn new(app_id: u32) -> Result<Self> {
+    pub fn new(app_id: u32, game: &str, rules: Arc<crate::rules::Rules>) -> Result<Self> {
         let client = initialize(app_id)?;
         ensure!(client.user().logged_on(), "Steam must be online");
         client.networking_utils().init_relay_network_access();
@@ -101,6 +102,7 @@ impl Session {
                 }
             });
         Ok(Self {
+            game: format!("bozzard-v{PROTOCOL}-{game}-{}", rules.fingerprint()),
             client,
             _invite: invite,
             _rich_invite: rich_invite,
@@ -112,7 +114,8 @@ impl Session {
             lobby: None,
             owner: None,
             members: BTreeMap::new(),
-            replica: Replica::default(),
+            replica: Replica::new(rules.clone()),
+            rules,
             chat: chat::ChatLog::default(),
             last_chat: None,
             host: None,
@@ -299,7 +302,7 @@ impl Session {
         self.lobby = None;
         self.owner = None;
         self.host = None;
-        self.replica = Replica::default();
+        self.replica = Replica::new(self.rules.clone());
         self.chat = chat::ChatLog::default();
         self.last_chat = None;
         self.members.clear();
@@ -316,20 +319,24 @@ impl Session {
         if created {
             ensure!(owner == self.local, "unexpected lobby owner");
             ensure!(
-                mm.set_lobby_data(lobby, "bozzard-game", GAME)
+                mm.set_lobby_data(lobby, "bozzard-game", &self.game)
                     && mm.set_lobby_data(lobby, "bozzard-host", &owner.to_string()),
                 "could not publish lobby metadata"
             );
         }
         ensure!(
-            mm.lobby_data(lobby, "bozzard-game").as_deref() == Some(GAME)
+            mm.lobby_data(lobby, "bozzard-game").as_deref() == Some(self.game.as_str())
                 && mm.lobby_data(lobby, "bozzard-host").as_deref()
                     == Some(owner.to_string().as_str()),
-            "incompatible Spacewar lobby or host has left"
+            "incompatible lobby, game scripts or protocol, or host has left"
         );
         self.lobby = Some(lobby);
         self.owner = Some(owner);
-        self.host = created.then(|| Host::new(self.local));
+        self.host = if created {
+            Some(Host::new(self.local, self.rules.clone())?)
+        } else {
+            None
+        };
         self.last_snapshot = Instant::now();
         self.status = if created {
             "Lobby created. Invite friends, then Start game."
@@ -538,10 +545,10 @@ impl Session {
         }
         let steps = self.pacer.advance(elapsed);
         for _ in 0..steps {
-            self.replica.input(std::mem::take(&mut self.flap));
+            self.replica.input(std::mem::take(&mut self.flap))?;
             if let Some(host) = &mut self.host {
                 let _ = host.receive(self.local, self.replica.message());
-                host.step();
+                host.step()?;
                 let snapshot = host.snapshot(self.local)?;
                 self.replica.apply(owner, owner, self.local, snapshot)?;
                 self.last_snapshot = now;

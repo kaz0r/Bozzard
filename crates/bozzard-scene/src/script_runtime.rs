@@ -14,6 +14,8 @@ use rhai::{AST, Array, Dynamic, Engine, EvalAltResult, ImmutableString, Map, Pos
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 mod compute_api;
+mod module;
+pub use module::{NetworkFrame, ScriptModule};
 
 /// Largest accepted script source, matching the blueprint document limit.
 const MAX_SCRIPT_BYTES: usize = 1024 * 1024;
@@ -41,6 +43,14 @@ const HOOKS: &[(&str, usize)] = &[
     ("on_collision_enter", 4),
     ("on_disable", 1),
     ("on_destroy", 1),
+    ("network_spawn", 1),
+    ("network_predict", 3),
+    ("network_input", 1),
+    ("network_pipes", 0),
+    ("network_step", 2),
+    ("network_resolve", 3),
+    ("network_finished", 1),
+    ("network_countdown", 0),
 ];
 
 /// One object's script attachments, as the tick needs them: enabled flag and compiled source.
@@ -51,6 +61,7 @@ type Attachments = Vec<(bool, Option<Arc<CompiledScript>>)>;
 pub(crate) struct CompiledScript {
     ast: AST,
     hooks: BTreeMap<String, usize>,
+    fingerprint: u64,
 }
 
 impl CompiledScript {
@@ -155,6 +166,7 @@ enum Command {
 /// The read view and the write queue of the scripts running this tick.
 #[derive(Default)]
 struct Host {
+    network: NetworkFrame,
     /// The attachment currently running, which bare `me` arguments resolve to.
     owner: String,
     attachment: usize,
@@ -465,6 +477,18 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     }
 
     // Object and clock reads, one per blueprint query node.
+    read!("network_active", (), |state| Ok(Dynamic::from(
+        state.network.active
+    )));
+    read!("network_state", (), |state| rhai::serde::to_dynamic(
+        &state.network.state
+    ));
+    read!("network_object", (target: ImmutableString), |state| {
+        match state.network.objects.get(target.as_str()) {
+            Some(value) => rhai::serde::to_dynamic(value),
+            None => Ok(Dynamic::from(Map::new())),
+        }
+    });
     read!("delta_time", (), |state| Ok(Dynamic::from(state.dt)));
     read!("elapsed_time", (), |state| Ok(Dynamic::from(state.elapsed)));
     read!("scene_loading", (), |state| Ok(Dynamic::from(
@@ -1127,7 +1151,14 @@ fn compile_source(engine: &ScriptEngine, asset: &str, source: &str) -> Result<Ar
             hooks.insert(function.name.to_owned(), function.params.len());
         }
     }
-    Ok(Arc::new(CompiledScript { ast, hooks }))
+    let fingerprint = source.bytes().fold(14695981039346656037u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(1099511628211)
+    });
+    Ok(Arc::new(CompiledScript {
+        ast,
+        hooks,
+        fingerprint,
+    }))
 }
 
 pub(crate) fn compile_sources(
@@ -1411,6 +1442,10 @@ impl SceneInstance {
         dt: f32,
         input: GameplayInput,
     ) {
+        host.network = world
+            .resource::<NetworkFrame>()
+            .cloned()
+            .unwrap_or_default();
         host.dt = dt;
         self.prepare_script_compute(host);
         host.elapsed = runtime.elapsed;

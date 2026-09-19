@@ -38,5 +38,8 @@ Audio, custom menu styling and saved high scores are not included in this exampl
 
 The separate [Flap Woods Together](multiplayer.md) variant supports 2–4 players, Steam
 lobbies and friend invitations, and host-only start/retry using Spacewar App ID 480.
+Its player, pipe, scoring and round behavior lives in editable Rhai files under
+`scenes/scripts/flap-woods-multiplayer/`, attached through Script Manager. Rust
+provides the shared Steam transport and authority checks.
 Run `python3 tools/steam.py run`; the launcher builds and stages the required Steam runtime.
 The original scene above retains its solo gameplay.

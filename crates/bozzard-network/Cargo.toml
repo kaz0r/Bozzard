@@ -10,6 +10,7 @@ steam = ["dep:steamworks"]
 
 [dependencies]
 bozzard-ecs.workspace = true
+bozzard-scene.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

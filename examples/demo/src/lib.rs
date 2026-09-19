@@ -280,7 +280,7 @@ impl SceneDemo {
             "--join-lobby requires a multiplayer scene"
         );
         if self.requires_multiplayer() && self.multiplayer.is_none() {
-            let net = multiplayer::Multiplayer::new(self.instance().document(), join)?;
+            let net = multiplayer::Multiplayer::new(self.instance(), join)?;
             self.attach_multiplayer(net)?;
         }
         Ok(())

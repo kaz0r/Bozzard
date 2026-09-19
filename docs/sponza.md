@@ -1,5 +1,40 @@
 # Sponza reproduction
 
+## Gilded Sponza at midnight
+
+`examples/sponza/gilded-night.json` is an authored nighttime courtyard: gold-leaf
+capitals, friezes and lion reliefs, cool limestone, six bronze-and-gold lanterns,
+eight shadowed architectural uplights, soft upper-gallery bounce, blue moonlight
+and an original geometric crescent above the courtyard.
+The deep navy environment, fixed exposure, gentle bloom, contact occlusion and
+light haze preserve the night setting.
+
+Prepare the local assets and open it:
+
+```sh
+python3 tools/download_sponza.py
+python3 tools/gen_gilded_sponza.py
+cargo run -p bozzard-editor-app --locked --offline -- --scene examples/sponza/gilded-night.json
+```
+
+The generator derives `work/sponza/glTF/Sponza-gilded.gltf` from the pinned original,
+sharing its geometry and textures while changing selected PBR materials. Both
+remain local and gitignored under the original Sponza license. The original model
+and daytime scenes are preserved. The authored scene, lantern and crescent assets
+are checked in; rerunning the generator resets them to the authored preset.
+All 17 lights are individually editable and named in the hierarchy. Four lanterns
+cast point shadows and all eight uplights cast spot shadows, within engine limits.
+Use **View → Reset view** to restore the composed courtyard camera.
+
+Capture the scene with the production renderer (requires a native GPU):
+
+```sh
+cargo run -p bozzard-editor --example capture_scene --locked --offline -- \
+  examples/sponza/gilded-night.json work/sponza/gilded-night.ppm 1600 1000
+```
+
+## Original fixtures
+
 The Sponza dataset lives inside the working tree under gitignored `work/sponza/` and must not be committed. Download the official [Khronos glTF Sponza sample](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/90d7ede14c7e280af263824604b427a1ca02cb66/Models/Sponza), then launch the tuned scene:
 
 ```sh

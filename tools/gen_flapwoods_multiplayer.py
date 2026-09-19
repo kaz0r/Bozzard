@@ -10,7 +10,7 @@ scene = json.loads(source.read_text())
 scene['name'] = 'Flap Woods Together'
 scene.pop('game_flow', None)
 objects = scene['objects']
-# Native host rules own movement, collision and scores in this reference variant.
+# Authored Rhai rules own the game; Steam owns transport and host authority.
 for obj in objects:
     for key in ['blueprints', 'trigger', 'collider']:
         obj.pop(key, None)
@@ -26,18 +26,28 @@ for slot in range(4):
     b['transform']['translation'] = [-5. + slot * .6, .65, slot * .05]
     b['drawable']['color'] = colors[slot]
     b['drawable']['gi_static'] = False
+    b['script_manager'] = {'scripts': [{'enabled': True, 'script': 'flap-player'}]}
+    b['network_player'] = {'slot': slot}
     k['id'] = f'bird-{slot}-beak'
     k['parent'] = b['id']
     if slot:
         objects.extend([b, k])
-bird['steam_multiplayer'] = {'game': 'flap_woods', 'protocol': 2, 'app_id': 480, 'max_players': 4}
+bird['steam_multiplayer'] = {'game': 'flap_woods', 'protocol': 3, 'app_id': 480, 'max_players': 4,
+                             'player_script': 'flap-player', 'world_script': 'flap-round'}
+for name in ['player', 'round', 'pipes']:
+    scene.setdefault('assets', {})['flap-' + name] = {
+        'kind': 'script', 'path': f'scripts/flap-woods-multiplayer/{name}.rs'}
 for obj in objects:
+    if obj['id'] in ['pipe-1', 'pipe-2', 'pipe-3']:
+        obj['network_obstacle'] = {'index': int(obj['id'].split('-')[1]) - 1}
+        obj['script_manager'] = {'scripts': [{'enabled': True, 'script': 'flap-pipes'}]}
     if obj['id'].startswith('pipe-') and obj['id'].endswith(('-bottom', '-top')):
         i = int(obj['id'].split('-')[1]) - 1
         obj['transform']['translation'][1] = [-0., 1.9, -1.9][i] + (-9.05 if obj['id'].endswith('bottom') else 9.05)
     if obj['id'] in ('floor', 'ceiling'):
         obj['transform']['translation'][1] = -5.55 if obj['id'] == 'floor' else 5.55
     if obj['id'] == 'score':
+        obj['script_manager'] = {'scripts': [{'enabled': True, 'script': 'flap-round'}]}
         obj['text_rendering']['text'] = 'FLAP WOODS TOGETHER'
         obj['text_rendering']['font_size'] = 22.
     if obj['id'] == 'hint':

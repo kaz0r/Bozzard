@@ -55,7 +55,9 @@ are limited to 160 characters; the panel keeps the four most recent messages, an
 the lobby clears its history. Steam sends messages to all lobby members, including the
 sender. The chat panel closes when the host starts the countdown.
 
-This revision uses network protocol 2; all friends should rebuild/update together.
+This revision uses network protocol 3; all friends should rebuild/update together.
+Lobby admission also compares the selected player and round script fingerprints,
+so different gameplay script revisions cannot silently predict different rules.
 
 Steam’s overlay availability depends on the local Steam/graphics setup. Invitations now
 work through the in-game friend picker as well. As another fallback, share the displayed
@@ -137,14 +139,45 @@ multiplayer variant. The multiplayer project is
 python3 tools/gen_flapwoods_multiplayer.py
 ```
 
-The scene uses ordinary editable canvases/widgets and a registered `steam_multiplayer`
-component on bird-0. Editor and player validate its reference-game configuration.
-The game rules are Rust scripts/modules in `crates/bozzard-network/src/flap.rs`;
-Steam lifecycle/transport is `src/steam.rs`; UI and rendering are in
-`examples/demo/src/multiplayer.rs`, shared by editor and player. This reference does not expose Steam account access
-to Rhai or generic Blueprints. Both Editor Play and the standalone player support network play when built with the
-optional `steam` feature. The solo graphs are removed from the
-variant so every peer cannot accidentally start its own competing simulation.
+The example's gameplay is editable Rhai, loaded from the scene's ordinary script
+catalog and attached through **Script Manager**:
+
+- `scenes/scripts/flap-woods-multiplayer/player.rs`: input binding, spawn position,
+  flap strength, gravity, client prediction, bird tilt and elimination appearance.
+- `scenes/scripts/flap-woods-multiplayer/round.rs`: countdown, pipe movement and
+  recycling, collision, scoring, round completion and scoreboard text.
+- `scenes/scripts/flap-woods-multiplayer/pipes.rs`: pipe and gap presentation.
+
+Edit a script, then stop and restart Play to load the new source. No native rebuild
+is needed for game-rule changes. Every participant needs the updated scripts.
+Regenerating the scene preserves these hand-authored script files and reattaches
+them. Export packages them as ordinary script assets.
+
+The host and local client prediction call the same `network_predict` function at
+60 Hz. Only the host calls `network_step`, `network_resolve` and `network_finished`.
+These functions take explicit state and return state; the existing Rhai interpreter
+runs them with fresh scopes, bounded execution and f32 arithmetic for replay.
+They cannot issue scene commands. The normal `on_update` hooks use
+`network_active()`, `network_object(me)` and `network_state()` to read the latest
+interpolated/predicted view, then call the usual `set_position`, `set_rotation`,
+`set_scale` and `set_text` APIs. They never run a competing local simulation.
+
+`steam_multiplayer` selects `player_script` and `world_script` catalog IDs alongside
+the game ID, protocol, App ID and player limit. `network_player.slot` and
+`network_obstacle.index` bind protocol slots to locally authored scene objects;
+the Rust presentation adapter does not assume bird/pipe object names. Player
+and obstacle bindings appear as **Network Player** and **Network Obstacle** in
+the inspector. **Steam Multiplayer** exposes the game ID and both script selectors.
+Player bindings must carry the enabled selected player script. Missing sources, disabled
+attachments, bad signatures and script failures are reported with their source
+and function; there is no built-in gameplay fallback.
+
+Rust retains Steam lifecycle, lobby widgets/chat, authenticated transport, bounded
+replication, input ownership, fixed pacing, interpolation and acknowledgements.
+The packet schema remains this reference's four-player/three-obstacle schema;
+this is **not arbitrary scene replication**. Steam account access is not exposed
+to Rhai. Both Editor Play and the standalone player use this shared path when
+built with the `steam` feature. The solo example retains its Blueprint game.
 
 In the editor choose **File → Export game…**. The ordinary export bundles the matching
 Steam library beside the game executable and lists it, its metadata and development
@@ -208,7 +241,7 @@ have not been live-tested locally.
   Graceful leave sends Goodbye and leaves Steam matchmaking; host loss is also detected
   by owner/membership polling. Operational counters log every five seconds.
 
-The simulation is purpose-built for this reference, not arbitrary scene replication.
+The bounded replication schema is purpose-built for this reference, not arbitrary scene replication.
 Wider pipe gaps make multiplayer latency more forgiving; the scene acceptance test checks
 that rendered pipe clearances and bird sizes agree with authoritative collision rules.
 A modified host can cheat. Competitive anti-cheat, host migration, dedicated Steam servers,
@@ -233,6 +266,10 @@ Automated tests exercise three clients over serialized packets with scripted los
 latency, duplication, reordering, dropped acknowledgements and final convergence; host
 start authority, input ownership, bounded queues, stale rounds, relevance removal,
 prediction reconciliation, full game scoring and authored scene/UI compatibility.
+The same tests execute the shipped Rhai assets. Additional tests edit movement,
+input, countdown, pipe speed, score and visual scripts to verify the changes take
+effect in host simulation, prediction/replay and Script Manager presentation.
+Native export tests load and execute the bundled scripts after moving the package.
 These tests do **not** connect to Valve's backend. A real two-account Steam invite,
 relay, overlay and native-window acceptance run remains necessary on target machines.
 

@@ -7,7 +7,7 @@ use bozzard_demo::{
 use bozzard_editor::Editor;
 use bozzard_network::{
     Message,
-    flap::{COUNTDOWN_TICKS, Host, InputFrame, Replica},
+    flap::{Host, InputFrame, Replica},
 };
 use bozzard_scene::{Layer, Scene, Transform, middleware::ui::Input};
 use std::{
@@ -32,19 +32,28 @@ struct FakeSteam {
     dropped: Arc<AtomicUsize>,
     sequence: u64,
 }
+const COUNTDOWN_TICKS: u16 = 300;
+fn scene_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/demo/scenes/flap-woods-multiplayer.json")
+}
+fn runtime(scene: &Scene) -> SceneDemo {
+    SceneDemo::new_with_prefabs(scene, Some(&scene_path())).unwrap()
+}
 impl FakeSteam {
     fn new(
         calls: Arc<Mutex<Vec<Action>>>,
         updates: Arc<AtomicUsize>,
         dropped: Arc<AtomicUsize>,
     ) -> Self {
-        let mut host = Host::new(10);
+        let rules = bozzard_demo::multiplayer::rules_for(runtime(&scene()).instance()).unwrap();
+        let mut host = Host::new(10, rules.clone()).unwrap();
         host.join(20).unwrap();
         Self {
             host,
             local: 10,
             chat: Default::default(),
-            replica: Replica::default(),
+            replica: Replica::new(rules),
             members: [(10, "Host".into()), (20, "Guest".into())].into(),
             lobby: None,
             status: "Ready".into(),
@@ -66,7 +75,7 @@ impl Backend for FakeSteam {
     }
     fn update(&mut self) -> Result<()> {
         self.updates.fetch_add(1, Ordering::SeqCst);
-        self.host.step();
+        self.host.step()?;
         self.replica
             .apply(10, 10, self.local, self.host.snapshot(self.local)?)?;
         Ok(())
@@ -155,9 +164,9 @@ fn host_and_guest_show_countdown_then_remove_it_when_play_begins() {
         backend.local = local;
         backend.lobby = Some(999);
         backend.host.start(10).unwrap();
-        let mut play = SceneDemo::new(&source).unwrap();
+        let mut play = runtime(&source);
         play.attach_multiplayer(
-            Multiplayer::with_backend(&source, Box::new(backend), None).unwrap(),
+            Multiplayer::with_backend(play.instance(), Box::new(backend), None).unwrap(),
         )
         .unwrap();
         // Pump uses one fake host tick per update, independently of renderer timing.
@@ -189,13 +198,51 @@ fn host_and_guest_show_countdown_then_remove_it_when_play_begins() {
 }
 
 #[test]
+fn scripts_present_renamed_objects_through_authored_bindings() {
+    let mut source = scene();
+    for object in &mut source.objects {
+        if object.id == "bird-0" {
+            object.id = "my-player".into();
+        }
+        if object.parent.as_deref() == Some("bird-0") {
+            object.parent = Some("my-player".into());
+        }
+        if object.id == "score" {
+            object.id = "my-scoreboard".into();
+        }
+    }
+    let mut play = runtime(&source);
+    let backend = FakeSteam::new(Default::default(), Default::default(), Default::default());
+    play.attach_multiplayer(
+        Multiplayer::with_backend(play.instance(), Box::new(backend), None).unwrap(),
+    )
+    .unwrap();
+    let player = play.instance().entity("my-player").unwrap();
+    assert_eq!(
+        play.app.world.get::<Transform>(player).unwrap().translation,
+        [-5., 0.65, 0.]
+    );
+    let score = play.instance().entity("my-scoreboard").unwrap();
+    assert!(
+        play.app
+            .world
+            .get::<bozzard_scene::TextRendering>(score)
+            .unwrap()
+            .text
+            .contains("P1 YOU: 0")
+    );
+}
+
+#[test]
 fn lobby_chat_types_without_triggering_game_keys_and_clears_on_leave() {
     let source = scene();
     let calls = Arc::new(Mutex::new(Vec::new()));
     let backend = FakeSteam::new(calls.clone(), Default::default(), Default::default());
-    let mut play = SceneDemo::new(&source).unwrap();
-    play.attach_multiplayer(Multiplayer::with_backend(&source, Box::new(backend), None).unwrap())
-        .unwrap();
+    let mut play = runtime(&source);
+    play.attach_multiplayer(
+        Multiplayer::with_backend(play.instance(), Box::new(backend), None).unwrap(),
+    )
+    .unwrap();
     click(&mut play, "steam-create");
     click(&mut play, "steam-chat");
     assert!(play.multiplayer_chatting());
@@ -257,11 +304,7 @@ fn lobby_chat_types_without_triggering_game_keys_and_clears_on_leave() {
 #[test]
 fn editor_routes_lobby_ui_flaps_and_overlay_free_invites_without_touching_edit_scene() {
     let source = scene();
-    let mut editor = Editor::new(
-        source.clone(),
-        &std::env::temp_dir().join("steam-editor-scene.json"),
-    )
-    .unwrap();
+    let mut editor = Editor::new(source.clone(), &scene_path()).unwrap();
     let calls = Arc::new(Mutex::new(Vec::new()));
     let dropped = Arc::new(AtomicUsize::new(0));
     let backend = FakeSteam::new(
@@ -269,9 +312,11 @@ fn editor_routes_lobby_ui_flaps_and_overlay_free_invites_without_touching_edit_s
         Arc::new(AtomicUsize::new(0)),
         dropped.clone(),
     );
-    let mut play = SceneDemo::new(&source).unwrap();
-    play.attach_multiplayer(Multiplayer::with_backend(&source, Box::new(backend), None).unwrap())
-        .unwrap();
+    let mut play = runtime(&source);
+    play.attach_multiplayer(
+        Multiplayer::with_backend(play.instance(), Box::new(backend), None).unwrap(),
+    )
+    .unwrap();
     editor.play = Some(play);
     click(editor.play.as_mut().unwrap(), "steam-create");
     click(editor.play.as_mut().unwrap(), "steam-invite");
@@ -319,19 +364,15 @@ fn editor_routes_lobby_ui_flaps_and_overlay_free_invites_without_touching_edit_s
 #[test]
 fn network_worker_runs_without_editor_redraw_and_stop_joins_and_leaves() {
     let source = scene();
-    let mut editor = Editor::new(
-        source.clone(),
-        &std::env::temp_dir().join("steam-editor-worker.json"),
-    )
-    .unwrap();
+    let mut editor = Editor::new(source.clone(), &scene_path()).unwrap();
     let calls = Arc::new(Mutex::new(Vec::new()));
     let updates = Arc::new(AtomicUsize::new(0));
     let dropped = Arc::new(AtomicUsize::new(0));
     for _ in 0..2 {
         let backend = FakeSteam::new(calls.clone(), updates.clone(), dropped.clone());
         let worker = Threaded::new(Box::new(backend)).unwrap();
-        let net = Multiplayer::with_backend(&source, Box::new(worker), Some(777)).unwrap();
-        let mut play = SceneDemo::new(&source).unwrap();
+        let mut play = runtime(&source);
+        let net = Multiplayer::with_backend(play.instance(), Box::new(worker), Some(777)).unwrap();
         play.attach_multiplayer(net).unwrap();
         editor.play = Some(play);
         let before = updates.load(Ordering::SeqCst);
@@ -358,15 +399,13 @@ fn network_worker_runs_without_editor_redraw_and_stop_joins_and_leaves() {
 #[test]
 fn quit_stops_play_instead_of_closing_the_editor() {
     let source = scene();
-    let mut editor = Editor::new(
-        source.clone(),
-        &std::env::temp_dir().join("steam-editor-quit.json"),
+    let mut editor = Editor::new(source.clone(), &scene_path()).unwrap();
+    let backend = FakeSteam::new(Default::default(), Default::default(), Default::default());
+    let mut play = runtime(&source);
+    play.attach_multiplayer(
+        Multiplayer::with_backend(play.instance(), Box::new(backend), None).unwrap(),
     )
     .unwrap();
-    let backend = FakeSteam::new(Default::default(), Default::default(), Default::default());
-    let mut play = SceneDemo::new(&source).unwrap();
-    play.attach_multiplayer(Multiplayer::with_backend(&source, Box::new(backend), None).unwrap())
-        .unwrap();
     editor.play = Some(play);
     click(editor.play.as_mut().unwrap(), "steam-quit");
     editor.advance(Duration::from_millis(17));
@@ -410,11 +449,7 @@ fn solo_scene_plays_through_both_editor_entry_points_without_a_steam_session() {
 #[test]
 fn ordinary_editor_rejects_network_play_transactionally_with_launch_instructions() {
     let source = scene();
-    let mut editor = Editor::new(
-        source.clone(),
-        &std::env::temp_dir().join("steam-editor-disabled.json"),
-    )
-    .unwrap();
+    let mut editor = Editor::new(source.clone(), &scene_path()).unwrap();
     let revision = editor.asset_revision();
     assert!(
         editor

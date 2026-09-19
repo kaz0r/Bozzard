@@ -260,11 +260,24 @@
           1.0
         ]
       },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-player"
+          }
+        ]
+      },
+      "network_player": {
+        "slot": 0
+      },
       "steam_multiplayer": {
         "game": "flap_woods",
-        "protocol": 2,
+        "protocol": 3,
         "app_id": 480,
-        "max_players": 4
+        "max_players": 4,
+        "player_script": "flap-player",
+        "world_script": "flap-round"
       }
     },
     {
@@ -322,6 +335,17 @@
           1.0,
           1.0,
           1.0
+        ]
+      },
+      "network_obstacle": {
+        "index": 0
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-pipes"
+          }
         ]
       }
     },
@@ -418,6 +442,17 @@
           1.0,
           1.0
         ]
+      },
+      "network_obstacle": {
+        "index": 1
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-pipes"
+          }
+        ]
       }
     },
     {
@@ -512,6 +547,17 @@
           1.0,
           1.0,
           1.0
+        ]
+      },
+      "network_obstacle": {
+        "index": 2
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-pipes"
+          }
         ]
       }
     },
@@ -731,6 +777,14 @@
           1.0,
           1.0,
           1.0
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-round"
+          }
         ]
       }
     },
@@ -1066,6 +1120,17 @@
           1.0,
           1.0
         ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-player"
+          }
+        ]
+      },
+      "network_player": {
+        "slot": 1
       }
     },
     {
@@ -1139,6 +1204,17 @@
           1.0,
           1.0
         ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-player"
+          }
+        ]
+      },
+      "network_player": {
+        "slot": 2
       }
     },
     {
@@ -1212,6 +1288,17 @@
           1.0,
           1.0
         ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "flap-player"
+          }
+        ]
+      },
+      "network_player": {
+        "slot": 3
       }
     },
     {
@@ -2428,5 +2515,19 @@
         ]
       }
     }
-  ]
+  ],
+  "assets": {
+    "flap-player": {
+      "kind": "script",
+      "path": "scripts/flap-woods-multiplayer/player.rs"
+    },
+    "flap-round": {
+      "kind": "script",
+      "path": "scripts/flap-woods-multiplayer/round.rs"
+    },
+    "flap-pipes": {
+      "kind": "script",
+      "path": "scripts/flap-woods-multiplayer/pipes.rs"
+    }
+  }
 }

@@ -1,10 +1,11 @@
-//! Reference game rules: four independent birds, shared pipes, individual scores.
-//! Only the host decides collisions and scoring; clients predict vertical motion.
+//! Bounded reference-game replication. All movement, spawn, obstacle, collision
+//! and scoring rules are supplied by authored Rhai modules, never built in here.
 use crate::*;
 use bozzard_ecs::{Entity, World};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-pub const COUNTDOWN_TICKS: u16 = 5 * 60;
+use crate::rules::Rules;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Phase {
@@ -31,6 +32,7 @@ impl Phase {
 #[serde(deny_unknown_fields)]
 pub struct Bird {
     pub slot: u8,
+    pub x: f32,
     pub y: f32,
     pub velocity: f32,
     pub alive: bool,
@@ -38,28 +40,8 @@ pub struct Bird {
     pub input_ack: u64,
 }
 impl Bird {
-    pub fn new(slot: u8) -> Self {
-        Self {
-            slot,
-            y: 0.65,
-            velocity: 0.,
-            alive: true,
-            score: 0,
-            input_ack: 0,
-        }
-    }
     pub fn x(&self) -> f32 {
-        -5. + f32::from(self.slot) * 0.6
-    }
-    pub fn predict(&mut self, flap: bool) {
-        if !self.alive {
-            return;
-        }
-        if flap {
-            self.velocity = 6.5;
-        }
-        self.velocity -= 22. * DT;
-        self.y += self.velocity * DT;
+        self.x
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -68,25 +50,6 @@ pub struct Pipe {
     pub x: f32,
     pub gap: f32,
     pub cycle: u32,
-}
-fn pipes() -> [Pipe; 3] {
-    [
-        Pipe {
-            x: 2.,
-            gap: 0.,
-            cycle: 0,
-        },
-        Pipe {
-            x: 11.,
-            gap: 1.9,
-            cycle: 0,
-        },
-        Pipe {
-            x: 20.,
-            gap: -1.9,
-            cycle: 0,
-        },
-    ]
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -114,6 +77,7 @@ struct Connection {
     inputs: BTreeMap<u64, bool>,
 }
 pub struct Host {
+    rules: Arc<Rules>,
     pub owner: Peer,
     pub round: u64,
     pub phase: Phase,
@@ -123,18 +87,19 @@ pub struct Host {
     peers: BTreeMap<Peer, Connection>,
 }
 impl Host {
-    pub fn new(owner: Peer) -> Self {
+    pub fn new(owner: Peer, rules: Arc<Rules>) -> Result<Self> {
         let mut host = Self {
             owner,
             round: 0,
             phase: Phase::Lobby,
             world: World::new(),
-            pipes: pipes(),
+            pipes: rules.pipes()?,
+            rules,
             entities: BTreeMap::new(),
             peers: BTreeMap::new(),
         };
-        host.join(owner).expect("empty host accepts owner");
-        host
+        host.join(owner)?;
+        Ok(host)
     }
     pub fn join(&mut self, peer: Peer) -> Result<()> {
         if self.entities.contains_key(&peer) {
@@ -153,7 +118,7 @@ impl Host {
             })
             .unwrap();
         let e = self.world.spawn();
-        self.world.insert(e, Bird::new(slot))?;
+        self.world.insert(e, self.rules.spawn(slot)?)?;
         self.entities.insert(peer, e);
         self.peers.insert(peer, Connection::default());
         Ok(())
@@ -186,12 +151,12 @@ impl Host {
         ensure!(self.entities.len() >= 2, "invite at least one friend first");
         self.round += 1;
         self.phase = Phase::Countdown {
-            ticks_remaining: COUNTDOWN_TICKS,
+            ticks_remaining: self.rules.countdown()?,
         };
-        self.pipes = pipes();
+        self.pipes = self.rules.pipes()?;
         self.world.advance_change_tick();
         for (_, mut bird) in self.world.query_mut::<Bird>() {
-            *bird = Bird::new(bird.slot);
+            *bird = self.rules.spawn(bird.slot)?;
         }
         for peer in self.peers.values_mut() {
             *peer = Connection::default();
@@ -226,7 +191,7 @@ impl Host {
         }
         Ok(())
     }
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Result<()> {
         self.world.advance_change_tick();
         if let Phase::Countdown { ticks_remaining } = self.phase {
             self.phase = if ticks_remaining <= 1 {
@@ -236,20 +201,13 @@ impl Host {
                     ticks_remaining: ticks_remaining - 1,
                 }
             };
-            return;
+            return Ok(());
         }
         if self.phase != Phase::Playing {
-            return;
+            return Ok(());
         }
         let old = self.pipes;
-        for (index, pipe) in self.pipes.iter_mut().enumerate() {
-            pipe.x -= 3.2 * DT;
-            if pipe.x < -13. {
-                pipe.x += 27.;
-                pipe.cycle += 1;
-                pipe.gap = (((pipe.cycle as usize + index) % 5) as f32 - 2.) * 0.85;
-            }
-        }
+        self.rules.step(&mut self.pipes)?;
         for (&id, &entity) in &self.entities {
             let mut bird = self.world.get_mut::<Bird>(entity).unwrap();
             let input = self.peers.get_mut(&id).unwrap().inputs.pop_first();
@@ -263,26 +221,14 @@ impl Host {
             if let Some((seq, _)) = input {
                 bird.input_ack = seq;
             }
-            bird.predict(flap);
-            if bird.y.abs() > 4.65
-                || self
-                    .pipes
-                    .iter()
-                    .any(|p| (p.x - bird.x()).abs() < 1.0 && (bird.y - p.gap).abs() > 2.15)
-            {
-                bird.alive = false;
-            }
-            if bird.alive {
-                for (before, after) in old.iter().zip(&self.pipes) {
-                    if before.x + 0.6 >= bird.x() - 0.4 && after.x + 0.6 < bird.x() - 0.4 {
-                        bird.score += 1;
-                    }
-                }
-            }
+            self.rules.predict(&mut bird, flap)?;
+            self.rules.resolve(&mut bird, &old, &self.pipes)?;
         }
-        if self.world.query::<Bird>().all(|(_, bird)| !bird.alive) {
+        let birds: Vec<_> = self.world.query::<Bird>().map(|(_, bird)| *bird).collect();
+        if self.rules.finished(&birds)? {
             self.phase = Phase::Finished;
         }
+        Ok(())
     }
     pub fn snapshot(&mut self, recipient: Peer) -> Result<Snapshot> {
         let peer = self
@@ -312,6 +258,7 @@ impl Host {
 
 #[derive(Clone, Default)]
 pub struct Replica {
+    rules: Option<Arc<Rules>>,
     pub round: u64,
     pub tick: u64,
     pub phase: Phase,
@@ -324,6 +271,12 @@ pub struct Replica {
     pub predicted: Option<Bird>,
 }
 impl Replica {
+    pub fn new(rules: Arc<Rules>) -> Self {
+        Self {
+            rules: Some(rules),
+            ..Default::default()
+        }
+    }
     pub fn apply(
         &mut self,
         owner: Peer,
@@ -337,10 +290,7 @@ impl Replica {
         }
         ensure!(snapshot.base <= self.tick, "missing snapshot baseline");
         if let Phase::Countdown { ticks_remaining } = snapshot.phase {
-            ensure!(
-                (1..=COUNTDOWN_TICKS).contains(&ticks_remaining),
-                "invalid countdown"
-            );
+            ensure!((1..=3600).contains(&ticks_remaining), "invalid countdown");
         }
         let roster: BTreeSet<_> = snapshot.roster.iter().copied().collect();
         ensure!(
@@ -351,21 +301,13 @@ impl Replica {
             "invalid roster"
         );
         ensure!(
-            snapshot.birds.iter().all(|(id, b)| roster.contains(id)
-                && b.slot < MAX_PLAYERS as u8
-                && b.y.is_finite()
-                && b.y.abs() < 100.
-                && b.velocity.is_finite()
-                && b.velocity.abs() < 100.),
+            snapshot
+                .birds
+                .iter()
+                .all(|(id, b)| roster.contains(id) && crate::rules::validate_bird(b).is_ok()),
             "invalid bird state"
         );
-        ensure!(
-            snapshot.pipes.iter().all(|p| p.x.is_finite()
-                && (-14. ..=30.).contains(&p.x)
-                && p.gap.is_finite()
-                && p.gap.abs() <= 2.),
-            "invalid pipe state"
-        );
+        crate::rules::validate_pipes(&snapshot.pipes)?;
         let new_round = snapshot.round != self.round;
         let mut next = if snapshot.base == 0 || new_round {
             BTreeMap::new()
@@ -403,15 +345,18 @@ impl Replica {
             self.pending.retain(|f| f.sequence > bird.input_ack);
             for frame in &self.pending {
                 if self.phase == Phase::Playing {
-                    bird.predict(frame.flap);
+                    self.rules
+                        .as_ref()
+                        .ok_or_else(|| anyhow::anyhow!("missing player prediction script"))?
+                        .predict(bird, frame.flap)?;
                 }
             }
         }
         Ok(true)
     }
-    pub fn input(&mut self, flap: bool) {
+    pub fn input(&mut self, flap: bool) -> Result<()> {
         if self.phase != Phase::Playing || self.pending.len() >= 120 {
-            return;
+            return Ok(());
         }
         self.sequence += 1;
         self.pending.push_back(InputFrame {
@@ -419,8 +364,12 @@ impl Replica {
             flap,
         });
         if let Some(bird) = &mut self.predicted {
-            bird.predict(flap);
+            self.rules
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("missing player prediction script"))?
+                .predict(bird, flap)?;
         }
+        Ok(())
     }
     pub fn message(&self) -> Message {
         Message::Input {

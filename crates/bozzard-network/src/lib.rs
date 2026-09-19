@@ -2,6 +2,7 @@
 //! the protocol additionally confines messages to a lobby, round and member roster.
 pub mod chat;
 pub mod flap;
+pub mod rules;
 #[cfg(feature = "steam")]
 pub mod steam;
 use anyhow::{Result, ensure};
@@ -10,7 +11,7 @@ use std::time::Duration;
 
 pub type Peer = u64;
 pub const MAX_PLAYERS: usize = 4;
-pub const PROTOCOL: u32 = 2;
+pub const PROTOCOL: u32 = 3;
 pub const MAX_PACKET: usize = 16 * 1024;
 pub const STEP: Duration = Duration::from_nanos(16_666_667);
 pub const DT: f32 = 1. / 60.;

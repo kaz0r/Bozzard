@@ -9,7 +9,7 @@ use bozzard_scene::middleware::{
     signals::{Kind, Signals},
     ui::{Control, Input},
 };
-use bozzard_scene::{Layer, Scene, Transform};
+use bozzard_scene::{GameplayInput, Layer, NetworkFrame, Scene, SceneInstance};
 use std::collections::BTreeMap;
 
 const COMPONENT: &str = "steam_multiplayer";
@@ -24,27 +24,48 @@ pub fn register_component() -> Result<()> {
                 name: COMPONENT,
                 label: "Steam Multiplayer",
                 ui: bozzard_scene::Ui::Generic,
-                help: "Flap Woods Together · up to four players. 480 tests with Spacewar; set your own Steam App ID before publishing. Restart the editor after changing App ID.",
+                help: "Scripted multiplayer · up to four players. 480 tests with Spacewar; set your own Steam App ID before publishing. Restart the editor after changing App ID. Gameplay lives in the attached Rhai scripts.",
                 fields: || {
-                    const FIELDS: &[bozzard_scene::Field] = &[bozzard_scene::Field::text("app_id", "Steam App ID", "480 for Spacewar testing")];
+                    const FIELDS: &[bozzard_scene::Field] = &[
+                        bozzard_scene::Field::text("app_id", "Steam App ID", "480 for Spacewar testing"),
+                        bozzard_scene::Field::text("game", "Game ID", "A shared ID for this example game"),
+                        bozzard_scene::Field::asset("player_script", "Player script", bozzard_scene::AssetKind::Script),
+                        bozzard_scene::Field::asset("world_script", "Round script", bozzard_scene::AssetKind::Script),
+                    ];
                     FIELDS
                 },
                 get: |object, key| {
-                    if key != "app_id" { return None; }
-                    Some(bozzard_scene::FieldValue::Text(object.extra(COMPONENT)?["app_id"].as_u64()?.to_string()))
+                    let config = object.extra(COMPONENT)?;
+                    Some(match key {
+                        "app_id" => bozzard_scene::FieldValue::Text(config[key].as_u64()?.to_string()),
+                        "game" => bozzard_scene::FieldValue::Text(config[key].as_str()?.into()),
+                        "player_script" | "world_script" => bozzard_scene::FieldValue::Asset(Some(config[key].as_str()?.into())),
+                        _ => return None,
+                    })
                 },
                 set: |object, key, value| {
-                    ensure!(key == "app_id", "Unknown Steam setting");
-                    let id: u32 = value.text()?.trim().parse().context("Enter a positive Steam App ID")?;
-                    ensure!(id > 0, "Steam App ID must be positive");
                     let mut config = object.extra(COMPONENT).context("missing Steam settings")?.clone();
-                    config["app_id"] = id.into();
+                    match key {
+                        "app_id" => {
+                            let id: u32 = value.text()?.trim().parse().context("Enter a positive Steam App ID")?;
+                            config[key] = id.into();
+                        }
+                        "game" => config[key] = value.text()?.into(),
+                        "player_script" | "world_script" => {
+                            let bozzard_scene::FieldValue::Asset(Some(asset)) = value else {
+                                anyhow::bail!("Choose a script asset");
+                            };
+                            config[key] = asset.into();
+                        }
+                        _ => anyhow::bail!("Unknown Steam setting"),
+                    }
+                    validate_config(&config)?;
                     object.set_extra(COMPONENT, config);
                     Ok(())
                 },
                 present: |object| object.extra(COMPONENT).is_some(),
                 available: |_| false,
-                add: |_, _| anyhow::bail!("Open the Flap Woods multiplayer example"),
+                add: |_, _| anyhow::bail!("Open a configured multiplayer scene"),
                 remove: |object, _| { object.extras.remove(COMPONENT); },
                 merge: |current, old, source| {
                     if current.extra(COMPONENT) == old.extra(COMPONENT) {
@@ -60,10 +81,61 @@ pub fn register_component() -> Result<()> {
                     Ok(())
                 },
                 save: |object| Ok(object.extra(COMPONENT).cloned()),
-            }).map_err(|error| error.to_string())
+            }).map_err(|error| error.to_string())?;
+            register_bindings().map_err(|error| error.to_string())
         })
         .clone()
         .map_err(anyhow::Error::msg)
+}
+
+fn register_bindings() -> Result<()> {
+    macro_rules! binding {
+        ($name:literal, $label:literal, $key:literal, $max:literal) => {
+            bozzard_scene::register_component(bozzard_scene::ComponentType {
+                name: $name, label: $label, ui: bozzard_scene::Ui::Generic,
+                help: "Binds a locally authored object to replicated state. Attach a Script Manager script to present it.",
+                fields: || {
+                    const FIELDS: &[bozzard_scene::Field] = &[
+                        bozzard_scene::Field::integer_range($key, "Slot (zero-based)", 1., 0., $max as f32),
+                    ];
+                    FIELDS
+                },
+                get: |object, key| {
+                    if key != $key { return None; }
+                    Some(bozzard_scene::FieldValue::Number(object.extra($name)?[$key].as_u64()? as f32))
+                },
+                set: |object, key, value| {
+                    ensure!(key == $key, "unknown binding field");
+                    let value = value.number()?;
+                    ensure!(value.is_finite() && value.fract() == 0. && (0. ..=$max as f32).contains(&value), "binding index out of bounds");
+                    object.set_extra($name, serde_json::json!({$key: value as u8}));
+                    Ok(())
+                },
+                present: |object| object.extra($name).is_some(),
+                available: |_| true,
+                add: |object, _| { object.set_extra($name, serde_json::json!({$key: 0})); Ok(()) },
+                remove: |object, _| { object.extras.remove($name); },
+                merge: |current, old, source| {
+                    if current.extra($name) == old.extra($name) {
+                        match source.extra($name) {
+                            Some(value) => current.set_extra($name, value.clone()),
+                            None => { current.extras.remove($name); }
+                        }
+                    }
+                },
+                load: |object, value| {
+                    ensure!(value.as_object().is_some_and(|map| map.len() == 1)
+                        && value[$key].as_u64().is_some_and(|index| index <= $max), "invalid network binding");
+                    object.set_extra($name, value);
+                    Ok(())
+                },
+                save: |object| Ok(object.extra($name).cloned()),
+            })?;
+        };
+    }
+    binding!("network_player", "Network Player", "slot", 3);
+    binding!("network_obstacle", "Network Obstacle", "index", 2);
+    Ok(())
 }
 
 const ACTIONS: [&str; 15] = [
@@ -84,6 +156,10 @@ const ACTIONS: [&str; 15] = [
     "steam-friend-3",
 ];
 pub struct Multiplayer {
+    rules: std::sync::Arc<bozzard_network::rules::Rules>,
+    title: String,
+    players: Vec<(String, u8)>,
+    obstacles: Vec<(String, usize)>,
     backend: Box<dyn Backend>,
     pub quit: bool,
     friends: Vec<(Peer, String)>,
@@ -93,15 +169,18 @@ pub struct Multiplayer {
     draft: String,
 }
 impl Multiplayer {
-    pub fn new(scene: &Scene, join: Option<u64>) -> Result<Self> {
+    pub fn new(instance: &SceneInstance, join: Option<u64>) -> Result<Self> {
+        let scene = instance.document();
         validate(scene)?;
         #[cfg(feature = "steam")]
         {
             Self::with_backend(
-                scene,
+                instance,
                 Box::new(Threaded::new(Box::new(
                     bozzard_network::steam::Session::new(
                         app_id(scene)?.context("missing Steam settings")?,
+                        config(scene)?["game"].as_str().unwrap(),
+                        rules_for(instance)?,
                     )?,
                 ))?),
                 join,
@@ -117,15 +196,22 @@ impl Multiplayer {
     }
     /// Attach a transport to a prepared runtime, on the application's main thread.
     pub fn with_backend(
-        scene: &Scene,
+        instance: &SceneInstance,
         mut backend: Box<dyn Backend>,
         join: Option<u64>,
     ) -> Result<Self> {
+        let scene = instance.document();
         validate(scene)?;
+        let rules = rules_for(instance)?;
+        let (players, obstacles) = bindings(scene)?;
         if let Some(id) = join {
             backend.action(Action::Join(id))?;
         }
         Ok(Self {
+            rules,
+            title: scene.name.clone(),
+            players,
+            obstacles,
             backend,
             quit: false,
             friends: Vec::new(),
@@ -166,8 +252,16 @@ impl Multiplayer {
             }
             return true;
         }
+        let pressed = match self.rules.input(key) {
+            Ok(pressed) => pressed,
+            Err(error) => {
+                let _ = self.backend.action(Action::Leave);
+                self.backend.error(error.to_string());
+                return true;
+            }
+        };
         let action = match key {
-            "Space" => Action::Flap,
+            _ if pressed => Action::Flap,
             "L" => Action::Leave,
             "Q" | "Escape" => {
                 self.quit = true;
@@ -193,7 +287,8 @@ impl Multiplayer {
     }
     pub fn title(&self) -> String {
         format!(
-            "Flap Woods Together | {} | {:?}",
+            "{} | {} | {:?}",
+            self.title,
             if self.backend.view().host {
                 "HOST"
             } else {
@@ -437,96 +532,149 @@ impl Multiplayer {
         for id in ["steam-friends-next", "steam-friends-back"] {
             Self::control(demo, id, Control::Visible(self.picking && !playing))?;
         }
-        // Leave/Quit remain available as keyboard shortcuts through explicit keys below;
-        // the playing canvas is entirely clear so Space always controls your bird.
-        for slot in 0..4 {
-            let id = format!("bird-{slot}");
-            let entity = demo
-                .instance()
-                .entity(&id)
-                .context("missing multiplayer bird")?;
-            let bird = net
+        // Bind bounded transport state to locally authored objects. Script Manager
+        // owns all game transforms, tilt, elimination visuals and HUD formatting.
+        let alpha = if net.host { 1. } else { net.alpha };
+        let mut frame = NetworkFrame {
+            active: true,
+            ..Default::default()
+        };
+        let mut players = Vec::new();
+        for (peer, bird) in &net.replica.birds {
+            let mut state = serde_json::to_value(bird)?;
+            state["local"] = (*peer == net.local).into();
+            players.push(state);
+        }
+        frame.state = serde_json::json!({"players": players});
+        for (object, slot) in &self.players {
+            if let Some((peer, _)) = net
                 .replica
                 .birds
                 .iter()
-                .find(|(_, b)| b.slot == slot)
-                .and_then(|(id, _)| {
-                    net.replica
-                        .render_bird(*id, net.local, if net.host { 1. } else { net.alpha })
-                });
-            let mut transform = demo
-                .app
-                .world
-                .get_mut::<Transform>(entity)
-                .context("missing bird transform")?;
-            if let Some(bird) = bird {
-                transform.translation = [bird.x(), bird.y, f32::from(slot) * 0.05];
-                transform.rotation_degrees[2] = bird.velocity * 4.;
-                transform.scale = if bird.alive { [0.8; 3] } else { [0.45; 3] };
-            } else {
-                transform.translation[1] = 100.;
+                .find(|(_, bird)| bird.slot == *slot)
+                && let Some(bird) = net.replica.render_bird(*peer, net.local, alpha)
+            {
+                frame
+                    .objects
+                    .insert(object.clone(), serde_json::to_value(bird)?);
             }
         }
-        if let Some(pipes) = net
-            .replica
-            .render_pipes(if net.host { 1. } else { net.alpha })
-        {
-            for (i, pipe) in pipes.iter().enumerate() {
-                let id = format!("pipe-{}", i + 1);
-                let entity = demo.instance().entity(&id).context("missing pipe")?;
-                demo.app
-                    .world
-                    .get_mut::<Transform>(entity)
-                    .unwrap()
-                    .translation[0] = pipe.x;
-                for (part, offset) in [("bottom", -9.05), ("top", 9.05)] {
-                    let entity = demo
-                        .instance()
-                        .entity(&format!("{id}-{part}"))
-                        .context("missing pipe half")?;
-                    demo.app
-                        .world
-                        .get_mut::<Transform>(entity)
-                        .unwrap()
-                        .translation[1] = pipe.gap + offset;
-                }
+        if let Some(pipes) = net.replica.render_pipes(alpha) {
+            for (object, index) in &self.obstacles {
+                frame
+                    .objects
+                    .insert(object.clone(), serde_json::to_value(pipes[*index])?);
             }
         }
-        let scores = net
-            .replica
-            .birds
-            .iter()
-            .map(|(id, b)| {
-                format!(
-                    "P{}{}: {}{}",
-                    b.slot + 1,
-                    if *id == net.local { " YOU" } else { "" },
-                    b.score,
-                    if b.alive { "" } else { " OUT" }
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("   ");
-        let entity = demo
-            .instance()
-            .entity("score")
-            .context("missing score HUD")?;
-        demo.app
-            .world
-            .get_mut::<bozzard_scene::TextRendering>(entity)
-            .unwrap()
-            .text = if scores.is_empty() {
-            "FLAP WOODS TOGETHER".into()
-        } else {
-            scores
-        };
+        demo.app.world.insert_resource(frame);
+        demo.with_instance(|instance, world| {
+            instance.step_scripts(world, bozzard_network::DT, GameplayInput::default())
+        })?;
         Ok(())
     }
 }
 
 fn validate(scene: &Scene) -> Result<()> {
     app_id(scene)?.context("missing Steam settings")?;
+    bindings(scene)?;
     Ok(())
+}
+
+fn config(scene: &Scene) -> Result<&serde_json::Value> {
+    scene
+        .objects
+        .iter()
+        .find_map(|object| object.extra(COMPONENT))
+        .context("missing Steam settings")
+}
+
+/// Select loaded catalog scripts. No engine-owned source or game-name switch.
+pub fn rules_for(
+    instance: &SceneInstance,
+) -> Result<std::sync::Arc<bozzard_network::rules::Rules>> {
+    let scene = instance.document();
+    validate(scene)?;
+    let config = config(scene)?;
+    let player = config["player_script"].as_str().unwrap();
+    let world = config["world_script"].as_str().unwrap();
+    for object in scene
+        .objects
+        .iter()
+        .filter(|object| object.extra("network_player").is_some())
+    {
+        ensure!(
+            object.script_manager.as_ref().is_some_and(|manager| manager
+                .scripts
+                .iter()
+                .any(|a| a.enabled && a.script == player)),
+            "network player '{}' needs the enabled '{player}' Script Manager attachment",
+            object.id
+        );
+    }
+    for asset in [player, world] {
+        ensure!(
+            scene
+                .objects
+                .iter()
+                .any(
+                    |object| object.script_manager.as_ref().is_some_and(|manager| manager
+                        .scripts
+                        .iter()
+                        .any(|a| a.enabled && a.script == asset))
+                ),
+            "network script '{asset}' must be enabled in a Script Manager"
+        );
+    }
+    bozzard_network::rules::Rules::new(
+        instance.script_module(player)?,
+        instance.script_module(world)?,
+    )
+}
+
+type Bindings = (Vec<(String, u8)>, Vec<(String, usize)>);
+fn bindings(scene: &Scene) -> Result<Bindings> {
+    let mut players = Vec::new();
+    let mut obstacles = Vec::new();
+    for object in &scene.objects {
+        if let Some(binding) = object.extra("network_player") {
+            let slot = binding["slot"]
+                .as_u64()
+                .context("network player needs an integer slot")?;
+            ensure!(
+                slot < bozzard_network::MAX_PLAYERS as u64,
+                "network slot out of bounds"
+            );
+            players.push((object.id.clone(), slot as u8));
+        }
+        if let Some(binding) = object.extra("network_obstacle") {
+            let index = binding["index"]
+                .as_u64()
+                .context("network obstacle needs an integer index")?;
+            ensure!(index < 3, "network obstacle index out of bounds");
+            obstacles.push((object.id.clone(), index as usize));
+        }
+    }
+    ensure!(
+        players.len() == bozzard_network::MAX_PLAYERS
+            && players
+                .iter()
+                .map(|(_, slot)| slot)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == players.len(),
+        "network scene needs one binding for each player slot"
+    );
+    ensure!(
+        obstacles.len() == 3
+            && obstacles
+                .iter()
+                .map(|(_, index)| index)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == obstacles.len(),
+        "network scene needs one binding for each obstacle"
+    );
+    Ok((players, obstacles))
 }
 
 pub fn app_id(scene: &Scene) -> Result<Option<u32>> {
@@ -548,14 +696,23 @@ pub fn app_id(scene: &Scene) -> Result<Option<u32>> {
 
 fn validate_config(config: &serde_json::Value) -> Result<()> {
     ensure!(
-        config.as_object().is_some_and(|value| value.len() == 4)
-            && config["game"] == "flap_woods"
+        config.as_object().is_some_and(|value| value.len() == 6)
+            && config["game"].as_str().is_some_and(|name| !name.is_empty()
+                && name.len() <= 64
+                && name
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-'))
+            && ["player_script", "world_script"]
+                .iter()
+                .all(|key| config[*key]
+                    .as_str()
+                    .is_some_and(|asset| !asset.trim().is_empty() && asset.len() <= 256))
             && config["protocol"] == bozzard_network::PROTOCOL
             && config["max_players"] == 4
             && config["app_id"]
                 .as_u64()
                 .is_some_and(|id| id > 0 && id <= u64::from(u32::MAX)),
-        "unsupported Steam reference game settings"
+        "invalid scripted Steam settings; expected game, protocol, app_id, max_players, player_script and world_script"
     );
     Ok(())
 }

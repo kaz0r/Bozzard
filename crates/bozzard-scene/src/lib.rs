@@ -29,7 +29,8 @@ pub use compute_runtime::{SceneCompute, load_compute_kernels, load_compute_kerne
 pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
 mod script_runtime;
 pub use script_runtime::{
-    ScriptRuntime, ScriptRuntimeStats, load_sources, load_sources_with_progress,
+    NetworkFrame, ScriptModule, ScriptRuntime, ScriptRuntimeStats, load_sources,
+    load_sources_with_progress,
 };
 mod fog;
 pub use fog::FogSettings;

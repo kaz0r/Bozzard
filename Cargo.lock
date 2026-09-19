@@ -695,6 +695,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bozzard-ecs",
+ "bozzard-scene",
  "serde",
  "serde_json",
  "steamworks",
@@ -3905,6 +3906,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "rhai_codegen",
+ "serde",
  "smallvec",
  "smartstring",
  "thin-vec",
