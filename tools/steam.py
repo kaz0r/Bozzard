@@ -28,7 +28,7 @@ def main():
     package = 'bozzard-editor-app' if args.action == 'editor' else 'bozzard-player'
     binary_name = 'bozzard-editor' if args.action == 'editor' else 'bozzard-player'
     run(['cargo', 'build', '--locked', '-p', package, '--features', 'steam', *profile], cwd=ROOT)
-    metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1', '--features', package + '/steam'], cwd=ROOT))
+    metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1'], cwd=ROOT))
     target = Path(metadata['target_directory']) / ('release' if args.release else 'debug')
     system = platform.system()
     exe = target / (binary_name + ('.exe' if system == 'Windows' else ''))

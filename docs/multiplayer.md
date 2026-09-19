@@ -24,7 +24,10 @@ target/debug/bozzard-player --project examples/demo/flap-woods-multiplayer.bozza
 Cargo stages the matching Steam API redistributable beside the executable. Linux/macOS
 binaries locate it relative to themselves; Windows uses its normal adjacent DLL lookup.
 The pinned `steamworks-sys` dependency supplies the SDK, or `STEAM_SDK_LOCATION` overrides
-it. Keep the native library beside the executable when moving a build. The optional
+it. The build script reads that downloaded package directly from `CARGO_HOME`; it never
+invokes Cargo metadata or downloads unrelated workspace dependencies. Vendored/path builds
+can set `STEAM_SDK_LOCATION` to the selected crate's `lib/steam` directory.
+Keep the native library beside the executable when moving a build. The optional
 `tools/steam.py`, `.sh` and `.ps1` scripts remain convenience wrappers. Explicit
 `--no-default-features` editor/player builds disable Steam; the headless server remains
 Steam-independent.
