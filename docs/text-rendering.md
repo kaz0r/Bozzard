@@ -10,7 +10,7 @@ cargo run -p bozzard-editor-app -- --scene examples/demo/scenes/text-lab.json
 
 1. Create an **Empty** entity (or select an existing one).
 2. Choose **Properties → Add Component → Text Rendering**.
-3. Edit the multiline text, choose **Sans** or **Monospace**, and set font size, color, opacity, alignment and optional word-wrap width.
+3. Edit the multiline text, choose **Sans**, **Monospace** or a **Custom** font, and set font size, color, opacity, alignment and optional word-wrap width. A custom font needs a font asset first: import a `.ttf`/`.otf` file, then set the component's **Custom font** field to it (or drag-assign the font onto the selected object). The font is part of the scene, so Undo/Redo and prefab copies carry it like any other asset reference.
 4. Choose **2D** or **3D** in the component. The matching scene camera/view must exist.
 5. Use the ordinary Transform and gizmos to move, rotate, scale or parent it. Select text by clicking its layout rectangle; **F** frames it. The component's **×** removes only text; Undo/Redo restores edits and removal.
 
@@ -36,7 +36,7 @@ Existing Blueprint Transform actions affect text. **Set Visible** hides both tex
   "enabled": true,
   "layer": "3d",
   "text": "Hello\nworld",
-  "font": "sans",
+  "font": {"custom": "title-font"},
   "font_size": 0.5,
   "max_width": 4.0,
   "alignment": "center",
@@ -44,27 +44,61 @@ Existing Blueprint Transform actions affect text. **Set Visible** hides both tex
 }
 ```
 
-The entire component is optional. Inside it, omitted fields use defaults: enabled, 3D, `"Text"`, Sans, size 0.5, no wrapping, left alignment and white.
+The entire component is optional. Inside it, omitted fields use defaults: enabled, 3D, `"Text"`, Sans, size 0.5, no wrapping, left alignment and white. `font` is `"sans"`, `"monospace"` or `{"custom": "<font asset id>"}`; the referenced asset must exist in the scene's catalog with kind `font`. Text laid out with a custom font keeps its own bounds cache per font snapshot, and reimporting the font file invalidates it on the next layout.
+
+## Variable fonts and fallback chains
+
+After choosing a custom font, the Inspector exposes its named variable axes with
+font-provided limits and a Reset control. Axis tags (for example `wght` and `wdth`)
+and design-space values are saved in `font_axes`. Unknown tags and out-of-range
+values fail data-dependent validation after import. The headless scene schema
+checks finite values, valid four-character tags and bounded counts independently.
+Changing the primary font clears its previous axes and fallback settings.
+
+**Add fallback font** appends an imported font. Move entries up to change priority
+or remove them with ×. Each missing glyph uses the first face that contains it;
+fallback faces use their default variation instance. **Use bundled fonts for
+remaining glyphs** appends the built-in Sans/emoji chain. These are component
+settings and support Undo/Redo, prefab remapping, save/load and exported games.
+
+```json
+"font": {"custom": "title-font"},
+"font_axes": {"wght": 700, "wdth": 85},
+"font_fallbacks": ["symbols", "localized-text"],
+"builtin_font_fallback": true
+```
+
+Bounds, picking and GPU text use the same resolved style. Exact cache keys include
+source revisions, normalized axis coordinates, ordered fallback identities and the
+bundled-fallback choice. Extraction shares imported font bytes; setting an explicit
+default axis reuses the default style. Style changes rebuild affected atlas/geometry
+state, while unchanged styles retain it. Eight styles share the bounded CPU metrics
+atlas; GPU geometry is pruned with the current view. This supports authored styles,
+not per-frame animated font-axis effects.
 
 ## Initial limits
 
-- Plain text only: no rich-text tags, outlines, extrusion, custom font imports, or TextMesh Pro API compatibility.
-- Reuses epaint's bundled fonts, Unicode shaping, kerning and wrapping. Glyph coverage depends on those fonts; unsupported characters use their fallback glyph.
+- Plain text only: no rich-text tags, outlines, extrusion, or TextMesh Pro API compatibility. Custom fonts are single TTF/OTF files up to 4 MiB (`.ttf`, `.otf`), up to one primary and four ordered fallback font assets per Text Rendering component. Font files may expose up to 16 variable axes.
+- Reuses epaint's bundled fonts, Unicode shaping, kerning and wrapping. Glyph coverage depends on those fonts; unsupported characters use their fallback glyph. Custom fonts search the authored fallback chain when a glyph is missing, then optionally the bundled Sans/emoji fonts. With neither fallback configured, missing glyphs retain the original `.notdef` behavior. Invalid or truncated font files are rejected at import, before they can reach the renderer.
 - A shared **64-pixel/em raster atlas**, not SDF/MSDF. Ordinary scaling works, but very large text softens and very small/distant text can alias. Distance-field rendering is the next step if those cases matter. Mipmaps are deliberately avoided because the upstream atlas has only one pixel of glyph padding.
 - At most 4096 UTF-8 bytes per component and 65536 per rendered view. Font size: `0.001..1000`; wrap width: `0.001..10000`; finite RGBA in `0..1`.
 - Requires support for a 4096-pixel texture dimension. Atlas overflow reports an error rather than drawing stale glyphs. Meshes are cached by layout, shared for identical settings, and pruned when unused. Atlas resizing/recycling invalidates affected geometry and bindings.
-- Font layout/rasterization lives only in the rendering side. Simulation/server remains graphics- and font-library-free.
+- CPU font layout also supports headless UI metrics; the server remains free of GPU, window and asset-import dependencies.
 
 ## Checks
 
 ```sh
 cargo test -p bozzard-editor --test text_rendering
+cargo test -p bozzard-editor --test fonts
+cargo test -p bozzard-assets --test fonts
+cargo test -p bozzard-text --test styles
+cargo test -p bozzard-project --test export
 cargo test -p bozzard-render layout_wraps
 cargo test -p bozzard-render text_gpu_depth -- --ignored --nocapture
 python3 tools/check_headless.py
 ```
 
-The hardware regression checks visible pixels, opaque occlusion, opacity, atlas-growth stability, repeated edits, bounded GPU resources and cleanup. Editor tests cover component workflow, parented bounds/picking, layers, validation, serialization, history, prefab isolation, Blueprint visibility/color and Play restoration.
+The hardware regression checks visible pixels, opaque occlusion, opacity, atlas-growth stability, repeated edits, bounded GPU resources and cleanup. Editor tests cover component workflow, parented bounds/picking, layers, validation, serialization, history, prefab isolation, Blueprint visibility/color and Play restoration. Font tests cover TTF import validation, load-failure/reload isolation, round-tripping a custom-font scene through the editor, custom-vs-built-in bounds differing, and a missing font asset failing the open instead of falling back.
 
 ## Screen HUD
 

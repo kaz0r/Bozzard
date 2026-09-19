@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "name": "Collect 2D Starter",
+  "views": {
+    "2d": "camera"
+  },
+  "game_flow": {
+    "title": "Collect 2D Starter",
+    "instructions": "WASD or arrows to move. Touch the gold square to score. Escape pauses; Retry resets the game."
+  },
+  "blackboard": {
+    "score": {
+      "scalar": {
+        "number": 0
+      }
+    }
+  },
+  "assets": {
+    "controller": {
+      "kind": "script",
+      "path": "assets/controller.rs"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 12,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.6,
+          0.6,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.8,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "script": "controller",
+            "enabled": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "coin",
+      "name": "Coin",
+      "transform": {
+        "translation": [
+          2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "white",
+        "color": [
+          1,
+          0.75,
+          0.1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "score",
+      "name": "Score",
+      "text_rendering": {
+        "layer": "2d",
+        "text": "Score: 0",
+        "font_size": 24,
+        "screen": {
+          "anchor": [
+            0,
+            0
+          ],
+          "offset": [
+            24,
+            24
+          ]
+        }
+      },
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

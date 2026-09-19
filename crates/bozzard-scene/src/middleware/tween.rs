@@ -458,7 +458,7 @@ impl SceneInstance {
                         text.color[..3].copy_from_slice(&value);
                     }
                     if let Some(mut material) = world.get_mut::<crate::Material>(entity) {
-                        material.color = value;
+                        material.set_color(value);
                     } else if let Some(mut drawable) = world.get_mut::<crate::Drawable>(entity) {
                         drawable.color = value;
                     }
@@ -466,9 +466,9 @@ impl SceneInstance {
                 Property::Metallic | Property::Roughness => {
                     if let Some(mut material) = world.get_mut::<crate::Material>(entity) {
                         if track.property == Property::Metallic {
-                            material.metallic = Some(value[0]);
+                            material.set_metallic(Some(value[0]));
                         } else {
-                            material.roughness = Some(value[0]);
+                            material.set_roughness(Some(value[0]));
                         }
                     } else {
                         let mut drawable = world

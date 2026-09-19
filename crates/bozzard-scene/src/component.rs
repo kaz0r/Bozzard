@@ -551,6 +551,33 @@ macro_rules! component_row {
     };
 }
 
+// ---------------------------------------------------------------- Lod
+
+impl Component for Lod {
+    const NAME: &'static str = "lod";
+    const LABEL: &'static str = "LOD";
+    const UI: Ui = Ui::Generic;
+    const HELP: &'static str = "Base mesh below the first switch; each level applies from its distance onward. World units, nearest first. Skinned objects keep their base mesh.";
+    fn fields() -> &'static [Field] {
+        const FIELDS: &[Field] = &[Field::range(
+            "hysteresis",
+            "Switch hysteresis",
+            0.01,
+            0.,
+            0.49,
+        )];
+        FIELDS
+    }
+    fn field(&self, key: &str) -> Option<FieldValue> {
+        (key == "hysteresis").then_some(FieldValue::Number(self.hysteresis))
+    }
+    fn set_field(&mut self, key: &str, value: FieldValue) -> Result<()> {
+        ensure!(key == "hysteresis", "LOD has no field '{key}'");
+        self.hysteresis = value.number()?;
+        Ok(())
+    }
+}
+
 // ---------------------------------------------------------------- Spin
 
 impl Component for Spin {
@@ -1341,21 +1368,29 @@ impl Component for Material {
             "texture" => self.texture = Some(texture_from_id(value.text()?)),
             "color" => {
                 let vector = value.vector()?;
-                self.color = [vector[0], vector[1], vector[2]];
+                self.set_color([vector[0], vector[1], vector[2]]);
             }
             "uv_scale" => {
                 let vector = value.vector()?;
                 self.uv_scale = [vector[0], vector[1]];
             }
             "metallic_override" => {
-                self.metallic = value.bool()?.then_some(self.metallic.unwrap_or(0.0));
+                self.set_metallic(value.bool()?.then_some(self.metallic.unwrap_or(0.0)));
             }
-            "metallic" => self.metallic = Some(value.number()?),
+            "metallic" => self.set_metallic(Some(value.number()?)),
             "roughness_override" => {
-                self.roughness = value.bool()?.then_some(self.roughness.unwrap_or(1.0));
+                self.set_roughness(value.bool()?.then_some(self.roughness.unwrap_or(1.0)));
             }
-            "roughness" => self.roughness = Some(value.number()?),
+            "roughness" => self.set_roughness(Some(value.number()?)),
             _ => anyhow::bail!("Material has no field '{key}'"),
+        }
+        if let Some(binding) = &mut self.shared {
+            let binding = std::sync::Arc::make_mut(binding);
+            match key {
+                "texture" | "texture_override" => binding.texture = self.texture.clone(),
+                "uv_scale" => binding.properties.uv_scale = Some(self.uv_scale),
+                _ => {}
+            }
         }
         Ok(())
     }
@@ -1459,7 +1494,8 @@ impl Component for TextRendering {
                 .shown_when(is_screen_text),
             F::options("layer", "Layer", &["3D", "2D"]),
             F::body_text("text", "Text").help("Plain text · max 4096 UTF-8 bytes"),
-            F::options("font", "Font", &["Sans", "Monospace"]),
+            F::options("font", "Font", &["Sans", "Monospace", "Custom"]),
+            F::asset("custom_font", "Custom font", AssetKind::Font),
             F::range("font_size", "Font size", 0.01, 0.001, 1000.0)
                 .help("Pixels in a screen HUD, local units otherwise."),
             F::bool("word_wrap", "Word wrap"),
@@ -1482,7 +1518,16 @@ impl Component for TextRendering {
             "offset" => FieldValue::Vector([screen.offset[0], screen.offset[1], 0.0]),
             "layer" => FieldValue::Index(if self.layer == Layer::ThreeD { 0 } else { 1 }),
             "text" => FieldValue::Text(self.text.clone()),
-            "font" => FieldValue::Index(if self.font == TextFont::Sans { 0 } else { 1 }),
+            "font" => FieldValue::Index(match self.font {
+                TextFont::Sans => 0,
+                TextFont::Monospace => 1,
+                TextFont::Custom(_) => 2,
+            }),
+            "custom_font" => FieldValue::Asset(if let TextFont::Custom(id) = &self.font {
+                Some(id.clone())
+            } else {
+                None
+            }),
             "font_size" => return number(self.font_size),
             "word_wrap" => FieldValue::Bool(self.max_width.is_some()),
             "max_width" => return number(self.max_width?),
@@ -1524,10 +1569,29 @@ impl Component for TextRendering {
             }
             "text" => self.text = value.text()?.to_owned(),
             "font" => {
-                self.font = if value.index()? == 0 {
-                    TextFont::Sans
-                } else {
-                    TextFont::Monospace
+                let previous = self.font.clone();
+                self.font = match value.index()? {
+                    0 => TextFont::Sans,
+                    1 => TextFont::Monospace,
+                    2 if matches!(self.font, TextFont::Custom(_)) => self.font.clone(),
+                    _ => anyhow::bail!("Choose a custom font asset first"),
+                };
+                if self.font != previous {
+                    self.font_axes.clear();
+                    self.font_fallbacks.clear();
+                    self.builtin_font_fallback = false;
+                }
+            }
+            "custom_font" => {
+                let previous = self.font.clone();
+                self.font = value
+                    .asset()?
+                    .as_ref()
+                    .map_or(TextFont::Sans, |id| TextFont::Custom(id.clone()));
+                if self.font != previous {
+                    self.font_axes.clear();
+                    self.font_fallbacks.clear();
+                    self.builtin_font_fallback = false;
                 }
             }
             "font_size" => self.font_size = value.number()?,
@@ -1711,6 +1775,7 @@ pub const COMPONENTS: &[ComponentType] = &[
         |object, _scene| {
             object.drawable = None;
             object.material = None;
+            object.lod = None;
         }
     ),
     component_row!(
@@ -1869,6 +1934,17 @@ pub const COMPONENTS: &[ComponentType] = &[
             Ok(())
         },
         |object, _scene| object.spin = None
+    ),
+    component_row!(
+        Lod,
+        lod,
+        |object| object.lod.is_none() && object.drawable.is_some(),
+        |object, _context| {
+            ensure!(object.drawable.is_some(), "LOD needs a Mesh Renderer");
+            object.lod = Some(Lod::default());
+            Ok(())
+        },
+        |object, _scene| object.lod = None
     ),
     component_row!(
         Camera,
@@ -2180,6 +2256,7 @@ mod tests {
                 "light",
                 "particle_emitter",
                 "spin",
+                "lod",
                 "camera",
                 "text_rendering",
                 "script_manager",
@@ -2281,6 +2358,7 @@ mod tests {
                 "light",
                 "particle_emitter",
                 "spin",
+                "lod",
                 "camera",
                 "text_rendering",
                 "trigger",

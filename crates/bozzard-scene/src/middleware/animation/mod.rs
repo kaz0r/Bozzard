@@ -204,6 +204,15 @@ impl Component for Animator {
     }
 }
 impl Authored for Animator {
+    fn accept_prepared(prepared: &mut World, live: &mut World) {
+        if let Some(runtime) = prepared.remove_resource::<Runtime>() {
+            if let Some(current) = live.resource_mut::<Runtime>() {
+                current.players.extend(runtime.players);
+            } else {
+                live.insert_resource(runtime);
+            }
+        }
+    }
     fn initialize_runtime(&self, world: &mut World, owner: &str) -> Result<()> {
         let pose = Arc::new(self.rig.rest_pose());
         let palette = Arc::new(self.rig.palette(&pose)?);

@@ -74,6 +74,7 @@ fn validate_name(name: &str) -> Result<()> {
         name: name.into(),
         start_scene: "scene.json".into(),
         view: Layer::ThreeD,
+        cook: Default::default(),
     }
     .validate()
 }
@@ -139,6 +140,13 @@ impl App {
                     ui.strong(platform_label());
                 });
                 ui.weak("A standalone game for this platform.");
+                egui::ComboBox::from_label("Asset cooking")
+                    .selected_text(dialog.cook_target.label()).show_ui(ui, |ui| {
+                        for target in bozzard_project::CookTarget::ALL {
+                            ui.selectable_value(&mut dialog.cook_target, target, target.label());
+                        }
+                    });
+                ui.weak("Compressed targets keep lossless fallback pixels. Unchanged assets reuse the cook cache.");
                 ui.add_space(10.0);
                 let output = validate_name(&dialog.project_name)
                     .and_then(|()| destination(&dialog.directory, &dialog.project_name));
@@ -183,7 +191,7 @@ impl App {
                         .clicked()
                         && let Ok(path) = output
                     {
-                        if self.start_export(path, dialog.project_name.clone()) {
+                        if self.start_export(path, dialog.project_name.clone(), dialog.cook_target) {
                             self.export_parent = Some(dialog.directory.clone());
                             keep = false;
                         } else {

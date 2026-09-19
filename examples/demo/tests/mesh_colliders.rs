@@ -233,6 +233,8 @@ fn mesh_blueprint_contacts_and_prefab_lifecycle_are_independent() {
         20.
     );
     let prefab = bozzard_scene::Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "Floor".into(),
         root: "floor".into(),

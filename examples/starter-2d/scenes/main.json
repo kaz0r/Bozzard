@@ -1,0 +1,372 @@
+{
+  "blackboard": {
+    "score": {
+      "scalar": {
+        "number": 0.0
+      }
+    }
+  },
+  "game_flow": {
+    "title": "Collect Starter",
+    "instructions": "WASD or arrows to move. Touch the gold square to score. Escape pauses; Retry resets the game."
+  },
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.15,
+      0.32,
+      0.65
+    ],
+    "horizon": [
+      0.65,
+      0.7,
+      0.8
+    ],
+    "ground": [
+      0.12,
+      0.1,
+      0.08
+    ],
+    "intensity": 0.35,
+    "background": true
+  },
+  "display": {
+    "temporal_aa": {
+      "enabled": false,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": false,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": false,
+      "strength": 1.0,
+      "max_distance": 30.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.65,
+      "steps": 64
+    },
+    "bloom": {
+      "enabled": false,
+      "intensity": 0.15,
+      "threshold": 1.0,
+      "scatter": 0.7,
+      "anamorphic": 0.0
+    },
+    "tone_mapper": "reinhard",
+    "color_grading": {
+      "temperature": 0.0,
+      "tint": 0.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "lift": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": false,
+      "intensity": 1.0,
+      "radius": 0.7,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": false,
+      "strength": 3.0,
+      "threshold": 2.0,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.0,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.0,
+      "roundness": 0.7,
+      "feather": 0.6
+    },
+    "depth_of_field": {
+      "enabled": false,
+      "focus_distance": 5.0,
+      "focal_length_mm": 50.0,
+      "aperture": 2.8,
+      "max_blur_radius": 18.0
+    },
+    "auto_exposure": {
+      "enabled": false,
+      "strength": 1.0,
+      "min_ev": -2.0,
+      "max_ev": 2.0,
+      "target_gray": 0.18,
+      "speed_up": 1.5,
+      "speed_down": 3.0,
+      "center_weight": 0.65
+    },
+    "volumetric_fog": {
+      "enabled": false,
+      "density": 0.035,
+      "albedo": [
+        0.9,
+        0.94,
+        1.0
+      ],
+      "anisotropy": 0.3,
+      "base_height": 0.0,
+      "height_falloff": 0.25,
+      "start_distance": 0.25,
+      "max_distance": 40.0,
+      "noise_amount": 0.65,
+      "noise_scale": 0.35,
+      "wind": [
+        0.15,
+        0.025,
+        0.07
+      ],
+      "light_intensity": 1.0,
+      "ambient": 0.25,
+      "steps": 48
+    },
+    "exposure_ev": 0.0,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.4,
+      0.8,
+      0.6
+    ],
+    "sun_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "sun_intensity": 3.0,
+    "ambient_color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ambient_intensity": 0.03
+  },
+  "version": 1,
+  "name": "Collect Starter",
+  "views": {
+    "2d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "far": 100.0,
+        "near": 0.10000000149011612,
+        "projection": "orthographic",
+        "vertical_size": 12.0
+      }
+    },
+    {
+      "id": "player",
+      "name": "Player",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.6,
+          0.6,
+          1.0
+        ]
+      },
+      "drawable": {
+        "color": [
+          0.20000000298023224,
+          0.800000011920929,
+          1.0
+        ],
+        "gi_static": true,
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "controller"
+          }
+        ]
+      }
+    },
+    {
+      "id": "coin",
+      "name": "Coin",
+      "transform": {
+        "translation": [
+          2.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          1.0
+        ]
+      },
+      "drawable": {
+        "color": [
+          1.0,
+          0.75,
+          0.10000000149011612
+        ],
+        "gi_static": true,
+        "layer": "2d",
+        "mesh": "quad",
+        "texture": "white",
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "score",
+      "name": "Score",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "text_rendering": {
+        "alignment": "left",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "enabled": true,
+        "font": "sans",
+        "font_size": 24.0,
+        "layer": "2d",
+        "max_width": null,
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ]
+        },
+        "text": "Score: 0"
+      }
+    }
+  ],
+  "assets": {
+    "controller": {
+      "kind": "script",
+      "path": "assets/controller.rs"
+    }
+  }
+}

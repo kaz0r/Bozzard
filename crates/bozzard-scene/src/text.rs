@@ -2,12 +2,15 @@ use crate::Layer;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// A font family: the two built-ins or a font asset id (`AssetKind::Font`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextFont {
     #[default]
     Sans,
     Monospace,
+    /// A font asset; the scene's assets map must contain this id.
+    Custom(String),
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +66,15 @@ pub struct TextRendering {
     pub layer: Layer,
     pub text: String,
     pub font: TextFont,
+    /// OpenType axis tags and design-space values for the custom primary font.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub font_axes: std::collections::BTreeMap<String, f32>,
+    /// Additional custom font assets, searched in order for missing glyphs.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub font_fallbacks: Vec<String>,
+    /// Search the bundled Sans/emoji chain after the custom faces.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub builtin_font_fallback: bool,
     /// Font em size in local units, or logical pixels when screen-anchored.
     pub font_size: f32,
     pub max_width: Option<f32>,
@@ -78,6 +90,9 @@ impl Default for TextRendering {
             layer: Layer::ThreeD,
             text: "Text".into(),
             font: TextFont::Sans,
+            font_axes: Default::default(),
+            font_fallbacks: Vec::new(),
+            builtin_font_fallback: false,
             font_size: 0.5,
             max_width: None,
             alignment: TextAlignment::Left,
@@ -91,6 +106,39 @@ impl TextRendering {
             screen.validate()?;
         }
         ensure!(self.text.len() <= 4096, "text exceeds 4096 UTF-8 bytes");
+        if let TextFont::Custom(id) = &self.font {
+            ensure!(
+                !id.is_empty() && id.len() <= 128,
+                "custom font needs an asset id"
+            );
+            let mut unique = std::collections::BTreeSet::from([id]);
+            ensure!(
+                self.font_fallbacks.len() <= 4
+                    && self
+                        .font_fallbacks
+                        .iter()
+                        .all(|id| !id.is_empty() && id.len() <= 128 && unique.insert(id)),
+                "font fallbacks must be at most four distinct font assets"
+            );
+        } else {
+            ensure!(
+                self.font_axes.is_empty()
+                    && self.font_fallbacks.is_empty()
+                    && !self.builtin_font_fallback,
+                "font axes and fallback settings need a custom primary font"
+            );
+        }
+        ensure!(
+            self.font_axes.len() <= 16
+                && self.font_axes.iter().all(|(tag, value)| tag.len() == 4
+                    && !tag.trim_end_matches(' ').is_empty()
+                    && tag
+                        .trim_end_matches(' ')
+                        .bytes()
+                        .all(|b| (33..=126).contains(&b))
+                    && value.is_finite()),
+            "invalid font variation coordinates"
+        );
         ensure!(
             self.font_size.is_finite() && (0.001..=1000.).contains(&self.font_size),
             "invalid text font size"
@@ -113,6 +161,30 @@ impl TextRendering {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn font_style_validation_checks_tags_finite_coordinates_and_fallback_identity() {
+        let mut text = TextRendering {
+            font: TextFont::Custom("primary".into()),
+            ..Default::default()
+        };
+        text.font_axes.insert("wght".into(), 900.);
+        text.font_fallbacks.push("fallback".into());
+        assert!(text.validate().is_ok());
+        text.font_fallbacks.push("primary".into());
+        assert!(text.validate().is_err());
+        text.font_fallbacks.pop();
+        text.font_fallbacks.push("fallback".into());
+        assert!(text.validate().is_err());
+        text.font_fallbacks.pop();
+        text.font_axes.insert("bad".into(), 1.);
+        assert!(text.validate().is_err());
+        text.font_axes.remove("bad");
+        text.font_axes.insert("wght".into(), f32::NAN);
+        assert!(text.validate().is_err());
+        text.font_axes.clear();
+        text.font = TextFont::Sans;
+        assert!(text.validate().is_err());
+    }
     #[test]
     fn bounds_are_checked_in_bytes_and_disabled_components_still_validate() {
         let mut text = TextRendering {

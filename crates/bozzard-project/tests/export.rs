@@ -32,13 +32,379 @@ impl Drop for Temp {
 fn fixtures() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes")
 }
+
+#[test]
+fn cooked_textures_export_with_platform_payloads_and_no_source_dependency() -> anyhow::Result<()> {
+    use bozzard_assets::{
+        AssetData, AssetStore, ImageData,
+        job::Progress,
+        texture::{self, Compression},
+    };
+    use bozzard_scene::{AssetKind, AssetSource, Drawable, Mesh, Object, Texture};
+    use std::sync::Arc;
+    let temp = Temp::new();
+    let source = temp.0.join("source");
+    fs::create_dir(&source)?;
+    let scene_path = source.join("scene.json");
+    let mut scene = Scene::from_json(r#"{"version":1,"name":"Cooked","views":{},"objects":[]}"#)?;
+    scene.views.insert(Layer::ThreeD, "camera".into());
+    scene.objects.push(Object {
+        id: "camera".into(),
+        name: "Camera".into(),
+        camera: Some(bozzard_scene::Camera::Perspective {
+            vertical_fov_degrees: 60.,
+            near: 0.1,
+            far: 100.,
+        }),
+        transform: bozzard_scene::Transform {
+            translation: [0., 0., 3.],
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let mut image = ImageData {
+        width: 16,
+        height: 16,
+        rgba: [72, 140, 210, 255].repeat(16 * 16),
+        compressed: None,
+    };
+    let cooked = texture::cook(
+        &image,
+        &[Compression::Bc3, Compression::Astc4x4],
+        &[true],
+        &Progress::default(),
+    )?;
+    let bytes = texture::encode(&image, &cooked)?;
+    image.compressed = Some(Arc::new(cooked));
+    fs::write(source.join("paint.btex"), &bytes)?;
+    scene.assets.insert(
+        "paint".into(),
+        AssetSource {
+            kind: AssetKind::Image,
+            path: "paint.btex".into(),
+        },
+    );
+    scene.objects.push(Object {
+        id: "cube".into(),
+        name: "Cube".into(),
+        drawable: Some(Drawable {
+            mesh: Mesh::Cube,
+            texture: Texture::Asset("paint".into()),
+            layer: Layer::ThreeD,
+            color: [1.; 3],
+            uv_scale: [1.; 2],
+            metallic: None,
+            roughness: None,
+            material_overrides: vec![],
+            gi_static: true,
+        }),
+        ..Default::default()
+    });
+    fs::write(&scene_path, scene.to_json()?)?;
+    export(&scene, &scene_path, &temp.0.join("game"));
+    fs::remove_dir_all(source)?;
+    fs::rename(temp.0.join("game"), temp.0.join("relocated game"))?;
+    let root = data(&temp.0.join("relocated game"));
+    let (_, scene_path) = Project::load(&root.join(bozzard_project::MANIFEST))?;
+    let scene = load(&scene_path);
+    let mut store = AssetStore::new(scene_path.parent().unwrap(), &scene.assets)?;
+    store.load_pending()?;
+    store.require_ready()?;
+    let AssetData::Image(loaded) = store
+        .get(store.handle("paint").unwrap())
+        .unwrap()
+        .data()
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(loaded.rgba, image.rgba);
+    assert_eq!(
+        texture::encode(loaded, loaded.compressed.as_ref().unwrap())?,
+        bytes
+    );
+    Ok(())
+}
+
+#[test]
+fn starter_projects_play_relocate_export_and_refuse_existing_destinations() -> anyhow::Result<()> {
+    use bozzard_project::{ProjectTemplate, create_project};
+    use bozzard_scene::{GameAction, GameplayInput, Transform};
+    let temp = Temp::new();
+    for template in ProjectTemplate::ALL {
+        let source = temp.0.join(template.id());
+        let manifest = create_project(&source, "Starter Test", template)?;
+        let (project, scene_path) = Project::load(&manifest)?;
+        let scene = load(&scene_path);
+        assert!(create_project(&source, "Overwrite", template).is_err());
+        assert_eq!(load(&scene_path), scene);
+        let exported = temp.0.join(format!("export-{}", template.id()));
+        prepare_export(
+            &project,
+            &scene,
+            &scene_path,
+            &std::env::current_exe()?,
+            &exported,
+            &Default::default(),
+        )?
+        .commit()?;
+        fs::remove_dir_all(&source)?;
+        let (_, scene_path) = Project::load(&data(&exported).join(bozzard_project::MANIFEST))?;
+        let scene = load(&scene_path);
+        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&scene_path))?;
+        runtime.game_action(GameAction::Start)?;
+        let player = runtime.instance().entity("player").unwrap();
+        let initial = runtime
+            .app
+            .world
+            .get::<Transform>(player)
+            .unwrap()
+            .translation;
+        for _ in 0..30 {
+            runtime.set_gameplay_input(GameplayInput {
+                movement: [1., 0.],
+                ..Default::default()
+            });
+            runtime.app.step();
+            runtime.check_simulation()?;
+        }
+        let moved = runtime
+            .app
+            .world
+            .get::<Transform>(player)
+            .unwrap()
+            .translation;
+        assert!(
+            moved[0] > initial[0] + 1.,
+            "{} must be playable",
+            template.id()
+        );
+        if template == ProjectTemplate::Collect2d {
+            let board = runtime
+                .app
+                .world
+                .resource::<bozzard_scene::BlueprintRuntime>()
+                .unwrap()
+                .scene_blackboard();
+            assert_eq!(
+                serde_json::to_value(&board["score"])?["scalar"]["number"],
+                1.
+            );
+        }
+        runtime.game_action(GameAction::Restart)?;
+        runtime.check_simulation()?;
+        let player = runtime.instance().entity("player").unwrap();
+        assert_eq!(
+            runtime
+                .app
+                .world
+                .get::<Transform>(player)
+                .unwrap()
+                .translation,
+            initial
+        );
+    }
+    Ok(())
+}
 fn project() -> Project {
     Project {
         version: 1,
         name: "Test & Game".into(),
         start_scene: "scene.json".into(),
         view: Layer::ThreeD,
+        cook: Default::default(),
     }
+}
+
+#[test]
+fn styled_text_exports_primary_and_fallback_fonts_and_loads_without_source_files()
+-> anyhow::Result<()> {
+    use bozzard_assets::{AssetStore, job::Progress};
+    use bozzard_scene::{AssetKind, AssetSource, Object, TextFont, TextRendering};
+    let temp = Temp::new();
+    let source = temp.0.join("fonts");
+    fs::create_dir(&source)?;
+    fs::write(
+        source.join("variable.ttf"),
+        include_bytes!("../../bozzard-text/tests/fonts/Roboto.ttf"),
+    )?;
+    fs::write(
+        source.join("fallback.ttf"),
+        include_bytes!("../../bozzard-assets/tests/fonts/test.ttf"),
+    )?;
+    let mut scene = bozzard_demo::scene_document()?;
+    for id in ["variable", "fallback"] {
+        scene.assets.insert(
+            id.into(),
+            AssetSource {
+                kind: AssetKind::Font,
+                path: format!("{id}.ttf"),
+            },
+        );
+    }
+    let style = TextRendering {
+        text: "Variable text 😀".into(),
+        font: TextFont::Custom("variable".into()),
+        font_axes: [("wdth".into(), 75.), ("wght".into(), 900.)].into(),
+        font_fallbacks: vec!["fallback".into()],
+        builtin_font_fallback: true,
+        ..Default::default()
+    };
+    scene.objects.push(Object {
+        id: "font-label".into(),
+        name: "Font label".into(),
+        text_rendering: Some(style.clone()),
+        ..Default::default()
+    });
+    let target = temp.0.join("font-game");
+    prepare_export(
+        &project(),
+        &scene,
+        &source.join("scene.json"),
+        &std::env::current_exe()?,
+        &target,
+        &Progress::default(),
+    )?
+    .commit()?;
+    fs::remove_dir_all(source)?;
+    let path = data(&target).join("scene.json");
+    let loaded = load(&path);
+    let text = loaded
+        .objects
+        .iter()
+        .find(|o| o.id == "font-label")
+        .unwrap()
+        .text_rendering
+        .as_ref()
+        .unwrap();
+    assert_eq!(text, &style);
+    let mut assets = AssetStore::new(path.parent().unwrap(), &loaded.assets)?;
+    assets.load_pending()?;
+    assets.require_ready()?;
+    assets.validate_scene_resources(&loaded)?;
+    assert!(assets.text_font(text)?.is_some());
+    Ok(())
+}
+
+#[test]
+fn automatically_simplified_pbr_lod_exports_without_its_source_project() -> anyhow::Result<()> {
+    use bozzard_assets::{AssetData, AssetStore, SimplifySettings, job::Progress};
+    use bozzard_scene::{AssetKind, AssetSource, Drawable, Lod, LodLevel, Mesh, Object, Texture};
+    let temp = Temp::new();
+    let source = temp.0.join("authoring");
+    fs::create_dir(&source)?;
+    let fixture = fixtures().join("assets/material-gallery/gold-polished.gltf");
+    fs::write(
+        source.join("base.gltf"),
+        bozzard_assets::portable_gltf(&fixture)?,
+    )?;
+    let mut scene = bozzard_demo::scene_document()?;
+    scene.assets.insert(
+        "base".into(),
+        AssetSource {
+            kind: AssetKind::Mesh,
+            path: "base.gltf".into(),
+        },
+    );
+    let mut store = AssetStore::new(&source, &scene.assets)?;
+    store.load_pending()?;
+    let AssetData::Mesh(mesh) = store
+        .get(store.handle("base").unwrap())
+        .unwrap()
+        .data()
+        .unwrap()
+    else {
+        panic!()
+    };
+    let simplified = bozzard_assets::simplify_mesh(
+        mesh,
+        SimplifySettings {
+            ratio: 0.25,
+            max_error: 0.05,
+            lock_borders: true,
+        },
+        &Progress::default(),
+    )?;
+    assert!(simplified.triangles < simplified.source_triangles);
+    fs::write(
+        source.join("low.gltf"),
+        bozzard_assets::mesh_gltf(&simplified.mesh, &Progress::default())?,
+    )?;
+    scene.assets.insert(
+        "low".into(),
+        AssetSource {
+            kind: AssetKind::Mesh,
+            path: "low.gltf".into(),
+        },
+    );
+    scene.objects.push(Object {
+        id: "generated".into(),
+        name: "Generated LOD".into(),
+        drawable: Some(Drawable {
+            metallic: None,
+            roughness: None,
+            gi_static: true,
+            material_overrides: Vec::new(),
+            layer: Layer::ThreeD,
+            mesh: Mesh::Asset("base".into()),
+            texture: Texture::White,
+            color: [1.; 3],
+            uv_scale: [1.; 2],
+        }),
+        lod: Some(Lod {
+            levels: vec![LodLevel {
+                switch: 0.1,
+                mesh: Some(Mesh::Asset("low".into())),
+            }],
+            hysteresis: 0.1,
+        }),
+        ..Default::default()
+    });
+    let target = temp.0.join("game");
+    prepare_export(
+        &project(),
+        &scene,
+        &source.join("scene.json"),
+        &std::env::current_exe()?,
+        &target,
+        &Progress::default(),
+    )?
+    .commit()?;
+    fs::remove_dir_all(source)?;
+    let path = data(&target).join("scene.json");
+    let exported = load(&path);
+    let runtime = bozzard_demo::SceneDemo::new_with_prefabs(&exported, Some(&path))?;
+    let frame = runtime
+        .instance()
+        .view(&runtime.app.world, Layer::ThreeD, 1.)?;
+    assert!(
+        frame
+            .objects
+            .iter()
+            .any(|(_, drawable)| drawable.mesh == Mesh::Asset("low".into()))
+    );
+    let mut store = AssetStore::new(path.parent().unwrap(), &exported.assets)?;
+    store.load_pending()?;
+    store.require_ready()?;
+    let AssetData::Mesh(mesh) = store
+        .get(store.handle("low").unwrap())
+        .unwrap()
+        .data()
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(mesh.indices.len() / 3, simplified.triangles);
+    assert_eq!(
+        mesh.parts[0].shading.as_ref().unwrap().material.metallic,
+        simplified.mesh.parts[0]
+            .shading
+            .as_ref()
+            .unwrap()
+            .material
+            .metallic
+    );
+    Ok(())
 }
 fn data(folder: &Path) -> PathBuf {
     if cfg!(target_os = "macos") {
@@ -428,4 +794,152 @@ fn middleware_exports_keep_skin_audio_ui_nav_and_atlas_content_after_relocation(
             assert!(nav.baked.unwrap().triangles().count() > 100);
         }
     }
+}
+
+#[test]
+fn nested_variant_prefabs_resolve_and_spawn_after_export_and_source_removal() -> anyhow::Result<()>
+{
+    use bozzard_assets::{AssetStore, job::Progress};
+    use bozzard_scene::{
+        AssetKind, AssetSource, Object, Prefab, PrefabBase, PrefabInstance, Texture,
+    };
+    let temp = Temp::new();
+    let source = temp.0.join("prefab-sources");
+    fs::create_dir(&source)?;
+    fs::copy(
+        fixtures().join("assets/middleware-panel.png"),
+        source.join("image.png"),
+    )?;
+    let demo = bozzard_demo::scene_document()?;
+    let mut object = demo
+        .objects
+        .iter()
+        .find(|o| {
+            o.drawable
+                .as_ref()
+                .is_some_and(|d| d.layer == Layer::ThreeD)
+        })
+        .unwrap()
+        .clone();
+    object.id = "part".into();
+    object.name = "Original part".into();
+    object.parent = None;
+    object.drawable.as_mut().unwrap().texture = Texture::Asset("image".into());
+    let mut base = Prefab {
+        version: 1,
+        name: "Base".into(),
+        root: "part".into(),
+        objects: vec![object],
+        assets: [(
+            "image".into(),
+            AssetSource {
+                kind: AssetKind::Image,
+                path: "image.png".into(),
+            },
+        )]
+        .into(),
+        nested: Default::default(),
+        base: None,
+    };
+    let mut variant = base.clone();
+    variant.name = "Variant".into();
+    variant.assets.insert(
+        "base".into(),
+        AssetSource {
+            kind: AssetKind::Prefab,
+            path: "base.prefab.json".into(),
+        },
+    );
+    variant.base = Some(PrefabBase {
+        asset: "base".into(),
+        baseline: base.objects.clone(),
+        nested: Default::default(),
+    });
+    variant.objects[0].drawable.as_mut().unwrap().color = [1., 0., 0.];
+    fs::write(source.join("variant.prefab.json"), variant.to_json()?)?;
+    let mut nested = variant.objects[0].clone();
+    nested.remap_ids(&[("part".into(), "nested-part".into())].into());
+    let baseline = vec![nested.clone()];
+    nested.parent = Some("assembly".into());
+    let mut outer = Prefab {
+        version: 1,
+        name: "Assembly".into(),
+        root: "assembly".into(),
+        objects: vec![
+            Object {
+                id: "assembly".into(),
+                name: "Assembly".into(),
+                ..Default::default()
+            },
+            nested,
+        ],
+        assets: variant.assets.clone(),
+        base: None,
+        nested: [(
+            "nested-part".into(),
+            PrefabInstance {
+                asset: "variant".into(),
+                members: [("part".into(), "nested-part".into())].into(),
+                baseline,
+            },
+        )]
+        .into(),
+    };
+    outer.assets.insert(
+        "variant".into(),
+        AssetSource {
+            kind: AssetKind::Prefab,
+            path: "variant.prefab.json".into(),
+        },
+    );
+    fs::write(source.join("outer.prefab.json"), outer.to_json()?)?;
+    // The exporter must follow current dependencies, not only cached expanded members.
+    base.objects[0].name = "Updated base part".into();
+    fs::write(source.join("base.prefab.json"), base.to_json()?)?;
+    let mut scene = Scene::from_json(
+        r#"{"version":1,"name":"Nested variants","views":{},
+      "assets":{"assembly":{"kind":"prefab","path":"outer.prefab.json"}},
+      "objects":[{"id":"spawner","name":"Spawner","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"blueprints":[{"enabled":true,"graph":{"version":1,"name":"spawn","nodes":[
+        {"id":1,"position":[0,0],"kind":"start","inputs":[]},
+        {"id":2,"position":[0,0],"kind":"spawn_prefab","prefab":"assembly","inputs":["exec",{"vector":[0,0,0]}]}],
+        "wires":[{"from":{"node":1,"port":0},"to":{"node":2,"port":0}}]}}]}]}"#,
+    )?;
+    let camera = demo
+        .objects
+        .iter()
+        .find(|o| o.id == demo.views[&Layer::ThreeD])
+        .unwrap()
+        .clone();
+    scene.views.insert(Layer::ThreeD, camera.id.clone());
+    scene.objects.push(camera);
+    let output = temp.0.join("game");
+    prepare_export(
+        &project(),
+        &scene,
+        &source.join("scene.json"),
+        &std::env::current_exe()?,
+        &output,
+        &Progress::default(),
+    )?
+    .commit()?;
+    fs::remove_dir_all(source)?;
+    let path = data(&output).join("scene.json");
+    let exported = load(&path);
+    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&exported, Some(&path))?;
+    runtime.game_action(bozzard_scene::GameAction::Start)?;
+    runtime.app.step();
+    runtime.check_simulation()?;
+    let spawned = runtime.instance().document();
+    assert_eq!(spawned.prefabs.len(), 1);
+    let inherited = spawned
+        .objects
+        .iter()
+        .find(|o| o.name == "Updated base part")
+        .unwrap();
+    assert_eq!(inherited.drawable.as_ref().unwrap().color, [1., 0., 0.]);
+    assert!(inherited.parent.as_ref().unwrap().starts_with("spawn-"));
+    let mut assets = AssetStore::new(path.parent().unwrap(), &spawned.assets)?;
+    assets.load_pending()?;
+    assets.require_ready()?;
+    Ok(())
 }

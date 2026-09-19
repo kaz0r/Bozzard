@@ -230,6 +230,10 @@ fn curl(p: Vec3, t: f32) -> Vec3 {
     )
 }
 impl ParticleSystem {
+    pub(crate) fn remove_objects(&mut self, ids: &std::collections::BTreeSet<String>) {
+        self.emitters.retain(|id, _| !ids.contains(id));
+    }
+
     pub fn step(
         &mut self,
         emitters: &[(String, Mat4, ParticleEmitter, Option<Arc<Curves>>)],

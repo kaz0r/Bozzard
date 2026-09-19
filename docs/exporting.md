@@ -48,9 +48,9 @@ asset catalog declares the content to package. All declared assets are included,
 with transitive prefab dependencies and external glTF/GLB/OBJ buffers, material libraries
 and supported images. Compressed audio and scripts are included too. Blueprint attachments,
 cooked animation rigs, navigation bakes, curves and UI layouts are serialized in scenes and prefabs.
-Model source bytes and dependency names are preserved so surface overrides and baked GI
-fingerprints survive relocation. This is dependency packaging, without GPU-specific binary
-asset compression or feature stripping. The standard compiled runtime includes the current
+Original-source exports preserve model bytes and dependency names. Cooked exports preserve
+surface identities and rebind current baked GI fingerprints to their lossless CPU data;
+BC3/ASTC payloads reduce GPU texture storage. See asset cooking below. The standard compiled runtime includes the current
 scene, physics, Blueprint, scripting, middleware and rendering systems.
 
 Export with the native player directly (no Python required):
@@ -111,3 +111,12 @@ and asset license notices, certified OS baselines, platform packaging, and distr
 (including Apple Developer ID signing and notarization for macOS). The exporter does not obtain
 certificates or claim notarization. Projects should supply their own player instructions in the
 exported README before distribution; the generated control hints cover Bozzard's default controller.
+
+## Asset cooking
+
+The editor export dialog offers portable BC3 + ASTC cooking, either individual
+format, lossless model cooking, or original sources. Project manifests use the
+optional `cook` field (`universal`, `bc`, `astc`, `rgba`, `source`). Old manifests
+default to original sources; new project templates default to portable cooking.
+See [texture and model cooking](texture-compression.md#models-and-project-export)
+for format selection, incremental cache behavior and verification commands.

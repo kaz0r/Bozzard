@@ -93,6 +93,9 @@ pub struct GameplayInput {
     /// Keys currently held, bit `i` = `keys::BOUND_KEYS[i]`: a level, not an edge, so
     /// `On Input Pressed` sees the press and `Input Held` sees the hold.
     pub keys: u128,
+    /// Physical key/button presses queued since the previous simulation tick. A tap can
+    /// be released before that tick and still fire without pretending the key is held.
+    pub pressed_keys: u128,
     pub orbit: [f32; 2],
 }
 impl GameplayInput {

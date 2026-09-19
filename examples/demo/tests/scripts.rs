@@ -128,6 +128,62 @@ fn open(scene: &Path) -> anyhow::Result<SceneDemo> {
 }
 
 #[test]
+fn released_taps_reach_scripts_once_and_focus_loss_cancels_queued_presses() {
+    let (path, root) = project(
+        r#"
+        fn on_update(me, dt) {
+            if input_pressed("U") { rotate(me, [0.0, 1.0, 0.0]); }
+            if input_held("U") { rotate(me, [10.0, 0.0, 0.0]); }
+        }
+    "#,
+    );
+    let mut demo = open(&path).unwrap();
+    let entity = demo.instance().entity("thing").unwrap();
+    let press = GameplayInput {
+        keys: bozzard_scene::keys::bit("U"),
+        ..Default::default()
+    };
+    for expected in [1.0, 2.0] {
+        demo.set_gameplay_input(press);
+        demo.set_gameplay_input(GameplayInput::default());
+        demo.app.step();
+        demo.check_simulation().unwrap();
+        assert_eq!(
+            demo.app
+                .world
+                .get::<Transform>(entity)
+                .unwrap()
+                .rotation_degrees,
+            [0., expected, 0.]
+        );
+    }
+    demo.set_gameplay_input(press);
+    demo.clear_gameplay_input();
+    for _ in 0..3 {
+        demo.app.step();
+        demo.check_simulation().unwrap();
+    }
+    assert_eq!(
+        demo.app
+            .world
+            .get::<Transform>(entity)
+            .unwrap()
+            .rotation_degrees,
+        [0., 2., 0.]
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn oversized_script_fails_during_bounded_source_loading() {
+    let (scene, root) = project(&" ".repeat(1024 * 1024 + 1));
+    let document = bozzard_demo::load_document(Some(&scene)).unwrap();
+    let error = bozzard_scene::load_sources(&document, Some(&scene)).unwrap_err();
+    assert!(error.to_string().contains("script 'broken' exceeds 1 MiB"));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn a_syntax_error_fails_when_the_scene_opens_not_on_the_first_tick() {
     let (scene, root) = project("fn on_update(me, dt) {\n    let x = ;\n}\n");
     let error = match open(&scene) {

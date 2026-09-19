@@ -85,6 +85,8 @@ fn project_delete_removes_users_restores_files_and_protects_overwrites_and_refer
     let mut object = object;
     object.parent = None;
     let prefab = Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "Shared".into(),
         root: object.id.clone(),

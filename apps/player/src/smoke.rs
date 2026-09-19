@@ -10,6 +10,7 @@ mod display;
 mod environment;
 mod gi;
 mod local_shadows;
+mod occlusion;
 mod overrides;
 mod pbr;
 mod point_shadows;
@@ -302,6 +303,7 @@ fn model_material_checks(gpu: &Gpu) -> Result<()> {
 
 fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
+    renderer.set_occlusion_enabled(options.occlusion_enabled);
     let projection = glam::camera::rh::proj::directx::orthographic(-2.0, 2.0, -1.5, 1.5, 0.1, 10.0);
     let view_projection = projection * Mat4::from_translation(Vec3::new(0.0, 0.0, -3.0));
     let material = Material {
@@ -822,6 +824,7 @@ pub fn run(options: &Options) -> Result<()> {
     }
     model_material_checks(&gpu)?;
     visibility::checks(&gpu)?;
+    occlusion::checks(&gpu)?;
     environment::checks(&gpu)?;
     display::checks(&gpu)?;
     bloom::checks(&gpu, &options.output)?;

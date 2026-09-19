@@ -58,6 +58,7 @@ impl App {
         let mut views = scene.views.clone();
         let checkpoint_start = checkpoint_respawn(&scene, &original);
         let mut remove = None;
+        let mut generate_lods = false;
         let mut error_slot: Option<anyhow::Error> = None;
         ui.push_id(&original.id, |ui| {
         egui::ScrollArea::vertical().id_salt("entity-properties").show(ui, |ui| {
@@ -86,6 +87,7 @@ impl App {
                                 }
                             });
                         ui.separator();
+                        generate_lods = self.lod_tools.ui(ui, &object, &self.editor.assets);
                         egui::CollapsingHeader::new("TRANSFORM").default_open(true).show(ui, |ui| {
                         vector(ui, "Position", &mut object.transform.translation, 0.05);
                         vector(
@@ -101,12 +103,20 @@ impl App {
                         });
                         // Every registered component with generic field metadata draws itself.
                         for entry in bozzard_scene::components()
-                            .filter(|entry| entry.ui == bozzard_scene::Ui::Generic)
+                            .filter(|entry| entry.ui == bozzard_scene::Ui::Generic || self.custom_inspectors.contains(entry.name))
                         {
                             if !(entry.present)(&object) {
                                 continue;
                             }
                             component_section(ui, entry.label, &mut remove, |ui| {
+                                match self.custom_inspectors.draw(entry.name, ui, &mut object, &scene, &self.editor.assets) {
+                                    Ok(true) => return,
+                                    Ok(false) => {},
+                                    Err(error) => { error_slot = Some(error); return; }
+                                }
+                                let shared_material = entry.name == "material"
+                                    && crate::material_ui::component(ui, &mut object, &self.editor.assets);
+                                if !shared_material {
                                 match crate::component_ui::fields(
                                     ui,
                                     &mut object,
@@ -118,6 +128,7 @@ impl App {
                                     Ok(_) => {}
                                     Err(error) => error_slot = Some(error),
                                 }
+                                }
                                 if let Err(error) = crate::motion_ui::component(ui, &mut object, entry.name, &scene) {
                                     error_slot = Some(error);
                                 }
@@ -125,6 +136,7 @@ impl App {
                                 if let Err(error) = crate::particle_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
                                 if let Err(error) = crate::widget_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
                                 if let Err(error) = crate::sprite_ui::component(ui, &mut object, entry.name, &self.editor.assets) { error_slot = Some(error); }
+                                crate::font_ui::component(ui, &mut object, entry.name, &self.editor.assets);
                                 if entry.name == "animator" && let Err(error) = crate::animation_ui::component(ui, &mut object, &self.editor.assets) {
                                     error_slot = Some(error);
                                 }
@@ -201,6 +213,16 @@ impl App {
             synchronize_follow_camera(&mut scene);
             let r = self.editor.apply("Edit component", scene);
             self.result(r);
+        }
+        if generate_lods && self.loading.is_none() && self.editor.play.is_none() {
+            self.editor.finish_gesture();
+            let result = self
+                .editor
+                .generate_lods_job(&original.id, self.lod_tools.requests());
+            match result {
+                Ok(job) => self.loading = Some(loading::Loading::Lods(job)),
+                Err(error) => self.result(Err(error)),
+            }
         }
     }
     pub fn lighting_inspector(&mut self, ui: &mut egui::Ui) {
@@ -974,10 +996,32 @@ impl App {
             .editor
             .selected_prefab_root()
             .map(|root| self.editor.scene().prefabs[root].asset.clone());
+        if self.editor.is_prefab_source() && asset.is_none() {
+            ui.colored_label(Color32::from_rgb(178, 155, 244), "Prefab source hierarchy");
+            ui.weak("Save writes this source. Place it in a scene to Play.");
+            if ui
+                .add_enabled(
+                    self.loading.is_none(),
+                    egui::Button::new("Save prefab source"),
+                )
+                .clicked()
+            {
+                self.save_scene(self.editor.path.clone());
+            }
+            ui.separator();
+            return;
+        }
         ui.add_enabled_ui(self.editor.play.is_none() && self.loading.is_none(), |ui| {
             if let Some(asset) = asset {
                 ui.colored_label(Color32::from_rgb(178, 155, 244), format!("Prefab · {asset}"));
                 ui.horizontal_wrapped(|ui| {
+                    if ui.button("Create variant").on_hover_text("Create a new prefab inheriting this source, keeping the selected instance's component overrides.").clicked() {
+                        self.start_prefab(PrefabCommand::Variant);
+                    }
+                    if ui.button("Edit source hierarchy").on_hover_text("Open this prefab source as an independent document. Edit its hierarchy, then Save and refresh scene instances.").clicked()
+                        && let Some(source) = self.editor.scene().assets.get(&asset) {
+                        self.open_additive(bozzard_editor::root(&self.editor.path).join(&source.path));
+                    }
                     if ui.button("Apply to prefab").on_hover_text("Writes this instance's component edits to the source file and updates linked instances in this scene. Placement stays local. Scene Undo does not undo the source file write.").clicked() {
                         self.start_prefab(PrefabCommand::Apply);
                     }

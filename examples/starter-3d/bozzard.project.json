@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "Trail Starter",
+  "start_scene": "scenes/main.json",
+  "view": "3d",
+  "cook": "universal"
+}

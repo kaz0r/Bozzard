@@ -113,6 +113,68 @@ pub struct BlueprintRuntime {
     destroying: BTreeSet<String>,
 }
 impl BlueprintRuntime {
+    pub(crate) fn remove_objects(&mut self, ids: &BTreeSet<String>) {
+        self.runs.retain(|(id, _), _| !ids.contains(id));
+        self.object_boards.retain(|id, _| !ids.contains(id));
+        let clear = |value: &mut Value| {
+            if matches!(value, Value::Object(ObjectRef::Id(id)) if ids.contains(id)) {
+                *value = Value::Object(ObjectRef::None);
+            }
+        };
+        for board in self
+            .object_boards
+            .values_mut()
+            .chain(std::iter::once(&mut self.scene_board))
+        {
+            for value in board.values_mut().flat_map(B::values_mut) {
+                clear(value);
+            }
+        }
+        for run in self.runs.values_mut() {
+            // Rebind literal object pins without resetting this attachment's timers/state.
+            if run.program.as_ref().is_some_and(|program| {
+                program.graph.nodes.iter()
+                .flat_map(|node| &node.inputs)
+                .any(|value| matches!(value, Value::Object(ObjectRef::Id(id)) if ids.contains(id)))
+            }) {
+                let program = Arc::make_mut(run.program.as_mut().unwrap());
+                for value in program
+                    .graph
+                    .nodes
+                    .iter_mut()
+                    .flat_map(|node| &mut node.inputs)
+                {
+                    clear(value);
+                }
+            }
+            run.overlap.retain(|id| !ids.contains(id));
+            run.collisions.retain(|id| !ids.contains(id));
+            for value in run
+                .board
+                .values_mut()
+                .flat_map(B::values_mut)
+                .chain(run.results.values_mut().flatten())
+            {
+                clear(value);
+            }
+            for value in run.spawned.values_mut() {
+                if matches!(value, ObjectRef::Id(id) if ids.contains(id)) {
+                    *value = ObjectRef::None;
+                }
+            }
+            for timer in &mut run.timers {
+                if timer
+                    .context
+                    .other
+                    .as_ref()
+                    .is_some_and(|id| ids.contains(id))
+                {
+                    timer.context.other = None;
+                }
+            }
+        }
+    }
+
     pub fn suspended(&self) -> bool {
         self.pending.is_some()
     }
@@ -204,6 +266,16 @@ impl Eval<'_> {
             .collect::<Result<_>>()?;
         let value = match n.kind {
             K::Reroute | K::Text | K::Number | K::Boolean | K::Vector | K::Object => v[0].clone(),
+            K::SceneLoadStatus => {
+                let status = crate::scene_loading::load_status(self.world);
+                match socket.port {
+                    0 => Value::Bool(status.phase.busy()),
+                    1 => Value::Number(status.progress),
+                    2 => Value::Text(status.handle),
+                    3 => Value::Text(status.error),
+                    _ => anyhow::bail!("invalid scene loading status output"),
+                }
+            }
             K::NumberToText => {
                 let decimals = v[1].number()?;
                 ensure!(
@@ -867,11 +939,7 @@ impl SceneInstance {
                             .is_some_and(|r| r.finished.contains(owner))
                 }
                 K::Update => enabled,
-                K::InputPressed => {
-                    enabled
-                        && event.key.active(input)
-                        && (event.key.instant() || run.held & event.key.bit() == 0)
-                }
+                K::InputPressed => enabled && event.key.pressed(input, run.held),
                 K::TriggerEnter => enabled && !overlap.is_empty() && run.overlap.is_empty(),
                 K::TriggerExit => enabled && overlap.is_empty() && !run.overlap.is_empty(),
                 _ => false,
@@ -1168,6 +1236,7 @@ impl SceneInstance {
                     )?;
                 }
                 self.destroy_prefab_raw(world, &target)?;
+                runtime.remove_objects(&ids.into_iter().collect());
             }
             runtime
                 .runs
@@ -1470,7 +1539,7 @@ impl SceneInstance {
         let mut port = 0;
         match node.kind {
             K::SpawnPrefab => {
-                let id = self.spawn_prefab(world, &node.prefab, value.vector()?)?;
+                let id = self.spawn_prefab_for(world, owner, &node.prefab, value.vector()?)?;
                 run.spawned.insert(node.id, ObjectRef::Id(id));
             }
             K::DestroyPrefab => {
@@ -1666,7 +1735,15 @@ impl SceneInstance {
                 };
                 run.results.insert(node.id, result);
             }
-            K::LoadScene | K::AddScene | K::RestartScene | K::SaveGame | K::LoadGame => {
+            K::LoadScene
+            | K::AddScene
+            | K::LoadSceneAsync
+            | K::AddSceneAsync
+            | K::CancelSceneLoad
+            | K::UnloadScene
+            | K::RestartScene
+            | K::SaveGame
+            | K::LoadGame => {
                 self.request_scene_control(
                     world,
                     node.kind,
@@ -1889,7 +1966,7 @@ impl SceneInstance {
                     false
                 };
                 if let Some(mut material) = world.get_mut::<Material>(entity) {
-                    material.color = color;
+                    material.set_color(color);
                 } else if let Some(mut drawable) = world.get_mut::<Drawable>(entity) {
                     // Legacy graphs also work on meshes using their source material.
                     drawable.color = color;
@@ -2280,25 +2357,13 @@ impl SceneInstance {
                 )?;
             }
             self.destroy_prefab_raw(world, target)?;
-            runtime
-                .runs
-                .retain(|(id, _), _| self.entities.contains_key(id));
-            runtime
-                .object_boards
-                .retain(|id, _| self.entities.contains_key(id));
+            runtime.remove_objects(&ids.into_iter().collect());
             Ok(())
         })();
         world.insert_resource(runtime);
         result
     }
     pub(crate) fn scene_destroy_events(&mut self, world: &mut World) -> Result<()> {
-        let mut runtime = world
-            .remove_resource::<BlueprintRuntime>()
-            .unwrap_or_else(|| BlueprintRuntime {
-                query_budget: 1_000_000,
-                ..Default::default()
-            });
-        self.prepare_blueprints(&mut runtime);
         let owners: Vec<_> = self
             .document
             .objects
@@ -2306,13 +2371,27 @@ impl SceneInstance {
             .filter(|o| !o.blueprints.is_empty())
             .map(|o| o.id.clone())
             .collect();
+        self.object_destroy_events(world, &owners)
+    }
+    pub(crate) fn object_destroy_events(
+        &mut self,
+        world: &mut World,
+        owners: &[String],
+    ) -> Result<()> {
+        let mut runtime = world
+            .remove_resource::<BlueprintRuntime>()
+            .unwrap_or_else(|| BlueprintRuntime {
+                query_budget: 1_000_000,
+                ..Default::default()
+            });
+        self.prepare_blueprints(&mut runtime);
         let mut budget = 100_000;
         let result = (|| -> Result<()> {
             for owner in owners {
                 self.destroy_blueprint_events(
                     world,
                     &mut runtime,
-                    &owner,
+                    owner,
                     GameplayInput::default(),
                     0.,
                     &mut budget,

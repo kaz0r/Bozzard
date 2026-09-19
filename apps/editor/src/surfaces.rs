@@ -74,7 +74,10 @@ impl App {
             .selected_object()
             .and_then(|o| o.drawable.as_ref())
             .is_none_or(|d| match &d.mesh {
-                Mesh::Asset(id) => self.residency.is_current(&self.editor.assets, id),
+                Mesh::Asset(id) => self.residency.is_current(
+                    &self.open_scenes.view(&self.editor).assets,
+                    &self.open_scenes.view_asset(&self.editor, id),
+                ),
                 _ => true,
             })
     }

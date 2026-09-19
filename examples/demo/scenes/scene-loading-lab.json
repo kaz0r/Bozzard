@@ -1,0 +1,264 @@
+{
+  "version": 1,
+  "name": "Scene Loading Lab",
+  "views": {
+    "2d": "camera-2d",
+    "3d": "camera-3d"
+  },
+  "objects": [
+    {
+      "id": "camera-3d",
+      "name": "Camera 3D",
+      "transform": {
+        "translation": [
+          4,
+          3,
+          6
+        ],
+        "rotation_degrees": [
+          -22,
+          34,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 55,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "camera-2d",
+      "name": "Camera 2D",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          10
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "hero-cube",
+      "name": "Hero Cube",
+      "transform": {
+        "translation": [
+          0,
+          0.15,
+          0
+        ],
+        "rotation_degrees": [
+          12,
+          25,
+          0
+        ],
+        "scale": [
+          1.6,
+          1.6,
+          1.6
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "checker",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "spin": [
+        8,
+        25,
+        0
+      ],
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Floor",
+      "transform": {
+        "translation": [
+          0,
+          -1.05,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          8,
+          0.1,
+          8
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "checker",
+        "color": [
+          0.32,
+          0.42,
+          0.5
+        ],
+        "uv_scale": [
+          8,
+          8
+        ]
+      },
+      "collider": {
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "enabled": true
+      }
+    },
+    {
+      "id": "loading-controller",
+      "name": "Scene loading controller",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "scene-loading-controller"
+          }
+        ]
+      }
+    },
+    {
+      "id": "loading-status",
+      "name": "Loading status",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "The annex loads when Play starts. L: load  U: unload  C: cancel",
+        "font": "sans",
+        "font_size": 18,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          1.0,
+          0.95,
+          0.8,
+          0.95
+        ]
+      }
+    }
+  ],
+  "assets": {
+    "scene-loading-controller": {
+      "kind": "script",
+      "path": "scripts/scene-loading.rs"
+    }
+  },
+  "runtime_scene_sources": {
+    "annex": {
+      "type": "file",
+      "path": "streaming/annex.json"
+    }
+  },
+  "blackboard": {
+    "seen-load": {
+      "scalar": {
+        "text": ""
+      }
+    },
+    "annex-handle": {
+      "scalar": {
+        "text": ""
+      }
+    }
+  }
+}

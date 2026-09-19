@@ -14,11 +14,9 @@ fn authored_widgets_render_and_accessible_actions_match_hit_geometry() -> anyhow
     let instance = scene.spawn(&mut world)?;
     world.insert_resource(GameSession::default());
     let assets = AssetStore::new(std::path::Path::new("."), &scene.assets)?;
-    let gpu = pollster::block_on(Gpu::request(
-        &bozzard_render::instance(bozzard_render::Backend::native()),
-        None,
-        cfg!(not(target_os = "macos")),
-    ))?;
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&bozzard_render::instance(
+        bozzard_render::Backend::native(),
+    )))?;
     let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     instance.ui_input(
         &mut world,

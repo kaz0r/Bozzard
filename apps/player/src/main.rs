@@ -27,6 +27,10 @@ use winit::{
 };
 
 struct Options {
+    content_catalog: Option<String>,
+    content_address: Option<String>,
+    content_cache: Option<PathBuf>,
+    content_handle: Option<bozzard_project::content::ResolvedContent>,
     project: Option<PathBuf>,
     game_name: Option<String>,
     export_project: Option<PathBuf>,
@@ -44,11 +48,17 @@ struct Options {
     write_scene: Option<PathBuf>,
     save_path: PathBuf,
     layer: Layer,
+    gpu_memory_mib: usize,
+    occlusion_enabled: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
+            content_catalog: None,
+            content_address: None,
+            content_cache: None,
+            content_handle: None,
             project: None,
             game_name: None,
             export_project: None,
@@ -66,6 +76,8 @@ impl Default for Options {
             write_scene: None,
             save_path: "work/saved-scene.json".into(),
             layer: Layer::ThreeD,
+            gpu_memory_mib: 512,
+            occlusion_enabled: true,
         }
     }
 }
@@ -75,6 +87,22 @@ fn options() -> Result<Option<Options>> {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--content-catalog" => {
+                result.content_catalog = Some(
+                    args.next()
+                        .context("--content-catalog needs a file or HTTPS URL")?,
+                )
+            }
+            "--content" => {
+                result.content_address = Some(args.next().context("--content needs an address")?)
+            }
+            "--content-cache" => {
+                result.content_cache = Some(
+                    args.next()
+                        .context("--content-cache needs a directory")?
+                        .into(),
+                )
+            }
             "--project" => {
                 result.project = Some(args.next().context("--project needs a manifest")?.into())
             }
@@ -98,7 +126,18 @@ fn options() -> Result<Option<Options>> {
                 result.backend = args.next().context("--backend needs a value")?.parse()?
             }
             "--software" => result.software = true,
+            "--gpu-memory-mib" => {
+                result.gpu_memory_mib = args
+                    .next()
+                    .context("--gpu-memory-mib needs a size")?
+                    .parse()?;
+                ensure!(
+                    (1..=32768).contains(&result.gpu_memory_mib),
+                    "GPU memory budget must be 1..32768 MiB"
+                );
+            }
             "--hardware" => result.hardware = true,
+            "--no-occlusion" => result.occlusion_enabled = false,
             "--smoke" => result.smoke = true,
             "--benchmark-frames" => {
                 let frames = args
@@ -133,10 +172,10 @@ fn options() -> Result<Option<Options>> {
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
                 println!(
-                    "--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
+                    "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
-                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
+                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -202,7 +241,8 @@ impl View {
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
             .context("surface is unsupported by selected adapter")?;
         config.present_mode = wgpu::PresentMode::Fifo;
-        let renderer = SceneRenderer::new(&gpu, config.format);
+        let mut renderer = SceneRenderer::new(&gpu, config.format);
+        renderer.set_occlusion_enabled(options.occlusion_enabled);
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         surface.configure(&gpu.device, &config);
         if options.frames.is_some() {
@@ -244,7 +284,7 @@ impl View {
         }
         self.renderer
             .set_hud_scale(self.window.scale_factor() as f32);
-        assets.poll(&self.gpu, &mut self.renderer)?;
+        assets.poll()?;
         let (frame, reconfigure) = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
@@ -285,6 +325,10 @@ impl View {
         scene
             .items
             .extend(bozzard_render_assets::widget_items(&ui, assets.store())?);
+        if !assets.prepare_frame(&self.gpu, &mut self.renderer, &scene)? {
+            self.surface_status = "streaming graphics resources";
+            return Ok(false);
+        }
         if !assets.current() {
             scene.gi = None;
         }
@@ -546,10 +590,19 @@ impl Player {
             }
             Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
                 let document = load_document(self.options.scene.as_deref())?;
-                let next = SceneDemo::new_with_prefabs(&document, self.options.scene.as_deref())?;
+                let mut next =
+                    SceneDemo::new_with_prefabs(&document, self.options.scene.as_deref())?;
                 let mut assets = assets::Assets::load(
                     next.instance().document(),
                     self.options.scene.as_deref(),
+                )?;
+                bozzard_project::streaming::install(
+                    &mut next.app.world,
+                    self.options
+                        .scene
+                        .as_deref()
+                        .unwrap_or(Path::new("scene.json")),
+                    assets.store(),
                 )?;
                 ensure!(
                     next.instance().has_view(self.options.layer),
@@ -557,7 +610,19 @@ impl Player {
                 );
                 if let Some(view) = &mut self.view {
                     let mut renderer = SceneRenderer::new(&view.gpu, view.config.format);
-                    assets.upload(&view.gpu, &mut renderer)?;
+                    renderer.set_occlusion_enabled(self.options.occlusion_enabled);
+                    let render = extract(
+                        &next,
+                        assets.store(),
+                        self.options.layer,
+                        view.config.width as f32 / view.config.height as f32,
+                    )?;
+                    assets.upload_required(
+                        &view.gpu,
+                        &mut renderer,
+                        &render,
+                        self.options.gpu_memory_mib * 1024 * 1024,
+                    )?;
                     view.renderer = renderer;
                 }
                 self.assets = assets;
@@ -616,7 +681,21 @@ impl ApplicationHandler for Player {
         }
         match View::new(event_loop, &self.options) {
             Ok(mut view) => {
-                if let Err(error) = self.assets.upload(&view.gpu, &mut view.renderer) {
+                let uploaded = (|| {
+                    let render = extract(
+                        &self.demo,
+                        self.assets.store(),
+                        self.options.layer,
+                        view.config.width as f32 / view.config.height as f32,
+                    )?;
+                    self.assets.upload_required(
+                        &view.gpu,
+                        &mut view.renderer,
+                        &render,
+                        self.options.gpu_memory_mib * 1024 * 1024,
+                    )
+                })();
+                if let Err(error) = uploaded {
                     self.fail(event_loop, error);
                     return;
                 }
@@ -771,6 +850,19 @@ impl ApplicationHandler for Player {
                 self.fail(event_loop, error);
                 return;
             }
+            if self.assets.adopt_scene_assets(&self.demo.app.world)
+                && let Some(view) = &mut self.view
+            {
+                let result = self.demo.with_instance(|instance, _| {
+                    view.compute.prepare(instance);
+                    view.compute
+                        .refresh(&view.gpu, instance, self.assets.store())
+                });
+                if let Err(error) = result {
+                    self.fail(event_loop, error);
+                    return;
+                }
+            }
             if let Some(view) = &mut self.view {
                 if let Err(error) = view.compute.submit(&view.gpu, self.demo.instance()) {
                     self.fail(event_loop, error);
@@ -899,16 +991,24 @@ fn main() -> Result<()> {
     if let Some(manifest) = &options.export_project {
         let (project, source) = bozzard_project::Project::load(manifest)?;
         let scene = load_document(Some(&source))?;
-        let destination = bozzard_project::prepare_export(
+        let prepared = bozzard_project::prepare_export(
             &project,
             &scene,
             &source,
             &std::env::current_exe()?,
             options.export_dir.as_ref().unwrap(),
             &Default::default(),
-        )?
-        .commit()?;
-        println!("export_ok path={}", destination.display());
+        )?;
+        let report = prepared.report();
+        let destination = prepared.commit()?;
+        println!(
+            "export_ok path={} cooked={} reused={} copied={} cooked_bytes={}",
+            destination.display(),
+            report.built,
+            report.reused,
+            report.copied,
+            report.cooked_bytes
+        );
         return Ok(());
     }
     if options.smoke {
@@ -920,12 +1020,17 @@ fn main() -> Result<()> {
         println!("scene_saved path={}", path.display());
         return Ok(());
     }
-    let demo = SceneDemo::new_with_prefabs(&document, options.scene.as_deref())?;
+    let mut demo = SceneDemo::new_with_prefabs(&document, options.scene.as_deref())?;
     ensure!(
         demo.instance().has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"
     );
     let assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
+    bozzard_project::streaming::install(
+        &mut demo.app.world,
+        options.scene.as_deref().unwrap_or(Path::new("scene.json")),
+        assets.store(),
+    )?;
     let mut player = Player {
         assets,
         audio: Default::default(),

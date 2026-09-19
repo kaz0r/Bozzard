@@ -161,6 +161,8 @@ fn prefab_removal_releases_solver_bodies_and_fresh_instances_do_not_inherit_velo
         },
     );
     let prefab = Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "Body".into(),
         root: body.id.clone(),

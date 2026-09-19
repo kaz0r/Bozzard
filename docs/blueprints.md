@@ -59,7 +59,7 @@ round-trips every name through serde.
 | Boolean math | Not, And, Or |
 | Vector math | Make/Break Vector, Scale/Add/Lerp Vectors, Forward Vector, Length, Normalize, Dot, Cross, Distance |
 | Queries | Raycast, Sphere Overlap, Box Overlap, Line of Sight |
-| Scene/state | Load Scene, Load Scene Additively, Restart Scene, Save Game State, Load Game State |
+| Scene/state | Load Scene, Load Scene Additively, async variants, Scene Loading Status, Cancel Scene Loading, Unload Scene, Restart Scene, Save Game State, Load Game State |
 | Actions | Translate, Rotate, Set Position/Rotation/Scale, Set Color, Set Visible, Set Text, Set Light Intensity, Move With Collision (Grounded output), Jump, Set Velocity, Lock Cursor, Unlock Cursor, Spawn Prefab, Destroy Prefab |
 
 Actions target their **Target** object, defaulting to the attached object (**Self**). Transform reads also accept a Target. Transform values are in parent/model coordinates; rotations are Y-X-Z Euler degrees. Translate and setters are direct transform edits, **not collision-safe movement**. Multiply rates by Delta Seconds for frame-rate-independent motion. **Move With Collision** accepts world-space displacement and requires an enabled box collider; **Jump** uses the existing grounded Gravity behavior. A Player Controller ignores both: it is a capsule character controller, see [the physics surface](physics.md).

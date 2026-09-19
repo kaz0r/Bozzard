@@ -47,6 +47,15 @@ impl EffectsPreview {
         Ok(())
     }
     pub fn render(&mut self, editor: &Editor, layer: Layer, aspect: f32) -> Result<RenderScene> {
+        self.render_from_camera(editor, layer, aspect, None)
+    }
+    pub fn render_from_camera(
+        &mut self,
+        editor: &Editor,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+    ) -> Result<RenderScene> {
         // A frame's `advance` runs before any panel, and every panel edit lands after it, so the
         // document can change between that rebuild and this call. Adopt it here as well: the
         // viewport stamps the pixels it drew with the revision it drew them from, and a preview that
@@ -61,6 +70,7 @@ impl EffectsPreview {
             layer,
             aspect,
             (self.revision == editor.revision()).then(|| editor.gi_current()),
+            inspection_pose,
         )?;
         // Live preview animates particles and atmosphere, not materials:
         // shader graph Time only advances in Play.
@@ -147,6 +157,7 @@ impl Editor {
             camera: None,
             drawable: None,
             spin: None,
+            lod: None,
             collider: None,
             mesh_collider: None,
             text_rendering: None,

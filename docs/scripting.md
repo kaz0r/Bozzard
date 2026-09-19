@@ -112,6 +112,8 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `lock_cursor()`, `unlock_cursor()` | pointer capture |
 | `end_game(message)` | requires Game Flow in scene settings |
 | `load_scene(name)`, `add_scene(name)`, `restart_scene()`, `save_game(slot)`, `load_game(slot)` | runtime scene control |
+| `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
+| `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |
 | `print(value)` | one line to stdout and the runtime's message list |
 
@@ -139,6 +141,11 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 - **Scripts step before blueprints** in a tick, so a graph reads a variable a script wrote in the
   same tick. Each step samples one snapshot of the world for its own events, and running scripts
   first also means a graph's `Destroy Prefab` cannot hide a hit the scripts were meant to see.
+- **Async scene transitions** prepare validated component state in a worker and publish after
+  queued actions finish. `scene_load_error()` reports preparation/publication failures without
+  stopping gameplay; cancellation leaves current objects unchanged. At most one worker runs
+  per runtime, including while a cancelled worker finishes its current validation call.
+  See [scene loading](scene-loading.md) for ownership and retry rules.
 - **Spawn handles** returned by `spawn_prefab` are stable IDs that resolve to the created object for
   the rest of the run (the same object the Spawn Prefab node's `Instance` pin addresses).
 - **Variables are shared with graphs.** `get/set_object_variable` use the same object blackboard a

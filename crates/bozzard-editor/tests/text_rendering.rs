@@ -86,9 +86,10 @@ fn text_component_roundtrip_layers_bounds_picking_and_play_isolation() {
         .unwrap();
     label.parent = Some("parent".into());
     label.transform = Transform::default();
-    let local = bozzard_render::text_bounds(&bozzard_render_assets::text_mesh(
-        label.text_rendering.as_ref().unwrap(),
-    ))
+    let local = bozzard_render::text_bounds(
+        &bozzard_render_assets::text_mesh(label.text_rendering.as_ref().unwrap(), &editor.assets)
+            .unwrap(),
+    )
     .unwrap()
     .unwrap();
     scene.objects.push(parent);
@@ -209,6 +210,8 @@ fn text_prefabs_are_independent_and_blueprint_color_visibility_work_headlessly()
         ],"wires":[{"from":{"node":1,"port":0},"to":{"node":2,"port":0}},{"from":{"node":2,"port":0},"to":{"node":3,"port":0}}]})).unwrap(),
     });
     let prefab = Prefab {
+        nested: Default::default(),
+        base: None,
         version: 1,
         name: "Text label".into(),
         root: label.id.clone(),

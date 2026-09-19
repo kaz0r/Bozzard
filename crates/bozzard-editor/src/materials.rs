@@ -1,7 +1,161 @@
 use super::*;
 use bozzard_scene::SurfaceMaterialOverride;
 
+pub struct PreparedMaterial {
+    path: PathBuf,
+    revision: u64,
+    asset_revision: u64,
+    progress: bozzard_assets::job::Progress,
+    edit: bozzard_assets::materials::MaterialEdit,
+    json: String,
+}
+
 impl Editor {
+    pub fn material_job(
+        &self,
+        id: &str,
+        expected: &str,
+        definition: &bozzard_scene::material_asset::MaterialAsset,
+    ) -> Result<bozzard_assets::job::Job<PreparedMaterial>> {
+        ensure!(
+            self.play.is_none(),
+            "Stop Play before editing material sources"
+        );
+        let id = id.to_owned();
+        let expected = expected.to_owned();
+        let json = definition.to_json()?;
+        let assets = self.assets.clone();
+        let scene = self.scene_snapshot();
+        let path = self.path.clone();
+        let revision = self.revision;
+        let asset_revision = self.asset_revision;
+        bozzard_assets::job::Job::start("Preparing material source", move |progress| {
+            let edit = assets.prepare_material_edit(&id, &expected, &json, &progress)?;
+            edit.store.validate_scene_resources(&scene)?;
+            progress.check()?;
+            Ok(PreparedMaterial {
+                path,
+                revision,
+                asset_revision,
+                progress,
+                edit,
+                json,
+            })
+        })
+    }
+    pub fn accept_material(&mut self, prepared: PreparedMaterial) -> Result<String> {
+        prepared.progress.check()?;
+        ensure!(
+            self.play.is_none()
+                && self.path == prepared.path
+                && self.revision == prepared.revision
+                && self.asset_revision == prepared.asset_revision,
+            "Scene or material assets changed while saving; retry"
+        );
+        self.assets = prepared.edit.publish()?;
+        self.asset_revision += 1;
+        Ok(prepared.json)
+    }
+    pub fn create_material(&mut self, parent: Option<&str>) -> Result<String> {
+        use bozzard_scene::material_asset::MaterialAsset;
+        use std::io::Write;
+        ensure!(self.play.is_none(), "Stop Play before creating materials");
+        let directory = root(&self.path).join("assets/Materials");
+        std::fs::create_dir_all(&directory)?;
+        let mut index = 1;
+        let (id, path) = loop {
+            let id = format!("material-{index}");
+            let path = directory.join(format!("{id}.material.json"));
+            if !self.scene.assets.contains_key(&id) && !path.exists() {
+                break (id, path);
+            }
+            index += 1;
+        };
+        let mut definition = MaterialAsset {
+            name: id.clone(),
+            ..Default::default()
+        };
+        if let Some(parent) = parent {
+            self.assets.material(parent)?;
+            definition.parent = Some(prefabs::relative_asset(
+                &root(&self.path).join(&self.scene.assets[parent].path),
+                &directory,
+            )?);
+            definition.name = format!(
+                "{} variant",
+                self.assets
+                    .material(parent)?
+                    .definition
+                    .name
+                    .chars()
+                    .take(28)
+                    .collect::<String>()
+            );
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        let result = (|| -> Result<()> {
+            file.write_all(definition.to_json()?.as_bytes())?;
+            file.sync_all()?;
+            drop(file);
+            let mut scene = self.scene.clone();
+            scene.assets.insert(
+                id.clone(),
+                AssetSource {
+                    kind: AssetKind::Material,
+                    path: prefabs::relative_asset(&path, root(&self.path))?,
+                },
+            );
+            self.finish_gesture();
+            self.apply("Create material", scene)
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(path);
+        }
+        result?;
+        Ok(id)
+    }
+    pub fn material_source(&self, id: &str) -> Result<String> {
+        let source = self
+            .scene
+            .assets
+            .get(id)
+            .context("material no longer exists")?;
+        ensure!(
+            source.kind == AssetKind::Material,
+            "asset is not a material"
+        );
+        let path = root(&self.path).join(&source.path);
+        ensure!(
+            std::fs::metadata(&path)?.len()
+                <= bozzard_scene::material_asset::MaterialAsset::MAX_BYTES as u64,
+            "material exceeds 1 MiB"
+        );
+        Ok(std::fs::read_to_string(path)?)
+    }
+    /// Source drafts are separate from scene history. Saving updates every loaded
+    /// descendant after validation and refuses to overwrite an external edit.
+    pub fn save_material(
+        &mut self,
+        id: &str,
+        expected: &str,
+        definition: &bozzard_scene::material_asset::MaterialAsset,
+    ) -> Result<String> {
+        ensure!(
+            self.play.is_none(),
+            "Stop Play before editing material sources"
+        );
+        let json = definition.to_json()?;
+        let prepared =
+            self.assets
+                .prepare_material_edit(id, expected, &json, &Default::default())?;
+        prepared.store.validate_scene_resources(&self.scene)?;
+        self.assets = prepared.publish()?;
+        self.asset_revision += 1;
+        Ok(json)
+    }
     /// Shared transform target for numeric controls and viewport gizmos.
     pub fn selected_transform(&self) -> Result<Transform> {
         if self.selected_surface().is_some() {

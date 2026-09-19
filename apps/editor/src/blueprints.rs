@@ -23,6 +23,7 @@ pub struct BlueprintPane {
     find: String,
     scene_file: String,
     scene_name: String,
+    scene_address: String,
     connecting: Option<Socket>,
     view: Rect,
     search: String,
@@ -45,6 +46,7 @@ impl Default for BlueprintPane {
             find: String::new(),
             scene_file: String::new(),
             scene_name: String::new(),
+            scene_address: String::new(),
             connecting: None,
             view: Rect::from_min_size(Pos2::ZERO, Vec2::new(900., 560.)),
             search: String::new(),
@@ -108,6 +110,7 @@ impl App {
             self.blueprint_pane.view = node_rect(node).expand(180.);
         }
         self.workspace.blueprints_visible = true;
+        self.dock_focus = Some(docking::Pane::Scene);
         self.workspace.shaders_visible = false;
     }
     pub fn blueprint_inspector(&mut self, ui: &mut egui::Ui, object: &mut bozzard_scene::Object) {
@@ -151,6 +154,7 @@ impl App {
                                     graph,
                                 });
                                 self.workspace.blueprints_visible = true;
+                                self.dock_focus = Some(docking::Pane::Scene);
                             }
                         }
                         if ui.button("Load…").clicked() {
@@ -174,6 +178,7 @@ impl App {
                         {
                             self.blueprint_pane.choose(i, &attachment.graph);
                             self.workspace.blueprints_visible = true;
+                            self.dock_focus = Some(docking::Pane::Scene);
                         }
                         if ui
                             .add_enabled(editing && i > 0, egui::Button::new("↑").small())
@@ -240,6 +245,7 @@ impl App {
             self.blueprint_pane
                 .choose(object.blueprints.len() - 1, &attachment.graph);
             self.workspace.blueprints_visible = true;
+            self.dock_focus = Some(docking::Pane::Scene);
         }
     }
     pub fn blueprint_dialog(&mut self, kind: files::Kind) {
@@ -261,6 +267,89 @@ impl App {
         ));
         self.dialog = Some(dialog);
     }
+    fn runtime_scene_menu(&mut self, ui: &mut egui::Ui) {
+        let editing = self.editor.play.is_none()
+            && self.loading.is_none()
+            && self.dialog.is_none()
+            && !self.confirm_discard;
+        ui.menu_button("Runtime scenes", |ui| {
+            for name in self.editor.scene().runtime_scenes.keys() {
+                ui.label(format!("{name} (embedded)"));
+            }
+            let mut remove = None;
+            for (name, source) in &self.editor.scene().runtime_scene_sources {
+                ui.horizontal(|ui| {
+                    use bozzard_scene::scene_loading::SceneSource;
+                    let label = match source {
+                        SceneSource::File { path } => format!("{name}: {path}"),
+                        SceneSource::Content { catalog, address } => {
+                            format!("{name}: {address} ({catalog})")
+                        }
+                    };
+                    ui.label(label);
+                    if ui
+                        .add_enabled(editing, egui::Button::new("Remove"))
+                        .clicked()
+                    {
+                        remove = Some(name.clone());
+                    }
+                });
+            }
+            if let Some(name) = remove {
+                let result = self.editor.set_runtime_scene_source(&name, None);
+                self.result(result);
+            }
+            ui.add(
+                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_name)
+                    .hint_text("Scene name"),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_file)
+                    .hint_text("Scene JSON path"),
+            );
+            if ui
+                .add_enabled(editing, egui::Button::new("Import scene into library"))
+                .clicked()
+            {
+                let result = self.editor.import_runtime_scene(
+                    &self.blueprint_pane.scene_name,
+                    &PathBuf::from(&self.blueprint_pane.scene_file),
+                );
+                self.result(result);
+            }
+            ui.separator();
+            ui.weak("Lazy paths are relative to this scene. Use the async load nodes.");
+            if ui
+                .add_enabled(editing, egui::Button::new("Link scene file"))
+                .clicked()
+            {
+                let source = bozzard_scene::scene_loading::SceneSource::File {
+                    path: self.blueprint_pane.scene_file.clone(),
+                };
+                let result = self
+                    .editor
+                    .set_runtime_scene_source(&self.blueprint_pane.scene_name, Some(source));
+                self.result(result);
+            }
+            ui.add(
+                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_address)
+                    .hint_text("Content address (file field = catalog path or HTTPS URL)"),
+            );
+            if ui
+                .add_enabled(editing, egui::Button::new("Link content scene"))
+                .clicked()
+            {
+                let source = bozzard_scene::scene_loading::SceneSource::Content {
+                    catalog: self.blueprint_pane.scene_file.clone(),
+                    address: self.blueprint_pane.scene_address.clone(),
+                };
+                let result = self
+                    .editor
+                    .set_runtime_scene_source(&self.blueprint_pane.scene_name, Some(source));
+                self.result(result);
+            }
+        });
+    }
     pub fn blueprint_ui(&mut self, ui: &mut egui::Ui) {
         self.viewport_rect = None;
         self.mouse_captured = false;
@@ -270,6 +359,7 @@ impl App {
         if let Some(play) = &mut self.editor.play {
             play.clear_gameplay_input();
         }
+        self.runtime_scene_menu(ui);
         self.blueprint_object_picker(ui);
         let object = if let Some(play) = &self.editor.play {
             let owner = self
@@ -625,29 +715,7 @@ impl App {
                 });
             });
         }
-        ui.menu_button("Runtime scenes", |ui| {
-            for name in self.editor.scene().runtime_scenes.keys() {
-                ui.label(name);
-            }
-            ui.add(
-                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_name)
-                    .hint_text("Scene name"),
-            );
-            ui.add(
-                egui::TextEdit::singleline(&mut self.blueprint_pane.scene_file)
-                    .hint_text("Scene JSON path"),
-            );
-            if ui
-                .add_enabled(editing, egui::Button::new("Import scene into library"))
-                .clicked()
-            {
-                let result = self.editor.import_runtime_scene(
-                    &self.blueprint_pane.scene_name,
-                    &PathBuf::from(&self.blueprint_pane.scene_file),
-                );
-                self.result(result);
-            }
-        });
+
         if let Err(error) = graph.validate() {
             ui.colored_label(Color32::LIGHT_RED, format!("Draft is invalid: {error:#}"));
             let stale = graph.stale_wires();

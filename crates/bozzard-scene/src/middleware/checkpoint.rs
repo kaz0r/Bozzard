@@ -282,3 +282,47 @@ pub fn clear(world: &mut World) {
     world.remove_resource::<animation::Runtime>();
     world.remove_resource::<super::signals::Signals>();
 }
+
+/// Release only a departing scene's state; shared mixer settings and other levels survive.
+pub(crate) fn remove_objects(world: &mut World, ids: &std::collections::BTreeSet<String>) {
+    if let Some(runtime) = world.resource_mut::<ui::Runtime>() {
+        runtime.widgets.retain(|id, _| !ids.contains(id));
+        for focus in [&mut runtime.focus, &mut runtime.active] {
+            if focus.as_ref().is_some_and(|id| ids.contains(id)) {
+                *focus = None;
+            }
+        }
+    }
+    if let Some(runtime) = world.resource_mut::<sprite::Runtime>() {
+        runtime.remove_objects(ids);
+    }
+    if let Some(runtime) = world.resource_mut::<navigation::Runtime>() {
+        runtime.agents.retain(|id, _| !ids.contains(id));
+        for agent in runtime.agents.values_mut() {
+            if agent.target.as_ref().is_some_and(|id| ids.contains(id)) {
+                agent.target = None;
+                agent.path.clear();
+                agent.cursor = 0;
+                agent.sees_target = false;
+            }
+        }
+    }
+    if let Some(runtime) = world.resource_mut::<audio::Runtime>() {
+        runtime.voices.retain(|id, _| !ids.contains(id));
+        runtime.finished.retain(|id| !ids.contains(id));
+    }
+    if let Some(runtime) = world.resource_mut::<animation::Runtime>() {
+        runtime.players.retain(|id, _| !ids.contains(id));
+    }
+    if let Some(runtime) = world.resource_mut::<timeline::Runtime>() {
+        runtime.players.retain(|id, _| !ids.contains(id));
+        runtime.cameras.retain(|_, id| !ids.contains(id));
+    }
+    if let Some(runtime) = world.resource_mut::<tween::Runtime>() {
+        runtime.players.retain(|id, _| !ids.contains(id));
+        runtime.finished.retain(|id| !ids.contains(id));
+    }
+    if let Some(signals) = world.resource_mut::<super::signals::Signals>() {
+        signals.remove_objects(ids);
+    }
+}

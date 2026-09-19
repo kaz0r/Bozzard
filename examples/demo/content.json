@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "demo-content",
+  "name": "Bozzard content examples",
+  "cook": "universal",
+  "scenes": {
+    "levels/workshop": "scenes/model-lab.json",
+    "levels/middleware": "scenes/middleware-lab.json",
+    "levels/ui": "scenes/ui-2d-lab.json"
+  },
+  "assets": {
+    "props/courier": { "kind": "mesh", "path": "scenes/assets/courier.glb" },
+    "sounds/chime": { "kind": "audio", "path": "scenes/assets/middleware-chime.ogg" }
+  }
+}

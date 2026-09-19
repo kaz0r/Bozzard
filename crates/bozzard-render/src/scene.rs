@@ -17,8 +17,11 @@ mod sprites;
 pub use sprites::{SpriteGeometry, SpriteMesh, SpriteQuad};
 mod text;
 pub use text::{ScreenText, TextAlignment, TextMesh, text_bounds};
+mod instancing;
 mod visibility;
 pub use visibility::FrameStats;
+mod occlusion;
+pub use occlusion::OcclusionResult;
 mod fog;
 pub use fog::FogSettings;
 mod environment;
@@ -53,7 +56,10 @@ mod shadows;
 mod spot_shadows;
 mod upload;
 pub use lighting::Lighting;
-pub use upload::{PendingUpload, UploadContext, UploadData, UploadProgress, UploadSource};
+pub use upload::{
+    BlockCompression, CompressedImage, PendingUpload, UploadContext, UploadData, UploadProgress,
+    UploadSource, upload_memory_bytes,
+};
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 const OBJECT_UNIFORM_BYTES: usize = 496;
 
@@ -193,6 +199,10 @@ struct PreparedDraw {
     transparent: bool,
     depth: f32,
 }
+struct DrawCall<'a> {
+    instances: u32,
+    indirect: Option<(&'a wgpu::Buffer, u64)>,
+}
 
 /// One shader graph's two host flavors, opaque and transparent each.
 struct GraphPipelines {
@@ -232,7 +242,9 @@ pub struct SceneRenderer {
     text: Option<text::TextRenderer>,
     stats: FrameStats,
     culling: bool,
+    occlusion: occlusion::Occlusion,
     state_caching: bool,
+    instancing: instancing::Instancing,
     environment: environment::Environment,
     display: display::Display,
     shadows: shadows::Shadows,
@@ -644,6 +656,17 @@ impl SceneRenderer {
                 label: Some("scene object layout"),
                 entries: &entries,
             });
+        entries[0].ty = wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: wgpu::BufferSize::new(instancing::BUFFER_BYTES as u64),
+        };
+        let instance_layout =
+            gpu.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("instanced object layout"),
+                    entries: &entries,
+                });
         let shadows = shadows::Shadows::new(gpu, &layout);
         let pipeline_layout = gpu
             .device
@@ -706,7 +729,9 @@ impl SceneRenderer {
             stats: Default::default(),
             profiler: Default::default(),
             culling: true,
+            occlusion: Default::default(),
             state_caching: true,
+            instancing: instancing::Instancing::new(instance_layout),
             environment,
             display,
             shadows,
@@ -824,6 +849,22 @@ impl SceneRenderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let binding = self.texture_binding(gpu, key, &buffer, &self.layout)?;
+        Ok(ObjectBinding {
+            buffer,
+            texture: key.clone(),
+            binding,
+            uniform: None,
+        })
+    }
+
+    fn texture_binding(
+        &self,
+        gpu: &Gpu,
+        key: &TextureKind,
+        buffer: &wgpu::Buffer,
+        layout: &wgpu::BindGroupLayout,
+    ) -> Result<wgpu::BindGroup> {
         let bind = |texture: &wgpu::TextureView| {
             let mut entries = vec![
                 wgpu::BindGroupEntry {
@@ -864,18 +905,12 @@ impl SceneRenderer {
             }
             gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("scene object bindings"),
-                layout: &self.layout,
+                layout,
                 entries: &entries,
             })
         };
         let texture = self.texture_view(key)?;
-        let binding = bind(texture);
-        Ok(ObjectBinding {
-            buffer,
-            texture: key.clone(),
-            binding,
-            uniform: None,
-        })
+        Ok(bind(texture))
     }
 
     fn texture_view(&self, key: &TextureKind) -> Result<&wgpu::TextureView> {
@@ -908,10 +943,12 @@ impl SceneRenderer {
     }
 
     fn invalidate_object_bindings(&mut self) {
+        self.occlusion.invalidate();
         if let Some(hud) = &mut self.hud {
             hud.invalidate();
         }
         self.objects.clear();
+        self.instancing.bindings.clear();
         self.shadow_frame = None;
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
@@ -955,6 +992,23 @@ impl SceneRenderer {
         self.transparent_textures.remove(id);
         self.model_upload_stats.remove(id);
         self.invalidate_object_bindings();
+    }
+
+    /// Give an immutable uploaded image another catalog ID without copying GPU
+    /// storage. Texture-view handles keep the allocation alive independently.
+    pub fn alias_image(&mut self, source: &str, target: &str) -> Result<()> {
+        let image = self
+            .imported_textures
+            .get(source)
+            .context("image alias source missing")?
+            .clone();
+        let transparent = self.transparent_textures.contains(source);
+        self.remove_asset(target);
+        self.imported_textures.insert(target.into(), image);
+        if transparent {
+            self.transparent_textures.insert(target.into());
+        }
+        Ok(())
     }
 
     pub fn upload_mesh(
@@ -1381,26 +1435,41 @@ impl SceneRenderer {
         &self,
         pass: &mut wgpu::RenderPass<'_>,
         draw: &PreparedDraw,
-        binding: &ObjectBinding,
+        binding: &wgpu::BindGroup,
         auxiliary: bool,
-        last_pipeline: &mut Option<(bool, Option<u64>, bool)>,
+        call: DrawCall<'_>,
+        last_pipeline: &mut Option<(bool, Option<u64>, bool, bool)>,
     ) -> (u64, usize) {
+        let DrawCall {
+            instances,
+            indirect,
+        } = call;
         let mut binds = 0;
         let object = &draw.object;
         let shading = match &object.mesh {
             MeshKind::ModelPart(id, index) => self.models[id][*index].shading.as_ref(),
             _ => None,
         };
-        let key = (shading.is_some(), draw.shader, draw.transparent);
-        let pipeline = match key {
-            (true, Some(id), false) => &self.graphs[&(id, auxiliary)].pbr[0],
-            (true, Some(id), true) => &self.graphs[&(id, auxiliary)].pbr[1],
-            (false, Some(id), false) => &self.graphs[&(id, auxiliary)].basic[0],
-            (false, Some(id), true) => &self.graphs[&(id, auxiliary)].basic[1],
-            (true, None, false) => &self.pbr.opaque[usize::from(auxiliary)],
-            (true, None, true) => &self.pbr.transparent[usize::from(auxiliary)],
-            (false, None, false) => &self.pipeline[usize::from(auxiliary)],
-            (false, None, true) => &self.transparent_pipeline[usize::from(auxiliary)],
+        let key = (
+            shading.is_some(),
+            draw.shader,
+            draw.transparent,
+            instances > 1,
+        );
+        let pipeline = if instances > 1 {
+            &self.instancing.pipelines.as_ref().unwrap().pipelines[usize::from(auxiliary)]
+                [usize::from(shading.is_some())]
+        } else {
+            match (key.0, key.1, key.2) {
+                (true, Some(id), false) => &self.graphs[&(id, auxiliary)].pbr[0],
+                (true, Some(id), true) => &self.graphs[&(id, auxiliary)].pbr[1],
+                (false, Some(id), false) => &self.graphs[&(id, auxiliary)].basic[0],
+                (false, Some(id), true) => &self.graphs[&(id, auxiliary)].basic[1],
+                (true, None, false) => &self.pbr.opaque[usize::from(auxiliary)],
+                (true, None, true) => &self.pbr.transparent[usize::from(auxiliary)],
+                (false, None, false) => &self.pipeline[usize::from(auxiliary)],
+                (false, None, true) => &self.transparent_pipeline[usize::from(auxiliary)],
+            }
         };
         if !self.state_caching || *last_pipeline != Some(key) {
             pass.set_pipeline(pipeline);
@@ -1421,7 +1490,7 @@ impl SceneRenderer {
                 MeshKind::Imported(id) => &self.imported_meshes[id],
                 MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
             });
-        pass.set_bind_group(0, &binding.binding, &[]);
+        pass.set_bind_group(0, binding, &[]);
         pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
         pass.set_vertex_buffer(
             2,
@@ -1441,8 +1510,12 @@ impl SceneRenderer {
             );
         }
         pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..mesh.count, 0, 0..1);
-        (u64::from(mesh.count / 3), binds)
+        if let Some((buffer, offset)) = indirect {
+            pass.draw_indexed_indirect(buffer, offset);
+        } else {
+            pass.draw_indexed(0..mesh.count, 0, 0..instances);
+        }
+        (u64::from(mesh.count / 3) * u64::from(instances), binds)
     }
     fn prepare(&self, scene: &RenderScene) -> Vec<PreparedDraw> {
         let mut draws = Vec::new();
@@ -1797,6 +1870,10 @@ impl SceneRenderer {
                 graph_sources.insert((shader.id, auxiliary), shader.clone());
             }
         }
+        ensure!(
+            graph_sources.len() <= 256,
+            "a rendered view supports at most 256 active shader variants"
+        );
         self.idle_graphs
             .retain(|id| !graph_sources.contains_key(id));
         for id in self
@@ -1931,6 +2008,16 @@ impl SceneRenderer {
                 self.stats.object_uniform_writes += 1;
             }
         }
+        let batches = self.prepare_instances(gpu, &draws, &visible)?;
+        let occlusion = self.prepare_occlusion(
+            gpu,
+            &mut encoder,
+            view_projection,
+            size,
+            &draws,
+            &visible,
+            &batches,
+        );
         let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
         self.stats.shadow_cache_hit =
             self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
@@ -2090,12 +2177,37 @@ impl SceneRenderer {
             self.environment
                 .background(&mut pass, scene.environment, auxiliary);
             let mut last_pipeline = None;
-            for ((draw, binding), visible) in draws.iter().zip(&self.objects).zip(&visible) {
-                if !visible || has_particles && draw.transparent {
+            for (batch_index, batch) in batches.iter().enumerate() {
+                if occlusion == occlusion::Mode::Cached
+                    && !self.occlusion.batch_visible(batch_index)
+                {
                     continue;
                 }
-                let (triangles, binds) =
-                    self.draw_prepared(&mut pass, draw, binding, auxiliary, &mut last_pipeline);
+                let draw = &draws[batch.range.start];
+                if has_particles && draw.transparent {
+                    continue;
+                }
+                let binding = batch
+                    .slot
+                    .map_or(&self.objects[batch.range.start].binding, |slot| {
+                        &self.instancing.bindings[slot].binding
+                    });
+                let count = batch.range.len() as u32;
+                let (triangles, binds) = self.draw_prepared(
+                    &mut pass,
+                    draw,
+                    binding,
+                    auxiliary,
+                    DrawCall {
+                        instances: count,
+                        indirect: (occlusion == occlusion::Mode::Indirect)
+                            .then(|| (self.occlusion.arguments(), batch_index as u64 * 20)),
+                    },
+                    &mut last_pipeline,
+                );
+                self.stats.color_draws += 1;
+                self.stats.instanced_draws += usize::from(count > 1);
+                self.stats.instanced_surfaces += if count > 1 { count as usize } else { 0 };
                 self.stats.color_triangles += triangles;
                 self.stats.pipeline_binds += binds;
             }
@@ -2138,10 +2250,15 @@ impl SceneRenderer {
                 let (triangles, binds) = self.draw_prepared(
                     &mut pass,
                     &draws[index],
-                    &self.objects[index],
+                    &self.objects[index].binding,
                     true,
+                    DrawCall {
+                        instances: 1,
+                        indirect: None,
+                    },
                     &mut None,
                 );
+                self.stats.color_draws += 1;
                 self.stats.color_triangles += triangles;
                 self.stats.pipeline_binds += binds;
             }
@@ -2184,6 +2301,7 @@ impl SceneRenderer {
         self.stats.encode_ms = encode_started.elapsed().as_secs_f64() * 1000.;
         let submit_started = std::time::Instant::now();
         self.profiler.submit(gpu, encoder);
+        self.occlusion.submitted();
         if has_particles {
             self.particles.as_mut().unwrap().submitted();
         }

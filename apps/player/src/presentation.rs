@@ -109,11 +109,18 @@ pub fn extract(
             .into_iter()
             .zip(view.object_ids)
             .zip(view.shader_graphs)
-            .filter(|(((_, d), _), _)| {
+            .zip(view.material_instances)
+            .filter(|((((_, d), _), _), _)| {
                 !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
             })
             .map(
-                |(((model, drawable), motion_id), shader)| -> Result<DrawItem> {
+                |((((model, mut drawable), motion_id), shader), binding)| -> Result<DrawItem> {
+                    let shader = bozzard_render_assets::material_binding(
+                        &mut drawable,
+                        binding.as_deref(),
+                        shader.as_deref(),
+                        assets,
+                    )?;
                     Ok(DrawItem {
                         motion_id,
                         model,
@@ -149,10 +156,7 @@ pub fn extract(
                                 |handle| TextureKind::Generated(*handle),
                             ),
                             lit: layer == Layer::ThreeD,
-                            shader: shader
-                                .as_deref()
-                                .map(bozzard_render_assets::shader_source)
-                                .transpose()?,
+                            shader,
                         },
                     })
                 },
@@ -163,7 +167,8 @@ pub fn extract(
             .chain(
                 view.texts
                     .into_iter()
-                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text)),
+                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text, assets))
+                    .collect::<Result<Vec<_>>>()?,
             )
             .collect(),
     })

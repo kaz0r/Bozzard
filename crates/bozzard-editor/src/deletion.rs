@@ -79,7 +79,7 @@ impl Editor {
         scene.objects.retain(|o| !objects.contains(&o.id));
         scene.prefabs.retain(|id, _| !objects.contains(id));
         scene.assets.retain(|id, _| !ids.contains(id));
-        scene.validate().context("Asset deletion would leave protected references or a partial prefab; clear references or unpack first")?;
+        self.validate_document(&scene).context("Asset deletion would leave protected references or a partial prefab; clear references or unpack first")?;
         let mut assets = self.cached_assets(&scene, &self.path)?;
         // Refresh observed dependencies before checking shared source-file ownership.
         assets.refresh();

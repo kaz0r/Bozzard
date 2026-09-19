@@ -1,7 +1,9 @@
 //! Shared simulation for the native player and the headless executable.
+mod prefab_sources;
 mod prefabs;
 use bozzard_app::{App, Entity, Plugin};
 use bozzard_scene::{GameplayInput, GameplayState, Scene, SceneInstance, Spin, Transform};
+pub use prefab_sources::{ResolvedPrefab, load_prefab, resolve_prefab};
 use std::{
     io::Write,
     path::Path,
@@ -20,6 +22,64 @@ pub fn save_document_from(scene: &Scene, path: &Path, source: Option<&Path>) -> 
     save_document(&prepare_document_from(scene, path, source)?, path)
 }
 
+/// Rebase through existing ancestor directories; the lazy target need not exist yet.
+pub fn relative_reference(target: &Path, root: &Path) -> anyhow::Result<String> {
+    use anyhow::{Context, ensure};
+    use std::path::{Component, PathBuf};
+    fn normalized(path: &Path) -> anyhow::Result<PathBuf> {
+        let absolute = std::path::absolute(path)?;
+        let mut ancestor = absolute.as_path();
+        let mut suffix = Vec::new();
+        let canonical = loop {
+            if let Ok(canonical) = ancestor.canonicalize() {
+                break canonical;
+            }
+            match ancestor.components().next_back() {
+                Some(Component::Normal(name)) => suffix.push(name.to_owned()),
+                Some(Component::ParentDir) => suffix.push("..".into()),
+                Some(Component::CurDir) => suffix.push(".".into()),
+                _ => break ancestor.to_owned(),
+            }
+            ancestor = ancestor.parent().context("path has no existing ancestor")?;
+        };
+        let mut canonical = canonical;
+        for part in suffix.into_iter().rev() {
+            canonical.push(part);
+        }
+        let mut result = PathBuf::new();
+        for part in canonical.components() {
+            match part {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    result.pop();
+                }
+                _ => result.push(part.as_os_str()),
+            }
+        }
+        Ok(result)
+    }
+    let root = normalized(root)?;
+    let target = normalized(target)?;
+    let from: Vec<_> = root.components().collect();
+    let to: Vec<_> = target.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    ensure!(
+        common > 0 && from.first() == to.first(),
+        "scene assets cannot cross filesystem roots"
+    );
+    let mut relative = PathBuf::new();
+    for _ in common..from.len() {
+        relative.push("..");
+    }
+    for part in &to[common..] {
+        relative.push(part.as_os_str());
+    }
+    Ok(relative
+        .to_str()
+        .context("scene path is not UTF-8")?
+        .replace('\\', "/"))
+}
+
 /// Prepare rebased references without replacing the destination document.
 pub fn prepare_document_from(
     scene: &Scene,
@@ -27,7 +87,7 @@ pub fn prepare_document_from(
     source: Option<&Path>,
 ) -> anyhow::Result<Scene> {
     use anyhow::{Context, ensure};
-    if scene.assets.is_empty() {
+    if scene.assets.is_empty() && scene.runtime_scene_sources.is_empty() {
         scene.validate()?;
         return Ok(scene.clone());
     }
@@ -68,6 +128,20 @@ pub fn prepare_document_from(
             .to_str()
             .context("asset path is not UTF-8")?
             .replace('\\', "/");
+    }
+    for input in saved.runtime_scene_sources.values_mut() {
+        use bozzard_scene::scene_loading::SceneSource;
+        match input {
+            SceneSource::File { path } => {
+                *path = relative_reference(&root.join(&*path), &destination)?
+            }
+            SceneSource::Content { catalog, .. }
+                if !catalog.starts_with("https://") && !catalog.starts_with("http://") =>
+            {
+                *catalog = relative_reference(&root.join(&*catalog), &destination)?;
+            }
+            _ => {}
+        }
     }
     for level in saved.runtime_scenes.values_mut() {
         for (id, asset) in &mut std::sync::Arc::make_mut(level).assets {
@@ -127,6 +201,54 @@ pub fn scene_document() -> anyhow::Result<Scene> {
 #[derive(Default)]
 struct SimulationStatus {
     error: Option<String>,
+}
+
+/// File-backed dependencies prepared without spawning a second runtime world.
+pub struct RuntimeSceneFiles {
+    pub scene: Scene,
+    pub templates: std::collections::BTreeMap<String, bozzard_scene::Prefab>,
+    pub sources: std::collections::BTreeMap<String, String>,
+    pub kernels: std::collections::BTreeMap<String, std::sync::Arc<bozzard_scene::compute::Kernel>>,
+}
+
+pub fn prepare_runtime_files(
+    document: &Scene,
+    path: Option<&Path>,
+    progress: &bozzard_app::job::Progress,
+) -> anyhow::Result<RuntimeSceneFiles> {
+    progress.stage("Preparing prefab catalog")?;
+    let mut scene = document.clone();
+    let mut templates = std::collections::BTreeMap::new();
+    // Prefabs first: loading them merges the catalog of every prefab a scene can spawn into the
+    // scene, and a prefab member may carry scripts of its own. Script sources are then read
+    // once, next to the prefabs, so ticks never do file I/O.
+    let (main, loaded) = prefabs::load(document, path, progress)?;
+    scene.assets = main.assets;
+    templates.extend(loaded);
+    for (name, level) in &document.runtime_scenes {
+        progress.stage(format!("Preparing runtime scene {name}"))?;
+        let mut source = level.as_ref().clone();
+        source.assets = scene.assets.clone();
+        let (mut prepared, loaded) = prefabs::load(&source, path, progress)?;
+        scene.assets.extend(prepared.assets.clone());
+        templates.extend(loaded);
+        prepared.runtime_scenes.clear();
+        scene
+            .runtime_scenes
+            .insert(name.clone(), std::sync::Arc::new(prepared));
+    }
+    for level in scene.runtime_scenes.values_mut() {
+        std::sync::Arc::make_mut(level).assets = scene.assets.clone();
+    }
+    // Load the final shared catalog once, after every level has contributed dependencies.
+    let sources = bozzard_scene::load_sources_with_progress(&scene, path, progress)?;
+    let kernels = bozzard_scene::load_compute_kernels_with_progress(&scene, path, progress)?;
+    Ok(RuntimeSceneFiles {
+        scene,
+        templates,
+        sources,
+        kernels,
+    })
 }
 
 pub struct SceneDemo {
@@ -247,6 +369,9 @@ impl SceneDemo {
         self.app.world.insert_resource(GameplayInput {
             movement: input.movement,
             keys: input.keys,
+            pressed_keys: previous.pressed_keys
+                | input.pressed_keys
+                | (input.keys & !previous.keys),
             jump: previous.jump || input.jump,
             fire: previous.fire || input.fire,
             interact: previous.interact || input.interact,
@@ -271,34 +396,22 @@ impl SceneDemo {
         Ok(())
     }
     pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
-        let mut scene = document.clone();
-        let mut templates = std::collections::BTreeMap::new();
-        // Prefabs first: loading them merges the catalog of every prefab a scene can spawn into the
-        // scene, and a prefab member may carry scripts of its own. Script sources are then read
-        // once, next to the prefabs, so ticks never do file I/O.
-        let mut sources = std::collections::BTreeMap::new();
-        let (main, loaded) = prefabs::load(document, path)?;
-        scene.assets = main.assets;
-        templates.extend(loaded);
-        sources.extend(bozzard_scene::load_sources(&scene, path)?);
-        for (name, level) in &document.runtime_scenes {
-            let mut source = level.as_ref().clone();
-            source.assets = scene.assets.clone();
-            let (mut prepared, loaded) = prefabs::load(&source, path)?;
-            scene.assets.extend(prepared.assets.clone());
-            source.assets = scene.assets.clone();
-            sources.extend(bozzard_scene::load_sources(&source, path)?);
-            templates.extend(loaded);
-            prepared.runtime_scenes.clear();
-            scene
-                .runtime_scenes
-                .insert(name.clone(), std::sync::Arc::new(prepared));
-        }
-        for level in scene.runtime_scenes.values_mut() {
-            std::sync::Arc::make_mut(level).assets = scene.assets.clone();
-        }
-        let kernels = bozzard_scene::load_compute_kernels(&scene, path)?;
+        Self::new_with_prefabs_progress(document, path, &bozzard_app::job::Progress::default())
+    }
+    pub fn new_with_prefabs_progress(
+        document: &Scene,
+        path: Option<&Path>,
+        progress: &bozzard_app::job::Progress,
+    ) -> anyhow::Result<Self> {
+        let RuntimeSceneFiles {
+            scene,
+            templates,
+            sources,
+            kernels,
+        } = prepare_runtime_files(document, path, progress)?;
+        progress.stage("Preparing runtime world")?;
         let mut demo = Self::new(&scene)?;
+        progress.check()?;
         let directory = std::env::var_os("BOZZARD_SAVE_DIR")
             .map(std::path::PathBuf::from)
             .or_else(|| {
@@ -323,12 +436,18 @@ impl SceneDemo {
         }
         demo.with_instance(|instance, _| -> anyhow::Result<()> {
             for (asset, prefab) in templates {
+                progress.check()?;
                 instance.register_prefab(asset, prefab)?;
             }
-            instance.register_scripts(sources)?;
+            for (asset, source) in sources {
+                progress.stage(format!("Compiling script {asset}"))?;
+                instance.register_script(asset, source)?;
+            }
+            instance.register_scripts(Default::default())?;
             instance.register_compute_kernels(kernels)?;
             Ok(())
         })?;
+        progress.check()?;
         Ok(demo)
     }
     pub fn new(document: &Scene) -> anyhow::Result<Self> {
@@ -549,6 +668,7 @@ mod tests {
             jump: true,
             fire: true,
             interact: true,
+            ..Default::default()
         });
         demo.clear_gameplay_input();
         demo.app.step();

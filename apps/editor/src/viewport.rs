@@ -1,6 +1,15 @@
 use super::framing::{fit_2d, fit_3d};
 use super::*;
 use glam::Mat4;
+pub(super) fn pointer_hits(
+    ctx: &egui::Context,
+    rect: Rect,
+    layer: egui::LayerId,
+    pos: Pos2,
+) -> bool {
+    rect.contains(pos) && ctx.layer_id_at(pos) == Some(layer)
+}
+
 fn gameplay_orbit(response: &egui::Response, scene_captures_pointer: bool) -> Vec2 {
     // dragged_by reads the Context too: never call it while input holds egui's lock.
     // A scene that asks for cursor capture gets no-button look: the editor cannot lock
@@ -296,6 +305,7 @@ pub fn filter_fly_tab(
 
 impl App {
     pub fn viewport(&mut self, ui: &mut egui::Ui) -> Result<()> {
+        self.open_scenes.sync_view(&self.editor)?;
         // Hierarchy is drawn first; consume its request once, using the current
         // viewport dimensions and the same bounds/fitting path as F and toolbar.
         let hierarchy_frame = std::mem::take(&mut self.hierarchy_frame_requested);
@@ -333,6 +343,7 @@ impl App {
             ui.separator();
             ui.selectable_value(&mut self.workspace.layer_2d, false, "3D");
             ui.selectable_value(&mut self.workspace.layer_2d, true, "2D");
+            ui.toggle_value(&mut self.level_tools.visible, "Build");
             ui.menu_button("View", |ui| {
                 ui.checkbox(&mut self.workspace.colliders_visible, "Collider guides");
                 ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
@@ -386,7 +397,9 @@ impl App {
         }
         let can_navigate = ui.is_enabled()
             && self.drag.is_none()
-            && self.residency.has_all(&self.editor.assets)
+            && self
+                .residency
+                .has_required(&self.open_scenes.view(&self.editor).assets)
             && self.editor.play.is_none()
             && self.dialog.is_none()
             && !self.confirm_discard
@@ -413,18 +426,11 @@ impl App {
             self.mouse_captured = false;
         }
         self.sync_assets()?;
-        self.residency.advance(
-            &self.gpu,
-            &mut self.renderer,
-            &self.editor.assets,
-            4 * 1024 * 1024,
-        )?;
         if self
             .editor
             .assets
             .entries()
             .any(|entry| entry.data().is_none())
-            || !self.residency.has_all(&self.editor.assets)
         {
             self.viewport_rect = None;
             ui.centered_and_justified(|ui| {
@@ -432,8 +438,6 @@ impl App {
                     "An asset could not load. See Assets for details; repair the file and reload."
                 } else if self.reload_paused {
                     "Loading paused. Click Reload in Assets to continue."
-                } else if self.editor.assets.entries().all(|entry| entry.data().is_some()) {
-                    "Preparing graphics resources… See upload progress below."
                 } else {
                     "Loading scene assets…"
                 });
@@ -443,6 +447,8 @@ impl App {
         let available = ui.available_size().max(Vec2::splat(1.0));
         let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
         self.viewport_rect = Some(rect);
+        self.viewport_layer = ui.layer_id();
+        let hits_viewport = |pos| pointer_hits(ui.ctx(), rect, ui.layer_id(), pos);
         let mut ui_consumed = false;
         let layer = self.layer();
         if let Some(play) = &mut self.editor.play {
@@ -470,13 +476,17 @@ impl App {
                             ui_consumed |= play.ui_input(
                                 layer,
                                 size,
-                                Input::PointerMove([(pos - rect.min).x, (pos - rect.min).y]),
+                                if hits_viewport(pos) {
+                                    Input::PointerMove([(pos - rect.min).x, (pos - rect.min).y])
+                                } else {
+                                    Input::CancelPointer
+                                },
                             )?;
                         }
                         egui::Event::MouseWheel { unit, delta, .. } => {
                             if let Some(pos) = ui
                                 .input(|i| i.pointer.hover_pos())
-                                .filter(|p| rect.contains(*p))
+                                .filter(|p| hits_viewport(*p))
                             {
                                 let amount = -delta.y
                                     * match unit {
@@ -504,7 +514,7 @@ impl App {
                             ..
                         } => {
                             let point = [(pos - rect.min).x, (pos - rect.min).y];
-                            if !pressed || rect.contains(pos) {
+                            if hits_viewport(pos) {
                                 ui_consumed |= play.ui_input(
                                     layer,
                                     size,
@@ -514,6 +524,8 @@ impl App {
                                         Input::PointerUp(point)
                                     },
                                 )?;
+                            } else if !pressed {
+                                play.ui_input(layer, size, Input::CancelPointer)?;
                             }
                         }
                         egui::Event::Key {
@@ -601,11 +613,15 @@ impl App {
             for input in accessibility_inputs {
                 ui_consumed |= play.ui_input(layer, size, input)?;
             }
-            if ui.input(|i| i.pointer.hover_pos()).is_some_and(|pos| {
-                frame
-                    .hit([(pos - rect.min).x, (pos - rect.min).y])
-                    .is_some()
-            }) {
+            if ui
+                .input(|i| i.pointer.hover_pos())
+                .filter(|pos| hits_viewport(*pos))
+                .is_some_and(|pos| {
+                    frame
+                        .hit([(pos - rect.min).x, (pos - rect.min).y])
+                        .is_some()
+                })
+            {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if play
@@ -648,7 +664,9 @@ impl App {
             } else if selected {
                 self.editor.frame_selection_bounds(self.layer())
             } else {
-                self.editor.frame_bounds(self.layer(), None)
+                self.open_scenes
+                    .view(&self.editor)
+                    .frame_bounds(self.layer(), None)
             };
             match result {
                 Ok(Some(bounds)) => Some(bounds),
@@ -832,32 +850,26 @@ impl App {
                 size,
             });
         }
+        let view_editor = self.open_scenes.view(&self.editor);
         let aspect = size[0] as f32 / size[1] as f32;
         let layer = self.layer();
+        let inspection_pose = (self.editor.play.is_none() && layer == Layer::ThreeD)
+            .then(|| self.workspace.camera.as_ref().map(FlyCamera::pose))
+            .flatten();
         let mut scene = if self.editor.play.is_none() {
             if let Some(preview) = &mut self.effects_preview {
-                preview.render(&self.editor, layer, aspect)?
+                preview.render_from_camera(view_editor, layer, aspect, inspection_pose)?
             } else {
-                self.editor.render(layer, aspect)?
+                view_editor.render_from_camera(layer, aspect, inspection_pose)?
             }
         } else {
             self.editor.render(layer, aspect)?
         };
-        let widgets = self
-            .editor
-            .ui_frame(self.layer(), [rect.width(), rect.height()])?;
+        let widgets = view_editor.ui_frame(self.layer(), [rect.width(), rect.height()])?;
         scene.items.extend(bozzard_render_assets::widget_items(
             &widgets,
-            &self.editor.assets,
+            &view_editor.assets,
         )?);
-        if !self
-            .editor
-            .assets
-            .entries()
-            .all(|e| self.residency.is_current(&self.editor.assets, &e.id))
-        {
-            scene.gi = None;
-        }
         if self.editor.play.is_none() {
             ui.input(|i| {
                 for event in &i.events {
@@ -913,8 +925,11 @@ impl App {
                     )) * Mat4::from_scale(Vec3::new(self.workspace.zoom, self.workspace.zoom, 1.0))
                         * scene.view_projection;
             } else {
-                let doc = self.editor.scene();
-                let camera_id = &doc.views[&self.layer()];
+                let doc = view_editor.scene();
+                let camera_id = doc
+                    .views
+                    .get(&self.layer())
+                    .context("No visible scene supplies a camera for this view")?;
                 let authored_camera = doc
                     .objects
                     .iter()
@@ -1002,6 +1017,26 @@ impl App {
                             * 0.01,
                     );
                 }
+                // Navigation is processed after extraction. Refresh LOD immediately when
+                // that changes its view, including objects culled from the previous view.
+                if inspection_pose != Some(camera.pose())
+                    && doc.objects.iter().any(|o| o.lod.is_some())
+                {
+                    scene = if let Some(preview) = &mut self.effects_preview {
+                        preview.render_from_camera(
+                            view_editor,
+                            layer,
+                            aspect,
+                            Some(camera.pose()),
+                        )?
+                    } else {
+                        view_editor.render_from_camera(layer, aspect, Some(camera.pose()))?
+                    };
+                    scene.items.extend(bozzard_render_assets::widget_items(
+                        &widgets,
+                        &view_editor.assets,
+                    )?);
+                }
                 scene.view_projection = lens * camera.pose().inverse();
                 let position = camera.pose().transform_point3(Vec3::ZERO);
                 scene.display = bozzard_render_assets::display_settings(
@@ -1022,6 +1057,40 @@ impl App {
             scene.particles.clear();
             scene.fog.enabled = false;
         }
+        self.residency
+            .set_budget(Some(self.workspace.gpu_memory_mib as usize * 1024 * 1024));
+        self.residency.require_scene(&scene);
+        self.residency.advance(
+            &self.gpu,
+            &mut self.renderer,
+            &self.open_scenes.view(&self.editor).assets,
+            4 * 1024 * 1024,
+        )?;
+        if !self
+            .residency
+            .has_required(&self.open_scenes.view(&self.editor).assets)
+        {
+            self.viewport_rect = None;
+            self.viewport_stamp = None;
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                if self.reload_paused {
+                    "Graphics loading paused — Reload to retry"
+                } else {
+                    "Preparing graphics resources…"
+                },
+                egui::FontId::proportional(14.),
+                Color32::WHITE,
+            );
+            return Ok(());
+        }
+        if !self
+            .residency
+            .required_current(&self.open_scenes.view(&self.editor).assets)
+        {
+            scene.gi = None;
+        }
         let projection = scene.view_projection;
         let target = self.target.as_ref().unwrap();
         self.viewport_continuous = repaint::continuous(
@@ -1035,17 +1104,19 @@ impl App {
                 .any(|o| o.particle_emitter.is_some_and(|e| e.enabled)),
         );
         let stamp = repaint::ViewportStamp {
-            revision: self.editor.revision(),
-            catalog: self.editor.asset_revision(),
+            revision: self.open_scenes.view(&self.editor).revision(),
+            catalog: self.open_scenes.view(&self.editor).asset_revision(),
             assets: self
-                .editor
+                .open_scenes
+                .view(&self.editor)
                 .assets
                 .entries()
                 .map(|e| {
                     (
                         e.id.clone(),
                         e.revision(),
-                        self.residency.is_current(&self.editor.assets, &e.id),
+                        self.residency
+                            .is_current(&self.open_scenes.view(&self.editor).assets, &e.id),
                     )
                 })
                 .collect(),
@@ -1062,6 +1133,8 @@ impl App {
         };
         if self.viewport_continuous || self.viewport_stamp.as_ref() != Some(&stamp) {
             self.renderer.set_hud_scale(ppp);
+            self.renderer
+                .set_occlusion_enabled(self.workspace.occlusion_enabled);
             self.renderer.draw(&self.gpu, &target.view, size, &scene)?;
             self.viewport_stamp = Some(stamp);
             self.viewport_draws += 1;
@@ -1086,8 +1159,8 @@ impl App {
                 rect.left_top() + egui::vec2(8.0, 8.0 + collider_label_height),
                 egui::Align2::LEFT_TOP,
                 format!(
-                    "Draws {}/{} · {} tris · {} shadow draws · {} particles · CPU {:.2} ms",
-                    stats.visible_surfaces,
+                    "Draw commands {}/{} surfaces · {} submitted tris · {} shadow draws · {} particles · CPU {:.2} ms",
+                    stats.color_draws,
                     stats.surfaces,
                     stats.color_triangles,
                     stats.shadow_draws,
@@ -1143,10 +1216,31 @@ impl App {
             self.smoke_surface_gizmo_verified = true;
             println!("editor_submesh_gizmo_smoke_ok visible_move_rotate_scale");
         }
-        let handled = if self.editor.play.is_none() {
-            self.gizmo(ui, rect, projection)?
+        let building = if !self.workspace.layer_2d && self.editor.play.is_none() {
+            self.level_tools.viewport(
+                ui,
+                &response,
+                &mut self.editor,
+                level_tools::Viewport {
+                    rect,
+                    projection,
+                    prefs: &self.workspace.level,
+                    snapping: &self.workspace.snapping,
+                    enabled: ui.is_enabled()
+                        && self.loading.is_none()
+                        && !self.mouse_captured
+                        && !self.fly_latched
+                        && self.navigation_button.is_none()
+                        && !egui::Popup::is_any_open(ui.ctx()),
+                },
+            )?
         } else {
             false
+        };
+        let handled = if self.editor.play.is_none() && !building {
+            self.gizmo(ui, rect, projection)?
+        } else {
+            building
         };
         if response.clicked()
             && !self.mouse_captured
@@ -1163,21 +1257,36 @@ impl App {
             ];
             self.editor.finish_gesture();
             let current = self
-                .editor
-                .assets
-                .entries()
-                .filter(|e| matches!(e.data(), Some(bozzard_assets::AssetData::Mesh(_))))
-                .all(|e| self.residency.is_current(&self.editor.assets, &e.id));
+                .residency
+                .required_current(&self.open_scenes.view(&self.editor).assets);
             if current {
-                let hud = self.editor.pick_hud(self.layer(), size, ppp, ndc)?;
-                let pick = if let Some(object) = hud.or(light_pick) {
-                    Some(bozzard_editor::Pick {
+                let view = self.open_scenes.view(&self.editor);
+                let hud = view.pick_hud(self.layer(), size, ppp, ndc)?;
+                let picked = if let Some(object) = hud {
+                    self.open_scenes.owner(bozzard_editor::Pick {
                         object,
                         surface: None,
                     })
+                } else if let Some(object) = light_pick {
+                    Some((
+                        self.open_scenes.active(),
+                        bozzard_editor::Pick {
+                            object,
+                            surface: None,
+                        },
+                    ))
                 } else {
-                    self.editor
-                        .pick_surface_with_projection(self.layer(), projection, ndc)?
+                    view.pick_surface_with_projection(self.layer(), projection, ndc)?
+                        .and_then(|pick| self.open_scenes.owner(pick))
+                };
+                let pick = if let Some((owner, pick)) = picked {
+                    if owner != self.open_scenes.active() {
+                        self.open_scenes.activate(&mut self.editor, owner)?;
+                        self.scene_activated(true);
+                    }
+                    Some(pick)
+                } else {
+                    None
                 };
                 self.editor
                     .select_component_pick(transform_pick(pick, ui.input(|i| i.modifiers.alt)))?;
@@ -1566,6 +1675,48 @@ fn prefab_drop_position(projection: Mat4, rect: Rect, pointer: Pos2, layer: Laye
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn floating_panels_own_pointer_input_over_the_game_viewport() {
+        let ctx = egui::Context::default();
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(300.));
+        let mut scene_layer = egui::LayerId::background();
+        let mut floating = None;
+        // Establish the previous-frame hit-test state used by raw_input_hook too.
+        for _ in 0..2 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(rect),
+                    ..Default::default()
+                },
+                |ui| {
+                    scene_layer = ui.layer_id();
+                    ui.allocate_exact_size(Vec2::splat(300.), Sense::click_and_drag());
+                    egui::Area::new(egui::Id::new("floating inspector"))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(Pos2::new(80., 80.))
+                        .show(&ctx, |ui| {
+                            let (rect, _) =
+                                ui.allocate_exact_size(Vec2::splat(100.), Sense::click());
+                            floating = Some((rect, ui.layer_id()));
+                        });
+                },
+            );
+            output.textures_delta.clear();
+        }
+        let (floating_rect, floating_layer) = floating.unwrap();
+        let covered = floating_rect.center();
+        assert!(!pointer_hits(&ctx, rect, scene_layer, covered));
+        assert!(pointer_hits(&ctx, rect, scene_layer, Pos2::new(25., 25.)));
+        // The Scene pane can itself float, so eligibility follows its actual layer.
+        assert!(pointer_hits(&ctx, floating_rect, floating_layer, covered));
+        assert!(!pointer_hits(
+            &ctx,
+            floating_rect,
+            floating_layer,
+            Pos2::new(25., 25.)
+        ));
+    }
+
     #[test]
     fn play_viewport_pointer_presses_drags_and_releases_do_not_reenter_egui() {
         for button in [

@@ -18,7 +18,7 @@ mod compute_api;
 /// Largest accepted script source, matching the blueprint document limit.
 const MAX_SCRIPT_BYTES: usize = 1024 * 1024;
 /// Scripts a scene may compile, across every object.
-const MAX_SCRIPT_ASSETS: usize = 1024;
+pub(crate) const MAX_SCRIPT_ASSETS: usize = 1024;
 /// Instructions one hook may run, so a runaway loop fails the tick instead of hanging the game.
 const MAX_SCRIPT_OPERATIONS: u64 = 2_000_000;
 /// Deepest spatial query result a script may receive.
@@ -115,6 +115,7 @@ enum Command {
         value: f32,
     },
     Spawn {
+        owner: String,
         token: String,
         asset: String,
         position: [f32; 3],
@@ -163,6 +164,7 @@ struct Host {
     compute_kernels: BTreeMap<String, Arc<crate::compute::Kernel>>,
     dt: f32,
     elapsed: f32,
+    loading: crate::scene_loading::LoadStatus,
     input: GameplayInput,
     /// Held keys of this attachment before the tick, for `input_pressed`.
     held: u128,
@@ -292,6 +294,16 @@ pub struct ScriptRuntime {
 }
 
 impl ScriptRuntime {
+    pub(crate) fn remove_objects(&mut self, ids: &BTreeSet<String>) {
+        self.runs.retain(|(id, _), _| !ids.contains(id));
+        self.moved.retain(|id, _| !ids.contains(id));
+        self.tokens.retain(|_, id| !ids.contains(id));
+        for run in self.runs.values_mut() {
+            run.overlap.retain(|id| !ids.contains(id));
+            run.collisions.retain(|id| !ids.contains(id));
+        }
+    }
+
     /// Script output, oldest first, bounded like blueprint messages.
     pub fn messages(&self) -> impl Iterator<Item = &str> {
         self.messages.iter().map(String::as_str)
@@ -455,6 +467,18 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     // Object and clock reads, one per blueprint query node.
     read!("delta_time", (), |state| Ok(Dynamic::from(state.dt)));
     read!("elapsed_time", (), |state| Ok(Dynamic::from(state.elapsed)));
+    read!("scene_loading", (), |state| Ok(Dynamic::from(
+        state.loading.phase.busy()
+    )));
+    read!("scene_load_progress", (), |state| Ok(Dynamic::from(
+        state.loading.progress
+    )));
+    read!("loaded_scene_handle", (), |state| Ok(Dynamic::from(
+        state.loading.handle.clone()
+    )));
+    read!("scene_load_error", (), |state| Ok(Dynamic::from(
+        state.loading.error.clone()
+    )));
     read!(
         "is_valid_object",
         (target: ImmutableString), |state|
@@ -515,11 +539,10 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     for (name, pressed) in [("input_held", false), ("input_pressed", true)] {
         read!(name, (key: ImmutableString), |state| {
             let key = InputKey::parse(&key).map_err(|error| fail(format!("{error:#}")))?;
-            let active = key.active(state.input);
             Ok(Dynamic::from(if pressed {
-                active && (key.instant() || state.held & key.bit() == 0)
+                key.pressed(state.input, state.held)
             } else {
-                active
+                key.active(state.input)
             }))
         });
     }
@@ -819,7 +842,9 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                     .filter(|key| key.starts_with(SPAWN_PREFIX))
                     .count();
                 let token = format!("{SPAWN_PREFIX}{}/{serial}", state.owner);
+                let owner = state.owner.clone();
                 state.record(Command::Spawn {
+                    owner,
                     token: token.clone(),
                     asset: asset.to_string(),
                     position,
@@ -883,6 +908,9 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     for (name, kind) in [
         ("load_scene", blueprint::NodeKind::LoadScene),
         ("add_scene", blueprint::NodeKind::AddScene),
+        ("load_scene_async", blueprint::NodeKind::LoadSceneAsync),
+        ("add_scene_async", blueprint::NodeKind::AddSceneAsync),
+        ("unload_scene", blueprint::NodeKind::UnloadScene),
         ("save_game", blueprint::NodeKind::SaveGame),
         ("load_game", blueprint::NodeKind::LoadGame),
     ] {
@@ -891,6 +919,15 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             borrow!(host).record(Command::SceneControl {
                 kind,
                 name: scene.to_string(),
+            });
+        });
+    }
+    {
+        let host = host.clone();
+        engine.register_fn("cancel_scene_load", move || {
+            borrow!(host).record(Command::SceneControl {
+                kind: blueprint::NodeKind::CancelSceneLoad,
+                name: String::new(),
             });
         });
     }
@@ -1070,6 +1107,55 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     engine
 }
 
+fn compile_source(engine: &ScriptEngine, asset: &str, source: &str) -> Result<Arc<CompiledScript>> {
+    ensure!(
+        source.len() <= MAX_SCRIPT_BYTES,
+        "script '{asset}' exceeds 1 MiB"
+    );
+    let ast = engine
+        .engine
+        .compile(source)
+        .map_err(|error| anyhow::anyhow!("script '{asset}': {error}"))?;
+    let mut hooks = BTreeMap::new();
+    for function in ast.iter_functions() {
+        if let Some((name, args)) = HOOKS.iter().find(|(name, _)| *name == function.name) {
+            ensure!(
+                function.params.len() == *args,
+                "script '{asset}': {name} takes {args} argument(s), got {}",
+                function.params.len()
+            );
+            hooks.insert(function.name.to_owned(), function.params.len());
+        }
+    }
+    Ok(Arc::new(CompiledScript { ast, hooks }))
+}
+
+pub(crate) fn compile_sources(
+    sources: BTreeMap<String, String>,
+    progress: &bozzard_app::job::Progress,
+) -> Result<BTreeMap<String, Arc<CompiledScript>>> {
+    ensure!(
+        sources.len() <= MAX_SCRIPT_ASSETS,
+        "scene script catalog exceeds its limit"
+    );
+    ensure!(
+        sources.values().map(String::len).sum::<usize>() <= 32 * 1024 * 1024,
+        "scripts exceed 32 MiB"
+    );
+    if sources.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let engine = ScriptEngine::new();
+    sources
+        .into_iter()
+        .map(|(id, source)| {
+            progress.stage(format!("Compiling script {id}"))?;
+            let compiled = compile_source(&engine, &id, &source)?;
+            Ok((id, compiled))
+        })
+        .collect()
+}
+
 // ---------------------------------------------------------------- instance binding
 
 impl SceneInstance {
@@ -1087,13 +1173,15 @@ impl SceneInstance {
             self.register_script(asset, source)?;
         }
         for object in &self.document.objects {
-            for (index, attachment) in self
-                .document_attachments(&object.id)
-                .into_iter()
+            for (index, attachment) in object
+                .script_manager
+                .iter()
+                .flat_map(|manager| &manager.scripts)
                 .enumerate()
             {
+                let attachment = &attachment.script;
                 ensure!(
-                    self.scripts.contains_key(&attachment),
+                    self.scripts.contains_key(attachment),
                     "script '{attachment}' on '{}' (attachment {index}) was not loaded; \
                      the scene catalog does not list it as a script asset",
                     object.id
@@ -1127,31 +1215,11 @@ impl SceneInstance {
             "asset '{asset}' is not a script"
         );
         ensure!(
-            source.len() <= MAX_SCRIPT_BYTES,
-            "script '{asset}' exceeds 1 MiB"
-        );
-        ensure!(
             self.scripts.len() < MAX_SCRIPT_ASSETS,
             "scene compiles at most {MAX_SCRIPT_ASSETS} scripts"
         );
-        let engine = self.script_engine();
-        let ast = engine
-            .engine
-            .compile(&source)
-            .map_err(|error| anyhow::anyhow!("script '{asset}': {error}"))?;
-        let mut hooks = BTreeMap::new();
-        for function in ast.iter_functions() {
-            if let Some((name, args)) = HOOKS.iter().find(|(name, _)| *name == function.name) {
-                ensure!(
-                    function.params.len() == *args,
-                    "script '{asset}': {name} takes {args} argument(s), got {}",
-                    function.params.len()
-                );
-                hooks.insert(function.name.to_owned(), function.params.len());
-            }
-        }
-        self.scripts
-            .insert(asset, Arc::new(CompiledScript { ast, hooks }));
+        let compiled = compile_source(&self.script_engine(), &asset, &source)?;
+        self.scripts.insert(asset, compiled);
         Ok(())
     }
     fn script_engine(&self) -> Arc<ScriptEngine> {
@@ -1346,6 +1414,7 @@ impl SceneInstance {
         host.dt = dt;
         self.prepare_script_compute(host);
         host.elapsed = runtime.elapsed;
+        host.loading = self.scene_load_status(world);
         host.input = input;
         host.tokens = runtime.tokens.clone();
         host.geometry = snapshot.clone();
@@ -1644,11 +1713,12 @@ impl SceneInstance {
                 }
                 Command::Display { kind, value } => self.set_display_parameter(kind, value)?,
                 Command::Spawn {
+                    owner,
                     token,
                     asset,
                     position,
                 } => {
-                    let id = self.spawn_prefab(world, &asset, position)?;
+                    let id = self.spawn_prefab_for(world, &owner, &asset, position)?;
                     tokens.insert(token, id);
                 }
                 Command::Destroy { target } => destroy.push(resolve(tokens, &target)),
@@ -1748,7 +1818,11 @@ impl SceneInstance {
                     &mut budget,
                 )?;
             }
-            self.destroy_prefab_raw(world, target)
+            self.destroy_prefab_raw(world, target)?;
+            let ids = members.into_iter().collect();
+            blueprint_runtime.remove_objects(&ids);
+            runtime.remove_objects(&ids);
+            Ok(())
         })();
         world.insert_resource(blueprint_runtime);
         result
@@ -1878,7 +1952,7 @@ impl SceneInstance {
             false
         };
         if let Some(mut material) = world.get_mut::<Material>(entity) {
-            material.color = color;
+            material.set_color(color);
         } else if let Some(mut drawable) = world.get_mut::<Drawable>(entity) {
             // Legacy objects also colour the mesh using its source material.
             drawable.color = color;
@@ -1892,11 +1966,6 @@ impl SceneInstance {
     }
     /// `on_destroy` for every script of a scene being torn down, before its entities go.
     pub(crate) fn scene_script_destroy_events(&mut self, world: &mut World) -> Result<()> {
-        if !self.has_scripts() {
-            return Ok(());
-        }
-        let engine = self.script_engine();
-        let mut runtime = world.remove_resource::<ScriptRuntime>().unwrap_or_default();
         let owners: Vec<String> = self
             .document
             .objects
@@ -1904,8 +1973,29 @@ impl SceneInstance {
             .filter(|object| object.script_manager.is_some())
             .map(|object| object.id.clone())
             .collect();
+        self.object_script_destroy_events(world, &owners)
+    }
+    pub(crate) fn object_script_destroy_events(
+        &mut self,
+        world: &mut World,
+        owners: &[String],
+    ) -> Result<()> {
+        if !self.has_scripts() {
+            return Ok(());
+        }
+        let engine = self.script_engine();
+        let snapshot = Arc::new(self.collision_snapshot(world)?.0);
+        let mut runtime = world.remove_resource::<ScriptRuntime>().unwrap_or_default();
+        self.build_view(
+            world,
+            &mut engine.lock(),
+            &runtime,
+            &snapshot,
+            0.,
+            GameplayInput::default(),
+        );
         let result = (|| -> Result<()> {
-            for owner in &owners {
+            for owner in owners {
                 self.run_destroy_hooks(&engine, &mut runtime, owner)?;
             }
             Ok(())
@@ -1939,6 +2029,14 @@ pub fn load_sources(
     document: &Scene,
     path: Option<&std::path::Path>,
 ) -> Result<BTreeMap<String, String>> {
+    load_sources_with_progress(document, path, &bozzard_app::job::Progress::default())
+}
+pub fn load_sources_with_progress(
+    document: &Scene,
+    path: Option<&std::path::Path>,
+    progress: &bozzard_app::job::Progress,
+) -> Result<BTreeMap<String, String>> {
+    use std::io::Read;
     // Every `script` catalog entry is read, not only the ones an object names: a prefab member may
     // carry a script, and the loader merges that prefab's catalog into the scene before calling
     // this. Reading the whole catalog is cheap and leaves no source unbound.
@@ -1952,23 +2050,25 @@ pub fn load_sources(
         .iter()
         .filter(|(_, source)| source.kind == AssetKind::Script)
     {
+        progress.stage(format!("Reading script {id}"))?;
         ensure!(
             sources.len() < MAX_SCRIPT_ASSETS,
             "scene catalog holds at most {MAX_SCRIPT_ASSETS} scripts"
         );
-        let text = std::fs::read_to_string(root.join(&source.path))
-            .with_context(|| format!("loading script '{id}'"))?;
+        let mut text = String::new();
+        std::fs::File::open(root.join(&source.path))
+            .with_context(|| format!("loading script '{id}'"))?
+            .take(MAX_SCRIPT_BYTES as u64 + 1)
+            .read_to_string(&mut text)
+            .with_context(|| format!("reading script '{id}'"))?;
+        ensure!(
+            text.len() <= MAX_SCRIPT_BYTES,
+            "script '{id}' exceeds 1 MiB"
+        );
+        progress.check()?;
         bytes += text.len();
         ensure!(bytes <= 32 * 1024 * 1024, "scripts exceed 32 MiB");
         sources.insert(id.clone(), text);
-    }
-    if !sources.is_empty() {
-        for entry in sources.keys() {
-            ensure!(
-                document.assets[entry].kind == AssetKind::Script,
-                "script catalog entry changed while loading"
-            );
-        }
     }
     Ok(sources)
 }

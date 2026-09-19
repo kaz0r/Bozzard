@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "Collect Starter",
+  "start_scene": "scenes/main.json",
+  "view": "2d",
+  "cook": "universal"
+}

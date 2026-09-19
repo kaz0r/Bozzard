@@ -137,7 +137,7 @@ fn hud_picking_matches_anchor_at_two_display_scales_without_editing() {
         .text_rendering
         .as_ref()
         .unwrap();
-    let mesh = bozzard_render_assets::text_mesh(source);
+    let mesh = bozzard_render_assets::text_mesh(source, &editor.assets).unwrap();
     let [min, max] = bozzard_render::text_bounds(&mesh).unwrap().unwrap();
     for (size, scale) in [([800, 600], 1.), ([1600, 1200], 2.)] {
         let point = mesh

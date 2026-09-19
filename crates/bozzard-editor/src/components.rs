@@ -54,6 +54,10 @@ impl Editor {
             return Ok(Vec::new());
         }
         ensure!(
+            original.lod.is_none(),
+            "Remove LOD before converting a model into independent surfaces"
+        );
+        ensure!(
             !scene
                 .prefabs
                 .values()

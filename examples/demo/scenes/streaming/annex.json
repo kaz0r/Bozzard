@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "name": "Annex",
+  "views": {},
+  "assets": {
+    "annex-panel": {
+      "kind": "image",
+      "path": "../assets/middleware-panel.png"
+    }
+  },
+  "objects": [
+    {
+      "id": "annex-0",
+      "name": "Annex cube 1",
+      "transform": {
+        "translation": [
+          -2.2,
+          0.75,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.7,
+          1.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": {
+          "asset": "annex-panel"
+        },
+        "color": [
+          0.4,
+          1,
+          0.6
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "annex-1",
+      "name": "Annex cube 2",
+      "transform": {
+        "translation": [
+          0,
+          0.75,
+          -2.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.7,
+          1.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": {
+          "asset": "annex-panel"
+        },
+        "color": [
+          0.4,
+          1,
+          0.6
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "annex-2",
+      "name": "Annex cube 3",
+      "transform": {
+        "translation": [
+          2.2,
+          0.75,
+          -1.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.7,
+          1.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": {
+          "asset": "annex-panel"
+        },
+        "color": [
+          0.4,
+          1,
+          0.6
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

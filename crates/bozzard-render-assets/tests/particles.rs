@@ -32,11 +32,7 @@ fn capture(gpu: &Gpu, renderer: &mut SceneRenderer, scene: &RenderScene) -> Resu
 }
 #[test]
 fn gpu_motion_matches_headless_reference_and_transparent_surfaces_are_interleaved() -> Result<()> {
-    let gpu = pollster::block_on(Gpu::request(
-        &instance(Backend::native()),
-        None,
-        cfg!(not(target_os = "macos")),
-    ))?;
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
     let source = Scene::from_json(
         r#"{"version":1,"name":"Particle reference","views":{"3d":"camera"},"objects":[{"id":"camera","name":"Camera","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"camera":{"projection":"orthographic","vertical_size":6,"near":0.1,"far":20}},{"id":"effect","name":"Effect","transform":{"translation":[0,0,-5],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"particle_emitter":{"rate":48,"lifetime":4,"max_particles":64,"seed":123,"opacity":0.7}}]}"#,
     )?;

@@ -132,6 +132,13 @@ pub fn load_compute_kernels(
     document: &Scene,
     path: Option<&Path>,
 ) -> Result<BTreeMap<String, Arc<Kernel>>> {
+    load_compute_kernels_with_progress(document, path, &bozzard_app::job::Progress::default())
+}
+pub fn load_compute_kernels_with_progress(
+    document: &Scene,
+    path: Option<&Path>,
+    progress: &bozzard_app::job::Progress,
+) -> Result<BTreeMap<String, Arc<Kernel>>> {
     let root = path.and_then(Path::parent).unwrap_or(Path::new("."));
     let mut kernels = BTreeMap::new();
     let mut bytes = 0;
@@ -140,6 +147,7 @@ pub fn load_compute_kernels(
         .iter()
         .filter(|(_, a)| a.kind == AssetKind::ComputeShader)
     {
+        progress.stage(format!("Reading compute shader {id}"))?;
         ensure!(kernels.len() < 256, "scene exceeds 256 compute shaders");
         let mut text = String::new();
         std::fs::File::open(root.join(&source.path))
@@ -158,25 +166,33 @@ pub fn load_compute_kernels(
     Ok(kernels)
 }
 
+pub(crate) fn validate_kernels(
+    scene: &Scene,
+    kernels: &BTreeMap<String, Arc<Kernel>>,
+) -> Result<()> {
+    ensure!(kernels.len() <= 256, "scene exceeds 256 compute shaders");
+    for id in kernels.keys() {
+        ensure!(
+            scene
+                .assets
+                .get(id)
+                .is_some_and(|a| a.kind == AssetKind::ComputeShader),
+            "asset '{id}' is not a compute shader"
+        );
+    }
+    ensure!(
+        kernels.values().map(|k| k.source().len()).sum::<usize>() <= 32 * 1024 * 1024,
+        "compute shader sources exceed 32 MiB"
+    );
+    Ok(())
+}
+
 impl SceneInstance {
     pub fn register_compute_kernels(
         &mut self,
         kernels: BTreeMap<String, Arc<Kernel>>,
     ) -> Result<()> {
-        ensure!(kernels.len() <= 256, "scene exceeds 256 compute shaders");
-        for id in kernels.keys() {
-            ensure!(
-                self.document
-                    .assets
-                    .get(id)
-                    .is_some_and(|a| a.kind == AssetKind::ComputeShader),
-                "asset '{id}' is not a compute shader"
-            );
-        }
-        ensure!(
-            kernels.values().map(|k| k.source().len()).sum::<usize>() <= 32 * 1024 * 1024,
-            "compute shader sources exceed 32 MiB"
-        );
+        validate_kernels(&self.document, &kernels)?;
         self.compute_kernels = kernels;
         if let Some(state) = self.compute_state.get() {
             state.lock().unwrap_or_else(|e| e.into_inner()).kernels = self.compute_kernels.clone();
