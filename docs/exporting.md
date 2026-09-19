@@ -37,6 +37,8 @@ no Python launcher or manual SDK setup is needed to use editor Play. **File → 
 automatically includes the matching library beside the game executable, including in the
 macOS app bundle. It is covered by `package.json` and described in `steam-runtime.json`.
 Steam-enabled runtimes need this library even when the exported scene is single-player.
+The library can remain dormant: solo scenes do not initialize Steam or require its client.
+Use `--no-default-features` when building the editor/player for binaries without Steam SDK support.
 
 The Steam Multiplayer component exposes **Steam App ID**. Spacewar 480 exports include
 development settings and open directly with Steam running. Other IDs produce Steam store

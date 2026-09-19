@@ -79,8 +79,12 @@ thread publishes Play, after cancellation/stale-document guards have passed. Fai
 leave the editor in Edit mode with an actionable error. Ordinary non-Steam builds explain
 how to rebuild instead of showing inert lobby buttons in Play.
 
-The SDK is initialized before GPU creation in Steam-enabled editors and kept alive across
-Play/Stop for overlay compatibility. Lobby callbacks and the network worker belong to
+The SDK initializes before GPU creation only when the starting scene has a
+`steam_multiplayer` component. Blank and solo scenes never initialize Steam and do not
+require the Steam client. If you open a multiplayer scene later, its first Play initializes
+Steam; restart with that scene if the overlay needs initialization before graphics.
+Once initialized, the SDK stays alive across Play/Stop for overlay compatibility.
+Lobby callbacks and the network worker belong to
 Play and are cleaned up on Stop. Idle editor frames pump late Steam results so a lobby
 operation completing after Stop is immediately left. Networking continues while redraw is idle or the editor
 is minimized. Blueprint Pause/Step is disabled for network Play; use Stop to disconnect.

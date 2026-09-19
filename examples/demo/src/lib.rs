@@ -270,9 +270,7 @@ impl SceneDemo {
     /// Called only when publishing Play on the main thread, never by scene-loading workers.
     pub fn enable_editor_multiplayer(&mut self) -> anyhow::Result<()> {
         #[cfg(feature = "steam")]
-        if let Some(id) = multiplayer::app_id(self.instance().document())? {
-            initialize_steam(id)?;
-        }
+        steam_runtime::initialize_editor(self.instance().document())?;
         self.enable_multiplayer(None)
     }
 
@@ -714,11 +712,6 @@ pub fn demo() -> (App, Entity) {
     app.world.insert(entity, Position([0.0; 3])).unwrap();
     app.world.insert(entity, Velocity([0.1, 0.0, 0.0])).unwrap();
     (app, entity)
-}
-
-#[cfg(feature = "steam")]
-pub fn initialize_steam(app_id: u32) -> anyhow::Result<()> {
-    bozzard_network::steam::initialize_editor(app_id).map(|_| ())
 }
 
 #[cfg(feature = "steam")]

@@ -249,6 +249,38 @@ fn quit_stops_play_instead_of_closing_the_editor() {
     assert_eq!(editor.scene(), &source);
 }
 
+#[test]
+fn solo_scene_plays_through_both_editor_entry_points_without_a_steam_session() {
+    let source = Scene::from_json(include_str!(
+        "../../../examples/demo/scenes/flap-woods.json"
+    ))
+    .unwrap();
+    let mut editor = Editor::new(
+        source.clone(),
+        &std::env::temp_dir().join("solo-editor-steam-regression.json"),
+    )
+    .unwrap();
+    // Opening legacy solo scenes materializes their standard game-menu widgets.
+    let authored = editor.scene().clone();
+    editor.start_play().unwrap();
+    assert!(!editor.play.as_ref().unwrap().multiplayer_active());
+    editor.advance(Duration::from_millis(34));
+    assert!(editor.play.as_ref().unwrap().app.ticks() > 0);
+    editor.stop_play();
+    let job = editor.play_job().unwrap();
+    let mut prepared = None;
+    wait_until(|| {
+        prepared = job.poll();
+        prepared.is_some()
+    });
+    editor.accept_play(prepared.unwrap().unwrap()).unwrap();
+    assert!(!editor.play.as_ref().unwrap().multiplayer_active());
+    editor.advance(Duration::from_millis(34));
+    assert!(editor.play.as_ref().unwrap().app.ticks() > 0);
+    editor.stop_play();
+    assert_eq!(editor.scene(), &authored);
+}
+
 #[cfg(not(feature = "steam"))]
 #[test]
 fn ordinary_editor_rejects_network_play_transactionally_with_launch_instructions() {

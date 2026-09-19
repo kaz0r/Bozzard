@@ -2102,9 +2102,7 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
         std::fs::create_dir_all(dir)?;
     }
     #[cfg(feature = "steam")]
-    if let Err(error) = bozzard_demo::initialize_steam(
-        bozzard_demo::multiplayer::app_id(editor.scene())?.unwrap_or(480),
-    ) {
+    if let Err(error) = bozzard_demo::steam_runtime::initialize_editor(editor.scene()) {
         eprintln!("Steam: {error:#}. Editing is available; Play will retry.");
     }
     let instance = bozzard_render::instance(backend);
