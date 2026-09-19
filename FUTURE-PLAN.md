@@ -37,7 +37,7 @@ whole component set. Field sites per component today: `collider` 58 sites/12 fil
 - [x] **L** Forward-compatible components. An object's components are its own keys; a key with no registry row is preserved in `Object::extras`, written back unchanged, and listed in the Inspector as unrecognized. A typo inside a *known* component still fails loudly with the component and field named. No version bump was needed: the shape never changed, only the strictness of the component set, so v1 files load and save unchanged. `ComponentType::load` is the per-component migration seam for a future rename or reshape.
 - [x] **M** `register_component` puts a game-local row in the same registry, backed by `Object::extras`, so a gameplay type does not have to be compiled into the engine's schema; prefab refresh, add/remove, the field list and the generic UI treat it like a built-in. Typed Rust access still needs a built-in row.
 - [x] **M** Change tracking per component, in the ECS component store where it cannot lie (`crates/bozzard-ecs`): every component records the tick it was last written on, mutating access goes through a `Mut` guard that marks on `DerefMut`, and `changed_tick`/`is_changed_since`/`changed_since` answer what moved since a bookmark. `App::step` advances the tick once per step, so a bookmark taken at the end of one step sees exactly the next step's writes.  *Not* per component in the scene document: typed fields are mutated directly at ~200 sites and edits are whole-object clone-then-apply, so revisions there would have to be touched at every write site or lie. The scene document already has one `revision` counter for GI freshness.
-- [ ] **S** Consume the change ticks where rescanning is real work: replication in section 7 (what to send since the last acknowledgement) and animation once clips exist (which pose changed). Deliberately no consumer yet — the renderer never borrows a world and dedupes uniforms by value, `ShadowFrame::same_sun` compares five `Lighting` fields, physics cooks colliders once at boot, and the demo's spin and movement systems must run every step regardless.
+- [x] **S** Consume the change ticks where rescanning is real work: replication in section 7 (what to send since the last acknowledgement) and animation once clips exist (which pose changed). Steam Flap Woods now consumes bird change ticks per acknowledged recipient in `bozzard-network`; animation remains deferred. The renderer never borrows a world and dedupes uniforms by value, `ShadowFrame::same_sun` compares five `Lighting` fields, physics cooks colliders once at boot, and the demo's spin and movement systems must run every step regardless.
 
 Definition of done: adding a component is a module plus one registry row; adding a node is one table
 row plus its runtime arm; and a scene saved by a newer engine loads in an older one with the unknown
@@ -144,21 +144,24 @@ reference scenes in `examples/demo/scenes/middleware-lab.json` and `ui-2d-lab.js
 
 Section 1 cleared the blocker: components have per-component load/save hooks, so a component can be
 serialized by name, and every component carries a change tick, so replication can ask what moved
-since the last acknowledgement instead of diffing the world. The server is a fixed-step loop with no
-transport (`apps/server/src/main.rs`).
+since the last acknowledgement instead of diffing the world. The headless harness now supports bounded real-time pacing; Steam reference multiplayer runs a
+listen server in the player or editor Play. See [Steam multiplayer](docs/multiplayer.md).
 
-- [ ] **M** Real-time pacing, overload policy, graceful shutdown and operational diagnostics.
-- [ ] **L** Transport, entity replication, authority model, and interest management.
-- [ ] **L** Client prediction/interpolation and rollback if the reference game needs it.
-- [ ] **M** Multi-client integration tests with scripted loss and latency.
-- [ ] **S** `docs/architecture.md` determinism statement: decide and document what replication/replay actually requires, since fixed ticks and serial scheduling do not guarantee cross-platform float determinism.
+- [x] **M** Real-time pacing, overload policy, graceful shutdown and operational diagnostics. Shared 60 Hz/eight-step pacer; independent Steam event pump, counters and timeout handling; headless `--realtime` and Ctrl-C/SIGTERM final-save path.
+- [x] **L** Transport, entity replication, authority model, and interest management for the reference game. Optional Steam Networking Messages transport, friends-only lobbies, invitations, original-host-only start/retry, 2–4 independently controlled birds, acknowledged ECS component deltas and complete lobby relevance/despawn rosters. This is a bounded Flap Woods implementation, not arbitrary-scene replication.
+- [x] **L** Client prediction/interpolation and rollback if the reference game needs it. Local vertical motion prediction with bounded input replay/reconciliation; remote bird/pipe interpolation; collisions and scores remain authoritative. Full-world rollback is not needed by this reference.
+- [x] **M** Multi-client integration tests with scripted loss and latency, serialized packets, duplication/reordering, lost acknowledgements, roster changes, stale rounds, authority rejection and eventual prediction convergence; authored scene and scoring fixtures.
+- [x] **S** `docs/architecture.md` determinism statement: host snapshots are authoritative; prediction corrections tolerate cross-platform float differences. No lockstep, full-world rollback or portable input-only replay guarantee.
+- [x] **Editor Play** Shared player/editor session, main-thread publication after async preparation, independent networking worker, Stop/Quit cleanup and edit-world isolation. Steam initializes before graphics in Steam-enabled editors. Overlay-free friend invitations use the same authored UI in both apps. Headless lifecycle tests cover stop/restart, no-redraw pumping, input/UI routing and disabled-build errors.
+- [x] **Native build and export** Standard editor/player builds enable Steam and stage the SDK without Python. Editor Export bundles the native library and inventories it; relocated executable tests remove tool/library-path overrides. The component exposes App ID; Spacewar development exports include its ID file, while store exports use Steam launch context and omit development overrides. Multiplayer exports validate the companion player's target and SDK hash.
+- [ ] **Acceptance** Live two-account Steam invite/overlay/relay and native-window run on target machines. CPU regressions and Steam-feature compilation do not establish Valve backend or platform-overlay acceptance. Windows/macOS packaging also needs target-machine verification.
 
 ## Deliberately not doing
 
 - [ ] **Not planned** Archetype or parallel ECS. Current measurements do not justify it; the docs already say to benchmark realistic workloads first.
 - [ ] **Not planned** Copying Unity's GameObject/MonoBehaviour shape. Typed validated graphs plus diffable textual scenes are the moat.
 - [ ] **Not planned** A derive-macro reflection framework. Hand-written `schema()` per component until it demonstrably hurts.
-- [ ] **Not planned** Cascades, AI, networking or platform ports before a reference game needs them.
+- [ ] **Not planned** Cascades, AI or platform ports before a reference game needs them. Networking now has the Flap Woods Together reference.
 - [ ] **Not planned** Rewriting physics, assets or rendering on a new dependency, or dropping WGSL, `wgpu` and `winit`.
 
 ## Sequencing

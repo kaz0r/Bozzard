@@ -163,6 +163,14 @@ impl App {
                     }
                 }
                 ui.weak("Includes current scene changes, even if you haven't saved them.");
+                if let Ok(Some(id)) = bozzard_demo::multiplayer::app_id(self.editor.scene()) {
+                    ui.label(format!("Steam multiplayer · App ID {id}"));
+                    ui.weak(if id == 480 {
+                        "Includes Steam API files and Spacewar development settings. Open the exported game with Steam running."
+                    } else {
+                        "Includes Steam API files. Launch the exported build through Steam; use editor Play for local testing."
+                    });
+                }
                 let runtime = std::env::current_exe()
                     .map_err(anyhow::Error::from)
                     .and_then(|path| bozzard_project::companion_player(&path));
@@ -254,6 +262,15 @@ fn open_folder(folder: &Path) -> Result<()> {
 }
 
 fn play_game(folder: &Path) -> Result<()> {
+    let steam = folder.join("steam-runtime.json");
+    if steam.is_file() {
+        let runtime: serde_json::Value = serde_json::from_slice(&std::fs::read(steam)?)?;
+        ensure!(
+            runtime["mode"] != "steam-store",
+            "Launch this build through its Steam library entry (App ID {}). Use editor Play for local testing.",
+            runtime["app_id"]
+        );
+    }
     #[cfg(target_os = "macos")]
     {
         let app = folder.join("Game.app");

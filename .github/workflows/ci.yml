@@ -58,10 +58,14 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Lints
         run: cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+      - name: Compile optional Steam multiplayer on each native target
+        run: cargo clippy -p bozzard-network -p bozzard-player -p bozzard-editor-app --all-targets --features bozzard-player/steam,bozzard-editor-app/steam --locked --offline -- -D warnings
       - name: CPU and headless tests
         run: cargo test --workspace --locked --offline
       - name: Check headless dependency boundary
         run: python3 tools/check_headless.py
+      - name: Non-Steam editor error paths
+        run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
       - name: Build native release executables
         run: cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
       - name: Package and verify pixels from extracted executables

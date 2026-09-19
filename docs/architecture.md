@@ -14,6 +14,9 @@ bozzard-player -> bozzard-render -> wgpu
 bozzard-player -> bozzard-assets -> bozzard-scene + image + tobj
 bozzard-player -> bozzard-audio -> Kira + CPAL
 bozzard-player -> winit + AccessKit
+bozzard-player -> bozzard-network -> bozzard-ecs + serde
+bozzard-network (optional steam feature) -> steamworks
+bozzard-server -> bozzard-network (pacing only) + ctrlc
 ```
 
 `bozzard-render` accepts render data, never an ECS world. This leaves room for separate extraction, interpolation, batching, cameras, 2D sprites, and 3D meshes. Server compilation cannot accidentally initialize a window; its entire normal dependency tree is checked in CI.
@@ -38,9 +41,25 @@ Sparse storage scales with the highest entity slot used per component type. Benc
 
 Systems execute in registration order. Direct mutations are visible to later systems; deferred commands execute once, in queue order, after the tick's final system. A queued spawn/despawn is therefore visible to systems on the next tick. Queue closures are infallible at the scheduler boundary; callers handle operation errors inside them. No rollback is promised after a panic.
 
-`App::step` advances exactly one fixed tick. `App::advance` accumulates elapsed wall time, limits catch-up, reports discarded whole ticks as a duration, and preserves the fractional remainder for interpolation. The headless harness uses `step`, so it never drops requested ticks. A real server will need wall-clock pacing, overload policy, graceful shutdown, and networking.
+`App::step` advances exactly one fixed tick. `App::advance` accumulates elapsed wall time, limits catch-up, reports discarded whole ticks as a duration, and preserves the fractional remainder for interpolation. The headless harness uses `step`, so it never drops requested ticks. The headless harness also supports `--realtime`: a bounded 60 Hz pacer, overload diagnostics, and Ctrl-C/SIGTERM shutdown with optional final save. Steam multiplayer uses a player-hosted listen server; its pump runs independently of redraw events.
 
-Fixed ticks and serial scheduling do not guarantee cross-platform floating-point determinism. Replication/replay design must state its actual determinism requirements separately.
+### Network determinism contract
+
+Fixed ticks and serial scheduling do not guarantee cross-platform floating-point determinism.
+Steam Flap Woods replicates host-authoritative bird components, pipe state, round and phase;
+it does not use lockstep or exchange input-only world replays. Persistent network identities
+are Steam IDs and bird slots, never ECS handles. Host-generated snapshots are the source of
+truth for collision, elimination and score. Per-recipient acknowledged change ticks select
+component deltas, while the complete lobby roster handles despawns and interest.
+
+Clients predict only vertical bird motion and replay a bounded queue of unacknowledged
+inputs after restoring host state. Numerical differences are corrected by each snapshot;
+bit-identical floats across platforms are not required. The same-build CPU tests require
+convergence after inputs drain, not identical intermediate predicted trajectories. Cross-OS
+physics determinism, full-world rollback and portable input-only replay/save recordings are
+not promised. Any future replay feature must record authoritative snapshots and versioned
+game rules, or independently establish a deterministic simulation contract. See
+[Steam multiplayer](multiplayer.md) for protocol bounds and acceptance limits.
 
 ## Modules
 

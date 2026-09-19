@@ -33,3 +33,10 @@ target/release/bozzard-player --scene examples/demo/scenes/flap-woods.json \
 ```
 
 Audio, custom menu styling and saved high scores are not included in this example.
+
+## Play with Steam friends
+
+The separate [Flap Woods Together](multiplayer.md) variant supports 2–4 players, Steam
+lobbies and friend invitations, and host-only start/retry using Spacewar App ID 480.
+Run `python3 tools/steam.py run`; the launcher builds and stages the required Steam runtime.
+The original scene above retains its solo gameplay.

@@ -30,6 +30,21 @@ The full native development bundle also includes the companion runtime. An edito
 by itself shows the missing player in the export dialog and disables export until it is installed.
 The player must be from the same engine build as the editor.
 
+## Steam games
+
+The standard editor/player include Steam support. Cargo stages the native API library;
+no Python launcher or manual SDK setup is needed to use editor Play. **File → Export game…**
+automatically includes the matching library beside the game executable, including in the
+macOS app bundle. It is covered by `package.json` and described in `steam-runtime.json`.
+Steam-enabled runtimes need this library even when the exported scene is single-player.
+
+The Steam Multiplayer component exposes **Steam App ID**. Spacewar 480 exports include
+development settings and open directly with Steam running. Other IDs produce Steam store
+builds without `steam_appid.txt` or App ID environment overrides. Configure the exported
+executable in your Steam launch options; use editor Play for local tests. Multiplayer export
+checks the companion player's Steam support, SDK and platform before publishing. See
+[Steam testing and distribution](multiplayer.md#scenes-scripts-and-export).
+
 ## Project manifest and command-line export
 
 The minimal JSON manifest selects the starting scene and camera view:

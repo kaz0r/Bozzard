@@ -1,7 +1,7 @@
 {
   "game_flow": {
     "title": "FLAP WOODS",
-    "instructions": "Space to flap through the thorn pipes.\nEach cleared pair earns one point."
+    "instructions": "Space to flap through the thorn pipes.\nEach cleared pair earns one point.\nPlay with friends in flap-woods-multiplayer.json."
   },
   "fog": {
     "enabled": false,

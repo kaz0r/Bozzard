@@ -390,6 +390,13 @@ impl App {
                 ui.colored_label(egui::Color32::YELLOW, hint);
             }
             ui.small("WASD move · Space jump · Right-drag orbit · Esc pause/stop");
+        } else if self
+            .editor
+            .play
+            .as_ref()
+            .is_some_and(|p| p.multiplayer_active())
+        {
+            ui.small("STEAM PLAY · Space flap · L leave lobby · Q / Esc stop Play");
         } else if self.editor.play.is_some() {
             ui.small("WASD move selected collider · Space jump · Esc stop");
         } else if self.fly_latched {
@@ -540,6 +547,12 @@ impl App {
                             && !modifiers.ctrl
                             && !modifiers.alt =>
                         {
+                            if let Some(name) = bozzard_scene::keys::canonical(&format!("{key:?}"))
+                                && play.multiplayer_key(name)
+                            {
+                                ui_consumed = true;
+                                continue;
+                            }
                             let input = match key {
                                 egui::Key::PageDown => Some(Input::ScrollFocused(240.)),
                                 egui::Key::PageUp => Some(Input::ScrollFocused(-240.)),
@@ -624,9 +637,10 @@ impl App {
             {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
-            if play
-                .game_session()
-                .is_some_and(|s| s.phase == bozzard_scene::GamePhase::Quit)
+            if play.multiplayer_quit()
+                || play
+                    .game_session()
+                    .is_some_and(|s| s.phase == bozzard_scene::GamePhase::Quit)
             {
                 self.editor.stop_play();
             }
@@ -684,11 +698,11 @@ impl App {
             None
         };
 
-        let authored_player = self
-            .editor
-            .play
-            .as_ref()
-            .is_some_and(|play| play.game_session().is_some() || play.accepts_gameplay_input());
+        let authored_player = self.editor.play.as_ref().is_some_and(|play| {
+            play.multiplayer_active()
+                || play.game_session().is_some()
+                || play.accepts_gameplay_input()
+        });
         if authored_player {
             let eligible = !ui_consumed
                 && ui.is_enabled()

@@ -35,6 +35,8 @@ allowed |= {"bozzard-text", "epaint", "epaint_default_fonts", "ecolor", "emath",
 # frontend here: no wgpu/device, backend compiler, window system, or asset importer.
 allowed |= {"bozzard-compute", "naga", "naga-types", "bit-set", "bit-vec",
             "codespan-reporting", "half", "rustc-hash", "unicode-width", "zerocopy-derive"}
+# Reviewed transport-independent protocol and cross-platform termination handler.
+allowed |= {"bozzard-network", "ctrlc", "nix", "cfg_aliases", "dispatch2", "block2", "objc2", "objc2-encode", "windows-sys"}
 unexpected = {line.split()[0] for line in output.splitlines() if line.strip()} - allowed
 if unexpected:
     raise SystemExit(f"Headless dependency boundary changed: {sorted(unexpected)}. Review before extending the allowlist.")

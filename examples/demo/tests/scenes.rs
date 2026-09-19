@@ -21,8 +21,8 @@ fn scenes() -> Vec<PathBuf> {
 fn every_scene_round_trips_without_losing_a_component() {
     for path in scenes() {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        let json = std::fs::read_to_string(&path).unwrap();
-        let scene = Scene::from_json(&json).unwrap_or_else(|error| panic!("{name}: {error:#}"));
+        let scene = bozzard_demo::load_document(Some(&path))
+            .unwrap_or_else(|error| panic!("{name}: {error:#}"));
         let saved = scene
             .to_json()
             .unwrap_or_else(|error| panic!("{name}: {error:#}"));

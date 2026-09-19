@@ -6,6 +6,8 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+ctrlc = { version = "3.5", features = ["termination"] }
+bozzard-network = { path = "../../crates/bozzard-network" }
 bozzard-demo.workspace = true
 anyhow.workspace = true
 

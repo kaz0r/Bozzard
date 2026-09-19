@@ -1,6 +1,8 @@
 //! Shared simulation for the native player and the headless executable.
+pub mod multiplayer;
 mod prefab_sources;
 mod prefabs;
+pub mod steam_runtime;
 use bozzard_app::{App, Entity, Plugin};
 use bozzard_scene::{GameplayInput, GameplayState, Scene, SceneInstance, Spin, Transform};
 pub use prefab_sources::{ResolvedPrefab, load_prefab, resolve_prefab};
@@ -11,6 +13,7 @@ use std::{
 };
 
 pub fn load_document(path: Option<&Path>) -> anyhow::Result<Scene> {
+    multiplayer::register_component()?;
     match path {
         Some(path) => Scene::from_json(&std::fs::read_to_string(path)?),
         None => scene_document(),
@@ -253,15 +256,81 @@ pub fn prepare_runtime_files(
 
 pub struct SceneDemo {
     pub app: App,
+    multiplayer: Option<multiplayer::Multiplayer>,
 }
 
 impl SceneDemo {
+    pub fn requires_multiplayer(&self) -> bool {
+        self.instance()
+            .document()
+            .objects
+            .iter()
+            .any(|o| o.extras.contains_key("steam_multiplayer"))
+    }
+    /// Called only when publishing Play on the main thread, never by scene-loading workers.
+    pub fn enable_editor_multiplayer(&mut self) -> anyhow::Result<()> {
+        #[cfg(feature = "steam")]
+        if let Some(id) = multiplayer::app_id(self.instance().document())? {
+            initialize_steam(id)?;
+        }
+        self.enable_multiplayer(None)
+    }
+
+    pub fn enable_multiplayer(&mut self, join: Option<u64>) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            join.is_none() || self.requires_multiplayer(),
+            "--join-lobby requires a multiplayer scene"
+        );
+        if self.requires_multiplayer() && self.multiplayer.is_none() {
+            let net = multiplayer::Multiplayer::new(self.instance().document(), join)?;
+            self.attach_multiplayer(net)?;
+        }
+        Ok(())
+    }
+    pub fn attach_multiplayer(&mut self, mut net: multiplayer::Multiplayer) -> anyhow::Result<()> {
+        anyhow::ensure!(self.multiplayer.is_none(), "multiplayer already active");
+        net.update(self)?;
+        self.multiplayer = Some(net);
+        Ok(())
+    }
+    pub fn multiplayer_active(&self) -> bool {
+        self.multiplayer.is_some()
+    }
+    pub fn multiplayer_quit(&self) -> bool {
+        self.multiplayer.as_ref().is_some_and(|net| net.quit)
+    }
+    pub fn multiplayer_title(&self) -> Option<String> {
+        self.multiplayer.as_ref().map(|net| net.title())
+    }
+    pub fn multiplayer_key(&mut self, key: &str) -> bool {
+        self.multiplayer.as_mut().is_some_and(|net| net.key(key))
+    }
+    pub fn join_multiplayer(&mut self, id: u64) -> anyhow::Result<()> {
+        self.multiplayer
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("Start multiplayer Play first"))?
+            .join(id)
+    }
+    pub fn pump_multiplayer(&mut self) -> anyhow::Result<()> {
+        if let Some(mut net) = self.multiplayer.take() {
+            let result = net.update(self);
+            self.multiplayer = Some(net);
+            result?;
+        }
+        Ok(())
+    }
+
     pub fn ui_input(
         &mut self,
         layer: bozzard_scene::Layer,
         size: [f32; 2],
         input: bozzard_scene::middleware::ui::Input,
     ) -> anyhow::Result<bool> {
+        if let Some(mut net) = self.multiplayer.take() {
+            let result = net.ui_input(self, layer, size, input);
+            self.multiplayer = Some(net);
+            return result;
+        }
         if self.app.is_paused() {
             return Ok(false);
         }
@@ -290,6 +359,10 @@ impl SceneDemo {
         Ok(())
     }
     pub fn debug_command(&mut self, command: bozzard_scene::DebugCommand) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !self.multiplayer_active(),
+            "Network Play cannot pause or step; Stop Play to leave the lobby"
+        );
         bozzard_scene::BlueprintDebugger::send(&mut self.app.world, command);
         self.clear_gameplay_input();
         if matches!(
@@ -451,6 +524,7 @@ impl SceneDemo {
         Ok(demo)
     }
     pub fn new(document: &Scene) -> anyhow::Result<Self> {
+        multiplayer::register_component()?;
         let mut migrated;
         let document = if document.game_flow.is_some()
             && !document
@@ -602,7 +676,10 @@ impl SceneDemo {
             world.insert_resource(gravity_instance);
             world.insert_resource(SimulationStatus { error });
         });
-        Ok(Self { app })
+        Ok(Self {
+            app,
+            multiplayer: None,
+        })
     }
 }
 
@@ -637,6 +714,16 @@ pub fn demo() -> (App, Entity) {
     app.world.insert(entity, Position([0.0; 3])).unwrap();
     app.world.insert(entity, Velocity([0.1, 0.0, 0.0])).unwrap();
     (app, entity)
+}
+
+#[cfg(feature = "steam")]
+pub fn initialize_steam(app_id: u32) -> anyhow::Result<()> {
+    bozzard_network::steam::initialize_editor(app_id).map(|_| ())
+}
+
+#[cfg(feature = "steam")]
+pub fn pump_idle_steam_callbacks() {
+    bozzard_network::steam::pump_idle_callbacks();
 }
 
 #[cfg(test)]

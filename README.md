@@ -302,3 +302,20 @@ Play and export [Flap Woods](docs/flap-woods.md), a complete Blueprint game with
 ### Profiling and the debug console
 
 Open **Debug** in the editor toolbar. **Record** captures CPU stages, GPU passes and render counters; click a bar to inspect that frame. **Console** filters logs by severity, source or text, and **Go to object** opens the originating Blueprint node. **Export JSON** saves a shareable capture. See [debugging](docs/debugging.md) for a guided Debug Lab and measurement limits.
+
+## Steam multiplayer reference
+
+[Flap Woods Together](docs/multiplayer.md) adds Steam friends-only lobbies, invitations,
+2–4 separate birds, and host-only start/retry using Valve's Spacewar development App ID 480.
+With Steam online, open the multiplayer scene in the regular editor and press **Play**:
+
+```sh
+cargo build -p bozzard-editor-app -p bozzard-player
+cargo run -p bozzard-editor-app -- --project examples/demo/flap-woods-multiplayer.bozzard.json
+```
+
+No Python launcher is needed. Default native builds stage Steam’s library automatically;
+**File → Export game…** bundles it with the game. Stop leaves the lobby. Invitations also
+work through the in-game friend picker when Steam’s overlay is unavailable. The Steam
+Multiplayer component exposes the App ID; 480 is for development and your own ID produces
+an export for launching through Steam. See [multiplayer setup and export](docs/multiplayer.md).

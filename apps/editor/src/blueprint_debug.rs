@@ -148,6 +148,10 @@ impl App {
         let Some(play) = &self.editor.play else {
             return;
         };
+        if play.multiplayer_active() {
+            ui.small("Steam session · Stop to disconnect");
+            return;
+        }
         let paused = play.app.is_paused();
         let failed = play
             .app

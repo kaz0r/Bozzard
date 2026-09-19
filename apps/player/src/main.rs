@@ -27,6 +27,7 @@ use winit::{
 };
 
 struct Options {
+    join_lobby: Option<u64>,
     content_catalog: Option<String>,
     content_address: Option<String>,
     content_cache: Option<PathBuf>,
@@ -55,6 +56,7 @@ struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
+            join_lobby: None,
             content_catalog: None,
             content_address: None,
             content_cache: None,
@@ -87,6 +89,13 @@ fn options() -> Result<Option<Options>> {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--join-lobby" | "+connect_lobby" => {
+                result.join_lobby = Some(
+                    args.next()
+                        .context("--join-lobby needs a Steam lobby ID")?
+                        .parse()?,
+                );
+            }
             "--content-catalog" => {
                 result.content_catalog = Some(
                     args.next()
@@ -175,7 +184,7 @@ fn options() -> Result<Option<Options>> {
                     "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
-                    "bozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
+                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -459,6 +468,9 @@ impl Player {
     }
 
     fn window_title(&self) -> String {
+        if let Some(title) = self.demo.multiplayer_title() {
+            return title;
+        }
         let name = self.options.game_name.as_deref().unwrap_or("Bozzard");
         let status = if let Some(error) = &self.command_error {
             format!("ERROR: {error} | ")
@@ -509,6 +521,19 @@ impl Player {
         repeat: bool,
         synthetic: bool,
     ) -> Result<()> {
+        if self.demo.multiplayer_active() {
+            if !repeat
+                && !synthetic
+                && state == ElementState::Pressed
+                && let PhysicalKey::Code(code) = physical
+                && let Some(key) = bozzard_scene::keys::canonical(&format!("{code:?}"))
+                && self.demo.multiplayer_key(key)
+            {
+                return Ok(());
+            }
+            self.game_key(physical, state, repeat, synthetic)?;
+            return Ok(());
+        }
         if self.game_key(physical, state, repeat, synthetic)? {
             return Ok(());
         }
@@ -843,7 +868,7 @@ impl ApplicationHandler for Player {
                     self.fail(event_loop, error);
                     return;
                 }
-            } else if !self.paused {
+            } else if !self.paused && !self.demo.multiplayer_active() {
                 self.demo.app.advance(now.duration_since(self.last_frame));
             }
             if let Err(error) = self.demo.check_simulation() {
@@ -945,6 +970,14 @@ impl ApplicationHandler for Player {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Err(error) = self.demo.pump_multiplayer() {
+            self.fail(event_loop, error);
+            return;
+        }
+        if self.demo.multiplayer_quit() {
+            event_loop.exit();
+            return;
+        }
         if event_loop.exiting() {
             return;
         }
@@ -985,6 +1018,10 @@ impl ApplicationHandler for Player {
 }
 
 fn main() -> Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
+        println!("{}", bozzard_project::runtime::description());
+        return Ok(());
+    }
     let Some(options) = options()? else {
         return Ok(());
     };
@@ -1047,6 +1084,7 @@ fn main() -> Result<()> {
         error: None,
         command_error: None,
     };
+    player.demo.enable_multiplayer(player.options.join_lobby)?;
     if player.options.verify_flap_woods {
         return flap_woods::verify(&mut player);
     }

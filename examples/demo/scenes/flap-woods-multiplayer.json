@@ -1,0 +1,2064 @@
+{
+  "fog": {
+    "enabled": false,
+    "color": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "distance_density": 0.02,
+    "start_distance": 0.0,
+    "height_density": 0.0,
+    "base_height": 0.0,
+    "height_falloff": 1.0
+  },
+  "gi": {
+    "enabled": false,
+    "intensity": 1.0,
+    "normal_bias": 0.05,
+    "volume": {
+      "min": [
+        -5.0,
+        -1.0,
+        -5.0
+      ],
+      "max": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "resolution": [
+        8,
+        4,
+        8
+      ],
+      "samples": 128,
+      "bounces": 2
+    }
+  },
+  "environment": {
+    "zenith": [
+      0.1,
+      0.12,
+      0.28
+    ],
+    "horizon": [
+      0.62,
+      0.36,
+      0.2
+    ],
+    "ground": [
+      0.05,
+      0.06,
+      0.05
+    ],
+    "intensity": 0.5,
+    "background": true
+  },
+  "display": {
+    "temporal_aa": {
+      "enabled": false,
+      "history_weight": 0.9
+    },
+    "motion_blur": {
+      "enabled": false,
+      "shutter_angle": 180.0,
+      "max_radius": 32.0,
+      "samples": 12
+    },
+    "reflections": {
+      "enabled": false,
+      "strength": 0.5,
+      "max_distance": 25.0,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.6,
+      "steps": 64
+    },
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.45,
+      "threshold": 0.5,
+      "scatter": 0.8,
+      "anamorphic": 0.0
+    },
+    "tone_mapper": "filmic",
+    "color_grading": {
+      "temperature": 0.05,
+      "tint": 0.0,
+      "saturation": 1.0,
+      "contrast": 1.05,
+      "lift": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "gamma": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "gain": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "ambient_occlusion": {
+      "enabled": true,
+      "intensity": 0.5,
+      "radius": 0.5,
+      "bias": 0.025
+    },
+    "heat_distortion": {
+      "enabled": false,
+      "strength": 4.0,
+      "threshold": 0.6,
+      "speed": 1.0,
+      "rise": 0.08
+    },
+    "grain": {
+      "intensity": 0.02,
+      "size": 1.0
+    },
+    "vignette": {
+      "intensity": 0.3,
+      "roundness": 0.7,
+      "feather": 0.6
+    },
+    "depth_of_field": {
+      "enabled": false,
+      "focus_distance": 4.3,
+      "focal_length_mm": 85.0,
+      "aperture": 1.8,
+      "max_blur_radius": 20.0
+    },
+    "auto_exposure": {
+      "enabled": false,
+      "strength": 1.0,
+      "min_ev": -1.0,
+      "max_ev": 1.0,
+      "target_gray": 0.15,
+      "speed_up": 1.0,
+      "speed_down": 3.0,
+      "center_weight": 0.7
+    },
+    "volumetric_fog": {
+      "enabled": false,
+      "density": 0.03,
+      "albedo": [
+        0.9,
+        0.9,
+        1.0
+      ],
+      "anisotropy": 0.25,
+      "base_height": 0.0,
+      "height_falloff": 0.3,
+      "start_distance": 0.25,
+      "max_distance": 30.0,
+      "noise_amount": 0.8,
+      "noise_scale": 0.45,
+      "wind": [
+        0.1,
+        0.02,
+        0.05
+      ],
+      "light_intensity": 0.6,
+      "ambient": 0.15,
+      "steps": 48
+    },
+    "exposure_ev": 0.2,
+    "tone_mapping": true
+  },
+  "lighting": {
+    "shadows": false,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      -0.5,
+      0.65,
+      -0.6
+    ],
+    "sun_color": [
+      1.0,
+      0.72,
+      0.45
+    ],
+    "sun_intensity": 2.5,
+    "ambient_color": [
+      0.3,
+      0.3,
+      0.42
+    ],
+    "ambient_intensity": 0.45
+  },
+  "version": 1,
+  "name": "Flap Woods Together",
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          10.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 11.0,
+        "near": 0.1,
+        "far": 50.0
+      }
+    },
+    {
+      "id": "bird-0",
+      "name": "Player 1",
+      "transform": {
+        "translation": [
+          -5.0,
+          0.65,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.8,
+          0.25
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      },
+      "steam_multiplayer": {
+        "game": "flap_woods",
+        "protocol": 1,
+        "app_id": 480,
+        "max_players": 4
+      }
+    },
+    {
+      "id": "bird-0-beak",
+      "name": "Beak",
+      "parent": "bird-0",
+      "transform": {
+        "translation": [
+          0.55,
+          -0.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.3,
+          0.3
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.45,
+          0.1
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-1",
+      "name": "Pipe pair 1",
+      "transform": {
+        "translation": [
+          2.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-1-bottom",
+      "name": "Pipe 1 bottom",
+      "parent": "pipe-1",
+      "transform": {
+        "translation": [
+          0.0,
+          -9.05,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          13.0,
+          1.2
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.07,
+          0.32,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-1-top",
+      "name": "Pipe 1 top",
+      "parent": "pipe-1",
+      "transform": {
+        "translation": [
+          0.0,
+          9.05,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          13.0,
+          1.2
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.07,
+          0.32,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-2",
+      "name": "Pipe pair 2",
+      "transform": {
+        "translation": [
+          11.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-2-bottom",
+      "name": "Pipe 2 bottom",
+      "parent": "pipe-2",
+      "transform": {
+        "translation": [
+          0.0,
+          -7.15,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          13.0,
+          1.2
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.07,
+          0.32,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-2-top",
+      "name": "Pipe 2 top",
+      "parent": "pipe-2",
+      "transform": {
+        "translation": [
+          0.0,
+          10.950000000000001,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          13.0,
+          1.2
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.07,
+          0.32,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-3",
+      "name": "Pipe pair 3",
+      "transform": {
+        "translation": [
+          20.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-3-bottom",
+      "name": "Pipe 3 bottom",
+      "parent": "pipe-3",
+      "transform": {
+        "translation": [
+          0.0,
+          -10.950000000000001,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          13.0,
+          1.2
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.07,
+          0.32,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "pipe-3-top",
+      "name": "Pipe 3 top",
+      "parent": "pipe-3",
+      "transform": {
+        "translation": [
+          0.0,
+          7.15,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.2,
+          13.0,
+          1.2
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.07,
+          0.32,
+          0.14
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Bramble floor (solid)",
+      "transform": {
+        "translation": [
+          0.0,
+          -5.55,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          40.0,
+          1.0,
+          2.0
+        ]
+      }
+    },
+    {
+      "id": "ground-visual",
+      "name": "Bramble ground",
+      "transform": {
+        "translation": [
+          0.0,
+          -5.4,
+          -1.2
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          40.0,
+          1.2,
+          1.0
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.06,
+          0.11,
+          0.05
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "ceiling",
+      "name": "Canopy ceiling (solid)",
+      "transform": {
+        "translation": [
+          0.0,
+          5.55,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          40.0,
+          1.0,
+          2.0
+        ]
+      }
+    },
+    {
+      "id": "score-line",
+      "name": "Cleared pipe sensor",
+      "transform": {
+        "translation": [
+          -7.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.0,
+            0.0
+          ],
+          "offset": [
+            24.0,
+            24.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "FLAP WOODS TOGETHER",
+        "font": "sans",
+        "font_size": 22.0,
+        "max_width": null,
+        "alignment": "left",
+        "color": [
+          1.0,
+          0.9,
+          0.6,
+          1.0
+        ]
+      },
+      "id": "score",
+      "name": "HUD / score",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-0",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          -9.0,
+          -5.5,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          3.0,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-1",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          -6.5,
+          -4.75,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          40.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          4.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-2",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          -3.0,
+          -5.75,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          80.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          2.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-3",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          0.5,
+          -4.5,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          120.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          5.0,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-4",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          3.5,
+          -5.25,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          160.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          3.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-5",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          7.0,
+          -4.75,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          200.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          4.5,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bg-tree-6",
+      "name": "Backdrop tree",
+      "transform": {
+        "translation": [
+          10.0,
+          -5.5,
+          -3.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          240.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          3.0,
+          0.7
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.04,
+          0.07,
+          0.035
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "text_rendering": {
+        "screen": {
+          "anchor": [
+            0.5,
+            1.0
+          ],
+          "offset": [
+            0.0,
+            -38.0
+          ]
+        },
+        "enabled": true,
+        "layer": "3d",
+        "text": "Space: flap \u00b7 L: leave lobby \u00b7 Q / Esc: quit \u00b7 Host starts each round",
+        "font": "sans",
+        "font_size": 18.0,
+        "max_width": null,
+        "alignment": "center",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "id": "hint",
+      "name": "HUD / controls",
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bird-1",
+      "name": "Player 2",
+      "transform": {
+        "translation": [
+          -4.4,
+          0.65,
+          0.05
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.2,
+          0.8,
+          1.0
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bird-1-beak",
+      "name": "Beak",
+      "parent": "bird-1",
+      "transform": {
+        "translation": [
+          0.55,
+          -0.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.3,
+          0.3
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.45,
+          0.1
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bird-2",
+      "name": "Player 3",
+      "transform": {
+        "translation": [
+          -3.8,
+          0.65,
+          0.1
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.35,
+          0.65
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bird-2-beak",
+      "name": "Beak",
+      "parent": "bird-2",
+      "transform": {
+        "translation": [
+          0.55,
+          -0.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.3,
+          0.3
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.45,
+          0.1
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bird-3",
+      "name": "Player 4",
+      "transform": {
+        "translation": [
+          -3.2,
+          0.65,
+          0.15000000000000002
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.8,
+          0.8,
+          0.8
+        ]
+      },
+      "drawable": {
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          1.0,
+          0.35
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "bird-3-beak",
+      "name": "Beak",
+      "parent": "bird-3",
+      "transform": {
+        "translation": [
+          0.55,
+          -0.1,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.3,
+          0.3
+        ]
+      },
+      "drawable": {
+        "gi_static": true,
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.45,
+          0.1
+        ],
+        "uv_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-menu",
+      "name": "Steam lobby",
+      "ui_canvas": {
+        "layer": "3d",
+        "order": 200
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-status",
+      "name": "Create a lobby or accept a Steam invite.",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "label",
+        "text": "Create a lobby or accept a Steam invite.",
+        "accessible_name": "Create a lobby or accept a Steam invite.",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -195.0
+          ],
+          "size": [
+            700.0,
+            180.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-status",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-create",
+      "name": "Create lobby",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Create lobby",
+        "accessible_name": "Create lobby",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -65.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-create",
+        "shortcuts": [
+          "C"
+        ],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-invite",
+      "name": "Invite friends",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Invite friends",
+        "accessible_name": "Invite friends",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -10.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-invite",
+        "shortcuts": [
+          "I"
+        ],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-start",
+      "name": "Start game (host only)",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Start game (host only)",
+        "accessible_name": "Start game (host only)",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            100.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-start",
+        "shortcuts": [
+          "Enter",
+          "R"
+        ],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-leave",
+      "name": "Leave lobby",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Leave lobby",
+        "accessible_name": "Leave lobby",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            155.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-leave",
+        "shortcuts": [
+          "L"
+        ],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-quit",
+      "name": "Quit",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Quit",
+        "accessible_name": "Quit",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            210.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-quit",
+        "shortcuts": [
+          "Q"
+        ],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friends",
+      "name": "Invite without overlay",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Invite without overlay",
+        "accessible_name": "Invite without overlay",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            45.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friends",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friend-0",
+      "name": "Steam friend",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Steam friend",
+        "accessible_name": "Steam friend",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -65.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friend-0",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friend-1",
+      "name": "Steam friend",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Steam friend",
+        "accessible_name": "Steam friend",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            -10.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friend-1",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friend-2",
+      "name": "Steam friend",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Steam friend",
+        "accessible_name": "Steam friend",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            45.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friend-2",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friend-3",
+      "name": "Steam friend",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Steam friend",
+        "accessible_name": "Steam friend",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            100.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friend-3",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friends-next",
+      "name": "Next friends",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Next friends",
+        "accessible_name": "Next friends",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            155.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friends-next",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "steam-friends-back",
+      "name": "Back to lobby",
+      "parent": "steam-menu",
+      "ui_widget": {
+        "kind": "button",
+        "text": "Back to lobby",
+        "accessible_name": "Back to lobby",
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0.0,
+            210.0
+          ],
+          "size": [
+            320.0,
+            48.0
+          ]
+        },
+        "font_size": 20.0,
+        "event": "steam-friends-back",
+        "shortcuts": [],
+        "background": [
+          0.025,
+          0.045,
+          0.07,
+          0.96
+        ],
+        "clip_children": false,
+        "visible": false
+      },
+      "transform": {
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_degrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ]
+}
