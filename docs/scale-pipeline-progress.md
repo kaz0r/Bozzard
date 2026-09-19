@@ -70,9 +70,10 @@ Cross-platform results are reported by the PR's native CI matrix.
   checks, including resource retirement after stopping.
 - All 77 editor tests pass, including floating-panel pointer ownership and the
   final terrain transform-cache regression. Strict all-target Clippy passes again.
-- The full workspace suite and native CI remain pending. A package recheck after
-  the pointer fix exceeded this host's process-startup timeout before executing
-  server code; a retry allows startup separately and retains the original checks.
+- The full workspace suite passes on macOS, Linux and Windows. The macOS run
+  reports 679 passing tests and nine explicitly ignored tests; native GPU checks
+  run separately in package verification. Current matrix and export results are
+  available in [PR #32's checks](https://github.com/kaz0r/Bozzard/pull/32/checks).
 
 Reproduce the CPU checks with:
 
