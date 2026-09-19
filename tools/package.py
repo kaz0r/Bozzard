@@ -7,6 +7,7 @@ Only Python's standard library is required. Run Cargo's native build first.
 """
 
 import argparse
+import json
 from pathlib import Path
 import platform
 import plistlib
@@ -82,6 +83,13 @@ def main():
             destination = stage / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "target" / args.profile / f"{name}{suffix}", destination)
+            if name in ("bozzard-player", "bozzard-editor"):
+                runtime = json.loads(subprocess.check_output([str(ROOT / "target" / args.profile / f"{name}{suffix}"), "--runtime-info"]))
+                if library := runtime.get("steam_library"):
+                    # Cargo's shared build can also link the server to Steam. On macOS
+                    # it lives outside the app bundles, so it needs its own adjacent SDK.
+                    for directory in {destination.parent, (stage / server_relative).parent}:
+                        shutil.copy2(ROOT / "target" / args.profile / library["name"], directory / library["name"])
         for scene in ["scene-lab.json", "asset-lab.json", "response-lab.json", "gravity-lab.json", "model-lab.json", "prefab-lab.json", "blueprint-lab.json", "pressure-plate-lab.json", "middleware-lab.json", "ui-2d-lab.json", "compute-waves.json", "compute-numbers.json"]:
             shutil.copy2(ROOT / "examples/demo/scenes" / scene, stage / scene)
         shutil.copytree(ROOT / "examples/demo/scenes/assets", stage / "assets")

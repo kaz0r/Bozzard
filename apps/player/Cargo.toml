@@ -4,8 +4,14 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+build = "../../tools/steam_build.rs"
+
+[features]
+default = ["steam"]
+steam = ["bozzard-demo/steam"]
 
 [dependencies]
+serde_json.workspace = true
 accesskit = "0.24.1"
 accesskit_winit = "0.32.0"
 bozzard-audio.workspace = true

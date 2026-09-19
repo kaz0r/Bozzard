@@ -4,10 +4,15 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+build = "../../tools/steam_build.rs"
 
 [[bin]]
 name = "bozzard-editor"
 path = "src/main.rs"
+
+[features]
+default = ["steam"]
+steam = ["bozzard-demo/steam", "bozzard-editor/steam"]
 
 [dependencies]
 bozzard-diagnostics.workspace = true

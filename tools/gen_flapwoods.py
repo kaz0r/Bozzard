@@ -222,7 +222,7 @@ add(id="hint", name="HUD / controls", transform=tf(),
 scene = {
     "version": 1,
     "name": "Flap Woods",
-    "game_flow": {"title": "FLAP WOODS", "instructions": "Space to flap through the thorn pipes.\nEach cleared pair earns one point."},
+    "game_flow": {"title": "FLAP WOODS", "instructions": "Space to flap through the thorn pipes.\nEach cleared pair earns one point.\nPlay with friends in flap-woods-multiplayer.json."},
     "views": {"3d": "camera"},
     "environment": {"zenith": [0.1, 0.12, 0.28], "horizon": [0.62, 0.36, 0.2],
                     "ground": [0.05, 0.06, 0.05], "intensity": 0.5, "background": True},

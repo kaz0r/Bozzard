@@ -1,0 +1,3292 @@
+{
+  "version": 1,
+  "name": "Gilded Sponza \u2014 Midnight",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "sponza-gilded": {
+      "kind": "mesh",
+      "path": "../../work/sponza/glTF/Sponza-gilded.gltf"
+    },
+    "lantern-glow": {
+      "kind": "mesh",
+      "path": "assets/gilded-night/lantern-glow.gltf"
+    },
+    "moon": {
+      "kind": "mesh",
+      "path": "assets/gilded-night/moon.gltf"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Midnight courtyard \u2014 hero view",
+      "transform": {
+        "translation": [
+          7.4,
+          1.8,
+          0.0
+        ],
+        "rotation_degrees": [
+          12,
+          90,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "perspective",
+        "vertical_fov_degrees": 68,
+        "near": 0.05,
+        "far": 100
+      }
+    },
+    {
+      "id": "sponza",
+      "name": "Sponza \u2014 gold leaf, cool limestone and silk",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "sponza-gilded"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lantern-0-0-foot",
+      "name": "Lantern / bronze plinth",
+      "transform": {
+        "translation": [
+          4.8,
+          0.16,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.28,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.065,
+          0.022
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.85,
+        "roughness": 0.32
+      }
+    },
+    {
+      "id": "lantern-0-0-base",
+      "name": "Lantern / gold stepped base",
+      "transform": {
+        "translation": [
+          4.8,
+          0.32,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.38,
+          0.08,
+          0.38
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.25
+      }
+    },
+    {
+      "id": "lantern-0-0-stem",
+      "name": "Lantern / slender gold standard",
+      "transform": {
+        "translation": [
+          4.8,
+          0.86,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.09,
+          1.0,
+          0.09
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.27
+      }
+    },
+    {
+      "id": "lantern-0-0-tray",
+      "name": "Lantern / lower cornice",
+      "transform": {
+        "translation": [
+          4.8,
+          1.3099999999999998,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.4,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-0-0-glow",
+      "name": "Lantern / amber luminous core",
+      "transform": {
+        "translation": [
+          4.8,
+          1.65,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.5,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lantern-glow"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    },
+    {
+      "id": "lantern-0-0-cap",
+      "name": "Lantern / crown",
+      "transform": {
+        "translation": [
+          4.8,
+          1.99,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.42,
+          0.1,
+          0.42
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-0-0-finial",
+      "name": "Lantern / diamond finial",
+      "transform": {
+        "translation": [
+          4.8,
+          2.1399999999999997,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          45,
+          45
+        ],
+        "scale": [
+          0.15,
+          0.19,
+          0.15
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      }
+    },
+    {
+      "id": "lantern-0-0-bar-0",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.6499999999999995,
+          1.65,
+          -1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-0-bar-1",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.6499999999999995,
+          1.65,
+          -1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-0-bar-2",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.95,
+          1.65,
+          -1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-0-bar-3",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.95,
+          1.65,
+          -1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-0-light",
+      "name": "Lantern / warm shadowed light",
+      "transform": {
+        "translation": [
+          4.8,
+          2.3499999999999996,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.52,
+          0.17
+        ],
+        "intensity": 22,
+        "range": 7.5,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "lantern-0-1-foot",
+      "name": "Lantern / bronze plinth",
+      "transform": {
+        "translation": [
+          4.8,
+          0.16,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.28,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.065,
+          0.022
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.85,
+        "roughness": 0.32
+      }
+    },
+    {
+      "id": "lantern-0-1-base",
+      "name": "Lantern / gold stepped base",
+      "transform": {
+        "translation": [
+          4.8,
+          0.32,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.38,
+          0.08,
+          0.38
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.25
+      }
+    },
+    {
+      "id": "lantern-0-1-stem",
+      "name": "Lantern / slender gold standard",
+      "transform": {
+        "translation": [
+          4.8,
+          0.86,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.09,
+          1.0,
+          0.09
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.27
+      }
+    },
+    {
+      "id": "lantern-0-1-tray",
+      "name": "Lantern / lower cornice",
+      "transform": {
+        "translation": [
+          4.8,
+          1.3099999999999998,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.4,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-0-1-glow",
+      "name": "Lantern / amber luminous core",
+      "transform": {
+        "translation": [
+          4.8,
+          1.65,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.5,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lantern-glow"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    },
+    {
+      "id": "lantern-0-1-cap",
+      "name": "Lantern / crown",
+      "transform": {
+        "translation": [
+          4.8,
+          1.99,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.42,
+          0.1,
+          0.42
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-0-1-finial",
+      "name": "Lantern / diamond finial",
+      "transform": {
+        "translation": [
+          4.8,
+          2.1399999999999997,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          45,
+          45
+        ],
+        "scale": [
+          0.15,
+          0.19,
+          0.15
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      }
+    },
+    {
+      "id": "lantern-0-1-bar-0",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.6499999999999995,
+          1.65,
+          1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-1-bar-1",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.6499999999999995,
+          1.65,
+          1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-1-bar-2",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.95,
+          1.65,
+          1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-1-bar-3",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          4.95,
+          1.65,
+          1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-0-1-light",
+      "name": "Lantern / warm shadowed light",
+      "transform": {
+        "translation": [
+          4.8,
+          2.3499999999999996,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.52,
+          0.17
+        ],
+        "intensity": 22,
+        "range": 7.5,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "lantern-1-0-foot",
+      "name": "Lantern / bronze plinth",
+      "transform": {
+        "translation": [
+          -0.8,
+          0.16,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.28,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.065,
+          0.022
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.85,
+        "roughness": 0.32
+      }
+    },
+    {
+      "id": "lantern-1-0-base",
+      "name": "Lantern / gold stepped base",
+      "transform": {
+        "translation": [
+          -0.8,
+          0.32,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.38,
+          0.08,
+          0.38
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.25
+      }
+    },
+    {
+      "id": "lantern-1-0-stem",
+      "name": "Lantern / slender gold standard",
+      "transform": {
+        "translation": [
+          -0.8,
+          0.86,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.09,
+          1.0,
+          0.09
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.27
+      }
+    },
+    {
+      "id": "lantern-1-0-tray",
+      "name": "Lantern / lower cornice",
+      "transform": {
+        "translation": [
+          -0.8,
+          1.3099999999999998,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.4,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-1-0-glow",
+      "name": "Lantern / amber luminous core",
+      "transform": {
+        "translation": [
+          -0.8,
+          1.65,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.5,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lantern-glow"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    },
+    {
+      "id": "lantern-1-0-cap",
+      "name": "Lantern / crown",
+      "transform": {
+        "translation": [
+          -0.8,
+          1.99,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.42,
+          0.1,
+          0.42
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-1-0-finial",
+      "name": "Lantern / diamond finial",
+      "transform": {
+        "translation": [
+          -0.8,
+          2.1399999999999997,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          45,
+          45
+        ],
+        "scale": [
+          0.15,
+          0.19,
+          0.15
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      }
+    },
+    {
+      "id": "lantern-1-0-bar-0",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.9500000000000001,
+          1.65,
+          -1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-0-bar-1",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.9500000000000001,
+          1.65,
+          -1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-0-bar-2",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.65,
+          1.65,
+          -1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-0-bar-3",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.65,
+          1.65,
+          -1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-0-light",
+      "name": "Lantern / warm fill",
+      "transform": {
+        "translation": [
+          -0.8,
+          2.3499999999999996,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.52,
+          0.17
+        ],
+        "intensity": 22,
+        "range": 7.5,
+        "shadows": false,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "lantern-1-1-foot",
+      "name": "Lantern / bronze plinth",
+      "transform": {
+        "translation": [
+          -0.8,
+          0.16,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.28,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.065,
+          0.022
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.85,
+        "roughness": 0.32
+      }
+    },
+    {
+      "id": "lantern-1-1-base",
+      "name": "Lantern / gold stepped base",
+      "transform": {
+        "translation": [
+          -0.8,
+          0.32,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.38,
+          0.08,
+          0.38
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.25
+      }
+    },
+    {
+      "id": "lantern-1-1-stem",
+      "name": "Lantern / slender gold standard",
+      "transform": {
+        "translation": [
+          -0.8,
+          0.86,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.09,
+          1.0,
+          0.09
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.27
+      }
+    },
+    {
+      "id": "lantern-1-1-tray",
+      "name": "Lantern / lower cornice",
+      "transform": {
+        "translation": [
+          -0.8,
+          1.3099999999999998,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.4,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-1-1-glow",
+      "name": "Lantern / amber luminous core",
+      "transform": {
+        "translation": [
+          -0.8,
+          1.65,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.5,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lantern-glow"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    },
+    {
+      "id": "lantern-1-1-cap",
+      "name": "Lantern / crown",
+      "transform": {
+        "translation": [
+          -0.8,
+          1.99,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.42,
+          0.1,
+          0.42
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-1-1-finial",
+      "name": "Lantern / diamond finial",
+      "transform": {
+        "translation": [
+          -0.8,
+          2.1399999999999997,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          45,
+          45
+        ],
+        "scale": [
+          0.15,
+          0.19,
+          0.15
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      }
+    },
+    {
+      "id": "lantern-1-1-bar-0",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.9500000000000001,
+          1.65,
+          1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-1-bar-1",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.9500000000000001,
+          1.65,
+          1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-1-bar-2",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.65,
+          1.65,
+          1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-1-bar-3",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -0.65,
+          1.65,
+          1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-1-1-light",
+      "name": "Lantern / warm fill",
+      "transform": {
+        "translation": [
+          -0.8,
+          2.3499999999999996,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.52,
+          0.17
+        ],
+        "intensity": 22,
+        "range": 7.5,
+        "shadows": false,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "lantern-2-0-foot",
+      "name": "Lantern / bronze plinth",
+      "transform": {
+        "translation": [
+          -6.4,
+          0.16,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.28,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.065,
+          0.022
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.85,
+        "roughness": 0.32
+      }
+    },
+    {
+      "id": "lantern-2-0-base",
+      "name": "Lantern / gold stepped base",
+      "transform": {
+        "translation": [
+          -6.4,
+          0.32,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.38,
+          0.08,
+          0.38
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.25
+      }
+    },
+    {
+      "id": "lantern-2-0-stem",
+      "name": "Lantern / slender gold standard",
+      "transform": {
+        "translation": [
+          -6.4,
+          0.86,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.09,
+          1.0,
+          0.09
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.27
+      }
+    },
+    {
+      "id": "lantern-2-0-tray",
+      "name": "Lantern / lower cornice",
+      "transform": {
+        "translation": [
+          -6.4,
+          1.3099999999999998,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.4,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-2-0-glow",
+      "name": "Lantern / amber luminous core",
+      "transform": {
+        "translation": [
+          -6.4,
+          1.65,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.5,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lantern-glow"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    },
+    {
+      "id": "lantern-2-0-cap",
+      "name": "Lantern / crown",
+      "transform": {
+        "translation": [
+          -6.4,
+          1.99,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.42,
+          0.1,
+          0.42
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-2-0-finial",
+      "name": "Lantern / diamond finial",
+      "transform": {
+        "translation": [
+          -6.4,
+          2.1399999999999997,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          45,
+          45
+        ],
+        "scale": [
+          0.15,
+          0.19,
+          0.15
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      }
+    },
+    {
+      "id": "lantern-2-0-bar-0",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.550000000000001,
+          1.65,
+          -1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-0-bar-1",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.550000000000001,
+          1.65,
+          -1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-0-bar-2",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.25,
+          1.65,
+          -1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-0-bar-3",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.25,
+          1.65,
+          -1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-0-light",
+      "name": "Lantern / warm shadowed light",
+      "transform": {
+        "translation": [
+          -6.4,
+          2.3499999999999996,
+          -1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.52,
+          0.17
+        ],
+        "intensity": 22,
+        "range": 7.5,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "lantern-2-1-foot",
+      "name": "Lantern / bronze plinth",
+      "transform": {
+        "translation": [
+          -6.4,
+          0.16,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.28,
+          0.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.12,
+          0.065,
+          0.022
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.85,
+        "roughness": 0.32
+      }
+    },
+    {
+      "id": "lantern-2-1-base",
+      "name": "Lantern / gold stepped base",
+      "transform": {
+        "translation": [
+          -6.4,
+          0.32,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.38,
+          0.08,
+          0.38
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.25
+      }
+    },
+    {
+      "id": "lantern-2-1-stem",
+      "name": "Lantern / slender gold standard",
+      "transform": {
+        "translation": [
+          -6.4,
+          0.86,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.09,
+          1.0,
+          0.09
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.27
+      }
+    },
+    {
+      "id": "lantern-2-1-tray",
+      "name": "Lantern / lower cornice",
+      "transform": {
+        "translation": [
+          -6.4,
+          1.3099999999999998,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.4,
+          0.1,
+          0.4
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-2-1-glow",
+      "name": "Lantern / amber luminous core",
+      "transform": {
+        "translation": [
+          -6.4,
+          1.65,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.5,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "lantern-glow"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    },
+    {
+      "id": "lantern-2-1-cap",
+      "name": "Lantern / crown",
+      "transform": {
+        "translation": [
+          -6.4,
+          1.99,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.42,
+          0.1,
+          0.42
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.23
+      }
+    },
+    {
+      "id": "lantern-2-1-finial",
+      "name": "Lantern / diamond finial",
+      "transform": {
+        "translation": [
+          -6.4,
+          2.1399999999999997,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          45,
+          45
+        ],
+        "scale": [
+          0.15,
+          0.19,
+          0.15
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.2
+      }
+    },
+    {
+      "id": "lantern-2-1-bar-0",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.550000000000001,
+          1.65,
+          1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-1-bar-1",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.550000000000001,
+          1.65,
+          1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-1-bar-2",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.25,
+          1.65,
+          1.4500000000000002
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-1-bar-3",
+      "name": "Lantern / gold cage",
+      "transform": {
+        "translation": [
+          -6.25,
+          1.65,
+          1.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.026,
+          0.62,
+          0.026
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.53,
+          0.16
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.9,
+        "roughness": 0.24
+      }
+    },
+    {
+      "id": "lantern-2-1-light",
+      "name": "Lantern / warm shadowed light",
+      "transform": {
+        "translation": [
+          -6.4,
+          2.3499999999999996,
+          1.6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.52,
+          0.17
+        ],
+        "intensity": 22,
+        "range": 7.5,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "uplight-0-0",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          7.7,
+          0.38,
+          -2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-0-1",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          7.7,
+          0.38,
+          2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-1-0",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          2.7,
+          0.38,
+          -2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-1-1",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          2.7,
+          0.38,
+          2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-2-0",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          -2.7,
+          0.38,
+          -2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-2-1",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          -2.7,
+          0.38,
+          2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-3-0",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          -7.7,
+          0.38,
+          -2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "uplight-3-1",
+      "name": "Arcade / gold architectural uplight",
+      "transform": {
+        "translation": [
+          -7.7,
+          0.38,
+          2.65
+        ],
+        "rotation_degrees": [
+          90,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "spot",
+        "color": [
+          1,
+          0.66,
+          0.3
+        ],
+        "intensity": 38,
+        "range": 10,
+        "shadows": true,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015,
+        "inner_angle_degrees": 24,
+        "outer_angle_degrees": 52
+      }
+    },
+    {
+      "id": "gallery-0",
+      "name": "Upper gallery / soft amber bounce",
+      "transform": {
+        "translation": [
+          -4,
+          6.6,
+          -1.7
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.6,
+          0.23
+        ],
+        "intensity": 22,
+        "range": 8,
+        "shadows": false,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "gallery-1",
+      "name": "Upper gallery / soft amber bounce",
+      "transform": {
+        "translation": [
+          -4,
+          6.6,
+          1.7
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          1,
+          0.6,
+          0.23
+        ],
+        "intensity": 22,
+        "range": 8,
+        "shadows": false,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "blue-distance",
+      "name": "Far arch / cool midnight separation",
+      "transform": {
+        "translation": [
+          -10,
+          3.2,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "light": {
+        "kind": "point",
+        "color": [
+          0.18,
+          0.33,
+          1
+        ],
+        "intensity": 16,
+        "range": 6,
+        "shadows": false,
+        "shadow_bias": 0.003,
+        "shadow_normal_bias": 0.015
+      }
+    },
+    {
+      "id": "crescent-moon",
+      "name": "Sky / silver crescent",
+      "transform": {
+        "translation": [
+          -25,
+          24,
+          -0.1
+        ],
+        "rotation_degrees": [
+          0,
+          90,
+          -18
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "moon"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
+      }
+    }
+  ],
+  "lighting": {
+    "sun_direction": [
+      -0.32,
+      0.86,
+      0.38
+    ],
+    "sun_color": [
+      0.24,
+      0.4,
+      1
+    ],
+    "sun_intensity": 0.32,
+    "ambient_color": [
+      0.25,
+      0.38,
+      0.72
+    ],
+    "ambient_intensity": 0.012,
+    "shadows": true,
+    "shadow_resolution": 4096,
+    "shadow_bias": 0.003,
+    "shadow_normal_bias": 0.015
+  },
+  "environment": {
+    "zenith": [
+      0.002,
+      0.004,
+      0.014
+    ],
+    "horizon": [
+      0.008,
+      0.013,
+      0.035
+    ],
+    "ground": [
+      0.003,
+      0.002,
+      0.002
+    ],
+    "intensity": 0.55,
+    "background": true
+  },
+  "display": {
+    "exposure_ev": -1.0,
+    "tone_mapping": true,
+    "tone_mapper": "filmic",
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.2,
+      "threshold": 1.1,
+      "scatter": 0.72,
+      "anamorphic": 0.15
+    },
+    "ambient_occlusion": {
+      "enabled": true,
+      "intensity": 0.7,
+      "radius": 0.45,
+      "bias": 0.025
+    },
+    "color_grading": {
+      "temperature": 0.025,
+      "tint": 0,
+      "saturation": 0.96,
+      "contrast": 1.06,
+      "lift": [
+        0,
+        0,
+        0.001
+      ],
+      "gamma": [
+        1,
+        1,
+        1
+      ],
+      "gain": [
+        1,
+        1,
+        1
+      ]
+    },
+    "vignette": {
+      "intensity": 0.22,
+      "roundness": 0.8,
+      "feather": 0.75
+    },
+    "volumetric_fog": {
+      "enabled": true,
+      "density": 0.008,
+      "albedo": [
+        0.65,
+        0.75,
+        1
+      ],
+      "anisotropy": 0.2,
+      "base_height": 0,
+      "height_falloff": 0.3,
+      "start_distance": 0.5,
+      "max_distance": 40,
+      "noise_amount": 0.2,
+      "noise_scale": 0.24,
+      "wind": [
+        0.02,
+        0,
+        0.015
+      ],
+      "light_intensity": 0.35,
+      "ambient": 0.03,
+      "steps": 48
+    },
+    "reflections": {
+      "enabled": true,
+      "strength": 0.6,
+      "max_distance": 20,
+      "thickness": 0.2,
+      "roughness_cutoff": 0.65,
+      "steps": 64
+    }
+  }
+}

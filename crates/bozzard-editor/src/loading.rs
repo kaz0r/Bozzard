@@ -94,12 +94,13 @@ impl Editor {
             })
         })
     }
-    pub fn accept_play(&mut self, prepared: PreparedPlay) -> Result<()> {
+    pub fn accept_play(&mut self, mut prepared: PreparedPlay) -> Result<()> {
         prepared.progress.check()?;
         ensure!(
             self.play.is_none() && self.path == prepared.path && self.revision == prepared.revision,
             "Scene changed while preparing Play; start Play again"
         );
+        prepared.play.enable_editor_multiplayer()?;
         self.surface_selection = None;
         self.edit_assets = Some(std::mem::replace(&mut self.assets, prepared.assets));
         self.asset_revision += 1;
@@ -189,7 +190,7 @@ impl Editor {
                 return prefabs::load_source(path, &progress);
             }
             progress.report(0, 4, "Reading scene")?;
-            let mut scene = Scene::from_json(&std::fs::read_to_string(&path)?)?;
+            let mut scene = bozzard_demo::load_document(Some(&path))?;
             scene.ensure_game_menus()?;
             scene.validate()?;
             progress.report(1, 4, "Preparing scene assets")?;

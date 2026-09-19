@@ -177,6 +177,11 @@ impl App {
             Some(Loading::Play(job)) => job.poll().map(|result| {
                 result.and_then(|prepared| {
                     self.editor.accept_play(prepared)?;
+                    if let Some(id) = self.pending_lobby.take()
+                        && let Err(error) = self.editor.play.as_mut().unwrap().join_multiplayer(id) {
+                        self.editor.stop_play();
+                        return Err(error);
+                    }
                     self.status = "Play started".into();
                     Ok(())
                 })

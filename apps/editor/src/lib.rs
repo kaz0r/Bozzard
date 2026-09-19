@@ -219,6 +219,8 @@ struct App {
     viewport_rect: Option<Rect>,
     viewport_layer: egui::LayerId,
     gameplay_controls: gameplay_input::GameplayControls,
+    join_lobby: String,
+    pending_lobby: Option<u64>,
     smoke: Option<PathBuf>,
     smoke_passed: Arc<AtomicBool>,
     smoke_frames: u32,
@@ -339,6 +341,8 @@ impl App {
             viewport_rect: None,
             viewport_layer: egui::LayerId::background(),
             gameplay_controls: gameplay_input::GameplayControls::default(),
+            join_lobby: String::new(),
+            pending_lobby: None,
             smoke,
             smoke_passed,
             smoke_frames: 0,
@@ -893,6 +897,29 @@ impl App {
                         self.editor.stop_play();
                     }
                     self.blueprint_run_controls(ui);
+                    if self
+                        .editor
+                        .play
+                        .as_ref()
+                        .is_some_and(|p| p.multiplayer_active())
+                    {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.join_lobby)
+                                .hint_text("Steam lobby ID")
+                                .desired_width(150.),
+                        );
+                        if ui.button("Join lobby").clicked() {
+                            let result = self
+                                .join_lobby
+                                .trim()
+                                .parse::<u64>()
+                                .map_err(anyhow::Error::from)
+                                .and_then(|id| {
+                                    self.editor.play.as_mut().unwrap().join_multiplayer(id)
+                                });
+                            self.result(result);
+                        }
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.small(if playing { "PLAY MODE" } else { "EDIT MODE" });
                         ui.colored_label(if playing { theme::GREEN } else { theme::ACCENT }, "●");
@@ -2001,7 +2028,12 @@ pub fn run() -> Result<()> {
 
 /// Start an editor build with registered component inspectors.
 pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
+        println!("{}", bozzard_project::runtime::description());
+        return Ok(());
+    }
     let mut source = None;
+    let mut join_lobby: Option<u64> = None;
     let mut project = None;
     let mut smoke = None;
     let mut backend = Backend::native();
@@ -2010,6 +2042,9 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--join-lobby" | "+connect_lobby" => {
+                join_lobby = Some(args.next().context("--join-lobby needs an ID")?.parse()?)
+            }
             "--scene" => source = Some(PathBuf::from(args.next().context("--scene needs a path")?)),
             "--project" => {
                 project = Some(PathBuf::from(
@@ -2026,7 +2061,7 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
             "--hardware" => hardware = true,
             "--help" => {
                 println!(
-                    "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nNative scene editor. --project FILE opens a game project. Import assets, edit, Play/Stop, and File > Export game."
+                    "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nSteam-enabled builds: --join-lobby ID joins on the next Play; Stop leaves the lobby.\nNative scene editor. --project FILE opens a game project. Import assets, edit, Play/Stop, and File > Export game."
                 );
                 return Ok(());
             }
@@ -2054,10 +2089,7 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
         {
             Editor::open(&path)?
         } else {
-            Editor::new_pending(
-                bozzard_scene::Scene::from_json(&std::fs::read_to_string(&path)?)?,
-                &path,
-            )?
+            Editor::new_pending(bozzard_demo::load_document(Some(&path))?, &path)?
         }
     } else {
         let path = match &smoke {
@@ -2068,6 +2100,10 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
     };
     if let Some(dir) = &smoke {
         std::fs::create_dir_all(dir)?;
+    }
+    #[cfg(feature = "steam")]
+    if let Err(error) = bozzard_demo::steam_runtime::initialize_editor(editor.scene()) {
+        eprintln!("Steam: {error:#}. Editing is available; Play will retry.");
     }
     let instance = bozzard_render::instance(backend);
     let gpu = pollster::block_on(Gpu::request(&instance, None, software))?;
@@ -2101,13 +2137,10 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
         "Bozzard Editor",
         options,
         Box::new(move |cc| {
-            Ok(Box::new(App::new(
-                cc,
-                editor,
-                smoke,
-                passed,
-                custom_inspectors,
-            )?))
+            let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
+            app.pending_lobby = join_lobby;
+            app.join_lobby = join_lobby.map(|id| id.to_string()).unwrap_or_default();
+            Ok(Box::new(app))
         }),
     )
     .map_err(|e| anyhow::anyhow!("editor: {e}"))?;

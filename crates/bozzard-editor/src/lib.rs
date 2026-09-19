@@ -74,9 +74,10 @@ impl Editor {
             return prefabs::load_source(path.to_path_buf(), &Default::default())
                 .map(LoadedScene::into_editor);
         }
-        Self::new(Scene::from_json(&std::fs::read_to_string(path)?)?, path)
+        Self::new(bozzard_demo::load_document(Some(path))?, path)
     }
     pub fn new(mut scene: Scene, path: &Path) -> Result<Self> {
+        bozzard_demo::multiplayer::register_component()?;
         scene.ensure_game_menus()?;
         scene.validate()?;
         let assets = load_assets(&scene, path)?;
@@ -84,6 +85,7 @@ impl Editor {
         Ok(Self::from_loaded(scene, path.to_path_buf(), assets))
     }
     pub fn new_pending(mut scene: Scene, path: &Path) -> Result<Self> {
+        bozzard_demo::multiplayer::register_component()?;
         scene.ensure_game_menus()?;
         scene.validate()?;
         let assets = AssetStore::new(root(path), &scene.assets)?;
@@ -578,6 +580,7 @@ impl Editor {
             let mut play = SceneDemo::new_with_prefabs(&self.scene, Some(&self.path))?;
             let assets = self.cached_assets(play.instance().document(), &self.path)?;
             bozzard_project::streaming::install(&mut play.app.world, &self.path, &assets)?;
+            play.enable_editor_multiplayer()?;
             self.runtime_asset_generation = 0;
             self.edit_assets = Some(std::mem::replace(&mut self.assets, assets));
             self.asset_revision += 1;
@@ -593,7 +596,32 @@ impl Editor {
         }
     }
     pub fn advance(&mut self, delta: Duration) {
+        #[cfg(feature = "steam")]
+        if !self
+            .play
+            .as_ref()
+            .is_some_and(|play| play.multiplayer_active())
+        {
+            bozzard_demo::pump_idle_steam_callbacks();
+        }
         if let Some(play) = &mut self.play {
+            if play.multiplayer_active() {
+                if let Err(error) = play.pump_multiplayer() {
+                    bozzard_diagnostics::log(
+                        &mut play.app.world,
+                        bozzard_diagnostics::Level::Error,
+                        "Multiplayer",
+                        &format!("{error:#}"),
+                        Default::default(),
+                    );
+                    self.stop_play();
+                    return;
+                }
+                if play.multiplayer_quit() {
+                    self.stop_play();
+                }
+                return;
+            }
             if let Err(error) = play.resume_debug_dispatch() {
                 bozzard_diagnostics::log(
                     &mut play.app.world,

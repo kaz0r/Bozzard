@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+steam = ["bozzard-demo/steam"]
+
 [dependencies]
 bozzard-diagnostics.workspace = true
 bozzard-demo.workspace = true
@@ -22,4 +25,5 @@ serde_json.workspace = true
 workspace = true
 
 [dev-dependencies]
+bozzard-network = { path = "../bozzard-network" }
 pollster.workspace = true

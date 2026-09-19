@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "Flap Woods Together",
+  "start_scene": "scenes/flap-woods-multiplayer.json",
+  "view": "3d"
+}

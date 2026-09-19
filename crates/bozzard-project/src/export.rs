@@ -49,6 +49,8 @@ pub fn prepare_export(
         "player runtime is missing: {}",
         player.display()
     );
+    let steam_app_id = bozzard_demo::multiplayer::app_id(scene)?;
+    crate::runtime::validate_player(player, steam_app_id)?;
     let destination = std::path::absolute(destination)?;
     ensure!(
         !destination.exists(),
@@ -140,6 +142,20 @@ pub fn prepare_export(
             std::env::consts::ARCH
         ),
     )?;
+    crate::runtime::stage(&prepared.stage, &binary, steam_app_id)?;
+    if let Some(id) = steam_app_id {
+        fs::write(
+            prepared.stage.join("STEAM-README.txt"),
+            format!(
+                "Steam multiplayer · App ID {id}\nKeep the complete exported folder together.\n{}\nCreate a lobby, invite friends, then only the host starts. Use Invite without overlay if needed.\n",
+                if id == 480 {
+                    "Spacewar development example. Start Steam, then open the game. Each player needs a separate Steam account."
+                } else {
+                    "Launch this game through its Steam library entry. Configure this executable in your Steam depot launch options. No development App ID file or environment overrides are included."
+                }
+            ),
+        )?;
+    }
     let mut files = BTreeMap::new();
     inventory(&prepared.stage, &prepared.stage, &mut files)?;
     fs::write(
