@@ -43,7 +43,7 @@ cargo run -p bozzard-editor-app --locked --offline -- \
   --scene examples/sponza/scene.json
 ```
 
-The standard-library-only downloader pins revision `90d7ede14c7e280af263824604b427a1ca02cb66`, verifies upstream Git blob hashes, reuses verified files, and replaces incomplete/corrupt downloads atomically. It fetches the glTF, binary buffer, all 69 images, upstream attribution/metadata, and license notices (77 files, about 52 MB). Rerun the command to verify or repair the local copy. `work/sponza/SOURCE.json` records the revision and file hashes. All five checked-in Sponza scenes already reference this location; no scene edits are needed.
+The standard-library-only downloader pins revision `90d7ede14c7e280af263824604b427a1ca02cb66`, verifies upstream Git blob hashes, reuses verified files, and replaces incomplete/corrupt downloads atomically. It fetches the glTF, binary buffer, all 69 images, upstream attribution/metadata, and license notices (77 files, about 52 MB). Rerun the command to verify or repair the local copy. `work/sponza/SOURCE.json` records the revision and file hashes. All six checked-in Sponza scenes already reference this location; no scene edits are needed.
 
 **Licensing:** model content is under the upstream Cryengine Limited License Agreement, not the sample repository's code license; metadocumentation is CC BY 4.0. See `work/sponza/LICENSE.md`, `work/sponza/README.md` for credits, and `work/sponza/LICENSES/` for the upstream license notices. The relative license link in the unmodified upstream `LICENSE.md` assumes the Khronos repository layout; use the local `LICENSES/` directory or the upstream link above.
 
@@ -64,6 +64,8 @@ cargo run -p bozzard-editor-app -- --scene examples/sponza/point-lights.json
 ```
 
 In the editor, select **Warm point** or **Cool point** and toggle **Cast shadows** to compare each point light's local shadowing. The final point-shadow scene was validated locally on Metal; this command requires the optional, gitignored Sponza assets under `work/sponza/`.
+
+For a composed scene combining baked GI, shader graphs, subtle volumetrics and reflections, open **[Sponza — The Gilded Hour](sponza-showcase.md)** at `examples/sponza/showcase.json`. It includes three authored cameras and keeps motion blur and depth of field off.
 
 The source layout is `work/sponza/glTF/Sponza.gltf` with its upstream resources. Durable scene files are `examples/sponza/scene.json` (tuned corridor), `examples/sponza/atrium.json`, `examples/sponza/overview.json`, `examples/sponza/spotlights.json` (spotlight shadow test), and `examples/sponza/point-lights.json` (point-light shadow test). The first three fixtures use the authored sun/sky setup; inspected captures are `work/sponza/final-atrium/loaded-3d.ppm` and `work/sponza/final-overview/loaded-3d.ppm`.
 
