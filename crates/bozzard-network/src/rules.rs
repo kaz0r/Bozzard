@@ -5,7 +5,6 @@ use crate::{
     *,
 };
 use bozzard_scene::ScriptModule;
-use serde_json::json;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -47,10 +46,10 @@ impl Rules {
         )
     }
     pub fn input(&self, key: &str) -> Result<bool> {
-        self.player.call("network_input", vec![json!(key)])
+        self.player.call_args("network_input", (key,))
     }
     pub fn spawn(&self, slot: u8) -> Result<Bird> {
-        let bird: Bird = self.player.call("network_spawn", vec![json!(slot)])?;
+        let bird: Bird = self.player.call_args("network_spawn", (slot,))?;
         validate_bird(&bird)?;
         ensure!(
             bird.slot == slot && bird.input_ack == 0,
@@ -72,10 +71,9 @@ impl Rules {
         Ok(pipes)
     }
     pub fn predict(&self, bird: &mut Bird, pressed: bool) -> Result<()> {
-        let next: Bird = self.player.call(
-            "network_predict",
-            vec![json!(bird), json!(pressed), json!(DT)],
-        )?;
+        let next: Bird = self
+            .player
+            .call_args("network_predict", (&*bird, pressed, DT))?;
         validate_bird(&next)?;
         ensure!(
             next.slot == bird.slot
@@ -88,18 +86,15 @@ impl Rules {
         Ok(())
     }
     pub fn step(&self, pipes: &mut [Pipe; 3]) -> Result<()> {
-        let next = self
-            .world
-            .call("network_step", vec![json!(pipes), json!(DT)])?;
+        let next = self.world.call_args("network_step", (&*pipes, DT))?;
         validate_pipes(&next)?;
         *pipes = next;
         Ok(())
     }
     pub fn resolve(&self, bird: &mut Bird, before: &[Pipe; 3], after: &[Pipe; 3]) -> Result<()> {
-        let next: Bird = self.world.call(
-            "network_resolve",
-            vec![json!(bird), json!(before), json!(after)],
-        )?;
+        let next: Bird = self
+            .world
+            .call_args("network_resolve", (&*bird, before, after))?;
         validate_bird(&next)?;
         ensure!(
             next.slot == bird.slot && next.input_ack == bird.input_ack,
@@ -109,7 +104,7 @@ impl Rules {
         Ok(())
     }
     pub fn finished(&self, birds: &[Bird]) -> Result<bool> {
-        self.world.call("network_finished", vec![json!(birds)])
+        self.world.call_args("network_finished", (birds,))
     }
 }
 pub(crate) fn validate_bird(b: &Bird) -> Result<()> {

@@ -155,6 +155,39 @@ fn wait_until(mut ready: impl FnMut() -> bool) {
     }
 }
 
+/// Measures the idle lobby's main-thread pump, including widget controls and
+/// Script Manager presentation hooks. The fake backend needs no Steam or GPU.
+#[test]
+#[ignore = "manual CPU frame-pacing benchmark"]
+fn benchmark_multiplayer_presentation_pump() {
+    let source = scene();
+    let backend = FakeSteam::new(Default::default(), Default::default(), Default::default());
+    let mut play = runtime(&source);
+    play.attach_multiplayer(
+        Multiplayer::with_backend(play.instance(), Box::new(backend), None).unwrap(),
+    )
+    .unwrap();
+    for _ in 0..60 {
+        play.pump_multiplayer().unwrap();
+    }
+    let mut samples = Vec::with_capacity(6_000);
+    for _ in 0..200 {
+        for _ in 0..30 {
+            let started = Instant::now();
+            play.pump_multiplayer().unwrap();
+            samples.push(started.elapsed().as_secs_f64() * 1_000_000.0);
+        }
+    }
+    samples.sort_by(f64::total_cmp);
+    let percentile = |p: f64| samples[((samples.len() - 1) as f64 * p).round() as usize];
+    eprintln!(
+        "multiplayer_lobby_pump_us median={:.3} p95={:.3} p99={:.3}",
+        percentile(0.5),
+        percentile(0.95),
+        percentile(0.99)
+    );
+}
+
 #[test]
 fn host_and_guest_show_countdown_then_remove_it_when_play_begins() {
     for local in [10, 20] {

@@ -7,7 +7,7 @@ use bozzard_network::{
 };
 use bozzard_scene::middleware::{
     signals::{Kind, Signals},
-    ui::{Control, Input},
+    ui::{Control, Input, Runtime},
 };
 use bozzard_scene::{GameplayInput, Layer, NetworkFrame, Scene, SceneInstance};
 use std::collections::BTreeMap;
@@ -162,7 +162,7 @@ pub struct Multiplayer {
     obstacles: Vec<(String, usize)>,
     backend: Box<dyn Backend>,
     pub quit: bool,
-    friends: Vec<(Peer, String)>,
+    friends: std::sync::Arc<Vec<(Peer, String)>>,
     friend_page: usize,
     picking: bool,
     pub chatting: bool,
@@ -214,7 +214,7 @@ impl Multiplayer {
             obstacles,
             backend,
             quit: false,
-            friends: Vec::new(),
+            friends: std::sync::Arc::new(Vec::new()),
             friend_page: 0,
             picking: false,
             chatting: false,
@@ -299,6 +299,21 @@ impl Multiplayer {
     }
     fn control(demo: &mut SceneDemo, id: &str, control: Control) -> Result<()> {
         if demo.instance().entity(id).is_none() {
+            return Ok(());
+        }
+        let unchanged = demo
+            .app
+            .world
+            .resource::<Runtime>()
+            .and_then(|runtime| runtime.widgets.get(id))
+            .is_some_and(|state| match &control {
+                Control::Text(text) => state.text.as_deref() == Some(text.as_str()),
+                Control::Value(value) => state.value == Some(*value),
+                Control::Visible(visible) => state.visible == Some(*visible),
+                Control::Enabled(enabled) => state.enabled == Some(*enabled),
+                Control::Focus => false,
+            });
+        if unchanged {
             return Ok(());
         }
         demo.with_instance(|instance, world| instance.control_ui(world, id, control))
@@ -405,7 +420,7 @@ impl Multiplayer {
         self.present(demo)
     }
     fn open_friends(&mut self) {
-        self.friends = self.backend.friends();
+        self.friends = std::sync::Arc::new(self.backend.friends());
         self.friend_page = 0;
         self.picking = true;
     }
@@ -806,8 +821,8 @@ impl Backend for bozzard_network::steam::Session {
 /// Only copied presentation state crosses back to the UI; the scene world stays on the UI thread.
 pub struct Threaded {
     commands: std::sync::mpsc::SyncSender<Action>,
-    shared: std::sync::Arc<std::sync::Mutex<OwnedView>>,
-    cached: OwnedView,
+    shared: std::sync::Arc<std::sync::Mutex<std::sync::Arc<OwnedView>>>,
+    cached: std::sync::Arc<OwnedView>,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     worker: Option<std::thread::JoinHandle<()>>,
 }
@@ -824,11 +839,11 @@ struct OwnedView {
     busy: bool,
     overlay: bool,
     alpha: f32,
-    friends: Vec<(Peer, String)>,
+    friends: std::sync::Arc<Vec<(Peer, String)>>,
     chat: bozzard_network::chat::ChatLog,
 }
 impl OwnedView {
-    fn capture(backend: &dyn Backend, friends: Vec<(Peer, String)>) -> Self {
+    fn capture(backend: &dyn Backend, friends: std::sync::Arc<Vec<(Peer, String)>>) -> Self {
         let v = backend.view();
         Self {
             chat: backend.chat(),
@@ -869,8 +884,8 @@ impl Threaded {
             atomic::{AtomicBool, Ordering},
             mpsc,
         };
-        let cached = OwnedView::capture(&*backend, backend.friends());
-        let shared = Arc::new(Mutex::new(cached.clone()));
+        let cached = Arc::new(OwnedView::capture(&*backend, Arc::new(backend.friends())));
+        let shared = Arc::new(Mutex::new(Arc::clone(&cached)));
         let output = Arc::clone(&shared);
         let stop = Arc::new(AtomicBool::new(false));
         let stopped = Arc::clone(&stop);
@@ -878,7 +893,7 @@ impl Threaded {
         let worker = std::thread::Builder::new()
             .name("steam-play".into())
             .spawn(move || {
-                let mut friends = backend.friends();
+                let mut friends = Arc::new(backend.friends());
                 let mut refresh = std::time::Instant::now();
                 while !stopped.load(Ordering::Acquire) {
                     for action in receive.try_iter().take(64) {
@@ -891,10 +906,11 @@ impl Threaded {
                         backend.error(error.to_string());
                     }
                     if refresh.elapsed() >= std::time::Duration::from_secs(1) {
-                        friends = backend.friends();
+                        friends = Arc::new(backend.friends());
                         refresh = std::time::Instant::now();
                     }
-                    *output.lock().unwrap() = OwnedView::capture(&*backend, friends.clone());
+                    *output.lock().unwrap() =
+                        Arc::new(OwnedView::capture(&*backend, Arc::clone(&friends)));
                     std::thread::sleep(std::time::Duration::from_millis(8));
                 }
                 let _ = backend.action(Action::Leave);
@@ -917,7 +933,7 @@ impl Backend for Threaded {
             !self.worker.as_ref().is_some_and(|w| w.is_finished()),
             "Steam Play worker stopped"
         );
-        self.cached = self.shared.lock().unwrap().clone();
+        self.cached = std::sync::Arc::clone(&self.shared.lock().unwrap());
         Ok(())
     }
     fn action(&mut self, action: Action) -> Result<()> {
@@ -926,13 +942,13 @@ impl Backend for Threaded {
             .map_err(|e| anyhow::anyhow!("Steam command queue unavailable: {e}"))
     }
     fn error(&mut self, message: String) {
-        self.cached.status = message;
+        std::sync::Arc::make_mut(&mut self.cached).status = message;
     }
     fn view(&self) -> View<'_> {
         self.cached.view()
     }
     fn friends(&self) -> Vec<(Peer, String)> {
-        self.cached.friends.clone()
+        self.cached.friends.as_ref().clone()
     }
 }
 impl Drop for Threaded {
