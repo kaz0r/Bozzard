@@ -403,7 +403,7 @@ impl Editor {
             .as_ref()
             .context("Select an object first")?
             .clone();
-        let replacements = self.duplicate_objects(&[selected.clone()])?;
+        let replacements = self.duplicate_objects(std::slice::from_ref(&selected))?;
         self.select_object(Some(replacements[&selected].clone()));
         Ok(())
     }
