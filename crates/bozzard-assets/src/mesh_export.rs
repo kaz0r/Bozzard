@@ -203,7 +203,12 @@ pub fn mesh_gltf(mesh: &MeshData, progress: &Progress) -> Result<Vec<u8>> {
             let m = &s.material;
             material["pbrMetallicRoughness"]["metallicFactor"] = json!(m.metallic);
             material["pbrMetallicRoughness"]["roughnessFactor"] = json!(m.roughness);
-            material["emissiveFactor"] = json!(m.emissive_factor);
+            let strength = m.emissive_factor.into_iter().fold(1.0_f32, f32::max);
+            material["emissiveFactor"] = json!(m.emissive_factor.map(|v| v / strength));
+            if strength > 1. {
+                material["extensions"]["KHR_materials_emissive_strength"] =
+                    json!({"emissiveStrength": strength});
+            }
             material["doubleSided"] = json!(m.double_sided);
             if let Some(map) = &m.normal {
                 material["normalTexture"] = json!({"index":images.texture(&map.image,map.sampler)?,"texCoord":1,"scale":m.normal_scale});
@@ -254,7 +259,14 @@ pub fn mesh_gltf(mesh: &MeshData, progress: &Progress) -> Result<Vec<u8>> {
         materials.push(material);
     }
     progress.check()?;
-    let result=serde_json::to_vec(&json!({"asset":{"version":"2.0","generator":"Bozzard mesh pipeline"},"buffers":[{"byteLength":buffer.bytes.len(),"uri":format!("data:application/octet-stream;base64,{}",STANDARD.encode(buffer.bytes))}],"bufferViews":buffer.views,"accessors":buffer.accessors,"images":images.images,"textures":images.textures,"samplers":images.samplers,"materials":materials,"meshes":[{"primitives":primitives}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0})).context("encoding generated mesh")?;
+    let has_hdr_emission = materials
+        .iter()
+        .any(|m| m["extensions"]["KHR_materials_emissive_strength"].is_object());
+    let mut document = json!({"asset":{"version":"2.0","generator":"Bozzard mesh pipeline"},"buffers":[{"byteLength":buffer.bytes.len(),"uri":format!("data:application/octet-stream;base64,{}",STANDARD.encode(buffer.bytes))}],"bufferViews":buffer.views,"accessors":buffer.accessors,"images":images.images,"textures":images.textures,"samplers":images.samplers,"materials":materials,"meshes":[{"primitives":primitives}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0});
+    if has_hdr_emission {
+        document["extensionsUsed"] = json!(["KHR_materials_emissive_strength"]);
+    }
+    let result = serde_json::to_vec(&document).context("encoding generated mesh")?;
     ensure!(
         result.len() as u64 <= crate::MAX_SOURCE_BYTES,
         "generated mesh exceeds the 32 MiB import limit"

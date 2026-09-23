@@ -40,8 +40,11 @@ impl ModelShading<'_> {
         ensure!(
             [self.metallic, self.roughness, self.occlusion_strength]
                 .into_iter()
-                .chain(self.emissive_factor)
                 .all(|v| v.is_finite() && (0.0..=1.0).contains(&v))
+                && self
+                    .emissive_factor
+                    .iter()
+                    .all(|v| v.is_finite() && *v >= 0.)
                 && self.normal_scale.is_finite(),
             "invalid PBR material factors"
         );
@@ -275,5 +278,38 @@ impl PbrRenderer {
             }),
             vertices,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emission_accepts_hdr_but_rejects_negative_and_nonfinite_values() {
+        let vertices = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]];
+        let mut material = ModelShading {
+            vertex_start: 0,
+            vertices: &vertices,
+            metallic: 0.,
+            roughness: 0.5,
+            normal_scale: 1.,
+            occlusion_strength: 1.,
+            emissive_factor: [6., 0.48, 1.32],
+            double_sided: false,
+            base_color_sampler: Default::default(),
+            normal: None,
+            metallic_roughness: None,
+            occlusion: None,
+            emissive: None,
+        };
+        assert!(material.validate().is_ok());
+        for invalid in [-1., f32::INFINITY, f32::NAN] {
+            material.emissive_factor[0] = invalid;
+            assert!(material.validate().is_err());
+        }
+        material.emissive_factor = [6.; 3];
+        material.metallic = 2.;
+        assert!(material.validate().is_err());
     }
 }

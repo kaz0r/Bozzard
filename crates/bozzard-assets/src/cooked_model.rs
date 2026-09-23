@@ -121,8 +121,8 @@ fn validate(mesh: &MeshData) -> Result<()> {
             ensure!(
                 [m.metallic, m.roughness, m.occlusion_strength]
                     .into_iter()
-                    .chain(m.emissive_factor)
                     .all(|v| v.is_finite() && (0. ..=1.).contains(&v))
+                    && m.emissive_factor.iter().all(|v| v.is_finite() && *v >= 0.)
                     && m.normal_scale.is_finite(),
                 "invalid PBR factors"
             );

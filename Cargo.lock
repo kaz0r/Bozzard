@@ -570,6 +570,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "bozz-torio"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bozzard-assets",
+ "bozzard-ecs",
+ "bozzard-render",
+ "bozzard-render-assets",
+ "bozzard-scene",
+ "flate2",
+ "glam 0.33.6",
+ "image",
+ "pollster 0.4.0",
+ "serde",
+ "serde_json",
+ "sha2",
+ "steamworks",
+ "winit",
+]
+
+[[package]]
 name = "bozzard-app"
 version = "0.1.0"
 dependencies = [
