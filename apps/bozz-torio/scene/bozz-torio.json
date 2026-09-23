@@ -54,6 +54,21 @@
       "scalar": {
         "number": 16
       }
+    },
+    "world_seed": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "starter_generators": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "starter_power_poles": {
+      "scalar": {
+        "number": 0
+      }
     }
   },
   "assets": {
@@ -115,8 +130,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "dimensions": [
           22,
@@ -492,8 +507,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 12,
         "size": [
@@ -545,8 +560,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 12,
         "size": [
@@ -598,8 +613,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 13,
         "size": [
@@ -651,10 +666,63 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 13,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "deposit-coal-12-11",
+      "name": "Coal seam · powers generators",
+      "transform": {
+        "translation": [
+          1.5,
+          -4,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 10,
+          "rows": 10
+        },
+        "frame": 17,
         "size": [
           1,
           1
@@ -704,8 +772,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 11,
         "size": [
@@ -757,8 +825,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 6,
         "size": [
@@ -810,8 +878,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 7,
         "size": [
@@ -863,8 +931,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 8,
         "size": [
@@ -916,8 +984,8 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 9,
         "size": [
@@ -969,10 +1037,116 @@
         "image": "sprites",
         "layer": "2d",
         "atlas": {
-          "columns": 5,
-          "rows": 4
+          "columns": 10,
+          "rows": 10
         },
         "frame": 10,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-generator",
+      "name": "TEMPLATE Generator · requires coal seam",
+      "transform": {
+        "translation": [
+          7.5,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 10,
+          "rows": 10
+        },
+        "frame": 18,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-power-pole",
+      "name": "TEMPLATE Power pole · extends network",
+      "transform": {
+        "translation": [
+          10.0,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 10,
+          "rows": 10
+        },
+        "frame": 19,
         "size": [
           1,
           1

@@ -9,7 +9,7 @@
 
 A native 2D/3D game engine in Rust, with our own ECS and WebGPU rendering through `wgpu`. No Bevy dependencies.
 
-The workspace also includes [Bozz-torio](apps/bozz-torio/README.md), a standalone 2D factory game with original pixel art, item routing, orders, a custom HUD, autosaves, and optional Steam integration. Run it with `cargo run -p bozz-torio`, or edit its [factory scene](apps/bozz-torio/scene/bozz-torio.json) with `cargo run -p bozzard-editor-app -- --scene apps/bozz-torio/scene/bozz-torio.json`.
+The workspace also includes [Bozz-torio](apps/bozz-torio/README.md), a standalone 2D factory game with a 256 × 256 generated world, tier and phase progression, electricity, 100 original sprites, autosaves, and optional Steam integration. Run it with `cargo run -p bozz-torio`, or edit its [starter district](apps/bozz-torio/scene/bozz-torio.json) with `cargo run -p bozzard-editor-app -- --scene apps/bozz-torio/scene/bozz-torio.json`.
 
 The current slice includes scene objects, parent transforms, cameras, textured sprites, indexed cubes with depth, authored sun/ambient lighting, optional point/spot lights, baked diffuse GI, scene save/load, and a first native editor. PNG/JPEG/BTEX textures and OBJ/glTF/GLB/BMESH models can be imported and reloaded while running, including base-color materials and transparency. The first playable third-person demo adds an authored controller, follow camera, capsule character movement/jumping and simple trigger interactions. Native game export packages scenes and assets, and the middleware includes audio playback; networking remains a future milestone. Rigidbody physics uses Rapier, including angular response, convex mesh bodies, compound colliders and joints.
 

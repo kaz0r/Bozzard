@@ -1,5 +1,7 @@
 //! The Bozzard editor scene is the authored source for every new factory.
-use crate::sim::{Building, Direction, Game, HEIGHT, Item, Kind, Tile, WIDTH};
+use crate::sim::{
+    Building, Direction, Game, Kind, PATCH_HEIGHT, PATCH_WIDTH, PATCH_X, PATCH_Y, Resource, WIDTH,
+};
 use anyhow::{Context, Result, bail, ensure};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -9,14 +11,15 @@ pub struct SceneSource {
     pub atlas_path: PathBuf,
     pub name: String,
     terrain: Vec<u8>,
-    deposits: Vec<(usize, usize, Item)>,
+    deposits: Vec<(usize, usize, Resource)>,
     machines: Vec<(usize, usize, Kind, Direction)>,
     hub: [usize; 2],
-    inventory: [u16; 5],
+    inventory: Vec<u16>,
     stock: [u16; 6],
     credits: u32,
     first_order_amount: u32,
     first_order_reward: u32,
+    world_seed: u64,
 }
 
 impl SceneSource {
@@ -82,21 +85,24 @@ impl SceneSource {
                     "factory tilemap must use the sprites asset"
                 );
                 ensure!(
-                    map["dimensions"] == serde_json::json!([WIDTH, HEIGHT]),
-                    "factory tilemap must remain {WIDTH} × {HEIGHT} cells"
+                    map["dimensions"] == serde_json::json!([PATCH_WIDTH, PATCH_HEIGHT]),
+                    "factory starter tilemap must remain {PATCH_WIDTH} × {PATCH_HEIGHT} cells"
                 );
                 let cells = map["cells"]
                     .as_array()
                     .context("factory tilemap has no cells")?;
                 ensure!(
-                    cells.len() == WIDTH * HEIGHT,
+                    cells.len() == PATCH_WIDTH * PATCH_HEIGHT,
                     "factory tilemap needs {} cells",
-                    WIDTH * HEIGHT
+                    PATCH_WIDTH * PATCH_HEIGHT
                 );
                 let mut terrain = Vec::with_capacity(cells.len());
                 for cell in cells {
                     let frame = cell.as_u64().context("tilemap cell must be an integer")?;
-                    ensure!(frame <= 20, "tilemap cell must use the 5 × 4 sprite atlas");
+                    ensure!(
+                        frame <= 100,
+                        "tilemap cell must use the 10 × 10 sprite atlas"
+                    );
                     terrain.push(if frame == 0 { 255 } else { (frame - 1) as u8 });
                 }
                 floor = Some(terrain);
@@ -110,22 +116,26 @@ impl SceneSource {
             let Some(frame) = sprite["frame"].as_u64() else {
                 continue;
             };
-            if !(6..=13).contains(&frame) {
+            if !(6..=13).contains(&frame) && !(17..=19).contains(&frame) {
                 continue;
             }
             let location = grid_location(object)?;
             let Some((x, y)) = location else {
                 // Machine templates live below the board; move or duplicate them onto it.
                 ensure!(
-                    (6..=10).contains(&frame),
+                    (6..=10).contains(&frame) || (18..=19).contains(&frame),
                     "{} lies outside the factory floor",
                     object["name"]
                 );
                 continue;
             };
             match frame {
-                6..=10 => {
-                    let kind = Kind::BUILDABLE[(frame - 6) as usize];
+                6..=10 | 18..=19 => {
+                    let kind = match frame {
+                        18 => Kind::Generator,
+                        19 => Kind::PowerPole,
+                        _ => Kind::BUILDABLE[(frame - 6) as usize],
+                    };
                     let rotation = object["transform"]["rotation_degrees"][2]
                         .as_f64()
                         .unwrap_or(0.0);
@@ -145,8 +155,9 @@ impl SceneSource {
                         "scene has more than one delivery hub"
                     );
                 }
-                12 => deposits.push((x, y, Item::IronOre)),
-                13 => deposits.push((x, y, Item::CopperOre)),
+                12 => deposits.push((x, y, Resource::IronOre)),
+                13 => deposits.push((x, y, Resource::CopperOre)),
+                17 => deposits.push((x, y, Resource::Coal)),
                 _ => unreachable!(),
             }
         }
@@ -161,6 +172,8 @@ impl SceneSource {
             "starter_assemblers",
             "starter_conveyors",
             "starter_splitters",
+            "starter_generators",
+            "starter_power_poles",
         ]
         .into_iter()
         .enumerate()
@@ -203,6 +216,7 @@ impl SceneSource {
             defaults.first_order_reward as u64,
             u32::MAX as u64,
         )? as u32;
+        let world_seed = setting(board, "world_seed", 0, u32::MAX as u64)?;
         let source = Self {
             path,
             atlas_path,
@@ -216,17 +230,32 @@ impl SceneSource {
             credits,
             first_order_amount,
             first_order_reward,
+            world_seed,
         };
         source.new_game()?;
         Ok(source)
     }
 
     pub fn new_game(&self) -> Result<Game> {
-        let mut game = Game::new();
-        game.tiles = vec![Tile::default(); WIDTH * HEIGHT];
-        game.terrain = self.terrain.clone();
+        let seed = if self.world_seed == 0 {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos() as u64
+        } else {
+            self.world_seed
+        };
+        let mut game = Game::from_seed(seed);
+        for y in 0..PATCH_HEIGHT {
+            for x in 0..PATCH_WIDTH {
+                let index = (PATCH_Y + y) * WIDTH + PATCH_X + x;
+                game.terrain[index] = self.terrain[y * PATCH_WIDTH + x];
+                game.tiles[index].deposit = None;
+            }
+        }
+        let old_hub = game.hub[1] * WIDTH + game.hub[0];
+        game.tiles[old_hub].building = None;
         game.hub = self.hub;
-        game.buildings = self.inventory;
+        game.buildings = self.inventory.clone();
         game.stock = self.stock;
         game.credits = self.credits;
         game.first_order_amount = self.first_order_amount;
@@ -249,8 +278,12 @@ impl SceneSource {
             let tile = &mut game.tiles[y * WIDTH + x];
             ensure!(tile.building.is_none(), "buildings overlap at {x}:{y}");
             ensure!(
-                kind != Kind::Miner || tile.deposit.is_some(),
+                kind != Kind::Miner || tile.deposit.is_some_and(|r| r.ore().is_some()),
                 "authored miner at {x}:{y} needs an ore deposit"
+            );
+            ensure!(
+                kind != Kind::Generator || tile.deposit == Some(Resource::Coal),
+                "authored generator at {x}:{y} needs a coal seam"
             );
             tile.building = Some(Building::new(kind, direction));
             game.placed += 1;
@@ -286,10 +319,10 @@ fn grid_location(object: &Value) -> Result<Option<(usize, usize)>> {
     );
     let x = (world_x + 10.5).round() as isize;
     let y = (7.0 - world_y).round() as isize;
-    if x < 0 || y < 0 || x >= WIDTH as isize || y >= HEIGHT as isize {
+    if x < 0 || y < 0 || x >= PATCH_WIDTH as isize || y >= PATCH_HEIGHT as isize {
         Ok(None)
     } else {
-        Ok(Some((x as usize, y as usize)))
+        Ok(Some((PATCH_X + x as usize, PATCH_Y + y as usize)))
     }
 }
 
@@ -303,10 +336,13 @@ mod tests {
         let source = SceneSource::open(path.clone()).unwrap();
         let game = source.new_game().unwrap();
         assert_eq!(source.name, "Bozz-torio — Factory Floor");
-        assert_eq!(game.hub, [18, 7]);
-        assert_eq!(game.buildings, [2, 2, 2, 24, 2]);
-        assert_eq!(game.tiles[7 * WIDTH + 4].deposit, Some(Item::IronOre));
-        assert_eq!(game.terrain[0], 14);
+        assert_eq!(game.hub, [PATCH_X + 18, PATCH_Y + 7]);
+        assert_eq!(game.buildings, [2, 2, 2, 24, 2, 0, 0, 0]);
+        assert_eq!(
+            game.tiles[(PATCH_Y + 7) * WIDTH + PATCH_X + 4].deposit,
+            Some(Resource::IronOre)
+        );
+        assert_eq!(game.terrain[PATCH_Y * WIDTH + PATCH_X], 14);
         assert!(path.is_file());
     }
 
@@ -322,11 +358,16 @@ mod tests {
             .unwrap()["transform"]["translation"] = serde_json::json!([8.5, 0, 0.3]);
         value["objects"].as_array_mut().unwrap().push(serde_json::json!({"id":"placed-furnace","name":"Placed furnace","transform":{"translation":[-5.5,0,0.2],"rotation_degrees":[0,0,90],"scale":[1,1,1]},"sprite":{"image":"sprites","frame":7}}));
         value["blackboard"]["starter_conveyors"]["scalar"]["number"] = serde_json::json!(30);
+        value["blackboard"]["world_seed"]["scalar"]["number"] = serde_json::json!(42);
         let source = SceneSource::parse(path, &value.to_string()).unwrap();
         let game = source.new_game().unwrap();
-        assert_eq!(game.hub, [19, 7]);
+        assert_eq!(game.hub, [PATCH_X + 19, PATCH_Y + 7]);
+        assert_eq!(game.seed, 42);
         assert_eq!(game.buildings[Kind::Belt.index()], 30);
-        let furnace = game.tiles[7 * WIDTH + 5].building.as_ref().unwrap();
+        let furnace = game.tiles[(PATCH_Y + 7) * WIDTH + PATCH_X + 5]
+            .building
+            .as_ref()
+            .unwrap();
         assert_eq!(furnace.kind, Kind::Furnace);
         assert_eq!(furnace.direction, Direction::North);
     }

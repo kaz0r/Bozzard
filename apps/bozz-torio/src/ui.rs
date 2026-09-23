@@ -1,7 +1,7 @@
 use crate::{
     save::SaveFile,
     scene::SceneSource,
-    sim::{Direction, Game, HEIGHT, Item, Kind, WIDTH},
+    sim::{Direction, Game, HEIGHT, Item, Kind, Resource, WIDTH},
     sprites::Sprites,
     steam::SteamBridge,
 };
@@ -52,6 +52,12 @@ pub struct FactoryApp {
     screenshot: Option<std::path::PathBuf>,
     screenshot_requested: bool,
     frames: u32,
+    view_x: usize,
+    view_y: usize,
+    zoom: f32,
+    visible_columns: usize,
+    visible_rows: usize,
+    show_map: bool,
 }
 
 impl FactoryApp {
@@ -84,11 +90,9 @@ impl FactoryApp {
         } else {
             fresh
         };
-        let inspected = game
-            .tiles
-            .iter()
-            .position(|tile| tile.deposit.is_some())
-            .map(|index| (index % WIDTH, index / WIDTH));
+        let inspected = Some((game.hub[0], game.hub[1]));
+        let view_x = game.hub[0].saturating_sub(18);
+        let view_y = game.hub[1].saturating_sub(11);
         let mut visuals = egui::Visuals::dark();
         visuals.override_text_color = Some(CREAM);
         visuals.panel_fill = BG;
@@ -123,6 +127,12 @@ impl FactoryApp {
             screenshot,
             screenshot_requested: false,
             frames: 0,
+            view_x,
+            view_y,
+            zoom: 25.0,
+            visible_columns: 24,
+            visible_rows: 20,
+            show_map: false,
         })
     }
 
@@ -150,12 +160,9 @@ impl FactoryApp {
                 self.scene = scene;
                 self.game = game;
                 self.sprites = sprites;
-                self.inspected = self
-                    .game
-                    .tiles
-                    .iter()
-                    .position(|tile| tile.deposit.is_some())
-                    .map(|index| (index % WIDTH, index / WIDTH));
+                self.inspected = Some((self.game.hub[0], self.game.hub[1]));
+                self.view_x = self.game.hub[0].saturating_sub(18);
+                self.view_y = self.game.hub[1].saturating_sub(11);
                 self.error = None;
                 self.persist();
                 self.screen = Screen::Factory;
@@ -205,6 +212,26 @@ impl FactoryApp {
                 self.tool = Tool::Build(Kind::BUILDABLE[index]);
             }
         }
+        let pan = ctx.input(|i| {
+            (
+                i.key_pressed(Key::A) || i.key_pressed(Key::ArrowLeft),
+                i.key_pressed(Key::D) || i.key_pressed(Key::ArrowRight),
+                i.key_pressed(Key::W) || i.key_pressed(Key::ArrowUp),
+                i.key_pressed(Key::S) || i.key_pressed(Key::ArrowDown),
+            )
+        });
+        if pan.0 {
+            self.view_x = self.view_x.saturating_sub(8);
+        }
+        if pan.1 {
+            self.view_x = (self.view_x + 8).min(WIDTH - 1);
+        }
+        if pan.2 {
+            self.view_y = self.view_y.saturating_sub(8);
+        }
+        if pan.3 {
+            self.view_y = (self.view_y + 8).min(HEIGHT - 1);
+        }
     }
 
     fn simulate(&mut self, ctx: &egui::Context) {
@@ -247,17 +274,21 @@ impl FactoryApp {
                                 .strong(),
                         );
                         ui.label(
-                            RichText::new("POCKET FACTORY  /  SECTOR 01")
-                                .color(MUTED)
-                                .monospace()
-                                .size(10.0),
+                            RichText::new(format!(
+                                "TIER {}  /  PHASE {}  ·  256² WORLD",
+                                self.game.tier(),
+                                self.game.phase()
+                            ))
+                            .color(MUTED)
+                            .monospace()
+                            .size(10.0),
                         );
                     });
                     ui.add_space(28.0);
                     ui.vertical(|ui| {
                         ui.label(
                             RichText::new(format!(
-                                "ORDER {:02}  ·  {}",
+                                "CONTRACT {:02}  ·  {}",
                                 self.game.order_index + 1,
                                 order.item.name().to_uppercase()
                             ))
@@ -292,15 +323,15 @@ impl FactoryApp {
                     ui.add_space(18.0);
                     ui.vertical(|ui| {
                         ui.label(
-                            RichText::new("PRODUCTION")
+                            RichText::new("ELECTRICITY")
                                 .color(MUTED)
                                 .monospace()
                                 .size(10.0),
                         );
                         ui.label(
                             RichText::new(format!(
-                                "{} items",
-                                self.game.produced.iter().sum::<u32>()
+                                "⚡ {} / {}",
+                                self.game.energy_used, self.game.energy_capacity
                             ))
                             .color(CREAM)
                             .monospace(),
@@ -345,7 +376,7 @@ impl FactoryApp {
                         );
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
-                            for (i, kind) in Kind::BUILDABLE.into_iter().enumerate() {
+                            for (i, kind) in Kind::BUILDABLE.into_iter().take(5).enumerate() {
                                 let (rect, response) =
                                     ui.allocate_exact_size(vec2(103.0, 57.0), Sense::click());
                                 if response.clicked() {
@@ -497,6 +528,7 @@ impl FactoryApp {
                     .inner_margin(egui::Margin::symmetric(16, 15)),
             )
             .show(root, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.label(
                     RichText::new("INVENTORY")
                         .color(TEAL)
@@ -509,7 +541,48 @@ impl FactoryApp {
                         .color(MUTED)
                         .size(11.0),
                 );
+                if ui.small_button(if self.show_map { "HIDE WORLD MAP" } else { "SHOW WORLD MAP" }).clicked() {
+                    self.show_map = !self.show_map;
+                }
                 ui.add_space(10.0);
+                if self.show_map {
+                ui.label(RichText::new("WORLD MAP · CLICK TO JUMP").color(TEAL).monospace().size(11.0));
+                let (map_rect, map_response) = ui.allocate_exact_size(vec2(160.0, 160.0), Sense::click());
+                ui.painter().rect_filled(map_rect, 2.0, BG);
+                for (index, tile) in self.game.tiles.iter().enumerate() {
+                    if let Some(resource) = tile.deposit {
+                        let point = pos2(
+                            map_rect.left() + (index % WIDTH) as f32 * map_rect.width() / WIDTH as f32,
+                            map_rect.top() + (index / WIDTH) as f32 * map_rect.height() / HEIGHT as f32,
+                        );
+                        let color = match resource {
+                            Resource::IronOre => Color32::from_rgb(145, 187, 202),
+                            Resource::CopperOre => COPPER,
+                            Resource::Coal => Color32::from_rgb(164, 154, 194),
+                        };
+                        ui.painter().circle_filled(point, 1.1, color);
+                    }
+                }
+                let marker = pos2(
+                    map_rect.left() + self.game.hub[0] as f32 * map_rect.width() / WIDTH as f32,
+                    map_rect.top() + self.game.hub[1] as f32 * map_rect.height() / HEIGHT as f32,
+                );
+                ui.painter().circle_filled(marker, 3.0, TEAL);
+                let viewport = Rect::from_min_size(
+                    pos2(map_rect.left() + self.view_x as f32 * map_rect.width() / WIDTH as f32,
+                         map_rect.top() + self.view_y as f32 * map_rect.height() / HEIGHT as f32),
+                    vec2(self.visible_columns as f32 * map_rect.width() / WIDTH as f32,
+                         self.visible_rows as f32 * map_rect.height() / HEIGHT as f32),
+                );
+                ui.painter().rect_stroke(viewport, 0.0, Stroke::new(1.0, TEAL), StrokeKind::Outside);
+                if map_response.clicked() && let Some(point) = map_response.interact_pointer_pos() {
+                    let x = (((point.x - map_rect.left()) / map_rect.width()) * WIDTH as f32) as usize;
+                    let y = (((point.y - map_rect.top()) / map_rect.height()) * HEIGHT as f32) as usize;
+                    self.view_x = x.saturating_sub(self.visible_columns / 2).min(WIDTH - 1);
+                    self.view_y = y.saturating_sub(self.visible_rows / 2).min(HEIGHT - 1);
+                }
+                ui.add_space(8.0);
+                }
                 for item in Item::ALL {
                     let (rect, response) =
                         ui.allocate_exact_size(vec2(ui.available_width(), 42.0), Sense::click());
@@ -570,6 +643,11 @@ impl FactoryApp {
                 self.inspector(ui);
                 ui.add_space(9.0);
                 ui.separator();
+                ui.label(RichText::new(format!("TIER {} / PHASE {}", self.game.tier(), self.game.phase())).color(TEAL).monospace().strong());
+                ui.label(RichText::new(format!("Next unlock: {}", self.game.next_unlock())).color(COPPER).size(11.0));
+                ui.label(RichText::new("Complete each delivery contract to advance. Upgrade machines from their inspector after unlocking them.").color(MUTED).size(11.0));
+                ui.add_space(8.0);
+                ui.separator();
                 ui.label(
                     RichText::new("SUPPLY SHOP")
                         .color(TEAL)
@@ -583,15 +661,16 @@ impl FactoryApp {
                 );
                 for kind in Kind::BUILDABLE {
                     ui.horizontal(|ui| {
+                        let unlocked = self.game.order_index >= kind.unlock_after();
                         ui.label(
-                            RichText::new(format!("{}  ·  ¤{}", kind.name(), kind.price()))
+                            RichText::new(if unlocked { format!("{}  ·  ¤{}", kind.name(), kind.price()) } else { format!("{}  ·  LOCKED", kind.name()) })
                                 .monospace()
                                 .size(11.0),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui
                                 .add_enabled(
-                                    self.game.credits >= kind.price(),
+                                    unlocked && self.game.credits >= kind.price(),
                                     egui::Button::new("BUY").min_size(vec2(48.0, 20.0)),
                                 )
                                 .clicked()
@@ -599,9 +678,13 @@ impl FactoryApp {
                                 let result = self.game.buy(kind);
                                 self.record_error(result);
                             }
+                            if ui.add_enabled(unlocked, egui::Button::new("USE")).clicked() {
+                                self.tool = Tool::Build(kind);
+                            }
                         });
                     });
                 }
+                });
             });
     }
 
@@ -614,7 +697,7 @@ impl FactoryApp {
         let deposit = tile.deposit;
         let building = tile.building.clone();
         ui.label(
-            RichText::new(format!("GRID {:02}:{:02}", x, y))
+            RichText::new(format!("WORLD {:03}:{:03}", x, y))
                 .color(MUTED)
                 .monospace()
                 .size(11.0),
@@ -632,8 +715,9 @@ impl FactoryApp {
         };
         ui.label(
             RichText::new(format!(
-                "{}  {}",
+                "{} MK {}  {}",
                 b.kind.name().to_uppercase(),
+                b.level,
                 b.direction.glyph()
             ))
             .color(CREAM)
@@ -663,6 +747,22 @@ impl FactoryApp {
                     .size(11.0),
             );
         }
+        if b.level > 1
+            && matches!(
+                b.kind,
+                Kind::Miner | Kind::Furnace | Kind::Assembler | Kind::Belt | Kind::Splitter
+            )
+        {
+            let (powered, _) = self.game.power_network();
+            ui.label(
+                RichText::new(if powered[y * WIDTH + x] {
+                    "⚡ Powered"
+                } else {
+                    "⚡ No grid connection"
+                })
+                .color(if powered[y * WIDTH + x] { TEAL } else { COPPER }),
+            );
+        }
         ui.horizontal(|ui| {
             if b.kind != Kind::Hub && ui.small_button("ROTATE").clicked() {
                 let result = self.game.rotate(x, y);
@@ -677,6 +777,27 @@ impl FactoryApp {
                 self.record_error(result);
             }
         });
+        if b.kind != Kind::Hub {
+            let unlocked = b.level < self.game.max_level(b.kind);
+            let price = b.kind.price() * u32::from(b.level + 1) + 8;
+            if ui
+                .add_enabled(
+                    unlocked && self.game.credits >= price,
+                    egui::Button::new(format!("UPGRADE TO MK {} · ¤{}", b.level + 1, price)),
+                )
+                .clicked()
+            {
+                let result = self.game.upgrade(x, y);
+                self.record_error(result);
+            }
+            if !unlocked {
+                ui.label(
+                    RichText::new("Next upgrade unlocks after another phase")
+                        .color(MUTED)
+                        .size(10.0),
+                );
+            }
+        }
         if b.kind != Kind::Hub && ui.small_button("RECOVER BUILDING").clicked() {
             let result = self.game.remove(x, y);
             self.record_error(result);
@@ -698,90 +819,108 @@ impl FactoryApp {
     }
 
     fn board(&mut self, root: &mut egui::Ui, ctx: &egui::Context) {
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(BG).inner_margin(egui::Margin::same(18)))
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(BG).inner_margin(egui::Margin::same(18)))
             .show(root, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("FACTORY FLOOR").color(TEAL).monospace().strong());
+                    ui.label(RichText::new("FACTORY WORLD").color(TEAL).monospace().strong());
                     ui.add_space(8.0);
-                    ui.label(RichText::new("ore → refine → assemble → deliver").color(MUTED).monospace().size(11.0));
+                    if ui.small_button("L").clicked() { self.view_x = self.view_x.saturating_sub(8); }
+                    if ui.small_button("R").clicked() { self.view_x = (self.view_x + 8).min(WIDTH - 1); }
+                    if ui.small_button("U").clicked() { self.view_y = self.view_y.saturating_sub(8); }
+                    if ui.small_button("D").clicked() { self.view_y = (self.view_y + 8).min(HEIGHT - 1); }
+                    if ui.small_button("HUB").clicked() {
+                        self.view_x = self.game.hub[0].saturating_sub(18);
+                        self.view_y = self.game.hub[1].saturating_sub(11);
+                    }
+                    if ui.small_button("-").clicked() { self.zoom = (self.zoom - 2.0).max(14.0); }
+                    if ui.small_button("+").clicked() { self.zoom = (self.zoom + 2.0).min(42.0); }
+                    ui.label(RichText::new(format!("{:03}:{:03} · {} × {}", self.view_x, self.view_y, WIDTH, HEIGHT)).color(MUTED).monospace().size(10.0));
                 });
                 ui.add_space(9.0);
-                let available=ui.available_size();
-                let tile=(available.x/WIDTH as f32).min((available.y-47.0)/HEIGHT as f32).floor().max(16.0);
-                let size=vec2(tile*WIDTH as f32,tile*HEIGHT as f32);
-                let origin=pos2(ui.min_rect().min.x+(available.x-size.x)/2.0,ui.cursor().min.y);
-                let board_rect=Rect::from_min_size(origin,size);
-                let response=ui.interact(board_rect,ui.id().with("board"),Sense::click_and_drag());
-                let painter=ui.painter();
-                painter.rect_filled(board_rect.expand(3.0),3.0,EDGE);
-                for y in 0..HEIGHT { for x in 0..WIDTH {
-                    let rect=Rect::from_min_size(origin+vec2(x as f32*tile,y as f32*tile),Vec2::splat(tile));
-                    let cell=rect.shrink(0.5);
-                    painter.rect_filled(cell,0.0,if (x+y)%2==0 {CELL} else {CELL_ALT});
-                    let floor_frame=self.game.terrain[y*WIDTH+x];
-                    if floor_frame!=255 { self.sprites.draw(painter,floor_frame as usize,cell); }
-                    let tile_data=&self.game.tiles[y*WIDTH+x];
-                    if let Some(deposit)=tile_data.deposit {
-                        let tint=if deposit==Item::IronOre {Color32::from_rgb(45,80,83)} else {Color32::from_rgb(91,64,52)};
-                        painter.rect_filled(cell.shrink(2.0),2.0,tint);
-                        self.sprites.draw(painter,if deposit==Item::IronOre {12} else {13},cell.shrink(1.0));
-                    }
-                    if let Some(building)=&tile_data.building {
-                        if building.kind==Kind::Hub { painter.rect_filled(cell,2.0,Color32::from_rgb(28,103,97)); }
-                        self.sprites.draw(painter,building.kind.sprite(),cell.shrink(1.0));
-                        if building.kind!=Kind::Hub {
-                            painter.text(rect.right_bottom()-vec2(tile*0.14,tile*0.33),Align2::RIGHT_BOTTOM,building.direction.glyph(),FontId::monospace((tile*0.30).max(10.0)),CREAM);
+                let available = ui.available_size();
+                let columns = ((available.x / self.zoom).floor() as usize).clamp(1, WIDTH);
+                let rows = (((available.y - 77.0).max(160.0) / self.zoom).floor() as usize).clamp(1, HEIGHT);
+                self.visible_columns = columns;
+                self.visible_rows = rows;
+                self.view_x = self.view_x.min(WIDTH - columns);
+                self.view_y = self.view_y.min(HEIGHT - rows);
+                let tile = self.zoom;
+                let size = vec2(tile * columns as f32, tile * rows as f32);
+                let origin = ui.cursor().min;
+                let board_rect = Rect::from_min_size(origin, size);
+                let response = ui.interact(board_rect, ui.id().with("world-board"), Sense::click_and_drag());
+                let painter = ui.painter().clone();
+                painter.rect_filled(board_rect.expand(2.0), 2.0, EDGE);
+                let (powered, _) = self.game.power_network();
+                for row in 0..rows {
+                    for col in 0..columns {
+                        let x = self.view_x + col;
+                        let y = self.view_y + row;
+                        let rect = Rect::from_min_size(origin + vec2(col as f32 * tile, row as f32 * tile), Vec2::splat(tile));
+                        let cell = rect.shrink(0.4);
+                        let index = y * WIDTH + x;
+                        painter.rect_filled(cell, 0.0, if (x + y).is_multiple_of(2) { CELL } else { CELL_ALT });
+                        let floor_frame = self.game.terrain[index];
+                        if floor_frame != 255 { self.sprites.draw(&painter, floor_frame as usize, cell); }
+                        let tile_data = &self.game.tiles[index];
+                        if let Some(resource) = tile_data.deposit {
+                            let tint = match resource {
+                                Resource::IronOre => Color32::from_rgb(45, 80, 83),
+                                Resource::CopperOre => Color32::from_rgb(91, 64, 52),
+                                Resource::Coal => Color32::from_rgb(56, 60, 76),
+                            };
+                            painter.rect_filled(cell.shrink(2.0), 2.0, tint);
+                            self.sprites.draw(&painter, resource.sprite(), cell.shrink(1.0));
                         }
-                        if let Some(item)=building.output {
-                            let badge=Rect::from_min_size(rect.right_top()+vec2(-tile*0.50,1.0),Vec2::splat(tile*0.43));
-                            painter.rect_filled(badge,2.0,BG);
-                            self.sprites.draw(painter,item.sprite(),badge);
+                        if let Some(building) = &tile_data.building {
+                            if building.kind == Kind::Hub { painter.rect_filled(cell, 2.0, Color32::from_rgb(28, 103, 97)); }
+                            self.sprites.draw(&painter, building.kind.sprite(), cell.shrink(1.0));
+                            if building.level > 1 {
+                                painter.rect_stroke(cell.shrink(1.0), 1.0, Stroke::new(1.5, if powered[index] { TEAL } else { COPPER }), StrokeKind::Inside);
+                            }
+                            if building.kind != Kind::Hub && !matches!(building.kind, Kind::Generator | Kind::PowerPole) && tile >= 20.0 {
+                                painter.text(rect.right_bottom() - vec2(tile * 0.12, tile * 0.31), Align2::RIGHT_BOTTOM, building.direction.glyph(), FontId::monospace((tile * 0.28).max(9.0)), CREAM);
+                            }
+                            if let Some(item) = building.output {
+                                let badge = Rect::from_min_size(rect.right_top() + vec2(-tile * 0.50, 1.0), Vec2::splat(tile * 0.43));
+                                painter.rect_filled(badge, 2.0, BG);
+                                self.sprites.draw(&painter, item.sprite(), badge);
+                            }
+                        }
+                        if self.inspected == Some((x, y)) {
+                            painter.rect_stroke(cell.shrink(1.0), 1.0, Stroke::new(2.0, COPPER), StrokeKind::Inside);
                         }
                     }
-                    if self.inspected==Some((x,y)) { painter.rect_stroke(cell.shrink(1.0),1.0,Stroke::new(2.0,COPPER),StrokeKind::Inside); }
-                }}
-                self.hover=response.hover_pos().filter(|p|board_rect.contains(*p)).map(|p| {
-                    (((p.x-origin.x)/tile).floor() as usize,((p.y-origin.y)/tile).floor() as usize)
-                }).filter(|(x,y)|*x<WIDTH && *y<HEIGHT);
-                if let Some((x,y))=self.hover {
-                    let rect=Rect::from_min_size(origin+vec2(x as f32*tile,y as f32*tile),Vec2::splat(tile));
-                    painter.rect_stroke(rect.shrink(1.0),1.0,Stroke::new(2.0,TEAL),StrokeKind::Inside);
                 }
-                let pointer=ctx.input(|i| (i.pointer.primary_down(),i.pointer.secondary_down()));
-                if !pointer.0 && !pointer.1 { self.last_drag_tile=None; }
-                if let Some((x,y))=self.hover {
-                    if pointer.1 && self.last_drag_tile!=Some((x,y)) {
-                        self.click_tile(x,y,true);self.last_drag_tile=Some((x,y));
-                    } else if pointer.0 && self.last_drag_tile!=Some((x,y)) {
-                        self.click_tile(x,y,false);self.last_drag_tile=Some((x,y));
+                self.hover = response.hover_pos().filter(|p| board_rect.contains(*p)).map(|p| {
+                    (self.view_x + ((p.x - origin.x) / tile).floor() as usize,
+                     self.view_y + ((p.y - origin.y) / tile).floor() as usize)
+                }).filter(|(x, y)| *x < WIDTH && *y < HEIGHT);
+                if let Some((x, y)) = self.hover {
+                    let rect = Rect::from_min_size(origin + vec2((x - self.view_x) as f32 * tile, (y - self.view_y) as f32 * tile), Vec2::splat(tile));
+                    painter.rect_stroke(rect.shrink(1.0), 1.0, Stroke::new(2.0, TEAL), StrokeKind::Inside);
+                }
+                if response.hovered() {
+                    let scroll = ctx.input(|i| i.smooth_scroll_delta.y);
+                    if scroll.abs() > 1.0 { self.zoom = (self.zoom + scroll.signum() * 2.0).clamp(14.0, 42.0); }
+                }
+                let pointer = ctx.input(|i| (i.pointer.primary_down(), i.pointer.secondary_down()));
+                if !pointer.0 && !pointer.1 { self.last_drag_tile = None; }
+                if let Some((x, y)) = self.hover {
+                    if pointer.1 && self.last_drag_tile != Some((x, y)) {
+                        self.click_tile(x, y, true); self.last_drag_tile = Some((x, y));
+                    } else if pointer.0 && self.last_drag_tile != Some((x, y)) {
+                        self.click_tile(x, y, false); self.last_drag_tile = Some((x, y));
                     }
                 }
-                ui.add_space(size.y+12.0);
+                ui.add_space(size.y + 10.0);
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new("◉").color(COPPER));
                     ui.label(RichText::new(&self.game.notice).color(CREAM).size(12.0));
-                    if let Some(error)=&self.error { ui.label(RichText::new(error).color(COPPER).size(11.0)); }
+                    if let Some(error) = &self.error { ui.label(RichText::new(error).color(COPPER).size(11.0)); }
                 });
-                ui.label(RichText::new("Drag to lay conveyors  ·  Select an item in Inventory, then click a machine to hand-load it  ·  Inspect a machine to change its recipe").color(MUTED).size(10.0));
-                ui.add_space(25.0);
-                ui.label(RichText::new("PRODUCTION NOTES  /  FIELD GUIDE").color(TEAL).monospace().size(12.0).strong());
-                ui.add_space(8.0);
-                let width=(ui.available_width()-16.0)/3.0;
-                let start=ui.cursor().min;
-                for (i,(title,formula,detail,sprite)) in [
-                    ("01  IRON INGOT","IRON ORE → FURNACE","First delivery order",Item::IronBar.sprite()),
-                    ("02  GEAR","2 IRON INGOTS","Assembler recipe",Item::Gear.sprite()),
-                    ("03  CIRCUIT","IRON + COPPER","Assembler recipe",Item::Circuit.sprite()),
-                ].into_iter().enumerate() {
-                    let rect=Rect::from_min_size(start+vec2(i as f32*(width+8.0),0.0),vec2(width,107.0));
-                    ui.painter().rect_filled(rect,4.0,PANEL);
-                    ui.painter().rect_stroke(rect,4.0,Stroke::new(1.0,EDGE),StrokeKind::Inside);
-                    self.sprites.draw(ui.painter(),sprite,Rect::from_min_size(rect.min+vec2(8.0,9.0),Vec2::splat(40.0)));
-                    ui.painter().text(rect.min+vec2(53.0,14.0),Align2::LEFT_TOP,title,FontId::monospace(11.0),COPPER);
-                    ui.painter().text(rect.min+vec2(9.0,62.0),Align2::LEFT_TOP,formula,FontId::monospace(10.0),CREAM);
-                    ui.painter().text(rect.min+vec2(9.0,83.0),Align2::LEFT_TOP,detail,FontId::monospace(10.0),MUTED);
-                }
-                ui.add_space(112.0);
+                ui.label(RichText::new(format!("WASD / arrows pan · wheel zoom · world seed {} · {} generated resource nodes", self.game.seed, self.game.tiles.iter().filter(|tile| tile.deposit.is_some()).count())).color(MUTED).size(10.0));
             });
     }
 
@@ -830,7 +969,7 @@ impl FactoryApp {
                             .size(52.0),
                     );
                     ui.label(
-                        RichText::new("A POCKET-SIZED FACTORY ABOUT BIG IDEAS")
+                        RichText::new("A VAST FACTORY BUILT ONE PHASE AT A TIME")
                             .color(COPPER)
                             .monospace()
                             .size(12.0),
@@ -859,7 +998,7 @@ impl FactoryApp {
                     }
                     ui.add_space(8.0);
                     ui.label(
-                        RichText::new("MINE  ·  REFINE  ·  ASSEMBLE  ·  DELIVER")
+                        RichText::new("MINE  ·  REFINE  ·  POWER  ·  EXPAND")
                             .color(MUTED)
                             .monospace()
                             .size(11.0),
@@ -961,14 +1100,15 @@ impl FactoryApp {
                 ui.label(format!("4. The factory runs automatically. Deliver {} iron ingots to complete the first order.",self.game.first_order_amount));
                 ui.add_space(9.0);
                 ui.label(RichText::new("GO FURTHER").color(COPPER).monospace().strong());
-                ui.label("Mine copper on the lower deposits. Assemblers turn two iron ingots into a gear, or one iron and one copper ingot into a circuit. Click an assembler to change recipes. Splitters divide a line across two directions.");
+                ui.label("Explore the 256 × 256 world with WASD or arrow keys, click SHOW WORLD MAP to jump across it, and use the mouse wheel to zoom. Every new world scatters iron, copper, and coal nodes from a saved seed. Assemblers turn two iron ingots into a gear, or iron and copper into a circuit.");
+                ui.label("Complete all three phases in a tier to reach the next. Each phase unlocks another machine upgrade. Tier 2 unlocks generators and power poles: put a generator on coal, then extend its network with poles. Mk II gives a mechanical speedup; power boosts it further and enables the full speed of Mk III+ machines.");
                 ui.add_space(9.0);
                 ui.label(RichText::new("CONTROLS").color(COPPER).monospace().strong());
-                ui.label("1–5 tools  ·  I inspect  ·  R rotate placement  ·  right click recover  ·  Space pause  ·  F1 guide  ·  Esc menu");
+                ui.label("1–5 basic tools  ·  power tools in Supply shop  ·  I inspect  ·  R rotate  ·  right click recover  ·  Space pause  ·  F1 guide  ·  Esc menu");
                 ui.label("Select an inventory item, then click a compatible machine to load it by hand. Completed output can be picked up from the inspector.");
                 ui.add_space(8.0);
                 ui.label(RichText::new("EDIT THE FACTORY").color(COPPER).monospace().strong());
-                ui.label("Open the Bozz-torio scene in the Bozzard editor. Move ore deposits or the hub, paint the floor tilemap, and duplicate the machine templates onto the board. Save the scene, then choose NEW FROM EDITOR SCENE here. That preserves any current save until you choose to start over.");
+                ui.label("The Bozzard editor contains the 22 × 15 starter district inside the generated world. Move its deposits or hub, paint its floor, change the world seed on the scene blackboard, or place machine templates. Save, then choose NEW FROM EDITOR SCENE here.");
                 ui.label(RichText::new(format!("Editor scene: {}",self.scene.path.display())).color(MUTED).size(10.0));
                 ui.label(RichText::new(format!("Autosave: {}",self.save.path().display())).color(MUTED).size(10.0));
             });

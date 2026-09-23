@@ -46,6 +46,7 @@ def main() -> None:
     (output / "assets").mkdir(exist_ok=True)
     shutil.copy2(workspace / "apps/bozz-torio/scene/bozz-torio.json", output / "scene/bozz-torio.json")
     shutil.copy2(workspace / "apps/bozz-torio/assets/sprites.png", output / "assets/sprites.png")
+    shutil.copy2(workspace / "apps/bozz-torio/assets/sprite_manifest.json", output / "assets/sprite_manifest.json")
     (output / "steam_appid.txt").write_text(f"{args.app_id}\n", encoding="ascii")
     print(f"Packaged {binary_name}, {library}, editable scene, sprites, and app {args.app_id} into {output}")
 

@@ -1,5 +1,8 @@
 use bozzard_editor::Editor;
-use bozzard_scene::Layer;
+use bozzard_scene::{
+    Layer,
+    blueprint::{BlackboardValue, Value},
+};
 
 #[test]
 fn bozz_torio_scene_opens_edits_and_previews_in_the_editor() -> anyhow::Result<()> {
@@ -42,6 +45,10 @@ fn bozz_torio_scene_opens_edits_and_previews_in_the_editor() -> anyhow::Result<(
         .unwrap()
         .transform
         .translation[0] += 1.0;
+    changed.blackboard.insert(
+        "world_seed".into(),
+        BlackboardValue::Scalar(Value::Number(42.0)),
+    );
     editor.apply("Move delivery hub", changed.clone())?;
     assert_eq!(editor.scene(), &changed);
     editor.undo()?;
