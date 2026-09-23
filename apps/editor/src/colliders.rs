@@ -26,7 +26,17 @@ pub(super) fn clip_edge(a: Vec4, b: Vec4) -> Option<(Vec4, Vec4)> {
 }
 impl App {
     pub fn collider_overlay(&self, ui: &egui::Ui, rect: Rect, projection: Mat4) -> Result<f32> {
-        let snapshot = self.editor.collisions()?;
+        let mut snapshot = self.editor.collisions()?;
+        if self.editor.play.is_none() {
+            let hidden = self
+                .open_scenes
+                .hidden_objects_in(self.open_scenes.active(), self.editor.scene());
+            snapshot.boxes.retain(|bounds| !hidden.contains(&bounds.id));
+            snapshot.meshes.retain(|mesh| !hidden.contains(&mesh.id));
+            snapshot
+                .overlaps
+                .retain(|(a, b)| !hidden.contains(a) && !hidden.contains(b));
+        }
         let painter = ui.painter().with_clip_rect(rect);
         let colliding: std::collections::BTreeSet<_> = snapshot
             .overlaps

@@ -1,5 +1,47 @@
+use crate::egui;
 use bozzard_scene::{Object, Scene};
 use std::collections::{BTreeMap, BTreeSet};
+
+pub(super) fn visibility_eye(ui: &mut egui::Ui, visible: bool) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::click());
+    let color = if ui.is_enabled() && visible {
+        ui.visuals().text_color()
+    } else {
+        ui.visuals().weak_text_color()
+    };
+    let painter = ui.painter();
+    if response.hovered() && ui.is_enabled() {
+        painter.rect_filled(rect, 3.0, ui.visuals().widgets.hovered.bg_fill);
+    }
+    let center = rect.center();
+    let point = |x: f32, y: f32| center + egui::vec2(x, y);
+    let stroke = egui::Stroke::new(1.25, color);
+    painter.add(egui::Shape::line(
+        vec![
+            point(-7.0, 0.0),
+            point(-3.5, -3.5),
+            point(0.0, -4.5),
+            point(3.5, -3.5),
+            point(7.0, 0.0),
+        ],
+        stroke,
+    ));
+    painter.add(egui::Shape::line(
+        vec![
+            point(-7.0, 0.0),
+            point(-3.5, 3.5),
+            point(0.0, 4.5),
+            point(3.5, 3.5),
+            point(7.0, 0.0),
+        ],
+        stroke,
+    ));
+    painter.circle_stroke(center, 2.2, stroke);
+    if !visible {
+        painter.line_segment([point(-6.0, 5.5), point(6.0, -5.5)], stroke);
+    }
+    response
+}
 
 /// Preserve document order without rescanning every object for each expanded row.
 pub fn children(scene: &Scene) -> BTreeMap<Option<&str>, Vec<&Object>> {
@@ -19,8 +61,96 @@ pub struct HierarchyState {
     collapsed: BTreeSet<String>,
     selection_path: Vec<String>,
     surface_selection: Option<(String, usize)>,
+    selected_objects: BTreeSet<String>,
+    selection_anchor: Option<String>,
+    last_primary: Option<String>,
 }
 impl HierarchyState {
+    /// Keep hierarchy multi-selection in sync with picks from other editor panes.
+    pub fn sync_object_selection(&mut self, scene: &Scene, primary: Option<&str>) {
+        let existing: BTreeSet<_> = scene
+            .objects
+            .iter()
+            .map(|object| object.id.as_str())
+            .collect();
+        self.selected_objects
+            .retain(|id| existing.contains(id.as_str()));
+        if self.last_primary.as_deref() != primary {
+            self.reset_selection(primary);
+        } else if self.selected_objects.is_empty() {
+            self.selected_objects.extend(primary.map(str::to_owned));
+        }
+        if self
+            .selection_anchor
+            .as_deref()
+            .is_some_and(|id| !existing.contains(id))
+        {
+            self.selection_anchor = primary.map(str::to_owned);
+        }
+    }
+    pub fn reset_selection(&mut self, primary: Option<&str>) {
+        self.selected_objects.clear();
+        self.selected_objects.extend(primary.map(str::to_owned));
+        self.selection_anchor = primary.map(str::to_owned);
+        self.last_primary = primary.map(str::to_owned);
+    }
+    pub fn is_selected(&self, id: &str) -> bool {
+        self.selected_objects.contains(id)
+    }
+    pub fn selected_objects(&self) -> Vec<String> {
+        self.selected_objects.iter().cloned().collect()
+    }
+    pub fn selection_count(&self) -> usize {
+        self.selected_objects.len()
+    }
+    pub fn set_selection(&mut self, ids: impl IntoIterator<Item = String>, primary: Option<&str>) {
+        self.selected_objects = ids.into_iter().collect();
+        self.selection_anchor = primary.map(str::to_owned);
+        self.last_primary = primary.map(str::to_owned);
+    }
+    /// Range order is the rendered hierarchy order, after collapse and search.
+    pub fn click_object(
+        &mut self,
+        visible: &[String],
+        target: &str,
+        shift: bool,
+        toggle: bool,
+    ) -> Option<String> {
+        if shift
+            && let Some(anchor) = self.selection_anchor.as_deref()
+            && let (Some(from), Some(to)) = (
+                visible.iter().position(|id| id == anchor),
+                visible.iter().position(|id| id == target),
+            )
+        {
+            if !toggle {
+                self.selected_objects.clear();
+            }
+            let (start, end) = if from <= to { (from, to) } else { (to, from) };
+            self.selected_objects
+                .extend(visible[start..=end].iter().cloned());
+            self.last_primary = Some(target.to_owned());
+            return self.last_primary.clone();
+        }
+        if toggle {
+            if !self.selected_objects.remove(target) {
+                self.selected_objects.insert(target.to_owned());
+            }
+            self.selection_anchor = Some(target.to_owned());
+            self.last_primary = if self.selected_objects.contains(target) {
+                Some(target.to_owned())
+            } else {
+                visible
+                    .iter()
+                    .find(|id| self.selected_objects.contains(*id))
+                    .cloned()
+                    .or_else(|| self.selected_objects.iter().next().cloned())
+            };
+            return self.last_primary.clone();
+        }
+        self.reset_selection(Some(target));
+        Some(target.to_owned())
+    }
     pub fn is_collapsed(&self, id: &str) -> bool {
         self.collapsed.contains(id)
     }
@@ -192,6 +322,52 @@ mod tests {
         tree.expand_all();
         assert!(!tree.is_collapsed("branch"));
         assert_eq!(scene, before);
+    }
+    #[test]
+    fn shift_click_selects_inclusive_visible_range_in_both_directions() {
+        let visible = ["root", "branch", "leaf", "next"].map(str::to_owned);
+        let mut tree = HierarchyState::default();
+        assert_eq!(
+            tree.click_object(&visible, "branch", false, false),
+            Some("branch".into())
+        );
+        assert_eq!(
+            tree.click_object(&visible, "next", true, false),
+            Some("next".into())
+        );
+        assert_eq!(tree.selected_objects(), vec!["branch", "leaf", "next"]);
+        assert_eq!(
+            tree.click_object(&visible, "root", true, false),
+            Some("root".into())
+        );
+        assert_eq!(tree.selected_objects(), vec!["branch", "root"]);
+        // Command/Ctrl-click toggles without changing the document or anchor range.
+        assert_eq!(
+            tree.click_object(&visible, "leaf", false, true),
+            Some("leaf".into())
+        );
+        assert_eq!(tree.selected_objects(), vec!["branch", "leaf", "root"]);
+        assert_eq!(
+            tree.click_object(&visible, "leaf", false, true),
+            Some("root".into())
+        );
+        assert_eq!(tree.selected_objects(), vec!["branch", "root"]);
+    }
+    #[test]
+    fn hidden_anchor_falls_back_to_single_selection_and_external_pick_resets_range() {
+        let scene = scene();
+        let visible = ["root", "branch", "leaf"].map(str::to_owned);
+        let mut tree = HierarchyState::default();
+        tree.click_object(&visible, "branch", false, false);
+        tree.click_object(&visible, "leaf", true, false);
+        assert_eq!(tree.selection_count(), 2);
+        tree.sync_object_selection(&scene, Some("root"));
+        assert_eq!(tree.selected_objects(), vec!["root"]);
+        assert_eq!(
+            tree.click_object(&visible[1..], "leaf", true, false),
+            Some("leaf".into())
+        );
+        assert_eq!(tree.selected_objects(), vec!["leaf"]);
     }
     #[test]
     fn new_selection_reveals_ancestors_but_manual_collapse_sticks() {

@@ -398,22 +398,43 @@ impl Editor {
         Ok(())
     }
     pub fn duplicate(&mut self) -> Result<()> {
-        ensure!(
-            self.selected_surface().is_none(),
-            "Select the whole model before duplicating it"
-        );
         let selected = self
             .selected
             .as_ref()
             .context("Select an object first")?
             .clone();
-        let ids = subtree(&self.scene, &selected);
+        let replacements = self.duplicate_objects(&[selected.clone()])?;
+        self.select_object(Some(replacements[&selected].clone()));
+        Ok(())
+    }
+    /// Duplicate several selected hierarchy roots in one undoable transaction.
+    pub fn duplicate_objects(&mut self, roots: &[String]) -> Result<BTreeMap<String, String>> {
+        ensure!(
+            self.selected_surface().is_none(),
+            "Select the whole model before duplicating it"
+        );
+        ensure!(!roots.is_empty(), "Select an object first");
+        let selected: BTreeSet<_> = roots.iter().cloned().collect();
+        ensure!(
+            selected
+                .iter()
+                .all(|id| self.scene.objects.iter().any(|o| &o.id == id)),
+            "selected object no longer exists"
+        );
+        let ids: BTreeSet<_> = selected
+            .iter()
+            .flat_map(|id| subtree(&self.scene, id))
+            .collect();
         let mut scene = self.scene.clone();
         let mut replacements = BTreeMap::new();
         for object in self.scene.objects.iter().filter(|o| ids.contains(&o.id)) {
             let mut copy = object.clone();
             copy.id = unique_id(&scene, "copy");
-            if object.id == selected || !self.scene.prefabs.contains_key(&selected) {
+            if selected.contains(&object.id)
+                || !selected
+                    .iter()
+                    .any(|root| self.scene.prefabs.contains_key(root))
+            {
                 copy.name.push_str(" copy");
             }
             replacements.insert(object.id.clone(), copy.id.clone());
@@ -425,9 +446,6 @@ impl Editor {
                 && let Some(new) = replacements.get(parent)
             {
                 object.parent = Some(new.clone());
-            }
-            if object.id == replacements[&selected] {
-                object.transform.translation[0] += 0.5;
             }
         }
         // Duplicating a full instance keeps its source link and independent baseline.
@@ -445,17 +463,41 @@ impl Editor {
                 scene.prefabs.insert(new_root.clone(), link);
             }
         }
-        self.apply("Duplicate subtree", scene)?;
-        self.selected = Some(replacements[&selected].clone());
-        Ok(())
+        self.apply(
+            if selected.len() == 1 {
+                "Duplicate subtree"
+            } else {
+                "Duplicate selection"
+            },
+            scene,
+        )?;
+        Ok(replacements)
     }
     pub fn delete(&mut self) -> Result<()> {
+        let id = self
+            .selected
+            .as_ref()
+            .context("Select an object first")?
+            .clone();
+        self.delete_objects(&[id])
+    }
+    /// Delete selected objects and their descendants as one history entry.
+    pub fn delete_objects(&mut self, roots: &[String]) -> Result<()> {
         ensure!(
             self.selected_surface().is_none(),
             "Select the whole model before deleting it"
         );
-        let id = self.selected.as_ref().context("Select an object first")?;
-        let ids = subtree(&self.scene, id);
+        ensure!(!roots.is_empty(), "Select an object first");
+        ensure!(
+            roots
+                .iter()
+                .all(|id| self.scene.objects.iter().any(|o| &o.id == id)),
+            "selected object no longer exists"
+        );
+        let ids: BTreeSet<_> = roots
+            .iter()
+            .flat_map(|id| subtree(&self.scene, id))
+            .collect();
         ensure!(
             !self.scene.views.values().any(|id| ids.contains(id)),
             "An active camera is in this subtree; assign another active camera first"
@@ -463,7 +505,14 @@ impl Editor {
         let mut scene = self.scene.clone();
         scene.objects.retain(|o| !ids.contains(&o.id));
         scene.prefabs.retain(|root, _| !ids.contains(root));
-        self.apply("Delete subtree", scene)
+        self.apply(
+            if roots.len() == 1 {
+                "Delete subtree"
+            } else {
+                "Delete selection"
+            },
+            scene,
+        )
     }
     pub fn set_blueprints(
         &mut self,
@@ -1561,6 +1610,121 @@ mod tests {
             Path::new("work/editor-test/scene.json"),
         )
         .unwrap()
+    }
+    #[test]
+    fn duplicate_preserves_exact_local_and_world_transforms() {
+        let scene = Scene::from_json(
+            r#"{"version":1,"name":"Exact duplicate","views":{},"objects":[
+              {"id":"root","name":"Root","transform":{"translation":[1.25,-2,3.5],"rotation_degrees":[10,35,-5],"scale":[1.3,1,0.8]}},
+              {"id":"child","name":"Child","parent":"root","transform":{"translation":[2.5,0,-1],"rotation_degrees":[0,20,0],"scale":[1,2,1]}}
+            ]}"#,
+        )
+        .unwrap();
+        let original_world = scene.global_transforms().unwrap();
+
+        let mut single =
+            Editor::new(scene.clone(), Path::new("work/exact-copy/scene.json")).unwrap();
+        single.select_object(Some("child".into()));
+        single.duplicate().unwrap();
+        let child_copy = single.selected.clone().unwrap();
+        let copied_child = single
+            .scene()
+            .objects
+            .iter()
+            .find(|o| o.id == child_copy)
+            .unwrap();
+        assert_eq!(copied_child.transform, scene.objects[1].transform);
+        assert_eq!(copied_child.parent.as_deref(), Some("root"));
+        assert_eq!(
+            single.scene().global_transforms().unwrap()[&child_copy],
+            original_world["child"]
+        );
+
+        let mut subtree =
+            Editor::new(scene.clone(), Path::new("work/exact-tree/scene.json")).unwrap();
+        subtree.select_object(Some("root".into()));
+        let copies = subtree.duplicate_objects(&["root".into()]).unwrap();
+        let copied_world = subtree.scene().global_transforms().unwrap();
+        for original in &scene.objects {
+            let copy = subtree
+                .scene()
+                .objects
+                .iter()
+                .find(|o| o.id == copies[&original.id])
+                .unwrap();
+            assert_eq!(copy.transform, original.transform);
+            assert_eq!(copied_world[&copy.id], original_world[&original.id]);
+        }
+        let copied_child = subtree
+            .scene()
+            .objects
+            .iter()
+            .find(|o| o.id == copies["child"])
+            .unwrap();
+        assert_eq!(
+            copied_child.parent.as_deref(),
+            Some(copies["root"].as_str())
+        );
+    }
+
+    #[test]
+    fn bulk_duplicate_and_delete_preserve_hierarchy_and_one_step_history() {
+        let scene = Scene::from_json(
+            r#"{"version":1,"name":"Group editing","views":{},"objects":[
+              {"id":"root","name":"Root","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+              {"id":"child","name":"Child","parent":"root","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+              {"id":"other","name":"Other","transform":{"translation":[2,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}
+            ]}"#,
+        )
+        .unwrap();
+        let mut editor = Editor::new(scene, Path::new("work/bulk-selection/scene.json")).unwrap();
+        let original = editor.scene().clone();
+        let original_world = original.global_transforms().unwrap();
+        let copies = editor
+            .duplicate_objects(&["root".into(), "child".into(), "other".into()])
+            .unwrap();
+        let copied_world = editor.scene().global_transforms().unwrap();
+        for object in &original.objects {
+            let copy = editor
+                .scene()
+                .objects
+                .iter()
+                .find(|candidate| candidate.id == copies[&object.id])
+                .unwrap();
+            assert_eq!(copy.transform, object.transform);
+            assert_eq!(copied_world[&copy.id], original_world[&object.id]);
+        }
+        let child_copy = editor
+            .scene()
+            .objects
+            .iter()
+            .find(|o| o.id == copies["child"])
+            .unwrap();
+        assert_eq!(child_copy.parent.as_deref(), Some(copies["root"].as_str()));
+        assert_eq!(editor.undo_label(), Some("Duplicate selection"));
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &original);
+        editor.redo().unwrap();
+        editor
+            .delete_objects(&["root".into(), "other".into()])
+            .unwrap();
+        assert!(
+            editor
+                .scene()
+                .objects
+                .iter()
+                .all(|o| o.id != "root" && o.id != "child" && o.id != "other")
+        );
+        assert!(
+            editor
+                .scene()
+                .objects
+                .iter()
+                .any(|o| o.id == copies["child"])
+        );
+        assert_eq!(editor.undo_label(), Some("Delete selection"));
+        editor.undo().unwrap();
+        assert!(editor.scene().objects.iter().any(|o| o.id == "child"));
     }
     #[test]
     fn bloom_history_save_reset_and_2d_isolation() {
