@@ -402,14 +402,20 @@ impl FactoryApp {
                                     ),
                                     StrokeKind::Outside,
                                 );
-                                self.sprites.draw(
-                                    painter,
-                                    kind.sprite(),
-                                    Rect::from_min_size(
-                                        rect.min + vec2(7.0, 7.0),
-                                        vec2(42.0, 42.0),
-                                    ),
+                                let icon = Rect::from_min_size(
+                                    rect.min + vec2(7.0, 7.0),
+                                    vec2(42.0, 42.0),
                                 );
+                                if kind == Kind::Belt {
+                                    self.sprites.draw_facing(
+                                        painter,
+                                        kind.sprite(),
+                                        icon,
+                                        self.facing,
+                                    );
+                                } else {
+                                    self.sprites.draw(painter, kind.sprite(), icon);
+                                }
                                 painter.text(
                                     rect.min + vec2(53.0, 8.0),
                                     Align2::LEFT_TOP,
@@ -875,11 +881,15 @@ impl FactoryApp {
                         }
                         if let Some(building) = &tile_data.building {
                             if building.kind == Kind::Hub { painter.rect_filled(cell, 2.0, Color32::from_rgb(28, 103, 97)); }
-                            self.sprites.draw(&painter, building.kind.sprite(), cell.shrink(1.0));
+                            if building.kind == Kind::Belt {
+                                self.sprites.draw_facing(&painter, building.kind.sprite(), cell.shrink(1.0), building.direction);
+                            } else {
+                                self.sprites.draw(&painter, building.kind.sprite(), cell.shrink(1.0));
+                            }
                             if building.level > 1 {
                                 painter.rect_stroke(cell.shrink(1.0), 1.0, Stroke::new(1.5, if powered[index] { TEAL } else { COPPER }), StrokeKind::Inside);
                             }
-                            if building.kind != Kind::Hub && !matches!(building.kind, Kind::Generator | Kind::PowerPole) && tile >= 20.0 {
+                            if !matches!(building.kind, Kind::Belt | Kind::Hub | Kind::Generator | Kind::PowerPole) && tile >= 20.0 {
                                 painter.text(rect.right_bottom() - vec2(tile * 0.12, tile * 0.31), Align2::RIGHT_BOTTOM, building.direction.glyph(), FontId::monospace((tile * 0.28).max(9.0)), CREAM);
                             }
                             if let Some(item) = building.output {
