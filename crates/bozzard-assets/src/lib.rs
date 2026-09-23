@@ -1074,7 +1074,9 @@ fn gltf_preflight(bytes: &[u8]) -> Result<serde_json::Value> {
     ensure!(
         json.get("extensionsRequired")
             .and_then(serde_json::Value::as_array)
-            .is_none_or(Vec::is_empty),
+            .is_none_or(|extensions| extensions
+                .iter()
+                .all(|e| e.as_str() == Some("KHR_materials_emissive_strength"))),
         "required glTF extensions are not supported by this importer"
     );
     if let Some(meshes) = json.get("meshes").and_then(serde_json::Value::as_array) {
@@ -2156,6 +2158,88 @@ mod tests {
             mesh.parts[0].image.as_ref().unwrap(),
             mesh.parts[2].image.as_ref().unwrap()
         ));
+    }
+
+    #[test]
+    fn gltf_emission_strength_survives_portable_and_cooked_roundtrips() {
+        let uri = format!(
+            "data:application/octet-stream;base64,{}",
+            STANDARD.encode(triangle_bytes())
+        );
+        let base: serde_json::Value = serde_json::from_slice(&gltf_document(&uri, None)).unwrap();
+        let load = |json: &serde_json::Value| {
+            import(
+                AssetKind::Mesh,
+                Path::new("emission.gltf"),
+                &serde_json::to_vec(json).unwrap(),
+                &no_dependencies(),
+            )
+        };
+        for strength in [None, Some(0.), Some(6.)] {
+            for required in [false, true] {
+                let mut json = base.clone();
+                json["materials"][0]["emissiveFactor"] = serde_json::json!([1., 0.25, 0.5]);
+                if let Some(strength) = strength {
+                    json["extensionsUsed"] = serde_json::json!(["KHR_materials_emissive_strength"]);
+                    json["materials"][0]["extensions"]["KHR_materials_emissive_strength"] =
+                        serde_json::json!({"emissiveStrength":strength});
+                    if required {
+                        json["extensionsRequired"] = json["extensionsUsed"].clone();
+                    }
+                }
+                let AssetData::Mesh(mesh) = load(&json).unwrap() else {
+                    panic!()
+                };
+                let expected = [1., 0.25, 0.5].map(|v| v * strength.unwrap_or(1.));
+                assert_eq!(
+                    mesh.parts[0]
+                        .shading
+                        .as_ref()
+                        .unwrap()
+                        .material
+                        .emissive_factor,
+                    expected
+                );
+                let portable = mesh_gltf(&mesh, &job::Progress::default()).unwrap();
+                let AssetData::Mesh(restored) =
+                    load(&serde_json::from_slice(&portable).unwrap()).unwrap()
+                else {
+                    panic!()
+                };
+                assert_eq!(
+                    restored.parts[0]
+                        .shading
+                        .as_ref()
+                        .unwrap()
+                        .material
+                        .emissive_factor,
+                    expected
+                );
+                let cooked = cooked_model::encode(&mesh, &[], &job::Progress::default()).unwrap();
+                let restored = cooked_model::decode(&cooked).unwrap();
+                assert_eq!(
+                    restored.parts[0]
+                        .shading
+                        .as_ref()
+                        .unwrap()
+                        .material
+                        .emissive_factor,
+                    expected
+                );
+            }
+        }
+        for invalid in [-1., 1e39] {
+            let mut json = base.clone();
+            json["materials"][0]["extensions"]["KHR_materials_emissive_strength"] =
+                serde_json::json!({"emissiveStrength":invalid});
+            assert!(load(&json).is_err());
+        }
+        let mut json = base;
+        json["extensionsRequired"] = serde_json::json!(["KHR_materials_unlit"]);
+        assert!(
+            load(&json).is_err(),
+            "unrelated required extensions must remain rejected"
+        );
     }
 
     #[test]

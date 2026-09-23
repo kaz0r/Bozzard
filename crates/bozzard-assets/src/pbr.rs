@@ -205,12 +205,22 @@ pub(crate) fn import_surface(
         vertex[..4].copy_from_slice(&[t.x, t.y, t.z, tangent[3] * linear.determinant().signum()]);
     }
     let mut maps = maps.into_iter();
+    let emission = material.emissive_factor();
+    let strength = material.emissive_strength().unwrap_or(1.);
+    ensure!(
+        strength.is_finite()
+            && strength >= 0.
+            && emission
+                .iter()
+                .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+        "invalid glTF emission factors"
+    );
     let material = PbrMaterial {
         metallic: pbr.metallic_factor(),
         roughness: pbr.roughness_factor(),
         normal_scale: normal.as_ref().map_or(1., |t| t.scale()),
         occlusion_strength: occlusion.as_ref().map_or(1., |t| t.strength()),
-        emissive_factor: material.emissive_factor(),
+        emissive_factor: emission.map(|v| v * strength),
         double_sided: material.double_sided(),
         base_color_sampler: pbr
             .base_color_texture()
@@ -227,8 +237,11 @@ pub(crate) fn import_surface(
             material.occlusion_strength
         ]
         .into_iter()
-        .chain(material.emissive_factor)
         .all(|v| v.is_finite() && (0.0..=1.0).contains(&v))
+            && material
+                .emissive_factor
+                .iter()
+                .all(|v| v.is_finite() && *v >= 0.)
             && material.normal_scale.is_finite(),
         "invalid glTF PBR factors"
     );
