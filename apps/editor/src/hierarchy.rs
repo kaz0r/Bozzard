@@ -467,3 +467,5 @@ mod tests {
         assert!(!tree.is_collapsed("branch"));
     }
 }
+
+mod panel;

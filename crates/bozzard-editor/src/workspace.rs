@@ -107,6 +107,7 @@ impl OpenScenes {
         };
         if changed {
             self.revision += 1;
+            self.hidden_cache.get_mut().remove(&scene);
         }
         if hidden.is_empty() {
             self.hidden_objects.remove(&scene);
@@ -120,7 +121,6 @@ impl OpenScenes {
         let source = Arc::downgrade(&document);
         let mut cache = self.hidden_cache.borrow_mut();
         if let Some(cached) = cache.get(&scene)
-            && cached.revision == self.revision
             && cached.source.ptr_eq(&source)
         {
             return Arc::clone(&cached.objects);
@@ -145,7 +145,6 @@ impl OpenScenes {
             scene,
             HiddenObjects {
                 source,
-                revision: self.revision,
                 objects: Arc::clone(&hidden),
             },
         );
@@ -302,10 +301,9 @@ impl OpenScenes {
                 let mut owners = BTreeMap::new();
                 for object in &mut scene.objects {
                     owners.insert(object.id.clone(), (self.active, object.id.clone()));
-                    strip_preview_gameplay(object);
-                    if !self.visible(self.active) || hidden.contains(&object.id) {
-                        hide_preview_object(object)?;
-                    }
+                    object.prepare_authoring_preview(
+                        self.visible(self.active) && !hidden.contains(&object.id),
+                    )?;
                 }
                 scene.validate()?;
                 let generation = self.view.as_ref().map_or(1, |v| v.editor.revision + 1);
@@ -371,12 +369,7 @@ impl OpenScenes {
                     object.parent = object.parent.map(|p| names[&p].clone());
                     // This document exists only for authoring extraction and picking.
                     // Gameplay remains in each source and runs via Play active scene.
-                    strip_preview_gameplay(&mut object);
-                    if !visible || object_hidden {
-                        // Keep transform ancestry and cameras for navigation, even
-                        // when all geometry in the camera's document is hidden.
-                        hide_preview_object(&mut object)?;
-                    }
+                    object.prepare_authoring_preview(visible && !object_hidden)?;
                     scene.objects.push(object);
                 }
                 for (layer, camera) in &editor.scene.views {
@@ -457,51 +450,6 @@ impl OpenScenes {
     }
 }
 
-fn strip_preview_gameplay(object: &mut Object) {
-    use bozzard_scene::{
-        Component,
-        middleware::{navigation::NavAgent, timeline::Timeline, tween::Tween},
-    };
-    object.blueprints.clear();
-    object.blackboard.clear();
-    object.script_manager = None;
-    // Hiding a collider must not leave a controller, compound body, or joint
-    // with missing collision shapes in this authoring-only document.
-    object.player_controller = None;
-    object.gravity = None;
-    object.joint = None;
-    // These systems never advance in Edit mode, and their targets may lose
-    // visual or navigation components when hidden in the preview.
-    for component in [Tween::NAME, Timeline::NAME, NavAgent::NAME] {
-        object.extras.remove(component);
-    }
-}
-
-fn hide_preview_object(object: &mut Object) -> Result<()> {
-    use bozzard_scene::middleware::{registry, ui::Canvas};
-    let canvas = registry::get::<Canvas>(object)?;
-    object.drawable = None;
-    object.material = None;
-    object.shader_graph = None;
-    object.text_rendering = None;
-    object.particle_emitter = None;
-    object.light = None;
-    object.lod = None;
-    object.collider = None;
-    object.mesh_collider = None;
-    object.gravity = None;
-    object.trigger = None;
-    object.spin = None;
-    object.extras.clear();
-    if let Some(mut canvas) = canvas {
-        // Retain a disabled canvas so SceneDemo's legacy menu migration does
-        // not recreate all menus when the last visible canvas is hidden.
-        canvas.enabled = false;
-        registry::set(object, &canvas)?;
-    }
-    Ok(())
-}
-
 fn qualified(id: SceneId, name: &str) -> String {
     format!("document-{id}-{name}")
 }
@@ -533,7 +481,6 @@ struct SceneView {
 }
 struct HiddenObjects {
     source: Weak<Scene>,
-    revision: u64,
     objects: Arc<BTreeSet<String>>,
 }
 
@@ -607,6 +554,37 @@ mod tests {
             &shown,
             &open.hidden_objects_in(open.active(), &editor)
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn visibility_cache_invalidation_is_local_to_the_edited_document() -> Result<()> {
+        let mut editor = Editor::new(eye_scene(), Path::new("work/eye-first.json"))?;
+        let mut open = OpenScenes::default();
+        let first_id = open.active();
+        open.set_object_visible(first_id, "front", false);
+        let first = open.hidden_objects_in(first_id, &editor);
+        let second_id = open.add(
+            &mut editor,
+            Editor::new(eye_scene(), Path::new("work/eye-second.json"))?,
+        )?;
+        let second = open.hidden_objects_in(second_id, &editor);
+        open.set_object_visible(second_id, "rear", false);
+        assert!(second.is_empty(), "published snapshots stay immutable");
+        assert!(open.hidden_objects_in(second_id, &editor).contains("rear"));
+        assert!(Arc::ptr_eq(
+            &first,
+            &open.hidden_objects_in(first_id, open.document(&editor, first_id).unwrap())
+        ));
+        // Whole-scene visibility and active-document changes do not alter ancestry.
+        open.set_visible(first_id, false);
+        open.activate(&mut editor, first_id)?;
+        assert!(Arc::ptr_eq(
+            &first,
+            &open.hidden_objects_in(first_id, &editor)
+        ));
+        open.set_object_visible(first_id, "front", true);
+        assert!(open.hidden_objects_in(first_id, &editor).is_empty());
         Ok(())
     }
 

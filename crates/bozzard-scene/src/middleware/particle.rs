@@ -1,5 +1,8 @@
 //! Optional particle modules sample normalized age; existing emitter presets retain their defaults.
-use super::{curve::Curve, registry::Authored};
+use super::{
+    curve::Curve,
+    registry::{Authored, PreviewPolicy},
+};
 use crate::{Component, Field, FieldValue, Ui};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -57,6 +60,8 @@ impl Component for Modules {
     }
 }
 impl Authored for Modules {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         for curve in [&self.curves.size, &self.curves.opacity, &self.curves.speed]
             .into_iter()

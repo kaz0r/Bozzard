@@ -12,6 +12,7 @@ pub mod blueprint;
 mod blueprint_runtime;
 pub mod material_asset;
 pub mod middleware;
+mod preview;
 mod runtime_prefabs;
 pub mod scene_control;
 pub mod scene_loading;

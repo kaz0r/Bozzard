@@ -1,7 +1,7 @@
 //! Atlas sprites, frame animation and batched tilemaps. Simulation and layout remain CPU-only.
 use super::{
     curve::{Playhead, Repeat},
-    registry::Authored,
+    registry::{Authored, PreviewPolicy},
     signals::{Kind, Signal, Signals},
     timeline::crossed_markers,
 };
@@ -205,6 +205,8 @@ impl Component for Sprite {
     }
 }
 impl Authored for Sprite {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn accept_prepared(prepared: &mut World, live: &mut World) {
         accept_runtime(prepared, live);
     }
@@ -390,6 +392,8 @@ impl Component for Tilemap {
     }
 }
 impl Authored for Tilemap {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn accept_prepared(prepared: &mut World, live: &mut World) {
         accept_runtime(prepared, live);
     }

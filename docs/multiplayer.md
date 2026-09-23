@@ -267,12 +267,16 @@ cargo test --release -p bozzard-editor --test multiplayer benchmark_multiplayer_
 The Flap Woods benchmark warms up the game state, then records 6,000 individual ticks
 across 200 thirty-tick scenarios. It reports median, p95 and p99 microseconds per tick
 for each path, including a no-op script run that isolates scene dispatch overhead.
-Input prediction runs outside the timed replica block; immediately acknowledged inputs
-also mean this scenario does not measure prediction under a delayed snapshot backlog.
-The scene-hook path repeatedly presents one unchanged network frame, measuring idle/no-op
-updates rather than moving gameplay. The editor benchmark records the idle lobby's
-complete main-thread pump using a fake backend; it does not measure the threaded snapshot
-publication optimization. Compare debug
+The basic replica path measures snapshot apply/replay with immediate acknowledgements;
+input prediction is outside that timer. A second path measures client input prediction
+and snapshot apply/replay with snapshots produced at 20 Hz and delivered six simulation
+ticks later (about 100 ms). It primes that delay pipeline before sampling. Host simulation
+and snapshot production are outside that path's timer. The scene-hook baseline repeatedly
+presents one unchanged network frame. A second scene-hook path updates the frame from
+evolving replica state before each timed script step, so it measures changing gameplay
+presentation; frame construction and resource publication are outside that timer. The
+editor benchmark records the idle lobby's complete main-thread pump using a fake backend;
+it does not measure the threaded snapshot publication optimization. Compare debug
 results only with other debug runs, and release results only with release runs on the same
 machine and toolchain. Lower values mean less CPU time in that specific path; this benchmark
 does not measure Steam transport, real network latency or packet loss, GPU/rendering cost,
@@ -288,7 +292,9 @@ On the same macOS machine in a release build, the September 2026 performance pas
 | Idle editor lobby pump | 205.167 / 266.000 | 44.708 / 84.584 |
 
 These timings are local CPU evidence for reduced work and frame-time tails, not a claim about
-live Steam latency. Re-run the commands above on your machine for a comparable baseline.
+live Steam latency. The historical table predates the delayed-snapshot and moving-frame
+measurements and has no before/after values for those paths. Re-run the commands above for a
+comparable baseline.
 For a debug build (`cargo run`), Flap Woods unchanged-frame scene presentation measured
 3,237.021 / 3,660.083 µs median / p99 before and 602.250 / 927.250 µs after.
 

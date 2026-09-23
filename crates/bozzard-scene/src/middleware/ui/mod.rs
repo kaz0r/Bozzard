@@ -1,5 +1,5 @@
 //! Authored screen canvases, layout, localization and accessible widget interaction.
-use super::registry::Authored;
+use super::registry::{self, Authored, PreviewPolicy};
 mod layout;
 mod menus;
 mod runtime;
@@ -155,6 +155,18 @@ impl Component for Canvas {
     }
 }
 impl Authored for Canvas {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
+    fn hide_in_preview(object: &mut Object) -> Result<()> {
+        if let Some(mut canvas) = registry::get::<Self>(object)? {
+            // Keep the authored-menu marker so legacy menu migration does not
+            // recreate menus when the last visible canvas is hidden.
+            canvas.enabled = false;
+            registry::set(object, &canvas)?;
+        }
+        Ok(())
+    }
+
     fn validate(&self) -> Result<()> {
         ensure!(
             self.reference
@@ -479,6 +491,8 @@ impl Component for Widget {
     }
 }
 impl Authored for Widget {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         let a = self.anchors;
         ensure!(
@@ -632,6 +646,8 @@ impl Component for Localization {
     }
 }
 impl Authored for Localization {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         let valid_language = |s: &str| {
             !s.is_empty()

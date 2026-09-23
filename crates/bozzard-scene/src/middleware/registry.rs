@@ -8,7 +8,26 @@ use anyhow::{Context, Result, ensure};
 use serde::{Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Each middleware component declares whether a filtered Edit document needs it.
+/// Gameplay-only dependencies must not survive when their targets can be hidden.
+pub enum PreviewPolicy {
+    /// Keep while visible. When hidden, remove the component by default;
+    /// `Authored::hide_in_preview` may retain a disabled representation instead.
+    Retain,
+    /// Remove gameplay dependencies from both visible and hidden preview objects.
+    Omit,
+}
+
 pub trait Authored: Component + Default + Serialize + DeserializeOwned {
+    /// Deliberately required: adding a component must decide its preview behavior.
+    const PREVIEW: PreviewPolicy;
+
+    /// Hidden components normally disappear. Components that serve as document
+    /// markers (such as Canvas) can retain a disabled representation instead.
+    fn hide_in_preview(object: &mut Object) -> Result<()> {
+        object.extras.remove(Self::NAME);
+        Ok(())
+    }
     fn validate(&self) -> Result<()>;
     fn validate_scene(&self, _owner: &Object, _scene: &Scene, _ids: &BTreeSet<&str>) -> Result<()> {
         self.validate()
@@ -33,6 +52,7 @@ pub struct Entry {
     write_targets: fn(&Object) -> Result<Vec<String>>,
     field_values: FieldValues,
     accept_prepared: fn(&mut World, &mut World),
+    preview: fn(&mut Object, bool) -> Result<()>,
 }
 pub fn get<T: Authored>(object: &Object) -> Result<Option<T>> {
     object
@@ -117,6 +137,14 @@ fn remap<T: Authored>(object: &mut Object, mapping: &BTreeMap<String, String>) -
 }
 pub const fn entry<T: Authored>() -> Entry {
     Entry {
+        preview: |object, visible| match T::PREVIEW {
+            PreviewPolicy::Omit => {
+                object.extras.remove(T::NAME);
+                Ok(())
+            }
+            PreviewPolicy::Retain if !visible => T::hide_in_preview(object),
+            PreviewPolicy::Retain => Ok(()),
+        },
         accept_prepared: T::accept_prepared,
         component: ComponentType {
             name: T::NAME,
@@ -152,6 +180,22 @@ pub const fn entry<T: Authored>() -> Entry {
             Ok(get::<T>(object)?.map_or_else(Vec::new, |c| c.write_targets(&object.id)))
         },
     }
+}
+
+/// Project middleware into an authoring-only document without changing source data.
+pub(crate) fn prepare_preview(object: &mut Object, visible: bool) -> Result<()> {
+    if !visible {
+        // Unknown extension components cannot contribute visuals to a hidden object.
+        object.extras.retain(|name, _| {
+            super::ENTRIES
+                .iter()
+                .any(|entry| entry.component.name == name)
+        });
+    }
+    for entry in super::ENTRIES {
+        (entry.preview)(object, visible)?;
+    }
+    Ok(())
 }
 pub(crate) fn accept_prepared(prepared: &mut World, live: &mut World) {
     for entry in super::ENTRIES {

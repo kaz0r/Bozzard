@@ -1,7 +1,7 @@
 //! Cinematic motion, camera cuts and named markers on a deterministic playback clock.
 use super::{
     curve::{Playhead, Repeat},
-    registry::Authored,
+    registry::{Authored, PreviewPolicy},
     signals::{Kind, Signal, Signals},
     tween::{Control, Tween},
 };
@@ -49,6 +49,8 @@ impl Component for Timeline {
     }
 }
 impl Authored for Timeline {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Omit;
+
     fn write_targets(&self, owner: &str) -> Vec<String> {
         self.motion.write_targets(owner)
     }
