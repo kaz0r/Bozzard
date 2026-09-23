@@ -1,7 +1,7 @@
 """Check Blender script helper imports with no repository cwd on sys.path."""
 
 import builtins
-import os
+from contextlib import chdir
 from pathlib import Path
 import sys
 import tempfile
@@ -37,8 +37,8 @@ class GeneratorImportTests(unittest.TestCase):
                 entry for entry in original_path
                 if Path(entry or original_cwd).resolve() not in (TOOLS, TOOLS.parent)
             ]
-            with tempfile.TemporaryDirectory() as temporary:
-                os.chdir(temporary)
+            # Restore cwd before cleanup: Windows cannot remove the active cwd.
+            with tempfile.TemporaryDirectory() as temporary, chdir(temporary):
                 sys.modules["bpy"] = Mock()
                 sys.modules["mathutils"] = SimpleNamespace(Vector=Mock())
 
@@ -66,7 +66,6 @@ class GeneratorImportTests(unittest.TestCase):
         finally:
             builtins.__import__ = original_import
             sys.path[:] = original_path
-            os.chdir(original_cwd)
             sys.modules.pop("blender_helpers", None)
             if original_bpy is None:
                 sys.modules.pop("bpy", None)
