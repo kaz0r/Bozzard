@@ -19,10 +19,12 @@ fn bozz_torio_scene_opens_edits_and_previews_in_the_editor() -> anyhow::Result<(
     std::fs::create_dir_all(root.join("assets"))?;
     let path = root.join("scene/bozz-torio.json");
     std::fs::copy(&source, &path)?;
-    std::fs::copy(
-        source.parent().unwrap().join("../assets/sprites.png"),
-        root.join("assets/sprites.png"),
-    )?;
+    for asset in std::fs::read_dir(source.parent().unwrap().join("../assets"))? {
+        let asset = asset?;
+        if asset.file_type()?.is_file() {
+            std::fs::copy(asset.path(), root.join("assets").join(asset.file_name()))?;
+        }
+    }
     let mut editor = Editor::open(&path)?;
     let original = editor.scene().clone();
     assert_eq!(original.name, "Bozz-torio — Factory Floor");
