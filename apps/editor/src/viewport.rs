@@ -1,6 +1,7 @@
 use super::framing::{fit_2d, fit_3d};
 use super::*;
 use glam::Mat4;
+use std::collections::{BTreeMap, BTreeSet};
 pub(super) fn pointer_hits(
     ctx: &egui::Context,
     rect: Rect,
@@ -33,6 +34,75 @@ pub struct Drag {
     tool: Tool,
     ring: Option<RingDrag>,
     move_axis: Option<AxisDrag>,
+    group_move: Option<GroupMove>,
+}
+
+/// Starting transforms for the outermost selected objects. Moving a selected
+/// parent already carries its selected descendants along with it.
+struct GroupMove {
+    active_parent: Mat4,
+    roots: Vec<(String, Transform, Mat4)>,
+}
+impl GroupMove {
+    fn capture(
+        scene: &bozzard_scene::Scene,
+        selected: &[String],
+        active_parent: Mat4,
+    ) -> Result<Self> {
+        let objects: BTreeMap<_, _> = scene
+            .objects
+            .iter()
+            .map(|object| (object.id.as_str(), object))
+            .collect();
+        let selected: BTreeSet<_> = selected.iter().map(String::as_str).collect();
+        let matrices = scene.global_transforms()?;
+        let mut roots = Vec::new();
+        for object in &scene.objects {
+            if !selected.contains(object.id.as_str()) {
+                continue;
+            }
+            let mut ancestor = object.parent.as_deref();
+            let mut has_selected_ancestor = false;
+            while let Some(id) = ancestor {
+                if selected.contains(id) {
+                    has_selected_ancestor = true;
+                    break;
+                }
+                ancestor = objects.get(id).and_then(|parent| parent.parent.as_deref());
+            }
+            if !has_selected_ancestor {
+                let parent = object
+                    .parent
+                    .as_ref()
+                    .map_or(Mat4::IDENTITY, |id| matrices[id]);
+                roots.push((object.id.clone(), object.transform, parent.inverse()));
+            }
+        }
+        Ok(Self {
+            active_parent,
+            roots,
+        })
+    }
+
+    fn translated_scene(
+        &self,
+        scene: &bozzard_scene::Scene,
+        active_start: Transform,
+        active_next: Transform,
+    ) -> bozzard_scene::Scene {
+        let local_delta =
+            Vec3::from(active_next.translation) - Vec3::from(active_start.translation);
+        let world_delta = self.active_parent.transform_vector3(local_delta);
+        let mut next = scene.clone();
+        for (id, start, parent_inverse) in &self.roots {
+            if let Some(object) = next.objects.iter_mut().find(|object| &object.id == id) {
+                object.transform.translation = (Vec3::from(start.translation)
+                    + parent_inverse.transform_vector3(world_delta))
+                .to_array();
+            }
+        }
+        next
+    }
 }
 // Capture the original constraint, not the moving object's current projection.
 // A parent-space unit can be scaled, mirrored or rotated in world space.
@@ -1325,6 +1395,8 @@ impl App {
                 };
                 self.editor
                     .select_component_pick(transform_pick(pick, ui.input(|i| i.modifiers.alt)))?;
+                self.hierarchy_state
+                    .reset_selection(self.editor.selected.as_deref());
                 if let Some(surface) = self.editor.selected_surface() {
                     self.status = format!(
                         "Surface {} selected · W/E/R to transform · Alt-click selects the owner",
@@ -1365,6 +1437,14 @@ impl App {
         let Some(object) = self.editor.selected_object().cloned() else {
             return Ok(false);
         };
+        if self.editor.play.is_none()
+            && self
+                .open_scenes
+                .hidden_objects_in(self.open_scenes.active(), self.editor.scene())
+                .contains(&object.id)
+        {
+            return Ok(false);
+        }
         if object
             .text_rendering
             .as_ref()
@@ -1515,6 +1595,19 @@ impl App {
             } else {
                 None
             };
+            let group_move = if self.workspace.tool == Tool::Move
+                && surface.is_none()
+                && self.hierarchy_state.selection_count() > 1
+                && self.hierarchy_state.is_selected(&object.id)
+            {
+                Some(GroupMove::capture(
+                    self.editor.scene(),
+                    &self.hierarchy_state.selected_objects(),
+                    parent,
+                )?)
+            } else {
+                None
+            };
             self.editor.begin_gesture("Transform gizmo");
             self.drag = Some(Drag {
                 id: object.id.clone(),
@@ -1525,6 +1618,7 @@ impl App {
                 screen_axis: geometry.screen,
                 tool: self.workspace.tool,
                 move_axis,
+                group_move,
                 ring: ring_hit(&geometry.segments, pointer)
                     .filter(|(d, _)| *d <= 9.0)
                     .map(|(_, angle)| RingDrag {
@@ -1674,7 +1768,12 @@ impl App {
                     amount,
                     ui.input(|i| i.modifiers.ctrl),
                 );
-                let r = self.editor.set_selected_transform(transform);
+                let r = if let Some(group) = &drag.group_move {
+                    let scene = group.translated_scene(self.editor.scene(), drag.start, transform);
+                    self.editor.apply("Transform", scene)
+                } else {
+                    self.editor.set_selected_transform(transform)
+                };
                 self.result(r);
             }
         }
@@ -1710,6 +1809,53 @@ fn prefab_drop_position(projection: Mat4, rect: Rect, pointer: Pos2, layer: Laye
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn group_move_preserves_world_delta_and_moves_selected_descendants_once() {
+        let scene = bozzard_scene::Scene::from_json(
+            r#"{"version":1,"name":"Group","views":{},"objects":[
+                {"id":"root","name":"Root","transform":{"translation":[1,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+                {"id":"child","name":"Child","parent":"root","transform":{"translation":[2,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+                {"id":"frame","name":"Frame","transform":{"translation":[0,0,5],"rotation_degrees":[0,90,0],"scale":[2,1,1]}},
+                {"id":"other","name":"Other","parent":"frame","transform":{"translation":[0,0,1],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}
+            ]}"#,
+        )
+        .unwrap();
+        let before = scene.global_transforms().unwrap();
+        let selected = ["root", "child", "other"].map(str::to_owned);
+        let group = GroupMove::capture(&scene, &selected, before["root"]).unwrap();
+        assert_eq!(group.roots.len(), 2);
+        let start = scene
+            .objects
+            .iter()
+            .find(|object| object.id == "child")
+            .unwrap()
+            .transform;
+        let mut next = start;
+        next.translation[0] += 2.0;
+        let moved = group.translated_scene(&scene, start, next);
+        let after = moved.global_transforms().unwrap();
+        for id in ["root", "child", "other"] {
+            let old = before[id].transform_point3(Vec3::ZERO);
+            let new = after[id].transform_point3(Vec3::ZERO);
+            assert!(
+                (new - old - Vec3::X * 2.0).length() < 1e-5,
+                "{id} moved incorrectly"
+            );
+        }
+        assert_eq!(
+            moved
+                .objects
+                .iter()
+                .find(|object| object.id == "child")
+                .unwrap()
+                .transform,
+            start,
+            "selected child should follow its selected parent without a second local move"
+        );
+        assert_eq!(before["frame"], after["frame"]);
+    }
+
     #[test]
     fn floating_panels_own_pointer_input_over_the_game_viewport() {
         let ctx = egui::Context::default();

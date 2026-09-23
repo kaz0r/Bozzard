@@ -14,6 +14,9 @@ impl App {
         if self.editor.play.is_some() {
             return Ok(None);
         }
+        let hidden = self
+            .open_scenes
+            .hidden_objects_in(self.open_scenes.active(), self.editor.scene());
         let matrices = self.editor.scene().global_transforms()?;
         let painter = ui.painter().with_clip_rect(rect);
         let project = |v: glam::Vec4| {
@@ -25,6 +28,9 @@ impl App {
         };
         let mut picked: Option<(f32, String)> = None;
         for object in &self.editor.scene().objects {
+            if hidden.contains(&object.id) {
+                continue;
+            }
             if let Some(depth) = cameras::draw(
                 ui,
                 rect,

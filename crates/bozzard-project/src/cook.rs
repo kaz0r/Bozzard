@@ -85,7 +85,7 @@ impl Cache {
         // Bump this namespace whenever importer behavior, codec settings, dependencies or
         // payload schemas change. Content hashes include every external buffer/map/library.
         let mut key = Sha256::new();
-        key.update(b"bozzard-cook-v1:mesh1:texture1:texpresso2.0.2:astcenc0.5.0");
+        key.update(b"bozzard-cook-v2:mesh1:texture1:texpresso2.0.2:astcenc0.5.0");
         key.update(serde_json::to_vec(&self.target)?);
         key.update(source.digest());
         let key: [u8; 32] = key.finalize().into();

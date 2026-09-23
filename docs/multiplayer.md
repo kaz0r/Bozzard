@@ -248,6 +248,45 @@ A modified host can cheat. Competitive anti-cheat, host migration, dedicated Ste
 voice, arbitrary network components and persistent reconnect identities are outside this
 reference scope. See [the determinism contract](architecture.md#network-determinism-contract).
 
+## CPU performance benchmark
+
+The headless benchmark measures the Flap Woods host simulation, replica prediction and
+snapshot replay, scripted presentation accessors, and the authored scene's Rhai presentation
+hooks. It uses four in-process peers and does not need Steam, a renderer, or another player.
+Run from the repository root:
+
+```sh
+# Debug build, useful for checking the harness but not representative of shipped performance:
+cargo run -p bozzard-network --example flap_multiplayer_perf
+# Release build, use this for performance comparisons:
+cargo run --release -p bozzard-network --example flap_multiplayer_perf
+# Optional headless benchmark of the complete editor lobby presentation pump:
+cargo test --release -p bozzard-editor --test multiplayer benchmark_multiplayer_presentation_pump -- --ignored --nocapture
+```
+
+The Flap Woods benchmark warms up the game state, then records 6,000 individual ticks
+across 200 thirty-tick scenarios. It reports median, p95 and p99 microseconds per tick
+for each path, including a no-op script run that isolates scene dispatch overhead.
+The editor benchmark records the idle lobby's complete main-thread pump. Compare debug
+results only with other debug runs, and release results only with release runs on the same
+machine and toolchain. Lower values mean less CPU time in that specific path; this benchmark
+does not measure Steam transport, real network latency or packet loss, GPU/rendering cost,
+full editor/player frame time, or multi-machine behaviour. The in-process peers do not
+establish whether a change improves a live two-account session.
+
+On the same macOS machine in a release build, the September 2026 performance pass measured:
+
+| CPU path | Before median / p99 (µs) | After median / p99 (µs) |
+| --- | ---: | ---: |
+| Four-peer host simulation | 50.667 / 77.958 | 38.208 / 68.042 |
+| Flap Woods scripted scene presentation | 235.125 / 318.792 | 46.500 / 106.000 |
+| Idle editor lobby pump | 205.167 / 266.000 | 44.708 / 84.584 |
+
+These timings are local CPU evidence for reduced work and frame-time tails, not a claim about
+live Steam latency. Re-run the commands above on your machine for a comparable baseline.
+For a debug build (`cargo run`), Flap Woods scripted scene presentation measured
+3,237.021 / 3,660.083 µs median / p99 before and 602.250 / 927.250 µs after.
+
 ## Verification
 
 ```sh

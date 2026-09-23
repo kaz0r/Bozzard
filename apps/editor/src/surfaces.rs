@@ -3,11 +3,15 @@ use bozzard_assets::{ImageData, MeshPart, Sampler};
 use glam::Mat4;
 
 fn surface_label(index: usize, part: &MeshPart) -> String {
-    format!(
-        "{} · {}",
-        index + 1,
-        part.material_name.as_deref().unwrap_or(&part.name)
-    )
+    let name = part.material_name.as_deref().unwrap_or_else(|| {
+        part.name
+            .rsplit('/')
+            .next()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(&part.name)
+    });
+    format!("{} · {}", index + 1, name)
 }
 
 pub(super) fn surface_matches(index: usize, part: &MeshPart, query: &str) -> bool {
@@ -31,12 +35,7 @@ impl App {
             .into_iter()
             .flat_map(|mesh| mesh.parts.iter().enumerate())
             .filter(|(index, part)| surface_matches(*index, part, query))
-            .map(|(index, part)| {
-                (
-                    index,
-                    format!("{} · {}", part.name, surface_label(index, part)),
-                )
-            })
+            .map(|(index, part)| (index, surface_label(index, part), part.name.clone()))
             .collect();
         let enabled = self.editor.play.is_none()
             && self.drag.is_none()
@@ -45,19 +44,24 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard;
         ui.add_enabled_ui(enabled, |ui| {
-            for (index, label) in rows {
+            for (index, label, full_name) in rows {
                 ui.push_id(("hierarchy-surface", object, index), |ui| {
-                    ui.horizontal(|ui| {
+                    left_aligned_hierarchy_row(ui, |ui| {
                         ui.add_space((depth.min(12) * 12 + 18) as f32);
                         let selected = self.editor.selected.as_deref() == Some(object)
                             && self.editor.selected_surface().is_some_and(|s| s.index == index);
-                        let row = ui.selectable_label(selected, label)
-                            .on_hover_text("Select to make model surfaces independent child entities · Each child supports components · Unpack linked prefabs first");
+                        let row = clipped_selectable_row(ui, selected, label)
+                            .on_hover_text(format!(
+                                "{full_name}\nSelect to make model surfaces independent child entities · Each child supports components · Unpack linked prefabs first"
+                            ));
                         if row.clicked() || row.double_clicked() {
                             self.editor.finish_gesture();
                             let result = self.editor.select_component_pick(Some(bozzard_editor::Pick {
                                 object: object.to_owned(), surface: Some(index),
                             }));
+                            if result.is_ok() {
+                                self.hierarchy_state.reset_selection(Some(object));
+                            }
                             self.result(result);
                         }
                         if row.double_clicked() {
@@ -154,22 +158,22 @@ impl App {
                         visible.len(),
                         |ui, range| {
                             for &(index, part) in &visible[range] {
-                                let row = ui
-                                    .selectable_label(
-                                        selected == Some(index),
-                                        format!(
-                                            "{}{}",
-                                            surface_label(index, part),
-                                            if saved.iter().any(|v| v.surface as usize == index
-                                                && v.source == part.source_key)
-                                            {
-                                                " •"
-                                            } else {
-                                                ""
-                                            }
-                                        ),
-                                    )
-                                    .on_hover_text(&part.name);
+                                let row = clipped_selectable_row(
+                                    ui,
+                                    selected == Some(index),
+                                    format!(
+                                        "{}{}",
+                                        surface_label(index, part),
+                                        if saved.iter().any(|v| v.surface as usize == index
+                                            && v.source == part.source_key)
+                                        {
+                                            " •"
+                                        } else {
+                                            ""
+                                        }
+                                    ),
+                                )
+                                .on_hover_text(&part.name);
                                 if row.clicked() || row.double_clicked() {
                                     choose = Some(index);
                                 }
@@ -183,8 +187,10 @@ impl App {
         if let Some(index) = selected {
             let part = &mesh.parts[index];
             ui.separator();
-            ui.strong(surface_label(index, part));
-            ui.weak(&part.name);
+            ui.add(
+                egui::Label::new(egui::RichText::new(surface_label(index, part)).strong()).wrap(),
+            );
+            ui.add(egui::Label::new(egui::RichText::new(&part.name).weak()).wrap());
             ui.label(format!("{} triangles", part.count / 3));
             ui.horizontal(|ui| {
                 if ui
@@ -309,6 +315,15 @@ impl App {
     }
 
     pub fn surface_overlay(&self, ui: &egui::Ui, rect: Rect, projection: Mat4) -> Result<()> {
+        if self.editor.play.is_none()
+            && self.editor.selected.as_deref().is_some_and(|id| {
+                self.open_scenes
+                    .hidden_objects_in(self.open_scenes.active(), self.editor.scene())
+                    .contains(id)
+            })
+        {
+            return Ok(());
+        }
         if !self.surface_graphics_ready() {
             return Ok(());
         }
@@ -467,5 +482,27 @@ mod tests {
         part.material_name = None;
         assert!(surface_matches(0, &part, "wheel"));
         assert!(!surface_matches(0, &part, "rubber"));
+    }
+
+    #[test]
+    fn surface_labels_avoid_repeating_import_paths() {
+        let mut part = MeshPart {
+            source_key: "source".into(),
+            name: "mannequin 01 Warm ceramic shell / mannequin 01 Warm ceramic shell / Surface 1 - 01 Warm ceramic shell".into(),
+            material_name: Some("01 Warm ceramic shell".into()),
+            start: 0,
+            count: 3,
+            color: [1.0; 4],
+            image: None,
+            alpha_cutoff: None,
+            shading: None,
+        };
+        assert_eq!(surface_label(0, &part), "1 · 01 Warm ceramic shell");
+        part.material_name = None;
+        assert_eq!(
+            surface_label(0, &part),
+            "1 · Surface 1 - 01 Warm ceramic shell"
+        );
+        assert!(surface_matches(0, &part, "mannequin 01"));
     }
 }

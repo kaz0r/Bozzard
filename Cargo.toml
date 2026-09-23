@@ -18,7 +18,7 @@ bozzard-audio = { path = "crates/bozzard-audio" }
 kira = { version = "0.12.4", default-features = false, features = ["wav", "pcm", "ogg", "vorbis", "mp3", "flac"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tobj = { version = "4.0.4", default-features = false }
-gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }
+gltf = { version = "1.4", default-features = false, features = ["utils", "names", "KHR_materials_emissive_strength"] }
 base64 = "0.22"
 bozzard-ecs = { path = "crates/bozzard-ecs" }
 bozzard-app = { path = "crates/bozzard-app" }

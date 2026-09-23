@@ -58,6 +58,28 @@ mod theme;
 mod viewport;
 mod widget_ui;
 
+fn clipped_selectable_row(ui: &mut egui::Ui, selected: bool, label: String) -> egui::Response {
+    ui.add(
+        egui::Button::selectable(selected, label)
+            .truncate()
+            .min_size(egui::vec2(
+                ui.available_width().max(1.0),
+                ui.spacing().interact_size.y,
+            )),
+    )
+}
+
+fn left_aligned_hierarchy_row<R>(
+    ui: &mut egui::Ui,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    ui.allocate_ui_with_layout(
+        egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
+        egui::Layout::left_to_right(egui::Align::Center).with_main_align(egui::Align::Min),
+        add_contents,
+    )
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 enum Tool {
     #[default]
@@ -721,7 +743,7 @@ impl App {
                                             ui.close();
                                         }
                                         if ui.button("Duplicate").clicked() {
-                                            let r = self.editor.duplicate();
+                                            let r = self.duplicate_hierarchy_selection();
                                             if r.is_ok() {
                                                 self.hierarchy_search.clear();
                                             }
@@ -729,7 +751,7 @@ impl App {
                                             ui.close();
                                         }
                                         if ui.button("Delete").clicked() {
-                                            let r = self.editor.delete();
+                                            let r = self.delete_hierarchy_selection();
                                             self.result(r);
                                             ui.close();
                                         }
@@ -933,13 +955,58 @@ impl App {
             self.status = "Select the whole model before renaming it".into();
             return;
         }
-        if let Some(object) = self.editor.selected_object() {
-            self.hierarchy_rename = Some((object.id.clone(), object.name.clone(), true));
+        if let Some((id, name)) = self
+            .editor
+            .selected_object()
+            .map(|o| (o.id.clone(), o.name.clone()))
+        {
+            self.hierarchy_rename = Some((id.clone(), name, true));
             self.hierarchy_search.clear();
             self.editor.finish_gesture();
+            self.hierarchy_state.reset_selection(Some(&id));
             self.hierarchy_state
                 .reveal(self.editor.scene(), self.editor.selected.as_deref());
         }
+    }
+
+    fn duplicate_hierarchy_selection(&mut self) -> Result<()> {
+        self.hierarchy_state.sync_object_selection(
+            &self.editor.scene_snapshot(),
+            self.editor.selected.as_deref(),
+        );
+        let ids = self.hierarchy_state.selected_objects();
+        if ids.len() <= 1 {
+            self.editor.duplicate()?;
+            self.hierarchy_state
+                .reset_selection(self.editor.selected.as_deref());
+            return Ok(());
+        }
+        let active = self.editor.selected.clone();
+        let replacements = self.editor.duplicate_objects(&ids)?;
+        let next = active.and_then(|id| replacements.get(&id).cloned());
+        self.editor.select_object(next.clone());
+        self.hierarchy_state.set_selection(
+            ids.into_iter()
+                .filter_map(|id| replacements.get(&id).cloned()),
+            next.as_deref(),
+        );
+        Ok(())
+    }
+
+    fn delete_hierarchy_selection(&mut self) -> Result<()> {
+        self.hierarchy_state.sync_object_selection(
+            &self.editor.scene_snapshot(),
+            self.editor.selected.as_deref(),
+        );
+        let ids = self.hierarchy_state.selected_objects();
+        if ids.len() <= 1 {
+            self.editor.delete()?;
+        } else {
+            self.editor.delete_objects(&ids)?;
+        }
+        self.hierarchy_state
+            .reset_selection(self.editor.selected.as_deref());
+        Ok(())
     }
 
     fn hierarchy(&mut self, ui: &mut egui::Ui) {
@@ -1050,6 +1117,15 @@ impl App {
         });
         let query = self.hierarchy_search.trim().to_lowercase();
         let scene = self.editor.scene_snapshot();
+        let hidden_objects = self
+            .open_scenes
+            .hidden_objects_in(self.open_scenes.active(), &scene);
+        self.hierarchy_state
+            .sync_object_selection(&scene, self.editor.selected.as_deref());
+        if self.editor.selected_surface().is_some() {
+            self.hierarchy_state
+                .reset_selection(self.editor.selected.as_deref());
+        }
         self.hierarchy_state
             .sync_selection(&scene, self.editor.selected.as_deref());
         self.hierarchy_state.sync_surface_selection(
@@ -1067,6 +1143,9 @@ impl App {
             .map(|o| (*o, 0usize))
             .collect();
         let mut matches = 0usize;
+        let mut visible_ids = Vec::new();
+        let mut click_request: Option<(String, bool, bool)> = None;
+        let mut visibility_request: Option<(String, bool)> = None;
         let can_reparent = ui.is_enabled()
             && self.editor.play.is_none()
             && self.drag.is_none()
@@ -1109,7 +1188,8 @@ impl App {
                             .any(|(index, part)| surfaces::surface_matches(index, part, &query)));
                         if object_matches || surface_matches {
                             matches += 1;
-                            ui.horizontal(|ui| {
+                            visible_ids.push(object.id.clone());
+                            left_aligned_hierarchy_row(ui, |ui| {
                                 if query.is_empty() {
                                     ui.add_space((depth.min(12) * 12) as f32);
                                     if has_surfaces || children.contains_key(&Some(object.id.as_str())) {
@@ -1121,6 +1201,32 @@ impl App {
                                     } else {
                                         ui.add_space(18.0);
                                     }
+                                }
+                                let hidden_by_parent = object
+                                    .parent
+                                    .as_ref()
+                                    .is_some_and(|parent| hidden_objects.contains(parent));
+                                let visible = !hidden_objects.contains(&object.id);
+                                let eye = ui.add_enabled_ui(
+                                    self.editor.play.is_none()
+                                        && self.drag.is_none()
+                                        && !hidden_by_parent,
+                                    |ui| hierarchy::visibility_eye(ui, visible),
+                                ).inner.on_hover_text(if self.editor.play.is_some() {
+                                    "Editor visibility is available after Play"
+                                } else if hidden_by_parent {
+                                    "Hidden by parent · Show the parent to restore this object"
+                                } else if visible {
+                                    "Hide this object and its children in the editor viewport"
+                                } else {
+                                    "Show this object and its children in the editor viewport"
+                                });
+                                if eye.clicked()
+                                    && self.editor.play.is_none()
+                                    && self.drag.is_none()
+                                    && !hidden_by_parent
+                                {
+                                    visibility_request = Some((object.id.clone(), !visible));
                                 }
                                 if let Some((id, name, focus)) = &mut self.hierarchy_rename
                                     && id == &object.id
@@ -1156,13 +1262,13 @@ impl App {
                                 } else {
                                     "·"
                                 };
-                                let response = ui
-                                    .selectable_label(
-                                        self.editor.selected.as_ref() == Some(&object.id) && self.editor.selected_surface().is_none(),
-                                        format!("{kind} {}", object.name),
-                                    )
+                                let response = clipped_selectable_row(
+                                    ui,
+                                    self.hierarchy_state.is_selected(&object.id) && self.editor.selected_surface().is_none(),
+                                    format!("{kind} {}", object.name),
+                                )
                                     .interact(if can_reparent { Sense::click_and_drag() } else { Sense::click() })
-                                    .on_hover_text(format!("{} · Double-click to frame · Drag onto an object to reparent", object.id));
+                                    .on_hover_text(format!("{}\n{} · Shift-click selects a range · Ctrl/Cmd-click toggles · Double-click to frame · Drag to reparent", object.name, object.id));
                                 if can_reparent {
                                     response.dnd_set_drag_payload(HierarchyDrag(object.id.clone()));
                                     if response.dnd_hover_payload::<HierarchyDrag>().is_some() {
@@ -1172,8 +1278,14 @@ impl App {
                                         reparent_request = Some((id.0.clone(), Some(object.id.clone())));
                                     }
                                 }
-                                if response.clicked() || response.double_clicked() || response.secondary_clicked() {
+                                if response.clicked() || response.double_clicked() {
                                     self.editor.finish_gesture();
+                                    let modifiers = ui.input(|i| i.modifiers);
+                                    click_request = Some((object.id.clone(), modifiers.shift, modifiers.command));
+                                }
+                                if response.secondary_clicked() && !self.hierarchy_state.is_selected(&object.id) {
+                                    self.editor.finish_gesture();
+                                    self.hierarchy_state.reset_selection(Some(&object.id));
                                     self.editor.select_object(Some(object.id.clone()));
                                 }
                                 if response.double_clicked()
@@ -1196,14 +1308,18 @@ impl App {
                                         }
                                         if ui.add(egui::Button::new("Duplicate").shortcut_text(if mac { "Cmd+D" } else { "Ctrl+D" })).clicked() {
                                             self.editor.finish_gesture();
-                                            self.editor.select_object(Some(object.id.clone()));
-                                            let result = self.editor.duplicate();
+                                            if !self.hierarchy_state.is_selected(&object.id) {
+                                                self.hierarchy_state.reset_selection(Some(&object.id));
+                                                self.editor.select_object(Some(object.id.clone()));
+                                            }
+                                            let result = self.duplicate_hierarchy_selection();
                                             if result.is_ok() { self.hierarchy_search.clear(); }
                                             self.result(result);
                                             ui.close();
                                         }
                                         if ui.add(egui::Button::new("Frame Selection").shortcut_text(if mac { "Cmd+Shift+F" } else { "Ctrl+Shift+F" })).clicked() {
                                             self.editor.select_object(Some(object.id.clone()));
+                                            self.hierarchy_state.reset_selection(Some(&object.id));
                                             self.hierarchy_frame_requested = true;
                                             ui.close();
                                         }
@@ -1217,8 +1333,11 @@ impl App {
                                         ui.separator();
                                         if ui.add(egui::Button::new("Delete").shortcut_text(if mac { "Cmd+Backspace" } else { "Delete" })).clicked() {
                                             self.editor.finish_gesture();
-                                            self.editor.select_object(Some(object.id.clone()));
-                                            let result = self.editor.delete();
+                                            if !self.hierarchy_state.is_selected(&object.id) {
+                                                self.hierarchy_state.reset_selection(Some(&object.id));
+                                                self.editor.select_object(Some(object.id.clone()));
+                                            }
+                                            let result = self.delete_hierarchy_selection();
                                             self.result(result);
                                             ui.close();
                                         }
@@ -1240,6 +1359,18 @@ impl App {
                         }
                     }
                 });
+        if let Some((id, visible)) = visibility_request {
+            self.open_scenes
+                .set_object_visible(self.open_scenes.active(), &id, visible);
+            self.viewport_stamp = None;
+            ui.ctx().request_repaint();
+        }
+        if let Some((id, shift, toggle)) = click_request {
+            let active = self
+                .hierarchy_state
+                .click_object(&visible_ids, &id, shift, toggle);
+            self.editor.select_object(active);
+        }
         // Use only the blank region below the rows, never the row gaps
         // or toolbar, so dropping near a child cannot accidentally unparent it.
         if can_reparent {
@@ -1272,6 +1403,8 @@ impl App {
             if result.is_ok() {
                 self.editor.select_object(Some(id));
                 self.hierarchy_state
+                    .reset_selection(self.editor.selected.as_deref());
+                self.hierarchy_state
                     .reveal(self.editor.scene(), self.editor.selected.as_deref());
                 self.status = "Parent updated · World transform preserved".into();
                 self.error = false;
@@ -1286,6 +1419,12 @@ impl App {
             });
         } else if !query.is_empty() {
             ui.weak(format!("{matches} of {} objects", scene.objects.len()));
+        }
+        if self.hierarchy_state.selection_count() > 1 {
+            ui.weak(format!(
+                "{} objects selected",
+                self.hierarchy_state.selection_count()
+            ));
         }
     }
     fn assets_content(&mut self, ui: &mut egui::Ui) {
@@ -1535,7 +1674,7 @@ impl App {
                 && self.editor.selected_object().is_some()
                 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::D))
             {
-                let r = self.editor.duplicate();
+                let r = self.duplicate_hierarchy_selection();
                 if r.is_ok() {
                     self.hierarchy_search.clear();
                 }
@@ -1549,7 +1688,7 @@ impl App {
                             && i.consume_key(egui::Modifiers::COMMAND, egui::Key::Backspace))
                 })
             {
-                let r = self.editor.delete();
+                let r = self.delete_hierarchy_selection();
                 self.result(r);
             }
         }
@@ -2154,6 +2293,43 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
 #[cfg(test)]
 mod shortcut_tests {
     use super::*;
+
+    #[test]
+    fn clipped_hierarchy_rows_stay_left_aligned_and_within_the_pane() {
+        fn first_text_x(shape: &egui::Shape) -> Option<f32> {
+            match shape {
+                egui::Shape::Text(text) => Some(text.pos.x),
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(first_text_x),
+                _ => None,
+            }
+        }
+
+        let ctx = egui::Context::default();
+        let long_name = "A very long imported object name ".repeat(20);
+        for label in ["Player", long_name.as_str()] {
+            let mut row = Rect::NOTHING;
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(240.0, 100.0))),
+                    ..Default::default()
+                },
+                |ui| {
+                    left_aligned_hierarchy_row(ui, |ui| {
+                        ui.add_space(18.0);
+                        row = clipped_selectable_row(ui, true, label.to_owned()).rect;
+                    });
+                },
+            );
+            let text_x = output
+                .shapes
+                .iter()
+                .find_map(|shape| first_text_x(&shape.shape));
+            output.textures_delta.clear();
+            let text_x = text_x.expect("row text should be painted");
+            assert!(text_x - row.min.x < 20.0, "text was centered in {row:?}");
+            assert!(row.max.x <= 240.0, "row exceeded the pane: {row:?}");
+        }
+    }
 
     #[test]
     fn scene_open_selects_an_existing_view_and_preserves_valid_preferences() {

@@ -244,9 +244,9 @@
           0.0
         ],
         "scale": [
-          0.7,
-          1.8,
-          0.7
+          1.0,
+          1.0,
+          1.0
         ]
       },
       "collider": {
@@ -259,24 +259,9 @@
         "layers": 1,
         "mask": 4294967295,
         "size": [
-          1.0,
-          1.0,
-          1.0
-        ]
-      },
-      "drawable": {
-        "color": [
-          0.8999999761581421,
-          0.3499999940395355,
-          0.20000000298023224
-        ],
-        "gi_static": true,
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "uv_scale": [
-          1.0,
-          1.0
+          0.7,
+          1.8,
+          0.7
         ]
       },
       "gravity": {
@@ -305,6 +290,24 @@
         "slope_limit_degrees": 45.0,
         "snap_to_ground": true,
         "step_height": 0.3499999940395355
+      }
+    },
+    {
+      "id": "player-visual",
+      "name": "Player mannequin",
+      "parent": "player",
+      "transform": {
+        "translation": [0.0, -1.0, 0.0],
+        "rotation_degrees": [0.0, 0.0, 0.0],
+        "scale": [1.0, 1.0, 1.0]
+      },
+      "drawable": {
+        "color": [1.0, 1.0, 1.0],
+        "gi_static": false,
+        "layer": "3d",
+        "mesh": { "asset": "mannequin" },
+        "texture": "white",
+        "uv_scale": [1.0, 1.0]
       }
     },
     {
@@ -750,5 +753,11 @@
         }
       }
     }
-  ]
+  ],
+  "assets": {
+    "mannequin": {
+      "kind": "mesh",
+      "path": "assets/mannequin.glb"
+    }
+  }
 }

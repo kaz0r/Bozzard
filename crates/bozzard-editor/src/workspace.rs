@@ -11,6 +11,7 @@ pub struct OpenScenes {
     inactive: BTreeMap<SceneId, Editor>,
     revision: u64,
     hidden: BTreeSet<SceneId>,
+    hidden_objects: BTreeMap<SceneId, BTreeSet<String>>,
     view: Option<SceneView>,
 }
 
@@ -22,6 +23,7 @@ impl Default for OpenScenes {
             inactive: BTreeMap::new(),
             revision: 0,
             hidden: BTreeSet::new(),
+            hidden_objects: BTreeMap::new(),
             view: None,
         }
     }
@@ -90,6 +92,39 @@ impl OpenScenes {
         }
     }
 
+    pub fn set_object_visible(&mut self, scene: SceneId, object: &str, visible: bool) {
+        let hidden = self.hidden_objects.entry(scene).or_default();
+        let changed = if visible {
+            hidden.remove(object)
+        } else {
+            hidden.insert(object.to_owned())
+        };
+        if changed {
+            self.revision += 1;
+        }
+    }
+
+    /// A hidden parent suppresses every descendant in the authoring viewport.
+    pub fn hidden_objects_in(&self, scene: SceneId, document: &Scene) -> BTreeSet<String> {
+        let Some(explicit) = self.hidden_objects.get(&scene) else {
+            return BTreeSet::new();
+        };
+        let mut children = BTreeMap::<&str, Vec<&str>>::new();
+        for object in &document.objects {
+            if let Some(parent) = object.parent.as_deref() {
+                children.entry(parent).or_default().push(&object.id);
+            }
+        }
+        let mut hidden = BTreeSet::new();
+        let mut stack: Vec<_> = explicit.iter().map(String::as_str).collect();
+        while let Some(id) = stack.pop() {
+            if hidden.insert(id.to_owned()) {
+                stack.extend(children.get(id).into_iter().flatten().copied());
+            }
+        }
+        hidden
+    }
+
     pub fn find_path(&self, current: &Editor, path: &Path) -> Option<SceneId> {
         let path = document_path(path);
         self.documents(current)
@@ -115,6 +150,7 @@ impl OpenScenes {
         );
         *current = incoming;
         self.hidden.remove(&self.active);
+        self.hidden_objects.remove(&self.active);
         self.revision += 1;
         Ok(())
     }
@@ -182,6 +218,7 @@ impl OpenScenes {
         }
         self.inactive.remove(&id);
         self.hidden.remove(&id);
+        self.hidden_objects.remove(&id);
         self.revision += 1;
         Ok(())
     }
@@ -189,9 +226,13 @@ impl OpenScenes {
     /// Rebuild only after document/asset changes. Selecting objects does not clone
     /// geometry or rebuild the preview world. Play uses the active scene alone.
     pub fn sync_view(&mut self, current: &Editor) -> Result<()> {
-        if (!current.is_prefab_source() && self.inactive.values().all(Editor::is_prefab_source))
-            || current.play.is_some()
-        {
+        let single_document =
+            !current.is_prefab_source() && self.inactive.values().all(Editor::is_prefab_source);
+        let active_has_hidden_objects = self
+            .hidden_objects
+            .get(&self.active)
+            .is_some_and(|objects| !objects.is_empty());
+        if (single_document && !active_has_hidden_objects) || current.play.is_some() {
             self.view = None;
             return Ok(());
         }
@@ -222,6 +263,33 @@ impl OpenScenes {
                     assets: e.assets.entries().map(|a| a.revision()).collect(),
                 })
                 .collect();
+            if single_document {
+                // Keep source asset IDs for a filtered single scene. Qualifying
+                // them would make Residency upload every asset again on an eye click.
+                let hidden = self.hidden_objects_in(self.active, current.scene());
+                let mut scene = current.scene.clone();
+                let mut owners = BTreeMap::new();
+                for object in &mut scene.objects {
+                    owners.insert(object.id.clone(), (self.active, object.id.clone()));
+                    if hidden.contains(&object.id) {
+                        hide_preview_object(object);
+                    }
+                }
+                scene.validate()?;
+                let generation = self.view.as_ref().map_or(1, |v| v.editor.revision + 1);
+                let mut editor =
+                    Editor::from_loaded(scene, current.path.clone(), current.assets.clone());
+                editor.revision = generation;
+                editor.selected = current.selected.clone();
+                self.view = Some(SceneView {
+                    stamp,
+                    workspace: self.revision,
+                    editor,
+                    owners,
+                    qualified: false,
+                });
+                return Ok(());
+            }
             let mut scene = current.scene.clone();
             scene.objects.clear();
             scene.assets.clear();
@@ -242,6 +310,7 @@ impl OpenScenes {
                 }
             }) {
                 let visible = self.visible(id);
+                let hidden_objects = self.hidden_objects_in(id, editor.scene());
                 let names: BTreeMap<_, _> = editor
                     .scene
                     .objects
@@ -262,6 +331,7 @@ impl OpenScenes {
                 }
                 for object in &editor.scene.objects {
                     let mut object = object.clone();
+                    let object_hidden = hidden_objects.contains(&object.id);
                     owners.insert(names[&object.id].clone(), (id, object.id.clone()));
                     object.remap_blueprint_objects(&names);
                     object.remap_assets(&assets);
@@ -274,22 +344,10 @@ impl OpenScenes {
                     object.script_manager = None;
                     object.player_controller = None;
                     object.joint = None;
-                    if !visible {
+                    if !visible || object_hidden {
                         // Keep transform ancestry and cameras for navigation, even
                         // when all geometry in the camera's document is hidden.
-                        object.drawable = None;
-                        object.material = None;
-                        object.shader_graph = None;
-                        object.text_rendering = None;
-                        object.particle_emitter = None;
-                        object.light = None;
-                        object.lod = None;
-                        object.collider = None;
-                        object.mesh_collider = None;
-                        object.gravity = None;
-                        object.trigger = None;
-                        object.spin = None;
-                        object.extras.clear();
+                        hide_preview_object(&mut object);
                     }
                     scene.objects.push(object);
                 }
@@ -325,13 +383,17 @@ impl OpenScenes {
                 workspace: self.revision,
                 editor,
                 owners,
+                qualified: true,
             });
         }
         if let Some(view) = &mut self.view {
-            view.editor.selected = current
-                .selected
-                .as_ref()
-                .map(|id| qualified(self.active, id));
+            view.editor.selected = current.selected.as_ref().map(|id| {
+                if view.qualified {
+                    qualified(self.active, id)
+                } else {
+                    id.clone()
+                }
+            });
         }
         Ok(())
     }
@@ -359,12 +421,28 @@ impl OpenScenes {
     }
 
     pub fn view_asset(&self, current: &Editor, id: &str) -> String {
-        if self.view.is_some() && current.play.is_none() {
+        if self.view.as_ref().is_some_and(|view| view.qualified) && current.play.is_none() {
             qualified(self.active, id)
         } else {
             id.to_owned()
         }
     }
+}
+
+fn hide_preview_object(object: &mut Object) {
+    object.drawable = None;
+    object.material = None;
+    object.shader_graph = None;
+    object.text_rendering = None;
+    object.particle_emitter = None;
+    object.light = None;
+    object.lod = None;
+    object.collider = None;
+    object.mesh_collider = None;
+    object.gravity = None;
+    object.trigger = None;
+    object.spin = None;
+    object.extras.clear();
 }
 
 fn qualified(id: SceneId, name: &str) -> String {
@@ -394,4 +472,141 @@ struct SceneView {
     workspace: u64,
     editor: Editor,
     owners: BTreeMap<String, (SceneId, String)>,
+    qualified: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn object_eye_hides_preview_descendants_without_changing_play_scene() {
+        let mut scene = bozzard_demo::scene_document().unwrap();
+        let drawable = scene
+            .objects
+            .iter()
+            .find_map(|object| object.drawable.clone())
+            .unwrap();
+        scene.objects.push(Object {
+            id: "eye-parent".into(),
+            name: "Eye parent".into(),
+            ..Default::default()
+        });
+        scene.objects.push(Object {
+            id: "eye-child".into(),
+            name: "Eye child".into(),
+            parent: Some("eye-parent".into()),
+            drawable: Some(drawable),
+            ..Default::default()
+        });
+        let mut editor = Editor::new(scene.clone(), Path::new("work/eye/scene.json")).unwrap();
+        let mut open = OpenScenes::default();
+        let active = open.active();
+        open.sync_view(&editor).unwrap();
+        let preview_child = |open: &OpenScenes, editor: &Editor| {
+            open.view(editor)
+                .scene()
+                .objects
+                .iter()
+                .find(|object| {
+                    object.id == "eye-child" || object.id == qualified(active, "eye-child")
+                })
+                .unwrap()
+                .drawable
+                .is_some()
+        };
+        assert!(preview_child(&open, &editor));
+        open.set_object_visible(active, "eye-parent", false);
+        assert!(
+            open.hidden_objects_in(active, editor.scene())
+                .contains("eye-child")
+        );
+        open.sync_view(&editor).unwrap();
+        assert!(!preview_child(&open, &editor));
+        assert_eq!(editor.scene(), &scene);
+        assert!(!editor.dirty());
+
+        open.set_object_visible(active, "eye-child", false);
+        open.set_object_visible(active, "eye-parent", true);
+        open.sync_view(&editor).unwrap();
+        assert!(!preview_child(&open, &editor));
+        open.set_object_visible(active, "eye-child", true);
+        open.sync_view(&editor).unwrap();
+        assert!(preview_child(&open, &editor));
+
+        open.set_object_visible(active, "eye-parent", false);
+        editor.start_play().unwrap();
+        open.sync_view(&editor).unwrap();
+        assert!(
+            open.view(&editor)
+                .scene()
+                .objects
+                .iter()
+                .any(|object| { object.id == "eye-child" && object.drawable.is_some() })
+        );
+    }
+
+    #[test]
+    fn hiding_game_hud_keeps_asset_ids_and_removes_widgets() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/ui-2d-lab.json");
+        let mut editor = Editor::open(&path).unwrap();
+        editor.selected = Some("ui-game-hud".into());
+        let visible = editor.ui_frame(Layer::TwoD, [1280.0, 720.0]).unwrap();
+        assert!(
+            visible
+                .elements
+                .iter()
+                .any(|item| item.owner.starts_with("ui-game-hud-"))
+        );
+        let mut open = OpenScenes::default();
+        open.set_object_visible(open.active(), "ui-game-hud", false);
+        open.sync_view(&editor).unwrap();
+        let preview = open.view(&editor);
+        assert_eq!(open.view_asset(&editor, "atlas"), "atlas");
+        assert!(preview.assets.handle("atlas").is_some());
+        assert!(preview.assets.handle("panel").is_some());
+        for source in editor.assets.entries() {
+            let shared = preview
+                .assets
+                .get(preview.assets.handle(&source.id).unwrap())
+                .unwrap();
+            assert!(std::ptr::eq(source.data().unwrap(), shared.data().unwrap()));
+        }
+        assert!(
+            preview
+                .scene()
+                .objects
+                .iter()
+                .all(|object| !object.id.starts_with("document-"))
+        );
+        let mut rendered = preview.render(Layer::TwoD, 16.0 / 9.0).unwrap();
+        let widgets = preview.ui_frame(Layer::TwoD, [1280.0, 720.0]).unwrap();
+        assert!(
+            widgets
+                .elements
+                .iter()
+                .all(|item| !item.owner.starts_with("ui-game-hud-"))
+        );
+        rendered
+            .items
+            .extend(bozzard_render_assets::widget_items(&widgets, &preview.assets).unwrap());
+        let missing: Vec<_> = bozzard_render_assets::required_assets(&rendered)
+            .into_iter()
+            .filter(|id| {
+                preview
+                    .assets
+                    .handle(id)
+                    .and_then(|handle| preview.assets.get(handle))
+                    .and_then(|entry| entry.data())
+                    .is_none()
+            })
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "preview requires absent assets: {missing:?}"
+        );
+        open.sync_view(&editor).unwrap();
+        assert_eq!(open.view(&editor).selected.as_deref(), Some("ui-game-hud"));
+    }
 }

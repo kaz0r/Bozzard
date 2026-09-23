@@ -1337,7 +1337,23 @@ impl SceneInstance {
         input: GameplayInput,
     ) -> Result<()> {
         let engine = self.script_engine();
-        let snapshot = Arc::new(self.collision_snapshot(world)?.0);
+        // Presentation-only scenes can have scripts but no collision geometry.
+        // Avoid rebuilding every object's global transform and an empty broad
+        // phase on each redraw. Inspect the live world so spawned colliders
+        // immediately take the ordinary path on the next tick.
+        let has_colliders = world.resource::<crate::physics::Physics>().is_some()
+            || self.entities.values().copied().any(|entity| {
+                world.get::<BoxCollider>(entity).is_some()
+                    || world.get::<MeshCollider>(entity).is_some()
+                    || world
+                        .get::<crate::middleware::sprite::Tilemap>(entity)
+                        .is_some_and(|map| map.enabled && !map.solid.is_empty())
+            });
+        let snapshot = Arc::new(if has_colliders {
+            self.collision_snapshot(world)?.0
+        } else {
+            CollisionSnapshot::default()
+        });
         // Contacts are only needed by a script that listens for solid collisions.
         let contacts = if self
             .scripts
@@ -1526,16 +1542,24 @@ impl SceneInstance {
                 overlap.insert(a.clone());
             }
         }
+        // In particular, network presentation scenes have no trigger owners.
+        // Their scripts still receive an empty overlap set without a second
+        // full-scene hierarchy traversal.
+        let trigger_owners: Vec<_> = owners()
+            .filter_map(|object| {
+                world
+                    .get::<Trigger>(self.entities[&object.id])
+                    .map(|trigger| trigger.volume)
+                    .filter(|volume| volume.enabled)
+                    .map(|volume| (object, volume))
+            })
+            .collect();
+        if trigger_owners.is_empty() {
+            return Ok(result);
+        }
         let matrices = self.global_transforms(world)?;
-        for object in owners() {
+        for (object, volume) in trigger_owners {
             let entity = self.entities[&object.id];
-            let Some(volume) = world
-                .get::<Trigger>(entity)
-                .map(|trigger| trigger.volume)
-                .filter(|volume| volume.enabled)
-            else {
-                continue;
-            };
             let (center, edges, corners) = volume.geometry(matrices[&object.id])?;
             let volume = CollisionBox {
                 id: object.id.clone(),
@@ -1720,10 +1744,15 @@ impl SceneInstance {
                         .entities
                         .get(&target)
                         .context("Set Text target does not exist")?;
-                    world
-                        .get_mut::<TextRendering>(entity)
-                        .context("Set Text needs Text Rendering")?
-                        .text = text;
+                    let previous = world
+                        .get::<TextRendering>(entity)
+                        .context("Set Text needs Text Rendering")?;
+                    if previous.text != text {
+                        world
+                            .get_mut::<TextRendering>(entity)
+                            .expect("validated Text Rendering")
+                            .text = text;
+                    }
                 }
                 Command::Visible { target, visible } => {
                     let target = resolve(tokens, &target);
@@ -1967,6 +1996,9 @@ impl SceneInstance {
             _ => anyhow::bail!("not a transform action"),
         }
         next.validate()?;
+        if next == previous {
+            return Ok(());
+        }
         world.insert(entity, next)?;
         if let Err(error) = self.validate_transform_change(world, target) {
             world.insert(entity, previous)?;
@@ -2111,6 +2143,70 @@ pub fn load_sources_with_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collisionless_script_queries_observe_a_collider_added_to_the_live_world() {
+        let scene = Scene::from_json(
+            r#"{"version":1,"name":"spatial script","views":{},
+                "assets":{"look":{"kind":"script","path":"look.rs"}},
+                "objects":[
+                  {"id":"observer","name":"Observer","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                   "script_manager":{"scripts":[{"enabled":true,"script":"look"}]}},
+                  {"id":"target","name":"Target","transform":{"translation":[3,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}]}"#,
+        )
+        .unwrap();
+        let mut world = World::new();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        instance
+            .register_script(
+                "look".into(),
+                r#"fn on_update(me, dt) {
+                    let hit = raycast([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], 10.0, me);
+                    set_position(me, if hit.hit { [1.0, 0.0, 0.0] } else { [0.0, 0.0, 0.0] });
+                }"#
+                .into(),
+            )
+            .unwrap();
+
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let observer = instance.entity("observer").unwrap();
+        assert_eq!(world.get::<Transform>(observer).unwrap().translation[0], 0.);
+
+        let target = instance.entity("target").unwrap();
+        world.insert(target, BoxCollider::default()).unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(world.get::<Transform>(observer).unwrap().translation[0], 1.);
+    }
+
+    #[test]
+    fn unchanged_script_transform_preserves_the_ecs_change_tick() {
+        let (mut instance, mut world) =
+            demo("fn on_update(me, dt) { set_position(me, [0.0, 0.0, 0.0]); }");
+        let entity = instance.entity("thing").unwrap();
+        let before = world.changed_tick::<Transform>(entity).unwrap();
+        world.advance_change_tick();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(world.changed_tick::<Transform>(entity), Some(before));
+
+        instance
+            .register_script(
+                "drift".into(),
+                "fn on_update(me, dt) { set_position(me, [1.0, 0.0, 0.0]); }".into(),
+            )
+            .unwrap();
+        let tick = world.advance_change_tick();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(world.get::<Transform>(entity).unwrap().translation[0], 1.);
+        assert_eq!(world.changed_tick::<Transform>(entity), Some(tick));
+    }
 
     /// A scene with one drawable object that runs one script.
     fn demo(source: &str) -> (SceneInstance, World) {
