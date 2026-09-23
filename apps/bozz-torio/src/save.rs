@@ -22,10 +22,6 @@ impl SaveFile {
     pub fn exists(&self) -> bool {
         self.path.exists()
     }
-    pub fn path(&self) -> &std::path::Path {
-        &self.path
-    }
-
     pub fn load(&self) -> anyhow::Result<Game> {
         let mut game: Game = serde_json::from_slice(&fs::read(&self.path)?)?;
         if game.tiles.len() == PATCH_WIDTH * PATCH_HEIGHT {

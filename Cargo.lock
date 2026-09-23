@@ -574,11 +574,18 @@ name = "bozz-torio"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "eframe",
+ "bozzard-assets",
+ "bozzard-ecs",
+ "bozzard-render",
+ "bozzard-render-assets",
+ "bozzard-scene",
+ "glam 0.33.6",
  "image",
+ "pollster 0.4.0",
  "serde",
  "serde_json",
  "steamworks",
+ "winit",
 ]
 
 [[package]]

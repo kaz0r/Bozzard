@@ -15,8 +15,15 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 image.workspace = true
+bozzard-assets.workspace = true
+bozzard-ecs.workspace = true
+bozzard-render.workspace = true
+bozzard-render-assets.workspace = true
+bozzard-scene.workspace = true
+glam.workspace = true
+pollster.workspace = true
+winit.workspace = true
 steamworks = { version = "0.13.1", optional = true }
-eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "wgpu", "default_fonts", "x11", "wayland", "persistence"] }
 
 [lints]
 workspace = true

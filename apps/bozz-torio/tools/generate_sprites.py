@@ -201,6 +201,13 @@ for variant in range(14):
     paint.append(fn)
 assert len(paint)==100
 atlas.save(OUT)
+# The authored UI Image for the conveyor chooses one of these four exact
+# quarter-turns, keeping its preview aligned with the placed Sprite component.
+conveyor = atlas.crop((9*S*2, 0, 10*S*2, S*2))
+preview = Image.new("RGBA", (4*S*2, S*2), (0,0,0,0))
+for index, angle in enumerate((90, 0, 270, 180)):  # North, East, South, West
+    preview.alpha_composite(conveyor.rotate(angle), (index*S*2, 0))
+preview.save(OUT.parent / "conveyor_preview.png")
 names=["Iron ore","Copper ore","Iron ingot","Copper ingot","Gear","Circuit","Miner","Furnace","Assembler","Conveyor","Splitter","Delivery hub","Iron deposit","Copper deposit","Factory floor A","Factory floor B","Coal ore","Coal seam","Generator","Power pole","Electricity","Upgrade"]
 names += [f"Terrain biome {b+1} variation {v+1}" for b in range(8) for v in range(8)]
 names += [f"World decoration {v+1}" for v in range(14)]

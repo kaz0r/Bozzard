@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 pub struct SceneSource {
     pub path: PathBuf,
-    pub atlas_path: PathBuf,
     pub name: String,
     terrain: Vec<u8>,
     deposits: Vec<(usize, usize, Resource)>,
@@ -219,7 +218,6 @@ impl SceneSource {
         let world_seed = setting(board, "world_seed", 0, u32::MAX as u64)?;
         let source = Self {
             path,
-            atlas_path,
             name,
             terrain,
             deposits,

@@ -1,11 +1,9 @@
+mod runtime;
 mod save;
 mod scene;
 mod sim;
-mod sprites;
+mod stage;
 mod steam;
-mod ui;
-
-use eframe::egui;
 
 fn bundled_app_id() -> Option<u32> {
     let executable = std::env::current_exe().ok()?;
@@ -58,25 +56,10 @@ fn main() -> anyhow::Result<()> {
     let scene =
         scene::SceneSource::open(scene_path.unwrap_or_else(scene::SceneSource::default_path))?;
     let steam = steam::SteamBridge::new(app_id, offline);
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("BOZZ-TORIO · Pocket Factory")
-            .with_inner_size([1320.0, 830.0])
-            .with_min_inner_size([960.0, 690.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "Bozz-torio",
-        options,
-        Box::new(move |cc| {
-            Ok(Box::new(ui::FactoryApp::new(
-                cc,
-                steam,
-                scene,
-                start_playing,
-                screenshot,
-            )?))
-        }),
-    )?;
-    Ok(())
+    runtime::run(runtime::Factory::new(
+        scene,
+        steam,
+        start_playing,
+        screenshot,
+    )?)
 }
