@@ -12,6 +12,8 @@ Every tier has three delivery phases. The objective card above the factory floor
 
 Once electricity unlocks, buy a generator and place it on a coal seam. Its six-tile radius supplies up to 12 power per tick. Place power poles within its coverage to extend the connected network. Upgraded producers consume power while boosted; upgraded conveyors and splitters can move an extra item hop when powered. Generator and pole upgrades raise capacity and reach.
 
+Items now travel smoothly between machines and across conveyors during each simulation tick, including powered double hops. Conveyor rollers, furnaces, and generators have looping sprite animations. A small green bar below every miner, furnace, and assembler fills through its production cycle; it stays empty while inputs are missing and full while a completed output is waiting.
+
 ## Edit the game scene
 
 From the repository root, open the factory in the Bozzard editor:
@@ -33,9 +35,15 @@ cargo run -p bozz-torio -- --offline
 cargo run -p bozz-torio -- --steam-app-id 480
 ```
 
-`--offline` skips Steam initialization. Without it, the game connects to Steam when the client is available and runs offline when it is not. App ID selection is, in order: `--steam-app-id`, `SteamAppId`, a `steam_appid.txt` next to the executable, then the test ID `480`. The latter is only for local development. `--play` opens the factory immediately. `--screenshot PATH` captures the current menu or factory screen and exits.
+`--offline` skips Steam initialization. Without it, the game connects to Steam when the client is available and runs offline when it is not. App ID selection is, in order: `--steam-app-id`, `SteamAppId`, a `steam_appid.txt` next to the executable, then the test ID `480`. The latter is only for local development. `--play` opens the factory immediately. `--screenshot PATH` captures the current menu or factory screen and exits; `--screenshot-after-ms N` delays capture to show an animated frame.
 
 Controls: `WASD` or arrow keys pan eight cells, the mouse wheel or `+`/`-` buttons zoom, and **HUB** returns to the starter district. **SHOW WORLD MAP** opens a clickable overview for jumping across the plane. `1`–`5` select a basic machine; **USE** in the supply shop selects generators or poles once unlocked. `I` inspects, `R` rotates placement, left click places or loads an item, drag lays conveyors, right click recovers a building, `Space` pauses, `F1` opens the field manual, and `Esc` returns to the menu. `Tab` focuses the next UI control and `Enter` activates it. Inspect a machine to upgrade it or change an assembler recipe. The game autosaves every ten seconds and on exit to `$XDG_DATA_HOME/bozz-torio/factory.json`, or `~/.local/share/bozz-torio/factory.json` when `XDG_DATA_HOME` is unset. Saves from the original 22 × 15 version are moved into the larger world when loaded.
+
+## Steam multiplayer
+
+The menu can create a **friends-only lobby** for up to four Steam accounts. The host starts with the factory loaded from their own save. Click **CREATE LOBBY**, then **INVITE FRIENDS** to open Steam's invite dialog. The lobby ID is shown in the menu; if the overlay is unavailable, share that ID and have a friend use **JOIN BY ID** or launch with `--join-lobby ID`. Steam's `+connect_lobby ID` invite launch argument also works. All players need the same App ID and scene version. The lobby identity includes a hash of the editable scene, so mismatched scene files cannot silently play together.
+
+The host runs the simulation and applies every build, rotation, purchase, pickup, upgrade, and pause request. Guests receive a compressed snapshot when joining and periodic host snapshots while playing; they render the shared factory and predict ticks between snapshots for smooth item motion. **Only the host reads and writes `factory.json`** during a lobby session. Leaving as a guest restores that player's local solo factory without saving the host's state. If the host leaves or Steam changes the lobby owner, the shared session ends instead of silently changing save authority. The host can continue in the menu while the shared factory runs. To load a different editor scene, leave the lobby first.
 
 ## Steam depot
 
@@ -45,6 +53,6 @@ Build and stage a depot for your assigned Steamworks App ID:
 python3 apps/bozz-torio/tools/package.py --app-id YOUR_APP_ID --out dist/bozz-torio
 ```
 
-The package contains the executable, its adjacent Steam API redistributable, `steam_appid.txt`, the editable scene, the sprite atlas, the conveyor direction preview image, and the sprite manifest. Keep the scene and assets beside the executable in their packaged directories; the game loads them at startup. The Steam client overlay and rich presence are integrated. The game sends achievements after the stats callback succeeds; configure these API names in the same Steamworks app before testing a release: `BOZZ_FIRST_INGOT`, `BOZZ_FIRST_DELIVERY`, `BOZZ_FACTORY_BUILDER`, and `BOZZ_CIRCUIT_AGE`. Set the Steam launch option to the packaged executable, upload the depot, and test from an account licensed for that app. The app stays playable without a Steam client.
+The package contains the executable, its adjacent Steam API redistributable, `steam_appid.txt`, the editable scene, the sprite atlas, animated sprite sheets, progress bar texture, conveyor direction preview image, and the sprite manifest. Keep the scene and assets beside the executable in their packaged directories; the game loads them at startup. The Steam client overlay and rich presence are integrated. The game sends achievements after the stats callback succeeds; configure these API names in the same Steamworks app before testing a release: `BOZZ_FIRST_INGOT`, `BOZZ_FIRST_DELIVERY`, `BOZZ_FACTORY_BUILDER`, and `BOZZ_CIRCUIT_AGE`. Set the Steam launch option to the packaged executable, upload the depot, and test from an account licensed for that app. The app stays playable without a Steam client.
 
 For development without a network, add `--offline` to the package command if the Cargo cache is already populated. The build script in `tools/steam_build.rs` locates the SDK matching the locked `steamworks-sys` dependency; set `STEAM_SDK_LOCATION` when using a separate Steamworks SDK installation.

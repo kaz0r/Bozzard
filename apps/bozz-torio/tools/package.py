@@ -47,6 +47,8 @@ def main() -> None:
     shutil.copy2(workspace / "apps/bozz-torio/scene/bozz-torio.json", output / "scene/bozz-torio.json")
     shutil.copy2(workspace / "apps/bozz-torio/assets/sprites.png", output / "assets/sprites.png")
     shutil.copy2(workspace / "apps/bozz-torio/assets/conveyor_preview.png", output / "assets/conveyor_preview.png")
+    for name in ("conveyor_animation.png", "furnace_animation.png", "generator_animation.png", "progress_pixel.png"):
+        shutil.copy2(workspace / "apps/bozz-torio/assets" / name, output / "assets" / name)
     shutil.copy2(workspace / "apps/bozz-torio/assets/sprite_manifest.json", output / "assets/sprite_manifest.json")
     (output / "steam_appid.txt").write_text(f"{args.app_id}\n", encoding="ascii")
     print(f"Packaged {binary_name}, {library}, editable scene, sprites, and app {args.app_id} into {output}")

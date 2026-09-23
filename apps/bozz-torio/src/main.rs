@@ -1,3 +1,4 @@
+mod multiplayer;
 mod runtime;
 mod save;
 mod scene;
@@ -20,6 +21,8 @@ fn main() -> anyhow::Result<()> {
     let mut offline = false;
     let mut start_playing = false;
     let mut screenshot = None;
+    let mut screenshot_after_ms = 0;
+    let mut join_lobby = None;
     let mut scene_path = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -44,9 +47,23 @@ fn main() -> anyhow::Result<()> {
                         anyhow::anyhow!("--screenshot needs a path")
                     })?))
             }
+            "--screenshot-after-ms" => {
+                screenshot_after_ms = args
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("--screenshot-after-ms needs a number"))?
+                    .parse()?;
+            }
+            "--join-lobby" | "+connect_lobby" => {
+                let id: u64 = args
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("--join-lobby needs a Steam lobby ID"))?
+                    .parse()?;
+                anyhow::ensure!(id != 0, "Steam lobby ID must be nonzero");
+                join_lobby = Some(id);
+            }
             "--help" | "-h" => {
                 println!(
-                    "Bozz-torio\n  --scene PATH           Use an edited Bozzard factory scene\n  --play                 Go straight to the factory\n  --offline              Skip Steam initialization\n  --steam-app-id NUMBER  Use this Steam App ID (default: SteamAppId, bundled steam_appid.txt, or 480 for development)\n  --screenshot PATH      Capture the scene and exit"
+                    "Bozz-torio\n  --scene PATH           Use an edited Bozzard factory scene\n  --play                 Go straight to the factory\n  --offline              Skip Steam initialization\n  --steam-app-id NUMBER  Use this Steam App ID (default: SteamAppId, bundled steam_appid.txt, or 480 for development)\n  --join-lobby ID        Join a Steam friend's lobby (+connect_lobby ID also works)\n  --screenshot PATH      Capture the scene and exit\n  --screenshot-after-ms N  Wait N milliseconds before capture"
                 );
                 return Ok(());
             }
@@ -61,5 +78,7 @@ fn main() -> anyhow::Result<()> {
         steam,
         start_playing,
         screenshot,
+        std::time::Duration::from_millis(screenshot_after_ms),
+        join_lobby,
     )?)
 }

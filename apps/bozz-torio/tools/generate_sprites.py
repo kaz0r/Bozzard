@@ -208,6 +208,37 @@ preview = Image.new("RGBA", (4*S*2, S*2), (0,0,0,0))
 for index, angle in enumerate((90, 0, 270, 180)):  # North, East, South, West
     preview.alpha_composite(conveyor.rotate(angle), (index*S*2, 0))
 preview.save(OUT.parent / "conveyor_preview.png")
+
+def animation_sheet(name, paint_frame):
+    sheet = Image.new("RGBA", (4*S*2, S*2), (0,0,0,0))
+    for phase in range(4):
+        frame = Image.new("RGBA", (S,S), (0,0,0,0))
+        paint_frame(ImageDraw.Draw(frame), phase)
+        sheet.alpha_composite(frame.resize((S*2,S*2), Image.Resampling.NEAREST), (phase*S*2, 0))
+    sheet.save(OUT.parent / name)
+
+def moving_belt(d, phase):
+    belt(d)
+    for offset in (0, 12):
+        x = 4 + (phase*3 + offset) % 24
+        d.rectangle((x,8,x+2,10), fill=CYAN)
+        d.rectangle((x,22,x+2,24), fill=CYAN)
+
+def burning_furnace(d, phase):
+    furnace(d)
+    heights = (12, 9, 14, 10)
+    polygon(d, [(13,21),(12,17),(16,heights[phase]),(20,17),(19,21)], GOLD)
+    polygon(d, [(15,21),(15,18),(17,heights[(phase+2)%4]+4),(18,21)], RED)
+
+def humming_generator(d, phase):
+    generator(d)
+    x,y = ((16,8),(24,16),(16,24),(8,16))[phase]
+    d.ellipse((x-2,y-2,x+2,y+2), fill=CYAN, outline=CREAM)
+
+animation_sheet("conveyor_animation.png", moving_belt)
+animation_sheet("furnace_animation.png", burning_furnace)
+animation_sheet("generator_animation.png", humming_generator)
+Image.new("RGBA", (2,2), (255,255,255,255)).save(OUT.parent / "progress_pixel.png")
 names=["Iron ore","Copper ore","Iron ingot","Copper ingot","Gear","Circuit","Miner","Furnace","Assembler","Conveyor","Splitter","Delivery hub","Iron deposit","Copper deposit","Factory floor A","Factory floor B","Coal ore","Coal seam","Generator","Power pole","Electricity","Upgrade"]
 names += [f"Terrain biome {b+1} variation {v+1}" for b in range(8) for v in range(8)]
 names += [f"World decoration {v+1}" for v in range(14)]

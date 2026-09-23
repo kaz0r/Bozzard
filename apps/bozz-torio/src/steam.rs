@@ -65,6 +65,9 @@ impl SteamBridge {
     pub fn connected(&self) -> bool {
         self.client.is_some()
     }
+    pub fn client(&self) -> Option<steamworks::Client> {
+        self.client.clone()
+    }
     pub fn overlay(&self) {
         if let Some(client) = &self.client {
             client.friends().activate_game_overlay("Friends");

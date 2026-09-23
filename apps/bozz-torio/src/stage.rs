@@ -1,7 +1,7 @@
 //! Bozzard scene components are the playable game's rendering source.
 use crate::{
     scene::SceneSource,
-    sim::{Direction, Game, HEIGHT, WIDTH},
+    sim::{Direction, Game, HEIGHT, ItemTransfer, Kind, WIDTH},
 };
 use anyhow::{Context, Result};
 use bozzard_assets::AssetStore;
@@ -10,7 +10,7 @@ use bozzard_render::{EnvironmentSettings, RenderScene};
 use bozzard_scene::middleware::{
     registry,
     signals::{Kind as SignalKind, Signals},
-    sprite::{Atlas, Sprite, Tilemap},
+    sprite::{Atlas, Clip, Sprite, Tilemap},
     ui::{Canvas, Control, Frame, Input, Widget},
 };
 use bozzard_scene::{Layer, Object, Scene, SceneInstance, Transform};
@@ -40,6 +40,10 @@ const ACTIONS: &[&str] = &[
     "menu-help",
     "quit",
     "steam-friends",
+    "create-lobby",
+    "join-lobby",
+    "invite-lobby",
+    "leave-lobby",
     "close-help",
     "map-nw",
     "map-ne",
@@ -80,6 +84,14 @@ pub struct Stage {
     pub world: World,
     pub instance: SceneInstance,
     terrain_origin: Option<[usize; 2]>,
+    motions: Vec<Motion>,
+    producers: Vec<usize>,
+}
+
+#[derive(Clone, Copy)]
+struct Motion {
+    transfer: ItemTransfer,
+    destination_output: bool,
 }
 
 impl Stage {
@@ -99,6 +111,8 @@ impl Stage {
             world,
             instance,
             terrain_origin: None,
+            motions: Vec::new(),
+            producers: producer_indices(game),
         })
     }
 
@@ -107,6 +121,8 @@ impl Stage {
         self.world = world;
         self.instance = instance;
         self.terrain_origin = None;
+        self.motions.clear();
+        self.producers = producer_indices(game);
         Ok(())
     }
 
@@ -252,6 +268,16 @@ impl Stage {
     }
 
     pub fn sync_outputs(&mut self, game: &Game) -> Result<()> {
+        for motion in &self.motions {
+            let entity = self
+                .instance
+                .entity(&format!("bt-travel-{}", motion.transfer.from))
+                .context("missing traveling item sprite")?;
+            self.world
+                .get_mut::<Sprite>(entity)
+                .context("missing traveling item Sprite")?
+                .enabled = false;
+        }
         for (index, tile) in game.tiles.iter().enumerate() {
             let Some(building) = &tile.building else {
                 continue;
@@ -276,6 +302,106 @@ impl Stage {
                     .context("missing output sprite")?
                     .enabled = false;
             }
+        }
+        self.motions = collapse_transfers(&game.transfers)
+            .into_iter()
+            .map(|transfer| Motion {
+                destination_output: game.tiles[transfer.to]
+                    .building
+                    .as_ref()
+                    .is_some_and(|building| building.output == Some(transfer.item)),
+                transfer,
+            })
+            .collect();
+        for motion in &self.motions {
+            let from = motion.transfer.from;
+            let entity = self
+                .instance
+                .entity(&format!("bt-travel-{from}"))
+                .context("missing traveling item sprite")?;
+            self.world
+                .get_mut::<Sprite>(entity)
+                .context("missing traveling item Sprite")?
+                .enabled = true;
+            self.instance.control_sprite(
+                &mut self.world,
+                &format!("bt-travel-{from}"),
+                bozzard_scene::middleware::sprite::Control::Frame(
+                    motion.transfer.item.sprite() as u32
+                ),
+            )?;
+            if motion.destination_output {
+                let entity = self
+                    .instance
+                    .entity(&format!("bt-output-{}", motion.transfer.to))
+                    .context("missing destination item sprite")?;
+                self.world
+                    .get_mut::<Sprite>(entity)
+                    .context("missing destination item Sprite")?
+                    .enabled = false;
+            }
+        }
+        self.animate(0., 0.)?;
+        Ok(())
+    }
+
+    pub fn animate(&mut self, dt: f32, fraction: f32) -> Result<()> {
+        self.instance.step_sprites(&mut self.world, dt)?;
+        let progress = fraction.clamp(0., 1.);
+        for motion in &self.motions {
+            let [sx, sy] = tile_center(motion.transfer.from);
+            let [tx, ty] = tile_center(motion.transfer.to);
+            let entity = self
+                .instance
+                .entity(&format!("bt-travel-{}", motion.transfer.from))
+                .context("missing traveling item sprite")?;
+            self.world
+                .get_mut::<Transform>(entity)
+                .context("missing traveling item transform")?
+                .translation = [
+                sx + (tx - sx) * progress,
+                sy + (ty - sy) * progress,
+                0.5 + 0.06 * (progress * std::f32::consts::PI).sin(),
+            ];
+            self.world
+                .get_mut::<Sprite>(entity)
+                .context("missing traveling item Sprite")?
+                .enabled = progress < 1.;
+            if motion.destination_output {
+                let entity = self
+                    .instance
+                    .entity(&format!("bt-output-{}", motion.transfer.to))
+                    .context("missing destination item sprite")?;
+                self.world
+                    .get_mut::<Sprite>(entity)
+                    .context("missing destination item Sprite")?
+                    .enabled = progress >= 1.;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn sync_progress(&mut self, game: &Game, fraction: f32, power_mask: &[bool]) -> Result<()> {
+        for &index in &self.producers {
+            let amount = game
+                .production_progress(index, fraction, power_mask[index])
+                .context("missing producer progress")?;
+            let entity = self
+                .instance
+                .entity(&format!("bt-progress-fill-{index}"))
+                .context("missing producer progress bar")?;
+            let width = 0.66 * amount;
+            let mut sprite = self
+                .world
+                .get_mut::<Sprite>(entity)
+                .context("missing progress fill Sprite")?;
+            sprite.enabled = amount > 0.;
+            sprite.size = [width, 0.07];
+            let [x, y] = tile_center(index);
+            self.world
+                .get_mut::<Transform>(entity)
+                .context("missing progress fill transform")?
+                .translation = [x - 0.33 + width * 0.5, y - 0.42, 0.61];
         }
         Ok(())
     }
@@ -346,9 +472,7 @@ fn spawn_runtime(authored: &Scene, game: &Game) -> Result<(World, SceneInstance)
         }
     }
     for (index, tile) in game.tiles.iter().enumerate() {
-        let x = index % WIDTH;
-        let y = index / WIDTH;
-        let position = [x as f32 - 127.5, 127.5 - y as f32];
+        let position = tile_center(index);
         if let Some(resource) = tile.deposit {
             add_sprite(
                 &mut scene,
@@ -374,16 +498,52 @@ fn spawn_runtime(authored: &Scene, game: &Game) -> Result<(World, SceneInstance)
                 &mut scene,
                 format!("bt-output-{index}"),
                 "Machine output",
-                [position[0] + 0.27, position[1] + 0.27, 0.4],
+                [position[0], position[1], 0.4],
                 building.output.map_or(0, |item| item.sprite()),
                 Direction::East,
                 0.42,
             )?;
+            add_sprite(
+                &mut scene,
+                format!("bt-travel-{index}"),
+                "Traveling item",
+                [position[0], position[1], 0.5],
+                0,
+                Direction::East,
+                0.42,
+            )?;
+            if matches!(building.kind, Kind::Miner | Kind::Furnace | Kind::Assembler) {
+                add_progress_bar(
+                    &mut scene,
+                    format!("bt-progress-track-{index}"),
+                    "Production progress track",
+                    [position[0], position[1] - 0.42, 0.6],
+                    [0.05, 0.13, 0.14, 0.94],
+                    [0.72, 0.11],
+                )?;
+                add_progress_bar(
+                    &mut scene,
+                    format!("bt-progress-fill-{index}"),
+                    "Production progress fill",
+                    [position[0] - 0.33, position[1] - 0.42, 0.61],
+                    [0.16, 0.91, 0.38, 1.],
+                    [0.01, 0.07],
+                )?;
+            }
         }
     }
     let mut world = World::default();
     let instance = scene.spawn(&mut world)?;
     for (index, tile) in game.tiles.iter().enumerate() {
+        if tile.building.is_some() {
+            let entity = instance
+                .entity(&format!("bt-travel-{index}"))
+                .context("missing traveling item sprite")?;
+            world
+                .get_mut::<Sprite>(entity)
+                .context("missing traveling item Sprite")?
+                .enabled = false;
+        }
         if tile.building.as_ref().is_some_and(|b| b.output.is_none()) {
             let entity = instance
                 .entity(&format!("bt-output-{index}"))
@@ -391,6 +551,19 @@ fn spawn_runtime(authored: &Scene, game: &Game) -> Result<(World, SceneInstance)
             world
                 .get_mut::<Sprite>(entity)
                 .context("missing output sprite")?
+                .enabled = false;
+        }
+        if tile
+            .building
+            .as_ref()
+            .is_some_and(|b| matches!(b.kind, Kind::Miner | Kind::Furnace | Kind::Assembler))
+        {
+            let entity = instance
+                .entity(&format!("bt-progress-fill-{index}"))
+                .context("missing progress fill")?;
+            world
+                .get_mut::<Sprite>(entity)
+                .context("missing progress fill Sprite")?
                 .enabled = false;
         }
     }
@@ -417,22 +590,118 @@ fn add_sprite(
         },
         ..Default::default()
     };
-    registry::set(
-        &mut object,
-        &Sprite {
-            image: "sprites".into(),
-            atlas: Atlas {
+    let (image, atlas, initial, clips) = match frame {
+        9 => animated_sprite("conveyor_animation", 8.),
+        7 => animated_sprite("furnace_animation", 6.),
+        18 => animated_sprite("generator_animation", 5.),
+        _ => (
+            "sprites".to_owned(),
+            Atlas {
                 columns: 10,
                 rows: 10,
             },
-            frame: frame as u32,
+            String::new(),
+            Arc::new(vec![]),
+        ),
+    };
+    registry::set(
+        &mut object,
+        &Sprite {
+            image,
+            atlas,
+            frame: if clips.is_empty() { frame as u32 } else { 0 },
             size: [size; 2],
+            autoplay: !clips.is_empty(),
+            initial,
+            clips,
+            ..Default::default()
+        },
+    )?;
+    scene.objects.push(object);
+    Ok(())
+}
+
+fn animated_sprite(image: &str, fps: f32) -> (String, Atlas, String, Arc<Vec<Clip>>) {
+    (
+        image.into(),
+        Atlas {
+            columns: 4,
+            rows: 1,
+        },
+        "Running".into(),
+        Arc::new(vec![Clip {
+            name: "Running".into(),
+            fps,
+            frames: vec![0, 1, 2, 3],
+            ..Default::default()
+        }]),
+    )
+}
+
+fn add_progress_bar(
+    scene: &mut Scene,
+    id: String,
+    name: &str,
+    position: [f32; 3],
+    color: [f32; 4],
+    size: [f32; 2],
+) -> Result<()> {
+    let mut object = Object {
+        id,
+        name: name.into(),
+        transform: Transform {
+            translation: position,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    registry::set(
+        &mut object,
+        &Sprite {
+            image: "progress_pixel".into(),
+            color,
+            size,
             autoplay: false,
             ..Default::default()
         },
     )?;
     scene.objects.push(object);
     Ok(())
+}
+
+fn tile_center(index: usize) -> [f32; 2] {
+    [
+        (index % WIDTH) as f32 - 127.5,
+        127.5 - (index / WIDTH) as f32,
+    ]
+}
+
+fn producer_indices(game: &Game) -> Vec<usize> {
+    game.tiles
+        .iter()
+        .enumerate()
+        .filter_map(|(index, tile)| {
+            tile.building
+                .as_ref()
+                .filter(|b| matches!(b.kind, Kind::Miner | Kind::Furnace | Kind::Assembler))
+                .map(|_| index)
+        })
+        .collect()
+}
+
+fn collapse_transfers(transfers: &[ItemTransfer]) -> Vec<ItemTransfer> {
+    let mut motions: Vec<ItemTransfer> = Vec::new();
+    for &transfer in transfers {
+        if let Some(previous) = motions
+            .iter_mut()
+            .find(|motion| motion.to == transfer.from && motion.item == transfer.item)
+        {
+            previous.to = transfer.to;
+        } else {
+            motions.push(transfer);
+        }
+    }
+    motions
 }
 
 fn direction_angle(direction: Direction) -> f32 {
@@ -447,6 +716,7 @@ fn direction_angle(direction: Direction) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sim::{Item, PATCH_X, PATCH_Y};
 
     #[test]
     fn authored_components_render_and_route_factory_controls() {
@@ -507,6 +777,108 @@ mod tests {
                 .items
                 .iter()
                 .any(|item| matches!(item.mesh, bozzard_render::MeshKind::Text(_)))
+        );
+    }
+
+    #[test]
+    fn items_travel_between_cells_and_producers_show_cycle_progress() {
+        let source = SceneSource::open(SceneSource::default_path()).unwrap();
+        let mut game = source.new_game().unwrap();
+        let (x, y) = (PATCH_X + 7, PATCH_Y + 7);
+        game.place(x, y, Kind::Belt, Direction::East).unwrap();
+        game.place(x + 1, y, Kind::Belt, Direction::East).unwrap();
+        game.place(PATCH_X + 4, y, Kind::Miner, Direction::East)
+            .unwrap();
+        game.inject(x, y, Item::IronOre).unwrap();
+        let mut stage = Stage::new(&source, &game).unwrap();
+        let from = y * WIDTH + x;
+        let to = from + 1;
+        let belt = stage
+            .instance
+            .entity(&format!("bt-building-{from}"))
+            .unwrap();
+        assert_eq!(
+            stage.world.get::<Sprite>(belt).unwrap().image,
+            "conveyor_animation"
+        );
+        game.tick();
+        assert_eq!(
+            game.transfers,
+            vec![ItemTransfer {
+                from,
+                to,
+                item: Item::IronOre
+            }]
+        );
+        stage.sync_outputs(&game).unwrap();
+        let (power_mask, _) = game.power_network();
+        stage.sync_progress(&game, 0.5, &power_mask).unwrap();
+        stage.animate(0.05, 0.5).unwrap();
+        let travel = stage.instance.entity(&format!("bt-travel-{from}")).unwrap();
+        let output = stage.instance.entity(&format!("bt-output-{to}")).unwrap();
+        assert!(stage.world.get::<Sprite>(travel).unwrap().enabled);
+        assert!(!stage.world.get::<Sprite>(output).unwrap().enabled);
+        let at = stage.world.get::<Transform>(travel).unwrap().translation;
+        assert_eq!(at[0], (tile_center(from)[0] + tile_center(to)[0]) * 0.5);
+        let miner = y * WIDTH + PATCH_X + 4;
+        let fill = stage
+            .instance
+            .entity(&format!("bt-progress-fill-{miner}"))
+            .unwrap();
+        let bar = stage.world.get::<Sprite>(fill).unwrap();
+        assert!(bar.enabled);
+        assert!(bar.size[0] > 0. && bar.size[0] < 0.66);
+        stage.animate(0.05, 1.).unwrap();
+        assert!(!stage.world.get::<Sprite>(travel).unwrap().enabled);
+        assert!(stage.world.get::<Sprite>(output).unwrap().enabled);
+    }
+
+    #[test]
+    fn powered_double_hops_are_one_visual_motion() {
+        let item = crate::sim::Item::IronOre;
+        let motions = collapse_transfers(&[
+            ItemTransfer {
+                from: 1,
+                to: 2,
+                item,
+            },
+            ItemTransfer {
+                from: 2,
+                to: 3,
+                item,
+            },
+        ]);
+        assert_eq!(
+            motions,
+            vec![ItemTransfer {
+                from: 1,
+                to: 3,
+                item
+            }]
+        );
+    }
+
+    #[test]
+    fn authored_lobby_buttons_route_through_the_scene_ui() {
+        let source = SceneSource::open(SceneSource::default_path()).unwrap();
+        let game = source.new_game().unwrap();
+        let mut stage = Stage::new(&source, &game).unwrap();
+        stage.canvas("hud", false).unwrap();
+        stage.canvas("menu", true).unwrap();
+        for name in ["help", "map"] {
+            stage.canvas(name, false).unwrap();
+        }
+        let frame = stage.ui_frame([1320., 830.]).unwrap();
+        let button = frame.element("bt-ui-create-lobby").unwrap();
+        let point = [button.rect.min[0] + 20., button.rect.min[1] + 15.];
+        stage
+            .input([1320., 830.], Input::PointerDown(point))
+            .unwrap();
+        assert!(
+            stage
+                .input([1320., 830.], Input::PointerUp(point))
+                .unwrap()
+                .contains(&"create-lobby")
         );
     }
 }

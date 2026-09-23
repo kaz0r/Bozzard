@@ -23,6 +23,9 @@ bozzard-scene.workspace = true
 glam.workspace = true
 pollster.workspace = true
 winit.workspace = true
+base64 = "0.22.1"
+flate2 = "1.1.10"
+sha2 = "0.10.9"
 steamworks = { version = "0.13.1", optional = true }
 
 [lints]

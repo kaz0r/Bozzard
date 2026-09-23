@@ -323,6 +323,15 @@ pub struct Order {
     pub bonus_belts: u16,
 }
 
+/// A successful item handoff in the latest simulation tick. This is transient
+/// presentation data, never part of a factory save.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemTransfer {
+    pub from: usize,
+    pub to: usize,
+    pub item: Item,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Game {
     pub tiles: Vec<Tile>,
@@ -351,6 +360,8 @@ pub struct Game {
     pub energy_capacity: u32,
     #[serde(default)]
     pub energy_used: u32,
+    #[serde(skip)]
+    pub transfers: Vec<ItemTransfer>,
 }
 impl Default for Game {
     fn default() -> Self {
@@ -413,6 +424,7 @@ impl Game {
             seed,
             energy_capacity: 0,
             energy_used: 0,
+            transfers: Vec::new(),
         }
     }
     pub const fn index(x: usize, y: usize) -> Option<usize> {
@@ -660,6 +672,47 @@ impl Game {
         }
         (mask, capacity)
     }
+    /// Visual cycle progress for producers; `fraction` interpolates between
+    /// fixed simulation ticks without changing production timing.
+    pub fn production_progress(&self, index: usize, fraction: f32, powered: bool) -> Option<f32> {
+        let tile = self.tiles.get(index)?;
+        let building = tile.building.as_ref()?;
+        let active = match building.kind {
+            Kind::Miner => tile.deposit.and_then(Resource::ore).is_some(),
+            Kind::Furnace => {
+                building.input[Item::IronOre.index()] > 0
+                    || building.input[Item::CopperOre.index()] > 0
+            }
+            Kind::Assembler => match building.recipe {
+                Recipe::Gear => building.input[Item::IronBar.index()] >= 2,
+                Recipe::Circuit => {
+                    building.input[Item::IronBar.index()] > 0
+                        && building.input[Item::CopperBar.index()] > 0
+                }
+            },
+            _ => return None,
+        };
+        if building.output.is_some() {
+            return Some(1.);
+        }
+        if !active {
+            return Some(0.);
+        }
+        let mut level = building.level.min(2);
+        if building.level > 1 && powered {
+            level = building.level.saturating_add(1);
+        }
+        let duration = match building.kind {
+            Kind::Miner => 5u8.saturating_sub(level),
+            Kind::Furnace => 4u8.saturating_sub(level),
+            Kind::Assembler => 6u8.saturating_sub(level),
+            _ => unreachable!(),
+        }
+        .max(1);
+        Some(
+            ((f32::from(building.progress) + fraction.clamp(0., 1.)) / f32::from(duration)).min(1.),
+        )
+    }
     pub fn inject(&mut self, x: usize, y: usize, item: Item) -> Result<(), &'static str> {
         let index = Self::index(x, y).ok_or("Outside the factory")?;
         if self.stock[item.index()] == 0 {
@@ -805,6 +858,7 @@ impl Game {
                         !self.tiles[from].building.as_ref().unwrap().split_next;
                 }
                 self.accept(to, item);
+                self.transfers.push(ItemTransfer { from, to, item });
             }
         }
     }
@@ -812,6 +866,7 @@ impl Game {
         if self.paused {
             return;
         }
+        self.transfers.clear();
         self.ticks += 1;
         let (power_mask, capacity) = self.power_network();
         self.energy_capacity = capacity;
@@ -901,6 +956,29 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn producer_bars_wait_for_inputs_and_fill_when_output_is_ready() {
+        let mut game = Game::new();
+        let (x, y) = (PATCH_X + 9, PATCH_Y + 6);
+        game.place(x, y, Kind::Furnace, Direction::East).unwrap();
+        game.place(x + 2, y, Kind::Assembler, Direction::East)
+            .unwrap();
+        let furnace = y * WIDTH + x;
+        let assembler = furnace + 2;
+        assert_eq!(game.production_progress(furnace, 0.5, false), Some(0.));
+        assert_eq!(game.production_progress(assembler, 0.5, false), Some(0.));
+        game.tiles[furnace].building.as_mut().unwrap().input[Item::IronOre.index()] = 1;
+        game.tiles[assembler].building.as_mut().unwrap().input[Item::IronBar.index()] = 2;
+        game.tick();
+        assert!(game.production_progress(furnace, 0.5, false).unwrap() > 0.);
+        assert!(game.production_progress(assembler, 0.5, false).unwrap() > 0.);
+        for _ in 0..5 {
+            game.tick();
+        }
+        assert_eq!(game.production_progress(furnace, 0.5, false), Some(1.));
+        assert_eq!(game.production_progress(assembler, 0.5, false), Some(1.));
+    }
 
     #[test]
     fn inspecting_locked_upgrades_does_not_underflow() {
@@ -996,6 +1074,8 @@ mod tests {
             Some(Item::IronOre)
         );
         assert_eq!(loaded.buildings, game.buildings);
+        assert!(loaded.transfers.is_empty());
+        assert!(!saved.contains("transfers"));
     }
 
     #[test]
