@@ -1,8 +1,11 @@
 use super::*;
+use std::sync::Arc;
 /// An isolated authoring preview. Only particle simulation and display time run;
 /// gameplay, physics, scripts, and the saved scene never advance here.
 pub struct EffectsPreview {
-    revision: u64,
+    // Revisions are local to an Editor. A filtered workspace view can have the
+    // same revision as its source while containing different visible objects.
+    source: Arc<Scene>,
     demo: SceneDemo,
 }
 impl EffectsPreview {
@@ -11,7 +14,8 @@ impl EffectsPreview {
     }
     /// Native previews use persistent GPU particle motion; headless previews retain the CPU reference.
     pub fn with_gpu_particles(editor: &Editor, gpu: bool) -> Result<Self> {
-        let mut demo = SceneDemo::new(editor.scene())?;
+        let source = editor.scene_snapshot();
+        let mut demo = SceneDemo::new(&source)?;
         demo.with_instance(|instance, _| instance.set_gpu_particles(gpu));
         if editor
             .scene()
@@ -27,13 +31,10 @@ impl EffectsPreview {
                 })?;
             }
         }
-        Ok(Self {
-            revision: editor.revision(),
-            demo,
-        })
+        Ok(Self { source, demo })
     }
     pub fn advance(&mut self, editor: &Editor, delta: Duration, running: bool) -> Result<()> {
-        if self.revision != editor.revision() {
+        if !Arc::ptr_eq(&self.source, &editor.scene_snapshot()) {
             *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
         }
         if running {
@@ -61,7 +62,7 @@ impl EffectsPreview {
         // viewport stamps the pixels it drew with the revision it drew them from, and a preview that
         // lagged a frame would move the stamp ahead of the pixels and leave the next frame with
         // nothing to redraw.
-        if self.revision != editor.revision() {
+        if !Arc::ptr_eq(&self.source, &editor.scene_snapshot()) {
             *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
         }
         let mut scene = extract_with_gi(
@@ -69,7 +70,7 @@ impl EffectsPreview {
             &editor.assets,
             layer,
             aspect,
-            (self.revision == editor.revision()).then(|| editor.gi_current()),
+            Some(editor.gi_current()),
             inspection_pose,
         )?;
         // Live preview animates particles and atmosphere, not materials:
@@ -234,7 +235,7 @@ mod tests {
                 before + 1,
                 "the added object was missing from the frame that edited it"
             );
-            assert_eq!(preview.revision, editor.revision());
+            assert!(Arc::ptr_eq(&preview.source, &editor.scene_snapshot()));
             assert!(!after.particles.is_empty());
             assert!(
                 after

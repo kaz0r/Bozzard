@@ -2,7 +2,7 @@
 mod mesh;
 mod runtime;
 use super::{
-    registry::{self, Authored},
+    registry::{self, Authored, PreviewPolicy},
     signals::{Kind, Signal, Signals},
 };
 use crate::{
@@ -68,6 +68,8 @@ impl Component for NavSurface {
     }
 }
 impl Authored for NavSurface {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         self.settings.dimensions()?;
         if let Some(data) = &self.baked {
@@ -242,6 +244,8 @@ impl Component for NavAgent {
     }
 }
 impl Authored for NavAgent {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Omit;
+
     fn validate(&self) -> Result<()> {
         ensure!(
             [

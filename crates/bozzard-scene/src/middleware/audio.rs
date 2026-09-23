@@ -1,5 +1,5 @@
 //! Deterministic audio transport and spatial mixing. Native device handles never enter the ECS.
-use super::registry::Authored;
+use super::registry::{Authored, PreviewPolicy};
 use crate::{
     AssetKind, Component, Field, FieldValue, Layer, Object, Scene, SceneInstance, Ui, World,
 };
@@ -143,6 +143,8 @@ impl Component for AudioSource {
     }
 }
 impl Authored for AudioSource {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         ensure!(
             [
@@ -239,6 +241,8 @@ impl Component for AudioMixer {
     }
 }
 impl Authored for AudioMixer {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         ensure!(
             self.buses
@@ -292,6 +296,8 @@ impl Component for AudioListener {
     }
 }
 impl Authored for AudioListener {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn validate(&self) -> Result<()> {
         Ok(())
     }

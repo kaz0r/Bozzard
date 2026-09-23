@@ -30,7 +30,7 @@ impl App {
         if self.editor.play.is_none() {
             let hidden = self
                 .open_scenes
-                .hidden_objects_in(self.open_scenes.active(), self.editor.scene());
+                .hidden_objects_in(self.open_scenes.active(), &self.editor);
             snapshot.boxes.retain(|bounds| !hidden.contains(&bounds.id));
             snapshot.meshes.retain(|mesh| !hidden.contains(&mesh.id));
             snapshot

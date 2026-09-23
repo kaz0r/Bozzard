@@ -16,7 +16,7 @@ impl App {
         }
         let hidden = self
             .open_scenes
-            .hidden_objects_in(self.open_scenes.active(), self.editor.scene());
+            .hidden_objects_in(self.open_scenes.active(), &self.editor);
         let matrices = self.editor.scene().global_transforms()?;
         let painter = ui.painter().with_clip_rect(rect);
         let project = |v: glam::Vec4| {

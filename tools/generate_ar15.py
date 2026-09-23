@@ -7,10 +7,14 @@ not a parts drawing. The barrel points along +X and the top is +Z in Blender.
 """
 
 import math
+import sys
 from pathlib import Path
 
 import bpy
 from mathutils import Vector
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from blender_helpers import create_extruded_profile, create_principled_material
 
 
 ROOT = Path(__file__).resolve().parents[1] / "assets" / "ar15"
@@ -22,14 +26,7 @@ bpy.ops.object.delete(use_global=False)
 
 
 def material(name, color, metallic=0.0, roughness=0.5):
-    mat = bpy.data.materials.new(name)
-    mat.diffuse_color = (*color, 1)
-    mat.use_nodes = True
-    shader = mat.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Base Color"].default_value = (*color, 1)
-    shader.inputs["Metallic"].default_value = metallic
-    shader.inputs["Roughness"].default_value = roughness
-    return mat
+    return create_principled_material(bpy, name, color, metallic, roughness)
 
 
 anodized = material("01 Receiver - graphite anodized", (0.095, 0.103, 0.108), 0.72, 0.38)
@@ -70,16 +67,7 @@ def box(name, loc, size, mat, bevel=0.0, tilt=0.0):
 
 def profile(name, outline, width, mat, bevel=0.0, y=0.0):
     """Extrude an X/Z silhouette equally to either side of the centerline."""
-    n = len(outline)
-    verts = [(x, y - width / 2, z) for x, z in outline]
-    verts += [(x, y + width / 2, z) for x, z in outline]
-    faces = [tuple(range(n)), tuple(reversed(range(n, 2 * n)))]
-    faces += [(i + n, (i + 1) % n + n, (i + 1) % n, i) for i in range(n)]
-    mesh = bpy.data.meshes.new(name)
-    mesh.from_pydata(verts, [], faces)
-    mesh.update()
-    obj = bpy.data.objects.new(name, mesh)
-    bpy.context.collection.objects.link(obj)
+    obj = create_extruded_profile(bpy, name, outline, width, y)
     return finish(obj, name, mat, bevel)
 
 

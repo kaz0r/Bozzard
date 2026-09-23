@@ -1,4 +1,4 @@
-use bozzard_editor::Editor;
+use bozzard_editor::{Editor, OpenScenes};
 use bozzard_scene::{
     GamePhase, Layer, Transform,
     middleware::{
@@ -9,6 +9,31 @@ use bozzard_scene::{
 use std::path::Path;
 fn scene(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../examples/demo/scenes/{name}.json"))
+}
+
+#[test]
+fn every_middleware_object_can_be_hidden_and_restored_without_changing_the_source()
+-> anyhow::Result<()> {
+    for name in ["middleware-lab", "ui-2d-lab"] {
+        let editor = Editor::open(&scene(name))?;
+        let authored = editor.scene().clone();
+        let mut open = OpenScenes::default();
+        for object in &authored.objects {
+            open.set_object_visible(open.active(), &object.id, false);
+            open.sync_view(&editor)?;
+            let view = open.view(&editor);
+            for &layer in authored.views.keys() {
+                view.render(layer, 16. / 9.)?;
+                view.ui_frame(layer, [1280., 720.])?;
+            }
+            open.set_object_visible(open.active(), &object.id, true);
+            open.sync_view(&editor)?;
+            assert_eq!(open.view(&editor).scene(), &authored);
+        }
+        assert_eq!(editor.scene(), &authored);
+        assert!(!editor.dirty());
+    }
+    Ok(())
 }
 #[test]
 fn play_refreshes_audio_lengths_when_only_runtime_scenes_have_sources() -> anyhow::Result<()> {

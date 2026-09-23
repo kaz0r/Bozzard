@@ -11,6 +11,9 @@ import sys
 import bpy
 from mathutils import Vector
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from blender_helpers import create_extruded_profile, create_principled_material
+
 
 ROOT = Path(__file__).resolve().parents[1] / "assets"
 bpy.context.preferences.filepaths.save_version = 0
@@ -29,13 +32,7 @@ class Character:
         self.armature = None
 
     def mat(self, name, color, metallic=0, roughness=.65):
-        material = bpy.data.materials.new(name)
-        material.diffuse_color = (*color, 1)
-        material.use_nodes = True
-        shader = material.node_tree.nodes.get("Principled BSDF")
-        shader.inputs["Base Color"].default_value = (*color, 1)
-        shader.inputs["Metallic"].default_value = metallic
-        shader.inputs["Roughness"].default_value = roughness
+        material = create_principled_material(bpy, name, color, metallic, roughness)
         self.materials.append(material)
         return material
 
@@ -79,16 +76,7 @@ class Character:
         return self.finish(obj, name, material, bone)
 
     def profile(self, name, outline, width, material, bone, bevel=0, y=0):
-        n = len(outline)
-        verts = [(x, y-width/2, z) for x,z in outline]
-        verts += [(x, y+width/2, z) for x,z in outline]
-        faces = [tuple(range(n)), tuple(reversed(range(n, 2*n)))]
-        faces += [(i+n, (i+1)%n+n, (i+1)%n, i) for i in range(n)]
-        mesh = bpy.data.meshes.new(name)
-        mesh.from_pydata(verts, [], faces)
-        mesh.update()
-        obj = bpy.data.objects.new(name, mesh)
-        bpy.context.collection.objects.link(obj)
+        obj = create_extruded_profile(bpy, name, outline, width, y)
         return self.finish(obj, name, material, bone, bevel)
 
     def rig(self, bones):

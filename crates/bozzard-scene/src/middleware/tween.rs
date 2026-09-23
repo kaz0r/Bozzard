@@ -1,7 +1,7 @@
 //! Authored motion tracks with shared curve evaluation and explicit playback controls.
 use super::{
     curve::{Curve, Ease, Playhead, Repeat},
-    registry::{Authored, get},
+    registry::{Authored, PreviewPolicy, get},
 };
 use crate::{
     Component, Field, FieldValue, Object, Scene, SceneInstance, Transform, Ui, World,
@@ -245,6 +245,8 @@ impl Component for Tween {
     }
 }
 impl Authored for Tween {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Omit;
+
     fn write_targets(&self, owner: &str) -> Vec<String> {
         self.tracks
             .iter()

@@ -5,6 +5,7 @@ use glam::Mat4;
 
 #[derive(PartialEq)]
 pub(super) struct ViewportStamp {
+    pub workspace: u64,
     pub revision: u64,
     pub catalog: u64,
     pub assets: Vec<(String, u64, bool)>,

@@ -55,12 +55,7 @@ impl Server {
             while !worker_stop.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
-                        stream
-                            .set_read_timeout(Some(Duration::from_secs(2)))
-                            .unwrap();
-                        stream
-                            .set_write_timeout(Some(Duration::from_secs(2)))
-                            .unwrap();
+                        configure_connection(&stream).unwrap();
                         let mut input = Vec::new();
                         let mut byte = [0];
                         while input.len() < 8192 && stream.read_exact(&mut byte).is_ok() {
@@ -113,6 +108,13 @@ impl Drop for Server {
         }
     }
 }
+fn configure_connection(stream: &TcpStream) -> std::io::Result<()> {
+    // Windows inherits the listener's nonblocking mode. Request/response I/O
+    // needs to wait for bytes; only accept polling should be nonblocking.
+    stream.set_nonblocking(false)?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))
+}
 fn reply(stream: &mut TcpStream, response: Response, stop: &AtomicBool) -> std::io::Result<()> {
     write!(
         stream,
@@ -130,4 +132,44 @@ fn reply(stream: &mut TcpStream, response: Response, stop: &AtomicBool) -> std::
         stream.write_all(chunk)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc::{self, RecvTimeoutError};
+
+    #[test]
+    fn accepted_connection_waits_for_request_bytes() -> std::io::Result<()> {
+        const REQUEST: &[u8] = b"GET /catalog.json HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let mut client = TcpStream::connect(listener.local_addr()?)?;
+        let (mut stream, _) = listener.accept()?;
+        // Reproduce Windows' inherited listener mode on every platform.
+        stream.set_nonblocking(true)?;
+        configure_connection(&stream)?;
+
+        thread::scope(|scope| {
+            let (ready_tx, ready_rx) = mpsc::channel();
+            let (result_tx, result_rx) = mpsc::channel();
+            scope.spawn(move || {
+                let mut input = [0; REQUEST.len()];
+                ready_tx.send(()).unwrap();
+                let result = stream.read_exact(&mut input).map(|()| input);
+                let _ = result_tx.send(result);
+            });
+            ready_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert!(
+                matches!(
+                    result_rx.recv_timeout(Duration::from_millis(100)),
+                    Err(RecvTimeoutError::Timeout)
+                ),
+                "accepted connection must wait for request bytes, not return WouldBlock"
+            );
+            client.write_all(REQUEST)?;
+            let received = result_rx.recv_timeout(Duration::from_secs(2)).unwrap()?;
+            assert_eq!(received, REQUEST);
+            Ok(())
+        })
+    }
 }

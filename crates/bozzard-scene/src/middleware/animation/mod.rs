@@ -7,7 +7,7 @@ pub struct Palette {
 }
 use super::{
     curve::{Playhead, Repeat},
-    registry::Authored,
+    registry::{Authored, PreviewPolicy},
     signals::{Kind, Signal, Signals},
     timeline::crossed_markers,
 };
@@ -204,6 +204,8 @@ impl Component for Animator {
     }
 }
 impl Authored for Animator {
+    const PREVIEW: PreviewPolicy = PreviewPolicy::Retain;
+
     fn accept_prepared(prepared: &mut World, live: &mut World) {
         if let Some(runtime) = prepared.remove_resource::<Runtime>() {
             if let Some(current) = live.resource_mut::<Runtime>() {
