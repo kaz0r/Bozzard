@@ -3,7 +3,9 @@ use bozzard_scene::{Object, Scene};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn visibility_eye(ui: &mut egui::Ui, visible: bool) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::click());
+    const HIT_SIZE: f32 = 24.0;
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(HIT_SIZE, HIT_SIZE), egui::Sense::click());
     let color = if ui.is_enabled() && visible {
         ui.visuals().text_color()
     } else {
@@ -39,6 +41,42 @@ pub(super) fn visibility_eye(ui: &mut egui::Ui, visible: bool) -> egui::Response
     painter.circle_stroke(center, 2.2, stroke);
     if !visible {
         painter.line_segment([point(-6.0, 5.5), point(6.0, -5.5)], stroke);
+    }
+    response
+}
+
+/// Keep a leaf's empty disclosure column the same width as a parent's button.
+pub(super) fn disclosure_slot(
+    ui: &mut egui::Ui,
+    expandable: bool,
+    collapsed: bool,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(18.0, 24.0),
+        if expandable {
+            egui::Sense::click()
+        } else {
+            egui::Sense::hover()
+        },
+    );
+    if expandable {
+        let visuals = ui.style().interact(&response);
+        if response.hovered() {
+            ui.painter().rect_filled(rect, 3.0, visuals.bg_fill);
+        }
+        let offsets = if collapsed {
+            [[-2., -4.], [3., 0.], [-2., 4.]]
+        } else {
+            [[-4., -2.], [4., -2.], [0., 3.]]
+        };
+        ui.painter().add(egui::Shape::convex_polygon(
+            offsets
+                .into_iter()
+                .map(|[x, y]| rect.center() + egui::vec2(x, y))
+                .collect(),
+            visuals.fg_stroke.color,
+            egui::Stroke::NONE,
+        ));
     }
     response
 }

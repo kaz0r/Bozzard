@@ -1209,6 +1209,7 @@ impl App {
                 .any(|o| o.particle_emitter.is_some_and(|e| e.enabled)),
         );
         let stamp = repaint::ViewportStamp {
+            workspace: self.open_scenes.revision(),
             revision: self.open_scenes.view(&self.editor).revision(),
             catalog: self.open_scenes.view(&self.editor).asset_revision(),
             assets: self

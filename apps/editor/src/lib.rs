@@ -74,7 +74,7 @@ fn left_aligned_hierarchy_row<R>(
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<R> {
     ui.allocate_ui_with_layout(
-        egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
+        egui::vec2(ui.available_width(), ui.spacing().interact_size.y.max(24.0)),
         egui::Layout::left_to_right(egui::Align::Center).with_main_align(egui::Align::Min),
         add_contents,
     )
@@ -1192,14 +1192,23 @@ impl App {
                             left_aligned_hierarchy_row(ui, |ui| {
                                 if query.is_empty() {
                                     ui.add_space((depth.min(12) * 12) as f32);
-                                    if has_surfaces || children.contains_key(&Some(object.id.as_str())) {
-                                        let collapsed = self.hierarchy_state.is_collapsed(&object.id);
-                                        if ui.add_sized([18.0, 18.0], egui::Button::new(if collapsed { "▶" } else { "▼" }).frame(false))
-                                            .on_hover_text(if collapsed { "Expand children" } else { "Collapse children" }).clicked() {
-                                            self.hierarchy_state.toggle(&object.id);
-                                        }
-                                    } else {
-                                        ui.add_space(18.0);
+                                    let expandable = has_surfaces
+                                        || children.contains_key(&Some(object.id.as_str()));
+                                    let collapsed = self.hierarchy_state.is_collapsed(&object.id);
+                                    let disclosure = hierarchy::disclosure_slot(
+                                        ui,
+                                        expandable,
+                                        collapsed,
+                                    );
+                                    if expandable && disclosure
+                                            .on_hover_text(if collapsed {
+                                                "Expand children"
+                                            } else {
+                                                "Collapse children"
+                                            })
+                                            .clicked()
+                                        {
+                                        self.hierarchy_state.toggle(&object.id);
                                     }
                                 }
                                 let hidden_by_parent = object
@@ -2329,6 +2338,109 @@ mod shortcut_tests {
             assert!(text_x - row.min.x < 20.0, "text was centered in {row:?}");
             assert!(row.max.x <= 240.0, "row exceeded the pane: {row:?}");
         }
+    }
+
+    #[test]
+    fn hierarchy_eye_aligns_across_leaf_and_parent_rows() {
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        let mut rows = Vec::new();
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(240.0, 100.0))),
+                ..Default::default()
+            },
+            |ui| {
+                for (expandable, visible, selected) in [(true, true, true), (false, false, false)] {
+                    let row = left_aligned_hierarchy_row(ui, |ui| {
+                        let disclosure = hierarchy::disclosure_slot(ui, expandable, false);
+                        let eye = ui
+                            .add_enabled_ui(true, |ui| hierarchy::visibility_eye(ui, visible))
+                            .inner;
+                        let label = clipped_selectable_row(ui, selected, "Selected object".into());
+                        (disclosure.rect, eye.rect, label.rect)
+                    });
+                    rows.push((row.response.rect, row.inner));
+                }
+            },
+        );
+        output.textures_delta.clear();
+        assert_eq!(rows.len(), 2);
+        let (parent_row, (parent_disclosure, parent_eye, parent_label)) = rows[0];
+        let (leaf_row, (_, leaf_eye, leaf_label)) = rows[1];
+        assert_eq!(parent_disclosure.width(), 18.0);
+        assert_eq!(
+            parent_eye.min.x, leaf_eye.min.x,
+            "leaf eye shifted from parent eye"
+        );
+        for (eye, label) in [(parent_eye, parent_label), (leaf_eye, leaf_label)] {
+            assert_eq!(eye.size(), Vec2::splat(24.0), "eye hit target changed size");
+            assert_eq!(
+                eye.center().y,
+                label.center().y,
+                "eye is not centered on row label"
+            );
+        }
+        assert!(parent_row.height() >= 24.0);
+        assert_eq!(parent_row.height(), leaf_row.height());
+        assert!(!output.shapes.is_empty(), "hierarchy rows should paint");
+
+        let mut eye_hovered = false;
+        let mut label_hovered = false;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(240.0, 100.0))),
+                events: vec![egui::Event::PointerMoved(parent_eye.center())],
+                ..Default::default()
+            },
+            |ui| {
+                left_aligned_hierarchy_row(ui, |ui| {
+                    hierarchy::disclosure_slot(ui, true, false);
+                    eye_hovered = ui
+                        .add_enabled_ui(true, |ui| hierarchy::visibility_eye(ui, true))
+                        .inner
+                        .hovered();
+                    label_hovered =
+                        clipped_selectable_row(ui, true, "Selected object".into()).hovered();
+                });
+            },
+        );
+        output.textures_delta.clear();
+        assert!(eye_hovered, "eye should own its hover target");
+        assert!(
+            !label_hovered,
+            "eye hover must not overlap the selectable label"
+        );
+        let mut eye_clicks = 0;
+        let mut label_clicks = 0;
+        for pressed in [true, false] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(240.0, 100.0))),
+                    events: vec![egui::Event::PointerButton {
+                        pos: parent_eye.center(),
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: Default::default(),
+                    }],
+                    ..Default::default()
+                },
+                |ui| {
+                    left_aligned_hierarchy_row(ui, |ui| {
+                        hierarchy::disclosure_slot(ui, true, false);
+                        eye_clicks += ui
+                            .add_enabled_ui(true, |ui| hierarchy::visibility_eye(ui, true))
+                            .inner
+                            .clicked() as usize;
+                        label_clicks += clipped_selectable_row(ui, true, "Selected object".into())
+                            .clicked() as usize;
+                    });
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert_eq!(eye_clicks, 1, "one click must toggle visibility once");
+        assert_eq!(label_clicks, 0, "the eye must not select or drag the row");
     }
 
     #[test]

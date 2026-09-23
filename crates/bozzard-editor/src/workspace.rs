@@ -102,6 +102,9 @@ impl OpenScenes {
         if changed {
             self.revision += 1;
         }
+        if hidden.is_empty() {
+            self.hidden_objects.remove(&scene);
+        }
     }
 
     /// A hidden parent suppresses every descendant in the authoring viewport.
@@ -232,7 +235,9 @@ impl OpenScenes {
             .hidden_objects
             .get(&self.active)
             .is_some_and(|objects| !objects.is_empty());
-        if (single_document && !active_has_hidden_objects) || current.play.is_some() {
+        if (single_document && self.visible(self.active) && !active_has_hidden_objects)
+            || current.play.is_some()
+        {
             self.view = None;
             return Ok(());
         }
@@ -271,8 +276,9 @@ impl OpenScenes {
                 let mut owners = BTreeMap::new();
                 for object in &mut scene.objects {
                     owners.insert(object.id.clone(), (self.active, object.id.clone()));
-                    if hidden.contains(&object.id) {
-                        hide_preview_object(object);
+                    strip_preview_gameplay(object);
+                    if !self.visible(self.active) || hidden.contains(&object.id) {
+                        hide_preview_object(object)?;
                     }
                 }
                 scene.validate()?;
@@ -339,15 +345,11 @@ impl OpenScenes {
                     object.parent = object.parent.map(|p| names[&p].clone());
                     // This document exists only for authoring extraction and picking.
                     // Gameplay remains in each source and runs via Play active scene.
-                    object.blueprints.clear();
-                    object.blackboard.clear();
-                    object.script_manager = None;
-                    object.player_controller = None;
-                    object.joint = None;
+                    strip_preview_gameplay(&mut object);
                     if !visible || object_hidden {
                         // Keep transform ancestry and cameras for navigation, even
                         // when all geometry in the camera's document is hidden.
-                        hide_preview_object(&mut object);
+                        hide_preview_object(&mut object)?;
                     }
                     scene.objects.push(object);
                 }
@@ -429,7 +431,29 @@ impl OpenScenes {
     }
 }
 
-fn hide_preview_object(object: &mut Object) {
+fn strip_preview_gameplay(object: &mut Object) {
+    use bozzard_scene::{
+        Component,
+        middleware::{navigation::NavAgent, timeline::Timeline, tween::Tween},
+    };
+    object.blueprints.clear();
+    object.blackboard.clear();
+    object.script_manager = None;
+    // Hiding a collider must not leave a controller, compound body, or joint
+    // with missing collision shapes in this authoring-only document.
+    object.player_controller = None;
+    object.gravity = None;
+    object.joint = None;
+    // These systems never advance in Edit mode, and their targets may lose
+    // visual or navigation components when hidden in the preview.
+    for component in [Tween::NAME, Timeline::NAME, NavAgent::NAME] {
+        object.extras.remove(component);
+    }
+}
+
+fn hide_preview_object(object: &mut Object) -> Result<()> {
+    use bozzard_scene::middleware::{registry, ui::Canvas};
+    let canvas = registry::get::<Canvas>(object)?;
     object.drawable = None;
     object.material = None;
     object.shader_graph = None;
@@ -443,6 +467,13 @@ fn hide_preview_object(object: &mut Object) {
     object.trigger = None;
     object.spin = None;
     object.extras.clear();
+    if let Some(mut canvas) = canvas {
+        // Retain a disabled canvas so SceneDemo's legacy menu migration does
+        // not recreate all menus when the last visible canvas is hidden.
+        canvas.enabled = false;
+        registry::set(object, &canvas)?;
+    }
+    Ok(())
 }
 
 fn qualified(id: SceneId, name: &str) -> String {
@@ -478,6 +509,223 @@ struct SceneView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn eye_scene() -> Scene {
+        let mut scene = bozzard_demo::scene_document().unwrap();
+        let mut drawable = scene
+            .objects
+            .iter()
+            .find_map(|o| o.drawable.clone())
+            .unwrap();
+        drawable.layer = Layer::ThreeD;
+        drawable.mesh = Mesh::Cube;
+        scene.objects.retain(|o| o.camera.is_some());
+        for (id, z) in [("front", 2.0), ("rear", 4.0)] {
+            scene.objects.push(Object {
+                id: id.into(),
+                name: id.into(),
+                drawable: Some(drawable.clone()),
+                transform: Transform {
+                    translation: [0., 0., z],
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+        }
+        scene
+    }
+
+    #[test]
+    fn eye_refreshes_live_and_paused_previews_and_picking_without_changing_play() -> Result<()> {
+        for edits in [0, 2] {
+            let mut editor = Editor::new(eye_scene(), Path::new("work/eye.json"))?;
+            for index in 0..edits {
+                let mut scene = editor.scene().clone();
+                scene.name = format!("Edited {index}");
+                editor.apply("Rename scene", scene)?;
+            }
+            let original = editor.scene().clone();
+            let revision = editor.revision();
+            let history = editor.undo_label().map(str::to_owned);
+            let mut open = OpenScenes::default();
+            let mut effects = EffectsPreview::new(&editor)?;
+            assert_eq!(effects.render(&editor, Layer::ThreeD, 1.)?.items.len(), 2);
+            for toggle in 0..8 {
+                let visible = toggle % 2 == 1;
+                open.set_object_visible(open.active(), "front", visible);
+                open.sync_view(&editor)?;
+                let view = open.view(&editor);
+                // Exercise a click after advance as well as the next frame's advance.
+                if toggle % 3 == 1 {
+                    effects.advance(view, Duration::from_millis(16), true)?;
+                } else if toggle % 3 == 2 {
+                    effects.advance(view, Duration::ZERO, false)?;
+                }
+                assert_eq!(
+                    effects.render(view, Layer::ThreeD, 1.)?.items.len(),
+                    if visible { 2 } else { 1 }
+                );
+                let pick = view.pick_with_projection(Layer::ThreeD, Mat4::IDENTITY, [0.; 2])?;
+                assert_eq!(
+                    pick.as_deref(),
+                    Some(if visible { "front" } else { "rear" })
+                );
+            }
+            open.set_object_visible(open.active(), "front", false);
+            editor.start_play()?;
+            open.sync_view(&editor)?;
+            assert_eq!(open.view(&editor).render(Layer::ThreeD, 1.)?.items.len(), 2);
+            editor.stop_play();
+            open.sync_view(&editor)?;
+            assert_eq!(
+                effects
+                    .render(open.view(&editor), Layer::ThreeD, 1.)?
+                    .items
+                    .len(),
+                1
+            );
+            assert_eq!(editor.scene(), &original);
+            assert_eq!(editor.revision(), revision);
+            assert_eq!(editor.undo_label(), history.as_deref());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn eye_can_hide_compound_shapes_and_joint_endpoints_in_single_and_additive_views() -> Result<()>
+    {
+        let mut scene = eye_scene();
+        let front = scene.objects.iter_mut().find(|o| o.id == "front").unwrap();
+        front.gravity = Some(Default::default());
+        scene.objects.push(Object {
+            id: "shape".into(),
+            name: "Shape".into(),
+            parent: Some("front".into()),
+            collider: Some(Default::default()),
+            ..Default::default()
+        });
+        let rear = scene.objects.iter_mut().find(|o| o.id == "rear").unwrap();
+        rear.collider = Some(Default::default());
+        rear.joint = Some(bozzard_scene::Joint {
+            other: "front".into(),
+            ..Default::default()
+        });
+        let mut editor = Editor::new(scene.clone(), Path::new("work/eye.json"))?;
+        let mut open = OpenScenes::default();
+        for additive in [false, true] {
+            if additive {
+                let incoming = Editor::new(scene.clone(), Path::new("work/eye-other.json"))?;
+                open.add(&mut editor, incoming)?;
+            }
+            for id in ["front", "rear", "shape"] {
+                open.set_object_visible(open.active(), id, false);
+                open.sync_view(&editor)?;
+                open.view(&editor).render(Layer::ThreeD, 1.)?;
+                open.set_object_visible(open.active(), id, true);
+            }
+        }
+        assert_eq!(editor.scene(), &scene);
+        assert!(!editor.dirty());
+        Ok(())
+    }
+
+    #[test]
+    fn eye_can_hide_a_player_controller_without_invalidating_the_preview() -> Result<()> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/first-trail.json");
+        let editor = Editor::open(&path)?;
+        let player = editor
+            .scene()
+            .objects
+            .iter()
+            .find(|o| o.player_controller.is_some())
+            .unwrap();
+        let mut open = OpenScenes::default();
+        open.set_object_visible(open.active(), &player.id, false);
+        open.sync_view(&editor)?;
+        open.view(&editor).render(Layer::ThreeD, 1.)?;
+        assert!(!editor.dirty());
+        Ok(())
+    }
+
+    #[test]
+    fn eye_can_hide_targets_used_by_motion_and_navigation() -> Result<()> {
+        use bozzard_scene::middleware::{
+            navigation::{NavAgent, NavSurface},
+            registry,
+            timeline::Timeline,
+            tween::{Property, Track, Tween},
+        };
+        for timeline in [false, true] {
+            let mut scene = eye_scene();
+            registry::set(
+                scene.objects.iter_mut().find(|o| o.id == "front").unwrap(),
+                &NavSurface::default(),
+            )?;
+            registry::set(
+                scene.objects.iter_mut().find(|o| o.id == "rear").unwrap(),
+                &NavAgent {
+                    surface: "front".into(),
+                    ..Default::default()
+                },
+            )?;
+            let mut track = Track::new(Property::Color);
+            track.target = bozzard_scene::blueprint::ObjectRef::Id("front".into());
+            let motion = Tween {
+                tracks: std::sync::Arc::new(vec![track]),
+                ..Default::default()
+            };
+            let mut controller = Object {
+                id: "motion".into(),
+                name: "Motion".into(),
+                ..Default::default()
+            };
+            if timeline {
+                registry::set(
+                    &mut controller,
+                    &Timeline {
+                        motion,
+                        ..Default::default()
+                    },
+                )?;
+            } else {
+                registry::set(&mut controller, &motion)?;
+            }
+            scene.objects.push(controller);
+            let editor = Editor::new(scene.clone(), Path::new("work/eye.json"))?;
+            let mut open = OpenScenes::default();
+            open.set_object_visible(open.active(), "front", false);
+            open.sync_view(&editor)?;
+            assert_eq!(open.view(&editor).render(Layer::ThreeD, 1.)?.items.len(), 1);
+            assert_eq!(editor.scene(), &scene);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn hiding_all_canvases_does_not_regenerate_game_menus() -> Result<()> {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/ui-2d-lab.json");
+        let editor = Editor::open(&path)?;
+        let mut open = OpenScenes::default();
+        for object in &editor.scene().objects {
+            if object.extras.contains_key("ui_canvas") {
+                open.set_object_visible(open.active(), &object.id, false);
+            }
+        }
+        open.sync_view(&editor)?;
+        let view = open.view(&editor);
+        assert!(
+            view.ui_frame(Layer::TwoD, [1280., 720.])?
+                .elements
+                .is_empty()
+        );
+        assert_eq!(
+            view.edit_demo()?.instance().document().objects.len(),
+            editor.scene().objects.len()
+        );
+        Ok(())
+    }
 
     #[test]
     fn object_eye_hides_preview_descendants_without_changing_play_scene() {
