@@ -573,14 +573,10 @@ impl Game {
         Ok(())
     }
     pub fn max_level(&self, kind: Kind) -> u8 {
-        if kind == Kind::Hub {
+        if kind == Kind::Hub || self.order_index < kind.upgrade_after() {
             return 1;
         }
-        let mut max_level = if self.order_index < kind.upgrade_after() {
-            1
-        } else {
-            2
-        };
+        let mut max_level = 2;
         while max_level < 12
             && self.order_index >= 9 + kind.upgrade_slot() + 7 * u32::from(max_level - 2)
         {
@@ -905,6 +901,27 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inspecting_locked_upgrades_does_not_underflow() {
+        let mut game = Game::new();
+        for kind in Kind::BUILDABLE {
+            assert_eq!(game.max_level(kind), 1);
+        }
+        assert_eq!(game.max_level(Kind::Hub), 1);
+        let (x, y) = (PATCH_X + 4, PATCH_Y + 7);
+        game.place(x, y, Kind::Miner, Direction::East).unwrap();
+        assert_eq!(
+            game.upgrade(x, y),
+            Err("Finish more phases to unlock the next upgrade level")
+        );
+        let hub = game.hub[1] * WIDTH + game.hub[0];
+        for _ in 0..game.order().amount {
+            game.accept(hub, Item::IronBar);
+        }
+        assert_eq!(game.max_level(Kind::Miner), 2);
+        assert_eq!(game.max_level(Kind::Furnace), 1);
+    }
 
     #[test]
     fn starter_inventory_can_build_and_complete_first_automated_order() {
