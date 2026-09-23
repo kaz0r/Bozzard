@@ -415,26 +415,28 @@ impl Editor {
         );
         ensure!(!roots.is_empty(), "Select an object first");
         let selected: BTreeSet<_> = roots.iter().cloned().collect();
+        let mut occupied: BTreeSet<_> = self.scene.objects.iter().map(|o| o.id.clone()).collect();
         ensure!(
-            selected
-                .iter()
-                .all(|id| self.scene.objects.iter().any(|o| &o.id == id)),
+            selected.iter().all(|id| occupied.contains(id)),
             "selected object no longer exists"
         );
-        let ids: BTreeSet<_> = selected
-            .iter()
-            .flat_map(|id| subtree(&self.scene, id))
-            .collect();
+        let ids = subtrees(&self.scene, selected.iter().map(String::as_str));
         let mut scene = self.scene.clone();
         let mut replacements = BTreeMap::new();
+        let mut next_copy = 1;
+        let copying_prefab = selected
+            .iter()
+            .any(|root| self.scene.prefabs.contains_key(root));
         for object in self.scene.objects.iter().filter(|o| ids.contains(&o.id)) {
             let mut copy = object.clone();
-            copy.id = unique_id(&scene, "copy");
-            if selected.contains(&object.id)
-                || !selected
-                    .iter()
-                    .any(|root| self.scene.prefabs.contains_key(root))
-            {
+            copy.id = loop {
+                let candidate = format!("copy-{next_copy}");
+                next_copy += 1;
+                if occupied.insert(candidate.clone()) {
+                    break candidate;
+                }
+            };
+            if selected.contains(&object.id) || !copying_prefab {
                 copy.name.push_str(" copy");
             }
             replacements.insert(object.id.clone(), copy.id.clone());
@@ -488,16 +490,12 @@ impl Editor {
             "Select the whole model before deleting it"
         );
         ensure!(!roots.is_empty(), "Select an object first");
+        let existing: BTreeSet<_> = self.scene.objects.iter().map(|o| &o.id).collect();
         ensure!(
-            roots
-                .iter()
-                .all(|id| self.scene.objects.iter().any(|o| &o.id == id)),
+            roots.iter().all(|id| existing.contains(id)),
             "selected object no longer exists"
         );
-        let ids: BTreeSet<_> = roots
-            .iter()
-            .flat_map(|id| subtree(&self.scene, id))
-            .collect();
+        let ids = subtrees(&self.scene, roots.iter().map(String::as_str));
         ensure!(
             !self.scene.views.values().any(|id| ids.contains(id)),
             "An active camera is in this subtree; assign another active camera first"
@@ -1303,18 +1301,24 @@ fn unique_id(scene: &Scene, prefix: &str) -> String {
     }
 }
 fn subtree(scene: &Scene, id: &str) -> BTreeSet<String> {
-    let mut ids = BTreeSet::from([id.to_string()]);
-    loop {
-        let previous = ids.len();
-        for o in &scene.objects {
-            if o.parent.as_ref().is_some_and(|p| ids.contains(p)) {
-                ids.insert(o.id.clone());
-            }
-        }
-        if ids.len() == previous {
-            return ids;
+    subtrees(scene, [id])
+}
+
+fn subtrees<'a>(scene: &'a Scene, roots: impl IntoIterator<Item = &'a str>) -> BTreeSet<String> {
+    let mut children = BTreeMap::<&str, Vec<&str>>::new();
+    for object in &scene.objects {
+        if let Some(parent) = object.parent.as_deref() {
+            children.entry(parent).or_default().push(&object.id);
         }
     }
+    let mut ids = BTreeSet::new();
+    let mut pending: Vec<_> = roots.into_iter().collect();
+    while let Some(id) = pending.pop() {
+        if ids.insert(id.to_owned()) {
+            pending.extend(children.get(id).into_iter().flatten().copied());
+        }
+    }
+    ids
 }
 fn render_texture(texture: Texture) -> TextureKind {
     match texture {
@@ -1669,7 +1673,7 @@ mod tests {
 
     #[test]
     fn bulk_duplicate_and_delete_preserve_hierarchy_and_one_step_history() {
-        let scene = Scene::from_json(
+        let mut scene = Scene::from_json(
             r#"{"version":1,"name":"Group editing","views":{},"objects":[
               {"id":"root","name":"Root","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
               {"id":"child","name":"Child","parent":"root","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
@@ -1677,6 +1681,15 @@ mod tests {
             ]}"#,
         )
         .unwrap();
+        for id in ["copy-1", "copy-3"] {
+            scene.objects.push(Object {
+                id: id.into(),
+                name: id.into(),
+                parent: Some("root".into()),
+                ..Default::default()
+            });
+        }
+        scene.objects.reverse(); // Descendants need not follow their parents in the document.
         let mut editor = Editor::new(scene, Path::new("work/bulk-selection/scene.json")).unwrap();
         let original = editor.scene().clone();
         let original_world = original.global_transforms().unwrap();

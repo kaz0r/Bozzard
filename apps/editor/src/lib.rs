@@ -1119,7 +1119,7 @@ impl App {
         let scene = self.editor.scene_snapshot();
         let hidden_objects = self
             .open_scenes
-            .hidden_objects_in(self.open_scenes.active(), &scene);
+            .hidden_objects_in(self.open_scenes.active(), &self.editor);
         self.hierarchy_state
             .sync_object_selection(&scene, self.editor.selected.as_deref());
         if self.editor.selected_surface().is_some() {

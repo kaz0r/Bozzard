@@ -41,7 +41,7 @@ pub struct Drag {
 /// parent already carries its selected descendants along with it.
 struct GroupMove {
     active_parent: Mat4,
-    roots: Vec<(String, Transform, Mat4)>,
+    roots: BTreeMap<String, (Transform, Mat4)>,
 }
 impl GroupMove {
     fn capture(
@@ -56,7 +56,7 @@ impl GroupMove {
             .collect();
         let selected: BTreeSet<_> = selected.iter().map(String::as_str).collect();
         let matrices = scene.global_transforms()?;
-        let mut roots = Vec::new();
+        let mut roots = BTreeMap::new();
         for object in &scene.objects {
             if !selected.contains(object.id.as_str()) {
                 continue;
@@ -75,7 +75,7 @@ impl GroupMove {
                     .parent
                     .as_ref()
                     .map_or(Mat4::IDENTITY, |id| matrices[id]);
-                roots.push((object.id.clone(), object.transform, parent.inverse()));
+                roots.insert(object.id.clone(), (object.transform, parent.inverse()));
             }
         }
         Ok(Self {
@@ -94,8 +94,8 @@ impl GroupMove {
             Vec3::from(active_next.translation) - Vec3::from(active_start.translation);
         let world_delta = self.active_parent.transform_vector3(local_delta);
         let mut next = scene.clone();
-        for (id, start, parent_inverse) in &self.roots {
-            if let Some(object) = next.objects.iter_mut().find(|object| &object.id == id) {
+        for object in &mut next.objects {
+            if let Some((start, parent_inverse)) = self.roots.get(&object.id) {
                 object.transform.translation = (Vec3::from(start.translation)
                     + parent_inverse.transform_vector3(world_delta))
                 .to_array();
@@ -1441,7 +1441,7 @@ impl App {
         if self.editor.play.is_none()
             && self
                 .open_scenes
-                .hidden_objects_in(self.open_scenes.active(), self.editor.scene())
+                .hidden_objects_in(self.open_scenes.active(), &self.editor)
                 .contains(&object.id)
         {
             return Ok(false);

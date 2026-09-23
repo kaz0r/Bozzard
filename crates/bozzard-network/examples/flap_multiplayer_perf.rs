@@ -209,11 +209,14 @@ fn main() {
     );
     report("host receive + scripted simulation", &mut host_samples);
     report(
-        "replica prediction + snapshot apply/replay",
+        "replica snapshot apply/replay (excludes input prediction)",
         &mut replica_samples,
     );
     report("scripted presentation accessors", &mut presentation_samples);
-    report("Flap Woods scripted scene presentation", &mut scene_samples);
+    report(
+        "Flap Woods unchanged-frame scene presentation",
+        &mut scene_samples,
+    );
     report(
         "Flap Woods scene with no-op presentation scripts",
         &mut noop_scene_samples,

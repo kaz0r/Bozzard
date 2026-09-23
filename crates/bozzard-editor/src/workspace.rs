@@ -2,6 +2,10 @@
 //! The active document stays in the host's Editor; switching moves whole documents,
 //! preserving selections, imported data, unsaved changes and each Undo/Redo history.
 use super::*;
+use std::{
+    cell::RefCell,
+    sync::{Arc, Weak},
+};
 
 pub type SceneId = u64;
 
@@ -12,6 +16,7 @@ pub struct OpenScenes {
     revision: u64,
     hidden: BTreeSet<SceneId>,
     hidden_objects: BTreeMap<SceneId, BTreeSet<String>>,
+    hidden_cache: RefCell<BTreeMap<SceneId, HiddenObjects>>,
     view: Option<SceneView>,
 }
 
@@ -24,6 +29,7 @@ impl Default for OpenScenes {
             revision: 0,
             hidden: BTreeSet::new(),
             hidden_objects: BTreeMap::new(),
+            hidden_cache: Default::default(),
             view: None,
         }
     }
@@ -108,23 +114,41 @@ impl OpenScenes {
     }
 
     /// A hidden parent suppresses every descendant in the authoring viewport.
-    pub fn hidden_objects_in(&self, scene: SceneId, document: &Scene) -> BTreeSet<String> {
-        let Some(explicit) = self.hidden_objects.get(&scene) else {
-            return BTreeSet::new();
-        };
-        let mut children = BTreeMap::<&str, Vec<&str>>::new();
-        for object in &document.objects {
-            if let Some(parent) = object.parent.as_deref() {
-                children.entry(parent).or_default().push(&object.id);
-            }
+    /// Reuse the same closure across hierarchy, picking and overlay passes.
+    pub fn hidden_objects_in(&self, scene: SceneId, editor: &Editor) -> Arc<BTreeSet<String>> {
+        let document = editor.scene_snapshot();
+        let source = Arc::downgrade(&document);
+        let mut cache = self.hidden_cache.borrow_mut();
+        if let Some(cached) = cache.get(&scene)
+            && cached.revision == self.revision
+            && cached.source.ptr_eq(&source)
+        {
+            return Arc::clone(&cached.objects);
         }
         let mut hidden = BTreeSet::new();
-        let mut stack: Vec<_> = explicit.iter().map(String::as_str).collect();
-        while let Some(id) = stack.pop() {
-            if hidden.insert(id.to_owned()) {
-                stack.extend(children.get(id).into_iter().flatten().copied());
+        if let Some(explicit) = self.hidden_objects.get(&scene) {
+            let mut children = BTreeMap::<&str, Vec<&str>>::new();
+            for object in &document.objects {
+                if let Some(parent) = object.parent.as_deref() {
+                    children.entry(parent).or_default().push(&object.id);
+                }
+            }
+            let mut stack: Vec<_> = explicit.iter().map(String::as_str).collect();
+            while let Some(id) = stack.pop() {
+                if hidden.insert(id.to_owned()) {
+                    stack.extend(children.get(id).into_iter().flatten().copied());
+                }
             }
         }
+        let hidden = Arc::new(hidden);
+        cache.insert(
+            scene,
+            HiddenObjects {
+                source,
+                revision: self.revision,
+                objects: Arc::clone(&hidden),
+            },
+        );
         hidden
     }
 
@@ -154,6 +178,7 @@ impl OpenScenes {
         *current = incoming;
         self.hidden.remove(&self.active);
         self.hidden_objects.remove(&self.active);
+        self.hidden_cache.get_mut().remove(&self.active);
         self.revision += 1;
         Ok(())
     }
@@ -222,6 +247,7 @@ impl OpenScenes {
         self.inactive.remove(&id);
         self.hidden.remove(&id);
         self.hidden_objects.remove(&id);
+        self.hidden_cache.get_mut().remove(&id);
         self.revision += 1;
         Ok(())
     }
@@ -271,7 +297,7 @@ impl OpenScenes {
             if single_document {
                 // Keep source asset IDs for a filtered single scene. Qualifying
                 // them would make Residency upload every asset again on an eye click.
-                let hidden = self.hidden_objects_in(self.active, current.scene());
+                let hidden = self.hidden_objects_in(self.active, current);
                 let mut scene = current.scene.clone();
                 let mut owners = BTreeMap::new();
                 for object in &mut scene.objects {
@@ -316,7 +342,7 @@ impl OpenScenes {
                 }
             }) {
                 let visible = self.visible(id);
-                let hidden_objects = self.hidden_objects_in(id, editor.scene());
+                let hidden_objects = self.hidden_objects_in(id, editor);
                 let names: BTreeMap<_, _> = editor
                     .scene
                     .objects
@@ -505,6 +531,11 @@ struct SceneView {
     owners: BTreeMap<String, (SceneId, String)>,
     qualified: bool,
 }
+struct HiddenObjects {
+    source: Weak<Scene>,
+    revision: u64,
+    objects: Arc<BTreeSet<String>>,
+}
 
 #[cfg(test)]
 mod tests {
@@ -533,6 +564,50 @@ mod tests {
             });
         }
         scene
+    }
+
+    #[test]
+    fn hidden_descendants_are_reused_until_visibility_or_ancestry_changes() -> Result<()> {
+        let mut editor = Editor::new(eye_scene(), Path::new("work/eye.json"))?;
+        let mut open = OpenScenes::default();
+        open.set_object_visible(open.active(), "front", false);
+        let first = open.hidden_objects_in(open.active(), &editor);
+        assert!(first.contains("front"));
+        assert!(!first.contains("rear"));
+        assert!(Arc::ptr_eq(
+            &first,
+            &open.hidden_objects_in(open.active(), &editor)
+        ));
+
+        let mut scene = editor.scene().clone();
+        scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "rear")
+            .unwrap()
+            .parent = Some("front".into());
+        editor.apply("Reparent", scene)?;
+        let reparented = open.hidden_objects_in(open.active(), &editor);
+        assert!(reparented.contains("rear"));
+        assert!(
+            !first.contains("rear"),
+            "published visibility snapshots remain immutable"
+        );
+        editor.undo()?;
+        assert!(
+            !open
+                .hidden_objects_in(open.active(), &editor)
+                .contains("rear")
+        );
+
+        open.set_object_visible(open.active(), "front", true);
+        let shown = open.hidden_objects_in(open.active(), &editor);
+        assert!(shown.is_empty());
+        assert!(Arc::ptr_eq(
+            &shown,
+            &open.hidden_objects_in(open.active(), &editor)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -766,7 +841,7 @@ mod tests {
         assert!(preview_child(&open, &editor));
         open.set_object_visible(active, "eye-parent", false);
         assert!(
-            open.hidden_objects_in(active, editor.scene())
+            open.hidden_objects_in(active, &editor)
                 .contains("eye-child")
         );
         open.sync_view(&editor).unwrap();

@@ -318,7 +318,7 @@ impl App {
         if self.editor.play.is_none()
             && self.editor.selected.as_deref().is_some_and(|id| {
                 self.open_scenes
-                    .hidden_objects_in(self.open_scenes.active(), self.editor.scene())
+                    .hidden_objects_in(self.open_scenes.active(), &self.editor)
                     .contains(id)
             })
         {
