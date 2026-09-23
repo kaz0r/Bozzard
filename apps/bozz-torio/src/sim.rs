@@ -6,6 +6,24 @@ pub const HEIGHT: usize = 15;
 const HUB_X: usize = 18;
 const HUB_Y: usize = 7;
 
+pub fn default_terrain() -> Vec<u8> {
+    (0..HEIGHT)
+        .flat_map(|y| (0..WIDTH).map(move |x| if (x + y) % 2 == 0 { 14 } else { 15 }))
+        .collect()
+}
+
+fn default_hub() -> [usize; 2] {
+    [HUB_X, HUB_Y]
+}
+
+fn default_first_order_amount() -> u32 {
+    8
+}
+
+fn default_first_order_reward() -> u32 {
+    16
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Item {
     IronOre,
@@ -152,7 +170,7 @@ pub struct Building {
     pub split_next: bool,
 }
 impl Building {
-    fn new(kind: Kind, direction: Direction) -> Self {
+    pub(crate) fn new(kind: Kind, direction: Direction) -> Self {
         Self {
             kind,
             direction,
@@ -195,6 +213,10 @@ pub struct Order {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Game {
     pub tiles: Vec<Tile>,
+    #[serde(default = "default_terrain")]
+    pub terrain: Vec<u8>,
+    #[serde(default = "default_hub")]
+    pub hub: [usize; 2],
     pub buildings: [u16; 5],
     pub stock: [u16; 6],
     pub delivered: [u32; 6],
@@ -202,6 +224,10 @@ pub struct Game {
     pub credits: u32,
     pub order_index: u32,
     pub order_progress: u32,
+    #[serde(default = "default_first_order_amount")]
+    pub first_order_amount: u32,
+    #[serde(default = "default_first_order_reward")]
+    pub first_order_reward: u32,
     pub ticks: u64,
     pub placed: u32,
     pub paused: bool,
@@ -226,6 +252,8 @@ impl Game {
         tiles[HUB_Y * WIDTH + HUB_X].building = Some(Building::new(Kind::Hub, Direction::West));
         Self {
             tiles,
+            terrain: default_terrain(),
+            hub: default_hub(),
             buildings: [2, 2, 2, 24, 2],
             stock: [4, 4, 0, 0, 0, 0],
             delivered: [0; 6],
@@ -233,6 +261,8 @@ impl Game {
             credits: 4,
             order_index: 0,
             order_progress: 0,
+            first_order_amount: default_first_order_amount(),
+            first_order_reward: default_first_order_reward(),
             ticks: 0,
             placed: 0,
             paused: false,
@@ -250,8 +280,8 @@ impl Game {
         match self.order_index {
             0 => Order {
                 item: Item::IronBar,
-                amount: 8,
-                reward: 16,
+                amount: self.first_order_amount,
+                reward: self.first_order_reward,
                 bonus_belts: 8,
             },
             1 => Order {

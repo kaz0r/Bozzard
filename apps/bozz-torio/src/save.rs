@@ -33,11 +33,21 @@ impl SaveFile {
             "Save has an invalid board size"
         );
         anyhow::ensure!(
-            game.tiles[7 * WIDTH + 18]
+            game.terrain.len() == WIDTH * HEIGHT,
+            "Save has invalid floor tiles"
+        );
+        let hub = Game::index(game.hub[0], game.hub[1])
+            .ok_or_else(|| anyhow::anyhow!("Save hub lies outside the board"))?;
+        anyhow::ensure!(
+            game.tiles[hub]
                 .building
                 .as_ref()
                 .is_some_and(|b| b.kind == crate::sim::Kind::Hub),
             "Save is missing its hub"
+        );
+        anyhow::ensure!(
+            game.first_order_amount > 0,
+            "Save has an invalid first order"
         );
         Ok(game)
     }

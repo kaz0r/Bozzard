@@ -1,0 +1,1001 @@
+{
+  "version": 1,
+  "name": "Bozz-torio — Factory Floor",
+  "views": {
+    "2d": "camera"
+  },
+  "blackboard": {
+    "starter_miners": {
+      "scalar": {
+        "number": 2
+      }
+    },
+    "starter_furnaces": {
+      "scalar": {
+        "number": 2
+      }
+    },
+    "starter_assemblers": {
+      "scalar": {
+        "number": 2
+      }
+    },
+    "starter_conveyors": {
+      "scalar": {
+        "number": 24
+      }
+    },
+    "starter_splitters": {
+      "scalar": {
+        "number": 2
+      }
+    },
+    "starter_iron_ore": {
+      "scalar": {
+        "number": 4
+      }
+    },
+    "starter_copper_ore": {
+      "scalar": {
+        "number": 4
+      }
+    },
+    "starter_credits": {
+      "scalar": {
+        "number": 4
+      }
+    },
+    "first_order_ingots": {
+      "scalar": {
+        "number": 8
+      }
+    },
+    "first_order_reward": {
+      "scalar": {
+        "number": 16
+      }
+    }
+  },
+  "assets": {
+    "sprites": {
+      "kind": "image",
+      "path": "../assets/sprites.png"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Factory camera · 2D orthographic",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 22,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "factory-floor",
+      "name": "Editable 22 × 15 factory tilemap",
+      "transform": {
+        "translation": [
+          -11,
+          7.5,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tilemap": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "dimensions": [
+          22,
+          15
+        ],
+        "tile_size": [
+          1,
+          1
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "cells": [
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16,
+          15,
+          16
+        ],
+        "solid": []
+      }
+    },
+    {
+      "id": "deposit-iron-4-7",
+      "name": "Iron ore deposit · move to edit",
+      "transform": {
+        "translation": [
+          -6.5,
+          0,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 12,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "deposit-iron-5-3",
+      "name": "Iron ore deposit · move to edit",
+      "transform": {
+        "translation": [
+          -5.5,
+          4,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 12,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "deposit-copper-4-11",
+      "name": "Copper ore deposit · move to edit",
+      "transform": {
+        "translation": [
+          -6.5,
+          -4,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 13,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "deposit-copper-8-12",
+      "name": "Copper ore deposit · move to edit",
+      "transform": {
+        "translation": [
+          -2.5,
+          -5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 13,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "delivery-hub",
+      "name": "Delivery hub · move to edit",
+      "transform": {
+        "translation": [
+          7.5,
+          0,
+          0.3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 11,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-miner",
+      "name": "TEMPLATE Miner · duplicate and move onto floor",
+      "transform": {
+        "translation": [
+          -5.0,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 6,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-furnace",
+      "name": "TEMPLATE Furnace · duplicate and move onto floor",
+      "transform": {
+        "translation": [
+          -2.5,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 7,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-assembler",
+      "name": "TEMPLATE Assembler · duplicate and move onto floor",
+      "transform": {
+        "translation": [
+          0.0,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 8,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-conveyor",
+      "name": "TEMPLATE Conveyor · duplicate and move onto floor",
+      "transform": {
+        "translation": [
+          2.5,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 9,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    },
+    {
+      "id": "template-splitter",
+      "name": "TEMPLATE Splitter · duplicate and move onto floor",
+      "transform": {
+        "translation": [
+          5.0,
+          -9.5,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "sprite": {
+        "enabled": true,
+        "image": "sprites",
+        "layer": "2d",
+        "atlas": {
+          "columns": 5,
+          "rows": 4
+        },
+        "frame": 10,
+        "size": [
+          1,
+          1
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "flip": [
+          false,
+          false
+        ],
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "autoplay": false,
+        "initial": "",
+        "speed": 1,
+        "clips": []
+      }
+    }
+  ]
+}

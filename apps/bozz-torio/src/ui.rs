@@ -1,5 +1,6 @@
 use crate::{
     save::SaveFile,
+    scene::SceneSource,
     sim::{Direction, Game, HEIGHT, Item, Kind, WIDTH},
     sprites::Sprites,
     steam::SteamBridge,
@@ -37,6 +38,7 @@ pub struct FactoryApp {
     help: bool,
     game: Game,
     save: SaveFile,
+    scene: SceneSource,
     sprites: Sprites,
     steam: SteamBridge,
     tool: Tool,
@@ -56,11 +58,13 @@ impl FactoryApp {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         steam: SteamBridge,
+        scene: SceneSource,
         start_playing: bool,
         screenshot: Option<std::path::PathBuf>,
     ) -> anyhow::Result<Self> {
         let save = SaveFile::default_path();
         let mut error = None;
+        let fresh = scene.new_game()?;
         let game = if save.exists() {
             match save.load() {
                 Ok(game) => game,
@@ -74,12 +78,17 @@ impl FactoryApp {
                             "Could not load save ({failure}) or archive it ({archive_error})"
                         ),
                     });
-                    Game::new()
+                    fresh
                 }
             }
         } else {
-            Game::new()
+            fresh
         };
+        let inspected = game
+            .tiles
+            .iter()
+            .position(|tile| tile.deposit.is_some())
+            .map(|index| (index % WIDTH, index / WIDTH));
         let mut visuals = egui::Visuals::dark();
         visuals.override_text_color = Some(CREAM);
         visuals.panel_fill = BG;
@@ -100,11 +109,12 @@ impl FactoryApp {
             help: false,
             game,
             save,
-            sprites: Sprites::load(&cc.egui_ctx)?,
+            sprites: Sprites::load(&cc.egui_ctx, &scene.atlas_path)?,
+            scene,
             steam,
             tool: Tool::Build(Kind::Miner),
             facing: Direction::East,
-            inspected: Some((4, 7)),
+            inspected,
             hover: None,
             last_drag_tile: None,
             last_tick: Instant::now(),
@@ -127,6 +137,32 @@ impl FactoryApp {
             self.error = Some(format!("Save failed: {error}"));
         }
         self.last_save = Instant::now();
+    }
+
+    fn new_from_editor_scene(&mut self, ctx: &egui::Context) {
+        let next = SceneSource::open(self.scene.path.clone()).and_then(|scene| {
+            let game = scene.new_game()?;
+            let sprites = Sprites::load(ctx, &scene.atlas_path)?;
+            Ok((scene, game, sprites))
+        });
+        match next {
+            Ok((scene, game, sprites)) => {
+                self.scene = scene;
+                self.game = game;
+                self.sprites = sprites;
+                self.inspected = self
+                    .game
+                    .tiles
+                    .iter()
+                    .position(|tile| tile.deposit.is_some())
+                    .map(|index| (index % WIDTH, index / WIDTH));
+                self.error = None;
+                self.persist();
+                self.screen = Screen::Factory;
+                self.last_tick = Instant::now();
+            }
+            Err(error) => self.error = Some(format!("Editor scene could not load: {error:#}")),
+        }
     }
 
     fn hotkeys(&mut self, ctx: &egui::Context) {
@@ -682,6 +718,8 @@ impl FactoryApp {
                     let rect=Rect::from_min_size(origin+vec2(x as f32*tile,y as f32*tile),Vec2::splat(tile));
                     let cell=rect.shrink(0.5);
                     painter.rect_filled(cell,0.0,if (x+y)%2==0 {CELL} else {CELL_ALT});
+                    let floor_frame=self.game.terrain[y*WIDTH+x];
+                    if floor_frame!=255 { self.sprites.draw(painter,floor_frame as usize,cell); }
                     let tile_data=&self.game.tiles[y*WIDTH+x];
                     if let Some(deposit)=tile_data.deposit {
                         let tint=if deposit==Item::IronOre {Color32::from_rgb(45,80,83)} else {Color32::from_rgb(91,64,52)};
@@ -851,15 +889,11 @@ impl FactoryApp {
                     if ui
                         .add_sized(
                             [300.0, 34.0],
-                            egui::Button::new(RichText::new("NEW FACTORY").monospace()),
+                            egui::Button::new(RichText::new("NEW FROM EDITOR SCENE").monospace()),
                         )
                         .clicked()
                     {
-                        self.game = Game::new();
-                        self.error = None;
-                        self.persist();
-                        self.screen = Screen::Factory;
-                        self.last_tick = Instant::now();
+                        self.new_from_editor_scene(ui.ctx());
                     }
                     ui.add_space(7.0);
                     if ui
@@ -884,6 +918,14 @@ impl FactoryApp {
                     if ui.small_button("QUIT TO DESKTOP").clicked() {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
+                    ui.add_space(7.0);
+                    ui.label(
+                        RichText::new(format!("SCENE · {}", self.scene.name))
+                            .color(MUTED)
+                            .monospace()
+                            .size(10.0),
+                    )
+                    .on_hover_text(format!("{}", self.scene.path.display()));
                     if let Some(error) = &self.error {
                         ui.label(RichText::new(error).color(COPPER).size(11.0));
                     }
@@ -913,10 +955,10 @@ impl FactoryApp {
             .show(ctx,|ui| {
                 ui.label(RichText::new("BUILD YOUR FIRST FACTORY").color(TEAL).monospace().strong());
                 ui.add_space(8.0);
-                ui.label("1. Select Miner (1) and place it on the iron deposit at 04:07.");
+                ui.label("1. Select Miner (1) and place it on an iron deposit.");
                 ui.label("2. Select Furnace (2) and place it immediately to the right.");
                 ui.label("3. Select Conveyor (4) and drag from the furnace to the delivery hub.");
-                ui.label("4. The factory runs automatically. Deliver 8 iron ingots to complete the first order.");
+                ui.label(format!("4. The factory runs automatically. Deliver {} iron ingots to complete the first order.",self.game.first_order_amount));
                 ui.add_space(9.0);
                 ui.label(RichText::new("GO FURTHER").color(COPPER).monospace().strong());
                 ui.label("Mine copper on the lower deposits. Assemblers turn two iron ingots into a gear, or one iron and one copper ingot into a circuit. Click an assembler to change recipes. Splitters divide a line across two directions.");
@@ -925,6 +967,9 @@ impl FactoryApp {
                 ui.label("1–5 tools  ·  I inspect  ·  R rotate placement  ·  right click recover  ·  Space pause  ·  F1 guide  ·  Esc menu");
                 ui.label("Select an inventory item, then click a compatible machine to load it by hand. Completed output can be picked up from the inspector.");
                 ui.add_space(8.0);
+                ui.label(RichText::new("EDIT THE FACTORY").color(COPPER).monospace().strong());
+                ui.label("Open the Bozz-torio scene in the Bozzard editor. Move ore deposits or the hub, paint the floor tilemap, and duplicate the machine templates onto the board. Save the scene, then choose NEW FROM EDITOR SCENE here. That preserves any current save until you choose to start over.");
+                ui.label(RichText::new(format!("Editor scene: {}",self.scene.path.display())).color(MUTED).size(10.0));
                 ui.label(RichText::new(format!("Autosave: {}",self.save.path().display())).color(MUTED).size(10.0));
             });
     }

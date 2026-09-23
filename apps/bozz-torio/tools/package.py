@@ -42,8 +42,12 @@ def main() -> None:
         if not source.is_file():
             raise FileNotFoundError(f"Missing build artifact: {source}")
         shutil.copy2(source, output / name)
+    (output / "scene").mkdir(exist_ok=True)
+    (output / "assets").mkdir(exist_ok=True)
+    shutil.copy2(workspace / "apps/bozz-torio/scene/bozz-torio.json", output / "scene/bozz-torio.json")
+    shutil.copy2(workspace / "apps/bozz-torio/assets/sprites.png", output / "assets/sprites.png")
     (output / "steam_appid.txt").write_text(f"{args.app_id}\n", encoding="ascii")
-    print(f"Packaged {binary_name}, {library}, and app {args.app_id} into {output}")
+    print(f"Packaged {binary_name}, {library}, editable scene, sprites, and app {args.app_id} into {output}")
 
 
 if __name__ == "__main__":

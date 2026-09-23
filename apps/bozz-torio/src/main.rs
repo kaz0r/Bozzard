@@ -1,4 +1,5 @@
 mod save;
+mod scene;
 mod sim;
 mod sprites;
 mod steam;
@@ -21,6 +22,7 @@ fn main() -> anyhow::Result<()> {
     let mut offline = false;
     let mut start_playing = false;
     let mut screenshot = None;
+    let mut scene_path = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -32,6 +34,12 @@ fn main() -> anyhow::Result<()> {
             }
             "--offline" => offline = true,
             "--play" => start_playing = true,
+            "--scene" => {
+                scene_path = Some(std::path::PathBuf::from(
+                    args.next()
+                        .ok_or_else(|| anyhow::anyhow!("--scene needs a path"))?,
+                ))
+            }
             "--screenshot" => {
                 screenshot =
                     Some(std::path::PathBuf::from(args.next().ok_or_else(|| {
@@ -40,13 +48,15 @@ fn main() -> anyhow::Result<()> {
             }
             "--help" | "-h" => {
                 println!(
-                    "Bozz-torio\n  --play                 Go straight to the factory\n  --offline              Skip Steam initialization\n  --steam-app-id NUMBER  Use this Steam App ID (default: SteamAppId, bundled steam_appid.txt, or 480 for development)\n  --screenshot PATH      Capture the scene and exit"
+                    "Bozz-torio\n  --scene PATH           Use an edited Bozzard factory scene\n  --play                 Go straight to the factory\n  --offline              Skip Steam initialization\n  --steam-app-id NUMBER  Use this Steam App ID (default: SteamAppId, bundled steam_appid.txt, or 480 for development)\n  --screenshot PATH      Capture the scene and exit"
                 );
                 return Ok(());
             }
             other => anyhow::bail!("Unknown argument: {other}"),
         }
     }
+    let scene =
+        scene::SceneSource::open(scene_path.unwrap_or_else(scene::SceneSource::default_path))?;
     let steam = steam::SteamBridge::new(app_id, offline);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -62,6 +72,7 @@ fn main() -> anyhow::Result<()> {
             Ok(Box::new(ui::FactoryApp::new(
                 cc,
                 steam,
+                scene,
                 start_playing,
                 screenshot,
             )?))
