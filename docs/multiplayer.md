@@ -295,6 +295,23 @@ These timings are local CPU evidence for reduced work and frame-time tails, not 
 live Steam latency. The historical table predates the delayed-snapshot and moving-frame
 measurements and has no before/after values for those paths. Re-run the commands above for a
 comparable baseline.
+
+On Linux on 2026-09-25, the B1–B6 branch was compared with `main` using the same release
+profile, toolchain and machine. Each binary ran four times, alternating order and pinned
+to one CPU. The numbers below are medians of the four per-run medians; each run sampled
+6,000 ticks. They are microseconds per tick, so lower is faster.
+
+| CPU path | `main` | B1–B6 branch |
+| --- | ---: | ---: |
+| Four-peer host receive and scripted simulation | 42.342 | 42.006 |
+| Delayed replica prediction and snapshot replay | 7.694 | 7.829 |
+| Flap Woods unchanged-frame scene presentation | 54.694 | 56.825 |
+| Flap Woods moving-frame scene presentation | 85.297 | 92.037 |
+| Flap Woods no-op presentation scripts | 16.673 | 17.586 |
+
+The moving-frame and no-op scene paths were slower in this CPU-only measurement. This
+does not establish a full native frame-rate change; inspect those paths under a native
+capture before attributing the difference to any one allocation or optimizing it.
 For a debug build (`cargo run`), Flap Woods unchanged-frame scene presentation measured
 3,237.021 / 3,660.083 µs median / p99 before and 602.250 / 927.250 µs after.
 
