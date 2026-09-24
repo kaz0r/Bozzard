@@ -30,8 +30,9 @@ pub use compute_runtime::{SceneCompute, load_compute_kernels, load_compute_kerne
 pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
 mod script_runtime;
 pub use script_runtime::{
-    NetworkFrame, ScriptModule, ScriptRuntime, ScriptRuntimeStats, load_sources,
-    load_sources_with_progress,
+    NetworkFrame, ScriptAttachmentStats, ScriptModule, ScriptReloadCandidate, ScriptReloadRequest,
+    ScriptReloadStatus, ScriptRuntime, ScriptRuntimeStats, load_sources,
+    load_sources_with_progress, script_function_descriptions, script_hook_descriptions,
 };
 mod fog;
 pub use fog::FogSettings;
@@ -1087,6 +1088,7 @@ impl Scene {
             display_overrides: Default::default(),
             script_engine: std::sync::OnceLock::new(),
             scripts: BTreeMap::new(),
+            script_reload_revisions: BTreeMap::new(),
             compute_kernels: BTreeMap::new(),
             compute_state: std::sync::OnceLock::new(),
             compute_capabilities: Default::default(),
@@ -1116,6 +1118,7 @@ pub struct SceneInstance {
     /// Built on the first script registration, so a scene without scripts never pays for it.
     script_engine: std::sync::OnceLock<std::sync::Arc<script_runtime::ScriptEngine>>,
     scripts: BTreeMap<String, std::sync::Arc<script_runtime::CompiledScript>>,
+    script_reload_revisions: BTreeMap<String, u64>,
     compute_kernels: BTreeMap<String, std::sync::Arc<compute::Kernel>>,
     compute_state:
         std::sync::OnceLock<std::sync::Arc<std::sync::Mutex<compute_runtime::SceneCompute>>>,

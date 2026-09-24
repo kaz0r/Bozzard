@@ -44,6 +44,7 @@ pub fn prepare_export(
     progress: &Progress,
 ) -> Result<PreparedExport> {
     project.validate_scene(scene)?;
+    project.require_runtime_modules(&[])?;
     ensure!(
         player.is_file(),
         "player runtime is missing: {}",

@@ -294,11 +294,39 @@ impl SceneDemo {
     pub fn multiplayer_active(&self) -> bool {
         self.multiplayer.is_some()
     }
+    /// Live edits are local-only. Network peers must coordinate a restart so host and
+    /// prediction rules remain identical.
+    pub fn request_script_reload(
+        &mut self,
+        asset: &str,
+        source: String,
+    ) -> anyhow::Result<bozzard_scene::ScriptReloadRequest> {
+        anyhow::ensure!(
+            !self.multiplayer_active(),
+            "Stop multiplayer Play and restart all peers to load script edits"
+        );
+        self.with_instance(|instance, _| instance.request_script_reload(asset, source))
+    }
+    pub fn publish_script_reload(
+        &mut self,
+        candidate: bozzard_scene::ScriptReloadCandidate,
+    ) -> anyhow::Result<bozzard_scene::ScriptReloadStatus> {
+        anyhow::ensure!(
+            !self.multiplayer_active(),
+            "Stop multiplayer Play and restart all peers to load script edits"
+        );
+        self.with_instance(|instance, world| instance.publish_script_reload(world, candidate))
+    }
     pub fn multiplayer_quit(&self) -> bool {
         self.multiplayer.as_ref().is_some_and(|net| net.quit)
     }
     pub fn multiplayer_title(&self) -> Option<String> {
         self.multiplayer.as_ref().map(|net| net.title())
+    }
+    pub fn multiplayer_telemetry(&self) -> Option<multiplayer::Telemetry> {
+        self.multiplayer
+            .as_ref()
+            .map(multiplayer::Multiplayer::telemetry)
     }
     pub fn multiplayer_chatting(&self) -> bool {
         self.multiplayer.as_ref().is_some_and(|net| net.chatting)

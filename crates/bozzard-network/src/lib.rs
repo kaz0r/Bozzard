@@ -2,6 +2,8 @@
 //! the protocol additionally confines messages to a lobby, round and member roster.
 pub mod chat;
 pub mod flap;
+pub mod lab;
+pub mod lifecycle;
 pub mod rules;
 #[cfg(feature = "steam")]
 pub mod steam;

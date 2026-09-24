@@ -10,7 +10,10 @@
 //! `get_position(...)` agrees with a blueprint graph.
 use super::*;
 use blueprint::{BlackboardValue as B, InputKey, ObjectRef, PinType, Value, VariableScope};
-use rhai::{AST, Array, Dynamic, Engine, EvalAltResult, ImmutableString, Map, Position, Scope};
+use rhai::{
+    AST, Array, CallFnOptions, Dynamic, Engine, EvalAltResult, ImmutableString, Map, Position,
+    Scope,
+};
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 mod compute_api;
@@ -25,6 +28,8 @@ pub(crate) const MAX_SCRIPT_ASSETS: usize = 1024;
 const MAX_SCRIPT_OPERATIONS: u64 = 2_000_000;
 /// Deepest spatial query result a script may receive.
 const MAX_SCRIPT_OVERLAP: usize = 1024;
+/// The inspector never retains an unbounded number of per-object counters.
+const MAX_ATTACHMENT_STATS: usize = 4096;
 /// Prefix of a spawn handle, which scene object IDs do not use.
 const SPAWN_PREFIX: &str = "@script/";
 
@@ -52,6 +57,20 @@ const HOOKS: &[(&str, usize)] = &[
     ("network_finished", 1),
     ("network_countdown", 0),
 ];
+
+/// Hook names and argument counts accepted by the scene runtime.
+pub fn script_hook_descriptions() -> &'static [(&'static str, usize)] {
+    HOOKS
+}
+
+/// Signatures of the native functions available to Rhai scripts. Build this only for an
+/// authoring panel, never in the simulation tick.
+pub fn script_function_descriptions() -> Vec<String> {
+    let mut signatures = ScriptEngine::new().engine.gen_fn_signatures(false);
+    signatures.sort();
+    signatures.dedup();
+    signatures
+}
 
 /// One object's script attachments, as the tick needs them: enabled flag and compiled source.
 type Attachments = Vec<(bool, Option<Arc<CompiledScript>>)>;
@@ -281,6 +300,7 @@ struct ScriptRun {
     collisions: BTreeSet<String>,
     /// Top-level constants and any state a script keeps at global scope.
     scope: Scope<'static>,
+    scope_initialized: bool,
 }
 
 #[derive(Clone, Default)]
@@ -289,6 +309,69 @@ pub struct ScriptRuntimeStats {
     pub hooks: usize,
     /// Commands the last tick queued.
     pub commands: usize,
+    /// Last tick's counters, keyed by object ID and Script Manager attachment index.
+    pub attachments: BTreeMap<(String, usize), ScriptAttachmentStats>,
+    /// More attachments ran than the bounded snapshot can display.
+    pub truncated: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScriptAttachmentStats {
+    pub hooks: usize,
+    pub commands: usize,
+}
+
+/// An edit request identifies the exact running scene and attachment set it was made for.
+/// Source is owned by the background compile job and is discarded before publication.
+pub struct ScriptReloadRequest {
+    asset: String,
+    source: String,
+    instance: u64,
+    serial: u64,
+    revision: u64,
+    attachments: Vec<(String, usize)>,
+}
+
+/// Fully compiled candidate. Publishing it is a constant-time asset swap plus bounded scope
+/// reset, and must happen between completed simulation ticks.
+pub struct ScriptReloadCandidate {
+    asset: String,
+    instance: u64,
+    serial: u64,
+    revision: u64,
+    attachments: Vec<(String, usize)>,
+    compiled: Arc<CompiledScript>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScriptReloadStatus {
+    Applied { asset: String, revision: u64 },
+    Stale { asset: String, reason: String },
+}
+
+impl ScriptReloadRequest {
+    pub fn asset(&self) -> &str {
+        &self.asset
+    }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+    /// Compile on a worker. Errors include the asset and Rhai source position.
+    pub fn start(self) -> Result<bozzard_app::job::Job<ScriptReloadCandidate>> {
+        bozzard_app::job::Job::start("Compiling script", move |progress| {
+            progress.check()?;
+            let compiled = compile_source(&ScriptEngine::new(), &self.asset, &self.source)?;
+            progress.check()?;
+            Ok(ScriptReloadCandidate {
+                asset: self.asset,
+                instance: self.instance,
+                serial: self.serial,
+                revision: self.revision,
+                attachments: self.attachments,
+                compiled,
+            })
+        })
+    }
 }
 
 /// Resource holding every attachment's state across ticks.
@@ -1143,9 +1226,14 @@ fn compile_source(engine: &ScriptEngine, asset: &str, source: &str) -> Result<Ar
     let mut hooks = BTreeMap::new();
     for function in ast.iter_functions() {
         if let Some((name, args)) = HOOKS.iter().find(|(name, _)| *name == function.name) {
+            let declaration = format!("fn {name}");
+            let line = source
+                .lines()
+                .position(|line| line.contains(&declaration))
+                .map_or(1, |index| index + 1);
             ensure!(
                 function.params.len() == *args,
-                "script '{asset}': {name} takes {args} argument(s), got {}",
+                "script '{asset}' line {line}: {name} takes {args} argument(s), got {}",
                 function.params.len()
             );
             hooks.insert(function.name.to_owned(), function.params.len());
@@ -1246,12 +1334,123 @@ impl SceneInstance {
             "asset '{asset}' is not a script"
         );
         ensure!(
-            self.scripts.len() < MAX_SCRIPT_ASSETS,
+            self.scripts.contains_key(&asset) || self.scripts.len() < MAX_SCRIPT_ASSETS,
             "scene compiles at most {MAX_SCRIPT_ASSETS} scripts"
         );
         let compiled = compile_source(&self.script_engine(), &asset, &source)?;
+        *self
+            .script_reload_revisions
+            .entry(asset.clone())
+            .or_default() += 1;
         self.scripts.insert(asset, compiled);
         Ok(())
+    }
+    /// Reserve a revision before starting background compilation. A newer edit invalidates any
+    /// older result, even if the older worker completes last. The caller must reject this route
+    /// while multiplayer is active and coordinate a restart instead.
+    pub fn request_script_reload(
+        &mut self,
+        asset: &str,
+        source: String,
+    ) -> Result<ScriptReloadRequest> {
+        ensure!(
+            source.len() <= MAX_SCRIPT_BYTES,
+            "script '{asset}' exceeds 1 MiB"
+        );
+        ensure!(
+            self.document
+                .assets
+                .get(asset)
+                .is_some_and(|entry| entry.kind == AssetKind::Script),
+            "asset '{asset}' is not a script"
+        );
+        ensure!(
+            self.scripts.contains_key(asset),
+            "script '{asset}' was not loaded"
+        );
+        let revision = self
+            .script_reload_revisions
+            .entry(asset.to_owned())
+            .or_default();
+        *revision = revision
+            .checked_add(1)
+            .context("script edit revision exhausted")?;
+        let attachments = self
+            .document
+            .objects
+            .iter()
+            .flat_map(|object| {
+                object
+                    .script_manager
+                    .iter()
+                    .flat_map(|manager| manager.scripts.iter().enumerate())
+                    .filter(move |(_, attachment)| attachment.script == asset)
+                    .map(move |(index, _)| (object.id.clone(), index))
+            })
+            .collect();
+        Ok(ScriptReloadRequest {
+            asset: asset.to_owned(),
+            source,
+            instance: self.instance_id,
+            serial: self.scene_serial,
+            revision: *revision,
+            attachments,
+        })
+    }
+    /// Publish only at a completed tick boundary. This does not call lifecycle hooks, discard
+    /// queued actions or reset world/blackboard state. Each matching attachment retains its
+    /// started/enabled/input/contact state and gets a fresh script-local scope.
+    pub fn publish_script_reload(
+        &mut self,
+        world: &mut World,
+        candidate: ScriptReloadCandidate,
+    ) -> Result<ScriptReloadStatus> {
+        crate::scene_control::require_tick_boundary(world)?;
+        let stale = if self.instance_id != candidate.instance
+            || self.scene_serial != candidate.serial
+        {
+            Some("scene changed")
+        } else if self.script_reload_revisions.get(&candidate.asset) != Some(&candidate.revision) {
+            Some("newer script edit")
+        } else if !self.scripts.contains_key(&candidate.asset)
+            || !self
+                .document
+                .assets
+                .get(&candidate.asset)
+                .is_some_and(|a| a.kind == AssetKind::Script)
+        {
+            Some("script asset removed")
+        } else if candidate.attachments.iter().any(|(owner, index)| {
+            self.document
+                .objects
+                .iter()
+                .find(|o| &o.id == owner)
+                .and_then(|o| o.script_manager.as_ref())
+                .and_then(|m| m.scripts.get(*index))
+                .is_none_or(|a| a.script != candidate.asset)
+        }) {
+            Some("script attachment removed or changed")
+        } else {
+            None
+        };
+        if let Some(reason) = stale {
+            return Ok(ScriptReloadStatus::Stale {
+                asset: candidate.asset,
+                reason: reason.into(),
+            });
+        }
+        if let Some(runtime) = world.resource_mut::<ScriptRuntime>() {
+            for key in &candidate.attachments {
+                if let Some(run) = runtime.runs.get_mut(key) {
+                    run.scope = Scope::new();
+                    run.scope_initialized = false;
+                }
+            }
+        }
+        let asset = candidate.asset;
+        let revision = candidate.revision;
+        self.scripts.insert(asset.clone(), candidate.compiled);
+        Ok(ScriptReloadStatus::Applied { asset, revision })
     }
     fn script_engine(&self) -> Arc<ScriptEngine> {
         self.script_engine
@@ -1392,6 +1591,9 @@ impl SceneInstance {
             self.build_view(world, &mut host, runtime, &snapshot, dt, input);
         }
         runtime.stats.hooks = 0;
+        runtime.stats.commands = 0;
+        runtime.stats.attachments.clear();
+        runtime.stats.truncated = false;
         for (owner, attachments) in owners {
             let overlap = overlaps.get(&owner).cloned().unwrap_or_default();
             let owner_contacts = contacts.get(&owner).cloned().unwrap_or_default();
@@ -1410,6 +1612,8 @@ impl SceneInstance {
                 let key = (owner.clone(), index);
                 engine.lock().attachment = index;
                 let mut run = runtime.runs.remove(&key).unwrap_or_default();
+                let hooks_before = runtime.stats.hooks;
+                let commands_before = engine.lock().commands.len();
                 let result = self.run_attachment(
                     &engine,
                     runtime,
@@ -1421,6 +1625,17 @@ impl SceneInstance {
                     &owner_contacts,
                     dt,
                 );
+                if runtime.stats.attachments.len() < MAX_ATTACHMENT_STATS {
+                    runtime.stats.attachments.insert(
+                        key.clone(),
+                        ScriptAttachmentStats {
+                            hooks: runtime.stats.hooks - hooks_before,
+                            commands: engine.lock().commands.len() - commands_before,
+                        },
+                    );
+                } else {
+                    runtime.stats.truncated = true;
+                }
                 runtime.runs.insert(key, run);
                 self.adopt_script_compute(&engine);
                 if let Err(error) = &result {
@@ -1666,6 +1881,16 @@ impl SceneInstance {
                 .bytes()
                 .fold(1, |n, byte| n.wrapping_mul(1099511628211) ^ u64::from(byte));
         }
+        if enabled && !run.scope_initialized {
+            // Rhai's call_fn evaluates top-level statements then rewinds the scope on every
+            // invocation. Evaluate once explicitly so globals survive ticks and a reload gives
+            // each attachment fresh script-local state.
+            let _ = engine
+                .engine
+                .eval_ast_with_scope::<Dynamic>(&mut run.scope, &compiled.ast)
+                .map_err(|error| anyhow::anyhow!("script initialization on '{owner}': {error}"))?;
+            run.scope_initialized = true;
+        }
         for (hook, args) in events {
             if !compiled.takes(hook, args.len()) {
                 continue;
@@ -1674,7 +1899,13 @@ impl SceneInstance {
             // A hook's return value is ignored: scripts write through engine actions.
             let _ = engine
                 .engine
-                .call_fn::<Dynamic>(&mut run.scope, &compiled.ast, hook, args)
+                .call_fn_with_options::<Dynamic>(
+                    CallFnOptions::new().eval_ast(false),
+                    &mut run.scope,
+                    &compiled.ast,
+                    hook,
+                    args,
+                )
                 .map_err(|error| anyhow::anyhow!("script hook {hook} on '{owner}': {error}"))?;
         }
         if enabled {
@@ -2261,6 +2492,169 @@ mod tests {
             "on_start and on_update ran once each"
         );
         assert_eq!(runtime.stats.commands, 3);
+        assert_eq!(
+            runtime.stats.attachments.get(&("thing".into(), 0)),
+            Some(&ScriptAttachmentStats {
+                hooks: 2,
+                commands: 3
+            })
+        );
+    }
+
+    fn finish_reload(request: ScriptReloadRequest) -> Result<ScriptReloadCandidate> {
+        let job = request.start()?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            if let Some(result) = job.poll() {
+                return result;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "script compile timed out"
+            );
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn live_reload_is_atomic_and_keeps_world_state_without_restarting_hooks() {
+        let (mut instance, mut world) = demo(
+            "fn on_start(me) { rotate(me, [0.0, 90.0, 0.0]); }\nfn on_update(me, dt) { rotate(me, [0.0, 1.0, 0.0]); }",
+        );
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let entity = instance.entity("thing").unwrap();
+        let rotation = world.get::<Transform>(entity).unwrap().rotation_degrees;
+        assert_eq!(rotation, [0., 91., 0.]);
+        let bad = instance
+            .request_script_reload("drift", "fn on_update(me) {}".into())
+            .unwrap();
+        assert!(
+            finish_reload(bad)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("drift")
+        );
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world.get::<Transform>(entity).unwrap().rotation_degrees,
+            [0., 92., 0.]
+        );
+        let good = instance.request_script_reload("drift",
+            "fn on_start(me) { rotate(me, [0.0, 100.0, 0.0]); }\nfn on_update(me, dt) { rotate(me, [0.0, 2.0, 0.0]); }".into()).unwrap();
+        let candidate = finish_reload(good).unwrap();
+        assert_eq!(
+            instance
+                .publish_script_reload(&mut world, candidate)
+                .unwrap(),
+            ScriptReloadStatus::Applied {
+                asset: "drift".into(),
+                revision: 3
+            }
+        );
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world.get::<Transform>(entity).unwrap().rotation_degrees,
+            [0., 94., 0.]
+        );
+        assert_eq!(
+            world
+                .resource::<ScriptRuntime>()
+                .unwrap()
+                .stats
+                .attachments
+                .get(&("thing".into(), 0))
+                .unwrap()
+                .hooks,
+            1
+        );
+    }
+
+    #[test]
+    fn stale_reload_cannot_replace_a_newer_edit_or_restarted_scene() {
+        let (mut instance, mut world) = demo("fn on_update(me, dt) {}");
+        let older = finish_reload(
+            instance
+                .request_script_reload("drift", "fn on_update(me, dt) {}".into())
+                .unwrap(),
+        )
+        .unwrap();
+        let _newer = instance
+            .request_script_reload("drift", "fn on_update(me, dt) {}".into())
+            .unwrap();
+        assert!(matches!(
+            instance.publish_script_reload(&mut world, older).unwrap(),
+            ScriptReloadStatus::Stale { .. }
+        ));
+        let before_restart = finish_reload(
+            instance
+                .request_script_reload("drift", "fn on_update(me, dt) {}".into())
+                .unwrap(),
+        )
+        .unwrap();
+        instance.restart_runtime_scene(&mut world).unwrap();
+        assert!(matches!(
+            instance
+                .publish_script_reload(&mut world, before_restart)
+                .unwrap(),
+            ScriptReloadStatus::Stale { .. }
+        ));
+        let removed = finish_reload(
+            instance
+                .request_script_reload("drift", "fn on_update(me, dt) {}".into())
+                .unwrap(),
+        )
+        .unwrap();
+        instance.document.objects[0]
+            .script_manager
+            .as_mut()
+            .unwrap()
+            .scripts
+            .clear();
+        assert!(matches!(
+            instance.publish_script_reload(&mut world, removed).unwrap(),
+            ScriptReloadStatus::Stale { .. }
+        ));
+    }
+
+    #[test]
+    fn script_scope_is_reinitialized_after_replacement() {
+        let (mut instance, mut world) =
+            demo("let speed = 1.0; fn on_update(me, dt) { rotate(me, [0.0, speed, 0.0]); }");
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let entity = instance.entity("thing").unwrap();
+        assert_eq!(
+            world.get::<Transform>(entity).unwrap().rotation_degrees[1],
+            1.
+        );
+        let candidate = finish_reload(
+            instance
+                .request_script_reload(
+                    "drift",
+                    "let speed = 2.0; fn on_update(me, dt) { rotate(me, [0.0, speed, 0.0]); }"
+                        .into(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        instance
+            .publish_script_reload(&mut world, candidate)
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world.get::<Transform>(entity).unwrap().rotation_degrees[1],
+            3.
+        );
     }
 
     /// Restarting or loading a scene respawns the world. Script sources are runtime state the

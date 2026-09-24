@@ -180,6 +180,16 @@ struct Target {
 struct App {
     debug: debug::DebugWorkspace,
     editor: Editor,
+    #[cfg(feature = "factory")]
+    factory_mode: bool,
+    #[cfg(feature = "factory")]
+    factory_module: Option<bozz_torio::module::FactoryModule>,
+    #[cfg(feature = "factory")]
+    factory_cell: [u16; 2],
+    #[cfg(feature = "factory")]
+    factory_kind: bozz_torio::sim::Kind,
+    #[cfg(feature = "factory")]
+    factory_facing: bozz_torio::sim::Direction,
     open_scenes: bozzard_editor::OpenScenes,
     close_discarded: std::collections::BTreeSet<bozzard_editor::SceneId>,
     gpu: Gpu,
@@ -271,6 +281,13 @@ enum Pending {
     CloseScene,
 }
 impl App {
+    fn stop_play(&mut self) {
+        self.editor.stop_play();
+        #[cfg(feature = "factory")]
+        {
+            self.factory_module = None;
+        }
+    }
     fn new(
         cc: &eframe::CreationContext<'_>,
         editor: Editor,
@@ -302,6 +319,19 @@ impl App {
         Ok(Self {
             debug: Default::default(),
             editor,
+            #[cfg(feature = "factory")]
+            factory_mode: false,
+            #[cfg(feature = "factory")]
+            factory_module: None,
+            #[cfg(feature = "factory")]
+            factory_cell: [
+                (bozz_torio::sim::PATCH_X + 4) as u16,
+                (bozz_torio::sim::PATCH_Y + 7) as u16,
+            ],
+            #[cfg(feature = "factory")]
+            factory_kind: bozz_torio::sim::Kind::Miner,
+            #[cfg(feature = "factory")]
+            factory_facing: bozz_torio::sim::Direction::East,
             open_scenes: Default::default(),
             close_discarded: Default::default(),
             gpu,
@@ -433,7 +463,7 @@ impl App {
         }
         self.editor.finish_gesture();
         self.drag = None;
-        self.editor.stop_play();
+        self.stop_play();
         if matches!(pending, Pending::Close) {
             self.close_discarded.clear();
             let dirty = self
@@ -916,7 +946,7 @@ impl App {
                         .clicked()
                     {
                         self.gameplay_controls.reset();
-                        self.editor.stop_play();
+                        self.stop_play();
                     }
                     self.blueprint_run_controls(ui);
                     if self
@@ -947,7 +977,73 @@ impl App {
                         ui.colored_label(if playing { theme::GREEN } else { theme::ACCENT }, "●");
                     });
                 });
+                #[cfg(feature = "factory")]
+                self.factory_controls(ui);
             });
+        });
+    }
+    #[cfg(feature = "factory")]
+    fn factory_controls(&mut self, ui: &mut egui::Ui) {
+        use bozz_torio::{
+            multiplayer::Action,
+            sim::{Direction, HEIGHT, Kind, WIDTH},
+        };
+        if !self.factory_mode || self.editor.play.is_none() {
+            return;
+        }
+        let Some(module) = self.factory_module.clone() else {
+            return;
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.strong("Factory");
+            ui.label("X");
+            ui.add(egui::DragValue::new(&mut self.factory_cell[0]).range(0..=WIDTH as u16 - 1));
+            ui.label("Y");
+            ui.add(egui::DragValue::new(&mut self.factory_cell[1]).range(0..=HEIGHT as u16 - 1));
+            egui::ComboBox::from_id_salt("factory-kind")
+                .selected_text(self.factory_kind.name())
+                .show_ui(ui, |ui| {
+                    for kind in Kind::BUILDABLE {
+                        ui.selectable_value(&mut self.factory_kind, kind, kind.name());
+                    }
+                });
+            egui::ComboBox::from_id_salt("factory-facing")
+                .selected_text(self.factory_facing.glyph())
+                .show_ui(ui, |ui| {
+                    for direction in [
+                        Direction::North,
+                        Direction::East,
+                        Direction::South,
+                        Direction::West,
+                    ] {
+                        ui.selectable_value(&mut self.factory_facing, direction, direction.glyph());
+                    }
+                });
+            let [x, y] = self.factory_cell;
+            if ui.button("Build").clicked() {
+                self.result(module.enqueue(Action::Place {
+                    x,
+                    y,
+                    kind: self.factory_kind,
+                    direction: self.factory_facing,
+                }));
+            }
+            if ui.button("Recover").clicked() {
+                self.result(module.enqueue(Action::Remove { x, y }));
+            }
+            if ui.button("Rotate").clicked() {
+                self.result(module.enqueue(Action::Rotate { x, y }));
+            }
+            let game = module.game();
+            ui.weak(format!(
+                "{} / {} delivered · {} credits",
+                game.order_progress,
+                game.order().amount,
+                game.credits
+            ));
+            if let Some(error) = module.error() {
+                ui.colored_label(egui::Color32::LIGHT_RED, error);
+            }
         });
     }
     fn assets_content(&mut self, ui: &mut egui::Ui) {
@@ -1140,7 +1236,7 @@ impl App {
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
             self.gameplay_controls.reset();
-            self.editor.stop_play();
+            self.stop_play();
             self.status = "Simulation stopped · Back to editing".into();
             self.error = false;
             return;
@@ -1690,6 +1786,15 @@ pub fn run() -> Result<()> {
 
 /// Start an editor build with registered component inspectors.
 pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Result<()> {
+    run_with_mode(custom_inspectors, false)
+}
+
+#[cfg(feature = "factory")]
+pub fn run_factory() -> Result<()> {
+    run_with_mode(custom_inspectors::Registry::default(), true)
+}
+
+fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: bool) -> Result<()> {
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
         return Ok(());
@@ -1738,8 +1843,23 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
         source.is_none() || project.is_none(),
         "--project and --scene are mutually exclusive"
     );
+    #[cfg(feature = "factory")]
+    if factory_mode && source.is_none() && project.is_none() {
+        project = Some(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../bozz-torio/bozzard.project.json"),
+        );
+    }
     if let Some(path) = project {
         let (project, scene) = bozzard_project::Project::load(&path)?;
+        #[cfg(feature = "factory")]
+        let available = if factory_mode {
+            &[bozz_torio::module::NAME][..]
+        } else {
+            &[][..]
+        };
+        #[cfg(not(feature = "factory"))]
+        let available: &[&str] = &[];
+        project.require_runtime_modules(available)?;
         project.validate_scene(&bozzard_demo::load_document(Some(&scene))?)?;
         source = Some(scene);
     }
@@ -1800,6 +1920,12 @@ pub fn run_with_inspectors(custom_inspectors: custom_inspectors::Registry) -> Re
         options,
         Box::new(move |cc| {
             let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
+            #[cfg(feature = "factory")]
+            {
+                app.factory_mode = factory_mode;
+            }
+            #[cfg(not(feature = "factory"))]
+            let _ = factory_mode;
             app.pending_lobby = join_lobby;
             app.join_lobby = join_lobby.map(|id| id.to_string()).unwrap_or_default();
             Ok(Box::new(app))

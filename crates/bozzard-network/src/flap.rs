@@ -267,6 +267,8 @@ pub struct Replica {
     previous: BTreeMap<Peer, Bird>,
     previous_pipes: Option<[Pipe; 3]>,
     pending: VecDeque<InputFrame>,
+    pending_at: VecDeque<u64>,
+    input_clock: u64,
     sequence: u64,
     pub predicted: Option<Bird>,
 }
@@ -333,6 +335,7 @@ impl Replica {
         };
         if new_round {
             self.pending.clear();
+            self.pending_at.clear();
             self.sequence = 0;
         }
         self.birds = next;
@@ -343,6 +346,9 @@ impl Replica {
         self.predicted = self.birds.get(&local).copied();
         if let Some(bird) = &mut self.predicted {
             self.pending.retain(|f| f.sequence > bird.input_ack);
+            while self.pending_at.len() > self.pending.len() {
+                self.pending_at.pop_front();
+            }
             for frame in &self.pending {
                 if self.phase == Phase::Playing {
                     self.rules
@@ -355,6 +361,7 @@ impl Replica {
         Ok(true)
     }
     pub fn input(&mut self, flap: bool) -> Result<()> {
+        self.input_clock = self.input_clock.saturating_add(1);
         if self.phase != Phase::Playing || self.pending.len() >= 120 {
             return Ok(());
         }
@@ -363,6 +370,7 @@ impl Replica {
             sequence: self.sequence,
             flap,
         });
+        self.pending_at.push_back(self.input_clock);
         if let Some(bird) = &mut self.predicted {
             self.rules
                 .as_ref()
@@ -377,6 +385,14 @@ impl Replica {
             frames: self.pending.iter().copied().collect(),
             ack: self.tick,
         }
+    }
+    pub fn replay_depth(&self) -> usize {
+        self.pending.len()
+    }
+    pub fn oldest_input_age_ticks(&self) -> u64 {
+        self.pending_at
+            .front()
+            .map_or(0, |at| self.input_clock.saturating_sub(*at))
     }
     /// Remote entities render one snapshot behind. Recycled pipes snap instead of
     /// interpolating backwards across the whole arena; the local bird is predicted.

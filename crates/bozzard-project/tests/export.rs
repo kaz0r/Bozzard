@@ -211,6 +211,7 @@ fn project() -> Project {
         version: 1,
         name: "Test & Game".into(),
         start_scene: "scene.json".into(),
+        runtime_modules: Vec::new(),
         view: Layer::ThreeD,
         cook: Default::default(),
     }

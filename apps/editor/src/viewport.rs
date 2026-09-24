@@ -733,7 +733,7 @@ impl App {
                     .game_session()
                     .is_some_and(|s| s.phase == bozzard_scene::GamePhase::Quit)
             {
-                self.editor.stop_play();
+                self.stop_play();
             }
         }
         if self.editor.play.is_none()

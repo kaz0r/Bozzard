@@ -575,8 +575,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "bozzard-app",
  "bozzard-assets",
+ "bozzard-demo",
+ "bozzard-diagnostics",
  "bozzard-ecs",
+ "bozzard-network",
+ "bozzard-project",
  "bozzard-render",
  "bozzard-render-assets",
  "bozzard-scene",
@@ -693,6 +698,7 @@ name = "bozzard-editor-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bozz-torio",
  "bozzard-assets",
  "bozzard-audio",
  "bozzard-demo",
@@ -734,6 +740,7 @@ dependencies = [
  "bozzard-assets",
  "bozzard-audio",
  "bozzard-demo",
+ "bozzard-diagnostics",
  "bozzard-project",
  "bozzard-render",
  "bozzard-render-assets",
@@ -3929,6 +3936,7 @@ dependencies = [
  "once_cell",
  "rhai_codegen",
  "serde",
+ "serde_json",
  "smallvec",
  "smartstring",
  "thin-vec",

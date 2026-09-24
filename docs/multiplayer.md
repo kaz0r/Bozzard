@@ -310,7 +310,18 @@ python3 tools/check_headless.py
 cargo run -p bozzard-server -- --realtime --ticks 120
 # Continuous headless scene harness; Ctrl-C/SIGTERM saves and exits cleanly:
 cargo run -p bozzard-server -- --realtime --ticks 0 --save-scene /tmp/server-stop.json
+# Named, seeded 2–4 peer fault runs; use the same seed to reproduce event order:
+cargo run -p bozzard-network --example multiplayer_lab -- cafe-wifi 42 4
+cargo run -p bozzard-network --example multiplayer_lab -- satellite 42 2
 ```
+
+The lab accepts `clean`, `cafe-wifi`, or `satellite`, then a seed and a peer count of 2–4.
+It prints an event hash, packet loss/duplication, peak packet and input-history sizes,
+oldest queued packet age, and convergence. CI asserts seeded repeatability and buffer
+limits. In Steam Play, the editor profiler and player frame capture report snapshot age,
+oldest outstanding input age in simulation ticks, replay depth, command queue depth,
+worker time and publication age. These are local diagnostics; the lab does not simulate
+Valve's invite, relay or overlay services.
 
 Automated tests exercise three clients over serialized packets with scripted loss,
 latency, duplication, reordering, dropped acknowledgements and final convergence; host

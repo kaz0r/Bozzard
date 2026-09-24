@@ -332,6 +332,8 @@ fn reset_rejects_old_round_and_bounds_prediction_and_input_queues() {
     for _ in 0..500 {
         r.input(true).unwrap();
     }
+    assert_eq!(r.replay_depth(), 120);
+    assert_eq!(r.oldest_input_age_ticks(), 499);
     if let Message::Input { frames, .. } = r.message() {
         assert_eq!(frames.len(), 120);
     }

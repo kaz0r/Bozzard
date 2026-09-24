@@ -12,6 +12,8 @@ use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use serde::{Deserialize, Serialize};
 #[cfg(any(feature = "steam", test))]
 use std::io::{Read, Write};
+#[cfg(any(feature = "steam", test))]
+use std::time::{Duration, Instant};
 
 #[cfg(any(feature = "steam", test))]
 const PROTOCOL: u32 = 1;
@@ -219,6 +221,82 @@ fn read_state(chunks: &[Option<Vec<u8>>]) -> Result<Game> {
     Ok(game)
 }
 
+#[cfg(any(feature = "steam", test))]
+struct Assembly {
+    revision: u64,
+    chunks: Vec<Option<Vec<u8>>>,
+    started: Instant,
+}
+
+/// Pure assembly boundary shared by Steam and deterministic fault tests. A complete, validated
+/// factory is returned only after every part arrives; the caller owns publication.
+#[cfg(any(feature = "steam", test))]
+fn accept_state_part(
+    assembly: &mut Option<Assembly>,
+    applied_revision: u64,
+    revision: u64,
+    index: u16,
+    count: u16,
+    data: &str,
+    now: Instant,
+) -> Result<Option<Game>> {
+    ensure!(
+        count > 0 && count as usize <= MAX_COMPRESSED.div_ceil(CHUNK_BYTES) && index < count,
+        "invalid snapshot part"
+    );
+    if revision <= applied_revision {
+        return Ok(None);
+    }
+    ensure!(
+        data.len() <= CHUNK_BYTES.div_ceil(3) * 4,
+        "oversized snapshot part"
+    );
+    let chunk = STANDARD.decode(data)?;
+    ensure!(chunk.len() <= CHUNK_BYTES, "oversized snapshot part");
+    if assembly
+        .as_ref()
+        .is_none_or(|part| revision > part.revision)
+    {
+        *assembly = Some(Assembly {
+            revision,
+            chunks: vec![None; count as usize],
+            started: now,
+        });
+    }
+    let part = assembly.as_mut().expect("snapshot assembly");
+    if revision < part.revision {
+        return Ok(None);
+    }
+    ensure!(
+        part.chunks.len() == count as usize,
+        "snapshot part count changed"
+    );
+    if let Some(previous) = &part.chunks[index as usize] {
+        ensure!(previous == &chunk, "conflicting duplicate snapshot part");
+        return Ok(None);
+    }
+    part.chunks[index as usize] = Some(chunk);
+    if part.chunks.iter().all(Option::is_some) {
+        let game = read_state(&part.chunks)?;
+        *assembly = None;
+        return Ok(Some(game));
+    }
+    Ok(None)
+}
+
+#[cfg(any(feature = "steam", test))]
+fn expire_assembly(assembly: &mut Option<Assembly>, now: Instant, timeout: Duration) -> bool {
+    if assembly
+        .as_ref()
+        .is_some_and(|part| now.duration_since(part.started) > timeout)
+    {
+        *assembly = None;
+        true
+    } else {
+        false
+    }
+}
+
 /// What changed after Steam traffic was applied to the local presentation.
 #[derive(Default)]
 pub struct Change {
@@ -351,5 +429,135 @@ mod tests {
         )
         .unwrap();
         assert!(structural_difference(&original, &next));
+    }
+
+    #[test]
+    fn fragmented_snapshots_never_publish_partial_state_and_recover_after_timeout() {
+        let mut original = Game::from_seed(7);
+        original.credits = 11;
+        let mut newer = original.clone();
+        newer.credits = 29;
+        let old = state_parts(123, 4, &original).unwrap();
+        let packets = state_parts(123, 5, &newer).unwrap();
+        assert!(packets.len() > 1);
+        let mut assembly = None;
+        let mut displayed = Game::from_seed(8);
+        let initial_credits = displayed.credits;
+        let start = Instant::now();
+        let ingest = |bytes: &[u8],
+                      at: Instant,
+                      assembly: &mut Option<Assembly>,
+                      displayed: &mut Game|
+         -> Result<bool> {
+            let Message::StatePart {
+                revision,
+                index,
+                count,
+                data,
+            } = decode(123, bytes)?
+            else {
+                anyhow::bail!("expected state part")
+            };
+            if let Some(game) = accept_state_part(assembly, 0, revision, index, count, &data, at)? {
+                *displayed = game;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        };
+        // Missing part, reverse order, and identical duplicate keep the old presentation.
+        for bytes in packets.iter().skip(1).rev() {
+            assert!(!ingest(bytes, start, &mut assembly, &mut displayed).unwrap());
+        }
+        assert!(!ingest(&packets[1], start, &mut assembly, &mut displayed).unwrap());
+        assert_eq!(displayed.credits, initial_credits);
+        // An older part cannot replace the newer partial assembly.
+        assert!(!ingest(&old[0], start, &mut assembly, &mut displayed).unwrap());
+        assert_eq!(assembly.as_ref().unwrap().revision, 5);
+        // Timeout clears bounded partial memory; a complete resend recovers.
+        assert!(expire_assembly(
+            &mut assembly,
+            start + Duration::from_secs(16),
+            Duration::from_secs(15)
+        ));
+        assert!(assembly.is_none());
+        for (index, bytes) in packets.iter().enumerate().rev() {
+            let published = ingest(
+                bytes,
+                start + Duration::from_secs(17),
+                &mut assembly,
+                &mut displayed,
+            )
+            .unwrap();
+            assert_eq!(published, index == 0);
+        }
+        assert_eq!(displayed.credits, 29);
+        assert!(assembly.is_none());
+    }
+
+    #[test]
+    fn malformed_and_conflicting_chunks_are_rejected_without_a_factory_swap() {
+        let game = Game::from_seed(9);
+        let packets = state_parts(2, 3, &game).unwrap();
+        let mut assembly = None;
+        let now = Instant::now();
+        let Message::StatePart {
+            revision,
+            index,
+            count,
+            data,
+        } = decode(2, &packets[0]).unwrap()
+        else {
+            panic!()
+        };
+        assert!(
+            accept_state_part(&mut assembly, 0, revision, index, count, &data, now)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            accept_state_part(
+                &mut assembly,
+                0,
+                revision,
+                index,
+                count,
+                &STANDARD.encode(b"conflict"),
+                now
+            )
+            .is_err()
+        );
+        assembly = None; // Steam discards a rejected assembly.
+        assert!(
+            accept_state_part(
+                &mut assembly,
+                0,
+                4,
+                0,
+                1,
+                &STANDARD.encode(b"invalid zlib"),
+                now
+            )
+            .is_err()
+        );
+        assembly = None;
+        let mut published = None;
+        for bytes in &packets {
+            let Message::StatePart {
+                revision,
+                index,
+                count,
+                data,
+            } = decode(2, bytes).unwrap()
+            else {
+                panic!()
+            };
+            if let Some(next) =
+                accept_state_part(&mut assembly, 0, revision, index, count, &data, now).unwrap()
+            {
+                published = Some(next);
+            }
+        }
+        assert_eq!(published.unwrap().seed, game.seed);
     }
 }

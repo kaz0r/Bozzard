@@ -52,6 +52,10 @@ jobs:
           echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
       - name: Install pinned toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
+      - name: Check headless dependency boundary
+        run: python3 tools/check_headless.py
+      - name: Development package layout tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Fetch locked dependencies
         run: cargo fetch --locked
       - name: Formatting
@@ -60,16 +64,49 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked --offline -- -D warnings
       - name: Compile optional Steam multiplayer on each native target
         run: cargo clippy -p bozzard-network -p bozzard-player -p bozzard-editor-app --all-targets --features bozzard-player/steam,bozzard-editor-app/steam --locked --offline -- -D warnings
+      - name: Compile the game-specific factory editor
+        run: cargo clippy -p bozzard-editor-app --all-targets --features factory --locked --offline -- -D warnings
       - name: CPU and headless tests
         run: cargo test --workspace --locked --offline
-      - name: Check headless dependency boundary
-        run: python3 tools/check_headless.py
-      - name: Development package layout tests
-        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Non-Steam editor error paths
         run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
       - name: Build native release executables
-        run: cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
+        run: |
+          cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
+          cargo build --release --locked --offline -p bozzard-editor-app --features factory --bin bozz-torio-editor
+      - name: Recreate the player GPU after a presented frame
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SOFTWARE: ${{ matrix.software }}
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            if ! output=$(xvfb-run -a target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1); then
+              printf '%s\n' "$output"
+              exit 1
+            fi
+          else
+            if ! output=$(target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1); then
+              printf '%s\n' "$output"
+              exit 1
+            fi
+          fi
+          printf '%s\n' "$output"
+          [[ "$output" == *device_recreation_ok* && "$output" == *window_ok* ]]
+      - name: Package Bozz-torio and verify its relocated factory
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a python3 apps/bozz-torio/tools/package.py --app-id 480 --out dist/bozz-torio --offline --verify
+          else
+            python3 apps/bozz-torio/tools/package.py --app-id 480 --out dist/bozz-torio --offline --verify
+          fi
+      - name: Verify the game-specific editor export path
+        run: |
+          target/release/bozz-torio --offline --scene apps/bozz-torio/scene/bozz-torio.json --export-dir dist/bozz-torio-editor-export
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a python3 apps/bozz-torio/tools/package.py --verify-only --out dist/bozz-torio-editor-export
+          else
+            python3 apps/bozz-torio/tools/package.py --verify-only --out dist/bozz-torio-editor-export
+          fi
       - name: Package and verify pixels from extracted executables
         env:
           BACKEND: ${{ matrix.backend }}

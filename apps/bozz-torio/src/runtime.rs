@@ -197,8 +197,11 @@ impl Factory {
         screenshot: Option<PathBuf>,
         screenshot_after: Duration,
         join_lobby: Option<u64>,
+        save_directory: Option<PathBuf>,
     ) -> Result<Self> {
-        let save = SaveFile::default_path();
+        let save = save_directory
+            .map(SaveFile::in_directory)
+            .unwrap_or_else(SaveFile::default_path);
         let fresh = source.new_game()?;
         let network = Network::new(&steam, &source, join_lobby)?;
         let mut error = None;
@@ -1086,11 +1089,137 @@ pub fn run(mut factory: Factory) -> Result<()> {
     Ok(())
 }
 
+/// GPU-free acceptance route through the shipped scene, factory rules, adapter, HUD, and save.
+/// The same entry point supplies the saved fixture used by relocated-package smoke checks.
+pub fn verify_factory_route(source: SceneSource, save_directory: PathBuf) -> Result<()> {
+    use crate::sim::{PATCH_X, PATCH_Y};
+    use bozzard_scene::middleware::ui::Runtime as UiRuntime;
+    let mut factory = Factory::new(
+        source,
+        SteamBridge::new(480, true),
+        true,
+        None,
+        Duration::ZERO,
+        None,
+        Some(save_directory.clone()),
+    )?;
+    factory.game = factory.source.new_game_from_seed(0x0B02_2A7D)?;
+    let y = PATCH_Y + 7;
+    anyhow::ensure!(
+        factory.game.tiles[y * WIDTH + PATCH_X + 4]
+            .deposit
+            .is_some_and(|resource| resource.ore() == Some(Item::IronOre)),
+        "authored route lost its iron deposit"
+    );
+    anyhow::ensure!(
+        factory.game.hub == [PATCH_X + 18, y],
+        "authored route lost its delivery hub"
+    );
+    factory
+        .game
+        .place(PATCH_X + 4, y, Kind::Miner, Direction::East)
+        .map_err(anyhow::Error::msg)?;
+    factory
+        .game
+        .place(PATCH_X + 5, y, Kind::Furnace, Direction::East)
+        .map_err(anyhow::Error::msg)?;
+    for x in 6..18 {
+        factory
+            .game
+            .place(PATCH_X + x, y, Kind::Belt, Direction::East)
+            .map_err(anyhow::Error::msg)?;
+    }
+    factory.stage.rebuild(&factory.game)?;
+    let miner = y * WIDTH + PATCH_X + 4;
+    anyhow::ensure!(
+        factory
+            .stage
+            .instance
+            .entity(&format!("bt-building-{miner}"))
+            .is_some(),
+        "scene adapter did not publish the placed miner"
+    );
+    for _ in 0..400 {
+        factory.game.tick();
+    }
+    anyhow::ensure!(
+        factory.game.produced[Item::IronBar.index()] >= 8,
+        "factory did not produce iron bars"
+    );
+    anyhow::ensure!(
+        factory.game.delivered[Item::IronBar.index()] >= 8 && factory.game.order_index >= 1,
+        "factory did not complete the first delivery"
+    );
+    factory.stage.sync_outputs(&factory.game)?;
+    factory.sync_ui([1320., 830.])?;
+    let contract = factory
+        .stage
+        .world
+        .resource::<UiRuntime>()
+        .and_then(|ui| ui.widgets.get("bt-ui-contract"))
+        .and_then(|state| state.text.as_deref());
+    anyhow::ensure!(
+        contract.is_some_and(|text| text.contains("CONTRACT 02")),
+        "HUD did not advance to the second contract"
+    );
+    let completed = factory.game.delivered;
+    let credits = factory.game.credits;
+    let seed = factory.game.seed;
+    factory.save.write(&factory.game)?;
+    let reopened = Factory::new(
+        factory.source,
+        SteamBridge::new(480, true),
+        true,
+        None,
+        Duration::ZERO,
+        None,
+        Some(save_directory),
+    )?;
+    anyhow::ensure!(
+        reopened.game.seed == seed
+            && reopened.game.delivered == completed
+            && reopened.game.credits == credits
+            && reopened.game.order_index >= 1,
+        "reopened factory differs from the saved route"
+    );
+    anyhow::ensure!(
+        reopened
+            .stage
+            .instance
+            .entity(&format!("bt-building-{miner}"))
+            .is_some(),
+        "reopened scene adapter lost the saved miner"
+    );
+    Ok(())
+}
+
 fn direction_name(direction: Direction) -> &'static str {
     match direction {
         Direction::North => "N",
         Direction::East => "E",
         Direction::South => "S",
         Direction::West => "W",
+    }
+}
+
+#[cfg(test)]
+mod acceptance_tests {
+    use super::*;
+    #[test]
+    fn authored_factory_route_survives_save_and_reopen() {
+        let directory = std::env::temp_dir().join(format!(
+            "bozz-torio-route-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let result = verify_factory_route(
+            SceneSource::open(SceneSource::default_path()).unwrap(),
+            directory.clone(),
+        );
+        let _ = std::fs::remove_dir_all(directory);
+        result.unwrap();
     }
 }

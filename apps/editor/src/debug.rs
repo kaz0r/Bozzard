@@ -171,7 +171,11 @@ impl DebugWorkspace {
             }
         }
     }
-    fn profiler_ui(&mut self, ui: &mut egui::Ui) {
+    fn profiler_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        network: Option<bozzard_demo::multiplayer::Telemetry>,
+    ) {
         ui.horizontal_wrapped(|ui| {
             if ui
                 .button(if self.recording {
@@ -206,6 +210,13 @@ impl DebugWorkspace {
                 });
             ui.weak(format!("{} / {HISTORY} frames", self.frames.len()));
         });
+        if let Some(net) = network {
+            ui.label(format!(
+                "Network · snapshot age {:.0} ms · oldest input {} ticks · replay {} · commands {} · publication age {:.0} ms · worker {:.2} ms",
+                net.snapshot_age_ms, net.oldest_input_age_ticks, net.replay_depth, net.command_queue,
+                net.publication_age_ms, net.worker_ms
+            ));
+        }
         if self.frames.is_empty() {
             ui.label(
                 "Press Record, then Play or move around the scene. Click a frame to inspect it.",
@@ -214,6 +225,36 @@ impl DebugWorkspace {
             return;
         }
         self.cpu_chart(ui);
+        let mut cpu: Vec<_> = self
+            .frames
+            .iter()
+            .map(|frame| frame.editor_cpu_ms)
+            .collect();
+        cpu.sort_by(f64::total_cmp);
+        let percentile = |fraction: f64| {
+            cpu[((cpu.len() as f64 * fraction).ceil() as usize)
+                .saturating_sub(1)
+                .min(cpu.len() - 1)]
+        };
+        ui.label(format!(
+            "Editor CPU · median {:.2} ms · p95 {:.2} ms · p99 {:.2} ms",
+            percentile(0.5),
+            percentile(0.95),
+            percentile(0.99)
+        ));
+        let mut intervals: Vec<_> = self.frames.iter().map(|frame| frame.interval_ms).collect();
+        intervals.sort_by(f64::total_cmp);
+        let interval = |fraction: f64| {
+            intervals[((intervals.len() as f64 * fraction).ceil() as usize)
+                .saturating_sub(1)
+                .min(intervals.len() - 1)]
+        };
+        ui.label(format!(
+            "Frame interval · median {:.2} ms · p95 {:.2} ms · p99 {:.2} ms",
+            interval(0.5),
+            interval(0.95),
+            interval(0.99)
+        ));
         let selected = self
             .selected_frame
             .and_then(|id| self.frames.iter().find(|f| f.id == id))
@@ -606,7 +647,9 @@ impl App {
                 if ui.button("Hide").clicked() { self.workspace.debug_visible = false; }
             });
             ui.separator();
-            match self.debug.page { Page::Profiler => self.debug.profiler_ui(ui), Page::Console => jump = self.debug.console_ui(ui) }
+            match self.debug.page { Page::Profiler => self.debug.profiler_ui(ui,
+                self.editor.play.as_ref().and_then(|play| play.multiplayer_telemetry())),
+                Page::Console => jump = self.debug.console_ui(ui) }
         });
         if let Some(location) = jump {
             self.debug_jump(&location);

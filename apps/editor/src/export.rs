@@ -74,6 +74,7 @@ fn validate_name(name: &str) -> Result<()> {
         name: name.into(),
         start_scene: "scene.json".into(),
         view: Layer::ThreeD,
+        runtime_modules: Vec::new(),
         cook: Default::default(),
     }
     .validate()

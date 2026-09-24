@@ -3,12 +3,14 @@ use crate::sim::{
     Building, Direction, Game, Kind, PATCH_HEIGHT, PATCH_WIDTH, PATCH_X, PATCH_Y, Resource, WIDTH,
 };
 use anyhow::{Context, Result, bail, ensure};
+use bozzard_scene::Scene;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 pub struct SceneSource {
     pub path: PathBuf,
     pub name: String,
+    pub authored: Scene,
     terrain: Vec<u8>,
     deposits: Vec<(usize, usize, Resource)>,
     machines: Vec<(usize, usize, Kind, Direction)>,
@@ -38,7 +40,12 @@ impl SceneSource {
         Self::parse(path, &text)
     }
 
+    pub fn from_scene(path: PathBuf, scene: &Scene) -> Result<Self> {
+        Self::parse(path, &scene.to_json()?)
+    }
+
     fn parse(path: PathBuf, text: &str) -> Result<Self> {
+        let authored = Scene::from_json(text)?;
         let value: Value = serde_json::from_str(text).context("reading Bozzard scene JSON")?;
         ensure!(
             value["version"].as_u64() == Some(1),
@@ -219,6 +226,7 @@ impl SceneSource {
         let source = Self {
             path,
             name,
+            authored,
             terrain,
             deposits,
             machines,
@@ -242,6 +250,11 @@ impl SceneSource {
         } else {
             self.world_seed
         };
+        self.new_game_from_seed(seed)
+    }
+
+    /// Use the authored starter district with a fixed procedural world for acceptance runs.
+    pub fn new_game_from_seed(&self, seed: u64) -> Result<Game> {
         let mut game = Game::from_seed(seed);
         for y in 0..PATCH_HEIGHT {
             for x in 0..PATCH_WIDTH {
@@ -354,7 +367,18 @@ mod tests {
             .iter_mut()
             .find(|o| o["id"] == "delivery-hub")
             .unwrap()["transform"]["translation"] = serde_json::json!([8.5, 0, 0.3]);
-        value["objects"].as_array_mut().unwrap().push(serde_json::json!({"id":"placed-furnace","name":"Placed furnace","transform":{"translation":[-5.5,0,0.2],"rotation_degrees":[0,0,90],"scale":[1,1,1]},"sprite":{"image":"sprites","frame":7}}));
+        let mut furnace = value["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["id"] == "template-furnace")
+            .unwrap()
+            .clone();
+        furnace["id"] = serde_json::json!("placed-furnace");
+        furnace["name"] = serde_json::json!("Placed furnace");
+        furnace["transform"]["translation"] = serde_json::json!([-5.5, 0, 0.2]);
+        furnace["transform"]["rotation_degrees"] = serde_json::json!([0, 0, 90]);
+        value["objects"].as_array_mut().unwrap().push(furnace);
         value["blackboard"]["starter_conveyors"]["scalar"]["number"] = serde_json::json!(30);
         value["blackboard"]["world_seed"]["scalar"]["number"] = serde_json::json!(42);
         let source = SceneSource::parse(path, &value.to_string()).unwrap();

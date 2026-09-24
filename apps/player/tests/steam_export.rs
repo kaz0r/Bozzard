@@ -31,6 +31,7 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
         version: 1,
         name: "Together".into(),
         start_scene: "scene.json".into(),
+        runtime_modules: Vec::new(),
         view: Layer::ThreeD,
         cook: Default::default(),
     };

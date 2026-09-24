@@ -383,7 +383,7 @@ impl App {
                     (height + 4.0).abs() < 0.001,
                     "gravity crossed floor: {height}"
                 );
-                self.editor.stop_play();
+                self.stop_play();
                 ensure!(
                     *self.editor.scene() == authored,
                     "Play changed authored state"
@@ -884,7 +884,7 @@ impl App {
                                     play.instance().capture(&play.app.world)? != authored,
                                     "blueprint did not execute"
                                 );
-                                self.editor.stop_play();
+                                self.stop_play();
                                 ensure!(
                                     *self.editor.scene() == authored,
                                     "Play modified authored blueprints"
@@ -949,7 +949,7 @@ impl App {
                                         "wrong door changed"
                                     );
                                 }
-                                self.editor.stop_play();
+                                self.stop_play();
                                 ensure!(
                                     *self.editor.scene() == authored,
                                     "Play modified authored gate"

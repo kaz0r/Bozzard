@@ -96,7 +96,7 @@ struct Motion {
 
 impl Stage {
     pub fn new(source: &SceneSource, game: &Game) -> Result<Self> {
-        let authored = Scene::from_json(&std::fs::read_to_string(&source.path)?)?;
+        let authored = source.authored.clone();
         let mut assets = AssetStore::new(
             source.path.parent().context("scene has no parent")?,
             &authored.assets,
