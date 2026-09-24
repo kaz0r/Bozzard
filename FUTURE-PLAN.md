@@ -1,5 +1,12 @@
 # Future plan
 
+For the next implementation sequence, use the [Claude UI todo list](TODO-CLAUDE.md)
+and [Codex runtime todo list](TODO-CODEX.md), reviewed against `main` at `27381da`
+on 2026-09-24. This older feature inventory contains stale unchecked entries;
+in particular, Blueprint depth has shipped as documented in
+[Blueprint authoring depth](docs/blueprint-depth.md), and the multiplayer CPU
+optimization baseline is recorded in [multiplayer performance](docs/multiplayer.md#cpu-performance-benchmark).
+
 What Bozzard still needs to be an engine a team ships games in, judged against Unity and Unreal.
 Checked items exist today and are covered by tests or docs; unchecked items are work, sized
 `S`/`M`/`L`/`XL` with the dependency that makes them tractable.
