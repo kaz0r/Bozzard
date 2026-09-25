@@ -100,10 +100,10 @@ needs agreed baseline/merge semantics with Codex before it becomes a UI feature.
 
 ## C5: Animator state-machine graph — P2 / M
 
-- [ ] Draw states and directed transitions; create/select connections visually
+- [x] Draw states and directed transitions; create/select connections visually
   while retaining the existing parameter and blend-tree forms.
-- [ ] Show initial state, wildcard transitions and transition priority explicitly.
-- [ ] Highlight the active runtime state during Play without allowing accidental
+- [x] Show initial state, wildcard transitions and transition priority explicitly.
+- [x] Highlight the active runtime state during Play without allowing accidental
   edits to the authoring document.
 
 **Why now:** the runtime has state machines and blend trees, but authors edit them

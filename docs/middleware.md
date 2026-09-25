@@ -46,6 +46,13 @@ Supported glTF tracks are translation, rotation and scale with step, linear and 
 
 **Timeline** combines motion tracks, named markers and camera cuts. Its inspector edits target objects, clip duration, repeat/easing, keys and cut cameras. **Play / Pause / Stop / Seek Timeline** controls it; **On Timeline Event** receives marker names. Camera cuts select existing scene cameras. Stopping releases the override, and a removed cut camera falls back to the view's default camera.
 
+The **State graph** shows states and numbered directed transitions. Click a source and destination
+state (or the wildcard source) to create a connection; click a numbered badge to select it for
+editing in the transition form. A yellow border marks the initial state and the active Play state
+is highlighted. Dragging a node changes only its saved editor layout; transition priority remains
+the order shown in the form. Rename and delete update or remove affected references through the
+same validated authoring command and Undo path.
+
 ## Tweens and curves
 
 Add **Tween**, enable autoplay or call **Play Tween**, and add tracks for translation, rotation in degrees, scale, color, metallic, roughness, light intensity or text opacity. Each track targets Self or another scene object. The inspector edits and previews step, linear or cubic Hermite curves, including tangents. Shared easing and Once / Loop / Ping-pong playback apply to the clip.

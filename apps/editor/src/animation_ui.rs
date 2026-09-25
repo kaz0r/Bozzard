@@ -12,12 +12,14 @@ use bozzard_scene::{
     },
 };
 use eframe::egui;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 pub fn component(
     ui: &mut egui::Ui,
     object: &mut Object,
     assets: &bozzard_assets::AssetStore,
+    graph_layout: &mut BTreeMap<String, [f32; 2]>,
+    active_state: Option<usize>,
 ) -> Result<()> {
     let Some(mut animator) = registry::get::<Animator>(object)? else {
         return Ok(());
@@ -90,6 +92,9 @@ pub fn component(
                 ui.selectable_value(&mut animator.initial, state.name.clone(), &state.name);
             }
         });
+    ui.collapsing("State graph", |ui| {
+        state_graph(ui, &mut animator, graph_layout, active_state);
+    });
     ui.collapsing("States and blend trees", |ui| {
         let mut remove = None;
         for (index, state) in Arc::make_mut(&mut animator.states).iter_mut().enumerate() {
@@ -379,6 +384,187 @@ pub fn component(
     }
     Ok(())
 }
+
+fn state_graph(
+    ui: &mut egui::Ui,
+    animator: &mut Animator,
+    positions: &mut BTreeMap<String, [f32; 2]>,
+    active_state: Option<usize>,
+) {
+    ui.small("Click a source state, then a destination to add a transition. Drag states to arrange the graph; the numbered transition priority stays unchanged.");
+    let width = ui.available_width().max(260.);
+    let columns = (((width - 100.) / 145.).floor() as usize).max(1);
+    let height = (80. + animator.states.len().div_ceil(columns) as f32 * 70.).max(180.);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let node_size = egui::vec2(116., 38.);
+    let names: std::collections::BTreeSet<_> =
+        animator.states.iter().map(|s| s.name.clone()).collect();
+    positions.retain(|name, _| names.contains(name));
+    for (index, state) in animator.states.iter().enumerate() {
+        let point = positions.entry(state.name.clone()).or_insert_with(|| {
+            [
+                100. + (index % columns) as f32 * 145.,
+                20. + (index / columns) as f32 * 70.,
+            ]
+        });
+        point[0] = point[0].clamp(0., (width - node_size.x).max(0.));
+        point[1] = point[1].clamp(0., (height - node_size.y).max(0.));
+    }
+    let node_rect = |name: &str, positions: &BTreeMap<String, [f32; 2]>| {
+        let p = positions[name];
+        egui::Rect::from_min_size(rect.min + egui::vec2(p[0], p[1]), node_size)
+    };
+    let wildcard = egui::Rect::from_min_size(rect.min + egui::vec2(8., 20.), egui::vec2(70., 32.));
+    let selected_id = ui.make_persistent_id("graph-source");
+    let selected = ui.data_mut(|d| d.get_temp::<String>(selected_id));
+    let transition_id = ui.make_persistent_id("graph-transition");
+    let selected_transition = ui.data_mut(|d| d.get_temp::<usize>(transition_id));
+    for (index, transition) in animator.transitions.iter().enumerate() {
+        if !names.contains(&transition.to) {
+            continue;
+        }
+        let from = if transition.from == "*" {
+            wildcard
+        } else if names.contains(&transition.from) {
+            node_rect(&transition.from, positions)
+        } else {
+            continue;
+        };
+        let to = node_rect(&transition.to, positions);
+        let start = from.right_center();
+        let end = to.left_center();
+        let tint = if selected_transition == Some(index) {
+            egui::Color32::YELLOW
+        } else {
+            egui::Color32::from_rgb(130, 160, 195)
+        };
+        ui.painter()
+            .line_segment([start, end], egui::Stroke::new(1.5, tint));
+        let dir = (end - start).normalized();
+        if dir.length_sq() > 0. {
+            let tip = end - dir * 6.;
+            let side = egui::vec2(-dir.y, dir.x) * 4.;
+            ui.painter()
+                .line_segment([tip - dir * 7. + side, tip], egui::Stroke::new(1.5, tint));
+            ui.painter()
+                .line_segment([tip - dir * 7. - side, tip], egui::Stroke::new(1.5, tint));
+        }
+        let badge = egui::Rect::from_center_size(start + (end - start) * 0.5, egui::vec2(23., 23.));
+        let response = ui.interact(
+            badge,
+            ui.id().with(("transition", index)),
+            egui::Sense::click(),
+        );
+        if response.clicked() && ui.is_enabled() {
+            ui.data_mut(|d| d.insert_temp(transition_id, index));
+        }
+        ui.painter()
+            .circle_filled(badge.center(), 11., egui::Color32::from_rgb(40, 48, 64));
+        ui.painter().text(
+            badge.center(),
+            egui::Align2::CENTER_CENTER,
+            format!("{}", index + 1),
+            egui::FontId::monospace(11.),
+            tint,
+        );
+    }
+    let mut clicked = None;
+    for (index, state) in animator.states.iter().enumerate() {
+        let node = node_rect(&state.name, positions);
+        let response = ui.interact(
+            node,
+            ui.id().with(("state", &state.name)),
+            egui::Sense::click_and_drag(),
+        );
+        if response.clicked() && ui.is_enabled() {
+            clicked = Some(state.name.clone());
+        }
+        if response.dragged() && ui.is_enabled() {
+            let delta = ui.input(|i| i.pointer.delta());
+            let p = positions.get_mut(&state.name).unwrap();
+            p[0] = (p[0] + delta.x).clamp(0., (width - node_size.x).max(0.));
+            p[1] = (p[1] + delta.y).clamp(0., (height - node_size.y).max(0.));
+        }
+        let color = if active_state == Some(index) {
+            egui::Color32::from_rgb(28, 105, 65)
+        } else if selected.as_deref() == Some(&state.name) {
+            egui::Color32::from_rgb(75, 72, 120)
+        } else {
+            egui::Color32::from_rgb(48, 57, 72)
+        };
+        ui.painter().rect_filled(node, 6., color);
+        ui.painter().rect_stroke(
+            node,
+            6.,
+            egui::Stroke::new(
+                1.5,
+                if state.name == animator.initial {
+                    egui::Color32::YELLOW
+                } else {
+                    egui::Color32::GRAY
+                },
+            ),
+            egui::StrokeKind::Outside,
+        );
+        ui.painter().text(
+            node.center(),
+            egui::Align2::CENTER_CENTER,
+            &state.name,
+            egui::FontId::proportional(12.),
+            egui::Color32::WHITE,
+        );
+    }
+    let wildcard_response = ui.interact(wildcard, ui.id().with("wildcard"), egui::Sense::click());
+    if wildcard_response.clicked() && ui.is_enabled() {
+        clicked = Some("*".into());
+    }
+    ui.painter()
+        .rect_filled(wildcard, 6., egui::Color32::from_rgb(68, 55, 85));
+    ui.painter().text(
+        wildcard.center(),
+        egui::Align2::CENTER_CENTER,
+        "Any *",
+        egui::FontId::proportional(12.),
+        egui::Color32::WHITE,
+    );
+    if let Some(target) = clicked {
+        if let Some(source) = selected.filter(|source| source != &target)
+            && target != "*"
+            && !animator.parameters.is_empty()
+            && animator.transitions.len() < 128
+        {
+            Arc::make_mut(&mut animator.transitions).push(Transition {
+                from: source,
+                to: target,
+                parameter: animator.parameters.keys().next().unwrap().clone(),
+                comparison: Comparison::Above,
+                threshold: 0.5,
+                fade: 0.2,
+                exit_time: None,
+            });
+            ui.data_mut(|d| d.remove::<String>(selected_id));
+            ui.data_mut(|d| d.insert_temp(transition_id, animator.transitions.len() - 1));
+        } else {
+            ui.data_mut(|d| d.insert_temp(selected_id, target));
+        }
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.weak(format!(
+            "Initial: {} · * = any state · lower number = higher priority",
+            animator.initial
+        ));
+        if let Some(index) =
+            selected_transition.and_then(|i| animator.transitions.get(i).map(|_| i))
+        {
+            ui.label(format!(
+                "Selected #{}: {} → {}",
+                index + 1,
+                animator.transitions[index].from,
+                animator.transitions[index].to
+            ));
+        }
+    });
+}
 fn clip_picker(
     ui: &mut egui::Ui,
     id: &str,
@@ -405,4 +591,53 @@ fn repeat(ui: &mut egui::Ui, value: &mut Repeat) {
                 ui.selectable_value(value, mode, format!("{mode:?}"));
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn graph_layout_does_not_reorder_large_controller_transitions() {
+        let mut animator = Animator {
+            initial: "State 0".into(),
+            states: Arc::new(
+                (0..64)
+                    .map(|i| StateDefinition {
+                        name: format!("State {i}"),
+                        motion: Motion::Clip { clip: 0 },
+                        repeat: Repeat::Loop,
+                    })
+                    .collect(),
+            ),
+            transitions: Arc::new(
+                (0..128)
+                    .map(|i| Transition {
+                        from: format!("State {}", i % 64),
+                        to: format!("State {}", (i + 1) % 64),
+                        parameter: "Speed".into(),
+                        comparison: Comparison::Above,
+                        threshold: i as f32,
+                        fade: 0.2,
+                        exit_time: None,
+                    })
+                    .collect(),
+            ),
+            ..Default::default()
+        };
+        let expected = animator.clone();
+        let mut positions = BTreeMap::new();
+        let context = egui::Context::default();
+        let mut output = context.run_ui(egui::RawInput::default(), |ui| {
+            state_graph(ui, &mut animator, &mut positions, None);
+        });
+        output.textures_delta.clear();
+        assert_eq!(positions.len(), 64);
+        positions.get_mut("State 0").unwrap()[0] += 10.;
+        let mut output = context.run_ui(egui::RawInput::default(), |ui| {
+            state_graph(ui, &mut animator, &mut positions, Some(1));
+        });
+        output.textures_delta.clear();
+        assert_eq!(animator, expected);
+    }
 }

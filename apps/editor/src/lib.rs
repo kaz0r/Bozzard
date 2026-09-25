@@ -116,6 +116,8 @@ struct Workspace {
     zoom: f32,
     camera: Option<viewport::FlyCamera>,
     ortho_zoom: f32,
+    animation_graph:
+        std::collections::BTreeMap<String, std::collections::BTreeMap<String, [f32; 2]>>,
     canvas_preview: [u32; 2],
 }
 impl Default for Workspace {
@@ -146,6 +148,7 @@ impl Default for Workspace {
             zoom: 1.0,
             camera: None,
             ortho_zoom: 1.0,
+            animation_graph: Default::default(),
             canvas_preview: [0, 0],
         }
     }
