@@ -24,7 +24,7 @@ pub use gi::PreparedGi;
 mod framing;
 mod hierarchy;
 mod prefabs;
-pub use prefabs::{PrefabCommand, PreparedPrefab};
+pub use prefabs::{PrefabCommand, PrefabOverride, PreparedPrefab};
 mod loading;
 mod lod;
 pub use lod::{GeneratedLod, LodRequest, PreparedLods};

@@ -210,6 +210,144 @@ fn apply_updates_siblings_preserves_component_overrides_placement_and_source_his
 }
 
 #[test]
+fn component_overrides_revert_and_apply_without_writing_unselected_changes() {
+    let t = Temp::new();
+    let mut e = t.editor();
+    let asset = run(&mut e, PrefabCommand::Create);
+    run(
+        &mut e,
+        PrefabCommand::Instantiate {
+            asset: asset.clone(),
+            position: Some([8., 0., 0.]),
+        },
+    );
+    let second = e.selected.clone().unwrap();
+    let second_child = e.scene().prefabs[&second].members["child"].clone();
+    edit(&mut e, "child", |o| {
+        o.light.as_mut().unwrap().intensity = 25.;
+        o.transform.translation[1] = 4.;
+    });
+    edit(&mut e, "root", |o| {
+        o.drawable.as_mut().unwrap().color = [0., 0., 1.]
+    });
+    e.selected = Some("root".into());
+    let changes = e.prefab_overrides().unwrap();
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.object == "child" && c.component == "light")
+    );
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.object == "child" && c.component == "transform")
+    );
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.object == "root" && c.component == "drawable")
+    );
+    assert!(
+        !changes
+            .iter()
+            .any(|c| c.object == "root" && c.component == "transform")
+    );
+    e.revert_prefab_components(&[("child".into(), "light".into())])
+        .unwrap();
+    assert_eq!(object(&e, "child").light.unwrap().intensity, 10.);
+    assert_eq!(object(&e, "child").transform.translation[1], 4.);
+    e.undo().unwrap();
+    assert_eq!(object(&e, "child").light.unwrap().intensity, 25.);
+    let bytes_before = std::fs::read(source_path(&e, &asset)).unwrap();
+    assert!(
+        wait(
+            &e.prefab_job(PrefabCommand::ApplySelected {
+                components: vec![("child".into(), "missing".into())]
+            })
+            .unwrap()
+        )
+        .is_err()
+    );
+    assert_eq!(
+        std::fs::read(source_path(&e, &asset)).unwrap(),
+        bytes_before
+    );
+    run(
+        &mut e,
+        PrefabCommand::ApplySelected {
+            components: vec![("child".into(), "light".into())],
+        },
+    );
+    assert_eq!(
+        source(&e, &asset)
+            .objects
+            .iter()
+            .find(|o| o.id == "child")
+            .unwrap()
+            .light
+            .unwrap()
+            .intensity,
+        25.
+    );
+    assert_eq!(
+        source(&e, &asset)
+            .objects
+            .iter()
+            .find(|o| o.id == "child")
+            .unwrap()
+            .transform
+            .translation[1],
+        2.
+    );
+    assert_eq!(object(&e, &second_child).light.unwrap().intensity, 25.);
+    assert_eq!(object(&e, "child").transform.translation[1], 4.);
+    assert_eq!(
+        object(&e, "root").drawable.as_ref().unwrap().color,
+        [0., 0., 1.]
+    );
+    edit(&mut e, "child", |o| {
+        o.extras
+            .insert("vendor_glow".into(), serde_json::json!({"gain": 0.7}));
+        bozzard_scene::middleware::registry::set(
+            o,
+            &bozzard_scene::middleware::tween::Tween {
+                speed: 2.,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    });
+    e.selected = Some("root".into());
+    let changes = e.prefab_overrides().unwrap();
+    assert!(changes.iter().any(|c| c.component == "vendor_glow"));
+    assert!(changes.iter().any(|c| c.component == "tween"));
+    e.revert_prefab_components(&[("child".into(), "vendor_glow".into())])
+        .unwrap();
+    assert!(!object(&e, "child").extras.contains_key("vendor_glow"));
+    assert!(object(&e, "child").extras.contains_key("tween"));
+    e.undo().unwrap();
+    run(
+        &mut e,
+        PrefabCommand::ApplySelected {
+            components: vec![
+                ("child".into(), "vendor_glow".into()),
+                ("child".into(), "tween".into()),
+            ],
+        },
+    );
+    let published = source(&e, &asset);
+    let child = published.objects.iter().find(|o| o.id == "child").unwrap();
+    assert_eq!(child.extras["vendor_glow"]["gain"], 0.7);
+    assert_eq!(
+        bozzard_scene::middleware::registry::get::<bozzard_scene::middleware::tween::Tween>(child)
+            .unwrap()
+            .unwrap()
+            .speed,
+        2.
+    );
+}
+
+#[test]
 fn refresh_adds_and_removes_children_but_rejects_local_conflicts_and_invalid_source() {
     let t = Temp::new();
     let mut e = t.editor();
@@ -940,6 +1078,53 @@ fn variants_inherit_new_source_components_keep_local_overrides_and_apply_to_the_
             .unwrap()
             .name,
         "Variant bulb"
+    );
+}
+
+#[test]
+fn nested_variant_component_revert_preserves_unrelated_transform_and_local_placement() {
+    let t = Temp::new();
+    let mut e = t.editor();
+    let base = run(&mut e, PrefabCommand::Create);
+    let _variant = run(&mut e, PrefabCommand::Variant);
+    let nested = run(&mut e, PrefabCommand::Variant);
+    let base_bytes = std::fs::read(source_path(&e, &base)).unwrap();
+    let placement = object(&e, "root").transform;
+    edit(&mut e, "root", |o| {
+        o.drawable.as_mut().unwrap().color = [1., 0., 0.]
+    });
+    edit(&mut e, "child", |o| o.transform.translation[1] = 4.);
+    e.selected = Some("root".into());
+    assert!(
+        e.prefab_overrides()
+            .unwrap()
+            .iter()
+            .any(|c| c.object == "root" && c.component == "drawable")
+    );
+    e.revert_prefab_components(&[("root".into(), "drawable".into())])
+        .unwrap();
+    assert_eq!(
+        object(&e, "root").drawable.as_ref().unwrap().color,
+        [0.2, 0.8, 0.7]
+    );
+    assert_eq!(object(&e, "child").transform.translation[1], 4.);
+    e.undo().unwrap();
+    run(
+        &mut e,
+        PrefabCommand::ApplySelected {
+            components: vec![("root".into(), "drawable".into())],
+        },
+    );
+    assert_eq!(object(&e, "child").transform.translation[1], 4.);
+    assert_eq!(object(&e, "root").transform, placement);
+    assert_eq!(std::fs::read(source_path(&e, &base)).unwrap(), base_bytes);
+    assert_eq!(
+        source(&e, &nested).objects[0]
+            .drawable
+            .as_ref()
+            .unwrap()
+            .color,
+        [1., 0., 0.]
     );
 }
 

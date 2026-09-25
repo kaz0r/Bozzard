@@ -17,9 +17,83 @@ pub enum PrefabCommand {
         position: Option<[f32; 3]>,
     },
     Apply,
+    ApplySelected {
+        components: Vec<(String, String)>,
+    },
     Refresh {
         asset: String,
     },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrefabOverride {
+    pub object: String,
+    pub object_name: String,
+    pub component: String,
+    pub label: String,
+    pub inherited: Option<serde_json::Value>,
+    pub current: Option<serde_json::Value>,
+}
+
+fn component_value(object: &Object, name: &str) -> Result<Option<serde_json::Value>> {
+    match name {
+        "transform" => Ok(Some(serde_json::to_value(object.transform)?)),
+        "object_name" => Ok(Some(serde_json::to_value(&object.name)?)),
+        _ => {
+            if let Some(entry) = bozzard_scene::component_type(name) {
+                (entry.save)(object)
+            } else {
+                Ok(object.extras.get(name).cloned())
+            }
+        }
+    }
+}
+
+fn copy_component(
+    target: &mut Object,
+    source: &Object,
+    name: &str,
+    scene: &mut Scene,
+) -> Result<()> {
+    match name {
+        "transform" => target.transform = source.transform,
+        "object_name" => target.name.clone_from(&source.name),
+        _ => {
+            if let Some(entry) = bozzard_scene::component_type(name) {
+                if let Some(value) = (entry.save)(source)? {
+                    (entry.load)(target, value)?;
+                } else {
+                    (entry.remove)(target, scene);
+                }
+            } else if let Some(value) = source.extras.get(name) {
+                target.extras.insert(name.to_owned(), value.clone());
+            } else {
+                target.extras.remove(name);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn component_names(a: &Object, b: &Object) -> BTreeSet<String> {
+    let mut names: BTreeSet<_> = bozzard_scene::components()
+        .map(|entry| entry.name.to_owned())
+        .collect();
+    names.extend(
+        a.extras
+            .keys()
+            .filter(|n| bozzard_scene::component_type(n).is_none())
+            .cloned(),
+    );
+    names.extend(
+        b.extras
+            .keys()
+            .filter(|n| bozzard_scene::component_type(n).is_none())
+            .cloned(),
+    );
+    names.insert("transform".into());
+    names.insert("object_name".into());
+    names
 }
 
 pub struct PreparedPrefab {
@@ -176,6 +250,79 @@ pub(super) fn load_source(path: PathBuf, progress: &Progress) -> Result<LoadedSc
 }
 
 impl Editor {
+    pub fn prefab_overrides(&self) -> Result<Vec<PrefabOverride>> {
+        let root = self
+            .selected_prefab_root()
+            .context("Select a prefab instance")?;
+        let link = &self.scene.prefabs[root];
+        let mut changes = Vec::new();
+        for baseline in &link.baseline {
+            let current = self
+                .scene
+                .objects
+                .iter()
+                .find(|o| o.id == baseline.id)
+                .with_context(|| format!("Prefab member '{}' is missing", baseline.id))?;
+            for name in component_names(current, baseline) {
+                if name == "transform" && baseline.id == root {
+                    continue;
+                }
+                let inherited = component_value(baseline, &name)?;
+                let value = component_value(current, &name)?;
+                if inherited != value {
+                    let label = bozzard_scene::component_type(&name).map_or_else(
+                        || match name.as_str() {
+                            "transform" => "Transform".to_owned(),
+                            "object_name" => "Name".to_owned(),
+                            _ => format!("Unknown · {name}"),
+                        },
+                        |entry| entry.label.to_owned(),
+                    );
+                    changes.push(PrefabOverride {
+                        object: current.id.clone(),
+                        object_name: current.name.clone(),
+                        component: name,
+                        label,
+                        inherited,
+                        current: value,
+                    });
+                }
+            }
+        }
+        Ok(changes)
+    }
+
+    pub fn revert_prefab_components(&mut self, selected: &[(String, String)]) -> Result<()> {
+        ensure!(
+            self.play.is_none(),
+            "Stop Play before editing a prefab instance"
+        );
+        let root = self
+            .selected_prefab_root()
+            .context("Select a prefab instance")?
+            .to_owned();
+        let link = self.scene.prefabs[&root].clone();
+        let available: BTreeSet<_> = self
+            .prefab_overrides()?
+            .into_iter()
+            .map(|change| (change.object, change.component))
+            .collect();
+        ensure!(
+            !selected.is_empty() && selected.iter().all(|key| available.contains(key)),
+            "Choose existing component overrides in this instance"
+        );
+        let mut scene = self.scene.clone();
+        for (id, component) in selected {
+            let baseline = link.baseline.iter().find(|o| &o.id == id).unwrap();
+            let index = scene.objects.iter().position(|o| &o.id == id).unwrap();
+            let mut object = scene.objects[index].clone();
+            copy_component(&mut object, baseline, component, &mut scene)?;
+            scene.objects[index] = object;
+        }
+        self.finish_gesture();
+        self.apply("Revert prefab components", scene)
+    }
+
     pub(super) fn link_prefab(&mut self, path: &Path, progress: &Progress) -> Result<String> {
         progress.stage("Linking prefab source")?;
         let bytes = read_bytes(path)?;
@@ -541,7 +688,11 @@ impl Editor {
                 merge_instances(&mut scene, &prefab, &asset, &target, &self.path)?;
                 (asset, "Refresh prefab instances")
             }
-            PrefabCommand::Apply => {
+            apply @ (PrefabCommand::Apply | PrefabCommand::ApplySelected { .. }) => {
+                let selected = match &apply {
+                    PrefabCommand::ApplySelected { components } => Some(components.clone()),
+                    _ => None,
+                };
                 let id = self
                     .selected_prefab_root()
                     .context("Select a prefab instance")?
@@ -584,6 +735,44 @@ impl Editor {
                 inherited.remap_assets(&mapping);
                 prefab.nested = inherited.nested;
                 prefab.base = inherited.base;
+                if let Some(selected) = &selected {
+                    let allowed: BTreeSet<_> = self
+                        .prefab_overrides()?
+                        .into_iter()
+                        .map(|change| (change.object, change.component))
+                        .collect();
+                    ensure!(
+                        !selected.is_empty() && selected.iter().all(|key| allowed.contains(key)),
+                        "Choose existing component overrides in this instance"
+                    );
+                    let chosen: BTreeSet<_> = selected
+                        .iter()
+                        .map(|(id, name)| (inverse[id].clone(), name.clone()))
+                        .collect();
+                    let mut scratch = scene.clone();
+                    for object in &mut prefab.objects {
+                        let source = inherited
+                            .objects
+                            .iter()
+                            .find(|o| o.id == object.id)
+                            .context("Prefab source object is missing")?;
+                        let desired = object.clone();
+                        for name in component_names(object, source) {
+                            if name == "transform" && object.id == prefab.root {
+                                continue;
+                            }
+                            if !chosen.contains(&(object.id.clone(), name.clone())) {
+                                copy_component(object, source, &name, &mut scratch)?;
+                            }
+                        }
+                        // A selected component wins over a dependent removal while restoring
+                        // another component; final source validation still rejects incompatibility.
+                        let object_id = object.id.clone();
+                        for (_, name) in chosen.iter().filter(|(id, _)| *id == object_id) {
+                            copy_component(object, &desired, name, &mut scratch)?;
+                        }
+                    }
+                }
                 let json = prefab.to_json()?;
                 merge_instances(&mut scene, &prefab, &link.asset, &target, &self.path)?;
                 write = Some(SourceWrite {
@@ -592,7 +781,14 @@ impl Editor {
                     json,
                     previous: Some(previous),
                 });
-                (link.asset, "Apply prefab to source")
+                (
+                    link.asset,
+                    if selected.is_some() {
+                        "Apply selected prefab components"
+                    } else {
+                        "Apply prefab to source"
+                    },
+                )
             }
         };
         progress.stage("Preparing prefab dependencies")?;

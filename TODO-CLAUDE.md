@@ -78,10 +78,10 @@ The pane can be developed against B1's agreed data types before reload is implem
 
 ## C4: Inspect and resolve prefab component overrides — P2 / M
 
-- [ ] Display inherited versus overridden values, grouped by object and component.
-- [ ] Add selected-component revert and a reviewable selection of changes
+- [x] Display inherited versus overridden values, grouped by object and component.
+- [x] Add selected-component revert and a reviewable selection of changes
   to apply to the source. Keep whole-instance actions available.
-- [ ] Clearly distinguish an undoable scene edit from a write to a prefab source
+- [x] Clearly distinguish an undoable scene edit from a write to a prefab source
   file, including the affected instances.
 
 **Why now:** nesting, variants, source editing, Apply and Refresh already exist;
