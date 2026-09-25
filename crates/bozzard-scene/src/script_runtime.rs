@@ -1440,10 +1440,19 @@ impl SceneInstance {
             });
         }
         if let Some(runtime) = world.resource_mut::<ScriptRuntime>() {
-            for key in &candidate.attachments {
-                if let Some(run) = runtime.runs.get_mut(key) {
-                    run.scope = Scope::new();
-                    run.scope_initialized = false;
+            // Prefab and additive-scene attachments can appear while a worker compiles.
+            // Every live consumer of the asset needs fresh script-local globals, including
+            // attachments that were not present when this request was made.
+            for object in &self.document.objects {
+                if let Some(manager) = &object.script_manager {
+                    for (index, attachment) in manager.scripts.iter().enumerate() {
+                        if attachment.script == candidate.asset
+                            && let Some(run) = runtime.runs.get_mut(&(object.id.clone(), index))
+                        {
+                            run.scope = Scope::new();
+                            run.scope_initialized = false;
+                        }
+                    }
                 }
             }
         }
@@ -2654,6 +2663,63 @@ mod tests {
         assert_eq!(
             world.get::<Transform>(entity).unwrap().rotation_degrees[1],
             3.
+        );
+    }
+
+    #[test]
+    fn prefab_spawned_during_reload_gets_the_new_script_scope() {
+        let old = "let speed = 1.0; fn on_update(me, dt) { rotate(me, [0.0, speed, 0.0]); }";
+        let new = "let speed = 2.0; fn on_update(me, dt) { rotate(me, [0.0, speed, 0.0]); }";
+        let (mut instance, mut world) = demo(old);
+        instance.document.assets.insert(
+            "copy".into(),
+            AssetSource {
+                kind: AssetKind::Prefab,
+                path: "copy.prefab.json".into(),
+            },
+        );
+        let mut child = instance.document.objects[0].clone();
+        child.id = "child".into();
+        instance
+            .register_prefab(
+                "copy".into(),
+                Prefab {
+                    nested: Default::default(),
+                    base: None,
+                    version: 1,
+                    name: "Scripted copy".into(),
+                    root: "child".into(),
+                    objects: vec![child],
+                    assets: BTreeMap::from([(
+                        "drift".into(),
+                        instance.document.assets["drift"].clone(),
+                    )]),
+                },
+            )
+            .unwrap();
+        let request = instance.request_script_reload("drift", new.into()).unwrap();
+        let spawned = instance
+            .spawn_prefab(&mut world, "copy", [0., 0., 0.])
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let child = instance.entity(&spawned).unwrap();
+        assert_eq!(
+            world.get::<Transform>(child).unwrap().rotation_degrees[1],
+            1.
+        );
+
+        instance
+            .publish_script_reload(&mut world, finish_reload(request).unwrap())
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world.get::<Transform>(child).unwrap().rotation_degrees[1],
+            3.,
+            "the spawned attachment must initialize the new top-level speed"
         );
     }
 
