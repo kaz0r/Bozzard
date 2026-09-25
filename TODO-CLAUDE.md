@@ -36,10 +36,10 @@ layout rather than a separate layout implementation.
 
 ## C2: A true multi-object inspector — P1 / M
 
-- [ ] Show selected-object count, common components and mixed values.
-- [ ] Support changing shared scalar/vector fields across a selection, including
+- [x] Show selected-object count, common components and mixed values.
+- [x] Support changing shared scalar/vector fields across a selection, including
   clear absolute-versus-relative transform behavior.
-- [ ] Add explicit bulk add/remove component actions, with removal consequences
+- [x] Add explicit bulk add/remove component actions, with removal consequences
   shown before applying the command.
 
 **Why now:** the hierarchy supports multiple objects, but the inspector still starts

@@ -43,6 +43,7 @@ mod loading;
 mod lod_ui;
 mod material_ui;
 mod motion_ui;
+mod multi_inspector;
 mod multi_scene;
 mod navigation_ui;
 mod particle_ui;
@@ -211,6 +212,7 @@ struct App {
     hierarchy_search: String,
     surface_search: String,
     hierarchy_state: hierarchy::HierarchyState,
+    multi_inspector_cache: Option<multi_inspector::Cache>,
     hierarchy_frame_requested: bool,
     hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
@@ -354,6 +356,7 @@ impl App {
             hierarchy_search: String::new(),
             surface_search: String::new(),
             hierarchy_state: hierarchy::HierarchyState::default(),
+            multi_inspector_cache: None,
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),

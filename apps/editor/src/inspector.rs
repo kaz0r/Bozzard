@@ -46,6 +46,10 @@ impl App {
             ui.disable();
         }
         theme::panel_title(ui, "Properties");
+        if self.hierarchy_state.selection_count() > 1 && self.editor.selected_surface().is_none() {
+            self.multi_inspector(ui);
+            return;
+        }
         self.prefab_inspector(ui);
         let Some(original) = self.editor.selected_object().cloned() else {
             ui.add_space(16.0);

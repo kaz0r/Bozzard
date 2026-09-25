@@ -13,7 +13,9 @@ use std::{
     time::Duration,
 };
 
+mod bulk;
 mod components;
+pub use bulk::{BulkTransformAxis, BulkTransformMode};
 mod effects;
 pub use effects::EffectsPreview;
 mod deletion;

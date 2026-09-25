@@ -10,6 +10,7 @@ impl App {
         self.workspace.select_available_view(self.editor.scene());
         self.viewport_stamp = None;
         self.hierarchy_state = Default::default();
+        self.multi_inspector_cache = None;
         self.hierarchy_rename = None;
         self.hierarchy_search.clear();
         self.surface_search.clear();
