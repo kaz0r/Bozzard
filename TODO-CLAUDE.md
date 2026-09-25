@@ -57,11 +57,11 @@ component registry rather than maintaining another field catalog.
 
 ## C3: Script source pane and diagnostics — P1 / M; depends on B1
 
-- [ ] Open an attached script in a dockable, asset-backed source pane with line
+- [x] Open an attached script in a dockable, asset-backed source pane with line
   numbers, save/dirty state and explicit handling of external file changes.
-- [ ] Add completion/help from B1's engine API descriptions, including signatures
+- [x] Add completion/help from B1's engine API descriptions, including signatures
   and hook parameters. Do not duplicate a handwritten function list in the UI.
-- [ ] Show reload state, clickable file/line diagnostics and per-attachment hook
+- [x] Show reload state, clickable file/line diagnostics and per-attachment hook
   and command counts. Make save and apply-to-running-Play distinct states.
 
 **Why now:** Script Manager currently attaches and orders scripts; it is not a

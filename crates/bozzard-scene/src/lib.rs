@@ -33,6 +33,7 @@ pub use script_runtime::{
     NetworkFrame, ScriptAttachmentStats, ScriptModule, ScriptReloadCandidate, ScriptReloadRequest,
     ScriptReloadStatus, ScriptRuntime, ScriptRuntimeStats, load_sources,
     load_sources_with_progress, script_function_descriptions, script_hook_descriptions,
+    script_hook_signatures,
 };
 mod fog;
 pub use fog::FogSettings;

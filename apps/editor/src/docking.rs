@@ -10,15 +10,17 @@ pub enum Pane {
     Assets,
     Settings,
     Debug,
+    Script,
 }
 impl Pane {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::Scene,
         Self::Hierarchy,
         Self::Inspector,
         Self::Assets,
         Self::Settings,
         Self::Debug,
+        Self::Script,
     ];
     fn title(self) -> &'static str {
         match self {
@@ -28,6 +30,7 @@ impl Pane {
             Self::Assets => "Content",
             Self::Settings => "Settings",
             Self::Debug => "Debug",
+            Self::Script => "Script source",
         }
     }
     fn home(self) -> Dock {
@@ -35,7 +38,7 @@ impl Pane {
             Self::Scene => Dock::Center,
             Self::Hierarchy => Dock::Left,
             Self::Inspector => Dock::LeftLower,
-            Self::Assets | Self::Debug => Dock::Bottom,
+            Self::Assets | Self::Debug | Self::Script => Dock::Bottom,
             Self::Settings => Dock::Right,
         }
     }
@@ -75,20 +78,40 @@ impl Dock {
 #[serde(default)]
 pub struct Layout {
     // One slot per pane prevents duplicate or lost panels after layout restoration.
-    locations: [Dock; 6],
+    #[serde(
+        default = "default_locations",
+        deserialize_with = "deserialize_locations"
+    )]
+    locations: [Dock; 7],
     selected: [Option<Pane>; 5],
     generation: u64,
     #[serde(skip)]
-    tab_rects: [Option<egui::Rect>; 6],
+    tab_rects: [Option<egui::Rect>; 7],
     #[serde(skip)]
-    tab_layers: [Option<egui::LayerId>; 6],
+    tab_layers: [Option<egui::LayerId>; 7],
     #[serde(skip)]
     drag_candidate: Option<(Pane, egui::Pos2)>,
+}
+fn default_locations() -> [Dock; 7] {
+    Pane::ALL.map(Pane::home)
+}
+fn deserialize_locations<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<[Dock; 7], D::Error> {
+    let saved = Vec::<Dock>::deserialize(deserializer)?;
+    if saved.len() > 7 {
+        return Err(serde::de::Error::custom("too many dock locations"));
+    }
+    let mut locations = default_locations();
+    for (slot, location) in locations.iter_mut().zip(saved) {
+        *slot = location;
+    }
+    Ok(locations)
 }
 impl Default for Layout {
     fn default() -> Self {
         Self {
-            locations: Pane::ALL.map(Pane::home),
+            locations: default_locations(),
             selected: [
                 Some(Pane::Hierarchy),
                 Some(Pane::Inspector),
@@ -97,8 +120,8 @@ impl Default for Layout {
                 Some(Pane::Scene),
             ],
             generation: 0,
-            tab_rects: [None; 6],
-            tab_layers: [None; 6],
+            tab_rects: [None; 7],
+            tab_layers: [None; 7],
             drag_candidate: None,
         }
     }
@@ -123,7 +146,7 @@ impl Layout {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
-        visible: [bool; 6],
+        visible: [bool; 7],
         mut draw: impl FnMut(Pane, &mut egui::Ui),
     ) {
         let ctx = ui.ctx().clone();
@@ -279,7 +302,7 @@ impl Layout {
         &mut self,
         ui: &mut egui::Ui,
         dock: Dock,
-        visible: [bool; 6],
+        visible: [bool; 7],
         action: &mut Option<(Pane, Dock)>,
         draw: &mut impl FnMut(Pane, &mut egui::Ui),
     ) {
@@ -363,7 +386,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    layout.show(ui, [true; 6], |pane, ui| {
+                    layout.show(ui, [true; 7], |pane, ui| {
                         ui.label(pane.title());
                     })
                 },
@@ -431,9 +454,9 @@ mod tests {
         assert_eq!(restored.locations[Pane::Inspector as usize], Dock::Right);
         assert_eq!(restored.locations[Pane::Assets as usize], Dock::Floating);
         let ctx = egui::Context::default();
-        let mut counts = [0; 6];
+        let mut counts = [0; 7];
         let mut output = ctx.run_ui(Default::default(), |ui| {
-            restored.show(ui, [true; 6], |p, ui| {
+            restored.show(ui, [true; 7], |p, ui| {
                 counts[p as usize] += 1;
                 ui.label(p.title());
             })
@@ -449,5 +472,9 @@ mod tests {
             serde_json::from_str::<Layout>("{}").unwrap().locations,
             restored.locations
         );
+        let mut legacy = serde_json::to_value(Layout::default()).unwrap();
+        legacy["locations"].as_array_mut().unwrap().truncate(6);
+        let upgraded: Layout = serde_json::from_value(legacy).unwrap();
+        assert_eq!(upgraded.locations[Pane::Script as usize], Dock::Bottom);
     }
 }

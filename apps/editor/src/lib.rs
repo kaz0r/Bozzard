@@ -218,6 +218,7 @@ struct App {
     asset_browser: asset_browser::AssetBrowser,
     lod_tools: lod_ui::LodTools,
     blueprint_pane: blueprints::BlueprintPane,
+    script_pane: scripts::ScriptPane,
     blueprint_debug: blueprint_debug::Workspace,
     shader_pane: shaders::ShaderPane,
     material_pane: material_ui::MaterialPane,
@@ -362,6 +363,7 @@ impl App {
             asset_browser: asset_browser::AssetBrowser::default(),
             lod_tools: lod_ui::LodTools::default(),
             blueprint_pane: blueprints::BlueprintPane::default(),
+            script_pane: Default::default(),
             blueprint_debug: Default::default(),
             shader_pane: shaders::ShaderPane::default(),
             material_pane: material_ui::MaterialPane::default(),
@@ -462,6 +464,11 @@ impl App {
         }
         if matches!(pending, Pending::Close) && self.material_pane.dirty() {
             self.status = "Save or discard the open material draft before quitting".into();
+            return;
+        }
+        if matches!(pending, Pending::Close) && self.script_pane.dirty() {
+            self.dock_focus = Some(docking::Pane::Script);
+            self.status = "Save or discard the open script draft before quitting".into();
             return;
         }
         if self.loading.is_some() {
@@ -1532,7 +1539,8 @@ impl eframe::App for App {
             && !self.allow_close
             && (self.open_scenes.any_dirty(&self.editor)
                 || self.material_pane.dirty()
-                || self.level_tools.dirty())
+                || self.level_tools.dirty()
+                || self.script_pane.dirty())
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.request(Pending::Close);
@@ -1711,6 +1719,7 @@ impl eframe::App for App {
             self.workspace.assets_visible,
             self.workspace.settings_visible,
             self.workspace.debug_visible,
+            self.script_pane.is_open(),
         ];
         self.viewport_rect = None;
         layout.show(ui, visible, |pane, ui| match pane {
@@ -1720,6 +1729,7 @@ impl eframe::App for App {
             docking::Pane::Assets => self.assets_content(ui),
             docking::Pane::Settings => self.settings_content(ui),
             docking::Pane::Debug => self.debug_content(ui),
+            docking::Pane::Script => self.script_source_pane(ui),
         });
         self.workspace.docking = layout;
         if let Some(pane) = self.dock_focus.take() {

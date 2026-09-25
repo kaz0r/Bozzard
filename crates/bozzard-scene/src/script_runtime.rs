@@ -15,7 +15,7 @@ use rhai::{
     Scope,
 };
 use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 mod compute_api;
 mod module;
 pub use module::{NetworkFrame, ScriptModule};
@@ -33,34 +33,45 @@ const MAX_ATTACHMENT_STATS: usize = 4096;
 /// Prefix of a spawn handle, which scene object IDs do not use.
 const SPAWN_PREFIX: &str = "@script/";
 
-/// Every hook a script may define, with its parameter count.
+/// Every hook a script may define, with its parameter names.
 ///
 /// These mirror the blueprint event nodes one for one. `On Input Pressed` has no hook: scripts run
 /// every tick, so `input_pressed("jump")` inside `on_update` answers it directly.
-const HOOKS: &[(&str, usize)] = &[
-    ("on_enable", 1),
-    ("on_start", 1),
-    ("on_update", 2),
-    ("on_object_enter", 2),
-    ("on_object_exit", 2),
-    ("on_overlap_enter", 1),
-    ("on_overlap_exit", 1),
-    ("on_collision_enter", 4),
-    ("on_disable", 1),
-    ("on_destroy", 1),
-    ("network_spawn", 1),
-    ("network_predict", 3),
-    ("network_input", 1),
-    ("network_pipes", 0),
-    ("network_step", 2),
-    ("network_resolve", 3),
-    ("network_finished", 1),
-    ("network_countdown", 0),
+const HOOK_SIGNATURES: &[(&str, &[&str])] = &[
+    ("on_enable", &["me"]),
+    ("on_start", &["me"]),
+    ("on_update", &["me", "dt"]),
+    ("on_object_enter", &["me", "other"]),
+    ("on_object_exit", &["me", "other"]),
+    ("on_overlap_enter", &["me"]),
+    ("on_overlap_exit", &["me"]),
+    ("on_collision_enter", &["me", "other", "normal", "impulse"]),
+    ("on_disable", &["me"]),
+    ("on_destroy", &["me"]),
+    ("network_spawn", &["slot"]),
+    ("network_predict", &["player", "pressed", "dt"]),
+    ("network_input", &["key"]),
+    ("network_pipes", &[]),
+    ("network_step", &["pipes", "dt"]),
+    ("network_resolve", &["player", "before", "after"]),
+    ("network_finished", &["players"]),
+    ("network_countdown", &[]),
 ];
+static HOOKS: LazyLock<Vec<(&'static str, usize)>> = LazyLock::new(|| {
+    HOOK_SIGNATURES
+        .iter()
+        .map(|(name, args)| (*name, args.len()))
+        .collect()
+});
 
 /// Hook names and argument counts accepted by the scene runtime.
 pub fn script_hook_descriptions() -> &'static [(&'static str, usize)] {
-    HOOKS
+    HOOKS.as_slice()
+}
+
+/// Hook signatures for source completion, from the same table used for runtime arity checks.
+pub fn script_hook_signatures() -> &'static [(&'static str, &'static [&'static str])] {
+    HOOK_SIGNATURES
 }
 
 /// Signatures of the native functions available to Rhai scripts. Build this only for an
