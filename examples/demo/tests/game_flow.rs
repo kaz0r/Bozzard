@@ -68,6 +68,54 @@ fn ready_pause_end_and_retry_freeze_and_reset_the_complete_world() {
 }
 
 #[test]
+fn playing_menu_restarts_the_run_from_keyboard_and_pointer() {
+    use bozzard_scene::{Layer, middleware::ui::Input};
+
+    let mut d = SceneDemo::new(&load()).unwrap();
+    let initial = d.instance().capture(&d.app.world).unwrap();
+    let size = [1280., 720.];
+    assert!(
+        d.ui_input(Layer::ThreeD, size, Input::Key("Enter".into()))
+            .unwrap()
+    );
+    for keyboard in [true, false] {
+        step(&mut d, true);
+        assert_eq!(text(&d), "Taps: 1");
+        let frame = d
+            .instance()
+            .ui_frame(&d.app.world, Layer::ThreeD, size)
+            .unwrap();
+        let restart = frame.elements.iter().find(|e| e.text == "Restart").unwrap();
+        let pause = frame.elements.iter().find(|e| e.text == "Pause").unwrap();
+        assert!(pause.rect.min[1] + pause.rect.size[1] <= restart.rect.min[1]);
+        let ticks = d.app.ticks();
+        if keyboard {
+            assert!(
+                d.ui_input(Layer::ThreeD, size, Input::Key("R".into()))
+                    .unwrap()
+            );
+        } else {
+            let point = [restart.rect.min[0] + 20., restart.rect.min[1] + 20.];
+            assert!(
+                d.ui_input(Layer::ThreeD, size, Input::PointerDown(point))
+                    .unwrap()
+            );
+            assert_eq!(text(&d), "Taps: 1", "restart waits for the click release");
+            assert!(
+                d.ui_input(Layer::ThreeD, size, Input::PointerUp(point))
+                    .unwrap()
+            );
+        }
+        assert_eq!(d.app.ticks(), ticks, "UI restart must not tick gameplay");
+        assert_eq!(d.game_session().unwrap().phase, P::Playing);
+        assert_eq!(d.instance().capture(&d.app.world).unwrap(), initial);
+        let input = d.app.world.resource::<GameplayInput>().unwrap();
+        assert!(!input.jump);
+        assert_eq!(input.keys | input.pressed_keys, 0);
+    }
+}
+
+#[test]
 fn end_game_stops_other_events_and_requires_opt_in() {
     let mut source = load();
     let graph = &mut source

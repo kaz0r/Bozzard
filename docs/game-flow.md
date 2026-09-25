@@ -3,7 +3,7 @@
 Enable **Game Flow → Start, pause and retry menus** in the scene settings inspector, then set the game title and instructions. The same screen-anchored menus appear in editor Play and exported games. Existing scenes run immediately unless they opt in.
 
 - **Ready:** click Start game or press Enter.
-- **Playing:** click Pause or press Escape. R restarts immediately.
+- **Playing:** click Pause or press Escape. Click Restart or press R to restart immediately.
 - **Paused:** click Resume or press Enter/Escape; Restart or R resets the run.
 - **Game over:** click Retry or press Enter/R.
 - **Quit:** click Quit or press Q from a menu. This closes the player or returns editor Play to editing.

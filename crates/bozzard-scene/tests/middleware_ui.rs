@@ -308,7 +308,7 @@ fn authored_menu_migration_and_ui_actions_leave_simulation_unticked() {
             .unwrap()
             .focusable()
             .len(),
-        1
+        2
     );
 }
 #[test]
