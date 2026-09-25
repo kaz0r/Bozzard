@@ -67,7 +67,20 @@ jobs:
       - name: Compile the game-specific factory editor
         run: cargo clippy -p bozzard-editor-app --all-targets --features factory --locked --offline -- -D warnings
       - name: CPU and headless tests
-        run: cargo test --workspace --locked --offline
+        run: |
+          log="$RUNNER_TEMP/workspace-tests.log"
+          status=0
+          cargo test --workspace --locked --offline >"$log" 2>&1 || status=$?
+          cat "$log"
+          if (( status != 0 )); then
+            failed_tests=$(awk '/^test [A-Za-z0-9_:]+ \.\.\. FAILED$/ { if (++n <= 20) print $2 }' "$log")
+            failed_tests=${failed_tests//$'\n'/,}
+            if [[ -z "$failed_tests" ]]; then
+              failed_tests="no failing test identifier in cargo output"
+            fi
+            printf '::error title=Workspace tests (exit %s)::Failed test identifiers: %s\n' "$status" "$failed_tests"
+            exit "$status"
+          fi
       - name: Non-Steam editor error paths
         run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
       - name: Build native release executables
