@@ -230,14 +230,41 @@ fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
         "{kind} frustum did not cull distant geometry"
     );
     renderer.set_culling_enabled(false);
+    let instanced = capture(gpu, &mut renderer, &scene, [128, 128])?;
+    let instanced_stats = renderer.frame_stats();
     ensure!(
-        capture(gpu, &mut renderer, &scene, [128, 128])?.rgba == culled.rgba,
-        "spot culling differs from reference pixels"
+        instanced.rgba == culled.rgba,
+        "{kind} culling differs from reference pixels"
+    );
+    // The two built-in quads share one draw when instancing is enabled. Count
+    // casters against an uninstanced reference, then check that
+    // batching preserves both submitted geometry and the complete image.
+    renderer.set_instancing_enabled(false);
+    let reference = capture(gpu, &mut renderer, &scene, [128, 128])?;
+    let reference_stats = renderer.frame_stats();
+    let maps = if point { 6 } else { 1 };
+    ensure!(
+        reference_stats.shadow_draws == 3 * maps
+            && reference_stats.shadow_triangles == 6 * maps as u64,
+        "{kind} unculled shadow reference skipped a caster: {reference_stats:?}"
     );
     ensure!(
-        renderer.frame_stats().shadow_draws == if point { 18 } else { 3 },
-        "unculled shadow reference skipped a caster"
+        instanced.rgba == reference.rgba,
+        "{kind} shadow instancing changed reference pixels"
     );
+    ensure!(
+        instanced_stats.shadow_draws == 2 * maps
+            && instanced_stats.shadow_triangles == reference_stats.shadow_triangles,
+        "{kind} shadow instancing changed caster geometry or did not batch: \
+         reference={reference_stats:?}, instanced={instanced_stats:?}"
+    );
+    println!(
+        "{kind}_shadow_instancing_ok reference_draws={} instanced_draws={} triangles={} exact_pixels=true",
+        reference_stats.shadow_draws,
+        instanced_stats.shadow_draws,
+        instanced_stats.shadow_triangles
+    );
+    renderer.set_instancing_enabled(true);
     renderer.set_culling_enabled(true);
     renderer.set_state_caching_enabled(true);
     scene.items.pop();
