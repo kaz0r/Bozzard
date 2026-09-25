@@ -12,6 +12,58 @@ fn scene(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
+fn ui_widget_layout_gesture_undo_save_and_reopen() -> anyhow::Result<()> {
+    use bozzard_scene::middleware::{registry, ui::Widget};
+    let mut editor = Editor::open(&scene("ui-2d-lab"))?;
+    let id = editor
+        .scene()
+        .objects
+        .iter()
+        .find(|o| o.extras.contains_key("ui_widget"))
+        .unwrap()
+        .id
+        .clone();
+    editor.selected = Some(id.clone());
+    let original = editor.scene().clone();
+    editor.begin_gesture("Edit UI widget layout");
+    let mut updated = original.clone();
+    let widget = updated.objects.iter_mut().find(|o| o.id == id).unwrap();
+    let mut value = registry::get::<Widget>(widget)?.unwrap();
+    value.anchors.offset[0] += 20.;
+    value.anchors.size[0] += 30.;
+    registry::set(widget, &value)?;
+    editor.apply("Edit UI widget layout", updated.clone())?;
+    editor.finish_gesture();
+    assert_eq!(editor.scene(), &updated);
+    editor.undo()?;
+    assert_eq!(editor.scene(), &original);
+    editor.redo()?;
+    assert_eq!(editor.scene(), &updated);
+    for size in [[1280., 720.], [1440., 900.], [480., 800.]] {
+        assert_eq!(editor.ui_frame(Layer::TwoD, size)?.size, size);
+    }
+    assert_eq!(
+        editor.scene(),
+        &updated,
+        "preview dimensions must not enter authored data"
+    );
+    let temp = std::env::temp_dir().join(format!(
+        "bozzard-ui-layout-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir(&temp)?;
+    let destination = temp.join("scene.json");
+    editor.save(&destination)?;
+    let reopened = Editor::open(&destination)?;
+    assert_eq!(reopened.scene(), editor.scene());
+    std::fs::remove_dir_all(temp)?;
+    Ok(())
+}
+
+#[test]
 fn every_middleware_object_can_be_hidden_and_restored_without_changing_the_source()
 -> anyhow::Result<()> {
     for name in ["middleware-lab", "ui-2d-lab"] {

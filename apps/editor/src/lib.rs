@@ -115,6 +115,7 @@ struct Workspace {
     zoom: f32,
     camera: Option<viewport::FlyCamera>,
     ortho_zoom: f32,
+    canvas_preview: [u32; 2],
 }
 impl Default for Workspace {
     fn default() -> Self {
@@ -144,6 +145,7 @@ impl Default for Workspace {
             zoom: 1.0,
             camera: None,
             ortho_zoom: 1.0,
+            canvas_preview: [0, 0],
         }
     }
 }
@@ -243,6 +245,7 @@ struct App {
     confirm_discard: bool,
     allow_close: bool,
     drag: Option<viewport::Drag>,
+    canvas_drag: Option<viewport::CanvasDrag>,
     navigation_button: Option<egui::PointerButton>,
     mouse_captured: bool,
     escape_deselect_requested: bool,
@@ -385,6 +388,7 @@ impl App {
             confirm_discard: false,
             allow_close: false,
             drag: None,
+            canvas_drag: None,
             navigation_button: None,
             mouse_captured: false,
             escape_deselect_requested: false,

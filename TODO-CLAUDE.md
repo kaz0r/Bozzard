@@ -15,11 +15,11 @@ These already exist; this list extends them.
 
 ## C1: Canvas layout tools — P1 / M
 
-- [ ] Extend existing HUD picking/selection with persistent widget outlines,
+- [x] Extend existing HUD picking/selection with persistent widget outlines,
   move/resize handles and visible anchor/pivot guides in the editor's UI canvas.
-- [ ] Add viewport-size presets and custom dimensions so authors can preview the
+- [x] Add viewport-size presets and custom dimensions so authors can preview the
   same menu at 16:9, 16:10 and a narrow window without changing scene data.
-- [ ] Make parent layout constraints clear: explain when layout owns a position
+- [x] Make parent layout constraints clear: explain when layout owns a position
   instead of letting a drag appear to work and then snap back.
 
 **Why now:** widgets already render in the viewport, but layout authoring mainly

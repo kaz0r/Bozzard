@@ -56,6 +56,13 @@ Blueprints expose play/pause/stop/seek, progress, scalar curve sampling and comp
 
 Create a root **UI Canvas** and parent **UI Widget** objects beneath it. Widgets are panels, labels, images, buttons, toggles or sliders. Anchors/pivot/offset/size position a widget relative to its parent. Absolute, row, column and grid layouts support padding, gaps and growing children. Canvas scaling uses reference pixels (Fit, Width, Height or Pixels); a phase can restrict a canvas to Ready, Playing, Paused or Game over.
 
+In the editor's 2D viewport, the canvas preview menu offers Fit, 16:9, 16:10, narrow and custom
+sizes. These dimensions stay in the workspace and do not change the scene. Visible widget outlines,
+an anchor/pivot guide and a selected resize handle use the runtime's resolved layout, including
+clipping and canvas scale. Drag a widget to move it or its handle to resize it; Escape cancels and
+each finished drag is one Undo step. A row, column or grid parent owns its children's placement,
+so the Inspector explains which parent settings to edit instead.
+
 Wrapped text has an intrinsic height measured by the same CPU shaping code used by rendering. Scrollable panels clip their children, draw a scroll thumb, accept wheel/Page keys and reveal controls when keyboard focus moves. Images support normalized atlas UV regions and nine-slice borders in source pixels. The editor previews a selected phase-specific canvas without changing the saved game phase.
 
 Button/toggle/slider interaction emits **On UI Event** on that widget, with `Name` and numeric `Value`. Other nodes set text/value/visibility/enabled state, move focus, change language/text scale/contrast/reduced-motion preference, and start/pause/resume/restart/quit the game. Reduced motion is an exposed preference: authors can branch on **UI Reduced Motion** to select calmer gameplay or cinematic effects.

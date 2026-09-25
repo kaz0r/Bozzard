@@ -134,7 +134,7 @@ impl App {
                                 }
                                 if let Err(error) = crate::navigation_ui::component(ui, &mut object, entry.name, &scene) { error_slot = Some(error); }
                                 if let Err(error) = crate::particle_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
-                                if let Err(error) = crate::widget_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
+                                if let Err(error) = crate::widget_ui::component(ui, &mut object, entry.name, &scene) { error_slot = Some(error); }
                                 if let Err(error) = crate::sprite_ui::component(ui, &mut object, entry.name, &self.editor.assets) { error_slot = Some(error); }
                                 crate::font_ui::component(ui, &mut object, entry.name, &self.editor.assets);
                                 if entry.name == "animator" && let Err(error) = crate::animation_ui::component(ui, &mut object, &self.editor.assets) {
