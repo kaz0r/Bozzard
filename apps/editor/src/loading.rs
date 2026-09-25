@@ -209,8 +209,15 @@ impl App {
                     self.editor.accept_play(prepared)?;
                     #[cfg(feature = "factory")]
                     if self.factory_mode {
-                        let module = bozz_torio::module::FactoryModule::from_scene(
-                            self.editor.scene(), &self.editor.path)?;
+                        let module = match bozz_torio::module::FactoryModule::from_scene(
+                            self.editor.scene(), &self.editor.path,
+                        ) {
+                            Ok(module) => module,
+                            Err(error) => {
+                                self.stop_play();
+                                return Err(error);
+                            }
+                        };
                         if let Err(error) = self.editor.play.as_mut().unwrap().app
                             .install_modules(vec![Box::new(module.clone())]) {
                             self.stop_play();
