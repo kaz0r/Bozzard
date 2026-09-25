@@ -89,7 +89,8 @@ impl GameplayControls {
         }
     }
 
-    /// Runs in raw_input_hook, before Editor::advance can consume queued motion/edges.
+    /// Test shorthand when keyboard focus and pointer ownership have the same eligibility.
+    #[cfg(test)]
     pub fn prepare(
         &mut self,
         input: &RawInput,
@@ -100,6 +101,7 @@ impl GameplayControls {
         self.prepare_with_pointer(input, previous_modifiers, eligible, eligible, play);
     }
 
+    /// Runs in raw_input_hook, before Editor::advance can consume queued motion/edges.
     /// Keyboard focus and pointer ownership are separate in editor Play: a script can receive
     /// keys while the mouse is outside the viewport, but editor-panel clicks must stay in egui.
     pub fn prepare_with_pointer(
