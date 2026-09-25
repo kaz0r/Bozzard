@@ -79,19 +79,21 @@ jobs:
           BACKEND: ${{ matrix.backend }}
           SOFTWARE: ${{ matrix.software }}
         run: |
+          status=0
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            if ! output=$(xvfb-run -a target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1); then
-              printf '%s\n' "$output"
-              exit 1
-            fi
+            output=$(xvfb-run -a target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1) || status=$?
           else
-            if ! output=$(target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1); then
-              printf '%s\n' "$output"
-              exit 1
-            fi
+            output=$(target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1) || status=$?
           fi
           printf '%s\n' "$output"
-          [[ "$output" == *device_recreation_ok* && "$output" == *window_ok* ]]
+          if (( status != 0 )) || [[ "$output" != *device_recreation_ok* || "$output" != *window_ok* ]]; then
+            detail=${output: -3000}
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\r'/'%0D'}
+            detail=${detail//$'\n'/'%0A'}
+            printf '::error title=Player device recreation smoke (exit %s)::%s\n' "$status" "$detail"
+            exit 1
+          fi
       - name: Package Bozz-torio and verify its relocated factory
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then

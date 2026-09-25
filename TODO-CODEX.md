@@ -2,9 +2,10 @@
 
 Planning snapshot: 2026-09-24, based on `main` at `27381da`. The implementation
 items below are complete on `codex/todo-runtime-reliability`. Linux local tests,
-packaging, export, and a Vulkan device-recreation smoke passed. Windows/macOS and
-Linux native CI still await a pull request; a live two-account Steam acceptance run
-still requires target accounts and machines. UI counterparts are in
+packaging, export, and a Vulkan device-recreation smoke passed. Native CI and
+review are tracked by [PR #37](https://github.com/kaz0r/Bozzard/pull/37); a live
+two-account Steam acceptance run still requires target accounts and machines.
+UI counterparts are in
 [Claude's list](TODO-CLAUDE.md).
 
 Start B1 while Claude works on C1/C2, then integrate C3. B2 and B3 are the next
