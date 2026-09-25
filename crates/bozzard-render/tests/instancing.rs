@@ -116,6 +116,7 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
     let mut renderers =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
     renderers[0].set_instancing_enabled(false);
+    renderers[0].set_state_caching_enabled(false);
     let mut scene = scene(1024);
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[0].frame_stats().color_draws, 1024);
@@ -137,7 +138,42 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
         scene.display.time_seconds = tick as f32 / 60.;
         scene.items[3].model *= Mat4::from_translation(Vec3::new(0.1, 0., 0.));
         compare(&gpu, &mut renderers, &scene)?;
+        assert_eq!(
+            renderers[0].frame_stats().shadow_triangles,
+            renderers[1].frame_stats().shadow_triangles
+        );
+        assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
     }
+    // Local light frusta can split a color batch; unlit objects in that batch must never cast.
+    scene.items[15].material.lit = false;
+    scene.lights = vec![
+        LocalLight {
+            directional: false,
+            position: [0., -14., 1.],
+            direction: [0., 0., -1.],
+            color: [1., 0.6, 0.3],
+            intensity: 3.,
+            range: 40.,
+            spot_angles: Some([35., 55.]),
+            shadows: Some(Default::default()),
+        },
+        LocalLight {
+            directional: false,
+            position: [0., -14., -3.],
+            direction: [0., 0., -1.],
+            color: [0.3, 0.6, 1.],
+            intensity: 2.,
+            range: 30.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        },
+    ];
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[0].frame_stats().shadow_triangles,
+        renderers[1].frame_stats().shadow_triangles
+    );
+    assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
     // Transparent textures stay sorted and single-draw even between opaque runs.
     for r in &mut renderers {
         r.upload_image(&gpu, "glass", 1, 1, &[255, 20, 0, 128])?;
@@ -161,6 +197,45 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
     scene.items.clear();
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().color_draws, 0);
+    Ok(())
+}
+
+#[test]
+fn stationary_uniforms_are_reused_and_render_edits_match_uncached_output() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_state_caching_enabled(false);
+    let mut scene = scene(67);
+    for _ in 0..3 {
+        compare(&gpu, &mut renderers, &scene)?;
+    }
+    assert_eq!(renderers[1].frame_stats().object_uniform_builds, 0);
+    for change in 0..9 {
+        match change {
+            0 => scene.items[0].model *= Mat4::from_translation(Vec3::X * 0.2),
+            1 => scene.items[1].material.tint = [1., 0., 0.],
+            2 => scene.items[2].material.uv_scale = [2., 3.],
+            3 => scene.items[3].material.texture = TextureKind::Normals,
+            4 => scene.items[4].material.roughness = Some(0.1),
+            5 => scene.items[5].material.lit = false,
+            6 => scene.lighting.sun_color = [0.3, 1., 0.4],
+            7 => scene.view_projection *= Mat4::from_translation(Vec3::X * 0.25),
+            _ => {
+                scene.fog.enabled = true;
+                scene.fog.distance_density = 0.08;
+            }
+        }
+        compare(&gpu, &mut renderers, &scene)?;
+        let builds = renderers[1].frame_stats().object_uniform_builds;
+        assert!(builds > 0);
+        if change < 6 {
+            assert!(
+                builds <= 2,
+                "only edited/moving objects should rebuild: {builds}"
+            );
+        }
+    }
     Ok(())
 }
 

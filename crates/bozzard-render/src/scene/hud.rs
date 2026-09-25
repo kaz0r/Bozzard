@@ -196,7 +196,11 @@ impl HudRenderer {
                 .chain([
                     *opacity,
                     if self.encode && !raw { 1. } else { 0. },
-                    0.,
+                    if material.texture == TextureKind::Text {
+                        1.
+                    } else {
+                        0.
+                    },
                     0.,
                     0.,
                 ]);
@@ -339,6 +343,54 @@ mod tests {
             coordinates(&capture(&mut renderer, &scene, 320, 240)?),
             original
         );
+        // A narrow stroke must retain its coverage as a tooltip moves through
+        // fractional screen positions. Downsampling the old 64px glyph atlas made
+        // small letters flicker or disappear depending on their subpixel phase.
+        scene.items.truncate(1);
+        scene.display = Default::default();
+        scene.items[0].material.tint = [1.; 3];
+        for density in [1., 2.] {
+            renderer.set_hud_scale(density);
+            for font_size in [9., 13., 17.5] {
+                let mut coverage = Vec::new();
+                for phase in 0..8 {
+                    if let MeshKind::Text(text) = &mut scene.items[0].mesh {
+                        text.text = "lll".into();
+                        text.font_size = font_size;
+                        text.alignment = TextAlignment::Left;
+                        text.screen = Some(ScreenText {
+                            anchor: [0.; 2],
+                            offset: [20. + phase as f32 / (8. * density), 20.],
+                        });
+                    }
+                    let image = crate::capture_offscreen(&gpu, 160, 100, |target| {
+                        renderer.draw_linear(&gpu, target, [160, 100], &scene)
+                    })?;
+                    // Clear sky is neutral: compare to a pixel outside the label.
+                    let background = image.rgba[0];
+                    let sum: u64 = image
+                        .rgba
+                        .chunks_exact(4)
+                        .map(|p| u64::from(p[0].saturating_sub(background)))
+                        .sum();
+                    assert!(sum > 200, "small text must remain visible");
+                    assert!(
+                        image
+                            .rgba
+                            .chunks_exact(4)
+                            .any(|p| p[0] > background + 5 && p[0] < 240),
+                        "glyph edges must include antialiased coverage"
+                    );
+                    coverage.push(sum);
+                }
+                let min = *coverage.iter().min().unwrap() as f64;
+                let max = *coverage.iter().max().unwrap() as f64;
+                assert!(
+                    min / max > 0.95,
+                    "small HUD strokes flicker at {font_size}px and {density}x: {coverage:?}"
+                );
+            }
+        }
         scene.items.clear();
         assert!(coordinates(&capture(&mut renderer, &scene, 320, 240)?).is_empty());
         assert!(renderer.text.is_none() && renderer.hud.is_none());

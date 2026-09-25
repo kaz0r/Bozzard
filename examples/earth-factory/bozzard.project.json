@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "Earth Factory Prototype",
+  "start_scene": "scenes/earth.json",
+  "view": "3d",
+  "cook": "universal"
+}

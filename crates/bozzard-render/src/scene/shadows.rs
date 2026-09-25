@@ -103,12 +103,89 @@ pub(super) struct Shadows {
     pub sample_layout: wgpu::BindGroupLayout,
     pub sample_binding: wgpu::BindGroup,
     caster_binding: wgpu::BindGroup,
+    pub caster_layout: wgpu::BindGroupLayout,
     pub pipeline: wgpu::RenderPipeline,
     pub point_pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     sampler: wgpu::Sampler,
     depth: wgpu::TextureView,
     resolution: u32,
+}
+
+fn module_text(instanced: bool) -> String {
+    let source = include_str!("shadow_cast.wgsl");
+    if !instanced {
+        return source.into();
+    }
+    source
+        .replace("@group(0) @binding(0) var<uniform> object: ObjectUniform;",
+            &format!("@group(0) @binding(0) var<uniform> objects: array<ObjectUniform, {}>;\nvar<private> object: ObjectUniform;", instancing::MAX_INSTANCES))
+        .replace("struct VertexOutput {", "struct VertexOutput { @location(1) @interpolate(flat) instance: u32,")
+        .replace("fn vs_main(", "fn vs_main(@builtin(instance_index) instance: u32, ")
+        .replace("var out: VertexOutput;", "object = objects[instance];\nvar out: VertexOutput;\nout.instance = instance;")
+        .replace("front: bool) {", "front: bool) {\nobject = objects[in.instance];")
+}
+
+pub(super) fn pipeline(
+    gpu: &Gpu,
+    object_layout: &wgpu::BindGroupLayout,
+    caster_layout: &wgpu::BindGroupLayout,
+    instanced: bool,
+    point: bool,
+) -> wgpu::RenderPipeline {
+    let layout = gpu
+        .device
+        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("shadow pipeline layout"),
+            bind_group_layouts: &[Some(object_layout), Some(caster_layout)],
+            immediate_size: 0,
+        });
+    let shader = gpu
+        .device
+        .create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("depth caster"),
+            source: wgpu::ShaderSource::Wgsl(module_text(instanced).into()),
+        });
+    gpu.device
+        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(if instanced {
+                "instanced shadow pass"
+            } else {
+                "shadow pass"
+            }),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[Some(wgpu::VertexBufferLayout {
+                    array_stride: 32,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x2],
+                })],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[],
+            }),
+            primitive: Default::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: Default::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: 0,
+                    slope_scale: if point { 3. } else { 1. },
+                    clamp: 0.,
+                },
+            }),
+            multisample: Default::default(),
+            multiview_mask: None,
+            cache: None,
+        })
 }
 fn target(gpu: &Gpu, resolution: u32) -> wgpu::TextureView {
     gpu.device
@@ -306,33 +383,9 @@ impl Shadows {
                 &points.uniform,
             ],
         );
-        let layout = gpu
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("shadow pipeline layout"),
-                bind_group_layouts: &[Some(object_layout), Some(&caster_layout)],
-                immediate_size: 0,
-            });
-        let shader = gpu
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("sun depth caster"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shadow_cast.wgsl").into()),
-            });
-        let make_pipeline = |label, slope_scale| {
-            gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(label), layout: Some(&layout),
-            vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[Some(wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x2] })] },
-            fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), compilation_options: Default::default(), targets: &[] }),
-            primitive: Default::default(),
-            depth_stencil: Some(wgpu::DepthStencilState { format: wgpu::TextureFormat::Depth32Float, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Less), stencil: Default::default(), bias: wgpu::DepthBiasState { constant: 0, slope_scale, clamp: 0. } }),
-            multisample: Default::default(), multiview_mask: None, cache: None,
-        })
-        };
-        let pipeline = make_pipeline("sun/spot shadow pass", 1.);
-        // Cube faces can see grazing receivers in every direction. Cover the 3x3
-        // bilinear kernel's maximum L1 footprint (1.5 texels along each axis).
-        let point_pipeline = make_pipeline("point shadow pass", 3.);
+        let pipeline = pipeline(gpu, object_layout, &caster_layout, false, false);
+        // Cube faces need the wider grazing-receiver bias used by the reference pass.
+        let point_pipeline = self::pipeline(gpu, object_layout, &caster_layout, false, true);
         Self {
             spots,
             points,
@@ -343,6 +396,7 @@ impl Shadows {
             sample_layout,
             sample_binding,
             caster_binding,
+            caster_layout,
             pipeline,
             point_pipeline,
             uniform,
@@ -544,6 +598,7 @@ impl SceneRenderer {
         encoder: &mut crate::profiling::Encoder,
         scene: &RenderScene,
         draws: &[PreparedDraw],
+        batches: &[instancing::Batch],
     ) -> (usize, u64) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("sun shadow casters"),
@@ -561,34 +616,70 @@ impl SceneRenderer {
         if !scene.lighting.shadows || self.shadows.resolution == 1 {
             return (0, 0);
         }
-        pass.set_pipeline(&self.shadows.pipeline);
         pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
-        self.draw_shadow_casters(&mut pass, draws, None)
+        self.draw_shadow_casters(&mut pass, draws, batches, None, false)
     }
     pub(super) fn draw_shadow_casters(
         &self,
         pass: &mut wgpu::RenderPass<'_>,
         draws: &[PreparedDraw],
+        batches: &[instancing::Batch],
         projection: Option<Mat4>,
+        point: bool,
     ) -> (usize, u64) {
         let mut counts = (0, 0);
-        for (draw, binding) in draws.iter().zip(&self.objects) {
-            if draw.transparent || !draw.object.material.lit {
-                continue;
+        let casts = |draw: &PreparedDraw| {
+            !draw.transparent
+                && draw.object.material.lit
+                && (!self.culling
+                    || projection.is_none_or(|p| {
+                        visibility::visible(
+                            self.mesh_for(&draw.object).bounds,
+                            p * draw.object.model,
+                        )
+                    }))
+        };
+        let mut batches = batches.iter().peekable();
+        let mut index = 0;
+        let mut was_instanced = None;
+        while index < draws.len() {
+            while batches.peek().is_some_and(|b| b.range.start < index) {
+                batches.next();
             }
-            let mesh = self.mesh_for(&draw.object);
-            if self.culling
-                && projection
-                    .is_some_and(|p| !visibility::visible(mesh.bounds, p * draw.object.model))
-            {
-                continue;
+            // Reuse color-pass instance buffers only when the whole run casts into this map.
+            // Offscreen casters and runs crossing a light frustum retain the exact single-draw path.
+            let batch = batches.peek().filter(|b| {
+                b.range.start == index
+                    && b.slot.is_some()
+                    && draws[b.range.clone()].iter().all(&casts)
+            });
+            let count = batch.map_or(1, |b| b.range.len());
+            let slot = batch.and_then(|b| b.slot);
+            let draw = &draws[index];
+            if casts(draw) {
+                let instanced = slot.is_some();
+                if was_instanced != Some(instanced) {
+                    pass.set_pipeline(if instanced {
+                        &self.instancing.shadow_pipelines.as_ref().unwrap()[usize::from(point)]
+                    } else if point {
+                        &self.shadows.point_pipeline
+                    } else {
+                        &self.shadows.pipeline
+                    });
+                    was_instanced = Some(instanced);
+                }
+                let binding = slot.map_or(&self.objects[index].binding, |slot| {
+                    &self.instancing.bindings[slot].binding
+                });
+                let mesh = self.mesh_for(&draw.object);
+                pass.set_bind_group(0, binding, &[]);
+                pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..mesh.count, 0, 0..count as u32);
+                counts.0 += 1;
+                counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
-            pass.set_bind_group(0, &binding.binding, &[]);
-            pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
-            pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..mesh.count, 0, 0..1);
-            counts.0 += 1;
-            counts.1 += u64::from(mesh.count / 3);
+            index += count;
         }
         counts
     }
@@ -596,6 +687,30 @@ impl SceneRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shadow_shaders_validate_and_share_the_color_uniform_stride() {
+        for instanced in [false, true] {
+            let source = module_text(instanced);
+            let module = wgpu::naga::front::wgsl::parse_str(&source)
+                .unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
+            wgpu::naga::valid::Validator::new(
+                wgpu::naga::valid::ValidationFlags::all(),
+                wgpu::naga::valid::Capabilities::empty(),
+            )
+            .validate(&module)
+            .unwrap();
+            let uniform = module
+                .types
+                .iter()
+                .find(|(_, ty)| ty.name.as_deref() == Some("ObjectUniform"))
+                .unwrap()
+                .1;
+            let wgpu::naga::TypeInner::Struct { span, .. } = uniform.inner else {
+                panic!("uniform struct")
+            };
+            assert_eq!(span as usize, OBJECT_UNIFORM_BYTES);
+        }
+    }
     #[test]
     fn bounds_fit_contains_corners_and_handles_vertical_sun() {
         let bounds = [Vec3::new(-20., -2., -10.), Vec3::new(25., 12., 10.)];

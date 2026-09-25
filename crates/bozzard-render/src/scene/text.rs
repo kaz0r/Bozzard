@@ -1,7 +1,7 @@
 use super::*;
 use epaint::{
     Color32, FontFamily, FontId,
-    text::{FontDefinitions, Fonts, LayoutJob, TextOptions},
+    text::{Fonts, LayoutJob, TextOptions},
 };
 use std::sync::Arc;
 
@@ -62,9 +62,18 @@ type Key = (
     bool,
     TextAlignment,
     Option<bozzard_text::FontKey>,
+    u32,
+    bool,
 );
 impl TextMesh {
-    fn key(&self) -> Key {
+    fn raster_em(&self, hud_scale: f32) -> f32 {
+        if self.screen.is_some() {
+            bozzard_text::screen_raster_em(self.font_size, hud_scale)
+        } else {
+            EM
+        }
+    }
+    fn key(&self, hud_scale: f32) -> Key {
         (
             self.text.clone(),
             self.font_size.to_bits(),
@@ -72,6 +81,8 @@ impl TextMesh {
             self.monospace,
             self.alignment,
             self.custom_font.as_ref().map(bozzard_text::Font::key),
+            self.raster_em(hud_scale).to_bits(),
+            self.screen.is_some(),
         )
     }
     fn validate(&self) -> Result<()> {
@@ -113,7 +124,8 @@ impl TextMesh {
         Ok(())
     }
 }
-// ponytail: 64-pixel/em antialiased glyphs; add distance fields if extreme magnification needs them.
+// World text uses a 64-pixel/em atlas. HUD text uses its physical display size:
+// shrinking the world atlas loses strokes and produces speckled small lettering.
 const EM: f32 = 64.;
 fn options() -> TextOptions {
     TextOptions {
@@ -122,14 +134,15 @@ fn options() -> TextOptions {
     }
 }
 fn fonts() -> Fonts {
-    Fonts::new(options(), FontDefinitions::default())
+    Fonts::new(options(), bozzard_text::default_font_definitions())
 }
-fn layout(fonts: &mut Fonts, text: &TextMesh) -> Result<Arc<epaint::text::Galley>> {
+fn layout(fonts: &mut Fonts, text: &TextMesh, hud_scale: f32) -> Result<Arc<epaint::text::Galley>> {
     text.validate()?;
+    let em = text.raster_em(hud_scale);
     let mut job = LayoutJob::simple(
         text.text.clone(),
         FontId::new(
-            EM,
+            em,
             if let Some(font) = &text.custom_font {
                 font.family()
             } else if text.monospace {
@@ -140,7 +153,7 @@ fn layout(fonts: &mut Fonts, text: &TextMesh) -> Result<Arc<epaint::text::Galley
         ),
         Color32::WHITE,
         text.max_width
-            .map_or(f32::INFINITY, |w| w * EM / text.font_size),
+            .map_or(f32::INFINITY, |w| w * em / text.font_size),
     );
     job.halign = match text.alignment {
         TextAlignment::Left => epaint::emath::Align::LEFT,
@@ -157,7 +170,12 @@ fn layout(fonts: &mut Fonts, text: &TextMesh) -> Result<Arc<epaint::text::Galley
 /// Local layout envelope, shared with headless widget layout. No GPU required.
 pub fn text_bounds(text: &TextMesh) -> Result<Option<[Vec3; 2]>> {
     text.validate()?;
-    Ok(bozzard_text::bounds_with_font(
+    let measure = if text.screen.is_some() {
+        bozzard_text::screen_bounds_with_font
+    } else {
+        bozzard_text::bounds_with_font
+    };
+    Ok(measure(
         &text.text,
         text.font_size,
         text.max_width,
@@ -180,6 +198,7 @@ pub(super) struct TextRenderer {
     texture: Option<wgpu::Texture>,
     pub view: Option<wgpu::TextureView>,
     size: [usize; 2],
+    hud_scale: f32,
 }
 impl TextRenderer {
     fn new() -> Self {
@@ -190,12 +209,14 @@ impl TextRenderer {
             texture: None,
             view: None,
             size: [0; 2],
+            hud_scale: 1.,
         }
     }
     pub fn mesh(&self, text: &TextMesh) -> Option<&MeshBuffers> {
-        self.meshes.get(&text.key())
+        self.meshes.get(&text.key(self.hud_scale))
     }
-    fn prepare(&mut self, gpu: &Gpu, items: &[DrawItem]) -> Result<bool> {
+    fn prepare(&mut self, gpu: &Gpu, items: &[DrawItem], hud_scale: f32) -> Result<bool> {
+        self.hud_scale = hud_scale;
         ensure!(
             gpu.device.limits().max_texture_dimension_2d >= 4096,
             "text requires a 4096-pixel font atlas limit"
@@ -213,7 +234,7 @@ impl TextRenderer {
         let ids: Vec<_> = custom.keys().cloned().collect();
         let reset = self.fonts.font_atlas_fill_ratio() > 0.8 || ids != self.custom_fonts;
         if reset {
-            let mut definitions = FontDefinitions::default();
+            let mut definitions = bozzard_text::default_font_definitions();
             for font in custom.values() {
                 font.install(&mut definitions);
             }
@@ -228,9 +249,9 @@ impl TextRenderer {
                 text.validate()?;
                 bytes += text.text.len();
                 ensure!(bytes <= 65536, "text view exceeds 65536 UTF-8 bytes");
-                let key = text.key();
+                let key = text.key(hud_scale);
                 if let std::collections::btree_map::Entry::Vacant(entry) = galleys.entry(key) {
-                    entry.insert(layout(&mut self.fonts, text)?);
+                    entry.insert(layout(&mut self.fonts, text, hud_scale)?);
                 }
             }
         }
@@ -244,23 +265,37 @@ impl TextRenderer {
             if galley.num_indices == 0 || self.meshes.contains_key(&key) {
                 continue;
             }
-            let scale = f32::from_bits(key.1) / EM;
+            let scale = f32::from_bits(key.1) / f32::from_bits(key.6);
             let mut vertices = Vec::with_capacity(galley.num_vertices);
             let mut indices = Vec::with_capacity(galley.num_indices);
             for row in &galley.rows {
                 let start = vertices.len() as u32;
-                for v in &row.visuals.mesh.vertices {
-                    let p = v.pos + row.pos.to_vec2();
-                    vertices.push([
-                        p.x * scale,
-                        -p.y * scale,
-                        0.,
-                        0.,
-                        0.,
-                        1.,
-                        v.uv.x / size[0] as f32,
-                        v.uv.y / size[1] as f32,
-                    ]);
+                // Plain text produces one quad per glyph. Include half a texel of
+                // the atlas's transparent gutter: otherwise the quad clips bilinear
+                // coverage at fractional positions, making thin strokes flicker.
+                for quad in row.visuals.mesh.vertices.chunks_exact(4) {
+                    let center = (quad[0].pos.to_vec2() + quad[3].pos.to_vec2()) * 0.5;
+                    let uv_center = (quad[0].uv.to_vec2() + quad[3].uv.to_vec2()) * 0.5;
+                    for v in quad {
+                        let side = v.pos.to_vec2() - center;
+                        let uv_side = v.uv.to_vec2() - uv_center;
+                        let padding = if key.7 { 0.5 } else { 0. };
+                        let p = v.pos
+                            + row.pos.to_vec2()
+                            + epaint::emath::vec2(side.x.signum(), side.y.signum()) * padding;
+                        let uv = v.uv.to_vec2()
+                            + epaint::emath::vec2(uv_side.x.signum(), uv_side.y.signum()) * padding;
+                        vertices.push([
+                            p.x * scale,
+                            -p.y * scale,
+                            0.,
+                            0.,
+                            0.,
+                            1.,
+                            uv.x / size[0] as f32,
+                            uv.y / size[1] as f32,
+                        ]);
+                    }
                 }
                 // Flipping Y reverses winding; preserve +Z as the front face.
                 for triangle in row.visuals.mesh.indices.chunks_exact(3) {
@@ -335,11 +370,11 @@ impl SceneRenderer {
             .iter()
             .any(|i| matches!(i.mesh, MeshKind::Text(_)))
         {
-            if self
-                .text
-                .get_or_insert_with(TextRenderer::new)
-                .prepare(gpu, &scene.items)?
-            {
+            if self.text.get_or_insert_with(TextRenderer::new).prepare(
+                gpu,
+                &scene.items,
+                self.hud_scale,
+            )? {
                 // The atlas view was replaced: bindings must not retain its old texture.
                 self.invalidate_object_bindings();
             }

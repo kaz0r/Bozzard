@@ -4,12 +4,36 @@ use epaint::{
     Color32, FontFamily, FontId,
     text::{FontDefinitions, Fonts, LayoutJob, TextOptions},
 };
-use std::{cell::RefCell, collections::BTreeMap};
+use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
 
 mod font;
 pub use font::{Font, FontKey, VariationAxis};
 
-type Key = (u32, Option<u32>, bool, u8, Option<FontKey>);
+/// The same bundled Sans family is used by CPU measurement and the GPU atlas.
+/// Keep epaint's other families as fallbacks for emoji and missing glyphs.
+pub fn default_font_definitions() -> FontDefinitions {
+    let mut definitions = FontDefinitions::default();
+    definitions.font_data.insert(
+        "Roboto".into(),
+        Arc::new(epaint::text::FontData::from_static(include_bytes!(
+            "../assets/Roboto.ttf"
+        ))),
+    );
+    definitions
+        .families
+        .get_mut(&FontFamily::Proportional)
+        .unwrap()
+        .insert(0, "Roboto".into());
+    definitions
+}
+
+/// Native pixel coverage for ordinary HUD text; bound oversized glyphs so
+/// large display scales cannot exhaust the shared atlas with a single label.
+pub fn screen_raster_em(font_size: f32, pixels_per_point: f32) -> f32 {
+    (font_size * pixels_per_point).clamp(1., 256.)
+}
+
+type Key = (u32, Option<u32>, bool, u8, Option<FontKey>, bool);
 type Bounds = Option<[[f32; 2]; 2]>;
 struct Cache {
     fonts: Fonts,
@@ -24,7 +48,7 @@ fn options() -> TextOptions {
         ..Default::default()
     }
 }
-thread_local! {static CACHE:RefCell<Cache>=RefCell::new(Cache{fonts:Fonts::new(options(),FontDefinitions::default()),custom:BTreeMap::new(),metrics:BTreeMap::new(),entries:0,bytes:0});}
+thread_local! {static CACHE:RefCell<Cache>=RefCell::new(Cache{fonts:Fonts::new(options(),default_font_definitions()),custom:BTreeMap::new(),metrics:BTreeMap::new(),entries:0,bytes:0});}
 /// Alignment: 0 left, 1 center, 2 right. Positions use XY with positive Y downward.
 pub fn bounds(
     text: &str,
@@ -43,6 +67,35 @@ pub fn bounds_with_font(
     alignment: u8,
     custom: Option<&Font>,
 ) -> Result<Bounds> {
+    measure(
+        text, font_size, max_width, monospace, alignment, custom, false,
+    )
+}
+
+/// Screen text is rasterized at its displayed size, so small glyphs retain their
+/// antialiased pixel coverage instead of shrinking a fixed-resolution world atlas.
+pub fn screen_bounds_with_font(
+    text: &str,
+    font_size: f32,
+    max_width: Option<f32>,
+    monospace: bool,
+    alignment: u8,
+    custom: Option<&Font>,
+) -> Result<Bounds> {
+    measure(
+        text, font_size, max_width, monospace, alignment, custom, true,
+    )
+}
+
+fn measure(
+    text: &str,
+    font_size: f32,
+    max_width: Option<f32>,
+    monospace: bool,
+    alignment: u8,
+    custom: Option<&Font>,
+    screen: bool,
+) -> Result<Bounds> {
     ensure!(
         text.len() <= 4096
             && font_size.is_finite()
@@ -60,6 +113,7 @@ pub fn bounds_with_font(
         monospace,
         alignment,
         custom.map(Font::key),
+        screen,
     );
     CACHE.with_borrow_mut(|cache| {
         // Keep mixed labels warm. At most eight styles, each with one primary and
@@ -73,7 +127,7 @@ pub fn bounds_with_font(
             cache.custom.insert(font.key(), font.clone());
         }
         if added || cache.fonts.font_atlas_fill_ratio() > 0.8 {
-            let mut definitions = FontDefinitions::default();
+            let mut definitions = default_font_definitions();
             for font in cache.custom.values() {
                 font.install(&mut definitions);
             }
@@ -95,10 +149,15 @@ pub fn bounds_with_font(
             cache.entries = 0;
         }
         cache.fonts.begin_pass(options());
+        let em = if screen {
+            screen_raster_em(font_size, 1.)
+        } else {
+            64.
+        };
         let mut job = LayoutJob::simple(
             text.into(),
             FontId::new(
-                64.,
+                em,
                 custom.map_or_else(
                     || {
                         if monospace {
@@ -111,7 +170,7 @@ pub fn bounds_with_font(
                 ),
             ),
             Color32::WHITE,
-            max_width.map_or(f32::INFINITY, |w| w * 64. / font_size),
+            max_width.map_or(f32::INFINITY, |w| w * em / font_size),
         );
         job.halign = match alignment {
             1 => epaint::emath::Align::Center,
@@ -124,7 +183,7 @@ pub fn bounds_with_font(
             "text glyph atlas is full"
         );
         let rect = galley.rect.union(galley.mesh_bounds);
-        let scale = font_size / 64.;
+        let scale = font_size / em;
         let bounds = (galley.num_indices > 0).then_some([
             [rect.min.x * scale, rect.min.y * scale],
             [rect.max.x * scale, rect.max.y * scale],

@@ -2,7 +2,7 @@ use super::*;
 use std::ops::Range;
 
 // Fits the downlevel 16 KiB uniform-binding limit without storage-buffer features.
-const MAX_INSTANCES: usize = 32;
+pub(super) const MAX_INSTANCES: usize = 32;
 pub(super) const BUFFER_BYTES: usize = OBJECT_UNIFORM_BYTES * MAX_INSTANCES;
 
 pub(super) struct Pipelines {
@@ -18,6 +18,7 @@ pub(super) struct Instancing {
     enabled: bool,
     layout: wgpu::BindGroupLayout,
     pub pipelines: Option<Pipelines>,
+    pub shadow_pipelines: Option<[wgpu::RenderPipeline; 2]>,
     pub bindings: Vec<InstanceBinding>,
 }
 pub(super) struct Batch {
@@ -30,6 +31,7 @@ impl Instancing {
             enabled: true,
             layout,
             pipelines: None,
+            shadow_pipelines: None,
             bindings: Vec::new(),
         }
     }
@@ -184,6 +186,20 @@ impl SceneRenderer {
             batch.slot = Some(slot);
         }
         Ok(batches)
+    }
+
+    pub(super) fn prepare_instanced_shadows(&mut self, gpu: &Gpu) {
+        if self.instancing.shadow_pipelines.is_none() {
+            self.instancing.shadow_pipelines = Some(std::array::from_fn(|point| {
+                shadows::pipeline(
+                    gpu,
+                    &self.instancing.layout,
+                    &self.shadows.caster_layout,
+                    true,
+                    point == 1,
+                )
+            }));
+        }
     }
 }
 

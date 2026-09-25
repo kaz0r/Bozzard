@@ -314,6 +314,12 @@ impl Multiplayer {
                 Control::Value(value) => state.value == Some(*value),
                 Control::Visible(visible) => state.visible == Some(*visible),
                 Control::Enabled(enabled) => state.enabled == Some(*enabled),
+                Control::Opacity(value) => state.opacity == Some(*value),
+                Control::Size(value) => state.size == Some(*value),
+                Control::Background(value) => state.background == Some(*value),
+                Control::WorldPosition(value) => state.world_position == Some(*value),
+                Control::ScreenPosition(value) => state.screen_position == Some(*value),
+                Control::Offset(value) => state.offset == Some(*value),
                 Control::Focus => false,
             });
         if unchanged {

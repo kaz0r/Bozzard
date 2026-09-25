@@ -956,14 +956,16 @@ impl App {
                             .on_hover_text(self.editor.path.display().to_string());
                         },
                     );
-                    if ui
+                    let play_button = ui
                         .add_enabled(
                             !playing && self.loading.is_none() && !self.editor.is_prefab_source(),
                             egui::Button::new(egui::RichText::new("▶").color(theme::GREEN)),
                         )
-                        .on_hover_text("Play active scene · Other open scenes remain in the editor")
-                        .clicked()
-                    {
+                        .on_hover_text(
+                            "Play active scene · Other open scenes remain in the editor",
+                        );
+                    if play_button.clicked() {
+                        play_button.surrender_focus();
                         self.start_play();
                     }
                     if ui
@@ -1371,11 +1373,15 @@ impl eframe::App for App {
             .viewport_rect
             .zip(pointer)
             .is_some_and(|(rect, pos)| viewport::pointer_hits(ctx, rect, self.viewport_layer, pos));
-        self.gameplay_controls.prepare(
+        let scripted_play_keys =
+            self.editor.play.as_ref().is_some_and(|play| {
+                play.gameplay().is_none() && play.instance().has_gameplay_logic()
+            });
+        self.gameplay_controls.prepare_with_pointer(
             input,
             ctx.input(|i| i.modifiers),
-            over_viewport
-                && !ctx.egui_wants_keyboard_input()
+            (over_viewport || scripted_play_keys)
+                && gameplay_input::keyboard_available(ctx)
                 && self.loading.is_none()
                 && self.dialog.is_none()
                 && !self.confirm_discard
@@ -1387,6 +1393,7 @@ impl eframe::App for App {
                         .play
                         .as_ref()
                         .is_some_and(|p| p.instance().has_gameplay_logic())),
+            over_viewport,
             self.editor.play.as_mut(),
         );
         let eligible = input.focused

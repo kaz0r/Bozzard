@@ -1,8 +1,21 @@
-//! Physical gameplay keys only; editor shortcuts continue using egui logical keys. Any key a
-//! scene can bind is tracked, so a scene chooses its own buttons.
+//! Prefer physical gameplay keys; fall back to egui's logical key when a backend omits the
+//! physical key. Editor shortcuts continue using logical keys. Any key a scene can bind is
+//! tracked, so a scene chooses its own buttons.
 use bozzard_demo::SceneDemo;
 use bozzard_scene::{GameplayInput, keys};
-use eframe::egui::{Event, Key, Modifiers, PointerButton, RawInput};
+use eframe::egui::{Context, Event, Key, Modifiers, PointerButton, RawInput};
+
+/// Editor buttons can retain egui focus after Play is clicked. Only a text editor should
+/// intercept gameplay typing.
+pub(crate) fn keyboard_available(ctx: &Context) -> bool {
+    !ctx.text_edit_focused()
+}
+
+/// Controller-free script/Blueprint scenes own Ctrl chords. System and editor
+/// navigation modifiers still cancel input, as do all shortcuts in controller mode.
+pub(crate) fn modifiers_block_gameplay(m: Modifiers, scene_keyboard: bool) -> bool {
+    m.alt || m.mac_cmd || (m.command && !m.ctrl) || (m.ctrl && !scene_keyboard)
+}
 
 #[derive(Default)]
 pub struct GameplayControls {
@@ -64,7 +77,20 @@ impl GameplayControls {
         fresh.then_some(name)
     }
 
-    /// Runs in raw_input_hook, before Editor::advance can consume queued motion/edges.
+    fn modifiers(&mut self, m: Modifiers) {
+        for (name, held) in [("Ctrl", m.ctrl), ("Shift", m.shift), ("Alt", m.alt)] {
+            self.hold(name, held, false);
+            // Modifier snapshots remain reliable when egui consumed a shortcut's
+            // key event. A fresh ordinary key can still form a chord afterwards.
+            if held && self.focused {
+                self.keys |= keys::bit(name);
+                self.rearm &= !keys::bit(name);
+            }
+        }
+    }
+
+    /// Test shorthand when keyboard focus and pointer ownership have the same eligibility.
+    #[cfg(test)]
     pub fn prepare(
         &mut self,
         input: &RawInput,
@@ -72,7 +98,24 @@ impl GameplayControls {
         eligible: bool,
         play: Option<&mut SceneDemo>,
     ) {
-        let modified = |m: Modifiers| m.command || m.ctrl || m.alt;
+        self.prepare_with_pointer(input, previous_modifiers, eligible, eligible, play);
+    }
+
+    /// Runs in raw_input_hook, before Editor::advance can consume queued motion/edges.
+    /// Keyboard focus and pointer ownership are separate in editor Play: a script can receive
+    /// keys while the mouse is outside the viewport, but editor-panel clicks must stay in egui.
+    pub fn prepare_with_pointer(
+        &mut self,
+        input: &RawInput,
+        previous_modifiers: Modifiers,
+        eligible: bool,
+        pointer_eligible: bool,
+        play: Option<&mut SceneDemo>,
+    ) {
+        let scene_keyboard = play
+            .as_ref()
+            .is_some_and(|p| p.gameplay().is_none() && p.instance().has_gameplay_logic());
+        let modified = |m: Modifiers| modifiers_block_gameplay(m, scene_keyboard);
         let cancelled = !eligible
             || !input.focused
             || modified(previous_modifiers)
@@ -88,17 +131,32 @@ impl GameplayControls {
                 _ => false,
             });
         self.focused = input.focused;
+        if scene_keyboard {
+            self.modifiers(previous_modifiers);
+        }
         if !input.focused {
             self.mark_focus_discontinuity();
         }
         self.jump = false;
         self.fire = false;
         self.interact = false;
+        if !pointer_eligible {
+            for name in ["MouseLeft", "MouseRight", "MouseMiddle"] {
+                let bit = keys::bit(name);
+                self.pressed &= !bit;
+                self.keys &= !bit;
+                self.rearm &= !bit;
+            }
+        }
         for event in &input.events {
             match event {
+                Event::ModifiersChanged(m) if scene_keyboard => self.modifiers(*m),
                 Event::PointerButton {
                     button, pressed, ..
                 } => {
+                    if !pointer_eligible {
+                        continue;
+                    }
                     let named = match button {
                         PointerButton::Primary => "MouseLeft",
                         PointerButton::Secondary => "MouseRight",
@@ -112,13 +170,20 @@ impl GameplayControls {
                     }
                 }
                 Event::Key {
-                    physical_key: Some(key),
+                    key,
+                    physical_key,
                     pressed,
                     repeat,
+                    modifiers,
                     ..
                 } => {
-                    // Key names are physical positions, and both apps' spellings resolve.
-                    if let Some(name) = self.hold(&format!("{key:?}"), *pressed, *repeat) {
+                    if scene_keyboard {
+                        self.modifiers(*modifiers);
+                    }
+                    // Keep physical positions when available; some backends report only a
+                    // logical key, which must still reach scripts and blueprints.
+                    let gameplay_key = physical_key.unwrap_or(*key);
+                    if let Some(name) = self.hold(&format!("{gameplay_key:?}"), *pressed, *repeat) {
                         match name {
                             "Space" => self.jump = true,
                             "E" => self.interact = true,
@@ -293,6 +358,93 @@ mod tests {
             Some(&mut demo),
         );
         assert!(controls.take_input([0.; 2]).keys & keys::bit("3") != 0);
+    }
+
+    #[test]
+    fn logical_key_fallback_reaches_gameplay_when_physical_key_is_missing() {
+        let mut demo = demo();
+        let mut controls = GameplayControls::default();
+        controls.prepare(
+            &raw(vec![Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            }]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        let sample = controls.take_input([0.; 2]);
+        assert_ne!(sample.keys & keys::bit("Enter"), 0);
+        assert_ne!(sample.pressed_keys & keys::bit("Enter"), 0);
+    }
+
+    #[test]
+    fn scripted_keyboard_stays_active_outside_viewport_without_firing_editor_clicks() {
+        use eframe::egui::Pos2;
+
+        let mut demo = demo();
+        let mut controls = GameplayControls::default();
+        controls.prepare_with_pointer(
+            &raw(vec![
+                key(Key::Enter, Key::Enter, false),
+                Event::PointerButton {
+                    pos: Pos2::ZERO,
+                    button: PointerButton::Primary,
+                    pressed: true,
+                    modifiers: Modifiers::NONE,
+                },
+            ]),
+            Modifiers::NONE,
+            true,
+            false,
+            Some(&mut demo),
+        );
+        let sample = controls.take_input([0.; 2]);
+        assert_ne!(sample.pressed_keys & keys::bit("Enter"), 0);
+        assert_eq!(sample.keys & keys::bit("MouseLeft"), 0);
+        assert!(!sample.fire);
+    }
+
+    #[test]
+    fn focused_editor_button_does_not_block_gameplay_keyboard() {
+        use bozzard_scene::blueprint::{BlackboardValue, Value};
+
+        let ctx = Context::default();
+        ctx.memory_mut(|memory| memory.request_focus(eframe::egui::Id::new("play_button")));
+        assert!(ctx.egui_wants_keyboard_input());
+        assert!(keyboard_available(&ctx));
+
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let scene =
+            bozzard_scene::Scene::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        for _ in 0..8 {
+            demo.app.step();
+        }
+        let mut controls = GameplayControls::default();
+        controls.prepare_with_pointer(
+            &raw(vec![key(Key::Enter, Key::Enter, false)]),
+            Modifiers::NONE,
+            keyboard_available(&ctx),
+            false,
+            Some(&mut demo),
+        );
+        demo.set_gameplay_input(controls.take_input([0.; 2]));
+        demo.app.advance(std::time::Duration::from_millis(20));
+        demo.check_simulation().unwrap();
+        let board = demo
+            .app
+            .world
+            .resource::<bozzard_scene::BlueprintRuntime>()
+            .unwrap();
+        assert!(matches!(
+            board.scene_blackboard().get("started"),
+            Some(BlackboardValue::Scalar(Value::Bool(true)))
+        ));
     }
 
     #[test]
@@ -610,5 +762,64 @@ mod tests {
                 idle.instance().capture(&idle.app.world).unwrap()
             );
         }
+    }
+
+    #[test]
+    fn scripted_ctrl_chords_survive_modifiers_and_expose_held_state() {
+        let scene = bozzard_scene::Scene::from_json(include_str!(
+            "../../../examples/demo/scenes/blueprint-lab.json"
+        ))
+        .unwrap();
+        let mut demo = SceneDemo::new(&scene).unwrap();
+        let mut controls = GameplayControls::default();
+        let ctrl = Modifiers {
+            ctrl: true,
+            command: true,
+            ..Modifiers::NONE
+        };
+        let event = |pressed, repeat, modifiers| Event::Key {
+            key: Key::R,
+            physical_key: Some(Key::R),
+            pressed,
+            repeat,
+            modifiers,
+        };
+        controls.prepare(
+            &raw(vec![
+                Event::ModifiersChanged(ctrl),
+                event(true, false, ctrl),
+            ]),
+            Modifiers::NONE,
+            true,
+            Some(&mut demo),
+        );
+        let input = controls.take_input([0.; 2]);
+        assert_eq!(
+            input.keys & (keys::bit("Ctrl") | keys::bit("R")),
+            keys::bit("Ctrl") | keys::bit("R")
+        );
+        assert_ne!(input.pressed_keys & keys::bit("R"), 0);
+        controls.prepare(
+            &raw(vec![event(true, true, ctrl)]),
+            ctrl,
+            true,
+            Some(&mut demo),
+        );
+        assert_eq!(
+            controls.take_input([0.; 2]).pressed_keys & keys::bit("R"),
+            0
+        );
+        controls.prepare(
+            &raw(vec![
+                event(false, false, ctrl),
+                Event::ModifiersChanged(Modifiers::NONE),
+            ]),
+            ctrl,
+            true,
+            Some(&mut demo),
+        );
+        assert_eq!(controls.take_input([0.; 2]).keys, 0);
+        assert!(modifiers_block_gameplay(Modifiers::ALT, true));
+        assert!(modifiers_block_gameplay(ctrl, false));
     }
 }

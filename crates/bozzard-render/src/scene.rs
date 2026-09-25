@@ -221,6 +221,24 @@ struct ObjectBinding {
     texture: TextureKind,
     binding: wgpu::BindGroup,
     uniform: Option<[u8; OBJECT_UNIFORM_BYTES]>,
+    source: Option<ObjectUniformSource>,
+}
+
+/// All inputs to an object's packed uniform. Comparing these avoids rebuilding matrices
+/// and serializing 124 floats for stationary objects, including while other objects animate.
+#[derive(PartialEq)]
+struct ObjectUniformSource {
+    model: Mat4,
+    previous_model: Option<Mat4>,
+    view_projection: Mat4,
+    previous_view_projection: Mat4,
+    size: [u32; 2],
+    lighting: [f32; 12],
+    fog: [f32; 12],
+    tail: [f32; 8],
+    surface: [f32; 4],
+    double_sided: bool,
+    shader_time: f32,
 }
 struct DepthTarget {
     view: wgpu::TextureView,
@@ -855,6 +873,7 @@ impl SceneRenderer {
             texture: key.clone(),
             binding,
             uniform: None,
+            source: None,
         })
     }
 
@@ -1930,14 +1949,7 @@ impl SceneRenderer {
         let fog_uniform = scene.fog.uniform(raw);
         for (draw, binding) in draws.iter().zip(&mut self.objects) {
             let object = &draw.object;
-            let mvp = view_projection * object.model;
             let previous_model = self.motion_history.previous_model(object);
-            let previous_mvp = temporal_frame.previous_vp * previous_model.unwrap_or(object.model);
-            let normal = object.model.inverse().transpose();
-            ensure!(
-                mvp.is_finite() && normal.is_finite(),
-                "invalid object matrix"
-            );
             let material = &object.material;
             let tail = [
                 material.tint[0],
@@ -1956,6 +1968,50 @@ impl SceneRenderer {
                     .is_none_or(|s| s.double_sided),
                 _ => true,
             };
+            let surface = [
+                draw.pbr_override[0],
+                draw.pbr_override[1],
+                match material.texture {
+                    TextureKind::Normals => 1.,
+                    TextureKind::ProceduralChecker => 2.,
+                    TextureKind::Toon => 3.,
+                    _ => 0.,
+                },
+                if draw.transparent || previous_model.is_none() {
+                    1.
+                } else {
+                    0.
+                },
+            ];
+            let shader_time = if material.shader.is_some() {
+                scene.shader_time
+            } else {
+                0.
+            };
+            let source = ObjectUniformSource {
+                model: object.model,
+                previous_model,
+                view_projection,
+                previous_view_projection: temporal_frame.previous_vp,
+                size,
+                lighting: lighting_uniform,
+                fog: fog_uniform,
+                tail,
+                surface,
+                double_sided,
+                shader_time,
+            };
+            if self.state_caching && binding.source.as_ref() == Some(&source) {
+                continue;
+            }
+            let mvp = view_projection * object.model;
+            let previous_mvp = temporal_frame.previous_vp * previous_model.unwrap_or(object.model);
+            let normal = object.model.inverse().transpose();
+            ensure!(
+                mvp.is_finite() && normal.is_finite(),
+                "invalid object matrix"
+            );
+            self.stats.object_uniform_builds += 1;
             let values = mvp
                 .to_cols_array()
                 .into_iter()
@@ -1970,33 +2026,10 @@ impl SceneRenderer {
                     if double_sided { 1. } else { 0. },
                 ])
                 .chain(lighting_uniform)
-                .chain([
-                    draw.pbr_override[0],
-                    draw.pbr_override[1],
-                    match material.texture {
-                        TextureKind::Normals => 1.,
-                        TextureKind::ProceduralChecker => 2.,
-                        TextureKind::Toon => 3.,
-                        _ => 0.,
-                    },
-                    if draw.transparent || previous_model.is_none() {
-                        1.
-                    } else {
-                        0.
-                    },
-                ])
+                .chain(surface)
                 .chain(fog_uniform)
                 .chain(previous_mvp.to_cols_array())
-                .chain([
-                    if material.shader.is_some() {
-                        scene.shader_time
-                    } else {
-                        0.
-                    },
-                    0.,
-                    0.,
-                    0.,
-                ]);
+                .chain([shader_time, 0., 0., 0.]);
             let mut uniform = [0; OBJECT_UNIFORM_BYTES];
             debug_assert_eq!(values.clone().count() * 4, uniform.len());
             for (slot, value) in uniform.chunks_exact_mut(4).zip(values) {
@@ -2007,6 +2040,7 @@ impl SceneRenderer {
                 binding.uniform = Some(uniform);
                 self.stats.object_uniform_writes += 1;
             }
+            binding.source = Some(source);
         }
         let batches = self.prepare_instances(gpu, &draws, &visible)?;
         let occlusion = self.prepare_occlusion(
@@ -2047,6 +2081,15 @@ impl SceneRenderer {
                     .chain(&point_changes)
                     .filter(|c| c.is_some())
                     .count();
+            if batches.iter().any(|b| b.slot.is_some())
+                && (sun_changed && scene.lighting.shadows && scene.lighting.sun_intensity > 0.
+                    || spot_changes
+                        .iter()
+                        .chain(&point_changes)
+                        .any(Option::is_some))
+            {
+                self.prepare_instanced_shadows(gpu);
+            }
         }
         let has_particles = !raw && !scene.particles.is_empty();
         let transparent: Vec<usize> = if has_particles {
@@ -2095,22 +2138,20 @@ impl SceneRenderer {
         if !self.stats.shadow_cache_hit {
             if sun_changed {
                 (self.stats.shadow_draws, self.stats.shadow_triangles) =
-                    self.draw_shadows(&mut encoder, scene, &draws);
+                    self.draw_shadows(&mut encoder, scene, &draws, &batches);
             }
-            let (spot_draws, spot_triangles) = self.shadows.spots.draw(
-                self,
-                &mut encoder,
-                &draws,
-                &self.shadows.pipeline,
-                &spot_changes,
-            );
+            let (spot_draws, spot_triangles) =
+                self.shadows
+                    .spots
+                    .draw(self, &mut encoder, &draws, &batches, false, &spot_changes);
             self.stats.shadow_draws += spot_draws;
             self.stats.shadow_triangles += spot_triangles;
             let (point_draws, point_triangles) = self.shadows.points.draw(
                 self,
                 &mut encoder,
                 &draws,
-                &self.shadows.point_pipeline,
+                &batches,
+                true,
                 &point_changes,
             );
             self.stats.shadow_draws += point_draws;

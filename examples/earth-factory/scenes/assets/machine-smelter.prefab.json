@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "name": "Machine Smelter",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-smelter",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "base",
+      "name": "machine-smelter base",
+      "transform": {
+        "translation": [
+          0,
+          0.11,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.22,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.23,
+          0.24,
+          0.28
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-0",
+      "name": "machine-smelter detail 1",
+      "transform": {
+        "translation": [
+          0,
+          0.5,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.68,
+          0.63,
+          0.67
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.34,
+          0.35,
+          0.39
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-1",
+      "name": "machine-smelter detail 2",
+      "transform": {
+        "translation": [
+          0.22,
+          0.53,
+          -0.35
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.25,
+          0.25,
+          0.06
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.39,
+          0.1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-2",
+      "name": "machine-smelter detail 3",
+      "transform": {
+        "translation": [
+          -0.23,
+          0.91,
+          0.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.16,
+          0.3,
+          0.17
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.15,
+          0.17,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    }
+  ]
+}

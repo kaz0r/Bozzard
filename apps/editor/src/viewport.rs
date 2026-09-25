@@ -613,6 +613,8 @@ impl App {
         self.viewport_layer = ui.layer_id();
         let hits_viewport = |pos| pointer_hits(ui.ctx(), rect, ui.layer_id(), pos);
         let mut ui_consumed = false;
+        // Input/accessibility and drawing share this frame's final authored UI layout.
+        let mut play_ui_frame = None;
         let layer = self.layer();
         if let Some(play) = &mut self.editor.play {
             use bozzard_scene::middleware::ui::Input;
@@ -626,13 +628,25 @@ impl App {
                     play.ui_input(layer, size, Input::Key("Escape".into()))?;
                 }
             } else if !egui::Popup::is_any_open(ui.ctx()) {
-                let existing_frame = play.instance().ui_frame(&play.app.world, layer, size)?;
-                let ui_focused = ui.memory(|m| m.focused()).is_some_and(|id| {
-                    existing_frame
-                        .elements
-                        .iter()
-                        .any(|e| id == egui::Id::new(("authored_ui", e.id)))
+                let keyboard_events = ui.input(|i| {
+                    i.events.iter().any(|e| {
+                        matches!(
+                            e,
+                            egui::Event::Key { .. } | egui::Event::Text(_) | egui::Event::Paste(_)
+                        )
+                    })
                 });
+                let ui_focused = if keyboard_events && ui.memory(|m| m.focused()).is_some() {
+                    let existing_frame = play.instance().ui_frame(&play.app.world, layer, size)?;
+                    ui.memory(|m| m.focused()).is_some_and(|id| {
+                        existing_frame
+                            .elements
+                            .iter()
+                            .any(|e| id == egui::Id::new(("authored_ui", e.id)))
+                    })
+                } else {
+                    false
+                };
                 for event in ui.input(|i| i.events.clone()) {
                     match event {
                         egui::Event::Text(text) | egui::Event::Paste(text)
@@ -690,6 +704,18 @@ impl App {
                         }
                         egui::Event::PointerGone => {
                             play.ui_input(layer, size, Input::CancelPointer)?;
+                        }
+                        egui::Event::PointerButton {
+                            pos,
+                            button: egui::PointerButton::Secondary,
+                            pressed: true,
+                            ..
+                        } if hits_viewport(pos) => {
+                            ui_consumed |= play.ui_input(
+                                layer,
+                                size,
+                                Input::SecondaryDown([(pos - rect.min).x, (pos - rect.min).y]),
+                            )?;
                         }
                         egui::Event::PointerButton {
                             pos,
@@ -761,7 +787,7 @@ impl App {
                     }
                 }
             }
-            let frame = play.instance().ui_frame(&play.app.world, layer, size)?;
+            let mut frame = play.instance().ui_frame(&play.app.world, layer, size)?;
             let mut accessibility_inputs = Vec::new();
             for element in &frame.elements {
                 if element.clip.size.iter().any(|s| *s <= 0.) {
@@ -800,8 +826,11 @@ impl App {
                     response.request_focus();
                 }
             }
-            for input in accessibility_inputs {
-                ui_consumed |= play.ui_input(layer, size, input)?;
+            if !accessibility_inputs.is_empty() {
+                for input in accessibility_inputs {
+                    ui_consumed |= play.ui_input(layer, size, input)?;
+                }
+                frame = play.instance().ui_frame(&play.app.world, layer, size)?;
             }
             if ui
                 .input(|i| i.pointer.hover_pos())
@@ -814,6 +843,7 @@ impl App {
             {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
+            play_ui_frame = Some(frame);
             if play.multiplayer_quit()
                 || play
                     .game_session()
@@ -880,6 +910,10 @@ impl App {
                 || play.game_session().is_some()
                 || play.accepts_gameplay_input()
         });
+        let scripted_play_keys =
+            self.editor.play.as_ref().is_some_and(|play| {
+                play.gameplay().is_none() && play.instance().has_gameplay_logic()
+            });
         if authored_player {
             let eligible = !ui_consumed
                 && ui.is_enabled()
@@ -889,18 +923,21 @@ impl App {
                         .play
                         .as_ref()
                         .is_some_and(|p| p.instance().has_gameplay_logic()))
-                && (response.hovered() || response.dragged_by(egui::PointerButton::Secondary))
+                && (response.hovered()
+                    || response.dragged_by(egui::PointerButton::Secondary)
+                    || scripted_play_keys)
                 && self.dialog.is_none()
                 && !self.confirm_discard
                 && self.loading.is_none()
                 && ui.input(|i| {
                     i.focused
-                        && !i.modifiers.command
-                        && !i.modifiers.ctrl
-                        && !i.modifiers.alt
+                        && !gameplay_input::modifiers_block_gameplay(
+                            i.modifiers,
+                            scripted_play_keys,
+                        )
                         && !i.key_pressed(egui::Key::Escape)
                 })
-                && !ui.ctx().egui_wants_keyboard_input();
+                && gameplay_input::keyboard_available(ui.ctx());
             let play = self.editor.play.as_mut().unwrap();
             if eligible {
                 let captures = play
@@ -1065,7 +1102,14 @@ impl App {
             [rect.width(), rect.height()]
         };
         let hud_scale = rect.width() * ppp / logical[0];
-        let widgets = view_editor.ui_frame(self.layer(), logical)?;
+        let widgets = if self.editor.play.is_some() {
+            match play_ui_frame {
+                Some(frame) => frame,
+                None => view_editor.ui_frame(self.layer(), logical)?,
+            }
+        } else {
+            view_editor.ui_frame(self.layer(), logical)?
+        };
         scene.items.extend(bozzard_render_assets::widget_items(
             &widgets,
             &view_editor.assets,

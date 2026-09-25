@@ -18,6 +18,19 @@ pub struct State {
     pub value: Option<f32>,
     pub visible: Option<bool>,
     pub enabled: Option<bool>,
+    pub opacity: Option<f32>,
+    pub size: Option<[f32; 2]>,
+    pub background: Option<[f32; 4]>,
+    pub world_position: Option<[f32; 3]>,
+    pub screen_position: Option<[f32; 2]>,
+    pub offset: Option<[f32; 2]>,
+}
+/// Ordered pointer edges and button activations delivered to every script next tick.
+#[derive(Clone, Debug)]
+pub struct ScriptEvent {
+    pub kind: &'static str,
+    pub target: String,
+    pub position: [f32; 2],
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -28,6 +41,10 @@ pub struct Runtime {
     pub active: Option<String>,
     #[serde(skip)]
     pub pointer: Option<[f32; 2]>,
+    #[serde(skip)]
+    pub viewport: [f32; 2],
+    #[serde(skip)]
+    pub script_events: Vec<ScriptEvent>,
 }
 pub enum Input {
     PointerMove([f32; 2]),
@@ -36,6 +53,7 @@ pub enum Input {
     ScrollObject { owner: String, delta: f32 },
     PointerDown([f32; 2]),
     PointerUp([f32; 2]),
+    SecondaryDown([f32; 2]),
     FocusNext { reverse: bool },
     Activate,
     Adjust(f32),
@@ -50,6 +68,12 @@ pub enum Control {
     Value(f32),
     Visible(bool),
     Enabled(bool),
+    Opacity(f32),
+    Size([f32; 2]),
+    Background([f32; 4]),
+    WorldPosition([f32; 3]),
+    ScreenPosition([f32; 2]),
+    Offset([f32; 2]),
     Focus,
 }
 fn emit(world: &mut World, element: &Element, value: f32) -> Result<()> {
@@ -78,6 +102,28 @@ impl SceneInstance {
                 v.is_finite() && (widget.min..=widget.max).contains(v),
                 "UI value outside widget range"
             ),
+            Control::Opacity(v) => ensure!(
+                v.is_finite() && (0.0..=1.).contains(v),
+                "invalid UI opacity"
+            ),
+            Control::Size(v) => ensure!(
+                v.iter()
+                    .all(|n| n.is_finite() && (0.0..=10000.).contains(n)),
+                "invalid UI size"
+            ),
+            Control::Background(v) => ensure!(
+                v.iter().all(|n| n.is_finite() && (0.0..=1.).contains(n)),
+                "invalid UI background"
+            ),
+            Control::WorldPosition(v) => {
+                ensure!(v.iter().all(|n| n.is_finite()), "invalid UI world position")
+            }
+            Control::ScreenPosition(v) | Control::Offset(v) => {
+                ensure!(
+                    v.iter().all(|n| n.is_finite() && n.abs() <= 10000.),
+                    "invalid UI position"
+                )
+            }
             _ => {}
         }
         if world.resource::<Runtime>().is_none() {
@@ -94,6 +140,12 @@ impl SceneInstance {
             Control::Value(v) => state.value = Some(v),
             Control::Visible(v) => state.visible = Some(v),
             Control::Enabled(v) => state.enabled = Some(v),
+            Control::Opacity(v) => state.opacity = Some(v),
+            Control::Size(v) => state.size = Some(v),
+            Control::Background(v) => state.background = Some(v),
+            Control::WorldPosition(v) => state.world_position = Some(v),
+            Control::ScreenPosition(v) => state.screen_position = Some(v),
+            Control::Offset(v) => state.offset = Some(v),
             Control::Focus => {}
         }
         Ok(())
@@ -131,6 +183,7 @@ impl SceneInstance {
     ) -> Result<bool> {
         let frame = self.ui_frame(world, layer, size)?;
         let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
+        runtime.viewport = size;
         let previous_focus = runtime.focus.clone();
         if runtime.focus.as_deref().is_some_and(|id| {
             frame.element(id).is_none_or(|e| {
@@ -166,6 +219,7 @@ impl SceneInstance {
                 Ok(())
             };
             let activate = |runtime: &mut Runtime, world: &mut World, e: &Element| -> Result<()> {
+                runtime.queue("activate", &e.owner);
                 runtime.focus = Some(e.owner.clone());
                 if e.widget.kind == WidgetKind::Toggle {
                     let old = runtime
@@ -231,6 +285,16 @@ impl SceneInstance {
                     runtime.pointer = Some(p);
                     let captured = runtime.active.is_some();
                     let hit = frame.hit(p);
+                    if !matches!(input, Input::PointerMove(_)) {
+                        runtime.queue(
+                            if matches!(input, Input::PointerDown(_)) {
+                                "down"
+                            } else {
+                                "up"
+                            },
+                            hit.map_or("", |e| e.owner.as_str()),
+                        );
+                    }
                     if matches!(input, Input::PointerDown(_)) {
                         runtime.active = hit.map(|e| e.owner.clone());
                         if let Some(e) = hit {
@@ -262,6 +326,12 @@ impl SceneInstance {
                         }
                     }
                     Ok(captured || frame.blocks_pointer(p))
+                }
+                Input::SecondaryDown(p) => {
+                    ensure!(p.iter().all(|v| v.is_finite()), "invalid UI pointer");
+                    runtime.pointer = Some(p);
+                    runtime.queue("secondary", frame.hit(p).map_or("", |e| e.owner.as_str()));
+                    Ok(frame.blocks_pointer(p))
                 }
                 Input::FocusNext { reverse } => {
                     let nodes = frame.focusable();
@@ -360,6 +430,9 @@ impl SceneInstance {
                     }
                 }
                 Input::CancelPointer => {
+                    if runtime.pointer.is_some() || runtime.active.is_some() {
+                        runtime.queue("cancel", "");
+                    }
                     runtime.pointer = None;
                     runtime.active = None;
                     Ok(false)
@@ -408,6 +481,23 @@ impl Preferences {
     }
 }
 impl Runtime {
+    fn queue(&mut self, kind: &'static str, target: &str) {
+        if self.script_events.len() >= 256 {
+            // Cancel rather than lose a release and leave a script dragging forever.
+            self.script_events.clear();
+            self.script_events.push(ScriptEvent {
+                kind: "cancel",
+                target: String::new(),
+                position: [0.; 2],
+            });
+        }
+        let p = self.pointer.unwrap_or([0.; 2]);
+        self.script_events.push(ScriptEvent {
+            kind,
+            target: target.into(),
+            position: std::array::from_fn(|i| p[i] / self.viewport[i].max(1.)),
+        });
+    }
     pub fn validate(&self, scene: &Scene) -> Result<()> {
         ensure!(self.widgets.len() <= 1024, "too many saved widgets");
         for (owner, state) in &self.widgets {
@@ -426,7 +516,23 @@ impl Runtime {
                 state.text.as_ref().is_none_or(|t| t.len() <= 4096)
                     && state
                         .value
-                        .is_none_or(|v| v.is_finite() && (widget.min..=widget.max).contains(&v)),
+                        .is_none_or(|v| v.is_finite() && (widget.min..=widget.max).contains(&v))
+                    && state
+                        .opacity
+                        .is_none_or(|v| v.is_finite() && (0.0..=1.).contains(&v))
+                    && state.size.is_none_or(|v| v
+                        .iter()
+                        .all(|n| n.is_finite() && (0.0..=10000.).contains(n)))
+                    && state
+                        .background
+                        .is_none_or(|v| v.iter().all(|n| n.is_finite() && (0.0..=1.).contains(n)))
+                    && state
+                        .world_position
+                        .is_none_or(|v| v.iter().all(|n| n.is_finite()))
+                    && [state.screen_position, state.offset]
+                        .iter()
+                        .all(|v| v
+                            .is_none_or(|p| p.iter().all(|n| n.is_finite() && n.abs() <= 10000.))),
                 "invalid saved widget state"
             );
         }

@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "name": "Machine Assembler",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-assembler",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "base",
+      "name": "machine-assembler base",
+      "transform": {
+        "translation": [
+          0,
+          0.11,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.22,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.23,
+          0.19,
+          0.34
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-0",
+      "name": "machine-assembler detail 1",
+      "transform": {
+        "translation": [
+          0,
+          0.43,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.67,
+          0.46,
+          0.67
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.48,
+          0.36,
+          0.67
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-1",
+      "name": "machine-assembler detail 2",
+      "transform": {
+        "translation": [
+          -0.23,
+          0.72,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.24,
+          0.46
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.76,
+          0.72,
+          0.91
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-2",
+      "name": "machine-assembler detail 3",
+      "transform": {
+        "translation": [
+          0.23,
+          0.72,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.24,
+          0.46
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.76,
+          0.72,
+          0.91
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    }
+  ]
+}

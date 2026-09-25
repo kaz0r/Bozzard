@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "name": "Machine Merger",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-merger",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "base",
+      "name": "machine-merger base",
+      "transform": {
+        "translation": [
+          0,
+          0.11,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.22,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.13,
+          0.17,
+          0.2
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-0",
+      "name": "machine-merger detail 1",
+      "transform": {
+        "translation": [
+          0,
+          0.3,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.65,
+          0.15,
+          0.65
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.54,
+          0.36,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-1",
+      "name": "machine-merger detail 2",
+      "transform": {
+        "translation": [
+          0.25,
+          0.44,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.15,
+          0.16,
+          0.32
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.88,
+          0.8,
+          0.45
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    }
+  ]
+}

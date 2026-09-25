@@ -44,6 +44,8 @@ pub struct FrameStats {
     /// True when every shadow map was reused without another depth pass.
     pub shadow_cache_hit: bool,
     pub object_uniform_writes: usize,
+    /// Object uniforms recomputed on the CPU, before byte comparison/upload.
+    pub object_uniform_builds: usize,
     pub auxiliary_targets: usize,
     /// Logical size of allocated auxiliary textures; excludes other effect/history targets.
     pub geometry_allocated_bytes: u64,

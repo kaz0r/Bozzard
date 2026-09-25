@@ -181,7 +181,8 @@ impl ShadowMaps {
         renderer: &SceneRenderer,
         encoder: &mut crate::profiling::Encoder,
         draws: &[PreparedDraw],
-        pipeline: &wgpu::RenderPipeline,
+        batches: &[instancing::Batch],
+        point: bool,
         changes: &[Option<Vec<shadows::ShadowCaster>>],
     ) -> (usize, u64) {
         let mut counts = (0, 0);
@@ -202,9 +203,9 @@ impl ShadowMaps {
                 }),
                 ..Default::default()
             });
-            pass.set_pipeline(pipeline);
             pass.set_bind_group(1, &self.casters[slot].binding, &[]);
-            let (draws, triangles) = renderer.draw_shadow_casters(&mut pass, draws, Some(*matrix));
+            let (draws, triangles) =
+                renderer.draw_shadow_casters(&mut pass, draws, batches, Some(*matrix), point);
             counts.0 += draws;
             counts.1 += triangles;
         }

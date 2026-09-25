@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "name": "Machine Miner",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-miner",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "base",
+      "name": "machine-miner base",
+      "transform": {
+        "translation": [
+          0,
+          0.11,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.22,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.23,
+          0.27
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-0",
+      "name": "machine-miner detail 1",
+      "transform": {
+        "translation": [
+          0,
+          0.43,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.62,
+          0.43,
+          0.62
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.32,
+          0.43,
+          0.48
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-1",
+      "name": "machine-miner detail 2",
+      "transform": {
+        "translation": [
+          0.24,
+          0.71,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.17,
+          0.16,
+          0.45
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.83,
+          0.72,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-2",
+      "name": "machine-miner detail 3",
+      "transform": {
+        "translation": [
+          0.37,
+          0.3,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.22,
+          0.17,
+          0.28
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.08,
+          0.12,
+          0.15
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    }
+  ]
+}

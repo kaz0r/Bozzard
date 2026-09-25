@@ -3,6 +3,9 @@ struct ObjectUniform {
     model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
     sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
     surface_factors: vec4<f32>,
+    // Match the color pass's full 496-byte stride for shared instance buffers.
+    fog_color: vec4<f32>, fog_density: vec4<f32>, fog_height: vec4<f32>,
+    previous_mvp: mat4x4<f32>, shader_time: vec4<f32>,
 };
 struct ShadowUniform { matrix: mat4x4<f32>, settings: vec4<f32> };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;

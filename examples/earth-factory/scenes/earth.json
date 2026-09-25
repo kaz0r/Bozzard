@@ -1,0 +1,10209 @@
+{
+  "version": 1,
+  "name": "Earth Factory Prototype",
+  "views": {
+    "3d": "camera"
+  },
+  "environment": {
+    "zenith": [
+      0.14,
+      0.37,
+      0.68
+    ],
+    "horizon": [
+      0.65,
+      0.77,
+      0.86
+    ],
+    "ground": [
+      0.24,
+      0.3,
+      0.24
+    ],
+    "intensity": 0.5,
+    "background": true
+  },
+  "lighting": {
+    "shadows": true,
+    "shadow_resolution": 2048,
+    "shadow_bias": 0.005,
+    "shadow_normal_bias": 0.01,
+    "sun_direction": [
+      0.46,
+      0.81,
+      0.35
+    ],
+    "sun_color": [
+      1.0,
+      0.94,
+      0.82
+    ],
+    "sun_intensity": 2.6,
+    "ambient_color": [
+      0.86,
+      0.94,
+      1.0
+    ],
+    "ambient_intensity": 0.18
+  },
+  "blackboard": {
+    "started": {
+      "scalar": {
+        "bool": false
+      }
+    },
+    "seed": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "cursor_x": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "cursor_z": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "selected": {
+      "scalar": {
+        "number": 1
+      }
+    },
+    "direction": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "camera_heading": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "camera_progress": {
+      "scalar": {
+        "number": 1
+      }
+    },
+    "camera_pending": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "clock": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "ticks": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "tooltip_cell": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "tooltip_alpha": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "objective_display": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "storage_open": {
+      "scalar": {
+        "bool": false
+      }
+    },
+    "storage_cell": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_alpha": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "storage_drag": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_menu": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_menu_alpha": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "storage_revision": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "storage_render_revision": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_render_cell": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_render_drag": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_render_menu": {
+      "scalar": {
+        "number": -1
+      }
+    },
+    "storage_used": {
+      "scalar": {
+        "number": 0
+      }
+    },
+    "storage_view": {
+      "list": {
+        "element": "number",
+        "capacity": 32,
+        "values": []
+      }
+    },
+    "power_supply": {
+      "scalar": {
+        "number": 18
+      }
+    },
+    "power_demand": {
+      "scalar": {
+        "number": 9
+      }
+    },
+    "message": {
+      "scalar": {
+        "text": "Starting the demonstration factory"
+      }
+    },
+    "nodes": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "builds": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "machine_cells": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "facings": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "items": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "progress": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "assembler_iron": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "assembler_copper": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "split_state": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "node_visuals": {
+      "list": {
+        "element": "text",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "build_visuals": {
+      "list": {
+        "element": "text",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "item_visuals": {
+      "list": {
+        "element": "text",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "counts": {
+      "list": {
+        "element": "number",
+        "capacity": 32,
+        "values": []
+      }
+    },
+    "motion_visuals": {
+      "list": {
+        "element": "text",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "motion_from": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "motion_to": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "motion_from_y": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "motion_to_y": {
+      "list": {
+        "element": "number",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "retired_visuals": {
+      "list": {
+        "element": "text",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "item_pool": {
+      "list": {
+        "element": "text",
+        "capacity": 225,
+        "values": []
+      }
+    },
+    "storage_kinds_0": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_amounts_0": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_kinds_1": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_amounts_1": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_kinds_2": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_amounts_2": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_kinds_3": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    },
+    "storage_amounts_3": {
+      "list": {
+        "element": "number",
+        "capacity": 900,
+        "values": []
+      }
+    }
+  },
+  "assets": {
+    "node-iron": {
+      "kind": "prefab",
+      "path": "assets/node-iron.prefab.json"
+    },
+    "node-copper": {
+      "kind": "prefab",
+      "path": "assets/node-copper.prefab.json"
+    },
+    "node-limestone": {
+      "kind": "prefab",
+      "path": "assets/node-limestone.prefab.json"
+    },
+    "node-coal": {
+      "kind": "prefab",
+      "path": "assets/node-coal.prefab.json"
+    },
+    "node-quartz": {
+      "kind": "prefab",
+      "path": "assets/node-quartz.prefab.json"
+    },
+    "node-oil": {
+      "kind": "prefab",
+      "path": "assets/node-oil.prefab.json"
+    },
+    "node-water": {
+      "kind": "prefab",
+      "path": "assets/node-water.prefab.json"
+    },
+    "machine-miner": {
+      "kind": "prefab",
+      "path": "assets/machine-miner.prefab.json"
+    },
+    "machine-belt": {
+      "kind": "prefab",
+      "path": "assets/machine-belt.prefab.json"
+    },
+    "machine-smelter": {
+      "kind": "prefab",
+      "path": "assets/machine-smelter.prefab.json"
+    },
+    "machine-storage": {
+      "kind": "prefab",
+      "path": "assets/machine-storage.prefab.json"
+    },
+    "machine-assembler": {
+      "kind": "prefab",
+      "path": "assets/machine-assembler.prefab.json"
+    },
+    "machine-generator": {
+      "kind": "prefab",
+      "path": "assets/machine-generator.prefab.json"
+    },
+    "machine-splitter": {
+      "kind": "prefab",
+      "path": "assets/machine-splitter.prefab.json"
+    },
+    "machine-merger": {
+      "kind": "prefab",
+      "path": "assets/machine-merger.prefab.json"
+    },
+    "item": {
+      "kind": "prefab",
+      "path": "assets/item.prefab.json"
+    },
+    "earth-ground": {
+      "kind": "mesh",
+      "path": "assets/earth-ground.obj"
+    },
+    "ui-rounded": {
+      "kind": "image",
+      "path": "assets/ui-rounded.png"
+    },
+    "earth-factory": {
+      "kind": "script",
+      "path": "scripts/earth_factory.rs"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera-rig",
+      "name": "Camera orbit pivot (Rhai)",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "camera",
+      "name": "Isometric camera",
+      "parent": "camera-rig",
+      "transform": {
+        "translation": [
+          20,
+          20,
+          20
+        ],
+        "rotation_degrees": [
+          -35.264,
+          45,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 19,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "controller",
+      "name": "Earth factory controller (Rhai)",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "earth-factory"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ground",
+      "name": "Baked Earth ground and cliff",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "earth-ground"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "cursor",
+      "name": "Build cursor",
+      "transform": {
+        "translation": [
+          0,
+          0.115,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.94,
+          0.055,
+          0.94
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.95,
+          0.7
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "factory-ui",
+      "name": "Factory HUD",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_canvas": {
+        "layer": "3d",
+        "reference": [
+          1080,
+          600
+        ],
+        "scaling": "fit",
+        "order": 20
+      }
+    },
+    {
+      "id": "objective-shadow",
+      "name": "Objective Shadow",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            24,
+            29
+          ],
+          "size": [
+            400,
+            180
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0.18
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "objective-panel",
+      "name": "Objective Panel",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            24,
+            24
+          ],
+          "size": [
+            400,
+            180
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.055,
+          0.09,
+          0.078,
+          0.88
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 1,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "objective-title",
+      "name": "Objective Title",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Objective",
+        "font_size": 27,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            18
+          ],
+          "size": [
+            240,
+            32
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "objective-tier",
+      "name": "Objective Tier",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Tier 1",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            298,
+            20
+          ],
+          "size": [
+            80,
+            28
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.16,
+          0.23,
+          0.19,
+          0.9
+        ],
+        "padding": [
+          18,
+          5,
+          4,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "objective-text",
+      "name": "Objective Text",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Press Play to start your factory",
+        "font_size": 18,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            62
+          ],
+          "size": [
+            356,
+            28
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "objective-next",
+      "name": "Objective Next",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "ASSEMBLY MILESTONE",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            101
+          ],
+          "size": [
+            270,
+            20
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "objective-count",
+      "name": "Objective Count",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "0 / 8",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            320,
+            97
+          ],
+          "size": [
+            64,
+            24
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "objective-track",
+      "name": "Objective Track",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            132
+          ],
+          "size": [
+            356,
+            12
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.018,
+          0.03,
+          0.025,
+          0.95
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "objective-fill",
+      "name": "Objective Fill",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            132
+          ],
+          "size": [
+            0,
+            12
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.74,
+          0.28,
+          0.11,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 2,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "objective-note",
+      "name": "Objective Note",
+      "parent": "objective-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Production continues while you build.",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            153
+          ],
+          "size": [
+            356,
+            20
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "world-panel",
+      "name": "World Panel",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            1,
+            0
+          ],
+          "max": [
+            1,
+            0
+          ],
+          "pivot": [
+            1,
+            0
+          ],
+          "offset": [
+            -24,
+            24
+          ],
+          "size": [
+            206,
+            142
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.055,
+          0.09,
+          0.078,
+          0.88
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "world-status",
+      "name": "World Status",
+      "parent": "world-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "EARTH  /  DAY",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            18,
+            16
+          ],
+          "size": [
+            172,
+            24
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "stored-iron",
+      "name": "Stored Iron",
+      "parent": "world-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Iron       0",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            18,
+            51
+          ],
+          "size": [
+            172,
+            22
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "stored-copper",
+      "name": "Stored Copper",
+      "parent": "world-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Copper     0",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            18,
+            74
+          ],
+          "size": [
+            172,
+            22
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "stored-parts",
+      "name": "Stored Parts",
+      "parent": "world-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Parts      0",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            18,
+            97
+          ],
+          "size": [
+            172,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "power-status",
+      "name": "Power Status",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "POWER  9 / 18",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            1,
+            0
+          ],
+          "max": [
+            1,
+            0
+          ],
+          "pivot": [
+            1,
+            0
+          ],
+          "offset": [
+            -24,
+            175
+          ],
+          "size": [
+            206,
+            34
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0.055,
+          0.09,
+          0.078,
+          0.88
+        ],
+        "padding": [
+          18,
+          9,
+          8,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "build-panel",
+      "name": "Build Panel",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0.5,
+            1
+          ],
+          "max": [
+            0.5,
+            1
+          ],
+          "pivot": [
+            0.5,
+            1
+          ],
+          "offset": [
+            0,
+            -22
+          ],
+          "size": [
+            760,
+            132
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.055,
+          0.09,
+          0.078,
+          0.88
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-1",
+      "name": "Slot 1",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            18,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-1",
+      "name": "Slot Key 1",
+      "parent": "slot-1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "1",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-1",
+      "name": "Slot Name 1",
+      "parent": "slot-1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Miner",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-2",
+      "name": "Slot 2",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            109,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-2",
+      "name": "Slot Key 2",
+      "parent": "slot-2",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "2",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-2",
+      "name": "Slot Name 2",
+      "parent": "slot-2",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Belt",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-3",
+      "name": "Slot 3",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            200,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-3",
+      "name": "Slot Key 3",
+      "parent": "slot-3",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "3",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-3",
+      "name": "Slot Name 3",
+      "parent": "slot-3",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Smelter",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-4",
+      "name": "Slot 4",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            291,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-4",
+      "name": "Slot Key 4",
+      "parent": "slot-4",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "4",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-4",
+      "name": "Slot Name 4",
+      "parent": "slot-4",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Storage",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-5",
+      "name": "Slot 5",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            382,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-5",
+      "name": "Slot Key 5",
+      "parent": "slot-5",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "5",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-5",
+      "name": "Slot Name 5",
+      "parent": "slot-5",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Assembler",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-6",
+      "name": "Slot 6",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            473,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-6",
+      "name": "Slot Key 6",
+      "parent": "slot-6",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "6",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-6",
+      "name": "Slot Name 6",
+      "parent": "slot-6",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Generator",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-7",
+      "name": "Slot 7",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            564,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-7",
+      "name": "Slot Key 7",
+      "parent": "slot-7",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "7",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-7",
+      "name": "Slot Name 7",
+      "parent": "slot-7",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Splitter",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-8",
+      "name": "Slot 8",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            655,
+            12
+          ],
+          "size": [
+            87,
+            58
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.13,
+          0.19,
+          0.16,
+          0.8
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "slot-key-8",
+      "name": "Slot Key 8",
+      "parent": "slot-8",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "8",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            10,
+            6
+          ],
+          "size": [
+            60,
+            18
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "slot-name-8",
+      "name": "Slot Name 8",
+      "parent": "slot-8",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Merger",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            29
+          ],
+          "size": [
+            78,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "build-status",
+      "name": "Build Status",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "MINER  /  Facing East",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            83
+          ],
+          "size": [
+            250,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "controls-hint",
+      "name": "Controls Hint",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "WASD Move   Space Build   R Rotate machine   X Remove",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            280,
+            83
+          ],
+          "size": [
+            466,
+            22
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "camera-hint",
+      "name": "Camera Hint",
+      "parent": "build-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "E  Open nearby storage      Ctrl + R  Turn camera      N  New world",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            22,
+            108
+          ],
+          "size": [
+            720,
+            20
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "build-message",
+      "name": "Build Message",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Start Play to bring this factory to life.",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0.5,
+            1
+          ],
+          "max": [
+            0.5,
+            1
+          ],
+          "pivot": [
+            0.5,
+            0
+          ],
+          "offset": [
+            0,
+            -187
+          ],
+          "size": [
+            720,
+            26
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "nearby-tooltip",
+      "name": "Nearby Tooltip",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Miner: Quartz",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0.5,
+            1
+          ],
+          "offset": [
+            0,
+            -12
+          ],
+          "size": [
+            160,
+            36
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.024,
+          0.034,
+          0.029,
+          0.96
+        ],
+        "padding": [
+          14,
+          8,
+          10,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 100,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "visible": false
+      }
+    },
+    {
+      "id": "storage-overlay",
+      "name": "Storage Overlay",
+      "parent": "factory-ui",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            1,
+            1
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            0,
+            0
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.01,
+          0.02,
+          0.015,
+          0.62
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 200,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "visible": false
+      }
+    },
+    {
+      "id": "storage-panel",
+      "name": "Storage Panel",
+      "parent": "storage-overlay",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0.5,
+            0.5
+          ],
+          "max": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0,
+            24
+          ],
+          "size": [
+            640,
+            500
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.045,
+          0.075,
+          0.06,
+          0.99
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "storage-title",
+      "name": "Storage Title",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Storage",
+        "font_size": 27,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            20
+          ],
+          "size": [
+            460,
+            34
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "storage-subtitle",
+      "name": "Storage Subtitle",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "16 slots  /  100 items per stack",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            63
+          ],
+          "size": [
+            565,
+            23
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "storage-close",
+      "name": "Storage Close",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "Close  E",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            536,
+            24
+          ],
+          "size": [
+            78,
+            32
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.16,
+          0.23,
+          0.19,
+          1
+        ],
+        "padding": [
+          12,
+          7,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "shortcuts": [
+          "E"
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-0",
+      "name": "Inventory Slot 0",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            104
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 1"
+      }
+    },
+    {
+      "id": "inventory-slot-0-icon",
+      "name": "Inventory Slot 0 Icon",
+      "parent": "inventory-slot-0",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-0-name",
+      "name": "Inventory Slot 0 Name",
+      "parent": "inventory-slot-0",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-0-count",
+      "name": "Inventory Slot 0 Count",
+      "parent": "inventory-slot-0",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-1",
+      "name": "Inventory Slot 1",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            176,
+            104
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 2"
+      }
+    },
+    {
+      "id": "inventory-slot-1-icon",
+      "name": "Inventory Slot 1 Icon",
+      "parent": "inventory-slot-1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-1-name",
+      "name": "Inventory Slot 1 Name",
+      "parent": "inventory-slot-1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-1-count",
+      "name": "Inventory Slot 1 Count",
+      "parent": "inventory-slot-1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-2",
+      "name": "Inventory Slot 2",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            326,
+            104
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 3"
+      }
+    },
+    {
+      "id": "inventory-slot-2-icon",
+      "name": "Inventory Slot 2 Icon",
+      "parent": "inventory-slot-2",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-2-name",
+      "name": "Inventory Slot 2 Name",
+      "parent": "inventory-slot-2",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-2-count",
+      "name": "Inventory Slot 2 Count",
+      "parent": "inventory-slot-2",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-3",
+      "name": "Inventory Slot 3",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            476,
+            104
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 4"
+      }
+    },
+    {
+      "id": "inventory-slot-3-icon",
+      "name": "Inventory Slot 3 Icon",
+      "parent": "inventory-slot-3",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-3-name",
+      "name": "Inventory Slot 3 Name",
+      "parent": "inventory-slot-3",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-3-count",
+      "name": "Inventory Slot 3 Count",
+      "parent": "inventory-slot-3",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-4",
+      "name": "Inventory Slot 4",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            192
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 5"
+      }
+    },
+    {
+      "id": "inventory-slot-4-icon",
+      "name": "Inventory Slot 4 Icon",
+      "parent": "inventory-slot-4",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-4-name",
+      "name": "Inventory Slot 4 Name",
+      "parent": "inventory-slot-4",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-4-count",
+      "name": "Inventory Slot 4 Count",
+      "parent": "inventory-slot-4",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-5",
+      "name": "Inventory Slot 5",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            176,
+            192
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 6"
+      }
+    },
+    {
+      "id": "inventory-slot-5-icon",
+      "name": "Inventory Slot 5 Icon",
+      "parent": "inventory-slot-5",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-5-name",
+      "name": "Inventory Slot 5 Name",
+      "parent": "inventory-slot-5",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-5-count",
+      "name": "Inventory Slot 5 Count",
+      "parent": "inventory-slot-5",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-6",
+      "name": "Inventory Slot 6",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            326,
+            192
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 7"
+      }
+    },
+    {
+      "id": "inventory-slot-6-icon",
+      "name": "Inventory Slot 6 Icon",
+      "parent": "inventory-slot-6",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-6-name",
+      "name": "Inventory Slot 6 Name",
+      "parent": "inventory-slot-6",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-6-count",
+      "name": "Inventory Slot 6 Count",
+      "parent": "inventory-slot-6",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-7",
+      "name": "Inventory Slot 7",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            476,
+            192
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 8"
+      }
+    },
+    {
+      "id": "inventory-slot-7-icon",
+      "name": "Inventory Slot 7 Icon",
+      "parent": "inventory-slot-7",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-7-name",
+      "name": "Inventory Slot 7 Name",
+      "parent": "inventory-slot-7",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-7-count",
+      "name": "Inventory Slot 7 Count",
+      "parent": "inventory-slot-7",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-8",
+      "name": "Inventory Slot 8",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            280
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 9"
+      }
+    },
+    {
+      "id": "inventory-slot-8-icon",
+      "name": "Inventory Slot 8 Icon",
+      "parent": "inventory-slot-8",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-8-name",
+      "name": "Inventory Slot 8 Name",
+      "parent": "inventory-slot-8",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-8-count",
+      "name": "Inventory Slot 8 Count",
+      "parent": "inventory-slot-8",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-9",
+      "name": "Inventory Slot 9",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            176,
+            280
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 10"
+      }
+    },
+    {
+      "id": "inventory-slot-9-icon",
+      "name": "Inventory Slot 9 Icon",
+      "parent": "inventory-slot-9",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-9-name",
+      "name": "Inventory Slot 9 Name",
+      "parent": "inventory-slot-9",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-9-count",
+      "name": "Inventory Slot 9 Count",
+      "parent": "inventory-slot-9",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-10",
+      "name": "Inventory Slot 10",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            326,
+            280
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 11"
+      }
+    },
+    {
+      "id": "inventory-slot-10-icon",
+      "name": "Inventory Slot 10 Icon",
+      "parent": "inventory-slot-10",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-10-name",
+      "name": "Inventory Slot 10 Name",
+      "parent": "inventory-slot-10",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-10-count",
+      "name": "Inventory Slot 10 Count",
+      "parent": "inventory-slot-10",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-11",
+      "name": "Inventory Slot 11",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            476,
+            280
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 12"
+      }
+    },
+    {
+      "id": "inventory-slot-11-icon",
+      "name": "Inventory Slot 11 Icon",
+      "parent": "inventory-slot-11",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-11-name",
+      "name": "Inventory Slot 11 Name",
+      "parent": "inventory-slot-11",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-11-count",
+      "name": "Inventory Slot 11 Count",
+      "parent": "inventory-slot-11",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-12",
+      "name": "Inventory Slot 12",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            368
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 13"
+      }
+    },
+    {
+      "id": "inventory-slot-12-icon",
+      "name": "Inventory Slot 12 Icon",
+      "parent": "inventory-slot-12",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-12-name",
+      "name": "Inventory Slot 12 Name",
+      "parent": "inventory-slot-12",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-12-count",
+      "name": "Inventory Slot 12 Count",
+      "parent": "inventory-slot-12",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-13",
+      "name": "Inventory Slot 13",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            176,
+            368
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 14"
+      }
+    },
+    {
+      "id": "inventory-slot-13-icon",
+      "name": "Inventory Slot 13 Icon",
+      "parent": "inventory-slot-13",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-13-name",
+      "name": "Inventory Slot 13 Name",
+      "parent": "inventory-slot-13",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-13-count",
+      "name": "Inventory Slot 13 Count",
+      "parent": "inventory-slot-13",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-14",
+      "name": "Inventory Slot 14",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            326,
+            368
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 15"
+      }
+    },
+    {
+      "id": "inventory-slot-14-icon",
+      "name": "Inventory Slot 14 Icon",
+      "parent": "inventory-slot-14",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-14-name",
+      "name": "Inventory Slot 14 Name",
+      "parent": "inventory-slot-14",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-14-count",
+      "name": "Inventory Slot 14 Count",
+      "parent": "inventory-slot-14",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-15",
+      "name": "Inventory Slot 15",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            476,
+            368
+          ],
+          "size": [
+            138,
+            78
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.1,
+          0.15,
+          0.12,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "accessible_name": "Storage slot 16"
+      }
+    },
+    {
+      "id": "inventory-slot-15-icon",
+      "name": "Inventory Slot 15 Icon",
+      "parent": "inventory-slot-15",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            11
+          ],
+          "size": [
+            14,
+            14
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.24,
+          0.31,
+          0.26,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "inventory-slot-15-name",
+      "name": "Inventory Slot 15 Name",
+      "parent": "inventory-slot-15",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Empty",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            32
+          ],
+          "size": [
+            119,
+            36
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "inventory-slot-15-count",
+      "name": "Inventory Slot 15 Count",
+      "parent": "inventory-slot-15",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 17,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            79,
+            8
+          ],
+          "size": [
+            48,
+            22
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "storage-help",
+      "name": "Storage Help",
+      "parent": "storage-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Drag to move or merge  \u2022  Right-click for stack actions",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            26,
+            465
+          ],
+          "size": [
+            590,
+            23
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "stack-menu",
+      "name": "Stack Menu",
+      "parent": "storage-overlay",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            192,
+            137
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.025,
+          0.045,
+          0.033,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 30,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "visible": false
+      }
+    },
+    {
+      "id": "stack-menu-title",
+      "name": "Stack Menu Title",
+      "parent": "stack-menu",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Stack",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            12
+          ],
+          "size": [
+            168,
+            26
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
+      "id": "stack-split",
+      "name": "Stack Split",
+      "parent": "stack-menu",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "Split",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            44
+          ],
+          "size": [
+            176,
+            36
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.12,
+          0.18,
+          0.14,
+          1
+        ],
+        "padding": [
+          12,
+          8,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "stack-delete",
+      "name": "Stack Delete",
+      "parent": "stack-menu",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "Delete all",
+        "font_size": 16,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            8,
+            86
+          ],
+          "size": [
+            176,
+            36
+          ]
+        },
+        "text_color": [
+          1,
+          0.6,
+          0.48,
+          1
+        ],
+        "background": [
+          0.12,
+          0.18,
+          0.14,
+          1
+        ],
+        "padding": [
+          12,
+          8,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "stack-drag",
+      "name": "Stack Drag",
+      "parent": "storage-overlay",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            12,
+            12
+          ],
+          "size": [
+            152,
+            68
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.25,
+          0.35,
+          0.27,
+          0.95
+        ],
+        "padding": [
+          12,
+          12,
+          8,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 40,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "visible": false
+      }
+    },
+    {
+      "id": "tree-trunk-4-0",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          -4,
+          0.24,
+          -8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-4-0",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          -4,
+          0.87,
+          -8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-11-0",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          3,
+          0.24,
+          -8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-11-0",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          3,
+          0.87,
+          -8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-16-3",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          8,
+          0.24,
+          -5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-16-3",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          8,
+          0.87,
+          -5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-0-6",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          -8,
+          0.24,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-0-6",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          -8,
+          0.87,
+          -2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-16-10",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          8,
+          0.24,
+          2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-16-10",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          8,
+          0.87,
+          2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-0-13",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          -8,
+          0.24,
+          5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-0-13",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          -8,
+          0.87,
+          5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-5-16",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          -3,
+          0.24,
+          8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-5-16",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          -3,
+          0.87,
+          8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-trunk-12-16",
+      "name": "Tree trunk",
+      "transform": {
+        "translation": [
+          4,
+          0.24,
+          8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.8,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.31,
+          0.22,
+          0.13
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "tree-leaf-12-16",
+      "name": "Tree canopy",
+      "transform": {
+        "translation": [
+          4,
+          0.87,
+          8
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.85,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.16,
+          0.36,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "pod-0",
+      "name": "Landing pod",
+      "transform": {
+        "translation": [
+          8,
+          0,
+          6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1.25,
+          0.28,
+          1.25
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.17,
+          0.23,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "pod-1",
+      "name": "Landing pod",
+      "transform": {
+        "translation": [
+          8,
+          0.52,
+          6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.83,
+          0.88,
+          0.83
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.77,
+          0.79,
+          0.71
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "pod-2",
+      "name": "Landing pod",
+      "transform": {
+        "translation": [
+          8,
+          1.11,
+          6
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.43,
+          0.3,
+          0.43
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.25,
+          0.54,
+          0.69
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

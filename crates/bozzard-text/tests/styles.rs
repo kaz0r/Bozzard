@@ -2,7 +2,7 @@ use bozzard_text::{Font, bounds_with_font};
 use std::collections::BTreeMap;
 
 fn variable() -> anyhow::Result<Font> {
-    Font::parse(include_bytes!("fonts/Roboto.ttf").to_vec())
+    Font::parse(include_bytes!("../assets/Roboto.ttf").to_vec())
 }
 fn width(font: &Font, text: &str) -> anyhow::Result<f32> {
     let b = bounds_with_font(text, 1., None, false, 0, Some(font))?.unwrap();
@@ -52,7 +52,7 @@ fn axes_change_real_metrics_and_keep_stable_identity_through_repeated_extraction
 fn missing_glyphs_use_custom_or_bundled_fallbacks_and_reloads_change_identity() -> anyhow::Result<()>
 {
     use skrifa::MetadataProvider;
-    let primary_bytes = include_bytes!("fonts/Roboto.ttf");
+    let primary_bytes = include_bytes!("../assets/Roboto.ttf");
     let fallback_bytes = include_bytes!("../../bozzard-assets/tests/fonts/test.ttf");
     let primary = variable()?;
     let fallback = Font::parse(fallback_bytes.to_vec())?;

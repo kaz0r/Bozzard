@@ -133,6 +133,17 @@ impl Player {
                 }
             }
             WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: winit::event::MouseButton::Right,
+                ..
+            } => {
+                if let Some(point) = self.menu_input.pointer {
+                    self.ui_input(Input::SecondaryDown(point))
+                } else {
+                    Ok(false)
+                }
+            }
+            WindowEvent::MouseInput {
                 state,
                 button: winit::event::MouseButton::Left,
                 ..

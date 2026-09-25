@@ -61,7 +61,10 @@ impl Scene {
                     ("Start game", NodeKind::StartGame, &["Enter"]),
                     ("Quit", NodeKind::QuitGame, &["Q"]),
                 ],
-                Phase::Playing => &[("Pause", NodeKind::PauseGame, &["Escape"])],
+                Phase::Playing => &[
+                    ("Pause", NodeKind::PauseGame, &["Escape"]),
+                    ("Restart", NodeKind::RestartGame, &["R"]),
+                ],
                 Phase::Paused => &[
                     ("Resume", NodeKind::ResumeGame, &["Enter", "Escape"]),
                     ("Restart", NodeKind::RestartGame, &["R"]),
@@ -173,7 +176,7 @@ impl Scene {
                         min: [1., 0.],
                         max: [1., 0.],
                         pivot: [1., 0.],
-                        offset: [-20., 20.],
+                        offset: [-20., 20. + i as f32 * 64.],
                         size: [180., 52.],
                     }
                 } else {
