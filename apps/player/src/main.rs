@@ -273,6 +273,40 @@ fn configure_surface_checked(
     Ok(())
 }
 
+type RetiredComputeJob = (bozzard_scene::compute::Owner, u64, String, bool);
+
+fn retire_pending_compute_jobs(demo: &mut SceneDemo) -> Result<Vec<RetiredComputeJob>> {
+    demo.with_instance(|instance, _| {
+        let Some(mut compute) = instance.compute_if_initialized() else {
+            return Ok(Vec::new());
+        };
+        let jobs: Vec<_> = compute
+            .runtime
+            .jobs()
+            .filter(|job| !job.state.terminal())
+            .map(|job| {
+                (
+                    job.owner.clone(),
+                    job.ticket,
+                    job.label.clone(),
+                    job.readback,
+                )
+            })
+            .collect();
+        let mut retired = Vec::with_capacity(jobs.len());
+        for (owner, ticket, label, readback) in jobs {
+            compute.runtime.cancel(&owner, ticket).with_context(|| {
+                format!(
+                    "retiring compute request {} after GPU device loss",
+                    ticket.serial()
+                )
+            })?;
+            retired.push((owner, ticket.serial(), label, readback));
+        }
+        Ok(retired)
+    })
+}
+
 impl View {
     fn new(
         event_loop: &ActiveEventLoop,
@@ -357,29 +391,7 @@ impl View {
             self.config.height
         );
         let pending = self.compute.executor.statistics();
-        let mut retired = Vec::new();
-        demo.with_instance(|instance, _| {
-            if let Some(mut compute) = instance.compute_if_initialized() {
-                let jobs: Vec<_> = compute
-                    .runtime
-                    .jobs()
-                    .filter(|job| !job.state.terminal())
-                    .map(|job| {
-                        (
-                            job.owner.clone(),
-                            job.ticket,
-                            job.label.clone(),
-                            job.readback,
-                        )
-                    })
-                    .collect();
-                for (owner, ticket, label, readback) in jobs {
-                    if compute.runtime.cancel(&owner, ticket).is_ok() {
-                        retired.push((owner, ticket.serial(), label, readback));
-                    }
-                }
-            }
-        });
+        let retired = retire_pending_compute_jobs(demo)?;
         for (owner, ticket, label, readback) in retired.iter().take(8) {
             bozzard_diagnostics::log(
                 &mut demo.app.world,
@@ -1529,6 +1541,62 @@ mod controls_tests {
         );
         recovery.presented();
         recovery.lost().unwrap();
+    }
+    #[test]
+    fn device_loss_retires_pending_readback_with_an_explicit_outcome() {
+        use bozzard_scene::compute::{BindingKind, Capabilities, JobState, Kernel, Owner, Scope};
+        let mut player = authored_player();
+        let owner = Owner::new("pending", 0);
+        let ticket = player.demo.with_instance(|instance, _| {
+            instance.set_compute_capabilities(Capabilities {
+                backend: Some("test".into()),
+                device_generation: 1,
+                max_buffer_bytes: 1024,
+                ..Default::default()
+            });
+            let kernel = Kernel::parse(
+                "@group(0) @binding(0) var<storage, read_write> data: array<u32>; \
+                 @compute @workgroup_size(1) fn main(@builtin(global_invocation_id) id: vec3<u32>) \
+                 { data[id.x] += 1u; }",
+            )
+            .unwrap();
+            let BindingKind::Storage { layout, .. } =
+                &kernel.entry("main").unwrap().binding("data").unwrap().kind
+            else {
+                panic!("expected a storage buffer")
+            };
+            let mut compute = instance.compute();
+            let buffer = compute
+                .runtime
+                .create_buffer(
+                    &owner,
+                    Scope::Attachment,
+                    "values",
+                    Arc::new(layout.clone()),
+                    4,
+                )
+                .unwrap();
+            compute.runtime.readback(&owner, buffer).unwrap()
+        });
+        let retired = retire_pending_compute_jobs(&mut player.demo).unwrap();
+        assert_eq!(retired.len(), 1);
+        assert_eq!(retired[0].1, ticket.serial());
+        assert!(retired[0].3);
+        player.demo.with_instance(|instance, _| {
+            let mut compute = instance.compute();
+            assert_eq!(
+                compute.runtime.job(&owner, ticket).unwrap().state,
+                JobState::Cancelled
+            );
+            assert!(
+                compute
+                    .runtime
+                    .take_result(&owner, ticket, 4)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("cancelled")
+            );
+        });
     }
     fn authored_player() -> Player {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
