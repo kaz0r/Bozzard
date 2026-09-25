@@ -1178,6 +1178,40 @@ impl SceneInstance {
         Ok(matrices)
     }
 
+    /// Compose one object's ancestry without calculating unrelated scene transforms.
+    /// UI projection only needs the camera, even when a scene contains many machines.
+    pub(crate) fn global_transform(&self, world: &World, id: &str) -> Result<Mat4> {
+        let mut chain = Vec::new();
+        let mut next = Some(id);
+        while let Some(id) = next {
+            ensure!(
+                chain.len() < self.document.objects.len(),
+                "scene transform hierarchy contains a cycle"
+            );
+            let object = self
+                .document
+                .objects
+                .iter()
+                .find(|o| o.id == id)
+                .context("scene object missing")?;
+            let local = world
+                .get::<Transform>(self.entities[id])
+                .context("scene object/transform was removed")?;
+            local.validate()?;
+            chain.push((id, local.matrix()));
+            next = object.parent.as_deref();
+        }
+        let mut global = Mat4::IDENTITY;
+        for (id, local) in chain.into_iter().rev() {
+            global *= local;
+            ensure!(
+                global.is_finite() && global.inverse().is_finite(),
+                "invalid runtime transform on '{id}'"
+            );
+        }
+        Ok(global)
+    }
+
     /// An isolated root cannot affect any other object's composed transform.
     fn validate_transform_change(&self, world: &World, id: &str) -> Result<()> {
         if self.hierarchy_objects.contains(id) {
@@ -1789,6 +1823,16 @@ mod tests {
         a.get_mut::<Transform>(instance.entity("child").unwrap())
             .unwrap()
             .translation[1] = 4.0;
+        a.get_mut::<Transform>(instance.entity("parent").unwrap())
+            .unwrap()
+            .rotation_degrees[1] = 90.;
+        for id in ["parent", "child"] {
+            assert_eq!(
+                instance.global_transform(&a, id).unwrap(),
+                instance.global_transforms(&a).unwrap()[id]
+            );
+        }
+        assert!(instance.global_transform(&a, "missing").is_err());
         let saved = instance.capture(&a).unwrap();
         let loaded = Scene::from_json(&saved.to_json().unwrap()).unwrap();
         assert_eq!(saved, loaded);

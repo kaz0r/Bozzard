@@ -23,6 +23,7 @@ pub struct GameplayControls {
     keys: u128,
     focused: bool,
     modified: bool,
+    scene_keyboard: bool,
     orbiting: bool,
     look: Look,
     cursor: Option<[f64; 2]>,
@@ -34,6 +35,7 @@ impl Default for GameplayControls {
             keys: 0,
             focused: false,
             modified: false,
+            scene_keyboard: false,
             orbiting: false,
             look: Look::Off,
             cursor: None,
@@ -42,6 +44,14 @@ impl Default for GameplayControls {
     }
 }
 impl GameplayControls {
+    /// Script/Blueprint scenes without a Player Controller own Ctrl bindings.
+    pub fn set_scene_keyboard(&mut self, enabled: bool) {
+        if self.scene_keyboard != enabled {
+            self.reset();
+            self.modified = false;
+            self.scene_keyboard = enabled;
+        }
+    }
     /// Only the application knows whether it owns the pointer; deltas are relative,
     /// so a mode change restarts the cursor sample.
     pub fn set_mouse_look(&mut self, look: Look) {
@@ -102,6 +112,11 @@ impl GameplayControls {
         }
     }
     pub fn key(&mut self, code: KeyCode, pressed: bool, repeat: bool) -> GameplayInput {
+        // An actual keyboard event is proof that this window has focus. Some window systems do
+        // not send an initial Focused(true) after creating an already focused window.
+        if pressed {
+            self.focused = true;
+        }
         if !self.focused || self.modified {
             return GameplayInput::default();
         }
@@ -152,10 +167,16 @@ impl GameplayControls {
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
-                self.modified = state.control_key() || state.alt_key() || state.super_key();
+                self.modified = state.alt_key()
+                    || state.super_key()
+                    || (state.control_key() && !self.scene_keyboard);
                 if self.modified {
                     self.reset();
                     return None;
+                }
+                if self.scene_keyboard {
+                    self.hold("Ctrl", state.control_key());
+                    self.hold("Shift", state.shift_key());
                 }
             }
             WindowEvent::CursorLeft { .. } => {
@@ -194,6 +215,27 @@ impl GameplayControls {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn scripted_ctrl_chords_survive_modifier_events_and_clear_on_focus_loss() {
+        for code in [KeyCode::ControlLeft, KeyCode::ControlRight] {
+            let mut controls = GameplayControls::default();
+            controls.set_scene_keyboard(true);
+            controls.event(&WindowEvent::Focused(true));
+            controls.key(code, true, false);
+            let modifiers =
+                WindowEvent::ModifiersChanged(winit::keyboard::ModifiersState::CONTROL.into());
+            assert!(controls.event(&modifiers).is_some());
+            let input = controls.key(KeyCode::KeyR, true, false);
+            assert_eq!(
+                input.keys & (keys::bit("Ctrl") | keys::bit("R")),
+                keys::bit("Ctrl") | keys::bit("R")
+            );
+            controls.key(KeyCode::KeyR, false, false);
+            assert_eq!(controls.current().keys, keys::bit("Ctrl"));
+            controls.event(&WindowEvent::Focused(false));
+            assert_eq!(controls.current().keys, 0);
+        }
+    }
     #[test]
     fn orbit_uses_logical_points_and_scale_changes_reset_cursor() {
         let drag = |scale| {
@@ -359,7 +401,11 @@ mod tests {
     #[test]
     fn physical_movement_jump_edges_and_focus_loss() {
         let mut controls = GameplayControls::default();
-        assert_eq!(controls.key(KeyCode::KeyW, true, false).movement, [0.0; 2]);
+        // A real key press can arrive before the window sends Focused(true).
+        assert_eq!(
+            controls.key(KeyCode::KeyW, true, false).movement,
+            [0.0, 1.0]
+        );
         controls.event(&WindowEvent::Focused(true));
         assert_eq!(
             controls.key(KeyCode::KeyW, true, false).movement,

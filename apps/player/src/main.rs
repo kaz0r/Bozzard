@@ -188,7 +188,7 @@ fn options() -> Result<Option<Options>> {
                     "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
-                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
+                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\nWithout gameplay logic: 1/2 switch views, Space pauses, arrows pan, F5 saves, R reloads, Escape closes.\nScript and Blueprint scenes own their keys; F5 saves and F6 reloads.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -754,7 +754,7 @@ impl Player {
             format!("{name} | {status}Playing | R: restart | Escape: quit")
         } else if self.demo.instance().has_gameplay_logic() {
             format!(
-                "{name} | {status}Gameplay logic running | WASD / Space: input | R: restart | F5: save"
+                "{name} | {status}Gameplay logic running | Scene keys: input | F5: save | F6: reload"
             )
         } else {
             let layer = if self.options.layer == Layer::TwoD {
@@ -778,6 +778,9 @@ impl Player {
         repeat: bool,
         synthetic: bool,
     ) -> Result<()> {
+        self.gameplay_controls.set_scene_keyboard(
+            self.demo.gameplay().is_none() && self.demo.instance().has_gameplay_logic(),
+        );
         if self.demo.multiplayer_chatting() {
             if state == ElementState::Pressed
                 && !synthetic
@@ -818,6 +821,16 @@ impl Player {
                 } else {
                     self.demo.clear_gameplay_input();
                 }
+            }
+            // A script or Blueprint scene without a Player Controller owns its entire key
+            // layout. The viewer's view/reload shortcuts must not run on those same presses.
+            if self.demo.gameplay().is_none() && self.demo.instance().has_gameplay_logic() {
+                if state == ElementState::Pressed
+                    && matches!(logical, Key::Named(NamedKey::F5 | NamedKey::F6))
+                {
+                    return self.handle_key(logical, repeat);
+                }
+                return Ok(());
             }
             // Gameplay positions must never also invoke logical commands on another layout.
             if matches!(
@@ -883,7 +896,10 @@ impl Player {
                 self.gameplay_controls.reset();
                 self.demo.clear_gameplay_input();
             }
-            Key::Character(value) if !repeat && value.eq_ignore_ascii_case("r") => {
+            key if !repeat
+                && (matches!(key, Key::Named(NamedKey::F6))
+                    || matches!(key, Key::Character(value) if value.eq_ignore_ascii_case("r"))) =>
+            {
                 let document = load_document(self.options.scene.as_deref())?;
                 let mut next =
                     SceneDemo::new_with_prefabs(&document, self.options.scene.as_deref())?;
@@ -1172,9 +1188,13 @@ impl ApplicationHandler for Player {
             self.gameplay_controls.reset();
             self.demo.clear_gameplay_input();
         }
+        self.gameplay_controls.set_scene_keyboard(
+            self.demo.gameplay().is_none() && self.demo.instance().has_gameplay_logic(),
+        );
         if !ui_consumed && self.demo.accepts_gameplay_input() {
             if let Some(input) = self.gameplay_controls.event(&event)
-                && (self.options.layer == Layer::ThreeD || self.demo.instance().has_blueprints())
+                && (self.options.layer == Layer::ThreeD
+                    || self.demo.instance().has_gameplay_logic())
             {
                 self.demo.set_gameplay_input(input);
             } else {
@@ -2031,6 +2051,188 @@ mod controls_tests {
             )
             .unwrap();
         assert!(player.paused);
+    }
+
+    #[test]
+    fn scripted_factory_receives_enter_digits_and_r_instead_of_viewer_shortcuts() {
+        use bozzard_scene::blueprint::{BlackboardValue, Value};
+
+        let mut player = authored_player();
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let mut document = load_document(Some(&path)).unwrap();
+        document
+            .blackboard
+            .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
+        player.options.scene = Some(path.clone());
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path)).unwrap();
+        // The initial window may already be focused without emitting Focused(true).
+        for _ in 0..8 {
+            player.demo.app.step();
+            player.demo.check_simulation().unwrap();
+        }
+        let press = |player: &mut Player, code, logical| {
+            player
+                .dispatch_keyboard(
+                    PhysicalKey::Code(code),
+                    &logical,
+                    ElementState::Pressed,
+                    false,
+                    false,
+                )
+                .unwrap();
+            player.demo.app.advance(Duration::from_millis(20));
+            player.demo.check_simulation().unwrap();
+        };
+        let number = |player: &Player, name: &str| {
+            let board = player
+                .demo
+                .app
+                .world
+                .resource::<bozzard_scene::BlueprintRuntime>()
+                .unwrap();
+            let BlackboardValue::Scalar(Value::Number(value)) =
+                board.scene_blackboard().get(name).unwrap()
+            else {
+                panic!("{name} is not a number");
+            };
+            *value
+        };
+        let start_x = number(&player, "cursor_x");
+        press(&mut player, KeyCode::KeyD, Key::Character("d".into()));
+        assert_eq!(number(&player, "cursor_x"), start_x + 1.0);
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::KeyD),
+                &Key::Character("d".into()),
+                ElementState::Released,
+                false,
+                false,
+            )
+            .unwrap();
+        player.demo.app.step();
+        press(&mut player, KeyCode::Enter, Key::Named(NamedKey::Enter));
+        let board = player
+            .demo
+            .app
+            .world
+            .resource::<bozzard_scene::BlueprintRuntime>()
+            .unwrap();
+        assert!(matches!(
+            board.scene_blackboard().get("started"),
+            Some(BlackboardValue::Scalar(Value::Bool(true)))
+        ));
+        press(&mut player, KeyCode::Digit2, Key::Character("2".into()));
+        assert_eq!(number(&player, "selected"), 2.0);
+        assert_eq!(player.options.layer, Layer::ThreeD);
+
+        // The outer corner is always empty: deposits scatter only within -6..=6.
+        for (code, logical, count) in [
+            (
+                KeyCode::KeyD,
+                Key::Character("d".into()),
+                7 - number(&player, "cursor_x") as i32,
+            ),
+            (
+                KeyCode::KeyS,
+                Key::Character("s".into()),
+                7 - number(&player, "cursor_z") as i32,
+            ),
+        ] {
+            for _ in 0..count {
+                press(&mut player, code, logical.clone());
+                player
+                    .dispatch_keyboard(
+                        PhysicalKey::Code(code),
+                        &logical,
+                        ElementState::Released,
+                        false,
+                        false,
+                    )
+                    .unwrap();
+                player.demo.app.step();
+            }
+        }
+        let ticks = player.demo.app.ticks();
+        press(&mut player, KeyCode::KeyR, Key::Character("r".into()));
+        assert_eq!(number(&player, "direction"), 1.0);
+        assert!(
+            player.demo.app.ticks() > ticks,
+            "R must advance gameplay instead of reloading the scene"
+        );
+        press(&mut player, KeyCode::Space, Key::Named(NamedKey::Space));
+        let board = player
+            .demo
+            .app
+            .world
+            .resource::<bozzard_scene::BlueprintRuntime>()
+            .unwrap();
+        let Some(BlackboardValue::List { values, .. }) = board.scene_blackboard().get("builds")
+        else {
+            panic!("factory builds list is missing");
+        };
+        assert_eq!(values.last(), Some(&Value::Number(2.0)));
+
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::KeyR),
+                &Key::Character("r".into()),
+                ElementState::Released,
+                false,
+                false,
+            )
+            .unwrap();
+        player.demo.app.step();
+        press(
+            &mut player,
+            KeyCode::ControlLeft,
+            Key::Named(NamedKey::Control),
+        );
+        let input = player
+            .gameplay_controls
+            .event(&WindowEvent::ModifiersChanged(
+                winit::keyboard::ModifiersState::CONTROL.into(),
+            ))
+            .unwrap();
+        player.demo.set_gameplay_input(input);
+        press(&mut player, KeyCode::KeyR, Key::Character("r".into()));
+        assert!(number(&player, "camera_progress") > 0. && number(&player, "camera_progress") < 1.);
+        for _ in 0..40 {
+            player.demo.app.step();
+            player.demo.check_simulation().unwrap();
+        }
+        assert_eq!(number(&player, "camera_heading"), 90.);
+        assert_eq!(
+            number(&player, "direction"),
+            1.,
+            "Ctrl+R must not rotate the build tool"
+        );
+
+        player
+            .dispatch_keyboard(
+                PhysicalKey::Code(KeyCode::F6),
+                &Key::Named(NamedKey::F6),
+                ElementState::Pressed,
+                false,
+                false,
+            )
+            .unwrap();
+        assert_eq!(player.demo.app.ticks(), 0, "F6 reloads the authored scene");
+        press(
+            &mut player,
+            KeyCode::NumpadEnter,
+            Key::Named(NamedKey::Enter),
+        );
+        let board = player
+            .demo
+            .app
+            .world
+            .resource::<bozzard_scene::BlueprintRuntime>()
+            .unwrap();
+        assert!(matches!(
+            board.scene_blackboard().get("started"),
+            Some(BlackboardValue::Scalar(Value::Bool(true)))
+        ));
     }
 
     #[test]

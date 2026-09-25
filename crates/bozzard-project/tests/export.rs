@@ -227,7 +227,7 @@ fn styled_text_exports_primary_and_fallback_fonts_and_loads_without_source_files
     fs::create_dir(&source)?;
     fs::write(
         source.join("variable.ttf"),
-        include_bytes!("../../bozzard-text/tests/fonts/Roboto.ttf"),
+        include_bytes!("../../bozzard-text/assets/Roboto.ttf"),
     )?;
     fs::write(
         source.join("fallback.ttf"),

@@ -44,6 +44,112 @@ fn wire(a: u32, b: u32) -> Wire {
         to: Socket { node: b, port: 0 },
     }
 }
+
+#[test]
+fn world_labels_project_at_viewport_aspect_and_fade_with_children() {
+    let mut scene = base();
+    canvas(&mut scene);
+    let camera = Object {
+        id: "camera".into(),
+        name: "Camera".into(),
+        transform: bozzard_scene::Transform {
+            translation: [0., 0., 5.],
+            ..Default::default()
+        },
+        camera: Some(bozzard_scene::Camera::Orthographic {
+            vertical_size: 10.,
+            near: 0.1,
+            far: 100.,
+        }),
+        ..Default::default()
+    };
+    scene.objects.push(camera);
+    scene.views.insert(Layer::TwoD, "camera".into());
+    widget(
+        &mut scene,
+        "label",
+        "canvas",
+        Widget {
+            anchors: Anchors {
+                pivot: [0.5, 1.],
+                size: [200., 40.],
+                ..Default::default()
+            },
+            padding: [0.; 4],
+            background: [1.; 4],
+            ..Default::default()
+        },
+    );
+    widget(
+        &mut scene,
+        "child",
+        "label",
+        Widget {
+            text: "Nearby".into(),
+            text_color: [1.; 4],
+            ..Default::default()
+        },
+    );
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    instance
+        .control_ui(&mut world, "label", Control::WorldPosition([1., 0., 0.]))
+        .unwrap();
+    instance
+        .control_ui(&mut world, "label", Control::Opacity(0.5))
+        .unwrap();
+    instance
+        .control_ui(&mut world, "child", Control::Opacity(0.5))
+        .unwrap();
+    for width in [800., 1200.] {
+        let frame = instance
+            .ui_frame(&world, Layer::TwoD, [width, 600.])
+            .unwrap();
+        let label = frame.element("label").unwrap();
+        assert!((label.rect.min[0] - (width * 0.5 + 60. - 100.)).abs() < 0.01);
+        assert!((label.rect.min[1] - 260.).abs() < 0.01);
+        assert_eq!(label.widget.background[3], 0.5);
+        assert_eq!(frame.element("child").unwrap().widget.text_color[3], 0.25);
+    }
+    instance
+        .control_ui(&mut world, "label", Control::Size([80., 30.]))
+        .unwrap();
+    assert_eq!(
+        instance
+            .ui_frame(&world, Layer::TwoD, [800., 600.])
+            .unwrap()
+            .element("label")
+            .unwrap()
+            .rect
+            .size,
+        [80., 30.]
+    );
+    assert!(
+        instance
+            .control_ui(&mut world, "label", Control::Opacity(f32::NAN))
+            .is_err()
+    );
+    assert!(
+        instance
+            .control_ui(&mut world, "label", Control::Size([-1., 20.]))
+            .is_err()
+    );
+    world
+        .resource::<Runtime>()
+        .unwrap()
+        .validate(&scene)
+        .unwrap();
+    instance
+        .control_ui(&mut world, "label", Control::WorldPosition([0., 0., 10.]))
+        .unwrap();
+    assert!(
+        instance
+            .ui_frame(&world, Layer::TwoD, [800., 600.])
+            .unwrap()
+            .element("label")
+            .is_none()
+    );
+}
 #[test]
 fn pointer_policy_follows_visible_enabled_controls_and_scroll_areas() {
     let mut scene = base();
@@ -426,4 +532,110 @@ fn enlarged_localized_text_reflows_and_keyboard_focus_scrolls_buttons_into_view(
         "focused button must be fully visible after scrolling"
     );
     assert!(frame.scroll_ancestor(focused).unwrap().scroll > 0.);
+}
+
+#[test]
+fn script_pointer_events_and_screen_popups_keep_viewport_coordinates_and_order() {
+    let mut scene = base();
+    canvas(&mut scene);
+    widget(
+        &mut scene,
+        "slot",
+        "canvas",
+        Widget {
+            kind: WidgetKind::Button,
+            anchors: Anchors {
+                min: [0.; 2],
+                max: [0.; 2],
+                pivot: [0.; 2],
+                offset: [20., 30.],
+                size: [120., 80.],
+            },
+            padding: [0.; 4],
+            ..Default::default()
+        },
+    );
+    widget(
+        &mut scene,
+        "label",
+        "slot",
+        Widget {
+            kind: WidgetKind::Label,
+            text: "Item".into(),
+            anchors: Anchors {
+                size: [100., 40.],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    widget(
+        &mut scene,
+        "popup",
+        "canvas",
+        Widget {
+            anchors: Anchors {
+                size: [160., 100.],
+                ..Default::default()
+            },
+            visible: false,
+            ..Default::default()
+        },
+    );
+    let mut world = World::default();
+    let instance = scene.spawn(&mut world).unwrap();
+    let point = [60., 50.];
+    for input in [
+        Input::PointerDown(point),
+        Input::PointerUp(point),
+        Input::SecondaryDown(point),
+    ] {
+        assert!(
+            instance
+                .ui_input(&mut world, Layer::TwoD, [800., 600.], input)
+                .unwrap()
+        );
+    }
+    let ui = world.resource::<Runtime>().unwrap();
+    assert_eq!(
+        ui.script_events.iter().map(|e| e.kind).collect::<Vec<_>>(),
+        ["down", "up", "activate", "secondary"]
+    );
+    assert!(ui.script_events.iter().all(|e| e.target == "slot"));
+    assert_eq!(ui.script_events[3].position, [60. / 800., 50. / 600.]);
+    assert!(
+        ui.active.is_none(),
+        "right-click must not start a left-button drag"
+    );
+    instance
+        .control_ui(&mut world, "popup", Control::Visible(true))
+        .unwrap();
+    instance
+        .control_ui(&mut world, "popup", Control::ScreenPosition([0.99, 0.99]))
+        .unwrap();
+    instance
+        .control_ui(&mut world, "popup", Control::Offset([0., 8.]))
+        .unwrap();
+    for size in [[800., 600.], [360., 240.]] {
+        let frame = instance.ui_frame(&world, Layer::TwoD, size).unwrap();
+        let rect = frame.element("popup").unwrap().rect;
+        assert_eq!(rect.min, [size[0] - 160., size[1] - 100.]);
+    }
+    instance
+        .ui_input(&mut world, Layer::TwoD, [800., 600.], Input::CancelPointer)
+        .unwrap();
+    let ui = world.resource::<Runtime>().unwrap();
+    assert_eq!(ui.script_events.last().unwrap().kind, "cancel");
+    let serialized = serde_json::to_string(ui).unwrap();
+    assert!(!serialized.contains("script_events"));
+    let restored: Runtime = serde_json::from_str(&serialized).unwrap();
+    restored.validate(&scene).unwrap();
+    assert!(
+        restored.script_events.is_empty(),
+        "pointer actions cannot replay on reload"
+    );
+    assert_eq!(
+        restored.widgets["popup"].screen_position,
+        Some([0.99, 0.99])
+    );
 }

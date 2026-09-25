@@ -131,9 +131,11 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `network_state()` | Read-only session presentation map; the current reference provides `players`, including each player's `local` flag |
 | `overlap_count(target)` | number of overlapping objects |
 | `delta_time()`, `elapsed_time()` | seconds |
+| `fresh_seed()` | new integer seed for procedural scenes; varies across runs, so store it if a world must be reproduced |
 | `input_held(key)`, `input_pressed(key)` | `bool` — any name the Input Held node accepts (`"jump"`, `"fire"`, `"interact"`, `"w"`, …) |
 | `move_x()`, `move_y()`, `mouse_x()`, `mouse_y()` | the same frame deltas the movement nodes report |
 | `get_object_variable(name)`, `get_scene_variable(name)` | the declared variable's value |
+| `get_object_list(name)`, `get_scene_list(name)` | a copy of a declared typed blackboard list as a Rhai array |
 | `raycast(origin, direction, distance, ignore)` | `#{ hit, object, position, normal, distance }` |
 | `sphere_overlap(center, radius, ignore)`, `box_overlap(center, size, ignore)` | array of object IDs |
 | `line_of_sight(from, to, ignore)` | `bool` |
@@ -145,6 +147,14 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_position`, `set_rotation`, `set_scale`, `translate`, `rotate` | transform writes; `rotate` takes a degrees delta |
 | `set_velocity(target, v)`, `jump(target, speed)`, `move_with_collision(target, v)` | rigidbody actions; grounding is readable as `is_grounded(target)` |
 | `set_color(target, rgb)`, `set_visible(target, visible)`, `set_text(target, text)` | drawable, visibility and text |
+| `set_ui_text(target, text)`, `set_ui_visible(target, visible)` | text (up to 4096 UTF-8 bytes) and visibility of a UI widget |
+| `set_ui_enabled(target, enabled)` | enable or disable input for a widget and its descendants (useful during closing animations) |
+| `set_ui_opacity(target, opacity)` | widget and descendant opacity multiplier, `0.0`–`1.0` |
+| `set_ui_size(target, width, height)` | widget anchor size in canvas units, each `0.0`–`10000.0` |
+| `set_ui_background(target, [r, g, b, a])` | widget background color, each channel `0.0`–`1.0` |
+| `set_ui_world_position(target, [x, y, z])` | attach a screen UI widget to a world position using its layer's active camera; its pivot and offset position the label around that point |
+| `set_ui_screen_position(target, x, y)` | position a popup at normalized viewport coordinates (`0..1`); apply its pivot and canvas offset, then clamp its rectangle inside the viewport |
+| `set_ui_offset(target, x, y)` | replace the widget's anchor offset in canvas units, e.g. to animate a panel sliding into view |
 | `set_light_intensity(target, intensity)` | light |
 | `set_focus_distance`, `set_aperture`, `set_fog_density`, `set_fog_light_intensity`, `set_exposure`, `set_bloom_intensity`, `set_saturation`, `set_heat_strength`, `set_grain_intensity`, `set_vignette_intensity` | display overrides |
 | `spawn_prefab(asset, position)`, `destroy_prefab(target)` | returns a spawn handle |
@@ -155,11 +165,31 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
 | `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |
+| `set_object_list(name, values)`, `set_scene_list(name, values)` | replace a declared list with an array, checked against its element type and capacity |
 | `print(value)` | one line to stdout and the runtime's message list |
 
 **Math Rhai does not provide**: `lerp`, `lerp_vector`, `clamp`, `length`, `normalize`, `dot`,
 `cross`, `distance`, `add_vector`, `scale_vector`, `vector_x/y/z`, `modulo`, `pow`, `atan2`,
 `ceil`, `to_radians`, `to_degrees`, `random(min, max)` (seeded per attachment, like the Random node).
+
+UI writes target an object with a `ui_widget` component beneath a `ui_canvas`; they override
+runtime state without changing the authored scene. World labels keep their canvas-scaled size,
+are projected at the current viewport's aspect ratio, and hide outside the camera's depth range.
+For example, a script can call `set_ui_world_position("label", [x, y + 1.0, z])` and vary
+`set_ui_opacity("label", alpha)` during `on_update` to fade a nearby object's name. Use
+`set_ui_visible("label", false)` when hiding an interactive widget; opacity alone does not disable
+its input. See the Earth Factory example for proximity labels and a delivery progress bar.
+
+`ui_events()` returns this tick's ordered widget events as maps with `kind`, `target`, `x`,
+and `y`. Kinds are `down`, `up` (left button), `secondary` (right button), `activate`
+(click/keyboard/accessibility), and `cancel` (pointer or focus loss). The target is the hit
+interactive widget, or an empty string for a miss. Child labels route to their parent button.
+Coordinates are normalized to the game viewport, including inside editor Play.
+`ui_pointer()` returns the latest normalized `[x, y]`, or `[-1, -1]` outside the viewport.
+Use these with `set_ui_screen_position` for a cursor-following drag preview or context menu.
+Events are delivered once per simulation tick to all scripts, are not saved, and are bounded
+to 256 entries; overflow emits `cancel` before subsequent events. A cancelled drag should
+leave its original stack intact. The Earth Factory inventory implements these behaviors in Rhai.
 
 ## Semantics
 
@@ -190,8 +220,10 @@ errors: a thrown script stops the simulation and reports the hook, the object an
   the rest of the run (the same object the Spawn Prefab node's `Instance` pin addresses).
 - **Variables are shared with graphs.** `get/set_object_variable` use the same object blackboard a
   graph declares, and `get/set_scene_variable` the scene blackboard — this is how a script and a
-  graph hand state to one another. Scripts have no *graph* scope: they are not attachments of a
-  graph, and Rhai arrays cover script-local growth, so blackboard lists stay graph-only.
+  graph hand state to one another. The corresponding `*_list` functions copy or replace a
+  declared bounded list. Scripts have no *graph* scope: they are not attachments of a graph.
+  Local Rhai arrays are useful within a hook; use blackboard lists when state must persist between
+  hooks or be shared with other attachments and graphs.
 - **Failure is loud.** A syntax error or a bad hook signature fails when the scene opens; a runtime
   error stops the simulation with `script hook on_update on 'thing': … (line 2, position 5)`.
 

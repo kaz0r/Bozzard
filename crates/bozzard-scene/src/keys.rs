@@ -111,8 +111,9 @@ pub fn canonical(requested: &str) -> Option<&'static str> {
     if let Some((_, name)) = SPELLINGS.iter().find(|(spelling, _)| *spelling == lowered) {
         return Some(name);
     }
-    // `KeyF`, `Digit1`, `Num1`, `ArrowLeft`: strip the decoration, then match.
-    for prefix in ["key", "digit", "num"] {
+    // `KeyF`, `Digit1`, `Num1`, `Numpad1`, `NumpadEnter`: strip the decoration,
+    // then match. Check `numpad` before `num` so the full prefix is removed.
+    for prefix in ["key", "digit", "numpad", "num"] {
         if let Some(rest) = lowered.strip_prefix(prefix)
             && let Some(name) = exact(rest)
         {
@@ -211,6 +212,8 @@ mod tests {
             ("7", "7"),
             ("Digit7", "7"),
             ("Num7", "7"),
+            ("Numpad7", "7"),
+            ("NumpadEnter", "Enter"),
             ("Space", "Space"),
             ("Escape", "Escape"),
             ("ArrowLeft", "ArrowLeft"),
@@ -226,7 +229,7 @@ mod tests {
         ] {
             assert_eq!(canonical(requested), Some(expected), "{requested}");
         }
-        for unknown in ["", "  ", "Foo", "KeyFoo", "Numpad1", "SuperLeft", "MouseX1"] {
+        for unknown in ["", "  ", "Foo", "KeyFoo", "SuperLeft", "MouseX1"] {
             assert_eq!(canonical(unknown), None, "{unknown}");
         }
     }

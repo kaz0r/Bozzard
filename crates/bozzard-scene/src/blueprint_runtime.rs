@@ -2321,6 +2321,40 @@ impl BlueprintRuntime {
         *entry = B::Scalar(value);
         Ok(())
     }
+    /// Replace a declared list while preserving its element type and capacity.
+    pub(crate) fn set_board_list(
+        &mut self,
+        scope: Scope,
+        owner: &str,
+        name: &str,
+        values: Vec<Value>,
+    ) -> Result<()> {
+        let board = match scope {
+            Scope::Object => self
+                .object_boards
+                .get_mut(owner)
+                .context("missing object board")?,
+            Scope::Scene => &mut self.scene_board,
+            Scope::Graph => anyhow::bail!("a graph-scoped list needs a graph"),
+        };
+        let entry = board
+            .get_mut(name)
+            .with_context(|| format!("unknown {scope:?} list '{name}'"))?;
+        let B::List {
+            element,
+            capacity,
+            values: old,
+        } = entry
+        else {
+            anyhow::bail!("variable '{name}' is not a list");
+        };
+        ensure!(
+            values.len() <= *capacity && values.iter().all(|value| value.kind() == *element),
+            "list '{name}' type or capacity mismatch"
+        );
+        *old = values;
+        Ok(())
+    }
 }
 
 impl SceneInstance {

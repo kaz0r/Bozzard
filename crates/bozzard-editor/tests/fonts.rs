@@ -158,7 +158,7 @@ fn variable_fonts_and_fallbacks_round_trip_history_prefabs_and_native_pixels() -
     std::fs::copy(vendored_font(), path.join("test.ttf"))?;
     std::fs::write(
         path.join("variable.ttf"),
-        include_bytes!("../../bozzard-text/tests/fonts/Roboto.ttf"),
+        include_bytes!("../../bozzard-text/assets/Roboto.ttf"),
     )?;
     let mut scene = font_scene();
     scene.assets.insert(

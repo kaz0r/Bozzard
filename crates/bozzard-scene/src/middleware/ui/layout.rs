@@ -185,7 +185,35 @@ impl SceneInstance {
             .entities
             .values()
             .find_map(|&e| world.get::<Localization>(e));
-        let mut children: BTreeMap<&str, Vec<(&Object, &Widget)>> = BTreeMap::new();
+        let mut children: BTreeMap<&str, Vec<(&Object, Widget)>> = BTreeMap::new();
+        // Project runtime world labels using the active gameplay camera at the actual viewport
+        // aspect ratio. The label's size remains in canvas pixels as the world moves beneath it.
+        let world_projection =
+            if runtime.is_some_and(|r| r.widgets.values().any(|s| s.world_position.is_some())) {
+                let camera_id = world
+                    .resource::<crate::middleware::timeline::Runtime>()
+                    .and_then(|r| r.cameras.get(&layer))
+                    .filter(|id| {
+                        self.entity(id)
+                            .is_some_and(|e| world.get::<crate::Camera>(e).is_some())
+                    })
+                    .or_else(|| self.document.views.get(&layer));
+                camera_id
+                    .and_then(|id| {
+                        self.entity(id).and_then(|entity| {
+                            world
+                                .get::<crate::Camera>(entity)
+                                .map(|camera| (id, camera))
+                        })
+                    })
+                    .map(|(id, camera)| -> Result<_> {
+                        Ok(camera.projection(size[0] / size[1])?
+                            * self.global_transform(world, id)?.inverse())
+                    })
+                    .transpose()?
+            } else {
+                None
+            };
         let mut roots = Vec::new();
         for object in &self.document.objects {
             let Some(entity) = self.entity(&object.id) else {
@@ -208,6 +236,16 @@ impl SceneInstance {
             {
                 let state = runtime.and_then(|r| r.widgets.get(&object.id));
                 if state.and_then(|s| s.visible).unwrap_or(widget.visible) {
+                    let mut widget = widget.clone();
+                    if let Some(size) = state.and_then(|s| s.size) {
+                        widget.anchors.size = size;
+                    }
+                    if let Some(offset) = state.and_then(|s| s.offset) {
+                        widget.anchors.offset = offset;
+                    }
+                    if let Some(color) = state.and_then(|s| s.background) {
+                        widget.background = color;
+                    }
                     children.entry(parent).or_default().push((object, widget));
                 }
             }
@@ -240,9 +278,15 @@ impl SceneInstance {
             frame.reduced_motion |= preferences
                 .and_then(|p| p.reduced_motion)
                 .unwrap_or(canvas.reduced_motion);
-            let mut stack = vec![(root.id.as_str(), viewport, viewport, true, 0usize)];
-            while let Some((parent, parent_rect, inherited_clip, parent_enabled, depth)) =
-                stack.pop()
+            let mut stack = vec![(root.id.as_str(), viewport, viewport, true, 1.0f32, 0usize)];
+            while let Some((
+                parent,
+                parent_rect,
+                inherited_clip,
+                parent_enabled,
+                parent_opacity,
+                depth,
+            )) = stack.pop()
             {
                 ensure!(depth <= 128, "UI hierarchy exceeds 128 levels");
                 let Some(nodes) = children.get(parent) else {
@@ -308,8 +352,15 @@ impl SceneInstance {
                             0.
                         };
                         let width = (width - padding[0] - padding[2] - extra).clamp(0.001, 10000.);
-                        let height = bozzard_text::bounds(text, font, Some(width), false, 0)?
-                            .map_or(0., |b| b[1][1] - b[0][1]);
+                        let height = bozzard_text::screen_bounds_with_font(
+                            text,
+                            font,
+                            Some(width),
+                            false,
+                            0,
+                            None,
+                        )?
+                        .map_or(0., |b| b[1][1] - b[0][1]);
                         Ok(base.max(
                             height
                                 + padding[1]
@@ -420,11 +471,37 @@ impl SceneInstance {
                 }
                 for (((object, widget), mut rect), text) in nodes.iter().zip(rects).zip(texts) {
                     rect.min[1] -= scroll;
+                    let state = runtime.and_then(|r| r.widgets.get(&object.id));
+                    if let Some(position) = state.and_then(|s| s.screen_position) {
+                        rect.min = std::array::from_fn(|axis| {
+                            (position[axis] * size[axis] + widget.anchors.offset[axis] * scale
+                                - rect.size[axis] * widget.anchors.pivot[axis])
+                                .clamp(0., (size[axis] - rect.size[axis]).max(0.))
+                        });
+                    }
+                    if let Some(position) = state.and_then(|s| s.world_position) {
+                        let Some(projection) = world_projection else {
+                            continue;
+                        };
+                        let projected = projection * glam::Vec3::from(position).extend(1.);
+                        if projected.w <= 0. || projected.z < 0. || projected.z > projected.w {
+                            continue;
+                        }
+                        let ndc = projected.truncate() / projected.w;
+                        let pixel = [(ndc.x * 0.5 + 0.5) * size[0], (0.5 - ndc.y * 0.5) * size[1]];
+                        rect.min = std::array::from_fn(|axis| {
+                            pixel[axis] + widget.anchors.offset[axis] * scale
+                                - rect.size[axis] * widget.anchors.pivot[axis]
+                        });
+                    }
                     if rect.size.iter().any(|v| *v <= 0.) {
                         continue;
                     }
                     let clip = rect.intersect(inherited_clip);
-                    let state = runtime.and_then(|r| r.widgets.get(&object.id));
+                    let opacity = parent_opacity * state.and_then(|s| s.opacity).unwrap_or(1.);
+                    let mut appearance = widget.clone();
+                    appearance.background[3] *= opacity;
+                    appearance.text_color[3] *= opacity;
                     let enabled =
                         parent_enabled && state.and_then(|s| s.enabled).unwrap_or(widget.enabled);
                     text_bytes += text.len();
@@ -440,7 +517,7 @@ impl SceneInstance {
                         parent: object.parent.clone(),
                         rect,
                         clip,
-                        widget: (*widget).clone(),
+                        widget: appearance,
                         label: if widget.accessible_name.is_empty() {
                             text.clone()
                         } else {
@@ -450,11 +527,14 @@ impl SceneInstance {
                         text,
                         value: state.and_then(|s| s.value).unwrap_or(widget.value),
                         enabled,
-                        focused: runtime.is_some_and(|r| r.focus.as_deref() == Some(&object.id)),
-                        hovered: runtime
-                            .and_then(|r| r.pointer)
-                            .is_some_and(|p| rect.contains(p) && clip.contains(p)),
-                        pressed: runtime.is_some_and(|r| r.active.as_deref() == Some(&object.id)),
+                        focused: enabled
+                            && runtime.is_some_and(|r| r.focus.as_deref() == Some(&object.id)),
+                        hovered: enabled
+                            && runtime
+                                .and_then(|r| r.pointer)
+                                .is_some_and(|p| rect.contains(p) && clip.contains(p)),
+                        pressed: enabled
+                            && runtime.is_some_and(|r| r.active.as_deref() == Some(&object.id)),
                         font_size: (widget.font_size * scale * text_scale).clamp(0.001, 1000.),
                         scale,
                         high_contrast,
@@ -466,7 +546,14 @@ impl SceneInstance {
                     } else {
                         inherited_clip
                     };
-                    descendants.push((object.id.as_str(), rect, next_clip, enabled, depth + 1));
+                    descendants.push((
+                        object.id.as_str(),
+                        rect,
+                        next_clip,
+                        enabled,
+                        opacity,
+                        depth + 1,
+                    ));
                 }
                 // Preserve sibling order while processing each subtree before the next sibling.
                 // A final hierarchy sort below makes parent backgrounds precede child content.

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "name": "Moving item",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "Moving item",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.23,
+          0.23,
+          0.23
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.85,
+          0.78,
+          0.54
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

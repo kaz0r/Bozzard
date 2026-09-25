@@ -8,7 +8,7 @@ use crate::{
 };
 use anyhow::{Result, ensure};
 pub use layout::{Element, Frame, Rect};
-pub use runtime::{Control, Input, Preferences, Runtime};
+pub use runtime::{Control, Input, Preferences, Runtime, ScriptEvent};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},

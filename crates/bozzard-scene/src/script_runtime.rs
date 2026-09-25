@@ -15,7 +15,11 @@ use rhai::{
     Scope,
 };
 use std::collections::BTreeSet;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{
+    Arc, LazyLock, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
+use std::time::{SystemTime, UNIX_EPOCH};
 mod compute_api;
 mod module;
 pub use module::{NetworkFrame, ScriptModule};
@@ -32,6 +36,24 @@ const MAX_SCRIPT_OVERLAP: usize = 1024;
 const MAX_ATTACHMENT_STATS: usize = 4096;
 /// Prefix of a spawn handle, which scene object IDs do not use.
 const SPAWN_PREFIX: &str = "@script/";
+static FRESH_SEED_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+    AtomicU64::new(nanos)
+});
+
+fn fresh_seed_value() -> rhai::INT {
+    // A changing launch seed for procedural scenes. Once stored in a scene blackboard, the
+    // scene's own PRNG can remain deterministic for that generated world.
+    let mut value = FRESH_SEED_COUNTER.fetch_add(1, Ordering::Relaxed);
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
+    value ^= value >> 31;
+    // Fits exactly in the numeric (f32) scene blackboard for save/replay of the layout.
+    (value % 16_777_215 + 1) as rhai::INT
+}
 
 /// Every hook a script may define, with its parameter names.
 ///
@@ -142,6 +164,10 @@ enum Command {
         target: String,
         text: String,
     },
+    Ui {
+        target: String,
+        control: middleware::ui::Control,
+    },
     Visible {
         target: String,
         visible: bool,
@@ -186,6 +212,12 @@ enum Command {
         name: String,
         value: Value,
     },
+    ListVariable {
+        scope: VariableScope,
+        owner: String,
+        name: String,
+        values: Vec<Value>,
+    },
     Print {
         level: bozzard_diagnostics::Level,
         owner: String,
@@ -208,6 +240,8 @@ struct Host {
     elapsed: f32,
     loading: crate::scene_loading::LoadStatus,
     input: GameplayInput,
+    ui_events: Array,
+    ui_pointer: [f32; 2],
     /// Held keys of this attachment before the tick, for `input_pressed`.
     held: u128,
     objects: BTreeMap<String, ObjectView>,
@@ -215,6 +249,8 @@ struct Host {
     scene_board: BTreeMap<String, B>,
     /// Spawn handles handed out so far, resolved to real IDs as they are created.
     tokens: BTreeMap<String, String>,
+    /// Keep handles unique even after a spawned prefab is destroyed.
+    next_token_serial: u64,
     geometry: Arc<CollisionSnapshot>,
     budget: usize,
     random: u64,
@@ -585,6 +621,9 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     });
     read!("delta_time", (), |state| Ok(Dynamic::from(state.dt)));
     read!("elapsed_time", (), |state| Ok(Dynamic::from(state.elapsed)));
+    read!("fresh_seed", (), |_state| Ok(Dynamic::from(
+        fresh_seed_value()
+    )));
     read!("scene_loading", (), |state| Ok(Dynamic::from(
         state.loading.phase.busy()
     )));
@@ -676,6 +715,12 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     read!("mouse_y", (), |state| Ok(Dynamic::from(
         state.input.orbit[1]
     )));
+    read!("ui_events", (), |state| Ok(Dynamic::from(
+        state.ui_events.clone()
+    )));
+    read!("ui_pointer", (), |state| Ok(Dynamic::from_array(
+        state.ui_pointer.into_iter().map(Dynamic::from).collect()
+    )));
 
     // Blackboards, shared with graphs on the same object or scene.
     for (name, scope) in [
@@ -692,6 +737,23 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                 B::List { .. } => Err(fail(format!(
                     "variable '{variable}' is a list; scripts keep their own arrays"
                 ))),
+            }
+        });
+    }
+    for (name, scope) in [
+        ("get_object_list", VariableScope::Object),
+        ("get_scene_list", VariableScope::Scene),
+    ] {
+        read!(name, (variable: ImmutableString), |state| {
+            let entry = state
+                .board(scope, &state.owner)?
+                .get(variable.as_str())
+                .ok_or_else(|| fail(format!("unknown variable '{variable}'")))?;
+            match entry {
+                B::List { values, .. } => {
+                    Ok(Dynamic::from_array(values.iter().map(dynamic_of).collect::<Array>()))
+                }
+                B::Scalar(_) => Err(fail(format!("variable '{variable}' is a scalar"))),
             }
         });
     }
@@ -913,6 +975,42 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             intensity,
         }
     );
+    write!("set_ui_text", (target: ImmutableString, text: ImmutableString), |state| {
+        ensure_script(text.len() <= 4096, || "UI text exceeds 4096 UTF-8 bytes".into())?;
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Text(text.to_string()) }
+    });
+    write!("set_ui_visible", (target: ImmutableString, visible: bool), |state| {
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Visible(visible) }
+    });
+    write!("set_ui_enabled", (target: ImmutableString, enabled: bool), |state| {
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Enabled(enabled) }
+    });
+    write!("set_ui_opacity", (target: ImmutableString, opacity: f32), |state| {
+        ensure_script(opacity.is_finite() && (0.0..=1.).contains(&opacity), || "UI opacity must be in 0..1".into())?;
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Opacity(opacity) }
+    });
+    write!("set_ui_size", (target: ImmutableString, width: f32, height: f32), |state| {
+        ensure_script([width, height].iter().all(|n| n.is_finite() && (0.0..=10000.).contains(n)), || "invalid UI size".into())?;
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Size([width, height]) }
+    });
+    write!("set_ui_background", (target: ImmutableString, rgba: Array), |state| {
+        ensure_script(rgba.len() == 4, || "UI background needs RGBA".into())?;
+        let mut color = [0.; 4];
+        for (slot, value) in color.iter_mut().zip(rgba) { *slot = number_of(value, "UI color")?; }
+        ensure_script(color.iter().all(|n| (0.0..=1.).contains(n)), || "UI color must be in 0..1".into())?;
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Background(color) }
+    });
+    write!("set_ui_world_position", (target: ImmutableString, position: Array), |state| {
+        Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::WorldPosition(vector_of(position)?) }
+    });
+    for (name, screen) in [("set_ui_screen_position", true), ("set_ui_offset", false)] {
+        write!(name, (target: ImmutableString, x: f32, y: f32), |state| {
+            ensure_script([x, y].iter().all(|n| n.is_finite() && n.abs() <= 10000.), || "invalid UI position".into())?;
+            Command::Ui { target: state.target_of(&target)?, control: if screen {
+                middleware::ui::Control::ScreenPosition([x, y])
+            } else { middleware::ui::Control::Offset([x, y]) } }
+        });
+    }
     for (name, kind) in [
         ("set_focus_distance", blueprint::NodeKind::SetFocusDistance),
         ("set_aperture", blueprint::NodeKind::SetAperture),
@@ -954,11 +1052,11 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                   -> Result<ImmutableString, Box<EvalAltResult>> {
                 let mut state = borrow!(host);
                 let position = vector_of(position)?;
-                let serial = state
-                    .tokens
-                    .keys()
-                    .filter(|key| key.starts_with(SPAWN_PREFIX))
-                    .count();
+                let serial = state.next_token_serial;
+                state.next_token_serial = state
+                    .next_token_serial
+                    .checked_add(1)
+                    .ok_or_else(|| fail("script spawn handle counter exhausted"))?;
                 let token = format!("{SPAWN_PREFIX}{}/{serial}", state.owner);
                 let owner = state.owner.clone();
                 state.record(Command::Spawn {
@@ -1096,6 +1194,50 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                 }
             }
         );
+    }
+    for (name, scope) in [
+        ("set_object_list", VariableScope::Object),
+        ("set_scene_list", VariableScope::Scene),
+    ] {
+        write!(name, (variable: ImmutableString, values: Array), |state| {
+            let owner = state.owner.clone();
+            let (element, capacity) = match state.board(scope, &owner)?.get(variable.as_str()) {
+                Some(B::List {
+                    element, capacity, ..
+                }) => (*element, *capacity),
+                Some(B::Scalar(_)) => {
+                    return Err(fail(format!("variable '{variable}' is a scalar")));
+                }
+                None => return Err(fail(format!("unknown variable '{variable}'"))),
+            };
+            ensure_script(values.len() <= capacity, || {
+                format!("list '{variable}' exceeds its capacity of {capacity}")
+            })?;
+            let values = values
+                .into_iter()
+                .map(|value| scalar_of(value, element))
+                .collect::<Result<Vec<_>, _>>()?;
+            let replacement = B::List {
+                element,
+                capacity,
+                values: values.clone(),
+            };
+            if scope == VariableScope::Object {
+                state
+                    .object_boards
+                    .get_mut(&owner)
+                    .expect("object board")
+                    .insert(variable.to_string(), replacement);
+            } else {
+                state.scene_board.insert(variable.to_string(), replacement);
+            }
+            Command::ListVariable {
+                scope,
+                owner,
+                name: variable.to_string(),
+                values,
+            }
+        });
     }
     // `print` is a Rhai keyword, so it is captured through the engine's own output hook rather
     // than registered as a function.
@@ -1609,6 +1751,21 @@ impl SceneInstance {
         {
             let mut host = engine.lock();
             self.build_view(world, &mut host, runtime, &snapshot, dt, input);
+            host.ui_events.clear();
+            host.ui_pointer = [-1.; 2];
+            if let Some(ui) = world.resource_mut::<middleware::ui::Runtime>() {
+                if let Some(p) = ui.pointer {
+                    host.ui_pointer = std::array::from_fn(|i| p[i] / ui.viewport[i].max(1.));
+                }
+                for event in std::mem::take(&mut ui.script_events) {
+                    let mut map = Map::new();
+                    map.insert("kind".into(), event.kind.into());
+                    map.insert("target".into(), event.target.into());
+                    map.insert("x".into(), event.position[0].into());
+                    map.insert("y".into(), event.position[1].into());
+                    host.ui_events.push(Dynamic::from_map(map));
+                }
+            }
         }
         runtime.stats.hooks = 0;
         runtime.stats.commands = 0;
@@ -2005,6 +2162,9 @@ impl SceneInstance {
                             .text = text;
                     }
                 }
+                Command::Ui { target, control } => {
+                    self.control_ui(world, &resolve(tokens, &target), control)?;
+                }
                 Command::Visible { target, visible } => {
                     let target = resolve(tokens, &target);
                     let entity = *self
@@ -2070,6 +2230,15 @@ impl SceneInstance {
                     .resource_mut::<BlueprintRuntime>()
                     .context("script variables need the blueprint runtime")?
                     .set_board_scalar(scope, &owner, &name, value)?,
+                Command::ListVariable {
+                    scope,
+                    owner,
+                    name,
+                    values,
+                } => world
+                    .resource_mut::<BlueprintRuntime>()
+                    .context("script variables need the blueprint runtime")?
+                    .set_board_list(scope, &owner, &name, values)?,
                 Command::Print { level, owner, text } => {
                     bozzard_diagnostics::log(
                         world,
