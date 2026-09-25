@@ -15,11 +15,11 @@ These already exist; this list extends them.
 
 ## C1: Canvas layout tools — P1 / M
 
-- [ ] Extend existing HUD picking/selection with persistent widget outlines,
+- [x] Extend existing HUD picking/selection with persistent widget outlines,
   move/resize handles and visible anchor/pivot guides in the editor's UI canvas.
-- [ ] Add viewport-size presets and custom dimensions so authors can preview the
+- [x] Add viewport-size presets and custom dimensions so authors can preview the
   same menu at 16:9, 16:10 and a narrow window without changing scene data.
-- [ ] Make parent layout constraints clear: explain when layout owns a position
+- [x] Make parent layout constraints clear: explain when layout owns a position
   instead of letting a drag appear to work and then snap back.
 
 **Why now:** widgets already render in the viewport, but layout authoring mainly
@@ -36,10 +36,10 @@ layout rather than a separate layout implementation.
 
 ## C2: A true multi-object inspector — P1 / M
 
-- [ ] Show selected-object count, common components and mixed values.
-- [ ] Support changing shared scalar/vector fields across a selection, including
+- [x] Show selected-object count, common components and mixed values.
+- [x] Support changing shared scalar/vector fields across a selection, including
   clear absolute-versus-relative transform behavior.
-- [ ] Add explicit bulk add/remove component actions, with removal consequences
+- [x] Add explicit bulk add/remove component actions, with removal consequences
   shown before applying the command.
 
 **Why now:** the hierarchy supports multiple objects, but the inspector still starts
@@ -57,11 +57,11 @@ component registry rather than maintaining another field catalog.
 
 ## C3: Script source pane and diagnostics — P1 / M; depends on B1
 
-- [ ] Open an attached script in a dockable, asset-backed source pane with line
+- [x] Open an attached script in a dockable, asset-backed source pane with line
   numbers, save/dirty state and explicit handling of external file changes.
-- [ ] Add completion/help from B1's engine API descriptions, including signatures
+- [x] Add completion/help from B1's engine API descriptions, including signatures
   and hook parameters. Do not duplicate a handwritten function list in the UI.
-- [ ] Show reload state, clickable file/line diagnostics and per-attachment hook
+- [x] Show reload state, clickable file/line diagnostics and per-attachment hook
   and command counts. Make save and apply-to-running-Play distinct states.
 
 **Why now:** Script Manager currently attaches and orders scripts; it is not a
@@ -78,10 +78,10 @@ The pane can be developed against B1's agreed data types before reload is implem
 
 ## C4: Inspect and resolve prefab component overrides — P2 / M
 
-- [ ] Display inherited versus overridden values, grouped by object and component.
-- [ ] Add selected-component revert and a reviewable selection of changes
+- [x] Display inherited versus overridden values, grouped by object and component.
+- [x] Add selected-component revert and a reviewable selection of changes
   to apply to the source. Keep whole-instance actions available.
-- [ ] Clearly distinguish an undoable scene edit from a write to a prefab source
+- [x] Clearly distinguish an undoable scene edit from a write to a prefab source
   file, including the affected instances.
 
 **Why now:** nesting, variants, source editing, Apply and Refresh already exist;
@@ -100,10 +100,10 @@ needs agreed baseline/merge semantics with Codex before it becomes a UI feature.
 
 ## C5: Animator state-machine graph — P2 / M
 
-- [ ] Draw states and directed transitions; create/select connections visually
+- [x] Draw states and directed transitions; create/select connections visually
   while retaining the existing parameter and blend-tree forms.
-- [ ] Show initial state, wildcard transitions and transition priority explicitly.
-- [ ] Highlight the active runtime state during Play without allowing accidental
+- [x] Show initial state, wildcard transitions and transition priority explicitly.
+- [x] Highlight the active runtime state during Play without allowing accidental
   edits to the authoring document.
 
 **Why now:** the runtime has state machines and blend trees, but authors edit them
@@ -121,9 +121,9 @@ editor adapter does not expose it; authoring the graph uses existing component d
 
 ## C6: Editable curves, then a timeline pane — P2 / L, split into two PRs
 
-- [ ] First make existing curve plots interactive: drag keys, edit cubic tangents,
+- [x] First make existing curve plots interactive: drag keys, edit cubic tangents,
   snap time/value, and retain the precise numeric table.
-- [ ] Then add a timeline ruler, tracks, markers and camera cuts with zoom and
+- [x] Then add a timeline ruler, tracks, markers and camera cuts with zoom and
   an isolated edit-time scrub preview.
 
 **Why now:** curves are plotted but edited in tables, and timeline tracks/markers

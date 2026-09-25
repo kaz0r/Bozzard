@@ -7,6 +7,10 @@ The current workflow is:
 1. Select the root object of the hierarchy to reuse, then choose **Save as prefab** in the Inspector. The editor creates `assets/<name>-prefab-N.prefab.json`, chooses the first unused `N`, and links every object in the selected subtree to that source.
 2. In the Assets panel, filter by **Prefabs**. Choose **Add to scene**, or drag the prefab card into the viewport. In 3D, drag placement uses the y=0 construction plane; in 2D it uses z=0. A near-parallel or behind-camera ray falls back to a point five units ahead of the camera. Each placement gets fresh scene object IDs and remains linked to the same source. Placement is local to the instance.
 3. Edit an instance in the Inspector. Component-level changes are retained when the source is refreshed through a three-way merge against the instance's saved baseline.
+   The **Component overrides** section compares inherited and current values per object and
+   component. Select individual changes to **Revert selected** in the scene (Undo restores them),
+   or **Apply selected to source** after reviewing the affected linked instances. Unselected
+   overrides remain local. The source write is a file change; scene Undo cannot reverse it.
 4. Select a linked instance and choose **Apply to prefab** to write its hierarchy back to the source. The selected instance's root placement is kept in the scene, while the source receives the reusable hierarchy. Other linked instances of that source in the current scene update as part of the same operation.
 5. Choose **Refresh instances** after changing a prefab file outside the current operation, or after applying the source from another scene. Reopening a different scene does not refresh its instances automatically: explicitly refresh after the other scene has applied the source. Refresh merges source changes into all linked instances in the current scene.
 6. Choose **Unpack** to remove the link and keep the expanded objects. Unpacking is undoable; subsequent edits to the expanded hierarchy are ordinary scene edits.

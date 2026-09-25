@@ -55,7 +55,7 @@ pub(super) fn fields(
     Ok(changed || extra)
 }
 
-fn widget(
+pub(super) fn widget(
     ui: &mut egui::Ui,
     field: &Field,
     value: &mut FieldValue,

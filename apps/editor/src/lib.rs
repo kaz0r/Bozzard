@@ -43,6 +43,7 @@ mod loading;
 mod lod_ui;
 mod material_ui;
 mod motion_ui;
+mod multi_inspector;
 mod multi_scene;
 mod navigation_ui;
 mod particle_ui;
@@ -55,6 +56,7 @@ mod snapping;
 mod sprite_ui;
 mod surfaces;
 mod theme;
+mod timeline_pane;
 mod viewport;
 mod widget_ui;
 
@@ -115,6 +117,11 @@ struct Workspace {
     zoom: f32,
     camera: Option<viewport::FlyCamera>,
     ortho_zoom: f32,
+    animation_graph:
+        std::collections::BTreeMap<String, std::collections::BTreeMap<String, [f32; 2]>>,
+    canvas_preview: [u32; 2],
+    timeline_visible: bool,
+    timeline_zoom: f32,
 }
 impl Default for Workspace {
     fn default() -> Self {
@@ -144,6 +151,10 @@ impl Default for Workspace {
             zoom: 1.0,
             camera: None,
             ortho_zoom: 1.0,
+            animation_graph: Default::default(),
+            canvas_preview: [0, 0],
+            timeline_visible: false,
+            timeline_zoom: 100.,
         }
     }
 }
@@ -209,11 +220,13 @@ struct App {
     hierarchy_search: String,
     surface_search: String,
     hierarchy_state: hierarchy::HierarchyState,
+    multi_inspector_cache: Option<multi_inspector::Cache>,
     hierarchy_frame_requested: bool,
     hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
     lod_tools: lod_ui::LodTools,
     blueprint_pane: blueprints::BlueprintPane,
+    script_pane: scripts::ScriptPane,
     blueprint_debug: blueprint_debug::Workspace,
     shader_pane: shaders::ShaderPane,
     material_pane: material_ui::MaterialPane,
@@ -243,6 +256,8 @@ struct App {
     confirm_discard: bool,
     allow_close: bool,
     drag: Option<viewport::Drag>,
+    canvas_drag: Option<viewport::CanvasDrag>,
+    timeline_scrub: Option<(String, f32)>,
     navigation_button: Option<egui::PointerButton>,
     mouse_captured: bool,
     escape_deselect_requested: bool,
@@ -283,6 +298,8 @@ enum Pending {
 impl App {
     fn stop_play(&mut self) {
         self.editor.stop_play();
+        self.timeline_scrub = None;
+        self.editor.clear_timeline_preview();
         #[cfg(feature = "factory")]
         {
             self.factory_module = None;
@@ -351,11 +368,13 @@ impl App {
             hierarchy_search: String::new(),
             surface_search: String::new(),
             hierarchy_state: hierarchy::HierarchyState::default(),
+            multi_inspector_cache: None,
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),
             lod_tools: lod_ui::LodTools::default(),
             blueprint_pane: blueprints::BlueprintPane::default(),
+            script_pane: Default::default(),
             blueprint_debug: Default::default(),
             shader_pane: shaders::ShaderPane::default(),
             material_pane: material_ui::MaterialPane::default(),
@@ -385,6 +404,8 @@ impl App {
             confirm_discard: false,
             allow_close: false,
             drag: None,
+            canvas_drag: None,
+            timeline_scrub: None,
             navigation_button: None,
             mouse_captured: false,
             escape_deselect_requested: false,
@@ -455,6 +476,11 @@ impl App {
         }
         if matches!(pending, Pending::Close) && self.material_pane.dirty() {
             self.status = "Save or discard the open material draft before quitting".into();
+            return;
+        }
+        if matches!(pending, Pending::Close) && self.script_pane.dirty() {
+            self.dock_focus = Some(docking::Pane::Script);
+            self.status = "Save or discard the open script draft before quitting".into();
             return;
         }
         if self.loading.is_some() {
@@ -1525,7 +1551,8 @@ impl eframe::App for App {
             && !self.allow_close
             && (self.open_scenes.any_dirty(&self.editor)
                 || self.material_pane.dirty()
-                || self.level_tools.dirty())
+                || self.level_tools.dirty()
+                || self.script_pane.dirty())
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.request(Pending::Close);
@@ -1704,6 +1731,8 @@ impl eframe::App for App {
             self.workspace.assets_visible,
             self.workspace.settings_visible,
             self.workspace.debug_visible,
+            self.script_pane.is_open(),
+            self.workspace.timeline_visible,
         ];
         self.viewport_rect = None;
         layout.show(ui, visible, |pane, ui| match pane {
@@ -1713,6 +1742,8 @@ impl eframe::App for App {
             docking::Pane::Assets => self.assets_content(ui),
             docking::Pane::Settings => self.settings_content(ui),
             docking::Pane::Debug => self.debug_content(ui),
+            docking::Pane::Script => self.script_source_pane(ui),
+            docking::Pane::Timeline => self.timeline_pane(ui),
         });
         self.workspace.docking = layout;
         if let Some(pane) = self.dock_focus.take() {

@@ -92,6 +92,9 @@ impl App {
                 "Wait for the current operation first"
             );
             self.drag = None;
+            self.canvas_drag = None;
+            self.timeline_scrub = None;
+            self.editor.clear_timeline_preview();
             self.gameplay_controls.reset();
             self.loading = Some(Loading::Play(self.editor.play_job()?));
             Ok(())

@@ -46,6 +46,10 @@ impl App {
             ui.disable();
         }
         theme::panel_title(ui, "Properties");
+        if self.hierarchy_state.selection_count() > 1 && self.editor.selected_surface().is_none() {
+            self.multi_inspector(ui);
+            return;
+        }
         self.prefab_inspector(ui);
         let Some(original) = self.editor.selected_object().cloned() else {
             ui.add_space(16.0);
@@ -134,10 +138,15 @@ impl App {
                                 }
                                 if let Err(error) = crate::navigation_ui::component(ui, &mut object, entry.name, &scene) { error_slot = Some(error); }
                                 if let Err(error) = crate::particle_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
-                                if let Err(error) = crate::widget_ui::component(ui, &mut object, entry.name) { error_slot = Some(error); }
+                                if let Err(error) = crate::widget_ui::component(ui, &mut object, entry.name, &scene) { error_slot = Some(error); }
                                 if let Err(error) = crate::sprite_ui::component(ui, &mut object, entry.name, &self.editor.assets) { error_slot = Some(error); }
                                 crate::font_ui::component(ui, &mut object, entry.name, &self.editor.assets);
-                                if entry.name == "animator" && let Err(error) = crate::animation_ui::component(ui, &mut object, &self.editor.assets) {
+                                let active_state = self.editor.play.as_ref()
+                                    .and_then(|play| play.app.world.resource::<bozzard_scene::middleware::animation::Runtime>())
+                                    .and_then(|runtime| runtime.players.get(&object.id))
+                                    .map(|player| player.state);
+                                let graph_key = format!("{}:{}", self.editor.path.display(), object.id);
+                                if entry.name == "animator" && let Err(error) = crate::animation_ui::component(ui, &mut object, &self.editor.assets, self.workspace.animation_graph.entry(graph_key).or_default(), active_state) {
                                     error_slot = Some(error);
                                 }
                             });
@@ -996,6 +1005,11 @@ impl App {
             .editor
             .selected_prefab_root()
             .map(|root| self.editor.scene().prefabs[root].asset.clone());
+        let overrides = if asset.is_some() {
+            self.editor.prefab_overrides()
+        } else {
+            Ok(Vec::new())
+        };
         if self.editor.is_prefab_source() && asset.is_none() {
             ui.colored_label(Color32::from_rgb(178, 155, 244), "Prefab source hierarchy");
             ui.weak("Save writes this source. Place it in a scene to Play.");
@@ -1014,6 +1028,8 @@ impl App {
         ui.add_enabled_ui(self.editor.play.is_none() && self.loading.is_none(), |ui| {
             if let Some(asset) = asset {
                 ui.colored_label(Color32::from_rgb(178, 155, 244), format!("Prefab · {asset}"));
+                let affected = self.editor.scene().prefabs.values().filter(|link| link.asset == asset).count();
+                ui.small(format!("Source writes update {affected} linked instance(s) in this scene. Scene Undo does not undo a source file write."));
                 ui.horizontal_wrapped(|ui| {
                     if ui.button("Create variant").on_hover_text("Create a new prefab inheriting this source, keeping the selected instance's component overrides.").clicked() {
                         self.start_prefab(PrefabCommand::Variant);
@@ -1026,16 +1042,67 @@ impl App {
                         self.start_prefab(PrefabCommand::Apply);
                     }
                     if ui.button("Refresh instances").on_hover_text("Read the source again and update instances in this scene, preserving local component overrides. Undoable.").clicked() {
-                        self.start_prefab(PrefabCommand::Refresh { asset });
+                        self.start_prefab(PrefabCommand::Refresh { asset: asset.clone() });
                     }
                     if ui.button("Unpack").on_hover_text("Keep these objects and detach their prefab link. Unpack before adding, removing, or reparenting children. Undoable.").clicked() {
                         let result = self.editor.unpack_prefab(); self.result(result);
                     }
                 });
+                match &overrides {
+                    Ok(changes) if changes.is_empty() => { ui.weak("No component overrides on this instance."); }
+                    Ok(changes) => {
+                        ui.collapsing(format!("Component overrides · {}", changes.len()), |ui| {
+                            let id = ui.make_persistent_id(("prefab-chosen", &asset));
+                            let mut chosen = ui.data_mut(|d| d.get_temp::<std::collections::BTreeSet<(String, String)>>(id)).unwrap_or_default();
+                            let current: std::collections::BTreeSet<_> = changes.iter().map(|c| (c.object.clone(), c.component.clone())).collect();
+                            chosen.retain(|key| current.contains(key));
+                            let mut previous = None;
+                            for change in changes {
+                                if previous.as_deref() != Some(change.object.as_str()) {
+                                    ui.strong(format!("{} · {}", change.object_name, change.object));
+                                    previous = Some(change.object.clone());
+                                }
+                                let key = (change.object.clone(), change.component.clone());
+                                let mut checked = chosen.contains(&key);
+                                ui.horizontal_wrapped(|ui| {
+                                    if ui.checkbox(&mut checked, &change.label).changed() {
+                                        if checked { chosen.insert(key.clone()); } else { chosen.remove(&key); }
+                                    }
+                                    ui.weak(format!("Inherited: {}  →  Override: {}", prefab_value(&change.inherited), prefab_value(&change.current)));
+                                });
+                            }
+                            ui.horizontal_wrapped(|ui| {
+                                if ui.add_enabled(!chosen.is_empty(), egui::Button::new("Revert selected in scene")).on_hover_text("One undoable scene edit; leaves unrelated overrides and source files untouched.").clicked() {
+                                    let selected: Vec<_> = chosen.iter().cloned().collect();
+                                    let result = self.editor.revert_prefab_components(&selected);
+                                    self.result(result);
+                                    chosen.clear();
+                                }
+                                if ui.add_enabled(!chosen.is_empty(), egui::Button::new("Apply selected to source…")).on_hover_text(format!("Writes a prefab source file and refreshes {affected} linked instance(s). Scene Undo cannot undo this file write.")).clicked() {
+                                    self.start_prefab(PrefabCommand::ApplySelected { components: chosen.iter().cloned().collect() });
+                                    chosen.clear();
+                                }
+                            });
+                            ui.data_mut(|d| d.insert_temp(id, chosen));
+                        });
+                    }
+                    Err(error) => { ui.colored_label(Color32::LIGHT_RED, format!("Cannot inspect overrides: {error:#}")); }
+                }
             } else if ui.button("Save as prefab").on_hover_text("Save this hierarchy into assets/ and link it to a reusable prefab. Scene Undo keeps the source file for reuse.").clicked() {
                 self.start_prefab(PrefabCommand::Create);
             }
         });
         ui.separator();
+    }
+}
+
+fn prefab_value(value: &Option<serde_json::Value>) -> String {
+    let text = value
+        .as_ref()
+        .map_or_else(|| "(absent)".into(), |v| v.to_string());
+    if text.chars().count() > 100 {
+        format!("{}…", text.chars().take(100).collect::<String>())
+    } else {
+        text
     }
 }

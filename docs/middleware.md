@@ -40,6 +40,13 @@ Import a glTF/GLB with skins or animation. Animated models remain whole objects 
 
 The Animator inspector authors named states, clip motions or one-dimensional blend trees, float parameters, ordered transitions, threshold/exit-time conditions, fade duration, clip events and root motion. Blend samples interpolate neighboring thresholds; events come from the dominant clip to avoid duplicate markers. Root motion extracts selected translation axes and yaw; a navigation agent and root motion cannot both own the object's movement.
 
+The **State graph** shows states and numbered directed transitions. Click a source and destination
+state (or the wildcard source) to create a connection; click a numbered badge to select it for
+editing in the transition form. A yellow border marks the initial state and the active Play state
+is highlighted. Dragging a node changes only its saved editor layout; transition priority remains
+the order shown in the form. Rename and delete update or remove affected references through the
+same validated authoring command and Undo path.
+
 Blueprints can play a state with a fade, pause/stop/seek, set parameters, query the state/progress, and receive **On Animation Event** with the marker name and time. Event context survives Delay and save/load. Animation sampling uses the same cooked rig on the server; native compute skinning feeds PBR, depth, shadow, culling and motion-vector paths. Paused poses reuse their cached palette, and deformation invalidates shadow caches.
 
 Supported glTF tracks are translation, rotation and scale with step, linear and cubic-spline interpolation. Rotations use normalized quaternion interpolation. Four joint influences per vertex, 1,024 nodes, 4,096 skin bindings, 256 clips and one million keys bound import/runtime work. Morph targets and additional influence sets are rejected with an import error; convert those assets to the supported representation before import.
@@ -50,11 +57,29 @@ Supported glTF tracks are translation, rotation and scale with step, linear and 
 
 Add **Tween**, enable autoplay or call **Play Tween**, and add tracks for translation, rotation in degrees, scale, color, metallic, roughness, light intensity or text opacity. Each track targets Self or another scene object. The inspector edits and previews step, linear or cubic Hermite curves, including tangents. Shared easing and Once / Loop / Ping-pong playback apply to the clip.
 
+Drag keys directly in the curve plot to change time and value; cubic curves also expose incoming
+and outgoing tangent handles. **Snap keys** applies the displayed time and value increments. The
+numeric table remains available for precise edits. Escape during a drag restores its starting
+curve; a completed drag is one Undo step.
+
+The dockable **Timeline** pane shows the selected object's tracks, marker lane, camera cuts and
+time ruler. Zoom changes pixels per second. Click or use the keyboard accessible **Preview time**
+slider to scrub, and drag markers or cuts to move them. Scrubbing uses the runtime timeline sampler
+in an isolated Edit preview: it does not fire marker events, save sampled poses, or change the
+authored scene. **Clear preview** restores the normal Edit view.
+
 Blueprints expose play/pause/stop/seek, progress, scalar curve sampling and completion. Tracks have at most 4,096 keys and a tween has at most 128 tracks. Marker catch-up is bounded; an excessively large timestep/event density reports an error instead of producing an unbounded queue. Objects driven by middleware motion are excluded from static GI baking.
 
 ## Widgets, 2D and accessibility
 
 Create a root **UI Canvas** and parent **UI Widget** objects beneath it. Widgets are panels, labels, images, buttons, toggles or sliders. Anchors/pivot/offset/size position a widget relative to its parent. Absolute, row, column and grid layouts support padding, gaps and growing children. Canvas scaling uses reference pixels (Fit, Width, Height or Pixels); a phase can restrict a canvas to Ready, Playing, Paused or Game over.
+
+In the editor's 2D viewport, the canvas preview menu offers Fit, 16:9, 16:10, narrow and custom
+sizes. These dimensions stay in the workspace and do not change the scene. Visible widget outlines,
+an anchor/pivot guide and a selected resize handle use the runtime's resolved layout, including
+clipping and canvas scale. Drag a widget to move it or its handle to resize it; Escape cancels and
+each finished drag is one Undo step. A row, column or grid parent owns its children's placement,
+so the Inspector explains which parent settings to edit instead.
 
 Wrapped text has an intrinsic height measured by the same CPU shaping code used by rendering. Scrollable panels clip their children, draw a scroll thumb, accept wheel/Page keys and reveal controls when keyboard focus moves. Images support normalized atlas UV regions and nine-slice borders in source pixels. The editor previews a selected phase-specific canvas without changing the saved game phase.
 

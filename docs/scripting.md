@@ -46,6 +46,14 @@ same hook; completion results become visible only at a later simulation boundary
    asset. **+ Add script** adds another attachment; **↑**/**↓** change the order and **Remove**
    detaches one. Up to 16 scripts per object, run top to bottom.
 
+   **Open source** opens the attached asset in the dockable Script pane. The pane shows line
+   numbers, generated hook and engine function help, completion at the cursor, and live hook and
+   command counts per attachment during Play. A dot marks unsaved source. **Save source** writes
+   the script file; **Apply to Play** requests a separate live reload. If the file changes outside
+   the editor, review the external copy before reloading or overwriting it. Switching scripts or
+   closing a dirty pane asks whether to save, discard, or keep the draft. Compile errors retain
+   the draft and offer a file/line link; the last valid runtime program continues.
+
 3. In the editor, Import a `.rs` file to add it to the catalog (or write the catalog entry by hand).
    The catalog keeps paths relative to the scene file, so a project folder stays portable and the
    export packs scripts the same way it packs prefabs.
@@ -98,7 +106,8 @@ results. Active multiplayer Play rejects live replacement; all peers must stop a
 the same script revision.
 
 For completion and help, use `bozzard_scene::script_function_descriptions()` and
-`bozzard_scene::script_hook_descriptions()` instead of a separate handwritten function catalog.
+`bozzard_scene::script_hook_signatures()` instead of a separate handwritten function catalog.
+The existing `script_hook_descriptions()` API exposes the same names with argument counts.
 For runtime counters, `ScriptRuntime::stats` is the last tick's `ScriptRuntimeStats`: aggregate
 hook and command counts plus `attachments`, keyed by `(object_id, Script Manager index)`.
 The attachment snapshot keeps at most 4096 entries and sets `truncated` if more ran. These are
