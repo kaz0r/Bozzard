@@ -393,6 +393,12 @@ impl View {
             Default::default(),
         );
         self.compute.stop();
+        // DX12 keeps the presentation queue in the swapchain created by the old
+        // device. A fresh surface lets the replacement device create its own.
+        self.surface = self
+            .instance
+            .create_surface(self.window.clone())
+            .context("recreating window surface after device loss")?;
         let gpu = pollster::block_on(Gpu::request(
             &self.instance,
             Some(&self.surface),
