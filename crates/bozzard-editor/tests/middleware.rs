@@ -105,14 +105,18 @@ fn ui_widget_layout_gesture_undo_save_and_reopen() -> anyhow::Result<()> {
         &updated,
         "preview dimensions must not enter authored data"
     );
-    let temp = std::env::temp_dir().join(format!(
-        "bozzard-ui-layout-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_nanos()
-    ));
-    std::fs::create_dir(&temp)?;
+    // Save beside the checkout's assets: Windows' system temp directory can be on
+    // another drive, where relative asset references cannot be represented.
+    let temp = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../work")
+        .join(format!(
+            "bozzard-ui-layout-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos()
+        ));
+    std::fs::create_dir_all(&temp)?;
     let destination = temp.join("scene.json");
     editor.save(&destination)?;
     let reopened = Editor::open(&destination)?;
