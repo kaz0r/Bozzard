@@ -24,7 +24,18 @@ cargo run -p bozzard-editor-app -- --scene apps/bozz-torio/scene/bozz-torio.json
 
 Use the **2D** viewport to edit the 22 × 15 starter district: move its iron, copper, or coal deposits and delivery hub, paint the tilemap, or duplicate a machine template onto a cell. The surrounding world is generated when a new factory starts. A miner must sit on iron or copper; a generator must sit on coal. Rotate placed machines in 90-degree steps to set output direction. The scene blackboard holds starter supplies, credits, first-order settings, and `world_seed`: `0` generates a fresh world each time, while a positive value reproduces the same world.
 
-The same scene contains editable **UI Canvas** and **UI Widget** components for the menu, toolbar, sidebar, map, help, and objective card. Its Sprite and Tilemap components render the factory. The native player updates the component text and images as the simulation changes; generated terrain and resource nodes fill the world around the authored district. Edit the visual layout in the scene, save it, then choose **NEW FROM EDITOR SCENE** in Bozz-torio to load the revised layout and start a new factory. **CONTINUE FACTORY** resumes the existing save. The editor's **Play** button previews the authored scene; the native player runs its simulation and component-based UI.
+The same scene contains editable **UI Canvas** and **UI Widget** components for the menu, toolbar, sidebar, map, help, and objective card. Its Sprite and Tilemap components render the factory. The native player updates the component text and images as the simulation changes; generated terrain and resource nodes fill the world around the authored district. Edit the visual layout in the scene, save it, then choose **NEW FROM EDITOR SCENE** in Bozz-torio to load the revised layout and start a new factory. **CONTINUE FACTORY** resumes the existing save.
+
+For a Play session with the compiled factory simulation inside the editor, build the game and run its editor entry point:
+
+```sh
+cargo build -p bozz-torio
+cargo run -p bozzard-editor-app --features factory --bin bozz-torio-editor -- --project apps/bozz-torio/bozzard.project.json
+```
+
+Play creates a separate factory world from the current authored scene, including unsaved edits. The Factory row accepts world coordinates, a machine type and direction; **Build**, **Recover** and **Rotate** submit the same actions as the native game. The game advances at five factory ticks per second and updates the in-scene contract, progress, power and credit displays. Stop discards the Play world and restores the authored document. File > Export from this build copies the compatible Bozz-torio executable, its Steam library, the current scene and its assets into a new folder. Build the game in the same Cargo profile as the editor first so its executable is beside the editor binary. The stock editor reports the required `bozz-torio` module when opening this project manifest; opening the scene directly remains useful for visual editing.
+
+The same exporter can be checked without opening a window: `bozz-torio --offline --scene apps/bozz-torio/scene/bozz-torio.json --export-dir NEW_FOLDER`, then `python3 apps/bozz-torio/tools/package.py --verify-only --out NEW_FOLDER`. Verification moves a copy to an unrelated directory, runs the factory route using an isolated save, and captures an offline screenshot.
 
 The source game is in [`src/`](src/). For a different scene file, start the game with `--scene PATH` and choose **NEW FROM EDITOR SCENE**. The game loads the sprite atlas named by that scene's `assets.sprites.path` entry.
 

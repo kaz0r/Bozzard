@@ -76,6 +76,7 @@ pub struct Gpu {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     failure: std::sync::Arc<std::sync::OnceLock<String>>,
+    out_of_memory: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Gpu {
@@ -147,6 +148,7 @@ impl Gpu {
     /// Wrap the device supplied by a native host (including the editor's egui renderer).
     pub fn from_device(adapter: wgpu::Adapter, device: wgpu::Device, queue: wgpu::Queue) -> Self {
         let failure = std::sync::Arc::new(std::sync::OnceLock::new());
+        let out_of_memory = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let signal = failure.clone();
         device.set_device_lost_callback(move |reason, message| {
             let _ = signal.set(format!("GPU device lost ({reason:?}): {message}"));
@@ -156,6 +158,7 @@ impl Gpu {
             device,
             queue,
             failure,
+            out_of_memory,
         }
     }
 
@@ -170,6 +173,24 @@ impl Gpu {
     }
     pub fn failure(&self) -> Option<&str> {
         self.failure.get().map(String::as_str)
+    }
+    /// Native standalone runtimes may opt into an OOM callback; the editor's host owns its handler.
+    pub fn monitor_out_of_memory(&self) {
+        let flag = self.out_of_memory.clone();
+        let signal = self.failure.clone();
+        self.device
+            .on_uncaptured_error(std::sync::Arc::new(move |error| {
+                if matches!(error, wgpu::Error::OutOfMemory { .. }) {
+                    flag.store(true, std::sync::atomic::Ordering::Release);
+                    let _ = signal.set(format!("GPU out of memory: {error}"));
+                } else {
+                    eprintln!("uncaptured GPU error: {error}");
+                }
+            }));
+    }
+    pub fn out_of_memory(&self) -> bool {
+        self.out_of_memory
+            .load(std::sync::atomic::Ordering::Acquire)
     }
 }
 

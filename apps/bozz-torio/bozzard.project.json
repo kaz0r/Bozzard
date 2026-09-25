@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "Bozz-torio",
+  "start_scene": "scene/bozz-torio.json",
+  "view": "2d",
+  "runtime_modules": ["bozz-torio"]
+}

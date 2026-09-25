@@ -8,7 +8,7 @@ build = "../../tools/steam_build.rs"
 
 [features]
 default = ["steam"]
-steam = ["dep:steamworks"]
+steam = ["dep:steamworks", "dep:bozzard-network"]
 
 [dependencies]
 anyhow.workspace = true
@@ -16,9 +16,12 @@ serde.workspace = true
 serde_json.workspace = true
 image.workspace = true
 bozzard-assets.workspace = true
+bozzard-app.workspace = true
+bozzard-diagnostics.workspace = true
 bozzard-ecs.workspace = true
 bozzard-render.workspace = true
 bozzard-render-assets.workspace = true
+bozzard-project = { path = "../../crates/bozzard-project" }
 bozzard-scene.workspace = true
 glam.workspace = true
 pollster.workspace = true
@@ -27,6 +30,10 @@ base64 = "0.22.1"
 flate2 = "1.1.10"
 sha2 = "0.10.9"
 steamworks = { version = "0.13.1", optional = true }
+bozzard-network = { path = "../../crates/bozzard-network", features = ["steam"], optional = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+bozzard-demo.workspace = true

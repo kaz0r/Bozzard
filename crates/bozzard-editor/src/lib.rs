@@ -13,7 +13,9 @@ use std::{
     time::Duration,
 };
 
+mod bulk;
 mod components;
+pub use bulk::{BulkTransformAxis, BulkTransformMode};
 mod effects;
 pub use effects::EffectsPreview;
 mod deletion;
@@ -22,7 +24,7 @@ pub use gi::PreparedGi;
 mod framing;
 mod hierarchy;
 mod prefabs;
-pub use prefabs::{PrefabCommand, PreparedPrefab};
+pub use prefabs::{PrefabCommand, PrefabOverride, PreparedPrefab};
 mod loading;
 mod lod;
 pub use lod::{GeneratedLod, LodRequest, PreparedLods};
@@ -37,6 +39,14 @@ mod workspace;
 pub use loading::{LoadedScene, PreparedImport, PreparedPlay, PreparedSave};
 pub use selection::{Pick, SelectedSurface};
 pub use workspace::{OpenScenes, SceneId};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScriptReloadFeedback {
+    Compiling { revision: u64 },
+    Applied { revision: u64 },
+    Failed { message: String },
+    Stale { reason: String },
+}
 
 const HISTORY_LIMIT: usize = 100;
 struct Change {
@@ -57,6 +67,9 @@ pub struct Editor {
     future: Vec<Change>,
     gesture: Option<Change>,
     pub play: Option<SceneDemo>,
+    script_reload_jobs:
+        BTreeMap<String, bozzard_assets::job::Job<bozzard_scene::ScriptReloadCandidate>>,
+    script_reload_feedback: BTreeMap<String, ScriptReloadFeedback>,
     edit_assets: Option<AssetStore>,
     pub assets: AssetStore,
     revision: u64,
@@ -103,6 +116,8 @@ impl Editor {
             future: Vec::new(),
             gesture: None,
             play: None,
+            script_reload_jobs: BTreeMap::new(),
+            script_reload_feedback: BTreeMap::new(),
             edit_assets: None,
             assets,
             revision: 1,
@@ -635,7 +650,63 @@ impl Editor {
         }
         Ok(())
     }
+    /// Queue a live edit for the current Play instance. The source remains in the worker only;
+    /// authoring owns saving the file. Newer edits cancel an older compile for the same asset.
+    pub fn request_script_reload(&mut self, asset: &str, source: String) -> Result<u64> {
+        let play = self
+            .play
+            .as_mut()
+            .context("Start Play before reloading a script")?;
+        let request = play.request_script_reload(asset, source)?;
+        let revision = request.revision();
+        let job = request.start()?;
+        self.script_reload_jobs.insert(asset.to_owned(), job);
+        self.script_reload_feedback.insert(
+            asset.to_owned(),
+            ScriptReloadFeedback::Compiling { revision },
+        );
+        Ok(revision)
+    }
+    pub fn script_reload_feedback(&self, asset: &str) -> Option<&ScriptReloadFeedback> {
+        self.script_reload_feedback.get(asset)
+    }
+    fn poll_script_reloads(&mut self) {
+        let Some(play) = &mut self.play else {
+            return;
+        };
+        // A debugger can suspend midway through a Blueprint tick; publication waits for it.
+        if play.app.is_paused() {
+            return;
+        }
+        let completed: Vec<_> = self
+            .script_reload_jobs
+            .iter()
+            .filter_map(|(asset, job)| job.poll().map(|result| (asset.clone(), result)))
+            .collect();
+        for (asset, result) in completed {
+            self.script_reload_jobs.remove(&asset);
+            let feedback = match result {
+                Ok(candidate) => match play.publish_script_reload(candidate) {
+                    Ok(bozzard_scene::ScriptReloadStatus::Applied { revision, .. }) => {
+                        ScriptReloadFeedback::Applied { revision }
+                    }
+                    Ok(bozzard_scene::ScriptReloadStatus::Stale { reason, .. }) => {
+                        ScriptReloadFeedback::Stale { reason }
+                    }
+                    Err(error) => ScriptReloadFeedback::Failed {
+                        message: format!("{error:#}"),
+                    },
+                },
+                Err(error) => ScriptReloadFeedback::Failed {
+                    message: format!("{error:#}"),
+                },
+            };
+            self.script_reload_feedback.insert(asset, feedback);
+        }
+    }
     pub fn stop_play(&mut self) {
+        self.script_reload_jobs.clear();
+        self.script_reload_feedback.clear();
         self.play = None;
         if let Some(assets) = self.edit_assets.take() {
             self.assets = assets;
@@ -643,6 +714,7 @@ impl Editor {
         }
     }
     pub fn advance(&mut self, delta: Duration) {
+        self.poll_script_reloads();
         #[cfg(feature = "steam")]
         if !self
             .play
@@ -1215,6 +1287,39 @@ impl Editor {
         Ok(std::cell::Ref::map(self.edit_demo.borrow(), |cached| {
             &cached.as_ref().unwrap().1
         }))
+    }
+    /// Seek only the cached Edit preview world using the same timeline sampler as Play.
+    /// A zero-duration step applies motion/camera cuts without crossing or emitting markers.
+    pub fn scrub_timeline_preview(&self, owner: &str, time: f32) -> Result<()> {
+        ensure!(
+            self.play.is_none(),
+            "Stop Play before scrubbing the Edit preview"
+        );
+        {
+            let _ = self.edit_demo()?;
+        }
+        let mut cached = self.edit_demo.borrow_mut();
+        let demo = &mut cached.as_mut().unwrap().1;
+        demo.with_instance(|instance, world| {
+            instance.control_timeline(
+                world,
+                owner,
+                bozzard_scene::middleware::tween::Control::Seek(time),
+            )?;
+            instance.step_timelines(world, 0.)
+        })
+    }
+
+    pub fn clear_timeline_preview(&self) {
+        *self.edit_demo.borrow_mut() = None;
+    }
+
+    pub fn timeline_preview_transform(&self, id: &str) -> Result<Option<Transform>> {
+        let demo = self.edit_demo()?;
+        Ok(demo
+            .instance()
+            .entity(id)
+            .and_then(|entity| demo.app.world.get::<Transform>(entity).copied()))
     }
     /// Translate the selected Play-world collider without touching the authored scene.
     pub fn move_selected_box(&mut self, delta: Vec3) -> Result<bozzard_scene::MoveResult> {

@@ -6,6 +6,11 @@ pub struct SaveFile {
 }
 
 impl SaveFile {
+    pub fn in_directory(directory: PathBuf) -> Self {
+        Self {
+            path: directory.join("factory.json"),
+        }
+    }
     pub fn default_path() -> Self {
         let root = std::env::var_os("XDG_DATA_HOME")
             .map(PathBuf::from)
@@ -14,9 +19,7 @@ impl SaveFile {
                 std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share"))
             })
             .unwrap_or_else(|| PathBuf::from("."));
-        Self {
-            path: root.join("bozz-torio").join("factory.json"),
-        }
+        Self::in_directory(root.join("bozz-torio"))
     }
 
     pub fn exists(&self) -> bool {
@@ -79,11 +82,37 @@ impl SaveFile {
     }
 
     pub fn write(&self, game: &Game) -> anyhow::Result<()> {
+        self.write_with(game, |from, to| fs::rename(from, to))
+    }
+
+    fn write_with(
+        &self,
+        game: &Game,
+        replace: impl FnOnce(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
+    ) -> anyhow::Result<()> {
         let parent = self.path.parent().expect("save path has a parent");
         fs::create_dir_all(parent)?;
-        let temporary = self.path.with_extension("json.tmp");
-        fs::write(&temporary, serde_json::to_vec(game)?)?;
-        fs::rename(&temporary, &self.path)?;
+        static NEXT_TEMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let temporary = self.path.with_extension(format!(
+            "json.{}.{}.tmp",
+            std::process::id(),
+            NEXT_TEMP.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let result = (|| -> anyhow::Result<()> {
+            use std::io::Write;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            file.write_all(&serde_json::to_vec(game)?)?;
+            file.sync_all()?;
+            replace(&temporary, &self.path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+        result?;
         Ok(())
     }
 }
@@ -135,5 +164,33 @@ mod tests {
         assert_eq!(loaded.hub, [PATCH_X + 18, PATCH_Y + 7]);
         assert_eq!(loaded.buildings.len(), 8);
         fs::remove_file(&save.path).unwrap();
+    }
+
+    #[test]
+    fn repeated_replacement_and_failed_publish_keep_the_previous_valid_save() {
+        let directory = std::env::temp_dir().join(format!(
+            "bozz-torio-save-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let save = SaveFile::in_directory(directory.clone());
+        let mut game = Game::from_seed(7);
+        save.write(&game).unwrap();
+        game.credits = 42;
+        save.write(&game).unwrap();
+        assert_eq!(save.load().unwrap().credits, 42);
+        game.credits = 99;
+        assert!(
+            save.write_with(&game, |_, _| Err(std::io::Error::other(
+                "injected replacement failure"
+            )))
+            .is_err()
+        );
+        assert_eq!(save.load().unwrap().credits, 42);
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

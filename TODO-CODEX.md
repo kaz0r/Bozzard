@@ -1,7 +1,11 @@
 # Codex: runtime, reliability and game integration
 
-Planning snapshot: 2026-09-24, based on `main` at `27381da`. These are proposed tasks;
-unchecked boxes do not mean work has started. UI counterparts are in
+Planning snapshot: 2026-09-24, based on `main` at `27381da`. The implementation
+items below are complete on `codex/todo-runtime-reliability`. Linux local tests,
+packaging, export, and a Vulkan device-recreation smoke passed. Native CI and
+review are tracked by [PR #37](https://github.com/kaz0r/Bozzard/pull/37); a live
+two-account Steam acceptance run still requires target accounts and machines.
+UI counterparts are in
 [Claude's list](TODO-CLAUDE.md).
 
 Start B1 while Claude works on C1/C2, then integrate C3. B2 and B3 are the next
@@ -10,11 +14,11 @@ requirements and the tests that make refactoring safe.
 
 ## B1: Transactional Rhai reload and authoring data — P1 / M, two slices
 
-- [ ] Define a reload request/result contract and expose engine function/hook
+- [x] Define a reload request/result contract and expose engine function/hook
   descriptions plus bounded per-attachment hook/command statistics for C3.
-- [ ] Compile changed sources away from the fixed-tick path and publish a validated
+- [x] Compile changed sources away from the fixed-tick path and publish a validated
   candidate atomically at a tick boundary. Keep the last valid program on failure.
-- [ ] Define attachment state precisely: preserve world/blackboard state and
+- [x] Define attachment state precisely: preserve world/blackboard state and
   started/enabled status; specify fresh top-level script-scope initialization;
   do not rerun gameplay `on_start` implicitly. Reject stale results after Stop,
   scene replacement, attachment removal or a newer edit.
@@ -36,12 +40,12 @@ attachment-keyed stats snapshot before C3 integrates. No GUI dependency in scene
 
 ## B2: Bozz-torio runtime and relocated-package acceptance — P1 / M, two slices
 
-- [ ] Add an offline acceptance route through the real factory simulation and
+- [x] Add an offline acceptance route through the real factory simulation and
   scene adapter: start from the authored scene, build/produce/deliver, update the
   HUD, save, reopen and verify the restored factory.
-- [ ] Extend the game's package tool with validation of its asset inventory and a
+- [x] Extend the game's package tool with validation of its asset inventory and a
   bounded smoke invocation from an unrelated directory after relocation.
-- [ ] Add that packaged-game check to native CI, using an isolated save directory
+- [x] Add that packaged-game check to native CI, using an isolated save directory
   and offline mode so it never needs a Steam login or touches a developer's save.
 
 **Evidence:** [the editor integration test](crates/bozzard-editor/tests/bozz_torio.rs)
@@ -63,13 +67,13 @@ not initialize Steam. A screenshot alone does not establish simulation correctne
 
 ## B3: Multiplayer worker and native-frame test lab — P1 / L, staged
 
-- [ ] Build injectable transport and clock boundaries around the existing in-process
+- [x] Build injectable transport and clock boundaries around the existing in-process
   simulator to cover the session worker, publication queue, timeout handling,
   stop/rejoin and native presentation boundary.
   Add selectable, seeded latency/jitter, asymmetric loss, duplication and reordering.
-- [ ] Record input/snapshot age, replay depth, queue sizes, network worker time and
+- [x] Record input/snapshot age, replay depth, queue sizes, network worker time and
   full editor/player CPU frame median/p95/p99 alongside available GPU timings.
-- [ ] Add Bozz-torio-specific fragmented snapshot cases: missing/reordered/duplicate
+- [x] Add Bozz-torio-specific fragmented snapshot cases: missing/reordered/duplicate
   chunks, a newer snapshot replacing a partial older one, malformed compression,
   timeout and subsequent complete resend. Publish no partial factory state.
 
@@ -95,9 +99,9 @@ This does not replace a two-account Steam invite/overlay/relay acceptance run.
 
 ## B4: Share Steam session lifecycle between the games — P2 / M; after B3
 
-- [ ] Extract the duplicated create/join/invite, membership checks, callback
+- [x] Extract the duplicated create/join/invite, membership checks, callback
   generation tracking, timeout and leave/Drop cleanup into shared support.
-- [ ] Keep game authority, packet formats and prediction rules in their respective
+- [x] Keep game authority, packet formats and prediction rules in their respective
   adapters. Preserve the existing protocol and lobby compatibility checks.
 
 **Evidence:** [Bozz-torio's adapter](apps/bozz-torio/src/multiplayer/steam_net.rs)
@@ -113,11 +117,11 @@ fault cases before and after the extraction.
 
 ## B5: Compiled gameplay modules that work in editor Play — P2 / L, staged
 
-- [ ] Define a small compiled-in module descriptor with explicit dependencies,
+- [x] Define a small compiled-in module descriptor with explicit dependencies,
   deterministic registration order, duplicate/cycle errors and runtime cleanup.
-- [ ] Separate Bozz-torio's factory simulation and scene synchronization from its
+- [x] Separate Bozz-torio's factory simulation and scene synchronization from its
   native window shell, then host the same module in a game-specific editor build.
-- [ ] Make module requirements visible to project opening and export. Report a
+- [x] Make module requirements visible to project opening and export. Report a
   missing runtime module rather than silently launching a visual-only preview.
 
 **Evidence:** [the current plugin contract](crates/bozzard-app/src/lib.rs) has only
@@ -133,11 +137,11 @@ require hot-loading native libraries, a Rust plugin ABI or rewriting gameplay in
 
 ## B6: Recoverable graphics lifecycle and useful failure reports — P2 / L
 
-- [ ] First handle recoverable surface loss by reconfiguring and retrying safely;
+- [x] First handle recoverable surface loss by reconfiguring and retrying safely;
   distinguish it from a lost GPU device and out-of-memory failures.
-- [ ] Then define bounded device recreation that restores resident assets and
+- [x] Then define bounded device recreation that restores resident assets and
   renderer state while preserving the authored scene and CPU simulation.
-- [ ] Retire pending compute/readback work with explicit outcomes, and emit a
+- [x] Retire pending compute/readback work with explicit outcomes, and emit a
   bounded diagnostic report if recovery fails instead of looping indefinitely.
 
 **Evidence:** [the player](apps/player/src/main.rs) currently exits on a lost

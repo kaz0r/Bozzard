@@ -10,6 +10,7 @@ impl App {
         self.workspace.select_available_view(self.editor.scene());
         self.viewport_stamp = None;
         self.hierarchy_state = Default::default();
+        self.multi_inspector_cache = None;
         self.hierarchy_rename = None;
         self.hierarchy_search.clear();
         self.surface_search.clear();
@@ -18,6 +19,9 @@ impl App {
         self.asset_browser = Default::default();
         self.effects_preview = None;
         self.drag = None;
+        self.canvas_drag = None;
+        self.timeline_scrub = None;
+        self.editor.clear_timeline_preview();
         self.gameplay_controls.reset();
         if let Some(refresh) = &self.refresh {
             refresh.job.cancel();

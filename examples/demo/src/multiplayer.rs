@@ -297,6 +297,9 @@ impl Multiplayer {
             self.backend.view().replica.phase
         )
     }
+    pub fn telemetry(&self) -> Telemetry {
+        self.backend.telemetry()
+    }
     fn control(demo: &mut SceneDemo, id: &str, control: Control) -> Result<()> {
         if demo.instance().entity(id).is_none() {
             return Ok(());
@@ -744,7 +747,11 @@ pub enum Action {
 }
 /// Narrow transport boundary also used by headless editor lifecycle tests.
 pub trait Backend: Send {
+    fn set_clock(&mut self, _now: std::time::Duration) {}
     fn update(&mut self) -> Result<()>;
+    fn update_at(&mut self, _now: std::time::Duration) -> Result<()> {
+        self.update()
+    }
     fn action(&mut self, action: Action) -> Result<()>;
     fn error(&mut self, message: String);
     fn view(&self) -> View<'_>;
@@ -754,6 +761,18 @@ pub trait Backend: Send {
     fn friends(&self) -> Vec<(Peer, String)> {
         Vec::new()
     }
+    fn telemetry(&self) -> Telemetry {
+        Telemetry::default()
+    }
+}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Telemetry {
+    pub snapshot_age_ms: f64,
+    pub oldest_input_age_ticks: u64,
+    pub replay_depth: usize,
+    pub worker_ms: f64,
+    pub command_queue: usize,
+    pub publication_age_ms: f64,
 }
 pub struct View<'a> {
     pub replica: &'a Replica,
@@ -770,6 +789,14 @@ pub struct View<'a> {
 }
 #[cfg(feature = "steam")]
 impl Backend for bozzard_network::steam::Session {
+    fn telemetry(&self) -> Telemetry {
+        Telemetry {
+            snapshot_age_ms: self.snapshot_age().as_secs_f64() * 1000.,
+            oldest_input_age_ticks: self.replica.oldest_input_age_ticks(),
+            replay_depth: self.replica.replay_depth(),
+            ..Telemetry::default()
+        }
+    }
     fn chat(&self) -> bozzard_network::chat::ChatLog {
         self.chat.clone()
     }
@@ -821,6 +848,7 @@ impl Backend for bozzard_network::steam::Session {
 /// Only copied presentation state crosses back to the UI; the scene world stays on the UI thread.
 pub struct Threaded {
     commands: std::sync::mpsc::SyncSender<Action>,
+    queue_depth: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     shared: std::sync::Arc<std::sync::Mutex<std::sync::Arc<OwnedView>>>,
     cached: std::sync::Arc<OwnedView>,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -841,12 +869,16 @@ struct OwnedView {
     alpha: f32,
     friends: std::sync::Arc<Vec<(Peer, String)>>,
     chat: bozzard_network::chat::ChatLog,
+    telemetry: Telemetry,
+    published_at: std::time::Instant,
 }
 impl OwnedView {
     fn capture(backend: &dyn Backend, friends: std::sync::Arc<Vec<(Peer, String)>>) -> Self {
         let v = backend.view();
         Self {
             chat: backend.chat(),
+            telemetry: backend.telemetry(),
+            published_at: std::time::Instant::now(),
             replica: v.replica.clone(),
             status: v.status.into(),
             members: v.members.clone(),
@@ -877,46 +909,82 @@ impl OwnedView {
         }
     }
 }
+/// One worker iteration accepts an injected logical time. Tests can drive timeout, action
+/// handling and publication without sleeping or opening Steam.
+struct WorkerPump {
+    backend: Box<dyn Backend>,
+    friends: std::sync::Arc<Vec<(Peer, String)>>,
+    last_refresh: std::time::Duration,
+}
+impl WorkerPump {
+    fn new(backend: Box<dyn Backend>) -> Self {
+        let friends = std::sync::Arc::new(backend.friends());
+        Self {
+            backend,
+            friends,
+            last_refresh: std::time::Duration::ZERO,
+        }
+    }
+    fn step(
+        &mut self,
+        now: std::time::Duration,
+        actions: impl IntoIterator<Item = Action>,
+    ) -> OwnedView {
+        self.backend.set_clock(now);
+        for action in actions.into_iter().take(64) {
+            if let Err(error) = self.backend.action(action) {
+                self.backend.error(error.to_string());
+            }
+        }
+        if let Err(error) = self.backend.update_at(now) {
+            let _ = self.backend.action(Action::Leave);
+            self.backend.error(error.to_string());
+        }
+        if now.saturating_sub(self.last_refresh) >= std::time::Duration::from_secs(1) {
+            self.friends = std::sync::Arc::new(self.backend.friends());
+            self.last_refresh = now;
+        }
+        OwnedView::capture(&*self.backend, std::sync::Arc::clone(&self.friends))
+    }
+}
 impl Threaded {
-    pub fn new(mut backend: Box<dyn Backend>) -> Result<Self> {
+    pub fn new(backend: Box<dyn Backend>) -> Result<Self> {
         use std::sync::{
             Arc, Mutex,
-            atomic::{AtomicBool, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             mpsc,
         };
-        let cached = Arc::new(OwnedView::capture(&*backend, Arc::new(backend.friends())));
+        let mut pump = WorkerPump::new(backend);
+        let cached = Arc::new(OwnedView::capture(
+            &*pump.backend,
+            Arc::clone(&pump.friends),
+        ));
         let shared = Arc::new(Mutex::new(Arc::clone(&cached)));
         let output = Arc::clone(&shared);
         let stop = Arc::new(AtomicBool::new(false));
         let stopped = Arc::clone(&stop);
+        let queue_depth = Arc::new(AtomicUsize::new(0));
+        let worker_queue_depth = Arc::clone(&queue_depth);
         let (commands, receive) = mpsc::sync_channel(64);
         let worker = std::thread::Builder::new()
             .name("steam-play".into())
             .spawn(move || {
-                let mut friends = Arc::new(backend.friends());
-                let mut refresh = std::time::Instant::now();
+                let started = std::time::Instant::now();
                 while !stopped.load(Ordering::Acquire) {
-                    for action in receive.try_iter().take(64) {
-                        if let Err(error) = backend.action(action) {
-                            backend.error(error.to_string());
-                        }
-                    }
-                    if let Err(error) = backend.update() {
-                        let _ = backend.action(Action::Leave);
-                        backend.error(error.to_string());
-                    }
-                    if refresh.elapsed() >= std::time::Duration::from_secs(1) {
-                        friends = Arc::new(backend.friends());
-                        refresh = std::time::Instant::now();
-                    }
-                    *output.lock().unwrap() =
-                        Arc::new(OwnedView::capture(&*backend, Arc::clone(&friends)));
+                    let cycle = std::time::Instant::now();
+                    let actions: Vec<_> = receive.try_iter().take(64).collect();
+                    worker_queue_depth.fetch_sub(actions.len(), Ordering::AcqRel);
+                    let mut view = pump.step(started.elapsed(), actions);
+                    view.telemetry.worker_ms = cycle.elapsed().as_secs_f64() * 1000.;
+                    view.telemetry.command_queue = worker_queue_depth.load(Ordering::Acquire);
+                    *output.lock().unwrap() = Arc::new(view);
                     std::thread::sleep(std::time::Duration::from_millis(8));
                 }
-                let _ = backend.action(Action::Leave);
+                let _ = pump.backend.action(Action::Leave);
             })?;
         Ok(Self {
             commands,
+            queue_depth,
             shared,
             cached,
             stop,
@@ -925,6 +993,12 @@ impl Threaded {
     }
 }
 impl Backend for Threaded {
+    fn telemetry(&self) -> Telemetry {
+        let mut telemetry = self.cached.telemetry;
+        telemetry.command_queue = self.queue_depth.load(std::sync::atomic::Ordering::Acquire);
+        telemetry.publication_age_ms = self.cached.published_at.elapsed().as_secs_f64() * 1000.;
+        telemetry
+    }
     fn chat(&self) -> bozzard_network::chat::ChatLog {
         self.cached.chat.clone()
     }
@@ -937,9 +1011,14 @@ impl Backend for Threaded {
         Ok(())
     }
     fn action(&mut self, action: Action) -> Result<()> {
-        self.commands
-            .try_send(action)
-            .map_err(|e| anyhow::anyhow!("Steam command queue unavailable: {e}"))
+        self.queue_depth
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        if let Err(error) = self.commands.try_send(action) {
+            self.queue_depth
+                .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+            anyhow::bail!("Steam command queue unavailable: {error}");
+        }
+        Ok(())
     }
     fn error(&mut self, message: String) {
         std::sync::Arc::make_mut(&mut self.cached).status = message;
@@ -957,5 +1036,97 @@ impl Drop for Threaded {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod worker_tests {
+    use super::*;
+    use std::time::Duration;
+
+    struct Fake {
+        replica: Replica,
+        members: BTreeMap<Peer, String>,
+        status: String,
+        lobby: Option<u64>,
+        deadline: Option<Duration>,
+        now: Duration,
+    }
+    impl Fake {
+        fn new() -> Self {
+            Self {
+                replica: Replica::default(),
+                members: BTreeMap::new(),
+                status: String::new(),
+                lobby: None,
+                deadline: None,
+                now: Duration::ZERO,
+            }
+        }
+    }
+    impl Backend for Fake {
+        fn set_clock(&mut self, now: Duration) {
+            self.now = now;
+        }
+        fn update(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn update_at(&mut self, now: Duration) -> Result<()> {
+            if self.deadline.is_some_and(|deadline| now > deadline) {
+                self.lobby = None;
+                self.deadline = None;
+                self.status = "timed out".into();
+            }
+            Ok(())
+        }
+        fn action(&mut self, action: Action) -> Result<()> {
+            match action {
+                Action::Join(id) => {
+                    self.lobby = Some(id);
+                    self.deadline = Some(self.now + Duration::from_secs(1));
+                }
+                Action::Leave => {
+                    self.lobby = None;
+                    self.deadline = None;
+                }
+                _ => {}
+            }
+            Ok(())
+        }
+        fn error(&mut self, message: String) {
+            self.status = message;
+        }
+        fn view(&self) -> View<'_> {
+            View {
+                replica: &self.replica,
+                status: &self.status,
+                members: &self.members,
+                lobby: self.lobby,
+                owner: None,
+                local: 10,
+                host: false,
+                can_start: false,
+                busy: false,
+                overlay: false,
+                alpha: 0.,
+            }
+        }
+        fn friends(&self) -> Vec<(Peer, String)> {
+            vec![(20, "friend".into())]
+        }
+    }
+
+    #[test]
+    fn injected_worker_clock_expires_and_rejoins_without_republishing_old_state() {
+        let mut pump = WorkerPump::new(Box::new(Fake::new()));
+        let first = pump.step(Duration::ZERO, [Action::Join(7)]);
+        assert_eq!(first.lobby, Some(7));
+        let timed_out = pump.step(Duration::from_secs(2), []);
+        assert_eq!(timed_out.lobby, None);
+        assert_eq!(timed_out.status, "timed out");
+        let joined = pump.step(Duration::from_secs(2), [Action::Join(8)]);
+        assert_eq!(joined.lobby, Some(8));
+        assert_eq!(first.lobby, Some(7));
+        assert_eq!(pump.friends.as_ref().len(), 1);
     }
 }

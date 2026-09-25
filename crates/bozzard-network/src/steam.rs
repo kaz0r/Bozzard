@@ -2,6 +2,7 @@
 //! App 480 is Valve's Spacewar development example, never a shipping App ID.
 use crate::{
     flap::{Host, Phase, Replica},
+    lifecycle::{self, LobbyRequests, valid_members},
     *,
 };
 use anyhow::Context;
@@ -10,7 +11,7 @@ use std::{
     sync::{Arc, Mutex, mpsc},
     time::Instant,
 };
-use steamworks::{Client, LobbyId, LobbyType, SteamId, networking_types::SendFlags};
+use steamworks::{Client, LobbyId, SteamId, networking_types::SendFlags};
 const CHANNEL: u32 = 7;
 const TIMEOUT: Duration = Duration::from_secs(15);
 static CLIENT: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
@@ -44,8 +45,7 @@ pub struct Session {
     pub sent_bytes: u64,
     pub received_bytes: u64,
     pub send_errors: u64,
-    generation: u64,
-    pending: Option<Instant>,
+    requests: LobbyRequests,
     last_update: Instant,
     last_snapshot: Instant,
     seen: BTreeMap<Peer, Instant>,
@@ -125,8 +125,7 @@ impl Session {
             sent_bytes: 0,
             received_bytes: 0,
             send_errors: 0,
-            generation: 0,
-            pending: None,
+            requests: LobbyRequests::default(),
             last_update: Instant::now(),
             last_snapshot: Instant::now(),
             seen: BTreeMap::new(),
@@ -137,7 +136,10 @@ impl Session {
         })
     }
     pub fn busy(&self) -> bool {
-        self.pending.is_some()
+        self.requests.busy()
+    }
+    pub fn snapshot_age(&self) -> Duration {
+        self.last_snapshot.elapsed()
     }
     pub fn is_host(&self) -> bool {
         self.owner == Some(self.local) && self.host.is_some()
@@ -156,46 +158,29 @@ impl Session {
             !self.busy() && self.lobby.is_none(),
             "leave the current lobby first"
         );
-        self.generation += 1;
-        let generation = self.generation;
-        let tx = self.sender.clone();
-        let cleanup = self.client.clone();
-        self.pending = Some(Instant::now());
         self.status = "Creating Steam friends-only lobby…".into();
-        self.client.matchmaking().create_lobby(
-            LobbyType::FriendsOnly,
+        lifecycle::create_friends_lobby(
+            &self.client,
+            self.sender.clone(),
+            &mut self.requests,
+            Instant::now(),
             MAX_PLAYERS as u32,
-            move |result| {
-                deliver_join(
-                    &cleanup,
-                    &tx,
-                    Event::Joined(generation, true, result.map_err(|e| format!("{e:?}"))),
-                );
-            },
+            Event::Joined,
         );
         Ok(())
     }
     pub fn join(&mut self, lobby: u64) -> Result<()> {
         ensure!(lobby != 0, "invalid lobby ID");
         self.leave();
-        let generation = self.generation;
-        let tx = self.sender.clone();
-        let cleanup = self.client.clone();
-        self.pending = Some(Instant::now());
         self.status = "Joining friend's lobby…".into();
-        self.client
-            .matchmaking()
-            .join_lobby(LobbyId::from_raw(lobby), move |result| {
-                deliver_join(
-                    &cleanup,
-                    &tx,
-                    Event::Joined(
-                        generation,
-                        false,
-                        result.map_err(|()| "Lobby unavailable or full".into()),
-                    ),
-                );
-            });
+        lifecycle::join_lobby(
+            &self.client,
+            self.sender.clone(),
+            &mut self.requests,
+            Instant::now(),
+            lobby,
+            Event::Joined,
+        );
         Ok(())
     }
     pub fn overlay_available(&self) -> bool {
@@ -238,12 +223,11 @@ impl Session {
     }
     pub fn invite(&self) -> Result<()> {
         let lobby = self.lobby.context("create or join a lobby first")?;
-        ensure!(
-            self.client.utils().is_overlay_enabled(),
-            "Steam overlay unavailable. Use Invite without overlay, or share this lobby ID."
-        );
-        self.client.friends().activate_invite_dialog(lobby);
-        Ok(())
+        lifecycle::invite_to_lobby(
+            &self.client,
+            lobby,
+            "Steam overlay unavailable. Use Invite without overlay, or share this lobby ID.",
+        )
     }
     pub fn start(&mut self) -> Result<()> {
         ensure!(
@@ -297,8 +281,7 @@ impl Session {
             }
             self.client.matchmaking().leave_lobby(lobby);
         }
-        self.generation += 1;
-        self.pending = None;
+        self.requests.cancel();
         self.lobby = None;
         self.owner = None;
         self.host = None;
@@ -394,13 +377,12 @@ impl Session {
                     }
                 }
                 Event::Joined(generation, created, result) => {
-                    if generation != self.generation || self.pending.is_none() {
+                    if self.requests.accept(generation).is_none() {
                         if let Ok(lobby) = result {
                             self.client.matchmaking().leave_lobby(lobby);
                         }
                         continue;
                     }
-                    self.pending = None;
                     match result {
                         Ok(lobby) => {
                             if let Err(error) = self.joined(lobby, created) {
@@ -413,11 +395,7 @@ impl Session {
                 }
             }
         }
-        if self
-            .pending
-            .is_some_and(|started| now.duration_since(started) > TIMEOUT)
-        {
-            self.pending = None;
+        if self.requests.expire(now, TIMEOUT).is_some() {
             self.status = "Steam lobby request timed out. Try again.".into();
         }
         let Some(lobby) = self.lobby else {
@@ -431,8 +409,7 @@ impl Session {
             .map(|id| id.raw())
             .collect();
         if !self.client.user().logged_on()
-            || mm.lobby_owner(lobby).raw() != owner
-            || !members.contains(&owner)
+            || !valid_members(self.local, owner, mm.lobby_owner(lobby).raw(), &members)
             || !members.contains(&self.local)
         {
             self.leave();
@@ -605,17 +582,6 @@ impl Drop for Session {
     }
 }
 
-fn deliver_join(client: &Client, sender: &mpsc::SyncSender<Event>, event: Event) {
-    // Async Steam operations can finish after Stop has destroyed their Play session.
-    if let Err(
-        mpsc::TrySendError::Disconnected(Event::Joined(_, _, Ok(lobby)))
-        | mpsc::TrySendError::Full(Event::Joined(_, _, Ok(lobby))),
-    ) = sender.try_send(event)
-    {
-        client.matchmaking().leave_lobby(lobby);
-    }
-}
-
 /// Pump only while no Play worker exists, so late lobby results can clean up after Stop.
 pub fn pump_idle_callbacks() {
     if let Some(client) = CLIENT.get() {
@@ -651,15 +617,7 @@ fn initialize_mode(app_id: u32, development: bool) -> Result<Client> {
     let _ = CLIENT.set(client.clone());
     Ok(client)
 }
-/// Invite payloads are data, never shell commands or arbitrary launch arguments.
-pub fn parse_lobby_connect(connect: &str) -> Option<u64> {
-    let mut words = connect.split_whitespace();
-    if words.next()? != "+connect_lobby" {
-        return None;
-    }
-    let id: u64 = words.next()?.parse().ok()?;
-    (id != 0 && words.next().is_none()).then_some(id)
-}
+pub use crate::lifecycle::parse_lobby_connect;
 #[cfg(test)]
 mod invite_tests {
     use super::*;

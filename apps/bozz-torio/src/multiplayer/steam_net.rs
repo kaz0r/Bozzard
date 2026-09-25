@@ -3,13 +3,14 @@
 use super::*;
 use crate::{scene::SceneSource, steam::SteamBridge};
 use anyhow::{Context, ensure};
+use bozzard_network::lifecycle::{self, LobbyRequests, parse_lobby_connect, valid_members};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex, mpsc},
     time::{Duration, Instant},
 };
-use steamworks::{Client, LobbyId, LobbyType, SteamId, networking_types::SendFlags};
+use steamworks::{Client, LobbyId, SteamId, networking_types::SendFlags};
 
 const CHANNEL: u32 = 8;
 const MAX_PLAYERS: u32 = 4;
@@ -18,11 +19,6 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 enum Event {
     Invite(LobbyId),
     Joined(u64, bool, std::result::Result<LobbyId, String>),
-}
-struct Assembly {
-    revision: u64,
-    chunks: Vec<Option<Vec<u8>>>,
-    started: Instant,
 }
 
 pub struct Network {
@@ -39,10 +35,7 @@ pub struct Network {
     members: BTreeMap<u64, String>,
     sent_to: BTreeSet<u64>,
     last_command: BTreeMap<u64, u64>,
-    generation: u64,
-    pending: bool,
-    pending_since: Option<Instant>,
-    pending_guest: bool,
+    requests: LobbyRequests,
     status: String,
     revision: u64,
     applied_revision: u64,
@@ -113,10 +106,7 @@ impl Network {
             members: BTreeMap::new(),
             sent_to: BTreeSet::new(),
             last_command: BTreeMap::new(),
-            generation: 0,
-            pending: false,
-            pending_since: None,
-            pending_guest: false,
+            requests: LobbyRequests::default(),
             status: "Create a lobby or join a friend's lobby.".into(),
             revision: 1,
             applied_revision: 0,
@@ -139,7 +129,7 @@ impl Network {
         self.client.is_some()
     }
     pub fn busy(&self) -> bool {
-        self.pending
+        self.requests.busy()
     }
     pub fn status(&self) -> &str {
         &self.status
@@ -154,77 +144,54 @@ impl Network {
         !self.is_guest_or_joining() || self.applied_revision > 0
     }
     pub fn can_create_or_join(&self) -> bool {
-        self.connected() && !self.pending && self.lobby.is_none()
+        self.connected() && !self.requests.busy() && self.lobby.is_none()
     }
     pub fn is_host(&self) -> bool {
         self.lobby.is_some() && self.owner == Some(self.local)
     }
     pub fn is_guest_or_joining(&self) -> bool {
-        self.pending_guest || self.lobby.is_some() && self.owner != Some(self.local)
+        self.requests.pending_guest() || self.lobby.is_some() && self.owner != Some(self.local)
     }
     pub fn create(&mut self) -> Result<()> {
         ensure!(
-            !self.pending && self.lobby.is_none(),
+            !self.requests.busy() && self.lobby.is_none(),
             "leave the current lobby first"
         );
         let client = self.client.as_ref().context("Steam is offline")?;
-        self.generation += 1;
-        let generation = self.generation;
-        let tx = self.sender.clone();
-        let cleanup = client.clone();
-        self.pending = true;
-        self.pending_since = Some(Instant::now());
         self.status = "Creating friends-only lobby…".into();
-        client
-            .matchmaking()
-            .create_lobby(LobbyType::FriendsOnly, MAX_PLAYERS, move |result| {
-                deliver_join(
-                    &cleanup,
-                    &tx,
-                    Event::Joined(
-                        generation,
-                        true,
-                        result.map_err(|error| format!("{error:?}")),
-                    ),
-                );
-            });
+        lifecycle::create_friends_lobby(
+            client,
+            self.sender.clone(),
+            &mut self.requests,
+            Instant::now(),
+            MAX_PLAYERS,
+            Event::Joined,
+        );
         Ok(())
     }
     pub fn join(&mut self, id: u64) -> Result<()> {
         ensure!(id != 0, "invalid lobby ID");
         self.leave();
         let client = self.client.as_ref().context("Steam is offline")?;
-        let generation = self.generation;
-        let tx = self.sender.clone();
-        let cleanup = client.clone();
-        self.pending = true;
-        self.pending_since = Some(Instant::now());
-        self.pending_guest = true;
         self.status = format!("Joining lobby {id}…");
-        client
-            .matchmaking()
-            .join_lobby(LobbyId::from_raw(id), move |result| {
-                deliver_join(
-                    &cleanup,
-                    &tx,
-                    Event::Joined(
-                        generation,
-                        false,
-                        result.map_err(|()| "Lobby unavailable or full".into()),
-                    ),
-                );
-            });
+        lifecycle::join_lobby(
+            client,
+            self.sender.clone(),
+            &mut self.requests,
+            Instant::now(),
+            id,
+            Event::Joined,
+        );
         Ok(())
     }
     pub fn invite(&mut self) -> Result<()> {
         let lobby = self.lobby.context("create or join a lobby first")?;
         let client = self.client.as_ref().context("Steam is offline")?;
-        ensure!(
-            client.utils().is_overlay_enabled(),
-            "Steam overlay unavailable. Share the lobby ID or ask a friend to join with --join-lobby ID."
-        );
-        client.friends().activate_invite_dialog(lobby);
-        Ok(())
+        lifecycle::invite_to_lobby(
+            client,
+            lobby,
+            "Steam overlay unavailable. Share the lobby ID or ask a friend to join with --join-lobby ID.",
+        )
     }
     pub fn leave(&mut self) {
         if let (Some(client), Some(lobby)) = (&self.client, self.lobby) {
@@ -241,10 +208,7 @@ impl Network {
             client.matchmaking().leave_lobby(lobby);
             client.friends().set_rich_presence("connect", None);
         }
-        self.generation += 1;
-        self.pending = false;
-        self.pending_since = None;
-        self.pending_guest = false;
+        self.requests.cancel();
         self.lobby = None;
         self.owner = None;
         self.members.clear();
@@ -321,7 +285,6 @@ impl Network {
         );
         self.lobby = Some(lobby);
         self.owner = Some(owner);
-        self.pending_guest = false;
         self.last_received = Instant::now();
         client
             .friends()
@@ -348,42 +311,19 @@ impl Network {
         game: &mut Game,
         change: &mut Change,
     ) -> Result<()> {
-        ensure!(
-            count > 0 && count as usize <= MAX_COMPRESSED.div_ceil(CHUNK_BYTES) && index < count,
-            "invalid snapshot part"
-        );
-        if revision <= self.applied_revision {
-            return Ok(());
-        }
-        let chunk = STANDARD.decode(data)?;
-        ensure!(chunk.len() <= CHUNK_BYTES, "oversized snapshot part");
-        if self
-            .assembly
-            .as_ref()
-            .is_none_or(|part| revision > part.revision)
-        {
-            self.assembly = Some(Assembly {
-                revision,
-                chunks: vec![None; count as usize],
-                started: Instant::now(),
-            });
-        }
-        let part = self.assembly.as_mut().context("missing factory snapshot")?;
-        if revision < part.revision {
-            return Ok(());
-        }
-        ensure!(
-            part.chunks.len() == count as usize,
-            "snapshot part count changed"
-        );
-        part.chunks[index as usize] = Some(chunk);
-        if part.chunks.iter().all(Option::is_some) {
-            let next = read_state(&part.chunks)?;
+        if let Some(next) = accept_state_part(
+            &mut self.assembly,
+            self.applied_revision,
+            revision,
+            index,
+            count,
+            data,
+            Instant::now(),
+        )? {
             change.structural |= structural_difference(game, &next);
             *game = next;
             change.state = true;
             self.applied_revision = revision;
-            self.assembly = None;
             self.last_received = Instant::now();
             self.status = format!(
                 "Shared factory synced · host {}",
@@ -400,22 +340,19 @@ impl Network {
         client.run_callbacks();
         while let Ok(event) = self.events.try_recv() {
             match event {
-                Event::Invite(lobby) if !self.pending && self.lobby.is_none() => {
+                Event::Invite(lobby) if !self.requests.busy() && self.lobby.is_none() => {
                     if let Err(error) = self.join(lobby.raw()) {
                         self.status = error.to_string();
                     }
                 }
                 Event::Invite(_) => {}
                 Event::Joined(generation, created, result) => {
-                    if generation != self.generation || !self.pending {
+                    if self.requests.accept(generation).is_none() {
                         if let Ok(lobby) = result {
                             client.matchmaking().leave_lobby(lobby);
                         }
                         continue;
                     }
-                    self.pending = false;
-                    self.pending_since = None;
-                    self.pending_guest = false;
                     match result {
                         Ok(lobby) => {
                             if let Err(error) = self.joined(lobby, created) {
@@ -432,11 +369,8 @@ impl Network {
                 }
             }
         }
-        if self
-            .pending_since
-            .is_some_and(|start| start.elapsed() > TIMEOUT)
-        {
-            change.join_failed = self.pending_guest;
+        if let Some(guest) = self.requests.expire(Instant::now(), TIMEOUT) {
+            change.join_failed = guest;
             self.leave();
             self.status = "Steam lobby request timed out.".into();
         }
@@ -451,9 +385,7 @@ impl Network {
             .map(|id| id.raw())
             .collect();
         if !client.user().logged_on()
-            || mm.lobby_owner(lobby).raw() != owner
-            || !members.contains(&owner)
-            || !members.contains(&self.local)
+            || !valid_members(self.local, owner, mm.lobby_owner(lobby).raw(), &members)
         {
             change.guest_lost = !self.is_host();
             self.leave();
@@ -557,13 +489,7 @@ impl Network {
                 _ => {}
             }
         }
-        if self
-            .assembly
-            .as_ref()
-            .is_some_and(|part| part.started.elapsed() > TIMEOUT)
-        {
-            self.assembly = None;
-        }
+        expire_assembly(&mut self.assembly, Instant::now(), TIMEOUT);
         if !self.is_host() && self.last_received.elapsed() > TIMEOUT {
             change.guest_lost = true;
             self.leave();
@@ -607,24 +533,13 @@ impl Drop for Network {
             client
                 .networking_messages()
                 .session_request_callback(|request| request.reject());
+            for event in self.events.try_iter() {
+                if let Event::Joined(_, _, Ok(lobby)) = event {
+                    client.matchmaking().leave_lobby(lobby);
+                }
+            }
         }
     }
-}
-
-fn deliver_join(client: &Client, sender: &mpsc::SyncSender<Event>, event: Event) {
-    if let Err(
-        mpsc::TrySendError::Disconnected(Event::Joined(_, _, Ok(lobby)))
-        | mpsc::TrySendError::Full(Event::Joined(_, _, Ok(lobby))),
-    ) = sender.try_send(event)
-    {
-        client.matchmaking().leave_lobby(lobby);
-    }
-}
-fn parse_lobby_connect(connect: &str) -> Option<u64> {
-    let mut words = connect.split_whitespace();
-    (words.next()? == "+connect_lobby").then_some(())?;
-    let id: u64 = words.next()?.parse().ok()?;
-    (id != 0 && words.next().is_none()).then_some(id)
 }
 
 #[cfg(test)]

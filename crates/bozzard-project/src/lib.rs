@@ -25,6 +25,9 @@ pub struct Project {
     /// Relative to the manifest, independent of the process working directory.
     pub start_scene: String,
     pub view: Layer,
+    /// Compiled-in gameplay modules required by the runtime, in dependency order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runtime_modules: Vec<String>,
     /// Offline representation used when exporting. Existing manifests keep source assets.
     #[serde(default, skip_serializing_if = "CookTarget::is_source")]
     pub cook: CookTarget,
@@ -47,6 +50,31 @@ impl Project {
                     .all(|c| matches!(c, Component::Normal(_))),
             "start_scene must be a relative path inside the project"
         );
+        ensure!(
+            self.runtime_modules.len() <= 16,
+            "project has too many runtime modules"
+        );
+        let mut names = std::collections::BTreeSet::new();
+        for name in &self.runtime_modules {
+            ensure!(
+                !name.is_empty()
+                    && name.len() <= 128
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+                    && names.insert(name),
+                "invalid or duplicate runtime module '{name}'"
+            );
+        }
+        Ok(())
+    }
+    pub fn require_runtime_modules(&self, available: &[&str]) -> Result<()> {
+        for name in &self.runtime_modules {
+            ensure!(
+                available.contains(&name.as_str()),
+                "Missing runtime module '{name}'. Open this project with its game-specific editor or executable."
+            );
+        }
         Ok(())
     }
 
@@ -123,4 +151,32 @@ pub fn companion_player(editor: &Path) -> Result<PathBuf> {
     anyhow::bail!(
         "Player runtime missing. Install the full native editor bundle, or build bozzard-player in the same profile as the editor."
     )
+}
+
+#[cfg(test)]
+mod module_tests {
+    use super::*;
+    #[test]
+    fn project_reports_missing_compiled_runtime_before_launch_or_export() {
+        let project = Project {
+            version: 1,
+            name: "Factory".into(),
+            start_scene: "scene.json".into(),
+            view: Layer::TwoD,
+            cook: Default::default(),
+            runtime_modules: vec!["bozz-torio".into()],
+        };
+        project.validate().unwrap();
+        assert!(
+            project
+                .require_runtime_modules(&[])
+                .unwrap_err()
+                .to_string()
+                .contains("bozz-torio")
+        );
+        project.require_runtime_modules(&["bozz-torio"]).unwrap();
+        let mut duplicate = project;
+        duplicate.runtime_modules.push("bozz-torio".into());
+        assert!(duplicate.validate().is_err());
+    }
 }

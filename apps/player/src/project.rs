@@ -76,6 +76,7 @@ pub fn resolve(options: &mut Options) -> Result<()> {
     }
     if let Some(path) = &options.project {
         let (project, source) = bozzard_project::Project::load(path)?;
+        project.require_runtime_modules(&[])?;
         project.validate_scene(&load_document(Some(&source))?)?;
         options.game_name = Some(project.name);
         options.layer = project.view;

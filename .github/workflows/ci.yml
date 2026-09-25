@@ -21,7 +21,7 @@ jobs:
   native:
     name: Native / ${{ matrix.os }} / ${{ matrix.backend }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -52,24 +52,79 @@ jobs:
           echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
       - name: Install pinned toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
+      - name: Development package layout tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Fetch locked dependencies
         run: cargo fetch --locked
+      - name: Check headless dependency boundary
+        run: python3 tools/check_headless.py
       - name: Formatting
         run: cargo fmt --all -- --check
       - name: Lints
         run: cargo clippy --workspace --all-targets --locked --offline -- -D warnings
       - name: Compile optional Steam multiplayer on each native target
         run: cargo clippy -p bozzard-network -p bozzard-player -p bozzard-editor-app --all-targets --features bozzard-player/steam,bozzard-editor-app/steam --locked --offline -- -D warnings
+      - name: Compile the game-specific factory editor
+        run: cargo clippy -p bozzard-editor-app --all-targets --features factory --locked --offline -- -D warnings
       - name: CPU and headless tests
-        run: cargo test --workspace --locked --offline
-      - name: Check headless dependency boundary
-        run: python3 tools/check_headless.py
-      - name: Development package layout tests
-        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
+        run: |
+          log="$RUNNER_TEMP/workspace-tests.log"
+          status=0
+          cargo test --workspace --locked --offline >"$log" 2>&1 || status=$?
+          cat "$log"
+          if (( status != 0 )); then
+            failed_tests=$(awk '/^test [A-Za-z0-9_:]+ \.\.\. FAILED$/ { if (++n <= 20) print $2 }' "$log")
+            failed_tests=${failed_tests//$'\n'/,}
+            if [[ -z "$failed_tests" ]]; then
+              failed_tests="no failing test identifier in cargo output"
+            fi
+            printf '::error title=Workspace tests (exit %s)::Failed test identifiers: %s\n' "$status" "$failed_tests"
+            exit "$status"
+          fi
       - name: Non-Steam editor error paths
         run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
       - name: Build native release executables
-        run: cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
+        run: |
+          cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
+          cargo build --release --locked --offline -p bozzard-editor-app --features factory --bin bozz-torio-editor
+      - name: Recreate the player GPU after a presented frame
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SOFTWARE: ${{ matrix.software }}
+        run: |
+          status=0
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            output=$(xvfb-run -a target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1) || status=$?
+          else
+            output=$(target/release/bozzard-player --scene examples/demo/scenes/first-trail.json --frames 3 --inject-device-recreation --backend "$BACKEND" $SOFTWARE 2>&1) || status=$?
+          fi
+          printf '%s\n' "$output"
+          if (( status != 0 )) || [[ "$output" != *device_recreation_ok* || "$output" != *window_ok* ]]; then
+            detail=$output
+            if (( ${#detail} > 3000 )); then
+              detail=${detail: -3000}
+            fi
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\r'/'%0D'}
+            detail=${detail//$'\n'/'%0A'}
+            printf '::error title=Player device recreation smoke (exit %s)::%s\n' "$status" "$detail"
+            exit 1
+          fi
+      - name: Package Bozz-torio and verify its relocated factory
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a python3 apps/bozz-torio/tools/package.py --app-id 480 --out dist/bozz-torio --offline --verify
+          else
+            python3 apps/bozz-torio/tools/package.py --app-id 480 --out dist/bozz-torio --offline --verify
+          fi
+      - name: Verify the game-specific editor export path
+        run: |
+          target/release/bozz-torio --offline --scene apps/bozz-torio/scene/bozz-torio.json --export-dir dist/bozz-torio-editor-export
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a python3 apps/bozz-torio/tools/package.py --verify-only --out dist/bozz-torio-editor-export
+          else
+            python3 apps/bozz-torio/tools/package.py --verify-only --out dist/bozz-torio-editor-export
+          fi
       - name: Package and verify pixels from extracted executables
         env:
           BACKEND: ${{ matrix.backend }}

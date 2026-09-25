@@ -13,13 +13,14 @@ use bozzard_render::{Backend, Gpu, SceneRenderer, instance, wgpu};
 use bozzard_scene::{Layer, Scene, Transform};
 use presentation::extract;
 use std::{
+    collections::VecDeque,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 use winit::{
     application::ApplicationHandler,
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, DeviceId, ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
@@ -44,6 +45,7 @@ struct Options {
     smoke: bool,
     benchmark_frames: Option<u32>,
     frames: Option<u32>,
+    inject_device_recreation: bool,
     output: PathBuf,
     scene: Option<PathBuf>,
     write_scene: Option<PathBuf>,
@@ -73,6 +75,7 @@ impl Default for Options {
             smoke: false,
             benchmark_frames: None,
             frames: None,
+            inject_device_recreation: false,
             output: "work/gpu-smoke".into(),
             scene: None,
             write_scene: None,
@@ -178,13 +181,14 @@ fn options() -> Result<Option<Options>> {
                 ensure!(count > 0, "--frames must be positive");
                 result.frames = Some(count);
             }
+            "--inject-device-recreation" => result.inject_device_recreation = true,
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
                 println!(
                     "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
-                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
+                    "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\n1/2: 2D/3D. Space: pause. Arrows: pan camera. F5: save. R: reload source. Escape: close.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
                 );
                 return Ok(None);
             }
@@ -198,6 +202,10 @@ fn options() -> Result<Option<Options>> {
     ensure!(
         !(result.smoke && result.frames.is_some()),
         "--frames is for windowed runs; --smoke runs the graphics verification suite"
+    );
+    ensure!(
+        !result.inject_device_recreation || result.frames.is_some_and(|count| count >= 2),
+        "--inject-device-recreation requires --frames 2 or more"
     );
     ensure!(
         result.write_scene.is_none() || (!result.smoke && result.frames.is_none()),
@@ -214,6 +222,7 @@ fn options() -> Result<Option<Options>> {
 struct View {
     accessibility: accessibility::Accessibility,
     window: Arc<Window>,
+    instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     gpu: Gpu,
     config: wgpu::SurfaceConfiguration,
@@ -223,20 +232,96 @@ struct View {
     /// Reuse the rendered layout's decision instead of laying out UI for every mouse event.
     ui_wants_pointer: bool,
     surface_status: &'static str,
+    surface_recovery: SurfaceRecovery,
+    gpu_frame_ms: VecDeque<f64>,
+    software: bool,
+    hardware: bool,
+    occlusion_enabled: bool,
+    device_recoveries: u8,
+    profile_frames: bool,
+}
+
+/// Surface loss only invalidates presentation. A device callback signals the separate GPU path.
+#[derive(Default)]
+struct SurfaceRecovery {
+    consecutive_losses: u8,
+}
+impl SurfaceRecovery {
+    fn lost(&mut self) -> Result<()> {
+        self.consecutive_losses = self.consecutive_losses.saturating_add(1);
+        ensure!(
+            self.consecutive_losses <= 3,
+            "surface recovery failed after 3 reconfigurations; check window/display backend"
+        );
+        Ok(())
+    }
+    fn presented(&mut self) {
+        self.consecutive_losses = 0;
+    }
+}
+
+fn configure_surface_checked(
+    surface: &wgpu::Surface<'_>,
+    gpu: &Gpu,
+    config: &wgpu::SurfaceConfiguration,
+) -> Result<()> {
+    let errors = gpu.device.push_error_scope(wgpu::ErrorFilter::Validation);
+    surface.configure(&gpu.device, config);
+    if let Some(error) = pollster::block_on(errors.pop()) {
+        bail!("graphics surface configuration failed: {error:#?}");
+    }
+    Ok(())
+}
+
+type RetiredComputeJob = (bozzard_scene::compute::Owner, u64, String, bool);
+
+fn retire_pending_compute_jobs(demo: &mut SceneDemo) -> Result<Vec<RetiredComputeJob>> {
+    demo.with_instance(|instance, _| {
+        let Some(mut compute) = instance.compute_if_initialized() else {
+            return Ok(Vec::new());
+        };
+        let jobs: Vec<_> = compute
+            .runtime
+            .jobs()
+            .filter(|job| !job.state.terminal())
+            .map(|job| {
+                (
+                    job.owner.clone(),
+                    job.ticket,
+                    job.label.clone(),
+                    job.readback,
+                )
+            })
+            .collect();
+        let mut retired = Vec::with_capacity(jobs.len());
+        for (owner, ticket, label, readback) in jobs {
+            compute.runtime.cancel(&owner, ticket).with_context(|| {
+                format!(
+                    "retiring compute request {} after GPU device loss",
+                    ticket.serial()
+                )
+            })?;
+            retired.push((owner, ticket.serial(), label, readback));
+        }
+        Ok(retired)
+    })
 }
 
 impl View {
-    fn new(event_loop: &ActiveEventLoop, options: &Options) -> Result<Self> {
-        let window = Arc::new(
-            event_loop.create_window(
-                Window::default_attributes()
-                    .with_visible(false)
-                    .with_title(
-                        "Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload",
-                    )
-                    .with_inner_size(LogicalSize::new(1024.0, 640.0)),
-            )?,
-        );
+    fn new(
+        event_loop: &ActiveEventLoop,
+        options: &Options,
+        restored_size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self> {
+        let attributes = Window::default_attributes()
+            .with_visible(false)
+            .with_title("Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload");
+        let attributes = if let Some(size) = restored_size {
+            attributes.with_inner_size(PhysicalSize::new(size.width.max(1), size.height.max(1)))
+        } else {
+            attributes.with_inner_size(LogicalSize::new(1024.0, 640.0))
+        };
+        let window = Arc::new(event_loop.create_window(attributes)?);
         let accessibility = accessibility::Accessibility::new(event_loop, &window);
         window.set_visible(true);
         let instance = instance(options.backend);
@@ -245,6 +330,7 @@ impl View {
         if options.hardware {
             gpu.require_hardware()?;
         }
+        gpu.monitor_out_of_memory();
         let size = window.inner_size();
         let mut config = surface
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
@@ -252,14 +338,16 @@ impl View {
         config.present_mode = wgpu::PresentMode::Fifo;
         let mut renderer = SceneRenderer::new(&gpu, config.format);
         renderer.set_occlusion_enabled(options.occlusion_enabled);
+        renderer.set_profiling_enabled(options.frames.is_some());
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
-        surface.configure(&gpu.device, &config);
+        configure_surface_checked(&surface, &gpu, &config)?;
         if options.frames.is_some() {
             window.focus_window();
         }
         Ok(Self {
             accessibility,
             window,
+            instance,
             surface,
             gpu,
             config,
@@ -269,16 +357,141 @@ impl View {
             // Keep the pointer free until the first visible frame establishes the UI policy.
             ui_wants_pointer: true,
             surface_status: "awaiting first redraw",
+            surface_recovery: SurfaceRecovery::default(),
+            gpu_frame_ms: VecDeque::new(),
+            software: options.software,
+            hardware: options.hardware,
+            occlusion_enabled: options.occlusion_enabled,
+            device_recoveries: 0,
+            profile_frames: options.frames.is_some(),
         })
     }
 
-    fn resize(&mut self, width: u32, height: u32) {
+    fn recreate_device(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        options: &Options,
+        demo: &mut SceneDemo,
+        assets: &mut assets::Assets,
+    ) -> Result<()> {
+        let reason = self.gpu.failure().unwrap_or("device failure").to_owned();
+        ensure!(
+            !self.gpu.out_of_memory(),
+            "GPU out of memory is terminal: {reason}; backend={:?}, size={}x{}",
+            self.gpu.adapter.get_info().backend,
+            self.config.width,
+            self.config.height
+        );
+        self.device_recoveries = self.device_recoveries.saturating_add(1);
+        ensure!(
+            self.device_recoveries <= 2,
+            "GPU recovery failed after 2 recreations: {reason}; backend={:?}, size={}x{}",
+            self.gpu.adapter.get_info().backend,
+            self.config.width,
+            self.config.height
+        );
+        let pending = self.compute.executor.statistics();
+        let retired = retire_pending_compute_jobs(demo)?;
+        for (owner, ticket, label, readback) in retired.iter().take(8) {
+            bozzard_diagnostics::log(
+                &mut demo.app.world,
+                bozzard_diagnostics::Level::Error,
+                "Compute",
+                &format!(
+                    "{label} request {ticket}: cancelled after GPU device loss{}",
+                    if *readback {
+                        " (readback discarded)"
+                    } else {
+                        ""
+                    }
+                ),
+                bozzard_diagnostics::Location {
+                    object: Some(owner.object.clone()),
+                    attachment: Some(owner.attachment),
+                    asset: label.split_once("::").map(|(asset, _)| asset.to_owned()),
+                    ..Default::default()
+                },
+            );
+        }
+        bozzard_diagnostics::log(
+            &mut demo.app.world,
+            bozzard_diagnostics::Level::Error,
+            "Graphics",
+            &format!(
+                "{reason}; recreating device; cancelled_compute_jobs={} reported_first={} pending_gpu={} readback_bytes={}",
+                retired.len(),
+                retired.len().min(8),
+                self.compute.executor.has_pending(),
+                pending.readback_bytes
+            ),
+            Default::default(),
+        );
+        self.compute.stop();
+        if self.gpu.adapter.get_info().backend == wgpu::Backend::Dx12 {
+            // DXGI cannot attach a second swapchain to the same HWND while the
+            // original window and its presentation resources are still alive.
+            let mut replacement = Self::new(event_loop, options, Some(self.window.inner_size()))
+                .context("recreating DX12 presentation window")?;
+            replacement.device_recoveries = self.device_recoveries;
+            assets
+                .upload(&replacement.gpu, &mut replacement.renderer)
+                .context("restoring graphics assets")?;
+            demo.with_instance(|instance, _| replacement.compute.prepare(instance));
+            replacement.gpu_frame_ms = std::mem::take(&mut self.gpu_frame_ms);
+            replacement.surface_status = "GPU device recreated";
+            *self = replacement;
+            return Ok(());
+        }
+        // Bind a fresh presentation surface to the replacement device.
+        self.surface = self
+            .instance
+            .create_surface(self.window.clone())
+            .context("recreating window surface after device loss")?;
+        let gpu = pollster::block_on(Gpu::request(
+            &self.instance,
+            Some(&self.surface),
+            self.software,
+        ))
+        .context("recreating lost GPU device")?;
+        if self.hardware {
+            gpu.require_hardware()?;
+        }
+        gpu.monitor_out_of_memory();
+        let mut config = self
+            .surface
+            .get_default_config(
+                &gpu.adapter,
+                self.config.width.max(1),
+                self.config.height.max(1),
+            )
+            .context("recreated GPU cannot present to this surface")?;
+        config.present_mode = wgpu::PresentMode::Fifo;
+        let mut renderer = SceneRenderer::new(&gpu, config.format);
+        renderer.set_occlusion_enabled(self.occlusion_enabled);
+        renderer.set_profiling_enabled(self.profile_frames);
+        assets
+            .upload(&gpu, &mut renderer)
+            .context("restoring graphics assets")?;
+        let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
+        demo.with_instance(|instance, _| compute.prepare(instance));
+        configure_surface_checked(&self.surface, &gpu, &config)?;
+        self.gpu = gpu;
+        self.config = config;
+        self.renderer = renderer;
+        self.compute = compute;
+        self.surface_recovery.presented();
+        self.surface_status = "GPU device recreated";
+        Ok(())
+    }
+
+    fn resize(&mut self, width: u32, height: u32) -> Result<()> {
         self.drawable = width > 0 && height > 0;
         if self.drawable {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&self.gpu.device, &self.config);
+            configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
         }
+        Ok(())
     }
 
     fn draw(
@@ -291,6 +504,9 @@ impl View {
             self.surface_status = "window has zero size";
             return Ok(false);
         }
+        if let Some(reason) = self.gpu.failure() {
+            bail!("GPU device lost: {reason}");
+        }
         self.renderer
             .set_hud_scale(self.window.scale_factor() as f32);
         assets.poll()?;
@@ -299,7 +515,7 @@ impl View {
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
             wgpu::CurrentSurfaceTexture::Outdated => {
                 self.surface_status = "surface outdated";
-                self.surface.configure(&self.gpu.device, &self.config);
+                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
                 return Ok(false);
             }
             wgpu::CurrentSurfaceTexture::Timeout => {
@@ -310,7 +526,12 @@ impl View {
                 self.surface_status = "window occluded; an active desktop is required";
                 return Ok(false);
             }
-            wgpu::CurrentSurfaceTexture::Lost => bail!("graphics surface lost; restart the player"),
+            wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface_recovery.lost()?;
+                self.surface_status = "surface lost; reconfiguring";
+                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+                return Ok(false);
+            }
             wgpu::CurrentSurfaceTexture::Validation => bail!("graphics surface validation failed"),
         };
         let mut scene = extract(
@@ -349,9 +570,23 @@ impl View {
         )?;
         self.window.pre_present_notify();
         self.gpu.queue.present(frame);
+        for timing in self.renderer.poll_gpu_profiles(&self.gpu)? {
+            if !timing.failed {
+                let total = timing
+                    .passes
+                    .iter()
+                    .filter_map(|pass| pass.milliseconds)
+                    .sum();
+                if self.gpu_frame_ms.len() == 2048 {
+                    self.gpu_frame_ms.pop_front();
+                }
+                self.gpu_frame_ms.push_back(total);
+            }
+        }
+        self.surface_recovery.presented();
         self.surface_status = "presented";
         if reconfigure {
-            self.surface.configure(&self.gpu.device, &self.config);
+            configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
         }
         Ok(true)
     }
@@ -398,8 +633,30 @@ struct Player {
     last_frame: Instant,
     last_present: Instant,
     frames: u32,
+    cpu_frame_ms: VecDeque<f64>,
+    fault_injected: bool,
     error: Option<anyhow::Error>,
     command_error: Option<String>,
+}
+
+fn print_frame_percentiles(label: &str, samples: &VecDeque<f64>) {
+    if samples.is_empty() {
+        return;
+    }
+    let mut sorted: Vec<_> = samples.iter().copied().collect();
+    sorted.sort_by(f64::total_cmp);
+    let percentile = |p: f64| {
+        sorted[((sorted.len() as f64 * p).ceil() as usize)
+            .saturating_sub(1)
+            .min(sorted.len() - 1)]
+    };
+    println!(
+        "{label} n={} median={:.3}ms p95={:.3}ms p99={:.3}ms",
+        sorted.len(),
+        percentile(0.5),
+        percentile(0.95),
+        percentile(0.99)
+    );
 }
 
 impl Player {
@@ -717,7 +974,7 @@ impl ApplicationHandler for Player {
         if self.view.is_some() {
             return;
         }
-        match View::new(event_loop, &self.options) {
+        match View::new(event_loop, &self.options, None) {
             Ok(mut view) => {
                 let uploaded = (|| {
                     let render = extract(
@@ -771,6 +1028,7 @@ impl ApplicationHandler for Player {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        let frame_started = matches!(event, WindowEvent::RedrawRequested).then(Instant::now);
         if event_loop.exiting() {
             return;
         }
@@ -783,6 +1041,77 @@ impl ApplicationHandler for Player {
                 .process_event(&view.window, &event);
         }
         if matches!(event, WindowEvent::RedrawRequested) {
+            if self.options.inject_device_recreation && !self.fault_injected && self.frames >= 1 {
+                self.fault_injected = true;
+                let before = (
+                    self.demo.app.ticks(),
+                    self.demo.app.world.len(),
+                    self.demo.instance().document().name.clone(),
+                );
+                if let Err(error) = self.view.as_mut().unwrap().recreate_device(
+                    event_loop,
+                    &self.options,
+                    &mut self.demo,
+                    &mut self.assets,
+                ) {
+                    self.fail(
+                        event_loop,
+                        error.context("injected device recreation failed"),
+                    );
+                } else {
+                    let after = (
+                        self.demo.app.ticks(),
+                        self.demo.app.world.len(),
+                        self.demo.instance().document().name.clone(),
+                    );
+                    if before != after {
+                        self.fail(event_loop, anyhow::anyhow!(
+                            "device recreation changed CPU scene state: before={before:?} after={after:?}"));
+                        return;
+                    }
+                    println!("device_recreation_ok scene_tick={}", self.demo.app.ticks());
+                }
+                return;
+            }
+            if self
+                .view
+                .as_ref()
+                .is_some_and(|view| view.gpu.failure().is_some())
+            {
+                if self
+                    .view
+                    .as_ref()
+                    .is_some_and(|view| view.gpu.out_of_memory())
+                {
+                    let view = self.view.as_ref().unwrap();
+                    self.fail(
+                        event_loop,
+                        anyhow::anyhow!(
+                            "GPU out of memory: {}; backend={:?}, size={}x{}; scene={}",
+                            view.gpu.failure().unwrap_or("unknown"),
+                            view.gpu.adapter.get_info().backend,
+                            view.config.width,
+                            view.config.height,
+                            self.demo.instance().document().name
+                        ),
+                    );
+                    return;
+                }
+                let result = self.view.as_mut().unwrap().recreate_device(
+                    event_loop,
+                    &self.options,
+                    &mut self.demo,
+                    &mut self.assets,
+                );
+                if let Err(error) = result {
+                    if self.view.as_ref().unwrap().device_recoveries >= 2 {
+                        self.fail(event_loop, error.context("GPU recovery exhausted"));
+                    } else {
+                        eprintln!("gpu_recovery_retry: {error:#}");
+                    }
+                }
+                return;
+            }
             if let Some(view) = &mut self.view {
                 let refreshed = self.demo.with_instance(|instance, _| {
                     view.compute.prepare(instance);
@@ -794,6 +1123,9 @@ impl ApplicationHandler for Player {
                     return;
                 }
                 if let Err(error) = view.compute.poll(&view.gpu) {
+                    if view.gpu.failure().is_some() {
+                        return;
+                    }
                     self.fail(event_loop, error);
                     return;
                 }
@@ -913,6 +1245,9 @@ impl ApplicationHandler for Player {
             }
             if let Some(view) = &mut self.view {
                 if let Err(error) = view.compute.submit(&view.gpu, self.demo.instance()) {
+                    if view.gpu.failure().is_some() {
+                        return;
+                    }
                     self.fail(event_loop, error);
                     return;
                 }
@@ -964,10 +1299,23 @@ impl ApplicationHandler for Player {
             {
                 event_loop.exit()
             }
-            WindowEvent::Resized(size) => view.resize(size.width, size.height),
+            WindowEvent::Resized(size) => {
+                if let Err(error) = view.resize(size.width, size.height)
+                    && view.gpu.failure().is_none()
+                {
+                    self.fail(event_loop, error.context("resizing graphics surface"));
+                }
+            }
             WindowEvent::RedrawRequested => {
                 match view.draw(&self.demo, &mut self.assets, self.options.layer) {
                     Ok(true) => {
+                        if let Some(started) = frame_started {
+                            if self.cpu_frame_ms.len() == 2048 {
+                                self.cpu_frame_ms.pop_front();
+                            }
+                            self.cpu_frame_ms
+                                .push_back(started.elapsed().as_secs_f64() * 1000.);
+                        }
                         self.frames = self.frames.saturating_add(1);
                         self.last_present = now;
                         if self
@@ -979,12 +1327,46 @@ impl ApplicationHandler for Player {
                                 self.fail(event_loop, error);
                                 return;
                             }
+                            for timing in view
+                                .renderer
+                                .poll_gpu_profiles(&view.gpu)
+                                .unwrap_or_default()
+                            {
+                                if !timing.failed {
+                                    let total = timing
+                                        .passes
+                                        .iter()
+                                        .filter_map(|pass| pass.milliseconds)
+                                        .sum();
+                                    if view.gpu_frame_ms.len() == 2048 {
+                                        view.gpu_frame_ms.pop_front();
+                                    }
+                                    view.gpu_frame_ms.push_back(total);
+                                }
+                            }
+                            print_frame_percentiles("player_cpu_frame", &self.cpu_frame_ms);
+                            print_frame_percentiles("player_gpu_passes", &view.gpu_frame_ms);
+                            if let Some(net) = self.demo.multiplayer_telemetry() {
+                                println!(
+                                    "player_network snapshot_age_ms={:.1} oldest_input_age_ticks={} replay_depth={} command_queue={} publication_age_ms={:.1} worker_ms={:.3}",
+                                    net.snapshot_age_ms,
+                                    net.oldest_input_age_ticks,
+                                    net.replay_depth,
+                                    net.command_queue,
+                                    net.publication_age_ms,
+                                    net.worker_ms
+                                );
+                            }
                             println!("window_ok frames={}", self.frames);
                             event_loop.exit();
                         }
                     }
                     Ok(false) => {}
-                    Err(error) => self.fail(event_loop, error),
+                    Err(error) => {
+                        if view.gpu.failure().is_none() {
+                            self.fail(event_loop, error);
+                        }
+                    }
                 }
             }
             _ => {}
@@ -1013,6 +1395,10 @@ impl ApplicationHandler for Player {
                 .poll(&view.gpu)
                 .and_then(|_| view.compute.submit(&view.gpu, self.demo.instance()));
             if let Err(error) = result {
+                if view.gpu.failure().is_some() {
+                    view.window.request_redraw();
+                    return;
+                }
                 self.fail(event_loop, error);
                 return;
             }
@@ -1051,6 +1437,7 @@ fn main() -> Result<()> {
     };
     if let Some(manifest) = &options.export_project {
         let (project, source) = bozzard_project::Project::load(manifest)?;
+        project.require_runtime_modules(&[])?;
         let scene = load_document(Some(&source))?;
         let prepared = bozzard_project::prepare_export(
             &project,
@@ -1105,6 +1492,8 @@ fn main() -> Result<()> {
         last_frame: Instant::now(),
         last_present: Instant::now(),
         frames: 0,
+        cpu_frame_ms: VecDeque::new(),
+        fault_injected: false,
         error: None,
         command_error: None,
     };
@@ -1137,6 +1526,78 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod controls_tests {
     use super::*;
+    #[test]
+    fn surface_loss_reconfigures_at_most_three_times_and_success_resets_the_budget() {
+        let mut recovery = SurfaceRecovery::default();
+        for _ in 0..3 {
+            recovery.lost().unwrap();
+        }
+        assert!(
+            recovery
+                .lost()
+                .unwrap_err()
+                .to_string()
+                .contains("3 reconfigurations")
+        );
+        recovery.presented();
+        recovery.lost().unwrap();
+    }
+    #[test]
+    fn device_loss_retires_pending_readback_with_an_explicit_outcome() {
+        use bozzard_scene::compute::{BindingKind, Capabilities, JobState, Kernel, Owner, Scope};
+        let mut player = authored_player();
+        let owner = Owner::new("pending", 0);
+        let ticket = player.demo.with_instance(|instance, _| {
+            instance.set_compute_capabilities(Capabilities {
+                backend: Some("test".into()),
+                device_generation: 1,
+                max_buffer_bytes: 1024,
+                ..Default::default()
+            });
+            let kernel = Kernel::parse(
+                "@group(0) @binding(0) var<storage, read_write> data: array<u32>; \
+                 @compute @workgroup_size(1) fn main(@builtin(global_invocation_id) id: vec3<u32>) \
+                 { data[id.x] += 1u; }",
+            )
+            .unwrap();
+            let BindingKind::Storage { layout, .. } =
+                &kernel.entry("main").unwrap().binding("data").unwrap().kind
+            else {
+                panic!("expected a storage buffer")
+            };
+            let mut compute = instance.compute();
+            let buffer = compute
+                .runtime
+                .create_buffer(
+                    &owner,
+                    Scope::Attachment,
+                    "values",
+                    Arc::new(layout.clone()),
+                    4,
+                )
+                .unwrap();
+            compute.runtime.readback(&owner, buffer).unwrap()
+        });
+        let retired = retire_pending_compute_jobs(&mut player.demo).unwrap();
+        assert_eq!(retired.len(), 1);
+        assert_eq!(retired[0].1, ticket.serial());
+        assert!(retired[0].3);
+        player.demo.with_instance(|instance, _| {
+            let mut compute = instance.compute();
+            assert_eq!(
+                compute.runtime.job(&owner, ticket).unwrap().state,
+                JobState::Cancelled
+            );
+            assert!(
+                compute
+                    .runtime
+                    .take_result(&owner, ticket, 4)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("cancelled")
+            );
+        });
+    }
     fn authored_player() -> Player {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/demo/scenes/first-trail.json");
@@ -1157,6 +1618,8 @@ mod controls_tests {
             last_frame: Instant::now(),
             last_present: Instant::now(),
             frames: 0,
+            cpu_frame_ms: VecDeque::new(),
+            fault_injected: false,
             error: None,
             command_error: None,
         }
@@ -1677,6 +2140,8 @@ mod controls_tests {
             last_frame: Instant::now(),
             last_present: Instant::now(),
             frames: 0,
+            cpu_frame_ms: VecDeque::new(),
+            fault_injected: false,
             error: None,
             command_error: None,
         };

@@ -6,6 +6,8 @@ pub enum Loading {
     Bundle(Job<bozzard_project::content::PreparedPack>),
     Lods(Job<bozzard_editor::PreparedLods>),
     Export(Job<bozzard_project::PreparedExport>),
+    #[cfg(feature = "factory")]
+    FactoryExport(Job<PathBuf>),
     Prefab(Job<bozzard_editor::PreparedPrefab>),
     BakeGi(Job<bozzard_editor::PreparedGi>),
     Import(Job<bozzard_editor::PreparedImport>),
@@ -20,6 +22,8 @@ impl Loading {
             Self::Bundle(job) => job.fraction(),
             Self::Lods(job) => job.fraction(),
             Self::Export(job) => job.fraction(),
+            #[cfg(feature = "factory")]
+            Self::FactoryExport(job) => job.fraction(),
             Self::Prefab(job) => job.fraction(),
             Self::BakeGi(job) => job.fraction(),
             Self::Import(job) => job.fraction(),
@@ -38,6 +42,8 @@ impl Loading {
             Self::Open(job) | Self::OpenAdditive(job) => job.label(),
             Self::Save(job) => job.label(),
             Self::Export(job) => job.label(),
+            #[cfg(feature = "factory")]
+            Self::FactoryExport(job) => job.label(),
         }
     }
     pub fn cancel(&self) {
@@ -51,6 +57,8 @@ impl Loading {
             Self::Open(job) | Self::OpenAdditive(job) => job.cancel(),
             Self::Save(job) => job.cancel(),
             Self::Export(job) => job.cancel(),
+            #[cfg(feature = "factory")]
+            Self::FactoryExport(job) => job.cancel(),
         }
     }
     pub fn cancelled(&self) -> bool {
@@ -64,6 +72,8 @@ impl Loading {
             Self::Open(job) | Self::OpenAdditive(job) => job.cancelled(),
             Self::Save(job) => job.cancelled(),
             Self::Export(job) => job.cancelled(),
+            #[cfg(feature = "factory")]
+            Self::FactoryExport(job) => job.cancelled(),
         }
     }
 }
@@ -82,6 +92,9 @@ impl App {
                 "Wait for the current operation first"
             );
             self.drag = None;
+            self.canvas_drag = None;
+            self.timeline_scrub = None;
+            self.editor.clear_timeline_preview();
             self.gameplay_controls.reset();
             self.loading = Some(Loading::Play(self.editor.play_job()?));
             Ok(())
@@ -103,10 +116,30 @@ impl App {
             self.drag = None;
             let scene = self.editor.scene().clone();
             let source = self.editor.path.clone();
+            #[cfg(feature = "factory")]
+            if self.factory_mode {
+                let binary = bozz_torio::package::companion_factory(&std::env::current_exe()?)?;
+                self.loading = Some(Loading::FactoryExport(Job::start(
+                    "Exporting Bozz-torio",
+                    move |progress| {
+                        progress.report(0, 1, "Copying native factory runtime and scene")?;
+                        let folder = bozz_torio::package::export_scene_with_progress(
+                            &scene,
+                            &source,
+                            &binary,
+                            &destination,
+                            &progress,
+                        )?;
+                        Ok(folder)
+                    },
+                )?));
+                return Ok(());
+            }
             let project = bozzard_project::Project {
                 version: 1,
                 name,
                 start_scene: "scene.json".into(),
+                runtime_modules: Vec::new(),
                 cook,
                 view: if scene.views.contains_key(&Layer::ThreeD) {
                     Layer::ThreeD
@@ -177,9 +210,27 @@ impl App {
             Some(Loading::Play(job)) => job.poll().map(|result| {
                 result.and_then(|prepared| {
                     self.editor.accept_play(prepared)?;
+                    #[cfg(feature = "factory")]
+                    if self.factory_mode {
+                        let module = match bozz_torio::module::FactoryModule::from_scene(
+                            self.editor.scene(), &self.editor.path,
+                        ) {
+                            Ok(module) => module,
+                            Err(error) => {
+                                self.stop_play();
+                                return Err(error);
+                            }
+                        };
+                        if let Err(error) = self.editor.play.as_mut().unwrap().app
+                            .install_modules(vec![Box::new(module.clone())]) {
+                            self.stop_play();
+                            return Err(error.into());
+                        }
+                        self.factory_module = Some(module);
+                    }
                     if let Some(id) = self.pending_lobby.take()
                         && let Err(error) = self.editor.play.as_mut().unwrap().join_multiplayer(id) {
-                        self.editor.stop_play();
+                        self.stop_play();
                         return Err(error);
                     }
                     self.status = "Play started".into();
@@ -220,6 +271,13 @@ impl App {
                         format!("Game exported to {}. Cooked {}, reused {} cached assets. Open Game to play.", folder.display(), report.built, report.reused);
                     self.dialog = Some(files::Dialog::new(files::Kind::Exported, &folder));
                     Ok(())
+                })
+            }),
+            #[cfg(feature = "factory")]
+            Some(Loading::FactoryExport(job)) => job.poll().map(|result| {
+                result.map(|folder| {
+                    self.status = format!("Bozz-torio exported to {}. Open Game to play.", folder.display());
+                    self.dialog = Some(files::Dialog::new(files::Kind::Exported, &folder));
                 })
             }),
             Some(Loading::Prefab(job)) => job.poll().map(|result| {

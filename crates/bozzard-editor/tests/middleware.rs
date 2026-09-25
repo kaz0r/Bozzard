@@ -12,6 +12,120 @@ fn scene(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
+fn timeline_scrub_samples_in_edit_world_without_changing_document() -> anyhow::Result<()> {
+    use bozzard_scene::{
+        Scene,
+        blueprint::ObjectRef,
+        middleware::{
+            curve::Curve,
+            registry,
+            timeline::{Marker, Timeline},
+            tween::{Property, Track},
+        },
+    };
+    use std::sync::Arc;
+    let mut document = Scene::from_json(
+        r#"{"version":1,"name":"Scrub","views":{},"objects":[
+        {"id":"director","name":"Director","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+        {"id":"target","name":"Target","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}]}"#,
+    )?;
+    let mut track = Track::new(Property::Translation);
+    track.target = ObjectRef::Id("target".into());
+    track.channels[0] = Curve::linear(0., 10., 2.);
+    let mut timeline = Timeline::default();
+    timeline.motion.duration = 2.;
+    timeline.motion.tracks = Arc::new(vec![track]);
+    timeline.markers = Arc::new(vec![Marker {
+        time: 1.,
+        name: "Never fire in Edit".into(),
+    }]);
+    registry::set(&mut document.objects[0], &timeline)?;
+    let editor = Editor::new(document.clone(), &scene("unused-scrub-test"))?;
+    assert_eq!(
+        editor
+            .timeline_preview_transform("target")?
+            .unwrap()
+            .translation[0],
+        0.
+    );
+    editor.scrub_timeline_preview("director", 1.)?;
+    assert_eq!(
+        editor
+            .timeline_preview_transform("target")?
+            .unwrap()
+            .translation[0],
+        5.
+    );
+    assert_eq!(editor.scene(), &document);
+    assert!(!editor.dirty());
+    editor.clear_timeline_preview();
+    assert_eq!(
+        editor
+            .timeline_preview_transform("target")?
+            .unwrap()
+            .translation[0],
+        0.
+    );
+    Ok(())
+}
+
+#[test]
+fn ui_widget_layout_gesture_undo_save_and_reopen() -> anyhow::Result<()> {
+    use bozzard_scene::middleware::{registry, ui::Widget};
+    let mut editor = Editor::open(&scene("ui-2d-lab"))?;
+    let id = editor
+        .scene()
+        .objects
+        .iter()
+        .find(|o| o.extras.contains_key("ui_widget"))
+        .unwrap()
+        .id
+        .clone();
+    editor.selected = Some(id.clone());
+    let original = editor.scene().clone();
+    editor.begin_gesture("Edit UI widget layout");
+    let mut updated = original.clone();
+    let widget = updated.objects.iter_mut().find(|o| o.id == id).unwrap();
+    let mut value = registry::get::<Widget>(widget)?.unwrap();
+    value.anchors.offset[0] += 20.;
+    value.anchors.size[0] += 30.;
+    registry::set(widget, &value)?;
+    editor.apply("Edit UI widget layout", updated.clone())?;
+    editor.finish_gesture();
+    assert_eq!(editor.scene(), &updated);
+    editor.undo()?;
+    assert_eq!(editor.scene(), &original);
+    editor.redo()?;
+    assert_eq!(editor.scene(), &updated);
+    for size in [[1280., 720.], [1440., 900.], [480., 800.]] {
+        assert_eq!(editor.ui_frame(Layer::TwoD, size)?.size, size);
+    }
+    assert_eq!(
+        editor.scene(),
+        &updated,
+        "preview dimensions must not enter authored data"
+    );
+    // Save beside the checkout's assets: Windows' system temp directory can be on
+    // another drive, where relative asset references cannot be represented.
+    let temp = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../work")
+        .join(format!(
+            "bozzard-ui-layout-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos()
+        ));
+    std::fs::create_dir_all(&temp)?;
+    let destination = temp.join("scene.json");
+    editor.save(&destination)?;
+    let reopened = Editor::open(&destination)?;
+    assert_eq!(reopened.scene(), editor.scene());
+    std::fs::remove_dir_all(temp)?;
+    Ok(())
+}
+
+#[test]
 fn every_middleware_object_can_be_hidden_and_restored_without_changing_the_source()
 -> anyhow::Result<()> {
     for name in ["middleware-lab", "ui-2d-lab"] {

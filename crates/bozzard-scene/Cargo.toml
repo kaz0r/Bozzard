@@ -16,7 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 rapier3d = { version = "0.35.3", features = ["enhanced-determinism"] }
-rhai = { version = "1.26.1", default-features = false, features = ["std", "f32_float", "sync", "serde"] }
+rhai = { version = "1.26.1", default-features = false, features = ["std", "f32_float", "sync", "serde", "metadata"] }
 
 [lints]
 workspace = true

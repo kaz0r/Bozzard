@@ -1,7 +1,13 @@
 //! Graphics-independent application, ordered systems, and fixed-step simulation.
 pub mod job;
 pub use bozzard_ecs::{Commands, Entity, Mut, World};
-use std::{collections::HashSet, fmt, num::NonZeroU32, time::Duration};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt,
+    num::NonZeroU32,
+    ops::Range,
+    time::Duration,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Tick {
@@ -16,9 +22,43 @@ struct NamedSystem {
 }
 
 /// Compiled-in module interface. Dynamic binary loading/unloading is not supported yet.
-pub trait Plugin {
+pub trait Plugin: Send {
     fn name(&self) -> &'static str;
     fn build(&self, app: &mut App);
+    fn dependencies(&self) -> &'static [&'static str] {
+        &[]
+    }
+    fn cleanup(&self, _app: &mut App) {}
+}
+
+/// Errors are reported before any module in a batch is built.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ModuleError {
+    InvalidName,
+    Duplicate(&'static str),
+    Missing {
+        module: &'static str,
+        dependency: &'static str,
+    },
+    Cycle,
+}
+impl fmt::Display for ModuleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidName => write!(f, "compiled module needs a nonempty name"),
+            Self::Duplicate(name) => write!(f, "compiled module '{name}' is already registered"),
+            Self::Missing { module, dependency } => {
+                write!(f, "compiled module '{module}' needs '{dependency}'")
+            }
+            Self::Cycle => write!(f, "compiled module dependency cycle"),
+        }
+    }
+}
+impl std::error::Error for ModuleError {}
+
+struct ModuleRecord {
+    plugin: Box<dyn Plugin>,
+    systems: Range<usize>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -44,6 +84,7 @@ pub struct App {
     systems: Vec<NamedSystem>,
     resume_system: Option<usize>,
     plugins: HashSet<&'static str>,
+    modules: Vec<ModuleRecord>,
     commands: Commands,
     timestep: Duration,
     max_catch_up: NonZeroU32,
@@ -72,6 +113,7 @@ impl App {
             systems: Vec::new(),
             resume_system: None,
             plugins: HashSet::new(),
+            modules: Vec::new(),
             commands: Commands::default(),
             timestep,
             max_catch_up,
@@ -85,6 +127,70 @@ impl App {
         }
         plugin.build(self);
         Ok(())
+    }
+    /// Validate a compiled-in module batch, then register it in lexical topological order.
+    /// Failed duplicate, missing dependency and cycle checks leave the app untouched.
+    pub fn install_modules(&mut self, modules: Vec<Box<dyn Plugin>>) -> Result<(), ModuleError> {
+        let mut pending = BTreeMap::new();
+        for module in modules {
+            let name = module.name();
+            if name.is_empty() {
+                return Err(ModuleError::InvalidName);
+            }
+            if self.plugins.contains(name) || pending.insert(name, module).is_some() {
+                return Err(ModuleError::Duplicate(name));
+            }
+        }
+        for (&name, module) in &pending {
+            for &dependency in module.dependencies() {
+                if !self.plugins.contains(dependency) && !pending.contains_key(dependency) {
+                    return Err(ModuleError::Missing {
+                        module: name,
+                        dependency,
+                    });
+                }
+            }
+        }
+        let mut order = Vec::new();
+        let mut available = self.plugins.clone();
+        while !pending.is_empty() {
+            let name = pending
+                .iter()
+                .find(|(_, module)| {
+                    module
+                        .dependencies()
+                        .iter()
+                        .all(|dependency| available.contains(dependency))
+                })
+                .map(|(&name, _)| name)
+                .ok_or(ModuleError::Cycle)?;
+            let module = pending.remove(name).expect("selected pending module");
+            available.insert(name);
+            order.push(module);
+        }
+        for module in order {
+            let name = module.name();
+            let start = self.systems.len();
+            module.build(self);
+            self.plugins.insert(name);
+            self.modules.push(ModuleRecord {
+                plugin: module,
+                systems: start..self.systems.len(),
+            });
+        }
+        Ok(())
+    }
+    pub fn installed_modules(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.modules.iter().map(|record| record.plugin.name())
+    }
+    /// Stop only systems registered by compiled modules, in reverse dependency order.
+    pub fn stop_modules(&mut self) {
+        while let Some(record) = self.modules.pop() {
+            record.plugin.cleanup(self);
+            self.systems.drain(record.systems);
+            self.plugins.remove(record.plugin.name());
+        }
+        self.resume_system = None;
     }
     /// Systems execute serially in registration order. Commands flush after all systems.
     pub fn add_system(
@@ -213,6 +319,12 @@ impl App {
             dropped,
             interpolation: remainder.as_secs_f64() / self.timestep.as_secs_f64(),
         }
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.stop_modules();
     }
 }
 
@@ -348,5 +460,88 @@ mod tests {
         app.add_plugin(Module).unwrap();
         assert_eq!(app.add_plugin(Module), Err(DuplicatePlugin("test")));
         assert_eq!(app.world.len(), 1);
+    }
+
+    #[test]
+    fn compiled_modules_validate_order_and_clean_up_without_duplicating_systems() {
+        struct Module(&'static str, &'static [&'static str]);
+        impl Plugin for Module {
+            fn name(&self) -> &'static str {
+                self.0
+            }
+            fn dependencies(&self) -> &'static [&'static str] {
+                self.1
+            }
+            fn build(&self, app: &mut App) {
+                let name = self.0;
+                app.add_system(move |world, _, _| {
+                    world
+                        .resource_mut::<Vec<&'static str>>()
+                        .unwrap()
+                        .push(name)
+                });
+            }
+            fn cleanup(&self, app: &mut App) {
+                app.world
+                    .resource_mut::<Vec<&'static str>>()
+                    .unwrap()
+                    .push(self.0);
+            }
+        }
+        let mut app = App::default();
+        app.world.insert_resource(Vec::<&'static str>::new());
+        app.add_system(|world, _, _| {
+            world
+                .resource_mut::<Vec<&'static str>>()
+                .unwrap()
+                .push("core")
+        });
+        assert_eq!(
+            app.install_modules(vec![Box::new(Module("a", &["b"]))]),
+            Err(ModuleError::Missing {
+                module: "a",
+                dependency: "b"
+            })
+        );
+        assert_eq!(
+            app.install_modules(vec![
+                Box::new(Module("a", &["b"])),
+                Box::new(Module("b", &["a"]))
+            ]),
+            Err(ModuleError::Cycle)
+        );
+        assert_eq!(
+            app.install_modules(vec![Box::new(Module("a", &[])), Box::new(Module("a", &[]))]),
+            Err(ModuleError::Duplicate("a"))
+        );
+        app.install_modules(vec![
+            Box::new(Module("c", &["b"])),
+            Box::new(Module("b", &["a"])),
+            Box::new(Module("a", &[])),
+        ])
+        .unwrap();
+        assert_eq!(app.installed_modules().collect::<Vec<_>>(), ["a", "b", "c"]);
+        app.step();
+        assert_eq!(
+            app.world.resource::<Vec<&str>>().unwrap(),
+            &["core", "a", "b", "c"]
+        );
+        app.stop_modules();
+        assert_eq!(
+            app.world.resource::<Vec<&str>>().unwrap().last(),
+            Some(&"a")
+        );
+        app.step();
+        assert_eq!(
+            app.world.resource::<Vec<&str>>().unwrap().last(),
+            Some(&"core")
+        );
+        app.install_modules(vec![Box::new(Module("a", &[]))])
+            .unwrap();
+        app.step();
+        assert_eq!(
+            app.world.resource::<Vec<&str>>().unwrap().last(),
+            Some(&"a")
+        );
     }
 }

@@ -19,6 +19,7 @@ bozzard-project = { path = "../../crates/bozzard-project" }
 bozzard-assets.workspace = true
 bozzard-app.workspace = true
 bozzard-demo.workspace = true
+bozzard-diagnostics.workspace = true
 bozzard-render.workspace = true
 bozzard-render-assets.workspace = true
 bozzard-scene.workspace = true

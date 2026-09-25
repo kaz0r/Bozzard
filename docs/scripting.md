@@ -46,6 +46,14 @@ same hook; completion results become visible only at a later simulation boundary
    asset. **+ Add script** adds another attachment; **↑**/**↓** change the order and **Remove**
    detaches one. Up to 16 scripts per object, run top to bottom.
 
+   **Open source** opens the attached asset in the dockable Script pane. The pane shows line
+   numbers, generated hook and engine function help, completion at the cursor, and live hook and
+   command counts per attachment during Play. A dot marks unsaved source. **Save source** writes
+   the script file; **Apply to Play** requests a separate live reload. If the file changes outside
+   the editor, review the external copy before reloading or overwriting it. Switching scripts or
+   closing a dirty pane asks whether to save, discard, or keep the draft. Compile errors retain
+   the draft and offer a file/line link; the last valid runtime program continues.
+
 3. In the editor, Import a `.rs` file to add it to the catalog (or write the catalog entry by hand).
    The catalog keeps paths relative to the scene file, so a project folder stays portable and the
    export packs scripts the same way it packs prefabs.
@@ -77,9 +85,33 @@ with the wrong number of parameters fails when the scene opens, not on the first
 | `on_destroy(me)` | The owning object is being destroyed, before it is removed |
 
 `me` is the owning object's ID. `On Input Pressed` has no hook: scripts run every tick, so
-`input_pressed("jump")` inside `on_update` answers it directly. Top-level statements run once when
-Play starts; Rhai functions cannot read top-level `let`/`const` values, so tuning values live inside
-the hook that uses them and anything that must outlive a tick belongs on a blackboard variable.
+`input_pressed("jump")` inside `on_update` answers it directly. Top-level statements initialize
+each attachment's script-local scope once when Play starts. Hooks can read that scope across ticks;
+use blackboard variables for state shared with other attachments or blueprints.
+
+## Live reload and editor integration
+
+An editor can call `Editor::request_script_reload(asset, source)` during Play. This starts a worker
+compile and returns a revision. `Editor::script_reload_feedback(asset)` reports `Compiling`,
+`Applied`, `Failed` or `Stale`; advancing the editor polls the worker and publishes a valid
+candidate between simulation ticks. The source pane owns saving the file: applying source to
+running Play does not save it. A compile or hook-signature error names the asset and Rhai line,
+and the last valid program keeps running.
+
+A successful replacement preserves the scene, blackboards, queued actions and each attachment's
+enabled and started state. It resets script-local top-level scope for every live attachment of the
+asset, including attachments spawned while compilation was in progress. It does not call
+`on_start` again. Stop, scene replacement, attachment removal and a newer edit invalidate older
+results. Active multiplayer Play rejects live replacement; all peers must stop and restart with
+the same script revision.
+
+For completion and help, use `bozzard_scene::script_function_descriptions()` and
+`bozzard_scene::script_hook_signatures()` instead of a separate handwritten function catalog.
+The existing `script_hook_descriptions()` API exposes the same names with argument counts.
+For runtime counters, `ScriptRuntime::stats` is the last tick's `ScriptRuntimeStats`: aggregate
+hook and command counts plus `attachments`, keyed by `(object_id, Script Manager index)`.
+The attachment snapshot keeps at most 4096 entries and sets `truncated` if more ran. These are
+runtime counters, not edits to the authored scene.
 
 ## Functions
 

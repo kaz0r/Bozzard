@@ -64,6 +64,7 @@ fn export(
         version: 1,
         name: "Cook test".into(),
         start_scene: "scene.json".into(),
+        runtime_modules: Vec::new(),
         view: bozzard_scene::Layer::ThreeD,
         cook,
     };

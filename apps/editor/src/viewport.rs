@@ -37,6 +37,55 @@ pub struct Drag {
     group_move: Option<GroupMove>,
 }
 
+#[derive(Clone, Copy)]
+enum CanvasDragKind {
+    Move,
+    Resize,
+}
+pub struct CanvasDrag {
+    id: String,
+    start: bozzard_scene::middleware::ui::Anchors,
+    pointer: Pos2,
+    scale: f32,
+    kind: CanvasDragKind,
+    auto_height: bool,
+}
+impl CanvasDrag {
+    fn anchors_at(
+        &self,
+        pointer: Pos2,
+        screen_scale: Vec2,
+    ) -> bozzard_scene::middleware::ui::Anchors {
+        let delta = pointer - self.pointer;
+        let mut anchors = self.start;
+        let dx = delta.x / screen_scale.x / self.scale;
+        let dy = delta.y / screen_scale.y / self.scale;
+        match self.kind {
+            CanvasDragKind::Move => {
+                anchors.offset[0] += dx;
+                anchors.offset[1] += dy;
+            }
+            CanvasDragKind::Resize => {
+                anchors.size[0] = (anchors.size[0] + dx).max(1.);
+                if !self.auto_height {
+                    anchors.size[1] = (anchors.size[1] + dy).max(1.);
+                }
+            }
+        }
+        anchors
+    }
+}
+
+fn canvas_preview_rect(full: Rect, size: [u32; 2]) -> Rect {
+    let aspect = size[0].max(1) as f32 / size[1].max(1) as f32;
+    let fitted = if full.width() / full.height() > aspect {
+        Vec2::new(full.height() * aspect, full.height())
+    } else {
+        Vec2::new(full.width(), full.width() / aspect)
+    };
+    Rect::from_center_size(full.center(), fitted)
+}
+
 /// Starting transforms for the outermost selected objects. Moving a selected
 /// parent already carries its selected descendants along with it.
 struct GroupMove {
@@ -413,7 +462,36 @@ impl App {
             ui.separator();
             ui.selectable_value(&mut self.workspace.layer_2d, false, "3D");
             ui.selectable_value(&mut self.workspace.layer_2d, true, "2D");
+            if self.workspace.layer_2d && self.editor.play.is_none() {
+                egui::ComboBox::from_id_salt("canvas-preview")
+                    .selected_text(match self.workspace.canvas_preview {
+                        [0, 0] => "Canvas: Fit",
+                        [1280, 720] => "Canvas: 16:9",
+                        [1440, 900] => "Canvas: 16:10",
+                        [480, 800] => "Canvas: Narrow",
+                        _ => "Canvas: Custom",
+                    })
+                    .show_ui(ui, |ui| {
+                        for (label, size) in [("Fit window", [0, 0]), ("16:9 · 1280×720", [1280, 720]), ("16:10 · 1440×900", [1440, 900]), ("Narrow · 480×800", [480, 800])] {
+                            ui.selectable_value(&mut self.workspace.canvas_preview, size, label);
+                        }
+                    });
+                if self.workspace.canvas_preview != [0, 0] {
+                    for axis in 0..2 {
+                        ui.add(egui::DragValue::new(&mut self.workspace.canvas_preview[axis])
+                            .range(64..=8192).speed(1).suffix(if axis == 0 { " w" } else { " h" }));
+                    }
+                }
+            }
             ui.toggle_value(&mut self.level_tools.visible, "Build");
+            if ui.toggle_value(&mut self.workspace.timeline_visible, "Timeline").clicked() {
+                self.dock_focus = Some(docking::Pane::Timeline);
+                if !self.workspace.timeline_visible {
+                    self.timeline_scrub = None;
+                    self.editor.clear_timeline_preview();
+                    self.viewport_stamp = None;
+                }
+            }
             ui.menu_button("View", |ui| {
                 ui.checkbox(&mut self.workspace.colliders_visible, "Collider guides");
                 ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
@@ -522,7 +600,15 @@ impl App {
             return Ok(());
         }
         let available = ui.available_size().max(Vec2::splat(1.0));
-        let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
+        let (full_rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
+        let rect = if self.workspace.layer_2d
+            && self.editor.play.is_none()
+            && self.workspace.canvas_preview != [0, 0]
+        {
+            canvas_preview_rect(full_rect, self.workspace.canvas_preview)
+        } else {
+            full_rect
+        };
         self.viewport_rect = Some(rect);
         self.viewport_layer = ui.layer_id();
         let hits_viewport = |pos| pointer_hits(ui.ctx(), rect, ui.layer_id(), pos);
@@ -733,7 +819,7 @@ impl App {
                     .game_session()
                     .is_some_and(|s| s.phase == bozzard_scene::GamePhase::Quit)
             {
-                self.editor.stop_play();
+                self.stop_play();
             }
         }
         if self.editor.play.is_none()
@@ -970,7 +1056,16 @@ impl App {
         } else {
             self.editor.render(layer, aspect)?
         };
-        let widgets = view_editor.ui_frame(self.layer(), [rect.width(), rect.height()])?;
+        let logical = if self.workspace.layer_2d
+            && self.editor.play.is_none()
+            && self.workspace.canvas_preview != [0, 0]
+        {
+            self.workspace.canvas_preview.map(|v| v as f32)
+        } else {
+            [rect.width(), rect.height()]
+        };
+        let hud_scale = rect.width() * ppp / logical[0];
+        let widgets = view_editor.ui_frame(self.layer(), logical)?;
         scene.items.extend(bozzard_render_assets::widget_items(
             &widgets,
             &view_editor.assets,
@@ -1238,7 +1333,7 @@ impl App {
             },
         };
         if self.viewport_continuous || self.viewport_stamp.as_ref() != Some(&stamp) {
-            self.renderer.set_hud_scale(ppp);
+            self.renderer.set_hud_scale(hud_scale);
             self.renderer
                 .set_occlusion_enabled(self.workspace.occlusion_enabled);
             self.renderer.draw(&self.gpu, &target.view, size, &scene)?;
@@ -1253,6 +1348,11 @@ impl App {
             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
             Color32::WHITE,
         );
+        let canvas_handled = if self.editor.play.is_none() && self.workspace.layer_2d {
+            self.canvas_overlay(ui, rect, &widgets, logical)?
+        } else {
+            false
+        };
         let collider_label_height = if self.workspace.colliders_visible && !self.workspace.layer_2d
         {
             self.collider_overlay(ui, rect, projection)?
@@ -1343,10 +1443,10 @@ impl App {
         } else {
             false
         };
-        let handled = if self.editor.play.is_none() && !building {
+        let handled = if self.editor.play.is_none() && !building && !canvas_handled {
             self.gizmo(ui, rect, projection)?
         } else {
-            building
+            building || canvas_handled
         };
         if response.clicked()
             && !self.mouse_captured
@@ -1356,6 +1456,7 @@ impl App {
             && !handled
             && self.editor.play.is_none()
             && let Some(p) = response.interact_pointer_pos()
+            && rect.contains(p)
         {
             let ndc = [
                 2.0 * (p.x - rect.left()) / rect.width() - 1.0,
@@ -1367,7 +1468,7 @@ impl App {
                 .required_current(&self.open_scenes.view(&self.editor).assets);
             if current {
                 let view = self.open_scenes.view(&self.editor);
-                let hud = view.pick_hud(self.layer(), size, ppp, ndc)?;
+                let hud = view.pick_hud(self.layer(), size, hud_scale, ndc)?;
                 let picked = if let Some(object) = hud {
                     self.open_scenes.owner(bozzard_editor::Pick {
                         object,
@@ -1412,6 +1513,223 @@ impl App {
         }
         Ok(())
     }
+    fn canvas_overlay(
+        &mut self,
+        ui: &mut egui::Ui,
+        viewport: Rect,
+        frame: &bozzard_scene::middleware::ui::Frame,
+        logical: [f32; 2],
+    ) -> Result<bool> {
+        use bozzard_scene::middleware::{
+            registry,
+            ui::{Layout, Widget},
+        };
+        let scale = Vec2::new(
+            viewport.width() / logical[0],
+            viewport.height() / logical[1],
+        );
+        let screen = |source: bozzard_scene::middleware::ui::Rect| -> Rect {
+            Rect::from_min_size(
+                viewport.min + Vec2::new(source.min[0] * scale.x, source.min[1] * scale.y),
+                Vec2::new(source.size[0] * scale.x, source.size[1] * scale.y),
+            )
+        };
+        let painter = ui.painter().with_clip_rect(viewport);
+        let selected = self.editor.selected.as_deref();
+        for element in &frame.elements {
+            let visible = element.rect.intersect(element.clip);
+            if visible.size.iter().any(|v| *v <= 0.) {
+                continue;
+            }
+            let outline = screen(visible);
+            let color = if selected == Some(element.owner.as_str()) {
+                Color32::from_rgb(255, 210, 85)
+            } else {
+                Color32::from_rgba_unmultiplied(130, 185, 235, 90)
+            };
+            painter.rect_stroke(
+                outline,
+                0.,
+                egui::Stroke::new(
+                    if selected == Some(element.owner.as_str()) {
+                        2.
+                    } else {
+                        1.
+                    },
+                    color,
+                ),
+                egui::StrokeKind::Inside,
+            );
+        }
+        let selected_element = frame
+            .elements
+            .iter()
+            .find(|e| selected == Some(e.owner.as_str()));
+        let mut handled = self.canvas_drag.is_some();
+        if let Some(element) = selected_element {
+            let object = self
+                .editor
+                .scene()
+                .objects
+                .iter()
+                .find(|o| o.id == element.owner);
+            let parent = object.and_then(|o| o.parent.as_deref());
+            let parent_widget = parent
+                .and_then(|id| self.editor.scene().objects.iter().find(|o| o.id == id))
+                .map(registry::get::<Widget>)
+                .transpose()?
+                .flatten();
+            let parent_rect = parent
+                .and_then(|id| frame.element(id).map(|e| e.rect))
+                .unwrap_or(bozzard_scene::middleware::ui::Rect {
+                    min: [0.; 2],
+                    size: logical,
+                });
+            let parent_rect = parent_widget.as_ref().map_or(parent_rect, |widget| {
+                parent_rect.inset(widget.padding.map(|value| value * element.scale))
+            });
+            let managed = parent_widget
+                .as_ref()
+                .is_some_and(|widget| widget.layout != Layout::Absolute);
+            if managed {
+                ui.painter().text(viewport.left_top() + Vec2::new(8., 8.), egui::Align2::LEFT_TOP,
+                    "Parent Row/Column/Grid layout owns this widget's position and size. Edit the parent layout, gap or grow instead.",
+                    egui::FontId::proportional(12.), Color32::YELLOW);
+                if let Some(pointer) = ui.input(|i| {
+                    i.events.iter().find_map(|event| match event {
+                        egui::Event::PointerButton {
+                            pos,
+                            button: egui::PointerButton::Primary,
+                            pressed: true,
+                            ..
+                        } => Some(*pos),
+                        _ => None,
+                    })
+                }) && screen(element.rect.intersect(element.clip)).contains(pointer)
+                {
+                    handled = true;
+                    self.status = "Parent layout controls this widget; edit the parent's Row, Column or Grid settings".into();
+                }
+            } else {
+                let anchor = &element.widget.anchors;
+                let anchor_point = [0, 1].map(|axis| {
+                    parent_rect.min[axis]
+                        + parent_rect.size[axis]
+                            * (anchor.min[axis]
+                                + (anchor.max[axis] - anchor.min[axis]) * anchor.pivot[axis])
+                });
+                let anchor_screen =
+                    viewport.min + Vec2::new(anchor_point[0] * scale.x, anchor_point[1] * scale.y);
+                let widget_screen = screen(element.rect);
+                let pivot_screen = widget_screen.min
+                    + widget_screen.size() * Vec2::new(anchor.pivot[0], anchor.pivot[1]);
+                painter.line_segment(
+                    [anchor_screen, pivot_screen],
+                    egui::Stroke::new(1., Color32::LIGHT_BLUE),
+                );
+                painter.circle_filled(anchor_screen, 4., Color32::LIGHT_BLUE);
+                painter.circle_stroke(pivot_screen, 5., egui::Stroke::new(1.5, Color32::YELLOW));
+                let handle = Rect::from_center_size(widget_screen.right_bottom(), Vec2::splat(12.));
+                painter.rect_filled(handle, 1., Color32::YELLOW);
+                if element.widget.auto_text_height {
+                    ui.painter().text(
+                        viewport.left_bottom() - Vec2::new(0., 16.),
+                        egui::Align2::LEFT_BOTTOM,
+                        "Auto text height controls vertical size; resize changes width only.",
+                        egui::FontId::proportional(11.),
+                        Color32::YELLOW,
+                    );
+                }
+                if ui.is_enabled()
+                    && self.loading.is_none()
+                    && !self.mouse_captured
+                    && !self.fly_latched
+                    && self.navigation_button.is_none()
+                    && !egui::Popup::is_any_open(ui.ctx())
+                {
+                    let press = ui.input(|i| {
+                        i.events.iter().find_map(|event| match event {
+                            egui::Event::PointerButton {
+                                pos,
+                                button: egui::PointerButton::Primary,
+                                pressed: true,
+                                ..
+                            } => Some(*pos),
+                            _ => None,
+                        })
+                    });
+                    if self.canvas_drag.is_none()
+                        && let Some(pointer) = press
+                        && pointer_hits(ui.ctx(), viewport, ui.layer_id(), pointer)
+                        && frame
+                            .elements
+                            .iter()
+                            .rev()
+                            .find(|e| {
+                                e.rect.contains([
+                                    (pointer.x - viewport.left()) / scale.x,
+                                    (pointer.y - viewport.top()) / scale.y,
+                                ]) && e.clip.contains([
+                                    (pointer.x - viewport.left()) / scale.x,
+                                    (pointer.y - viewport.top()) / scale.y,
+                                ])
+                            })
+                            .is_some_and(|e| e.owner == element.owner)
+                        && (handle.contains(pointer) || widget_screen.contains(pointer))
+                    {
+                        let kind = if handle.contains(pointer) {
+                            CanvasDragKind::Resize
+                        } else {
+                            CanvasDragKind::Move
+                        };
+                        self.editor.begin_gesture("Edit UI widget layout");
+                        self.canvas_drag = Some(CanvasDrag {
+                            id: element.owner.clone(),
+                            start: *anchor,
+                            pointer,
+                            scale: element.scale,
+                            kind,
+                            auto_height: element.widget.auto_text_height,
+                        });
+                        handled = true;
+                    }
+                    if let Some(pointer) = ui.input(|i| i.pointer.hover_pos()) {
+                        if handle.contains(pointer) {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeNwSe);
+                        } else if widget_screen.contains(pointer) {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(drag) = &self.canvas_drag {
+            if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                self.editor.cancel_gesture()?;
+                self.canvas_drag = None;
+                return Ok(true);
+            }
+            if ui.input(|i| i.pointer.primary_down()) {
+                if let Some(pointer) = ui.input(|i| i.pointer.interact_pos()) {
+                    let anchors = drag.anchors_at(pointer, scale);
+                    let mut scene = self.editor.scene().clone();
+                    if let Some(object) = scene.objects.iter_mut().find(|o| o.id == drag.id)
+                        && let Some(mut widget) = registry::get::<Widget>(object)?
+                    {
+                        widget.anchors = anchors;
+                        registry::set(object, &widget)?;
+                        self.editor.apply("Edit UI widget layout", scene)?;
+                    }
+                }
+            } else {
+                self.editor.finish_gesture();
+                self.canvas_drag = None;
+            }
+            handled = true;
+        }
+        Ok(handled)
+    }
+
     pub(super) fn gizmo(
         &mut self,
         ui: &mut egui::Ui,
@@ -1810,6 +2128,31 @@ fn prefab_drop_position(projection: Mat4, rect: Rect, pointer: Pos2, layer: Laye
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canvas_preview_and_scaled_drag_math_are_document_independent() {
+        let full = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200., 700.));
+        let wide = canvas_preview_rect(full, [1280, 720]);
+        let narrow = canvas_preview_rect(full, [480, 800]);
+        assert!((wide.width() / wide.height() - 16. / 9.).abs() < 0.001);
+        assert!((narrow.width() / narrow.height() - 0.6).abs() < 0.001);
+        assert!(full.contains(wide.min) && full.contains(narrow.max));
+        let start = bozzard_scene::middleware::ui::Anchors::default();
+        let mut drag = CanvasDrag {
+            id: "child".into(),
+            start,
+            pointer: Pos2::ZERO,
+            scale: 2.,
+            kind: CanvasDragKind::Move,
+            auto_height: false,
+        };
+        let moved = drag.anchors_at(Pos2::new(10., 20.), Vec2::splat(0.5));
+        assert_eq!(moved.offset, [10., 20.]);
+        drag.kind = CanvasDragKind::Resize;
+        drag.auto_height = true;
+        let resized = drag.anchors_at(Pos2::new(10., 20.), Vec2::splat(0.5));
+        assert_eq!(resized.size, [start.size[0] + 10., start.size[1]]);
+    }
 
     #[test]
     fn group_move_preserves_world_delta_and_moves_selected_descendants_once() {

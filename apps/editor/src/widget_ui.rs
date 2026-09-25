@@ -9,11 +9,30 @@ use bozzard_scene::{
 };
 use eframe::egui;
 use std::sync::Arc;
-pub fn component(ui: &mut egui::Ui, object: &mut Object, name: &str) -> Result<()> {
+pub fn component(
+    ui: &mut egui::Ui,
+    object: &mut Object,
+    name: &str,
+    scene: &bozzard_scene::Scene,
+) -> Result<()> {
     if name == "ui_widget" {
         let Some(mut widget) = registry::get::<Widget>(object)? else {
             return Ok(());
         };
+        if let Some(parent) = object
+            .parent
+            .as_deref()
+            .and_then(|id| scene.objects.iter().find(|candidate| candidate.id == id))
+            && let Some(container) = registry::get::<Widget>(parent)?
+            && container.layout != bozzard_scene::middleware::ui::Layout::Absolute
+        {
+            ui.colored_label(egui::Color32::YELLOW, format!("Parent {:?} layout owns this widget's position and size. Edit the parent's gap, grow, padding or layout mode.", container.layout));
+        }
+        if widget.auto_text_height {
+            ui.weak(
+                "Auto text height can expand this widget vertically beyond its authored height.",
+            );
+        }
         let before = widget.clone();
         ui.horizontal_wrapped(|ui| {
             ui.label("Anchor preset");

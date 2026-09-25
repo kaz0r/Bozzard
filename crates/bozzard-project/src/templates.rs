@@ -52,6 +52,7 @@ pub fn create_project(
         version: 1,
         name: name.into(),
         start_scene: "scenes/main.json".into(),
+        runtime_modules: Vec::new(),
         cook: CookTarget::Universal,
         view: match template {
             ProjectTemplate::ThirdPerson => Layer::ThreeD,
