@@ -20,7 +20,7 @@ use std::{
 };
 use winit::{
     application::ApplicationHandler,
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, DeviceId, ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
@@ -260,18 +260,34 @@ impl SurfaceRecovery {
     }
 }
 
+fn configure_surface_checked(
+    surface: &wgpu::Surface<'_>,
+    gpu: &Gpu,
+    config: &wgpu::SurfaceConfiguration,
+) -> Result<()> {
+    let errors = gpu.device.push_error_scope(wgpu::ErrorFilter::Validation);
+    surface.configure(&gpu.device, config);
+    if let Some(error) = pollster::block_on(errors.pop()) {
+        bail!("graphics surface configuration failed: {error:#?}");
+    }
+    Ok(())
+}
+
 impl View {
-    fn new(event_loop: &ActiveEventLoop, options: &Options) -> Result<Self> {
-        let window = Arc::new(
-            event_loop.create_window(
-                Window::default_attributes()
-                    .with_visible(false)
-                    .with_title(
-                        "Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload",
-                    )
-                    .with_inner_size(LogicalSize::new(1024.0, 640.0)),
-            )?,
-        );
+    fn new(
+        event_loop: &ActiveEventLoop,
+        options: &Options,
+        restored_size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self> {
+        let attributes = Window::default_attributes()
+            .with_visible(false)
+            .with_title("Bozzard Scene Lab — 1: 2D | 2: 3D | Space: pause | F5: save | R: reload");
+        let attributes = if let Some(size) = restored_size {
+            attributes.with_inner_size(PhysicalSize::new(size.width.max(1), size.height.max(1)))
+        } else {
+            attributes.with_inner_size(LogicalSize::new(1024.0, 640.0))
+        };
+        let window = Arc::new(event_loop.create_window(attributes)?);
         let accessibility = accessibility::Accessibility::new(event_loop, &window);
         window.set_visible(true);
         let instance = instance(options.backend);
@@ -290,7 +306,7 @@ impl View {
         renderer.set_occlusion_enabled(options.occlusion_enabled);
         renderer.set_profiling_enabled(options.frames.is_some());
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
-        surface.configure(&gpu.device, &config);
+        configure_surface_checked(&surface, &gpu, &config)?;
         if options.frames.is_some() {
             window.focus_window();
         }
@@ -317,7 +333,13 @@ impl View {
         })
     }
 
-    fn recreate_device(&mut self, demo: &mut SceneDemo, assets: &mut assets::Assets) -> Result<()> {
+    fn recreate_device(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        options: &Options,
+        demo: &mut SceneDemo,
+        assets: &mut assets::Assets,
+    ) -> Result<()> {
         let reason = self.gpu.failure().unwrap_or("device failure").to_owned();
         ensure!(
             !self.gpu.out_of_memory(),
@@ -393,8 +415,22 @@ impl View {
             Default::default(),
         );
         self.compute.stop();
-        // DX12 keeps the presentation queue in the swapchain created by the old
-        // device. A fresh surface lets the replacement device create its own.
+        if self.gpu.adapter.get_info().backend == wgpu::Backend::Dx12 {
+            // DXGI cannot attach a second swapchain to the same HWND while the
+            // original window and its presentation resources are still alive.
+            let mut replacement = Self::new(event_loop, options, Some(self.window.inner_size()))
+                .context("recreating DX12 presentation window")?;
+            replacement.device_recoveries = self.device_recoveries;
+            assets
+                .upload(&replacement.gpu, &mut replacement.renderer)
+                .context("restoring graphics assets")?;
+            demo.with_instance(|instance, _| replacement.compute.prepare(instance));
+            replacement.gpu_frame_ms = std::mem::take(&mut self.gpu_frame_ms);
+            replacement.surface_status = "GPU device recreated";
+            *self = replacement;
+            return Ok(());
+        }
+        // Bind a fresh presentation surface to the replacement device.
         self.surface = self
             .instance
             .create_surface(self.window.clone())
@@ -426,7 +462,7 @@ impl View {
             .context("restoring graphics assets")?;
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         demo.with_instance(|instance, _| compute.prepare(instance));
-        self.surface.configure(&gpu.device, &config);
+        configure_surface_checked(&self.surface, &gpu, &config)?;
         self.gpu = gpu;
         self.config = config;
         self.renderer = renderer;
@@ -925,7 +961,7 @@ impl ApplicationHandler for Player {
         if self.view.is_some() {
             return;
         }
-        match View::new(event_loop, &self.options) {
+        match View::new(event_loop, &self.options, None) {
             Ok(mut view) => {
                 let uploaded = (|| {
                     let render = extract(
@@ -999,12 +1035,12 @@ impl ApplicationHandler for Player {
                     self.demo.app.world.len(),
                     self.demo.instance().document().name.clone(),
                 );
-                if let Err(error) = self
-                    .view
-                    .as_mut()
-                    .unwrap()
-                    .recreate_device(&mut self.demo, &mut self.assets)
-                {
+                if let Err(error) = self.view.as_mut().unwrap().recreate_device(
+                    event_loop,
+                    &self.options,
+                    &mut self.demo,
+                    &mut self.assets,
+                ) {
                     self.fail(
                         event_loop,
                         error.context("injected device recreation failed"),
@@ -1048,11 +1084,12 @@ impl ApplicationHandler for Player {
                     );
                     return;
                 }
-                let result = self
-                    .view
-                    .as_mut()
-                    .unwrap()
-                    .recreate_device(&mut self.demo, &mut self.assets);
+                let result = self.view.as_mut().unwrap().recreate_device(
+                    event_loop,
+                    &self.options,
+                    &mut self.demo,
+                    &mut self.assets,
+                );
                 if let Err(error) = result {
                     if self.view.as_ref().unwrap().device_recoveries >= 2 {
                         self.fail(event_loop, error.context("GPU recovery exhausted"));
