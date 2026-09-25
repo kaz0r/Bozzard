@@ -372,27 +372,17 @@ pub fn curve_with_limit(ui: &mut egui::Ui, curve: &mut Curve, duration: f32, lim
             let index = state.index;
             let value =
                 state.min + (rect.bottom() - 4. - pointer.y) / (rect.height() - 8.) * state.span;
-            let left = if index > 0 {
-                curve.keys[index - 1].time + 0.0001
-            } else {
-                0.
-            };
-            let right = if index + 1 < curve.keys.len() {
-                curve.keys[index + 1].time - 0.0001
-            } else {
-                duration
-            };
+            let key_time = constrained_key_time(
+                curve,
+                index,
+                (pointer.x - rect.left()) / rect.width() * duration,
+                duration,
+                snap.then_some(steps[0]),
+            );
             let key = &mut curve.keys[index];
             match state.part {
                 CurveDragPart::Key => {
-                    let time = ((pointer.x - rect.left()) / rect.width() * duration)
-                        .clamp(left, right.max(left));
-                    key.time = if snap {
-                        (time / steps[0]).round() * steps[0]
-                    } else {
-                        time
-                    }
-                    .clamp(left, right.max(left));
+                    key.time = key_time;
                     key.value = if snap {
                         (value / steps[1]).round() * steps[1]
                     } else {
@@ -506,4 +496,44 @@ pub fn curve_with_limit(ui: &mut egui::Ui, curve: &mut Curve, duration: f32, lim
         }
     }
     curve.keys.sort_by(|a, b| a.time.total_cmp(&b.time));
+}
+
+fn constrained_key_time(
+    curve: &Curve,
+    index: usize,
+    requested: f32,
+    duration: f32,
+    snap_step: Option<f32>,
+) -> f32 {
+    let left = if index > 0 {
+        curve.keys[index - 1].time + 0.0001
+    } else {
+        0.
+    };
+    let right = if index + 1 < curve.keys.len() {
+        curve.keys[index + 1].time - 0.0001
+    } else {
+        duration
+    };
+    let time = requested.clamp(left, right.max(left));
+    snap_step
+        .map(|step| (time / step).round() * step)
+        .unwrap_or(time)
+        .clamp(left, right.max(left))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapped_key_drag_stays_between_neighbors() {
+        let mut curve = Curve::linear(0., 10., 1.);
+        curve.keys.insert(1, Key::new(0.5, 5.));
+        let later = constrained_key_time(&curve, 1, 0.99, 1., Some(0.25));
+        let earlier = constrained_key_time(&curve, 1, 0.01, 1., Some(0.25));
+        assert!(later < curve.keys[2].time);
+        assert!(earlier > curve.keys[0].time);
+        assert_eq!(constrained_key_time(&curve, 1, 0.62, 1., Some(0.25)), 0.5);
+    }
 }

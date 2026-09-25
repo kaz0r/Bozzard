@@ -4,6 +4,7 @@ use super::*;
 #[derive(Default)]
 pub(crate) struct ScriptPane {
     asset: Option<String>,
+    scene_path: PathBuf,
     path: PathBuf,
     source: String,
     saved: String,
@@ -28,7 +29,9 @@ impl ScriptPane {
 
 impl App {
     fn open_script_source(&mut self, asset: String) {
-        if self.script_pane.asset.as_deref() == Some(&asset) {
+        if self.script_pane.asset.as_deref() == Some(&asset)
+            && self.script_pane.scene_path == self.editor.path
+        {
             self.dock_focus = Some(docking::Pane::Script);
             return;
         }
@@ -62,6 +65,7 @@ impl App {
             Ok(text) => {
                 self.script_pane = ScriptPane {
                     asset: Some(asset),
+                    scene_path: self.editor.path.clone(),
                     path,
                     source: text.clone(),
                     saved: text,
@@ -117,6 +121,13 @@ impl App {
                 }
             }
         });
+        let current_scene = self.script_pane.scene_path == self.editor.path;
+        if !current_scene {
+            ui.colored_label(
+                Color32::YELLOW,
+                "This source belongs to another open scene. Save or discard its draft before applying a script to the current scene.",
+            );
+        }
         if let Some(disk) = self.script_pane.external.clone() {
             ui.colored_label(Color32::YELLOW, "This file changed outside the editor.");
             ui.horizontal(|ui| {
@@ -171,7 +182,7 @@ impl App {
             }
             if self.editor.play.is_some() {
                 let network = self.editor.play.as_ref().is_some_and(|play| play.multiplayer_active());
-                if ui.add_enabled(!network, egui::Button::new("Apply to running Play"))
+                if ui.add_enabled(current_scene && !network, egui::Button::new("Apply to running Play"))
                     .on_hover_text(if network { "Active network sessions require all peers to stop and restart with the same script revision" } else { "Compile this draft and replace the running Play script without saving the source file" })
                     .clicked() {
                     let result = self
@@ -190,7 +201,7 @@ impl App {
             let result = self.save_script_source(false);
             self.result(result);
         }
-        if self.editor.play.is_some() {
+        if current_scene && self.editor.play.is_some() {
             let message = if self.script_pane.requested.as_deref() != Some(&self.script_pane.source)
             {
                 "Draft has not been applied to Play".to_owned()
