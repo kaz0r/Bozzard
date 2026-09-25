@@ -87,7 +87,10 @@ jobs:
           fi
           printf '%s\n' "$output"
           if (( status != 0 )) || [[ "$output" != *device_recreation_ok* || "$output" != *window_ok* ]]; then
-            detail=${output: -3000}
+            detail=$output
+            if (( ${#detail} > 3000 )); then
+              detail=${detail: -3000}
+            fi
             detail=${detail//'%'/'%25'}
             detail=${detail//$'\r'/'%0D'}
             detail=${detail//$'\n'/'%0A'}
