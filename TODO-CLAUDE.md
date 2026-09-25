@@ -121,7 +121,7 @@ editor adapter does not expose it; authoring the graph uses existing component d
 
 ## C6: Editable curves, then a timeline pane — P2 / L, split into two PRs
 
-- [ ] First make existing curve plots interactive: drag keys, edit cubic tangents,
+- [x] First make existing curve plots interactive: drag keys, edit cubic tangents,
   snap time/value, and retain the precise numeric table.
 - [ ] Then add a timeline ruler, tracks, markers and camera cuts with zoom and
   an isolated edit-time scrub preview.

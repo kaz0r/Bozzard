@@ -57,6 +57,11 @@ same validated authoring command and Undo path.
 
 Add **Tween**, enable autoplay or call **Play Tween**, and add tracks for translation, rotation in degrees, scale, color, metallic, roughness, light intensity or text opacity. Each track targets Self or another scene object. The inspector edits and previews step, linear or cubic Hermite curves, including tangents. Shared easing and Once / Loop / Ping-pong playback apply to the clip.
 
+Drag keys directly in the curve plot to change time and value; cubic curves also expose incoming
+and outgoing tangent handles. **Snap keys** applies the displayed time and value increments. The
+numeric table remains available for precise edits. Escape during a drag restores its starting
+curve; a completed drag is one Undo step.
+
 Blueprints expose play/pause/stop/seek, progress, scalar curve sampling and completion. Tracks have at most 4,096 keys and a tween has at most 128 tracks. Marker catch-up is bounded; an excessively large timestep/event density reports an error instead of producing an unbounded queue. Objects driven by middleware motion are excluded from static GI baking.
 
 ## Widgets, 2D and accessibility
