@@ -1288,6 +1288,39 @@ impl Editor {
             &cached.as_ref().unwrap().1
         }))
     }
+    /// Seek only the cached Edit preview world using the same timeline sampler as Play.
+    /// A zero-duration step applies motion/camera cuts without crossing or emitting markers.
+    pub fn scrub_timeline_preview(&self, owner: &str, time: f32) -> Result<()> {
+        ensure!(
+            self.play.is_none(),
+            "Stop Play before scrubbing the Edit preview"
+        );
+        {
+            let _ = self.edit_demo()?;
+        }
+        let mut cached = self.edit_demo.borrow_mut();
+        let demo = &mut cached.as_mut().unwrap().1;
+        demo.with_instance(|instance, world| {
+            instance.control_timeline(
+                world,
+                owner,
+                bozzard_scene::middleware::tween::Control::Seek(time),
+            )?;
+            instance.step_timelines(world, 0.)
+        })
+    }
+
+    pub fn clear_timeline_preview(&self) {
+        *self.edit_demo.borrow_mut() = None;
+    }
+
+    pub fn timeline_preview_transform(&self, id: &str) -> Result<Option<Transform>> {
+        let demo = self.edit_demo()?;
+        Ok(demo
+            .instance()
+            .entity(id)
+            .and_then(|entity| demo.app.world.get::<Transform>(entity).copied()))
+    }
     /// Translate the selected Play-world collider without touching the authored scene.
     pub fn move_selected_box(&mut self, delta: Vec3) -> Result<bozzard_scene::MoveResult> {
         let id = self

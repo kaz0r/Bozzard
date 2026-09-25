@@ -40,18 +40,18 @@ Import a glTF/GLB with skins or animation. Animated models remain whole objects 
 
 The Animator inspector authors named states, clip motions or one-dimensional blend trees, float parameters, ordered transitions, threshold/exit-time conditions, fade duration, clip events and root motion. Blend samples interpolate neighboring thresholds; events come from the dominant clip to avoid duplicate markers. Root motion extracts selected translation axes and yaw; a navigation agent and root motion cannot both own the object's movement.
 
-Blueprints can play a state with a fade, pause/stop/seek, set parameters, query the state/progress, and receive **On Animation Event** with the marker name and time. Event context survives Delay and save/load. Animation sampling uses the same cooked rig on the server; native compute skinning feeds PBR, depth, shadow, culling and motion-vector paths. Paused poses reuse their cached palette, and deformation invalidates shadow caches.
-
-Supported glTF tracks are translation, rotation and scale with step, linear and cubic-spline interpolation. Rotations use normalized quaternion interpolation. Four joint influences per vertex, 1,024 nodes, 4,096 skin bindings, 256 clips and one million keys bound import/runtime work. Morph targets and additional influence sets are rejected with an import error; convert those assets to the supported representation before import.
-
-**Timeline** combines motion tracks, named markers and camera cuts. Its inspector edits target objects, clip duration, repeat/easing, keys and cut cameras. **Play / Pause / Stop / Seek Timeline** controls it; **On Timeline Event** receives marker names. Camera cuts select existing scene cameras. Stopping releases the override, and a removed cut camera falls back to the view's default camera.
-
 The **State graph** shows states and numbered directed transitions. Click a source and destination
 state (or the wildcard source) to create a connection; click a numbered badge to select it for
 editing in the transition form. A yellow border marks the initial state and the active Play state
 is highlighted. Dragging a node changes only its saved editor layout; transition priority remains
 the order shown in the form. Rename and delete update or remove affected references through the
 same validated authoring command and Undo path.
+
+Blueprints can play a state with a fade, pause/stop/seek, set parameters, query the state/progress, and receive **On Animation Event** with the marker name and time. Event context survives Delay and save/load. Animation sampling uses the same cooked rig on the server; native compute skinning feeds PBR, depth, shadow, culling and motion-vector paths. Paused poses reuse their cached palette, and deformation invalidates shadow caches.
+
+Supported glTF tracks are translation, rotation and scale with step, linear and cubic-spline interpolation. Rotations use normalized quaternion interpolation. Four joint influences per vertex, 1,024 nodes, 4,096 skin bindings, 256 clips and one million keys bound import/runtime work. Morph targets and additional influence sets are rejected with an import error; convert those assets to the supported representation before import.
+
+**Timeline** combines motion tracks, named markers and camera cuts. Its inspector edits target objects, clip duration, repeat/easing, keys and cut cameras. **Play / Pause / Stop / Seek Timeline** controls it; **On Timeline Event** receives marker names. Camera cuts select existing scene cameras. Stopping releases the override, and a removed cut camera falls back to the view's default camera.
 
 ## Tweens and curves
 
@@ -61,6 +61,12 @@ Drag keys directly in the curve plot to change time and value; cubic curves also
 and outgoing tangent handles. **Snap keys** applies the displayed time and value increments. The
 numeric table remains available for precise edits. Escape during a drag restores its starting
 curve; a completed drag is one Undo step.
+
+The dockable **Timeline** pane shows the selected object's tracks, marker lane, camera cuts and
+time ruler. Zoom changes pixels per second. Click or use the keyboard accessible **Preview time**
+slider to scrub, and drag markers or cuts to move them. Scrubbing uses the runtime timeline sampler
+in an isolated Edit preview: it does not fire marker events, save sampled poses, or change the
+authored scene. **Clear preview** restores the normal Edit view.
 
 Blueprints expose play/pause/stop/seek, progress, scalar curve sampling and completion. Tracks have at most 4,096 keys and a tween has at most 128 tracks. Marker catch-up is bounded; an excessively large timestep/event density reports an error instead of producing an unbounded queue. Objects driven by middleware motion are excluded from static GI baking.
 

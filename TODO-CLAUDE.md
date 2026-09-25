@@ -123,7 +123,7 @@ editor adapter does not expose it; authoring the graph uses existing component d
 
 - [x] First make existing curve plots interactive: drag keys, edit cubic tangents,
   snap time/value, and retain the precise numeric table.
-- [ ] Then add a timeline ruler, tracks, markers and camera cuts with zoom and
+- [x] Then add a timeline ruler, tracks, markers and camera cuts with zoom and
   an isolated edit-time scrub preview.
 
 **Why now:** curves are plotted but edited in tables, and timeline tracks/markers

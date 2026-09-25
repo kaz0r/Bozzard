@@ -20,6 +20,8 @@ impl App {
         self.effects_preview = None;
         self.drag = None;
         self.canvas_drag = None;
+        self.timeline_scrub = None;
+        self.editor.clear_timeline_preview();
         self.gameplay_controls.reset();
         if let Some(refresh) = &self.refresh {
             refresh.job.cancel();

@@ -56,6 +56,7 @@ mod snapping;
 mod sprite_ui;
 mod surfaces;
 mod theme;
+mod timeline_pane;
 mod viewport;
 mod widget_ui;
 
@@ -119,6 +120,8 @@ struct Workspace {
     animation_graph:
         std::collections::BTreeMap<String, std::collections::BTreeMap<String, [f32; 2]>>,
     canvas_preview: [u32; 2],
+    timeline_visible: bool,
+    timeline_zoom: f32,
 }
 impl Default for Workspace {
     fn default() -> Self {
@@ -150,6 +153,8 @@ impl Default for Workspace {
             ortho_zoom: 1.0,
             animation_graph: Default::default(),
             canvas_preview: [0, 0],
+            timeline_visible: false,
+            timeline_zoom: 100.,
         }
     }
 }
@@ -252,6 +257,7 @@ struct App {
     allow_close: bool,
     drag: Option<viewport::Drag>,
     canvas_drag: Option<viewport::CanvasDrag>,
+    timeline_scrub: Option<(String, f32)>,
     navigation_button: Option<egui::PointerButton>,
     mouse_captured: bool,
     escape_deselect_requested: bool,
@@ -292,6 +298,8 @@ enum Pending {
 impl App {
     fn stop_play(&mut self) {
         self.editor.stop_play();
+        self.timeline_scrub = None;
+        self.editor.clear_timeline_preview();
         #[cfg(feature = "factory")]
         {
             self.factory_module = None;
@@ -397,6 +405,7 @@ impl App {
             allow_close: false,
             drag: None,
             canvas_drag: None,
+            timeline_scrub: None,
             navigation_button: None,
             mouse_captured: false,
             escape_deselect_requested: false,
@@ -1723,6 +1732,7 @@ impl eframe::App for App {
             self.workspace.settings_visible,
             self.workspace.debug_visible,
             self.script_pane.is_open(),
+            self.workspace.timeline_visible,
         ];
         self.viewport_rect = None;
         layout.show(ui, visible, |pane, ui| match pane {
@@ -1733,6 +1743,7 @@ impl eframe::App for App {
             docking::Pane::Settings => self.settings_content(ui),
             docking::Pane::Debug => self.debug_content(ui),
             docking::Pane::Script => self.script_source_pane(ui),
+            docking::Pane::Timeline => self.timeline_pane(ui),
         });
         self.workspace.docking = layout;
         if let Some(pane) = self.dock_focus.take() {

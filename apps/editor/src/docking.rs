@@ -11,9 +11,10 @@ pub enum Pane {
     Settings,
     Debug,
     Script,
+    Timeline,
 }
 impl Pane {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 8] = [
         Self::Scene,
         Self::Hierarchy,
         Self::Inspector,
@@ -21,6 +22,7 @@ impl Pane {
         Self::Settings,
         Self::Debug,
         Self::Script,
+        Self::Timeline,
     ];
     fn title(self) -> &'static str {
         match self {
@@ -31,6 +33,7 @@ impl Pane {
             Self::Settings => "Settings",
             Self::Debug => "Debug",
             Self::Script => "Script source",
+            Self::Timeline => "Timeline",
         }
     }
     fn home(self) -> Dock {
@@ -38,7 +41,7 @@ impl Pane {
             Self::Scene => Dock::Center,
             Self::Hierarchy => Dock::Left,
             Self::Inspector => Dock::LeftLower,
-            Self::Assets | Self::Debug | Self::Script => Dock::Bottom,
+            Self::Assets | Self::Debug | Self::Script | Self::Timeline => Dock::Bottom,
             Self::Settings => Dock::Right,
         }
     }
@@ -82,24 +85,24 @@ pub struct Layout {
         default = "default_locations",
         deserialize_with = "deserialize_locations"
     )]
-    locations: [Dock; 7],
+    locations: [Dock; 8],
     selected: [Option<Pane>; 5],
     generation: u64,
     #[serde(skip)]
-    tab_rects: [Option<egui::Rect>; 7],
+    tab_rects: [Option<egui::Rect>; 8],
     #[serde(skip)]
-    tab_layers: [Option<egui::LayerId>; 7],
+    tab_layers: [Option<egui::LayerId>; 8],
     #[serde(skip)]
     drag_candidate: Option<(Pane, egui::Pos2)>,
 }
-fn default_locations() -> [Dock; 7] {
+fn default_locations() -> [Dock; 8] {
     Pane::ALL.map(Pane::home)
 }
 fn deserialize_locations<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
-) -> Result<[Dock; 7], D::Error> {
+) -> Result<[Dock; 8], D::Error> {
     let saved = Vec::<Dock>::deserialize(deserializer)?;
-    if saved.len() > 7 {
+    if saved.len() > 8 {
         return Err(serde::de::Error::custom("too many dock locations"));
     }
     let mut locations = default_locations();
@@ -120,8 +123,8 @@ impl Default for Layout {
                 Some(Pane::Scene),
             ],
             generation: 0,
-            tab_rects: [None; 7],
-            tab_layers: [None; 7],
+            tab_rects: [None; 8],
+            tab_layers: [None; 8],
             drag_candidate: None,
         }
     }
@@ -146,7 +149,7 @@ impl Layout {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
-        visible: [bool; 7],
+        visible: [bool; 8],
         mut draw: impl FnMut(Pane, &mut egui::Ui),
     ) {
         let ctx = ui.ctx().clone();
@@ -302,7 +305,7 @@ impl Layout {
         &mut self,
         ui: &mut egui::Ui,
         dock: Dock,
-        visible: [bool; 7],
+        visible: [bool; 8],
         action: &mut Option<(Pane, Dock)>,
         draw: &mut impl FnMut(Pane, &mut egui::Ui),
     ) {
@@ -386,7 +389,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    layout.show(ui, [true; 7], |pane, ui| {
+                    layout.show(ui, [true; 8], |pane, ui| {
                         ui.label(pane.title());
                     })
                 },
@@ -454,9 +457,9 @@ mod tests {
         assert_eq!(restored.locations[Pane::Inspector as usize], Dock::Right);
         assert_eq!(restored.locations[Pane::Assets as usize], Dock::Floating);
         let ctx = egui::Context::default();
-        let mut counts = [0; 7];
+        let mut counts = [0; 8];
         let mut output = ctx.run_ui(Default::default(), |ui| {
-            restored.show(ui, [true; 7], |p, ui| {
+            restored.show(ui, [true; 8], |p, ui| {
                 counts[p as usize] += 1;
                 ui.label(p.title());
             })
@@ -476,5 +479,6 @@ mod tests {
         legacy["locations"].as_array_mut().unwrap().truncate(6);
         let upgraded: Layout = serde_json::from_value(legacy).unwrap();
         assert_eq!(upgraded.locations[Pane::Script as usize], Dock::Bottom);
+        assert_eq!(upgraded.locations[Pane::Timeline as usize], Dock::Bottom);
     }
 }

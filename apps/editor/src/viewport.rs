@@ -484,6 +484,14 @@ impl App {
                 }
             }
             ui.toggle_value(&mut self.level_tools.visible, "Build");
+            if ui.toggle_value(&mut self.workspace.timeline_visible, "Timeline").clicked() {
+                self.dock_focus = Some(docking::Pane::Timeline);
+                if !self.workspace.timeline_visible {
+                    self.timeline_scrub = None;
+                    self.editor.clear_timeline_preview();
+                    self.viewport_stamp = None;
+                }
+            }
             ui.menu_button("View", |ui| {
                 ui.checkbox(&mut self.workspace.colliders_visible, "Collider guides");
                 ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");

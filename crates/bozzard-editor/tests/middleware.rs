@@ -12,6 +12,64 @@ fn scene(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
+fn timeline_scrub_samples_in_edit_world_without_changing_document() -> anyhow::Result<()> {
+    use bozzard_scene::{
+        Scene,
+        blueprint::ObjectRef,
+        middleware::{
+            curve::Curve,
+            registry,
+            timeline::{Marker, Timeline},
+            tween::{Property, Track},
+        },
+    };
+    use std::sync::Arc;
+    let mut document = Scene::from_json(
+        r#"{"version":1,"name":"Scrub","views":{},"objects":[
+        {"id":"director","name":"Director","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+        {"id":"target","name":"Target","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}}]}"#,
+    )?;
+    let mut track = Track::new(Property::Translation);
+    track.target = ObjectRef::Id("target".into());
+    track.channels[0] = Curve::linear(0., 10., 2.);
+    let mut timeline = Timeline::default();
+    timeline.motion.duration = 2.;
+    timeline.motion.tracks = Arc::new(vec![track]);
+    timeline.markers = Arc::new(vec![Marker {
+        time: 1.,
+        name: "Never fire in Edit".into(),
+    }]);
+    registry::set(&mut document.objects[0], &timeline)?;
+    let editor = Editor::new(document.clone(), &scene("unused-scrub-test"))?;
+    assert_eq!(
+        editor
+            .timeline_preview_transform("target")?
+            .unwrap()
+            .translation[0],
+        0.
+    );
+    editor.scrub_timeline_preview("director", 1.)?;
+    assert_eq!(
+        editor
+            .timeline_preview_transform("target")?
+            .unwrap()
+            .translation[0],
+        5.
+    );
+    assert_eq!(editor.scene(), &document);
+    assert!(!editor.dirty());
+    editor.clear_timeline_preview();
+    assert_eq!(
+        editor
+            .timeline_preview_transform("target")?
+            .unwrap()
+            .translation[0],
+        0.
+    );
+    Ok(())
+}
+
+#[test]
 fn ui_widget_layout_gesture_undo_save_and_reopen() -> anyhow::Result<()> {
     use bozzard_scene::middleware::{registry, ui::Widget};
     let mut editor = Editor::open(&scene("ui-2d-lab"))?;
