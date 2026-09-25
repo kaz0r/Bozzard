@@ -472,13 +472,14 @@ impl View {
         Ok(())
     }
 
-    fn resize(&mut self, width: u32, height: u32) {
+    fn resize(&mut self, width: u32, height: u32) -> Result<()> {
         self.drawable = width > 0 && height > 0;
         if self.drawable {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&self.gpu.device, &self.config);
+            configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
         }
+        Ok(())
     }
 
     fn draw(
@@ -502,7 +503,7 @@ impl View {
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
             wgpu::CurrentSurfaceTexture::Outdated => {
                 self.surface_status = "surface outdated";
-                self.surface.configure(&self.gpu.device, &self.config);
+                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
                 return Ok(false);
             }
             wgpu::CurrentSurfaceTexture::Timeout => {
@@ -516,7 +517,7 @@ impl View {
             wgpu::CurrentSurfaceTexture::Lost => {
                 self.surface_recovery.lost()?;
                 self.surface_status = "surface lost; reconfiguring";
-                self.surface.configure(&self.gpu.device, &self.config);
+                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
                 return Ok(false);
             }
             wgpu::CurrentSurfaceTexture::Validation => bail!("graphics surface validation failed"),
@@ -573,7 +574,7 @@ impl View {
         self.surface_recovery.presented();
         self.surface_status = "presented";
         if reconfigure {
-            self.surface.configure(&self.gpu.device, &self.config);
+            configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
         }
         Ok(true)
     }
@@ -1286,7 +1287,13 @@ impl ApplicationHandler for Player {
             {
                 event_loop.exit()
             }
-            WindowEvent::Resized(size) => view.resize(size.width, size.height),
+            WindowEvent::Resized(size) => {
+                if let Err(error) = view.resize(size.width, size.height)
+                    && view.gpu.failure().is_none()
+                {
+                    self.fail(event_loop, error.context("resizing graphics surface"));
+                }
+            }
             WindowEvent::RedrawRequested => {
                 match view.draw(&self.demo, &mut self.assets, self.options.layer) {
                     Ok(true) => {
