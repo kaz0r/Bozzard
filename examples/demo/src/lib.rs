@@ -257,15 +257,50 @@ pub fn prepare_runtime_files(
 pub struct SceneDemo {
     pub app: App,
     multiplayer: Option<multiplayer::Multiplayer>,
+    simulation_worker: Option<bozzard_app::simulation_worker::SimulationWorker>,
 }
 
 impl SceneDemo {
+    /// Native hosts opt into overlapping local simulation with a prepared frame.
+    /// Multiplayer retains its own independently paced worker.
+    pub fn set_threaded_simulation(&mut self, enabled: bool) -> anyhow::Result<()> {
+        if enabled == self.simulation_worker.is_some() {
+            return Ok(());
+        }
+        let enabled = enabled && !self.requires_multiplayer() && !self.multiplayer_active();
+        if enabled && self.simulation_worker.is_none() {
+            self.simulation_worker = Some(bozzard_app::simulation_worker::SimulationWorker::new()?);
+        } else if !enabled {
+            self.simulation_worker = None;
+        }
+        Ok(())
+    }
+
+    pub fn advance_with_frame<R>(
+        &mut self,
+        elapsed: std::time::Duration,
+        frame: impl FnOnce() -> R,
+    ) -> anyhow::Result<R> {
+        let result = if let Some(worker) = &mut self.simulation_worker {
+            worker.advance_with(&mut self.app, elapsed, frame)?
+        } else {
+            bozzard_app::simulation_worker::advance_serial(&mut self.app, elapsed, frame)
+        };
+        self.check_simulation()?;
+        Ok(result)
+    }
+
     pub fn requires_multiplayer(&self) -> bool {
         self.instance()
             .document()
             .objects
             .iter()
             .any(|o| o.extras.contains_key("steam_multiplayer"))
+    }
+    pub fn simulation_worker_failed(&self) -> bool {
+        self.simulation_worker
+            .as_ref()
+            .is_some_and(|worker| worker.failed())
     }
     /// Called only when publishing Play on the main thread, never by scene-loading workers.
     pub fn enable_editor_multiplayer(&mut self) -> anyhow::Result<()> {
@@ -287,6 +322,7 @@ impl SceneDemo {
     }
     pub fn attach_multiplayer(&mut self, mut net: multiplayer::Multiplayer) -> anyhow::Result<()> {
         anyhow::ensure!(self.multiplayer.is_none(), "multiplayer already active");
+        self.simulation_worker = None;
         net.update(self)?;
         self.multiplayer = Some(net);
         Ok(())
@@ -711,6 +747,7 @@ impl SceneDemo {
         Ok(Self {
             app,
             multiplayer: None,
+            simulation_worker: None,
         })
     }
 }

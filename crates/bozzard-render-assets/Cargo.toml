@@ -8,6 +8,8 @@ publish.workspace = true
 [dependencies]
 accesskit = "0.24.1"
 bozzard-assets.workspace = true
+bozzard-diagnostics.workspace = true
+bozzard-ecs.workspace = true
 bozzard-scene.workspace = true
 bozzard-render.workspace = true
 glam.workspace = true

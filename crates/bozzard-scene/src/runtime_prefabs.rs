@@ -62,57 +62,72 @@ impl SceneInstance {
         asset: &str,
         position: [f32; 3],
     ) -> Result<String> {
-        let template = self
-            .templates
-            .get(asset)
-            .context("Prefab template unavailable; load or place this prefab before Play")?;
-        ensure!(
-            position.iter().all(|v| v.is_finite()),
-            "prefab position must be finite"
-        );
-        // Never reuse persistent runtime IDs: a stale Blueprint reference must stay invalid.
-        let members = loop {
-            let serial = self
-                .next_spawn
-                .checked_add(1)
-                .context("prefab ID space exhausted")?;
-            self.next_spawn = serial;
-            let members: BTreeMap<_, _> = template
+        Ok(self
+            .spawn_prefab_batch(world, &[(asset, position)])?
+            .remove(0))
+    }
+
+    /// Validate one prospective document for consecutive spawn commands. Templates
+    /// and the complete resulting scene still pass the ordinary validation path.
+    pub(crate) fn spawn_prefab_batch(
+        &mut self,
+        world: &mut World,
+        requests: &[(&str, [f32; 3])],
+    ) -> Result<Vec<String>> {
+        let mut scene = self.document.clone();
+        let mut roots = Vec::with_capacity(requests.len());
+        for &(asset, position) in requests {
+            let template = self
+                .templates
+                .get(asset)
+                .context("Prefab template unavailable; load or place this prefab before Play")?;
+            ensure!(
+                position.iter().all(|v| v.is_finite()),
+                "prefab position must be finite"
+            );
+            // Never reuse persistent runtime IDs: a stale Blueprint reference must stay invalid.
+            let members = loop {
+                let serial = self
+                    .next_spawn
+                    .checked_add(1)
+                    .context("prefab ID space exhausted")?;
+                self.next_spawn = serial;
+                let members: BTreeMap<_, _> = template
+                    .objects
+                    .iter()
+                    .enumerate()
+                    .map(|(i, o)| (o.id.clone(), format!("spawn-{serial}-{i}")))
+                    .collect();
+                if members.values().all(|id| !self.entities.contains_key(id)) {
+                    break members;
+                }
+            };
+            let root = members[&template.root].clone();
+            let baseline: Vec<_> = template
                 .objects
                 .iter()
-                .enumerate()
-                .map(|(i, o)| (o.id.clone(), format!("spawn-{serial}-{i}")))
+                .cloned()
+                .map(|mut o| {
+                    crate::scene_loading::remap_object(&mut o, &members);
+                    o
+                })
                 .collect();
-            if members.values().all(|id| !self.entities.contains_key(id)) {
-                break members;
+            for mut object in baseline.clone() {
+                if object.id == root {
+                    object.transform.translation = position;
+                }
+                scene.objects.push(object);
             }
-        };
-        let root = members[&template.root].clone();
-        let baseline: Vec<_> = template
-            .objects
-            .iter()
-            .cloned()
-            .map(|mut o| {
-                crate::scene_loading::remap_object(&mut o, &members);
-                o
-            })
-            .collect();
-        // ponytail: validate a cloned document per spawn; batch changes if spawn-heavy scenes need it.
-        let mut scene = self.document.clone();
-        for mut object in baseline.clone() {
-            if object.id == root {
-                object.transform.translation = position;
-            }
-            scene.objects.push(object);
+            scene.prefabs.insert(
+                root.clone(),
+                PrefabInstance {
+                    asset: asset.into(),
+                    members,
+                    baseline,
+                },
+            );
+            roots.push(root);
         }
-        scene.prefabs.insert(
-            root.clone(),
-            PrefabInstance {
-                asset: asset.into(),
-                members,
-                baseline,
-            },
-        );
         let order = scene.order()?;
         for object in &scene.objects[self.document.objects.len()..] {
             self.entities
@@ -122,7 +137,39 @@ impl SceneInstance {
         self.order = order;
         self.rebuild_hierarchy_index();
         self.refresh_collectibles(world);
-        Ok(root)
+        Ok(roots)
+    }
+
+    pub(crate) fn spawn_prefab_batch_for(
+        &mut self,
+        world: &mut World,
+        requests: &[(String, String, [f32; 3])],
+    ) -> Result<Vec<String>> {
+        let mut scopes = Vec::with_capacity(requests.len());
+        for (owner, _, _) in requests {
+            ensure!(self.entities.contains_key(owner), "prefab owner is missing");
+            scopes.push(
+                self.additive_scenes
+                    .iter()
+                    .find(|(_, group)| group.members.contains(owner))
+                    .map(|(handle, _)| handle.clone()),
+            );
+        }
+        let assets: Vec<_> = requests
+            .iter()
+            .map(|(_, asset, position)| (asset.as_str(), *position))
+            .collect();
+        let roots = self.spawn_prefab_batch(world, &assets)?;
+        for (root, scope) in roots.iter().zip(scopes) {
+            if let Some(scope) = scope {
+                self.additive_scenes
+                    .get_mut(&scope)
+                    .unwrap()
+                    .members
+                    .extend(self.document.prefabs[root].members.values().cloned());
+            }
+        }
+        Ok(roots)
     }
 
     /// Any member identifies its entire linked prefab; active cameras/players are protected.

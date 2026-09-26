@@ -573,6 +573,7 @@ impl SceneInstance {
             for entity in next.entities.values_mut() {
                 *entity = mapping[entity];
             }
+            next.rebuild_hierarchy_index();
             next.set_gpu_particles(self.gpu_particles_enabled());
             next.templates.extend(std::mem::take(&mut self.templates));
             next.script_engine = std::mem::take(&mut self.script_engine);

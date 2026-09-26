@@ -70,6 +70,15 @@ def factory_ui():
     widget("objective-fill", "objective-panel", (22, 132), (0, 12), background=accent, order=2)
     widget("objective-note", "objective-panel", (22, 153), (356, 20), "Production continues while you build.", 14, muted)
 
+    widget("debug-panel", "factory-ui", (24, 214), (336, 158), background=panel, order=1)
+    widget("debug-fps", "debug-panel", (18, 12), (204, 27), "-- FPS", 21)
+    widget("debug-title", "debug-panel", (262, 17), (60, 18), "DEBUG", 12, muted)
+    widget("debug-timing", "debug-panel", (18, 47), (304, 18), "Frame -- ms   CPU draw -- ms", 13, muted)
+    widget("debug-chunks", "debug-panel", (18, 67), (304, 18), "Chunks -- loaded / -- explored", 13, muted)
+    widget("debug-entities", "debug-panel", (18, 87), (304, 18), "Visible entities --   Draws --", 13, muted)
+    widget("debug-triangles", "debug-panel", (18, 107), (304, 18), "Triangles --   Simulating --", 13, muted)
+    widget("debug-simulation", "debug-panel", (18, 127), (304, 18), "Sim --   CPU -- ms   Wait -- ms", 13, muted)
+
     widget("world-panel", "factory-ui", (-24, 24), (206, 142), background=panel, anchor=(1, 0), pivot=(1, 0))
     widget("world-status", "world-panel", (18, 16), (172, 24), "EARTH  /  DAY", 16)
     widget("stored-iron", "world-panel", (18, 51), (172, 22), "Iron       0", 16, muted)
@@ -84,16 +93,29 @@ def factory_ui():
         key = str(i + 1)
         widget("slot-" + key, "build-panel", (18 + i * 91, 12), (87, 58),
                background=[0.13, 0.19, 0.16, 0.80])
-        widget("slot-key-" + key, "slot-" + key, (10, 6), (60, 18), key, 14, muted)
-        widget("slot-name-" + key, "slot-" + key, (8, 29), (78, 22), name, 15)
+        widget("slot-key-" + key, "slot-" + key, (10, 6), (60, 18), key, 11, muted)
+        widget("slot-name-" + key, "slot-" + key, (8, 29), (78, 22), name, 12)
     widget("build-status", "build-panel", (22, 83), (250, 22), "MINER  /  Facing East", 14)
     widget("controls-hint", "build-panel", (280, 83), (466, 22), "WASD Move   Space Build   R Rotate machine   X Remove", 14, muted)
-    widget("camera-hint", "build-panel", (22, 108), (720, 20), "E  Open nearby storage      Ctrl + R  Turn camera      N  New world", 14, muted)
+    widget("camera-hint", "build-panel", (22, 108), (720, 20), "Ctrl + 1/2/3  Bars    F  Gather    J  Journal    M  Map    E  Collect / Storage    Ctrl + R  Camera", 13, muted)
+    widget("bar-title", "factory-ui", (0, -167), (720, 22), "I  /  PRODUCTION", 14,
+           anchor=(0.5, 1), pivot=(0.5, 0))
+    widget("chunk-status", "factory-ui", (-24, 216), (206, 40), "Region 0, 0", 13, muted,
+           panel, anchor=(1, 0), pivot=(1, 0), padding=(12, 10, 0, 0))
+    widget("menu-open", "factory-ui", (-24, 266), (206, 34), "Menu   Esc", 14, cream,
+           panel, anchor=(1, 0), pivot=(1, 0), padding=(18, 9, 8, 0))
+    objects[-1]["ui_widget"].update(kind="button", shortcuts=["Escape"])
+    widget("map-open", "factory-ui", (-24, 308), (206, 34), "Map   M", 14, cream,
+           panel, anchor=(1, 0), pivot=(1, 0), padding=(18, 9, 8, 0))
+    objects[-1]["ui_widget"].update(kind="button", shortcuts=["M"])
+    widget("zoom-hint", "factory-ui", (-24, 350), (206, 22), "Mouse wheel  /  Zoom", 13, muted,
+           anchor=(1, 0), pivot=(1, 0))
     widget("build-message", "factory-ui", (0, -187), (720, 26), "Start Play to bring this factory to life.", 16,
            anchor=(0.5, 1), pivot=(0.5, 0))
 
+    # World labels sit below the fixed HUD panels and their text.
     widget("nearby-tooltip", "factory-ui", (0, -12), (160, 36), "Miner: Quartz", 16,
-           background=[0.024, 0.034, 0.029, 0.96], pivot=(0.5, 1), padding=(14, 8, 10, 0), order=100)
+           background=[0.024, 0.034, 0.029, 0.96], pivot=(0.5, 1), padding=(14, 8, 10, 0), order=-1)
     objects[-1]["ui_widget"]["visible"] = False
 
     # A script-driven modal. Slot buttons supply hit targets; labels inherit their input.
@@ -117,6 +139,9 @@ def factory_ui():
         widget(name + "-count", name, (79, 8), (48, 22), "", 17)
     widget("storage-help", "storage-panel", (26, 465), (590, 23),
            "Drag to move or merge  •  Right-click for stack actions", 14, muted)
+    widget("storage-take", "storage-panel", (380, 63), (235, 30), "Take items into backpack", 14,
+           cream, [0.16, 0.23, 0.19, 1], padding=(10, 6, 0, 0))
+    objects[-1]["ui_widget"].update(kind="button")
     widget("stack-menu", "storage-overlay", (0, 0), (192, 137), background=[0.025, 0.045, 0.033, 1], order=30)
     objects[-1]["ui_widget"]["visible"] = False
     widget("stack-menu-title", "stack-menu", (12, 12), (168, 26), "Stack", 14, muted)
@@ -127,6 +152,103 @@ def factory_ui():
     widget("stack-drag", "storage-overlay", (12, 12), (152, 68), "", 15, cream,
            [0.25, 0.35, 0.27, 0.95], padding=(12, 12, 8, 0), order=40)
     objects[-1]["ui_widget"].update(kind="label", visible=False)
+
+    # A book built from ordinary editable widgets, sized to the canvas's fit scaling.
+    ink, faded = [0.20, 0.13, 0.08, 1], [0.43, 0.34, 0.24, 1]
+    widget("journal-overlay", "factory-ui", (0, 0), (0, 0), background=[0.025, 0.02, 0.015, 0.7], order=250)
+    objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
+    objects[-1]["ui_widget"]["visible"] = False
+    widget("journal-book", "journal-overlay", (0, 0), (940, 540), background=[0.22, 0.12, 0.065, 1],
+           anchor=(0.5, 0.5), pivot=(0.5, 0.5))
+    for side, x in [("left", 14), ("right", 475)]:
+        widget("journal-paper-" + side, "journal-book", (x, 14), (451, 512), background=[0.91, 0.85, 0.69, 1])
+    widget("journal-spine", "journal-book", (462, 20), (15, 500), background=[0.47, 0.32, 0.18, 0.4])
+    widget("journal-title", "journal-book", (38, 30), (380, 38), "FIELD JOURNAL", 26, ink)
+    widget("journal-subtitle", "journal-book", (38, 76), (390, 26), "EARTH  /  THE FIRST FACTORY", 13, faded)
+    for page, title in enumerate(["I  Unlocks", "II  Recipes", "III  Spaceship"], 1):
+        widget(f"journal-tab-{page}", "journal-book", (38 + (page - 1) * 133, 115), (127, 36), title, 14, ink,
+               [0.77, 0.67, 0.48, 1], padding=(9, 10, 0, 0))
+        objects[-1]["ui_widget"].update(kind="button", accessible_name=title)
+    widget("journal-left-title", "journal-book", (38, 177), (390, 28), "Your discoveries", 21, ink)
+    widget("journal-left-body", "journal-book", (38, 219), (390, 247), "", 16, ink)
+    widget("journal-right-title", "journal-book", (502, 68), (380, 36), "Next delivery", 23, ink)
+    widget("journal-right-body", "journal-book", (502, 117), (380, 212), "", 16, ink)
+    widget("journal-backpack", "journal-book", (502, 341), (380, 58), "", 14, faded)
+    for name, label, x, y, width in [
+        ("journal-deliver", "Deliver materials", 502, 418, 380),
+        ("journal-craft-iron", "Smelt iron", 502, 408, 180),
+        ("journal-craft-copper", "Smelt copper", 702, 408, 180),
+        ("journal-craft-parts", "Assemble part", 502, 455, 380),
+    ]:
+        widget(name, "journal-book", (x, y), (width, 36), label, 15, ink,
+               [0.75, 0.64, 0.42, 1], padding=(12, 9, 0, 0))
+        objects[-1]["ui_widget"].update(kind="button")
+    widget("journal-close", "journal-book", (807, 25), (90, 30), "Close  J", 14, ink,
+           [0.77, 0.67, 0.48, 1], padding=(10, 7, 0, 0))
+    objects[-1]["ui_widget"].update(kind="button", shortcuts=["J"])
+    widget("journal-footer", "journal-book", (38, 482), (390, 25), "J  Close    Left / Right  Turn page", 13, faded)
+
+    # A fixed north-up map. Hidden cells are ordinary lightweight UI widgets;
+    # the script updates their colors only when discovery or residency changes.
+    widget("map-overlay", "factory-ui", (0, 0), (0, 0), background=[0.008, 0.015, 0.012, 0.78], order=275)
+    objects[-1]["ui_widget"].update(visible=False, enabled=False)
+    objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
+    widget("map-panel", "map-overlay", (0, 0), (880, 540), background=[0.035, 0.065, 0.053, 0.99],
+           anchor=(0.5, 0.5), pivot=(0.5, 0.5))
+    widget("map-title", "map-panel", (28, 22), (600, 36), "EARTH  /  REGION MAP", 27)
+    widget("map-close", "map-panel", (748, 24), (104, 32), "Close  M", 14, cream,
+           [0.16, 0.23, 0.19, 1], padding=(12, 7, 0, 0))
+    objects[-1]["ui_widget"].update(kind="button", shortcuts=["M"])
+    widget("map-north", "map-panel", (211, 62), (100, 20), "NORTH", 12, muted)
+    for coordinate in [-8, 0, 8]:
+        offset = (coordinate + 8) * 23
+        label = "+8" if coordinate == 8 else str(coordinate)
+        widget(f"map-axis-x-{coordinate}", "map-panel", (48 + offset, 81), (28, 16), label, 11, muted)
+        widget(f"map-axis-z-{coordinate}", "map-panel", (21, 104 + offset), (28, 16), label, 11, muted)
+    for z in range(17):
+        for x in range(17):
+            region = z * 17 + x
+            widget(f"map-cell-{region}", "map-panel", (50 + x * 23, 102 + z * 23), (20, 20),
+                   "H" if region == 144 else "", 12, cream, [0.018, 0.032, 0.026, 1], padding=(5, 3, 0, 0))
+            objects[-1]["ui_widget"].pop("image")
+            objects[-1]["ui_widget"].pop("border")
+    widget("map-south", "map-panel", (211, 496), (100, 20), "SOUTH", 12, muted)
+    widget("map-region", "map-panel", (496, 101), (336, 32), "Region 0, 0", 25)
+    widget("map-counts", "map-panel", (496, 145), (336, 48), "1 loaded\n1 explored / 289 regions", 16, muted)
+    for row, (label, color) in enumerate([
+        ("Your current region", [0.64, 0.29, 0.085, 1]),
+        ("Loaded", [0.13, 0.38, 0.26, 1]),
+        ("Explored, currently unloaded", [0.11, 0.17, 0.20, 1]),
+        ("Unexplored", [0.018, 0.032, 0.026, 1]),
+    ]):
+        widget(f"map-legend-{row}", "map-panel", (496, 220 + row * 40), (20, 20), background=color)
+        objects[-1]["ui_widget"].pop("image")
+        objects[-1]["ui_widget"].pop("border")
+        widget(f"map-legend-label-{row}", "map-panel", (530, 220 + row * 40), (300, 24), label, 15, muted)
+    widget("map-home-key", "map-panel", (496, 388), (336, 24), "H  Landing site / Region 0, 0", 15)
+    widget("map-help", "map-panel", (496, 434), (336, 44), "Explore to reveal neighboring regions.\nFactories continue while the map is open.", 14, muted)
+    widget("map-footer", "map-panel", (50, 519), (800, 18), "North stays up as the camera turns.     M  Close map     Esc  Menu", 12, muted)
+
+    widget("menu-overlay", "factory-ui", (0, 0), (0, 0), background=[0.01, 0.02, 0.015, 0.60], order=300)
+    objects[-1]["ui_widget"].update(visible=False, enabled=False)
+    objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
+    widget("menu-panel", "menu-overlay", (0, 0), (380, 416), background=[0.045, 0.075, 0.06, 0.98],
+           anchor=(0.5, 0.5), pivot=(0.5, 0.5))
+    widget("menu-title", "menu-panel", (28, 24), (324, 36), "Factory menu", 28)
+    widget("menu-subtitle", "menu-panel", (28, 69), (324, 24), "Your factory keeps running.", 16, muted)
+    for name, label, y in [("continue", "Continue", 110), ("save", "Save", 166),
+                           ("load", "Load", 222), ("exit", "Exit", 278)]:
+        widget("menu-" + name, "menu-panel", (28, y), (324, 44), label, 18,
+               cream if name != "exit" else [1, 0.66, 0.53, 1],
+               [0.16, 0.23, 0.19, 1], padding=(18, 11, 0, 0))
+        objects[-1]["ui_widget"].update(kind="button", focus_order=y)
+        if name == "continue":
+            objects[-1]["ui_widget"]["shortcuts"] = ["Escape"]
+        if name in ("save", "load"):
+            objects[-1]["ui_widget"].update(enabled=False, description="Not available yet")
+            widget("menu-" + name + "-soon", "menu-" + name, (170, 3), (140, 20), "Coming soon", 13, muted)
+    widget("menu-save-note", "menu-panel", (28, 344), (324, 20), "Save and Load are not available yet.", 13, muted)
+    widget("menu-exit-note", "menu-panel", (28, 370), (324, 20), "Exit ends this session without saving.", 13, muted)
     return objects
 
 
@@ -211,15 +333,7 @@ def bake_ground_mesh():
     quad("earth-cliff", ((-7.495, -0.23, -7.495), (-7.495, -0.23, 7.495),
                          (7.495, -0.23, 7.495), (7.495, -0.23, -7.495)))
 
-    # The irregular lower rim is static too. Its gaps and trees remain as authored.
-    for z in range(-8, 9):
-        for x in range(-8, 9):
-            if abs(x) != 8 and abs(z) != 8:
-                continue
-            if (x * 7 + z * 11) % 9 == 0:
-                continue
-            block("earth-cliff", x, z, -0.145, -0.695,
-                  ("north", "south", "west", "east"))
+    # The footprint stays inside 15 x 15 so neighboring chunks tile without overlaps.
 
     mtl = ["# Generated by tools/generate_scene.py"]
     for name, color in [(f"grass-{i}", shade) for i, shade in enumerate(grass)] + [
@@ -374,27 +488,17 @@ def scene():
         cube("cursor", "Build cursor", (0, 0.115, 0), (0.94, 0.055, 0.94), [0.16, 0.95, 0.70]),
     ]
     objects.extend(factory_ui())
-    # Only the trees remain separate scene objects; ground and cliff cubes are one mesh.
-    for z in range(-8, 9):
-        for x in range(-8, 9):
-            if abs(x) != 8 and abs(z) != 8:
-                continue
-            if (x * 7 + z * 11) % 9 == 0:
-                continue
-            if (x * 3 - z * 5) % 7 == 0:
-                objects.append(cube(f"tree-trunk-{x+8}-{z+8}", "Tree trunk", (x, 0.24, z), (0.23, 0.80, 0.23), [0.31, 0.22, 0.13]))
-                objects.append(cube(f"tree-leaf-{x+8}-{z+8}", "Tree canopy", (x, 0.87, z), (0.88, 0.85, 0.88), [0.16, 0.36, 0.17]))
     for i, (dx, dy, dz, size, color) in enumerate([
         (0, 0, 0, (1.25, 0.28, 1.25), [0.17, 0.23, 0.29]),
         (0, 0.52, 0, (0.83, 0.88, 0.83), [0.77, 0.79, 0.71]),
         (0, 1.11, 0, (0.43, 0.30, 0.43), [0.25, 0.54, 0.69]),
     ]):
-        objects.append(cube(f"pod-{i}", "Landing pod", (8 + dx, dy, 6 + dz), size, color))
+        objects.append(cube(f"pod-{i}", "Landing pod", (dx, dy, dz), size, color))
 
     asset_names = [
         "node-iron", "node-copper", "node-limestone", "node-coal", "node-quartz", "node-oil", "node-water",
         "machine-miner", "machine-belt", "machine-smelter", "machine-storage", "machine-assembler",
-        "machine-generator", "machine-splitter", "machine-merger", "item",
+        "machine-generator", "machine-splitter", "machine-merger", "item", "earth-chunk",
     ]
     assets = {name: {"kind": "prefab", "path": f"assets/{name}.prefab.json"} for name in asset_names}
     assets["earth-ground"] = {"kind": "mesh", "path": "assets/earth-ground.obj"}
@@ -409,6 +513,9 @@ def scene():
 
     blackboard = {
         "started": scalar("bool", False),
+        "demo_mode": scalar("bool", False),
+        "chunk_x": scalar("number", 0),
+        "chunk_z": scalar("number", 0),
         "seed": scalar("number", 0),
         "cursor_x": scalar("number", 0),
         "cursor_z": scalar("number", 0),
@@ -443,6 +550,9 @@ def scene():
         "machine_cells": list_var("number", 225),
         "facings": list_var("number", 225),
         "items": list_var("number", 225),
+        "item_amounts": list_var("number", 225),
+        "input_items": list_var("number", 225),
+        "input_amounts": list_var("number", 225),
         "progress": list_var("number", 225),
         "assembler_iron": list_var("number", 225),
         "assembler_copper": list_var("number", 225),
@@ -457,11 +567,51 @@ def scene():
         "motion_from_y": list_var("number", 225),
         "motion_to_y": list_var("number", 225),
         "retired_visuals": list_var("text", 225),
-        "item_pool": list_var("text", 225),
+        "item_pool": list_var("text", 450),
     }
     for page in range(4):
         blackboard["storage_kinds_" + str(page)] = list_var("number", 900)
         blackboard["storage_amounts_" + str(page)] = list_var("number", 900)
+    # Chunk archives and interaction state belong to the controller, keeping both
+    # blackboards within the engine's 64-variable / 1024-element limits.
+    controller = next(obj for obj in objects if obj["id"] == "controller")
+    controller["blackboard"] = {
+        "bar": scalar("number", 1),
+        "bar_slots": {"list": {"element": "number", "capacity": 3, "values": [{"number": 1}] * 3}},
+        "phase": scalar("number", 0),
+        "stock": list_var("number", 32),
+        "gather_clock": scalar("number", 0),
+        "debug_clock": scalar("number", 0.25),
+        "hud_state": scalar("text", ""),
+        "menu_open": scalar("bool", False),
+        "map_open": scalar("bool", False),
+        "map_state": scalar("text", ""),
+        "camera_zoom": scalar("number", 19),
+        "camera_zoom_target": scalar("number", 19),
+        "camera_pan_progress": scalar("number", 1),
+        "camera_pan_from": list_var("number", 3),
+        "journal_open": scalar("bool", False),
+        "journal_page": scalar("number", 1),
+        "journal_alpha": scalar("number", 0),
+        "rotation_cells": list_var("number", 225),
+        "rotation_time": list_var("number", 225),
+        "rotation_from": list_var("number", 225),
+        "rotation_turns": list_var("number", 225),
+        "visited": list_var("number", 289),
+        "resident": list_var("number", 289),
+        "residency_view": scalar("text", ""),
+        "grounds": list_var("text", 289),
+        "chunk_nodes": list_var("text", 289),
+        "chunk_node_visuals": list_var("text", 289),
+    }
+    for name in ["builds", "facings", "items", "item_amounts", "input_items", "input_amounts", "progress", "assembler_iron", "assembler_copper", "split_state"]:
+        controller["blackboard"]["cache_" + name] = list_var("text", 289)
+    for page in range(4):
+        for name in ["storage_kinds_", "storage_amounts_"]:
+            controller["blackboard"]["cache_" + name + str(page)] = list_var("text", 289)
+    for page in range(3):
+        controller["blackboard"]["cache_visuals_" + str(page)] = list_var("text", 289)
+    assert len(blackboard) <= 64 and len(controller["blackboard"]) <= 64
     write_json(
         SCENES / "earth.json",
         {
@@ -488,6 +638,13 @@ def main():
     machine_prefabs()
     bake_ground_mesh()
     bake_ui_mask()
+    write_json(ASSETS / "earth-chunk.prefab.json", {
+        "version": 1, "name": "Earth terrain chunk", "root": "root",
+        "assets": {"earth-ground": {"kind": "mesh", "path": "earth-ground.obj"}},
+        "objects": [{"id": "root", "name": "Terrain chunk", "transform": transform(),
+                     "drawable": {"layer": "3d", "mesh": {"asset": "earth-ground"},
+                                  "texture": "white", "color": [1, 1, 1], "uv_scale": [1, 1]}}],
+    })
     scene()
     write_json(
         ROOT / "bozzard.project.json",

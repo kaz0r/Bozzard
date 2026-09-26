@@ -1,6 +1,10 @@
 //! Bounded, graphics-independent diagnostics. Never part of a scene or save game.
+mod render;
+mod simulation;
 use bozzard_ecs::World;
+pub use render::{RenderCounters, RenderDiagnostics, RenderMetrics};
 use serde::Serialize;
+pub use simulation::SimulationMetrics;
 use std::{collections::VecDeque, time::Instant};
 
 pub const MAX_EVENTS: usize = 2048;

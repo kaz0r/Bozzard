@@ -1,5 +1,6 @@
 //! Graphics-independent application, ordered systems, and fixed-step simulation.
 pub mod job;
+pub mod simulation_worker;
 pub use bozzard_ecs::{Commands, Entity, Mut, World};
 use std::{
     collections::{BTreeMap, HashSet},

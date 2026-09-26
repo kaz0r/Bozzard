@@ -67,6 +67,7 @@ pub struct Editor {
     future: Vec<Change>,
     gesture: Option<Change>,
     pub play: Option<SceneDemo>,
+    pending_simulation: Option<Duration>,
     script_reload_jobs:
         BTreeMap<String, bozzard_assets::job::Job<bozzard_scene::ScriptReloadCandidate>>,
     script_reload_feedback: BTreeMap<String, ScriptReloadFeedback>,
@@ -116,6 +117,7 @@ impl Editor {
             future: Vec::new(),
             gesture: None,
             play: None,
+            pending_simulation: None,
             script_reload_jobs: BTreeMap::new(),
             script_reload_feedback: BTreeMap::new(),
             edit_assets: None,
@@ -705,6 +707,7 @@ impl Editor {
         }
     }
     pub fn stop_play(&mut self) {
+        self.pending_simulation = None;
         self.script_reload_jobs.clear();
         self.script_reload_feedback.clear();
         self.play = None;
@@ -751,17 +754,72 @@ impl Editor {
                 );
             }
             play.app.advance(delta);
-            if let Some(loaded) = play
+        }
+        self.adopt_runtime_assets();
+    }
+
+    fn adopt_runtime_assets(&mut self) {
+        if let Some(play) = &self.play
+            && let Some(loaded) = play
                 .app
                 .world
                 .resource::<bozzard_project::streaming::SceneAssets>()
-                && loaded.generation != self.runtime_asset_generation
-            {
-                self.assets = loaded.store.clone();
-                self.runtime_asset_generation = loaded.generation;
-                self.asset_revision += 1;
-            }
+            && loaded.generation != self.runtime_asset_generation
+        {
+            self.assets = loaded.store.clone();
+            self.runtime_asset_generation = loaded.generation;
+            self.asset_revision += 1;
         }
+    }
+
+    /// Native frame pipeline: prepare UI/render data from the completed world, then
+    /// overlap the next local tick with submission via render_with_simulation.
+    /// Headless advance/step and the debugger retain their synchronous semantics.
+    pub fn prepare_simulation_frame(&mut self, delta: Duration, threaded: bool) -> Result<()> {
+        ensure!(
+            self.pending_simulation.is_none(),
+            "previous simulation frame was not finished"
+        );
+        if self
+            .play
+            .as_ref()
+            .is_none_or(|play| play.multiplayer_active())
+        {
+            self.advance(delta);
+            return Ok(());
+        }
+        self.play
+            .as_mut()
+            .unwrap()
+            .set_threaded_simulation(threaded)?;
+        // Poll hot reloads, resume UI debugger dispatch, and adopt streamed assets.
+        self.advance(Duration::ZERO);
+        self.pending_simulation = Some(delta);
+        Ok(())
+    }
+
+    pub fn render_with_simulation<R>(&mut self, frame: impl FnOnce() -> R) -> Result<R> {
+        let result = match (self.pending_simulation.take(), &mut self.play) {
+            (Some(delta), Some(play)) => play.advance_with_frame(delta, frame),
+            _ => Ok(frame()),
+        };
+        if self
+            .play
+            .as_ref()
+            .is_some_and(SceneDemo::simulation_worker_failed)
+        {
+            // A panicking system may have removed scene resources mid-update.
+            // Stop before an inspector/render query can touch the partial world.
+            self.stop_play();
+        } else {
+            self.adopt_runtime_assets();
+        }
+        result
+    }
+
+    /// A hidden viewport or a failed/skipped draw must still advance production.
+    pub fn finish_simulation_frame(&mut self) -> Result<()> {
+        self.render_with_simulation(|| ())
     }
     pub fn save(&mut self, path: &Path) -> Result<()> {
         self.finish_gesture();
@@ -1522,6 +1580,7 @@ fn extract_with_gi(
             zenith: view.environment.zenith,
             horizon: view.environment.horizon,
             ground: view.environment.ground,
+            star_intensity: view.environment.star_intensity,
             intensity: if layer == Layer::ThreeD {
                 view.environment.intensity
             } else {

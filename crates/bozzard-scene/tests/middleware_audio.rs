@@ -34,6 +34,27 @@ fn setup() -> (Scene, World, bozzard_scene::SceneInstance) {
     (scene, world, instance)
 }
 #[test]
+fn source_queries_follow_runtime_removal_and_addition_without_losing_mixer_state() {
+    let (_, mut world, instance) = setup();
+    let entity = instance.entity("source").unwrap();
+    let source = world.remove::<AudioSource>(entity).unwrap().unwrap();
+    instance
+        .set_audio_bus_volume(&mut world, "Music", 0.3)
+        .unwrap();
+    instance.step_audio(&mut world, 0.1).unwrap();
+    let frame = instance.audio_frame(&world, Layer::ThreeD).unwrap();
+    assert!(frame.sources.is_empty());
+    assert_eq!(frame.master, 0.8);
+    assert_eq!(frame.buses[1], 0.3);
+    assert!(world.resource::<Runtime>().unwrap().voices.is_empty());
+    world.insert(entity, source).unwrap();
+    instance.step_audio(&mut world, 0.25).unwrap();
+    let frame = instance.audio_frame(&world, Layer::ThreeD).unwrap();
+    assert_eq!(frame.sources.len(), 1);
+    assert_eq!(frame.sources[0].position, 0.25);
+}
+
+#[test]
 fn spatial_transport_bus_and_checkpoint_stay_deterministic_without_a_device() {
     let (scene, mut world, mut instance) = setup();
     let source = registry::get::<AudioSource>(&scene.objects[0])

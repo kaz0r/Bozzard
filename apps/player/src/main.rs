@@ -53,6 +53,7 @@ struct Options {
     layer: Layer,
     gpu_memory_mib: usize,
     occlusion_enabled: bool,
+    threaded_simulation: bool,
 }
 
 impl Default for Options {
@@ -83,6 +84,7 @@ impl Default for Options {
             layer: Layer::ThreeD,
             gpu_memory_mib: 512,
             occlusion_enabled: true,
+            threaded_simulation: true,
         }
     }
 }
@@ -150,6 +152,7 @@ fn options() -> Result<Option<Options>> {
             }
             "--hardware" => result.hardware = true,
             "--no-occlusion" => result.occlusion_enabled = false,
+            "--single-threaded" => result.threaded_simulation = false,
             "--smoke" => result.smoke = true,
             "--benchmark-frames" => {
                 let frames = args
@@ -184,6 +187,7 @@ fn options() -> Result<Option<Options>> {
             "--inject-device-recreation" => result.inject_device_recreation = true,
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
+                println!("--single-threaded disables simulation/render overlap for comparison.");
                 println!(
                     "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
@@ -229,6 +233,7 @@ struct View {
     renderer: SceneRenderer,
     compute: bozzard_render_assets::ComputeBridge,
     drawable: bool,
+    occluded: bool,
     /// Reuse the rendered layout's decision instead of laying out UI for every mouse event.
     ui_wants_pointer: bool,
     surface_status: &'static str,
@@ -354,6 +359,7 @@ impl View {
             renderer,
             compute,
             drawable: size.width > 0 && size.height > 0,
+            occluded: false,
             // Keep the pointer free until the first visible frame establishes the UI policy.
             ui_wants_pointer: true,
             surface_status: "awaiting first redraw",
@@ -496,10 +502,31 @@ impl View {
 
     fn draw(
         &mut self,
-        demo: &SceneDemo,
+        demo: &mut SceneDemo,
         assets: &mut assets::Assets,
         layer: Layer,
+        elapsed: Option<Duration>,
     ) -> Result<bool> {
+        // Even a skipped/failed presentation must consume this frame's simulation time.
+        let mut elapsed = elapsed;
+        let result = self.draw_prepared(demo, assets, layer, &mut elapsed);
+        if let Some(elapsed) = elapsed {
+            demo.advance_with_frame(elapsed, || ())?;
+        }
+        result
+    }
+
+    fn draw_prepared(
+        &mut self,
+        demo: &mut SceneDemo,
+        assets: &mut assets::Assets,
+        layer: Layer,
+        elapsed: &mut Option<Duration>,
+    ) -> Result<bool> {
+        if self.occluded {
+            self.surface_status = "window occluded";
+            return Ok(false);
+        }
         if !self.drawable {
             self.surface_status = "window has zero size";
             return Ok(false);
@@ -562,14 +589,22 @@ impl View {
         if !assets.current() {
             scene.gi = None;
         }
-        self.renderer.draw(
-            &self.gpu,
-            &frame.texture.create_view(&Default::default()),
-            [self.config.width, self.config.height],
-            &scene,
-        )?;
-        self.window.pre_present_notify();
-        self.gpu.queue.present(frame);
+        let submit = || -> Result<()> {
+            self.renderer.draw(
+                &self.gpu,
+                &frame.texture.create_view(&Default::default()),
+                [self.config.width, self.config.height],
+                &scene,
+            )?;
+            self.window.pre_present_notify();
+            self.gpu.queue.present(frame);
+            Ok(())
+        };
+        if let Some(elapsed) = elapsed.take() {
+            demo.advance_with_frame(elapsed, submit)??;
+        } else {
+            submit()?;
+        }
         for timing in self.renderer.poll_gpu_profiles(&self.gpu)? {
             if !timing.failed {
                 let total = timing
@@ -634,6 +669,7 @@ struct Player {
     last_present: Instant,
     frames: u32,
     cpu_frame_ms: VecDeque<f64>,
+    presentation_interval_ms: VecDeque<f64>,
     fault_injected: bool,
     error: Option<anyhow::Error>,
     command_error: Option<String>,
@@ -903,6 +939,7 @@ impl Player {
                 let document = load_document(self.options.scene.as_deref())?;
                 let mut next =
                     SceneDemo::new_with_prefabs(&document, self.options.scene.as_deref())?;
+                next.set_threaded_simulation(self.options.threaded_simulation)?;
                 let mut assets = assets::Assets::load(
                     next.instance().document(),
                     self.options.scene.as_deref(),
@@ -1235,16 +1272,17 @@ impl ApplicationHandler for Player {
             return;
         }
         let now = Instant::now();
+        let simulation_elapsed =
+            (!self.paused && !self.demo.multiplayer_active() && !self.options.verify_first_trail)
+                .then(|| now.duration_since(self.last_frame));
         if matches!(event, WindowEvent::RedrawRequested) {
             self.demo
                 .with_instance(|instance, _| instance.set_gpu_particles(true));
-            if self.options.verify_first_trail {
-                if let Err(error) = project::route_tick(self, self.demo.app.ticks()) {
-                    self.fail(event_loop, error);
-                    return;
-                }
-            } else if !self.paused && !self.demo.multiplayer_active() {
-                self.demo.app.advance(now.duration_since(self.last_frame));
+            if self.options.verify_first_trail
+                && let Err(error) = project::route_tick(self, self.demo.app.ticks())
+            {
+                self.fail(event_loop, error);
+                return;
             }
             if let Err(error) = self.demo.check_simulation() {
                 self.fail(event_loop, error);
@@ -1310,6 +1348,7 @@ impl ApplicationHandler for Player {
         view.window.set_title(&title);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::Occluded(occluded) => view.occluded = occluded,
             WindowEvent::KeyboardInput { event, .. }
                 if self.demo.game_session().is_none()
                     && !self.demo.multiplayer_active()
@@ -1327,8 +1366,26 @@ impl ApplicationHandler for Player {
                 }
             }
             WindowEvent::RedrawRequested => {
-                match view.draw(&self.demo, &mut self.assets, self.options.layer) {
+                match view.draw(
+                    &mut self.demo,
+                    &mut self.assets,
+                    self.options.layer,
+                    simulation_elapsed,
+                ) {
                     Ok(true) => {
+                        let presented = Instant::now();
+                        if self.frames > 0 && self.options.frames.is_some() {
+                            if self.presentation_interval_ms.len() == 2048 {
+                                self.presentation_interval_ms.pop_front();
+                            }
+                            self.presentation_interval_ms.push_back(
+                                presented.duration_since(self.last_present).as_secs_f64() * 1000.,
+                            );
+                        }
+                        bozzard_render_assets::publish_frame(
+                            &mut self.demo.app.world,
+                            view.renderer.frame_stats(),
+                        );
                         if let Some(started) = frame_started {
                             if self.cpu_frame_ms.len() == 2048 {
                                 self.cpu_frame_ms.pop_front();
@@ -1337,7 +1394,7 @@ impl ApplicationHandler for Player {
                                 .push_back(started.elapsed().as_secs_f64() * 1000.);
                         }
                         self.frames = self.frames.saturating_add(1);
-                        self.last_present = now;
+                        self.last_present = presented;
                         if self
                             .options
                             .frames
@@ -1365,7 +1422,22 @@ impl ApplicationHandler for Player {
                                 }
                             }
                             print_frame_percentiles("player_cpu_frame", &self.cpu_frame_ms);
+                            print_frame_percentiles(
+                                "player_presentation_interval",
+                                &self.presentation_interval_ms,
+                            );
                             print_frame_percentiles("player_gpu_passes", &view.gpu_frame_ms);
+                            if let Some(sim) = self
+                                .demo
+                                .app
+                                .world
+                                .resource::<bozzard_diagnostics::SimulationMetrics>()
+                            {
+                                println!(
+                                    "player_simulation threaded={} steps={} cpu_ms={:.3} wait_ms={:.3}",
+                                    sim.threaded, sim.steps, sim.cpu_ms, sim.wait_ms
+                                );
+                            }
                             if let Some(net) = self.demo.multiplayer_telemetry() {
                                 println!(
                                     "player_network snapshot_age_ms={:.1} oldest_input_age_ticks={} replay_depth={} command_queue={} publication_age_ms={:.1} worker_ms={:.3}",
@@ -1440,10 +1512,20 @@ impl ApplicationHandler for Player {
         if let Some(view) = &self.view {
             view.window.request_redraw();
         }
-        // Avoid spinning when a window is minimized or a surface is unavailable.
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-            Instant::now() + Duration::from_millis(16),
-        ));
+        // FIFO presentation already paces a drawable window. Waiting another 16 ms
+        // here adds idle time after CPU work and can halve the presentation rate.
+        // Keep retrying slowly when minimized, occluded, or recovering the surface.
+        let presenting = self.view.as_ref().is_some_and(|view| {
+            view.drawable
+                && !view.occluded
+                && view.surface_status == "presented"
+                && view.gpu.failure().is_none()
+        });
+        event_loop.set_control_flow(if presenting {
+            winit::event_loop::ControlFlow::Poll
+        } else {
+            winit::event_loop::ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16))
+        });
     }
 }
 
@@ -1513,11 +1595,15 @@ fn main() -> Result<()> {
         last_present: Instant::now(),
         frames: 0,
         cpu_frame_ms: VecDeque::new(),
+        presentation_interval_ms: VecDeque::new(),
         fault_injected: false,
         error: None,
         command_error: None,
     };
     player.demo.enable_multiplayer(player.options.join_lobby)?;
+    player
+        .demo
+        .set_threaded_simulation(player.options.threaded_simulation)?;
     if player.options.verify_flap_woods {
         return flap_woods::verify(&mut player);
     }
@@ -1639,6 +1725,7 @@ mod controls_tests {
             last_present: Instant::now(),
             frames: 0,
             cpu_frame_ms: VecDeque::new(),
+            presentation_interval_ms: VecDeque::new(),
             fault_injected: false,
             error: None,
             command_error: None,
@@ -1815,6 +1902,54 @@ mod controls_tests {
         assert_eq!(player.demo.game_session().unwrap().phase, P::Paused);
         key(&mut player, KeyCode::KeyQ, false, false);
         assert_eq!(player.demo.game_session().unwrap().phase, P::Quit);
+    }
+
+    #[test]
+    fn earth_factory_escape_uses_the_menu_instead_of_the_window_exit_shortcut() {
+        let mut player = authored_player();
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let scene = load_document(Some(&path)).unwrap();
+        player.demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        player.demo.app.step();
+        player.demo.check_simulation().unwrap();
+        player.gameplay_controls.event(&WindowEvent::Focused(true));
+        let escape = |player: &mut Player, state, repeat| {
+            player
+                .dispatch_keyboard(
+                    PhysicalKey::Code(KeyCode::Escape),
+                    &Key::Named(NamedKey::Escape),
+                    state,
+                    repeat,
+                    false,
+                )
+                .unwrap()
+        };
+        escape(&mut player, ElementState::Pressed, false);
+        assert!(player.menu_input.consumed(KeyCode::Escape));
+        player.demo.app.step();
+        player.demo.check_simulation().unwrap();
+        let open = |player: &Player| {
+            player
+                .demo
+                .instance()
+                .ui_frame(&player.demo.app.world, Layer::ThreeD, [1280., 720.])
+                .unwrap()
+                .element("menu-panel")
+                .is_some()
+        };
+        assert!(open(&player));
+        assert!(bozzard_scene::game_flow::simulation_running(
+            &player.demo.app.world
+        ));
+        escape(&mut player, ElementState::Pressed, true);
+        player.demo.app.step();
+        assert!(open(&player), "holding Escape must not toggle repeatedly");
+        escape(&mut player, ElementState::Released, false);
+        escape(&mut player, ElementState::Pressed, false);
+        player.demo.app.step();
+        assert!(!open(&player));
+        player.demo.check_simulation().unwrap();
     }
     #[test]
     fn a_scene_assigned_key_reaches_gameplay_instead_of_a_menu_command() {
@@ -2064,6 +2199,12 @@ mod controls_tests {
         document
             .blackboard
             .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
+        // This input-routing fixture builds a free belt from the original demo bar.
+        // Normal progression starts on Production, where slot 2 is a locked miner.
+        document.blackboard.insert(
+            "demo_mode".into(),
+            BlackboardValue::Scalar(Value::Bool(true)),
+        );
         player.options.scene = Some(path.clone());
         player.demo = SceneDemo::new_with_prefabs(&document, Some(&path)).unwrap();
         // The initial window may already be focused without emitting Focused(true).
@@ -2343,6 +2484,7 @@ mod controls_tests {
             last_present: Instant::now(),
             frames: 0,
             cpu_frame_ms: VecDeque::new(),
+            presentation_interval_ms: VecDeque::new(),
             fault_injected: false,
             error: None,
             command_error: None,

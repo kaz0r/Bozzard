@@ -486,7 +486,7 @@ impl SceneInstance {
         let running = crate::game_flow::simulation_running(world);
         let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
         runtime.finished.clear();
-        for (owner, &entity) in &self.entities {
+        for (owner, &entity) in self.component_entities::<AudioSource>(world) {
             let Some(source) = world.get::<AudioSource>(entity) else {
                 continue;
             };
@@ -516,11 +516,29 @@ impl SceneInstance {
         Ok(())
     }
     pub fn audio_frame(&self, world: &World, layer: Layer) -> Result<Frame> {
+        let mixer = self
+            .component_entities::<AudioMixer>(world)
+            .into_iter()
+            .find_map(|(_, &e)| world.get::<AudioMixer>(e))
+            .cloned()
+            .unwrap_or_default();
+        let runtime = world.resource::<Runtime>();
+        let mut frame = Frame {
+            master: if mixer.muted { 0. } else { mixer.master },
+            buses: std::array::from_fn(|i| {
+                runtime.and_then(|r| r.buses[i]).unwrap_or(mixer.buses[i])
+            }),
+            sources: Vec::new(),
+        };
+        let sources = self.component_entities::<AudioSource>(world);
+        if sources.is_empty() {
+            return Ok(frame);
+        }
         let matrices = self.global_transforms(world)?;
         let running = crate::game_flow::simulation_running(world);
         let listener = self
-            .entities
-            .iter()
+            .component_entities::<AudioListener>(world)
+            .into_iter()
             .find(|(_, e)| world.get::<AudioListener>(**e).is_some_and(|l| l.enabled))
             .map(|(id, _)| id)
             .or_else(|| {
@@ -533,21 +551,7 @@ impl SceneInstance {
             .and_then(|id| matrices.get(id))
             .copied()
             .unwrap_or(Mat4::IDENTITY);
-        let mixer = self
-            .entities
-            .values()
-            .find_map(|e| world.get::<AudioMixer>(*e))
-            .cloned()
-            .unwrap_or_default();
-        let runtime = world.resource::<Runtime>();
-        let mut frame = Frame {
-            master: if mixer.muted { 0. } else { mixer.master },
-            buses: std::array::from_fn(|i| {
-                runtime.and_then(|r| r.buses[i]).unwrap_or(mixer.buses[i])
-            }),
-            sources: Vec::new(),
-        };
-        for (owner, &entity) in &self.entities {
+        for (owner, &entity) in sources {
             let Some(source) = world.get::<AudioSource>(entity) else {
                 continue;
             };

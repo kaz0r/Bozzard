@@ -209,6 +209,7 @@ mod tests {
     #[test]
     fn runs_split_at_limits_culling_and_incompatible_surfaces() {
         let draw = || PreparedDraw {
+            source_item: 0,
             deformation: 0,
             pbr_override: [-1.; 2],
             shader: None,

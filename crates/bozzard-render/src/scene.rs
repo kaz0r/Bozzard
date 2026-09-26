@@ -189,6 +189,7 @@ struct UploadedPart {
     shading: Option<crate::pbr::UploadedShading>,
 }
 struct PreparedDraw {
+    source_item: usize,
     deformation: u64,
     pbr_override: [f32; 2],
     shader: Option<u64>,
@@ -1538,7 +1539,8 @@ impl SceneRenderer {
     }
     fn prepare(&self, scene: &RenderScene) -> Vec<PreparedDraw> {
         let mut draws = Vec::new();
-        let mut add = |object: DrawItem,
+        let mut add = |source_item: usize,
+                       object: DrawItem,
                        opacity: f32,
                        cutoff: Option<f32>,
                        translucent: bool,
@@ -1550,6 +1552,7 @@ impl SceneRenderer {
                 .project_point3(object.model.transform_point3(center))
                 .z;
             draws.push(PreparedDraw {
+                source_item,
                 deformation: self.skinning.revision(&object),
                 pbr_override,
                 pbr,
@@ -1561,12 +1564,13 @@ impl SceneRenderer {
                 depth,
             });
         };
-        for object in &scene.items {
+        for (source_item, object) in scene.items.iter().enumerate() {
             if let MeshKind::Sprite(sprite) = &object.mesh {
                 if sprite.screen.is_none()
                     && let Some(mesh) = self.sprites.mesh(sprite)
                 {
                     add(
+                        source_item,
                         object.clone(),
                         sprite.opacity,
                         None,
@@ -1584,6 +1588,7 @@ impl SceneRenderer {
                 }
                 if let Some(mesh) = self.text.as_ref().and_then(|t| t.mesh(text)) {
                     add(
+                        source_item,
                         object.clone(),
                         text.opacity,
                         None,
@@ -1665,6 +1670,7 @@ impl SceneRenderer {
                         .mesh(&item)
                         .map_or(part.center, |mesh| (mesh.bounds[0] + mesh.bounds[1]) * 0.5);
                     add(
+                        source_item,
                         item,
                         part.color[3],
                         part.cutoff,
@@ -1678,6 +1684,7 @@ impl SceneRenderer {
                 let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
                     || matches!(&object.material.texture, TextureKind::Generated(_));
                 add(
+                    source_item,
                     object.clone(),
                     1.0,
                     None,
@@ -1758,6 +1765,7 @@ impl SceneRenderer {
     ) -> Result<()> {
         let started = std::time::Instant::now();
         self.stats = FrameStats::default();
+        self.stats.viewport_size = size;
         ensure!(
             size.iter()
                 .all(|s| *s > 0 && *s <= gpu.device.limits().max_texture_dimension_2d),
@@ -1943,6 +1951,11 @@ impl SceneRenderer {
         self.stats.scene_items = scene.items.len();
         self.stats.surfaces = draws.len();
         self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
+        let mut visible_items = vec![false; scene.items.len()];
+        for (draw, &is_visible) in draws.iter().zip(&visible) {
+            visible_items[draw.source_item] |= is_visible;
+        }
+        self.stats.visible_items = visible_items.iter().filter(|v| **v).count();
         self.stats.culled_surfaces = draws.len() - self.stats.visible_surfaces;
         let inverse_view_projection = view_projection.inverse().to_cols_array();
         let lighting_uniform = scene.lighting.uniform();

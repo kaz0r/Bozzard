@@ -84,6 +84,7 @@ pub fn extract(
             zenith: view.environment.zenith,
             horizon: view.environment.horizon,
             ground: view.environment.ground,
+            star_intensity: view.environment.star_intensity,
             intensity: if layer == Layer::ThreeD {
                 view.environment.intensity
             } else {
