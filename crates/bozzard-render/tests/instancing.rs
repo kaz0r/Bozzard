@@ -122,6 +122,8 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
     assert_eq!(renderers[0].frame_stats().color_draws, 1024);
     assert_eq!(renderers[1].frame_stats().color_draws, 32);
     assert_eq!(renderers[1].frame_stats().instanced_surfaces, 1024);
+    assert_eq!(renderers[0].frame_stats().visible_items, 1024);
+    assert_eq!(renderers[1].frame_stats().visible_items, 1024);
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().instance_uniform_bytes, 0);
     // Culled objects, a singleton tail, mirrored/nonuniform scales and material edits.
@@ -138,6 +140,7 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
         scene.display.time_seconds = tick as f32 / 60.;
         scene.items[3].model *= Mat4::from_translation(Vec3::new(0.1, 0., 0.));
         compare(&gpu, &mut renderers, &scene)?;
+        assert_eq!(renderers[1].frame_stats().visible_items, 66);
         assert_eq!(
             renderers[0].frame_stats().shadow_triangles,
             renderers[1].frame_stats().shadow_triangles

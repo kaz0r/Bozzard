@@ -944,3 +944,67 @@ fn nested_variant_prefabs_resolve_and_spawn_after_export_and_source_removal() ->
     assets.require_ready()?;
     Ok(())
 }
+
+#[test]
+fn earth_factory_explores_and_opens_its_journal_after_source_independent_export()
+-> anyhow::Result<()> {
+    use bozzard_scene::{BlueprintRuntime, GameplayInput, blueprint::Value, keys};
+    let temp = Temp::new();
+    let source = temp.0.join("source");
+    copy_tree(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/earth-factory"),
+        &source,
+    );
+    let (project, scene_path) = Project::load(&source.join("bozzard.project.json"))?;
+    let scene = load(&scene_path);
+    let exported = temp.0.join("export");
+    prepare_export(
+        &project,
+        &scene,
+        &scene_path,
+        &std::env::current_exe()?,
+        &exported,
+        &Default::default(),
+    )?
+    .commit()?;
+    fs::remove_dir_all(source)?;
+    let relocated = temp.0.join("Relocated Earth Factory");
+    fs::rename(exported, &relocated)?;
+    let (_, scene_path) = Project::load(&data(&relocated).join(bozzard_project::MANIFEST))?;
+    let scene = load(&scene_path);
+    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&scene_path))?;
+    runtime.app.step();
+    runtime.check_simulation()?;
+    for _ in 0..8 {
+        for key in [keys::bit("D"), 0] {
+            runtime.set_gameplay_input(GameplayInput {
+                keys: key,
+                ..Default::default()
+            });
+            runtime.app.step();
+            runtime.check_simulation()?;
+        }
+    }
+    let board = runtime.app.world.resource::<BlueprintRuntime>().unwrap();
+    assert_eq!(
+        board.scene_blackboard()["chunk_x"].values(),
+        &[Value::Number(1.)]
+    );
+    runtime.set_gameplay_input(GameplayInput {
+        keys: keys::bit("J"),
+        ..Default::default()
+    });
+    runtime.app.step();
+    runtime.check_simulation()?;
+    let frame = runtime
+        .instance()
+        .ui_frame(&runtime.app.world, Layer::ThreeD, [1080., 600.])?;
+    assert!(frame.element("journal-book").is_some());
+    let mut assets = bozzard_assets::AssetStore::new(
+        scene_path.parent().unwrap(),
+        &runtime.instance().capture(&runtime.app.world)?.assets,
+    )?;
+    assets.load_pending()?;
+    assets.require_ready()?;
+    Ok(())
+}

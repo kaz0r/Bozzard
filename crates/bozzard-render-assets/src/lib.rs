@@ -13,6 +13,24 @@ use bozzard_render::{Gpu, MaterialMap, ModelImage, ModelPart, ModelShading, Scen
 pub use residency::{Residency, ResidencyReport, ResidencyStats, required_assets};
 use std::sync::Arc;
 
+/// Publish a successful native viewport/player frame for script debug HUDs.
+pub fn publish_frame(world: &mut bozzard_ecs::World, stats: bozzard_render::FrameStats) {
+    use bozzard_diagnostics::{RenderCounters, RenderDiagnostics};
+    if world.resource::<RenderDiagnostics>().is_none() {
+        world.insert_resource(RenderDiagnostics::default());
+    }
+    world.resource_mut::<RenderDiagnostics>().unwrap().record(
+        std::time::Instant::now(),
+        RenderCounters {
+            visible_entities: stats.visible_items,
+            draw_calls: stats.color_draws,
+            triangles: stats.color_triangles,
+            cpu_draw_ms: stats.cpu_ms,
+            viewport_aspect: stats.viewport_size[0] as f32 / stats.viewport_size[1].max(1) as f32,
+        },
+    );
+}
+
 pub fn skin_poses(
     poses: &std::collections::BTreeMap<u64, bozzard_scene::middleware::animation::Palette>,
 ) -> std::collections::BTreeMap<u64, bozzard_render::SkinPose> {

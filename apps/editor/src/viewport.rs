@@ -1380,7 +1380,15 @@ impl App {
             self.renderer.set_hud_scale(hud_scale);
             self.renderer
                 .set_occlusion_enabled(self.workspace.occlusion_enabled);
-            self.renderer.draw(&self.gpu, &target.view, size, &scene)?;
+            self.editor.render_with_simulation(|| {
+                self.renderer.draw(&self.gpu, &target.view, size, &scene)
+            })??;
+            if let Some(play) = self.editor.play.as_mut() {
+                bozzard_render_assets::publish_frame(
+                    &mut play.app.world,
+                    self.renderer.frame_stats(),
+                );
+            }
             self.viewport_stamp = Some(stamp);
             self.viewport_draws += 1;
         } else {

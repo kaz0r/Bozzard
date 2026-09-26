@@ -245,6 +245,7 @@ struct App {
     close_after_loading: bool,
     error: bool,
     last_frame: Instant,
+    threaded_simulation: bool,
     effects_preview: Option<bozzard_editor::EffectsPreview>,
     preview_running: bool,
     preview_bypass: bool,
@@ -393,6 +394,7 @@ impl App {
             close_after_loading: false,
             error: false,
             last_frame: Instant::now(),
+            threaded_simulation: true,
             effects_preview: None,
             preview_running: true,
             preview_bypass: false,
@@ -1261,9 +1263,41 @@ impl App {
             .play
             .as_ref()
             .is_some_and(|p| p.game_session().is_none())
+            && ctx.input(|i| {
+                i.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        egui::Event::Key {
+                            key: egui::Key::Escape,
+                            pressed: true,
+                            repeat: false,
+                            ..
+                        }
+                    )
+                })
+            })
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
             self.gameplay_controls.reset();
+            let layer = self.layer();
+            let size = self
+                .viewport_rect
+                .map_or([1280., 720.], |r| [r.width(), r.height()]);
+            let play = self.editor.play.as_mut().unwrap();
+            play.clear_gameplay_input();
+            // Authored menus own Escape before the editor's Stop Play fallback.
+            match play.ui_input(
+                layer,
+                size,
+                bozzard_scene::middleware::ui::Input::Key("Escape".into()),
+            ) {
+                Ok(true) => return,
+                Ok(false) => {}
+                Err(error) => {
+                    self.result(Err(error));
+                    return;
+                }
+            }
             self.stop_play();
             self.status = "Simulation stopped · Back to editing".into();
             self.error = false;
@@ -1447,7 +1481,13 @@ impl eframe::App for App {
         }
         self.prepare_blueprint_debugger();
         let previous_assets = self.editor.asset_revision();
-        self.editor.advance(now.duration_since(self.last_frame));
+        let prepared = self.editor.prepare_simulation_frame(
+            now.duration_since(self.last_frame),
+            self.threaded_simulation,
+        );
+        if let Err(error) = prepared {
+            self.result(Err(error));
+        }
         if previous_assets != self.editor.asset_revision()
             && let Some(play) = &mut self.editor.play
         {
@@ -1775,6 +1815,10 @@ impl eframe::App for App {
         {
             self.smoke_step(&ctx);
         }
+        let finished = self.editor.finish_simulation_frame();
+        if let Err(error) = finished {
+            self.result(Err(error));
+        }
         let active = self.smoke.is_some()
             || self.compute.executor.has_pending()
             || self.editor.play.is_some()
@@ -1787,11 +1831,12 @@ impl eframe::App for App {
             || self.fly_latched
             || self.mouse_captured;
         self.debug_end_frame(debug_started, debug_interval_ms);
-        ctx.request_repaint_after(Duration::from_millis(if active || self.debug.recording {
-            16
+        if active || self.debug.recording {
+            // Let the vsynced presentation backend pace active Play/animation.
+            ctx.request_repaint();
         } else {
-            500
-        }));
+            ctx.request_repaint_after(Duration::from_millis(500));
+        }
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.workspace.scene_path = Some(self.editor.path.clone());
@@ -1844,9 +1889,11 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     let mut backend = Backend::native();
     let mut software = false;
     let mut hardware = false;
+    let mut threaded_simulation = true;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--single-threaded" => threaded_simulation = false,
             "--join-lobby" | "+connect_lobby" => {
                 join_lobby = Some(args.next().context("--join-lobby needs an ID")?.parse()?)
             }
@@ -1865,6 +1912,7 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
             "--software" => software = true,
             "--hardware" => hardware = true,
             "--help" => {
+                println!("--single-threaded disables simulation/render overlap for comparison.");
                 println!(
                     "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nSteam-enabled builds: --join-lobby ID joins on the next Play; Stop leaves the lobby.\nNative scene editor. --project FILE opens a game project. Import assets, edit, Play/Stop, and File > Export game."
                 );
@@ -1958,6 +2006,7 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
         options,
         Box::new(move |cc| {
             let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
+            app.threaded_simulation = threaded_simulation;
             #[cfg(feature = "factory")]
             {
                 app.factory_mode = factory_mode;

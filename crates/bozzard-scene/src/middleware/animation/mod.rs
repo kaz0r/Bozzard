@@ -470,7 +470,7 @@ impl SceneInstance {
         let mut signals = world.remove_resource::<Signals>().unwrap_or_default();
         signals.begin(Kind::Animation);
         let result = (|| -> Result<()> {
-            for (owner, &entity) in &self.entities {
+            for (owner, &entity) in self.component_entities::<Animator>(world) {
                 let Some(animator) = world.get::<Animator>(entity).cloned() else {
                     continue;
                 };

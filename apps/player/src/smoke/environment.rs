@@ -85,6 +85,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
             horizon: [0.25; 3],
             ground: [0.25; 3],
             intensity: 1.,
+            star_intensity: 0.,
             background: false,
         },
         view_projection: glam::camera::rh::proj::directx::orthographic(-1., 1., -1., 1., 0.1, 10.)

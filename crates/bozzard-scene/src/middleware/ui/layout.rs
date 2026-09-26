@@ -181,10 +181,15 @@ impl SceneInstance {
         let runtime = world.resource::<super::runtime::Runtime>();
         let preferences = world.resource::<super::runtime::Preferences>();
         let session = world.resource::<crate::GameSession>();
-        let locale = self
-            .entities
-            .values()
-            .find_map(|&e| world.get::<Localization>(e));
+        let locale = world
+            .query::<Localization>()
+            .filter_map(|(entity, locale)| {
+                self.object_indices
+                    .get(&entity)
+                    .map(|&index| (&self.document.objects[index].id, locale))
+            })
+            .min_by_key(|(id, _)| *id)
+            .map(|(_, locale)| locale);
         let mut children: BTreeMap<&str, Vec<(&Object, Widget)>> = BTreeMap::new();
         // Project runtime world labels using the active gameplay camera at the actual viewport
         // aspect ratio. The label's size remains in canvas pixels as the world moves beneath it.
@@ -215,10 +220,19 @@ impl SceneInstance {
                 None
             };
         let mut roots = Vec::new();
-        for object in &self.document.objects {
-            let Some(entity) = self.entity(&object.id) else {
-                continue;
-            };
+        // Query live components (including ones added at runtime), not every terrain
+        // and machine object. Preserve document order for widgets with equal order.
+        let mut ui_objects: Vec<_> = world
+            .query::<Canvas>()
+            .map(|(entity, _)| entity)
+            .chain(world.query::<Widget>().map(|(entity, _)| entity))
+            .filter_map(|entity| self.object_indices.get(&entity).copied())
+            .collect();
+        ui_objects.sort_unstable();
+        ui_objects.dedup();
+        for index in ui_objects {
+            let object = &self.document.objects[index];
+            let entity = self.entities[&object.id];
             if world
                 .get::<crate::BlueprintHidden>(entity)
                 .is_some_and(|h| h.0)

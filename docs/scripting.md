@@ -133,6 +133,8 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `delta_time()`, `elapsed_time()` | seconds |
 | `fresh_seed()` | new integer seed for procedural scenes; varies across runs, so store it if a world must be reproduced |
 | `input_held(key)`, `input_pressed(key)` | `bool` — any name the Input Held node accepts (`"jump"`, `"fire"`, `"interact"`, `"w"`, …) |
+| `render_stats()` | Runtime map: `available`, `rate_ready`, `fps`, `frame_ms`, `cpu_draw_ms`, `visible_entities`, `draw_calls`, `triangles`, `viewport_aspect`. The aspect ratio is width/height of the last completed viewport (zero before a native frame). Native player and editor Play publish completed renders. FPS/frame time average wall-clock frame intervals over at least 250 ms; CPU draw time covers renderer preparation, encoding and submission, not GPU execution. Entities count frustum-visible world objects before GPU occlusion, excluding HUD. Draws/triangles count submitted color-pass meshes, excluding HUD, shadows, sky and particles. Headless runs return unavailable counters; the rate needs two or more frames. |
+| `simulation_stats()` | Last completed native simulation batch: `available`, `threaded`, `cpu_ms`, `wait_ms`, `steps`. CPU time includes every fixed tick in that batch; wait is the main thread's remaining join time after frame submission. Native local Play/player use a dedicated worker by default; `--single-threaded` enables the serial comparison path. Uninstrumented headless stepping returns unavailable values. This is separate from renderer CPU/GPU time. |
 | `move_x()`, `move_y()`, `mouse_x()`, `mouse_y()` | the same frame deltas the movement nodes report |
 | `get_object_variable(name)`, `get_scene_variable(name)` | the declared variable's value |
 | `get_object_list(name)`, `get_scene_list(name)` | a copy of a declared typed blackboard list as a Rhai array |
@@ -156,17 +158,24 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_ui_screen_position(target, x, y)` | position a popup at normalized viewport coordinates (`0..1`); apply its pivot and canvas offset, then clamp its rectangle inside the viewport |
 | `set_ui_offset(target, x, y)` | replace the widget's anchor offset in canvas units, e.g. to animate a panel sliding into view |
 | `set_light_intensity(target, intensity)` | light |
+| `set_sun_light(rgb, intensity)`, `set_ambient_light(rgb, intensity)` | scene light color (linear RGB 0..1) and intensity (0..100000); preserves sun direction/shadow settings |
+| `set_environment(zenith, horizon, ground, intensity)` | live sky/IBL colors (linear RGB 0..1), intensity 0..1000; preserves background visibility and stars |
+| `set_star_intensity(intensity)` | background-only stars (0..1000, default 0); perspective direction field / fixed distant field for orthographic cameras |
 | `set_focus_distance`, `set_aperture`, `set_fog_density`, `set_fog_light_intensity`, `set_exposure`, `set_bloom_intensity`, `set_saturation`, `set_heat_strength`, `set_grain_intensity`, `set_vignette_intensity` | display overrides |
 | `spawn_prefab(asset, position)`, `destroy_prefab(target)` | returns a spawn handle |
 | `set_graph_enabled(target, index, enabled)`, `set_script_enabled(target, index, enabled)` | enable/disable another attachment |
 | `lock_cursor()`, `unlock_cursor()` | pointer capture |
 | `end_game(message)` | requires Game Flow in scene settings |
+| `quit_game()` | requests Exit: closes the native player or stops editor Play; also available to script scenes without Game Flow |
+| `set_camera_size(target, size)` | sets an orthographic camera's vertical world span; positive finite size, smaller values zoom in |
 | `load_scene(name)`, `add_scene(name)`, `restart_scene()`, `save_game(slot)`, `load_game(slot)` | runtime scene control |
 | `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
 | `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |
 | `set_object_list(name, values)`, `set_scene_list(name, values)` | replace a declared list with an array, checked against its element type and capacity |
 | `print(value)` | one line to stdout and the runtime's message list |
+
+Sun, ambient, environment, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
 
 **Math Rhai does not provide**: `lerp`, `lerp_vector`, `clamp`, `length`, `normalize`, `dot`,
 `cross`, `distance`, `add_vector`, `scale_vector`, `vector_x/y/z`, `modulo`, `pow`, `atan2`,
@@ -181,7 +190,10 @@ For example, a script can call `set_ui_world_position("label", [x, y + 1.0, z])`
 its input. See the Earth Factory example for proximity labels and a delivery progress bar.
 
 `ui_events()` returns this tick's ordered widget events as maps with `kind`, `target`, `x`,
-and `y`. Kinds are `down`, `up` (left button), `secondary` (right button), `activate`
+`y`, and `delta`. Unconsumed mouse-wheel input over the world emits `scroll` with an empty
+target and a delta in logical points (positive down, 40 points per wheel notch). Panels and
+widgets block these world scroll events; scrollable widgets handle their own scrolling.
+Other event kinds have a zero delta: `down`, `up` (left button), `secondary` (right button), `activate`
 (click/keyboard/accessibility), and `cancel` (pointer or focus loss). The target is the hit
 interactive widget, or an empty string for a miss. Child labels route to their parent button.
 Coordinates are normalized to the game viewport, including inside editor Play.

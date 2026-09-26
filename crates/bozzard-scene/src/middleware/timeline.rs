@@ -250,7 +250,7 @@ impl SceneInstance {
         signals.begin(Kind::Timeline);
         runtime.cameras.clear();
         let result = (|| -> Result<()> {
-            for (owner, &entity) in &self.entities {
+            for (owner, &entity) in self.component_entities::<Timeline>(world) {
                 let Some(timeline) = world.get::<Timeline>(entity).cloned() else {
                     continue;
                 };

@@ -361,7 +361,7 @@ impl SceneInstance {
         let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
         runtime.finished.clear();
         let result = (|| -> Result<()> {
-            for (owner, entity) in &self.entities {
+            for (owner, entity) in self.component_entities::<Tween>(world) {
                 let Some(tween) = world.get::<Tween>(*entity).cloned() else {
                     continue;
                 };

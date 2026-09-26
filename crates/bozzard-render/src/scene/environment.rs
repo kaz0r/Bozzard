@@ -6,6 +6,8 @@ pub struct EnvironmentSettings {
     pub horizon: [f32; 3],
     pub ground: [f32; 3],
     pub intensity: f32,
+    /// Background-only star radiance; independent of environment illumination.
+    pub star_intensity: f32,
     pub background: bool,
 }
 impl Default for EnvironmentSettings {
@@ -15,6 +17,7 @@ impl Default for EnvironmentSettings {
             horizon: [0.65, 0.7, 0.8],
             ground: [0.12, 0.1, 0.08],
             intensity: 0.35,
+            star_intensity: 0.,
             background: true,
         }
     }
@@ -38,6 +41,10 @@ impl EnvironmentSettings {
         ensure!(
             self.intensity.is_finite() && (0.0..=1000.0).contains(&self.intensity),
             "invalid environment intensity"
+        );
+        ensure!(
+            self.star_intensity.is_finite() && (0.0..=1000.0).contains(&self.star_intensity),
+            "invalid star intensity"
         );
         Ok(())
     }
@@ -332,7 +339,7 @@ impl Environment {
                     .into_iter()
                     .chain([settings.intensity])
                     .chain(settings.horizon)
-                    .chain([0.])
+                    .chain([settings.star_intensity])
                     .chain(settings.ground)
                     .chain([0.])
                     .chain(inverse.to_cols_array()),
@@ -346,7 +353,7 @@ impl Environment {
         settings: EnvironmentSettings,
         auxiliary: bool,
     ) {
-        if settings.background && settings.intensity > 0. {
+        if settings.background && (settings.intensity > 0. || settings.star_intensity > 0.) {
             pass.set_pipeline(&self.sky[usize::from(auxiliary)]);
             pass.set_bind_group(3, &self.binding, &[]);
             pass.draw(0..3, 0..1);

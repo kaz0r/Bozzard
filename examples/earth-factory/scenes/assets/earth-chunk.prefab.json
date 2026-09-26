@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Earth terrain chunk",
+  "root": "root",
+  "assets": {
+    "earth-ground": {
+      "kind": "mesh",
+      "path": "earth-ground.obj"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Terrain chunk",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "earth-ground"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

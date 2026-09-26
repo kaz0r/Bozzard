@@ -59,6 +59,7 @@ pub use light::{
 };
 mod lighting;
 mod lod;
+mod transforms;
 pub use lighting::Lighting;
 
 use anyhow::{Context, Result, ensure};
@@ -1073,6 +1074,12 @@ impl Scene {
             instance_id: scene_loading::next_instance_id(),
             additive_scenes: BTreeMap::new(),
             document: self.clone(),
+            object_indices: self
+                .objects
+                .iter()
+                .enumerate()
+                .map(|(index, object)| (entities[&object.id], index))
+                .collect(),
             entities,
             order,
             templates,
@@ -1087,6 +1094,8 @@ impl Scene {
             particle_state: Default::default(),
             display_time: 0.,
             display_overrides: Default::default(),
+            lighting_override: None,
+            environment_override: None,
             script_engine: std::sync::OnceLock::new(),
             scripts: BTreeMap::new(),
             script_reload_revisions: BTreeMap::new(),
@@ -1094,6 +1103,7 @@ impl Scene {
             compute_state: std::sync::OnceLock::new(),
             compute_capabilities: Default::default(),
             lod_history: Default::default(),
+            transform_cache: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -1108,6 +1118,8 @@ pub struct SceneInstance {
     particle_state: particles::ParticleSystem,
     display_time: f32,
     display_overrides: display::DisplayOverrides,
+    lighting_override: Option<Lighting>,
+    environment_override: Option<EnvironmentSettings>,
     templates: BTreeMap<String, Prefab>,
     next_spawn: u64,
     restart_document: std::sync::Arc<Scene>,
@@ -1115,6 +1127,8 @@ pub struct SceneInstance {
     hierarchy_objects: std::collections::BTreeSet<String>,
     document: Scene,
     entities: BTreeMap<String, Entity>,
+    /// Resolve live component queries back to scene objects without scanning world scenery.
+    object_indices: std::collections::HashMap<Entity, usize>,
     order: Vec<usize>,
     /// Built on the first script registration, so a scene without scripts never pays for it.
     script_engine: std::sync::OnceLock<std::sync::Arc<script_runtime::ScriptEngine>>,
@@ -1125,10 +1139,36 @@ pub struct SceneInstance {
         std::sync::OnceLock<std::sync::Arc<std::sync::Mutex<compute_runtime::SceneCompute>>>,
     compute_capabilities: compute::Capabilities,
     lod_history: lod::History,
+    transform_cache: transforms::Cache,
 }
 
 impl SceneInstance {
+    /// Sparse live ECS membership, in the same ID order as `entities`.
+    /// Runtime component additions/removals take effect on the next query.
+    pub(crate) fn component_entities<T: bozzard_ecs::Component>(
+        &self,
+        world: &World,
+    ) -> Vec<(&String, &Entity)> {
+        let mut entries: Vec<_> = world
+            .query::<T>()
+            .filter_map(|(entity, _)| {
+                let index = *self.object_indices.get(&entity)?;
+                let id = &self.document.objects[index].id;
+                Some((id, &self.entities[id]))
+            })
+            .collect();
+        entries.sort_unstable_by_key(|(id, _)| *id);
+        entries
+    }
+
     fn rebuild_hierarchy_index(&mut self) {
+        self.object_indices = self
+            .document
+            .objects
+            .iter()
+            .enumerate()
+            .map(|(index, object)| (self.entities[&object.id], index))
+            .collect();
         self.hierarchy_objects = self
             .document
             .objects
@@ -1152,30 +1192,6 @@ impl SceneInstance {
     }
     pub fn has_view(&self, layer: Layer) -> bool {
         self.document.views.contains_key(&layer)
-    }
-
-    pub fn global_transforms(&self, world: &World) -> Result<BTreeMap<String, Mat4>> {
-        let mut matrices = BTreeMap::new();
-        for &index in &self.order {
-            let object = &self.document.objects[index];
-            let local = world
-                .get::<Transform>(self.entities[&object.id])
-                .context("scene object/transform was removed")?;
-            local.validate()?;
-            let parent = object
-                .parent
-                .as_ref()
-                .map(|p| matrices[p])
-                .unwrap_or(Mat4::IDENTITY);
-            let global = parent * local.matrix();
-            ensure!(
-                global.is_finite() && global.inverse().is_finite(),
-                "invalid runtime transform on '{}'",
-                object.id
-            );
-            matrices.insert(object.id.clone(), global);
-        }
-        Ok(matrices)
     }
 
     /// Compose one object's ancestry without calculating unrelated scene transforms.
@@ -1414,10 +1430,12 @@ impl SceneInstance {
             },
             fog: self.document.fog,
             lights,
-            environment: self.document.environment,
+            environment: self
+                .environment_override
+                .unwrap_or(self.document.environment),
             display: self.display_at(camera_position, layer),
             display_time: self.display_time,
-            lighting: self.document.lighting,
+            lighting: self.lighting_override.unwrap_or(self.document.lighting),
             view_projection,
             objects,
             object_ids,
@@ -1843,6 +1861,45 @@ mod tests {
             instance.global_transforms(&a).unwrap(),
             second.global_transforms(&b).unwrap()
         );
+    }
+
+    #[test]
+    fn cached_transforms_follow_live_edits_and_reject_invalid_or_removed_components() {
+        let mut scene = scene();
+        scene.objects[0].parent = Some("parent".into());
+        scene.objects[0].transform.translation = [1., 0., 0.];
+        let mut world = World::new();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        let parent = instance.entity("parent").unwrap();
+        let child = instance.entity("child").unwrap();
+        let position = |instance: &SceneInstance, world: &World| {
+            instance.global_transforms(world).unwrap()["child"].transform_point3(Vec3::ZERO)
+        };
+        assert_eq!(position(&instance, &world), Vec3::X);
+        // Both writes happen within one ECS tick; children inherit each new parent pose.
+        for x in [3., 8.] {
+            world.get_mut::<Transform>(parent).unwrap().translation[0] = x;
+            assert_eq!(position(&instance, &world), Vec3::new(x + 1., 0., 0.));
+        }
+        world.get_mut::<Transform>(child).unwrap().translation[1] = 2.;
+        assert_eq!(position(&instance, &world), Vec3::new(9., 2., 0.));
+        assert_eq!(position(&instance.clone(), &world), Vec3::new(9., 2., 0.));
+        // A changed hierarchy may reuse a cache slot with an unchanged local transform.
+        instance.document.objects[0].parent = None;
+        instance.order = instance.document.order().unwrap();
+        assert_eq!(position(&instance, &world), Vec3::new(1., 2., 0.));
+        instance.document.objects.swap(0, 1);
+        instance.order = instance.document.order().unwrap();
+        assert_eq!(position(&instance, &world), Vec3::new(1., 2., 0.));
+        world.get_mut::<Transform>(child).unwrap().scale[0] = 0.;
+        assert!(instance.global_transforms(&world).is_err());
+        world.get_mut::<Transform>(child).unwrap().scale[0] = 1.;
+        assert_eq!(position(&instance, &world), Vec3::new(1., 2., 0.));
+        world.get_mut::<Transform>(parent).unwrap().translation[0] = f32::NAN;
+        assert!(instance.global_transforms(&world).is_err());
+        world.get_mut::<Transform>(parent).unwrap().translation[0] = 0.;
+        world.remove::<Transform>(child).unwrap();
+        assert!(instance.global_transforms(&world).is_err());
     }
 
     #[test]

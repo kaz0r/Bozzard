@@ -176,6 +176,18 @@ enum Command {
         target: String,
         intensity: f32,
     },
+    SceneLight {
+        ambient: bool,
+        color: [f32; 3],
+        intensity: f32,
+    },
+    Environment {
+        zenith: [f32; 3],
+        horizon: [f32; 3],
+        ground: [f32; 3],
+        intensity: f32,
+    },
+    Stars(f32),
     /// One of the ten display overrides, named by the blueprint node that sets it.
     Display {
         kind: blueprint::NodeKind,
@@ -202,6 +214,11 @@ enum Command {
     },
     Cursor(bool),
     EndGame(String),
+    QuitGame,
+    CameraSize {
+        target: String,
+        size: f32,
+    },
     SceneControl {
         kind: blueprint::NodeKind,
         name: String,
@@ -228,6 +245,8 @@ enum Command {
 /// The read view and the write queue of the scripts running this tick.
 #[derive(Default)]
 struct Host {
+    render: bozzard_diagnostics::RenderMetrics,
+    simulation: bozzard_diagnostics::SimulationMetrics,
     network: NetworkFrame,
     /// The attachment currently running, which bare `me` arguments resolve to.
     owner: String,
@@ -607,6 +626,10 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     }
 
     // Object and clock reads, one per blueprint query node.
+    write!("set_camera_size", (target: ImmutableString, size: f32), |state| {
+        ensure_script(size.is_finite() && size > 0.0, || "camera size must be positive and finite".into())?;
+        Command::CameraSize { target: state.target_of(&target)?, size }
+    });
     read!("network_active", (), |state| Ok(Dynamic::from(
         state.network.active
     )));
@@ -621,6 +644,12 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     });
     read!("delta_time", (), |state| Ok(Dynamic::from(state.dt)));
     read!("elapsed_time", (), |state| Ok(Dynamic::from(state.elapsed)));
+    read!("render_stats", (), |state| rhai::serde::to_dynamic(
+        state.render
+    ));
+    read!("simulation_stats", (), |state| rhai::serde::to_dynamic(
+        state.simulation
+    ));
     read!("fresh_seed", (), |_state| Ok(Dynamic::from(
         fresh_seed_value()
     )));
@@ -975,6 +1004,29 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             intensity,
         }
     );
+    for (name, ambient) in [("set_sun_light", false), ("set_ambient_light", true)] {
+        write!(name, (color: Array, intensity: f32), |_state| {
+            let color = vector_of(color)?;
+            ensure_script(color.iter().all(|v| (0.0..=1.).contains(v))
+                && intensity.is_finite() && (0.0..=100_000.).contains(&intensity),
+                || "light needs RGB in 0..1 and intensity in 0..100000".into())?;
+            Command::SceneLight { ambient, color, intensity }
+        });
+    }
+    write!("set_environment", (zenith: Array, horizon: Array, ground: Array, intensity: f32), |_state| {
+        let zenith = vector_of(zenith)?;
+        let horizon = vector_of(horizon)?;
+        let ground = vector_of(ground)?;
+        ensure_script([zenith, horizon, ground].iter().flatten().all(|v| (0.0..=1.).contains(v))
+            && intensity.is_finite() && (0.0..=1000.).contains(&intensity),
+            || "environment needs RGB in 0..1 and intensity in 0..1000".into())?;
+        Command::Environment { zenith, horizon, ground, intensity }
+    });
+    write!("set_star_intensity", (intensity: f32), |_state| {
+        ensure_script(intensity.is_finite() && (0.0..=1000.).contains(&intensity),
+            || "star intensity must be in 0..1000".into())?;
+        Command::Stars(intensity)
+    });
     write!("set_ui_text", (target: ImmutableString, text: ImmutableString), |state| {
         ensure_script(text.len() <= 4096, || "UI text exceeds 4096 UTF-8 bytes".into())?;
         Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Text(text.to_string()) }
@@ -1113,6 +1165,12 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         let host = host.clone();
         engine.register_fn(name, move || {
             borrow!(host).record(Command::Cursor(requested));
+        });
+    }
+    {
+        let host = host.clone();
+        engine.register_fn("quit_game", move || {
+            borrow!(host).record(Command::QuitGame);
         });
     }
     {
@@ -1703,13 +1761,7 @@ impl SceneInstance {
         // phase on each redraw. Inspect the live world so spawned colliders
         // immediately take the ordinary path on the next tick.
         let has_colliders = world.resource::<crate::physics::Physics>().is_some()
-            || self.entities.values().copied().any(|entity| {
-                world.get::<BoxCollider>(entity).is_some()
-                    || world.get::<MeshCollider>(entity).is_some()
-                    || world
-                        .get::<crate::middleware::sprite::Tilemap>(entity)
-                        .is_some_and(|map| map.enabled && !map.solid.is_empty())
-            });
+            || self.has_collision_geometry(world);
         let snapshot = Arc::new(if has_colliders {
             self.collision_snapshot(world)?.0
         } else {
@@ -1763,6 +1815,7 @@ impl SceneInstance {
                     map.insert("target".into(), event.target.into());
                     map.insert("x".into(), event.position[0].into());
                     map.insert("y".into(), event.position[1].into());
+                    map.insert("delta".into(), event.delta.into());
                     host.ui_events.push(Dynamic::from_map(map));
                 }
             }
@@ -1855,6 +1908,14 @@ impl SceneInstance {
             .cloned()
             .unwrap_or_default();
         host.dt = dt;
+        host.render = world
+            .resource::<bozzard_diagnostics::RenderDiagnostics>()
+            .map(|diagnostics| diagnostics.metrics)
+            .unwrap_or_default();
+        host.simulation = world
+            .resource::<bozzard_diagnostics::SimulationMetrics>()
+            .copied()
+            .unwrap_or_default();
         self.prepare_script_compute(host);
         host.elapsed = runtime.elapsed;
         host.loading = self.scene_load_status(world);
@@ -2113,7 +2174,8 @@ impl SceneInstance {
         tokens: &mut BTreeMap<String, String>,
     ) -> Result<()> {
         let mut destroy = Vec::new();
-        for command in commands {
+        let mut commands = commands.into_iter().peekable();
+        while let Some(command) = commands.next() {
             match command {
                 Command::SetVelocity { target, velocity } => {
                     let target = resolve(tokens, &target);
@@ -2186,6 +2248,39 @@ impl SceneInstance {
                     light.validate()?;
                     world.insert(entity, light)?;
                 }
+                Command::SceneLight {
+                    ambient,
+                    color,
+                    intensity,
+                } => {
+                    let lighting = self.lighting_override.get_or_insert(self.document.lighting);
+                    if ambient {
+                        lighting.ambient_color = color;
+                        lighting.ambient_intensity = intensity;
+                    } else {
+                        lighting.sun_color = color;
+                        lighting.sun_intensity = intensity;
+                    }
+                }
+                Command::Environment {
+                    zenith,
+                    horizon,
+                    ground,
+                    intensity,
+                } => {
+                    let environment = self
+                        .environment_override
+                        .get_or_insert(self.document.environment);
+                    environment.zenith = zenith;
+                    environment.horizon = horizon;
+                    environment.ground = ground;
+                    environment.intensity = intensity;
+                }
+                Command::Stars(intensity) => {
+                    self.environment_override
+                        .get_or_insert(self.document.environment)
+                        .star_intensity = intensity;
+                }
                 Command::Display { kind, value } => self.set_display_parameter(kind, value)?,
                 Command::Spawn {
                     owner,
@@ -2193,8 +2288,23 @@ impl SceneInstance {
                     asset,
                     position,
                 } => {
-                    let id = self.spawn_prefab_for(world, &owner, &asset, position)?;
-                    tokens.insert(token, id);
+                    let mut requests = vec![(owner, asset, position)];
+                    let mut pending_tokens = vec![token];
+                    while matches!(commands.peek(), Some(Command::Spawn { .. })) {
+                        let Some(Command::Spawn {
+                            owner,
+                            token,
+                            asset,
+                            position,
+                        }) = commands.next()
+                        else {
+                            unreachable!()
+                        };
+                        requests.push((owner, asset, position));
+                        pending_tokens.push(token);
+                    }
+                    let roots = self.spawn_prefab_batch_for(world, &requests)?;
+                    tokens.extend(pending_tokens.into_iter().zip(roots));
                 }
                 Command::Destroy { target } => destroy.push(resolve(tokens, &target)),
                 Command::GraphEnabled {
@@ -2217,6 +2327,40 @@ impl SceneInstance {
                         .resource_mut::<crate::GameSession>()
                         .context("End Game needs Game Flow enabled in scene settings")?
                         .end_game(&message)?;
+                }
+                Command::QuitGame => {
+                    world.insert_resource(crate::GameSession {
+                        phase: crate::GamePhase::Quit,
+                        ..Default::default()
+                    });
+                }
+                Command::CameraSize { target, size } => {
+                    let target = resolve(tokens, &target);
+                    let entity = *self
+                        .entities
+                        .get(&target)
+                        .context("camera target does not exist")?;
+                    let camera = world
+                        .get::<Camera>(entity)
+                        .context("target has no camera")?;
+                    let Camera::Orthographic {
+                        vertical_size,
+                        near,
+                        far,
+                    } = *camera
+                    else {
+                        anyhow::bail!("set_camera_size requires an orthographic camera");
+                    };
+                    if vertical_size != size {
+                        world.insert(
+                            entity,
+                            Camera::Orthographic {
+                                vertical_size: size,
+                                near,
+                                far,
+                            },
+                        )?;
+                    }
                 }
                 Command::SceneControl { kind, name } => {
                     self.request_scene_control(world, kind, &name)?
@@ -2258,9 +2402,64 @@ impl SceneInstance {
                 }
             }
         }
-        for target in destroy {
-            self.destroy_script_prefab(world, runtime, engine.clone(), &target)?;
+        self.destroy_script_prefabs(world, runtime, engine, destroy)?;
+        Ok(())
+    }
+    /// Scenery has no lifecycle callbacks, so adjacent removals can share a scene
+    /// validation. Flush before any scripted/graph prefab to preserve hook order.
+    fn destroy_script_prefabs(
+        &mut self,
+        world: &mut World,
+        runtime: &mut ScriptRuntime,
+        engine: Arc<ScriptEngine>,
+        targets: Vec<String>,
+    ) -> Result<()> {
+        let mut pending = BTreeSet::new();
+        for target in targets {
+            if !self.entities.contains_key(&target) || pending.contains(&target) {
+                continue;
+            }
+            let members = &self
+                .document
+                .prefabs
+                .values()
+                .find(|prefab| prefab.members.values().any(|id| id == &target))
+                .context("Destroy Prefab target is not a live prefab instance")?
+                .members;
+            let passive = members.values().all(|id| {
+                let object = &self.document.objects[self.object_indices[&self.entities[id]]];
+                object.blueprints.is_empty()
+                    && object
+                        .script_manager
+                        .as_ref()
+                        .is_none_or(|m| m.scripts.is_empty())
+            });
+            if passive {
+                pending.extend(members.values().cloned());
+            } else {
+                self.destroy_passive_prefabs(world, runtime, &pending)?;
+                pending.clear();
+                self.destroy_script_prefab(world, runtime, engine.clone(), &target)?;
+            }
         }
+        self.destroy_passive_prefabs(world, runtime, &pending)
+    }
+
+    fn destroy_passive_prefabs(
+        &mut self,
+        world: &mut World,
+        runtime: &mut ScriptRuntime,
+        ids: &BTreeSet<String>,
+    ) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        ensure!(
+            !self.document.views.values().any(|id| ids.contains(id)),
+            "cannot destroy an active camera; switch views first"
+        );
+        self.remove_objects_raw(world, ids, false)?;
+        runtime.remove_objects(ids);
         Ok(())
     }
     /// `on_destroy` for a destroyed prefab's scripts, then the destroy itself.
@@ -2651,6 +2850,170 @@ mod tests {
             .register_script("drift".into(), source.into())
             .unwrap();
         (instance, world)
+    }
+
+    fn scenery_demo(source: &str) -> (SceneInstance, World) {
+        let (mut instance, world) = demo(source);
+        instance.document.assets.insert(
+            "scenery".into(),
+            AssetSource {
+                kind: AssetKind::Prefab,
+                path: "scenery.prefab.json".into(),
+            },
+        );
+        let mut root = instance.document.objects[0].clone();
+        root.id = "root".into();
+        root.script_manager = None;
+        root.gravity = None;
+        root.collider = None;
+        let mut child = root.clone();
+        child.id = "leaf".into();
+        child.parent = Some("root".into());
+        child.transform.translation = [0., 2., 0.];
+        instance
+            .register_prefab(
+                "scenery".into(),
+                Prefab {
+                    nested: Default::default(),
+                    base: None,
+                    version: 1,
+                    name: "Scenery".into(),
+                    root: "root".into(),
+                    objects: vec![child, root],
+                    assets: BTreeMap::new(),
+                },
+            )
+            .unwrap();
+        (instance, world)
+    }
+
+    #[test]
+    fn batched_spawns_resolve_tokens_hierarchies_and_duplicate_removals() {
+        let (mut instance, mut world) = scenery_demo(
+            r#"
+            let roots = [];
+            fn on_start(me) {
+                roots.push(spawn_prefab("scenery", [1.0, 0.0, 0.0]));
+                roots.push(spawn_prefab("scenery", [2.0, 0.0, 0.0]));
+                set_position(roots[1], [3.0, 0.0, 0.0]);
+            }
+            fn on_update(me, dt) {
+                if input_pressed("x") {
+                    for root in roots { destroy_prefab(root); destroy_prefab(root); }
+                }
+            }
+        "#,
+        );
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(instance.document.prefabs.len(), 2);
+        let transforms = instance.global_transforms(&world).unwrap();
+        for (link, x) in instance.document.prefabs.values().zip([1., 3.]) {
+            assert_eq!(
+                transforms[&link.members["leaf"]]
+                    .w_axis
+                    .truncate()
+                    .to_array(),
+                [x, 2., 0.]
+            );
+        }
+        instance.capture(&world).unwrap().validate().unwrap();
+        instance
+            .step_scripts(
+                &mut world,
+                1. / 60.,
+                GameplayInput {
+                    keys: crate::keys::bit("x"),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(instance.document.prefabs.is_empty());
+        assert_eq!(instance.document.objects.len(), 1);
+        assert_eq!(instance.global_transforms(&world).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_failed_spawn_batch_keeps_scene_and_entities_unchanged() {
+        let (mut instance, mut world) = scenery_demo("fn on_update(me, dt) {}");
+        let before = instance.capture(&world).unwrap();
+        assert!(
+            instance
+                .spawn_prefab_batch(&mut world, &[("scenery", [0.; 3]), ("missing", [0.; 3])])
+                .is_err()
+        );
+        assert_eq!(instance.capture(&world).unwrap(), before);
+        assert_eq!(world.query::<Transform>().count(), 1);
+        assert!(
+            instance
+                .spawn_prefab_batch(&mut world, &[("scenery", [f32::NAN, 0., 0.])])
+                .is_err()
+        );
+        assert_eq!(instance.capture(&world).unwrap(), before);
+    }
+
+    #[test]
+    fn passive_removal_batches_preserve_scripted_destroy_hook_order() {
+        let (mut instance, mut world) = scenery_demo(
+            r#"
+            fn on_start(me) {
+                let a = spawn_prefab("scenery", [1.0, 0.0, 0.0]);
+                let b = spawn_prefab("hooked", [2.0, 0.0, 0.0]);
+                let c = spawn_prefab("scenery", [3.0, 0.0, 0.0]);
+                destroy_prefab(a); destroy_prefab(b); destroy_prefab(c);
+            }
+        "#,
+        );
+        instance.document.assets.insert(
+            "hooked".into(),
+            AssetSource {
+                kind: AssetKind::Prefab,
+                path: "hooked.prefab.json".into(),
+            },
+        );
+        instance.document.assets.insert(
+            "hook".into(),
+            AssetSource {
+                kind: AssetKind::Script,
+                path: "hook.rs".into(),
+            },
+        );
+        let mut prefab = instance.templates["scenery"].clone();
+        let manager = instance.document.objects[0].script_manager.clone().unwrap();
+        let root = prefab.objects.iter_mut().find(|o| o.id == "root").unwrap();
+        root.script_manager = Some(manager);
+        root.script_manager.as_mut().unwrap().scripts[0].script = "hook".into();
+        prefab
+            .assets
+            .insert("hook".into(), instance.document.assets["hook"].clone());
+        instance.register_prefab("hooked".into(), prefab).unwrap();
+        instance
+            .register_script(
+                "hook".into(),
+                "fn on_destroy(me) { throw \"destroy hook reached\"; }".into(),
+            )
+            .unwrap();
+        let error = instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("destroy hook reached"));
+        let xs: Vec<_> = instance
+            .document
+            .prefabs
+            .keys()
+            .map(|id| {
+                world
+                    .get::<Transform>(instance.entity(id).unwrap())
+                    .unwrap()
+                    .translation[0]
+            })
+            .collect();
+        assert_eq!(
+            xs,
+            [2., 3.],
+            "earlier passive removals flush before hooks; later removals wait"
+        );
     }
 
     #[test]

@@ -145,8 +145,8 @@ impl SceneInstance {
     pub fn step_navigation(&self, world: &mut World, dt: f32) -> Result<()> {
         ensure!(dt.is_finite() && dt >= 0., "invalid navigation timestep");
         let agents: Vec<_> = self
-            .entities
-            .iter()
+            .component_entities::<NavAgent>(world)
+            .into_iter()
             .filter_map(|(id, &e)| {
                 world
                     .get::<NavAgent>(e)

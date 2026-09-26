@@ -955,11 +955,13 @@ impl SceneInstance {
     }
     pub(crate) fn step_bodies(&self, world: &mut World, dt: f32) -> Result<()> {
         // The character controller needs the world even when no dynamic body exists.
-        let needs_world = self.entities.values().any(|&e| {
-            world.get::<PlayerController>(e).is_some()
-                || (world.get::<Gravity>(e).is_some_and(|g| g.enabled)
-                    && world.get::<PlayerController>(e).is_none())
-        });
+        let needs_world = !self
+            .component_entities::<PlayerController>(world)
+            .is_empty()
+            || self
+                .component_entities::<Gravity>(world)
+                .into_iter()
+                .any(|(_, &e)| world.get::<Gravity>(e).is_some_and(|g| g.enabled));
         if !needs_world {
             world.remove_resource::<Physics>();
             return Ok(());

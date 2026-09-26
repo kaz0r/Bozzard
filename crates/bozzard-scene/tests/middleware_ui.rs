@@ -46,6 +46,50 @@ fn wire(a: u32, b: u32) -> Wire {
 }
 
 #[test]
+fn layout_queries_live_ui_components_and_excludes_other_scene_members() {
+    let mut scene = base();
+    canvas(&mut scene);
+    scene.objects.push(Object {
+        id: "runtime-label".into(),
+        name: "Runtime label".into(),
+        parent: Some("canvas".into()),
+        ..Default::default()
+    });
+    let mut world = World::new();
+    let instance = scene.spawn(&mut world).unwrap();
+    let label = instance.entity("runtime-label").unwrap();
+    let frame = |world: &World| instance.ui_frame(world, Layer::TwoD, [640., 480.]).unwrap();
+    assert!(frame(&world).element("runtime-label").is_none());
+    world
+        .insert(
+            label,
+            Widget {
+                text: "Added live".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        frame(&world).element("runtime-label").unwrap().text,
+        "Added live"
+    );
+    let mut other = base();
+    canvas(&mut other);
+    widget(&mut other, "foreign-label", "canvas", Widget::default());
+    let other_instance = other.spawn(&mut world).unwrap();
+    assert!(frame(&world).element("foreign-label").is_none());
+    assert!(
+        other_instance
+            .ui_frame(&world, Layer::TwoD, [640., 480.])
+            .unwrap()
+            .element("foreign-label")
+            .is_some()
+    );
+    world.remove::<Widget>(label).unwrap();
+    assert!(frame(&world).element("runtime-label").is_none());
+}
+
+#[test]
 fn world_labels_project_at_viewport_aspect_and_fade_with_children() {
     let mut scene = base();
     canvas(&mut scene);

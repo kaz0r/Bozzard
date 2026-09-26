@@ -410,11 +410,7 @@ impl crate::SceneInstance {
         self.particle_state.emitters.clear();
     }
     pub fn step_particles(&mut self, world: &bozzard_ecs::World, dt: f32) -> Result<()> {
-        if !self
-            .entities
-            .values()
-            .any(|entity| world.get::<ParticleEmitter>(*entity).is_some())
-        {
+        if self.component_entities::<ParticleEmitter>(world).is_empty() {
             self.particle_state.emitters.clear();
             return Ok(());
         }

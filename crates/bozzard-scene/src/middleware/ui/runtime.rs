@@ -31,6 +31,8 @@ pub struct ScriptEvent {
     pub kind: &'static str,
     pub target: String,
     pub position: [f32; 2],
+    /// Logical scroll points, positive down. Zero for non-scroll events.
+    pub delta: f32,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -267,7 +269,13 @@ impl SceneInstance {
                             (e.scroll + delta).clamp(0., e.scroll_max);
                         Ok(true)
                     } else {
-                        Ok(false)
+                        let blocked = frame.blocks_pointer(point);
+                        if !blocked {
+                            runtime.pointer = Some(point);
+                            runtime.queue("scroll", "");
+                            runtime.script_events.last_mut().unwrap().delta = delta;
+                        }
+                        Ok(blocked)
                     }
                 }
                 Input::ScrollObject { owner, delta } => {
@@ -489,6 +497,7 @@ impl Runtime {
                 kind: "cancel",
                 target: String::new(),
                 position: [0.; 2],
+                delta: 0.,
             });
         }
         let p = self.pointer.unwrap_or([0.; 2]);
@@ -496,6 +505,7 @@ impl Runtime {
             kind,
             target: target.into(),
             position: std::array::from_fn(|i| p[i] / self.viewport[i].max(1.)),
+            delta: 0.,
         });
     }
     pub fn validate(&self, scene: &Scene) -> Result<()> {

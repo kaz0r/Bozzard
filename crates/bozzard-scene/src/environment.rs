@@ -9,6 +9,8 @@ pub struct EnvironmentSettings {
     pub horizon: [f32; 3],
     pub ground: [f32; 3],
     pub intensity: f32,
+    /// Background-only star radiance. Zero disables stars; does not illuminate surfaces.
+    pub star_intensity: f32,
     pub background: bool,
 }
 impl Default for EnvironmentSettings {
@@ -18,6 +20,7 @@ impl Default for EnvironmentSettings {
             horizon: [0.65, 0.7, 0.8],
             ground: [0.12, 0.1, 0.08],
             intensity: 0.35,
+            star_intensity: 0.,
             background: true,
         }
     }
@@ -34,6 +37,10 @@ impl EnvironmentSettings {
         ensure!(
             self.intensity.is_finite() && (0.0..=1000.0).contains(&self.intensity),
             "environment intensity must be finite and in 0..1000"
+        );
+        ensure!(
+            self.star_intensity.is_finite() && (0.0..=1000.0).contains(&self.star_intensity),
+            "star intensity must be finite and in 0..1000"
         );
         Ok(())
     }

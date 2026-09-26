@@ -789,6 +789,8 @@ dependencies = [
  "accesskit",
  "anyhow",
  "bozzard-assets",
+ "bozzard-diagnostics",
+ "bozzard-ecs",
  "bozzard-render",
  "bozzard-scene",
  "glam 0.33.6",

@@ -39,6 +39,29 @@ Sparse storage scales with the highest entity slot used per component type. Benc
 
 ## Scheduling and time
 
+Native editor Play and the player default to one persistent `bozzard-simulation` worker
+for local games. The host prepares an owned render/UI frame from the completed world,
+then transfers the entire `App` to the worker for its next fixed-step batch while the
+main thread encodes/submits that prepared frame. A bounded channel carries one batch;
+the host joins it before processing further world queries or input. Systems within a
+tick still run serially in registration order. This overlaps simulation and rendering;
+it is not a parallel ECS scheduler or an independently paced simulation service.
+
+`--single-threaded` uses the same snapshot/tick ordering on the main thread for A/B
+comparisons. Both native paths show the preceding completed state, which can add one
+presentation frame of visual input latency compared with advance-before-extraction.
+Slow ticks can still delay the next frame at the join. Scene extraction, UI layout,
+window handling and GPU submission remain on the main thread. Scene-owned game state
+is never concurrently borrowed, and prepared frames retain their render data.
+
+Editor hidden/skipped viewports and player unavailable surfaces still consume the
+queued simulation time. Stop/reload drops the idle worker and joins its thread;
+render errors/unwinding restore the world, and simulation panics become reported
+errors requiring a scene restart. Headless stepping and debugger single-step stay
+synchronous. Steam multiplayer keeps its existing independently paced worker.
+`simulation_stats()` reports the previous batch's CPU time, fixed-step count, and
+main-thread join wait; it is not a GPU measurement.
+
 Systems execute in registration order. Direct mutations are visible to later systems; deferred commands execute once, in queue order, after the tick's final system. A queued spawn/despawn is therefore visible to systems on the next tick. Queue closures are infallible at the scheduler boundary; callers handle operation errors inside them. No rollback is promised after a panic.
 
 `App::step` advances exactly one fixed tick. `App::advance` accumulates elapsed wall time, limits catch-up, reports discarded whole ticks as a duration, and preserves the fractional remainder for interpolation. The headless harness uses `step`, so it never drops requested ticks. The headless harness also supports `--realtime`: a bounded 60 Hz pacer, overload diagnostics, and Ctrl-C/SIGTERM shutdown with optional final save. Steam multiplayer uses a player-hosted listen server; its pump runs independently of redraw events.

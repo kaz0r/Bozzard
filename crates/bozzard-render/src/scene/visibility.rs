@@ -4,6 +4,7 @@ use super::*;
 pub struct FrameStats {
     /// Monotonic identity for matching asynchronous GPU results with their rendered frame.
     pub frame_id: u64,
+    pub viewport_size: [u32; 2],
     pub particles: usize,
     /// Simulation/sort/gather/bucket compute dispatches; zero for an unchanged paused frame.
     pub particle_compute_dispatches: u32,
@@ -11,6 +12,9 @@ pub struct FrameStats {
     pub particle_descriptor_bytes: usize,
     pub particle_triangles: u64,
     pub scene_items: usize,
+    /// Distinct world draw items with a frustum-visible surface. Excludes screen HUD;
+    /// GPU occlusion can reject additional objects after this CPU-side count.
+    pub visible_items: usize,
     pub surfaces: usize,
     pub visible_surfaces: usize,
     pub culled_surfaces: usize,

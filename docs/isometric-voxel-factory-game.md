@@ -2,7 +2,7 @@
 
 *Working concept, recorded 2026-09-25. The game has no final title yet.*
 
-The first [Earth Factory Prototype](../examples/earth-factory/README.md) now runs inside Bozzard editor Play. It demonstrates randomized nodes, a baked voxel-style ground mesh, basic machines, and working iron and copper lines feeding an assembler. The later tiers, rocket, and other worlds remain design goals.
+The first [Earth Factory Prototype](../examples/earth-factory/README.md) now runs inside Bozzard editor Play. It now includes seeded neighboring regions (up to eight from the landing region in each direction), Tier 1 deliveries and machine locks, grouped action bars, animated machine rotation, and a three-page journal. The optional demonstration mode retains the prebuilt iron/copper/assembler production line. Only the occupied region currently simulates; other regions retain their state until revisited. Disk saves, cross-region conveyor transfers, later tiers, the rocket, and other worlds remain design goals.
 
 ## Core idea
 
