@@ -419,15 +419,30 @@ mod tests {
 
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/earth-factory/scenes/earth.json");
-        let scene =
+        let mut scene =
             bozzard_scene::Scene::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        scene.blackboard.insert(
+            "demo_mode".into(),
+            BlackboardValue::Scalar(Value::Bool(true)),
+        );
         let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
         for _ in 0..8 {
             demo.app.step();
         }
+        let board = demo
+            .app
+            .world
+            .resource::<bozzard_scene::BlueprintRuntime>()
+            .unwrap();
+        let Some(BlackboardValue::Scalar(Value::Number(start_x))) =
+            board.scene_blackboard().get("cursor_x")
+        else {
+            panic!("factory cursor position is missing");
+        };
+        let start_x = *start_x;
         let mut controls = GameplayControls::default();
         controls.prepare_with_pointer(
-            &raw(vec![key(Key::Enter, Key::Enter, false)]),
+            &raw(vec![key(Key::D, Key::D, false)]),
             Modifiers::NONE,
             keyboard_available(&ctx),
             false,
@@ -441,10 +456,10 @@ mod tests {
             .world
             .resource::<bozzard_scene::BlueprintRuntime>()
             .unwrap();
-        assert!(matches!(
-            board.scene_blackboard().get("started"),
-            Some(BlackboardValue::Scalar(Value::Bool(true)))
-        ));
+        assert_eq!(
+            board.scene_blackboard().get("cursor_x"),
+            Some(&BlackboardValue::Scalar(Value::Number(start_x + 1.)))
+        );
     }
 
     #[test]

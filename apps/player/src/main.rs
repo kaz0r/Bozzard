@@ -2326,6 +2326,13 @@ mod controls_tests {
         player.demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
         player.demo.app.step();
         player.demo.check_simulation().unwrap();
+        player
+            .ui_input(bozzard_scene::middleware::ui::Input::ActivateObject(
+                "title-create".into(),
+            ))
+            .unwrap();
+        player.demo.app.step();
+        player.demo.check_simulation().unwrap();
         player.gameplay_controls.event(&WindowEvent::Focused(true));
         let escape = |player: &mut Player, state, repeat| {
             player
@@ -2772,6 +2779,16 @@ mod controls_tests {
             )
             .unwrap();
         assert_eq!(player.demo.app.ticks(), 0, "F6 reloads the authored scene");
+        // Reload returns to the title. Enter activates the focused Create button.
+        player.demo.app.step();
+        player.demo.check_simulation().unwrap();
+        assert!(
+            player
+                .ui_input(bozzard_scene::middleware::ui::Input::Focus(
+                    "title-create".into(),
+                ))
+                .unwrap()
+        );
         press(
             &mut player,
             KeyCode::NumpadEnter,

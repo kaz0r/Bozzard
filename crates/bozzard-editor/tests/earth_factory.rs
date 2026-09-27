@@ -130,16 +130,15 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
             .count(),
         0
     );
-    assert!(
+    assert_eq!(
         authored
             .objects
             .iter()
-            .filter(|object| !object.extras.contains_key("ui_widget")
-                && !object.extras.contains_key("ui_canvas")
-                // The fixed landing-site and rocket models are separate from baked terrain.
-                && !object.id.starts_with("site-") && !object.id.starts_with("rocket-"))
-            .count()
-            < 50,
+            .filter(|object| object.drawable.as_ref().is_some_and(|drawable| {
+                matches!(&drawable.mesh, Mesh::Asset(id) if id == "earth-ground")
+            }))
+            .count(),
+        1,
         "the ground must be one scene object"
     );
     assert!(matches!(
@@ -183,14 +182,14 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
             root.transform.scale, [1.0; 3],
             "{asset} pivot flattens its children"
         );
-        let height = prefab
-            .objects
-            .iter()
-            .filter(|object| object.drawable.is_some())
-            .map(|object| object.transform.translation[1] + object.transform.scale[1] * 0.5)
-            .fold(0.0f32, f32::max);
+        // Imported machine meshes have unit-scale roots; measure their geometry
+        // as well as the primitive geometry used by resource nodes.
+        let prefab_path = path.parent().unwrap().join(&authored.assets[asset].path);
+        let model = Editor::new(prefab.authoring_scene(), &prefab_path)?;
+        model.assets.require_ready()?;
+        let [min, max] = model.frame_bounds(Layer::ThreeD, None)?.unwrap();
         assert!(
-            height > 0.7,
+            max.y - min.y > 0.7,
             "{asset} must read as a 3D object, not a flat tile"
         );
     }
@@ -199,6 +198,11 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
     let play = editor.play.as_mut().unwrap();
     play.app.step();
     play.check_simulation()?;
+    let initial_objects = play
+        .instance()
+        .view(&play.app.world, Layer::ThreeD, 16.0 / 9.0)?
+        .objects
+        .len();
 
     play.ui_input(
         Layer::ThreeD,
@@ -217,12 +221,7 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
         .instance()
         .view(&play.app.world, Layer::ThreeD, 16.0 / 9.0)?;
     assert!(
-        render.objects.len()
-            > authored
-                .objects
-                .iter()
-                .filter(|o| o.drawable.is_some())
-                .count(),
+        render.objects.len() > initial_objects,
         "Play adds the script-spawned nodes and machines to the authored ground"
     );
 
