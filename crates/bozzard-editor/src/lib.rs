@@ -2050,22 +2050,28 @@ mod tests {
         e.start_play().unwrap();
         let play = e.play.as_mut().unwrap();
         let entity = play.instance().entity(&id).unwrap();
-        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 75.;
         play.app.world.get_mut::<Light>(entity).unwrap().shadows = false;
+        let view = e.render(Layer::ThreeD, 1.).unwrap();
+        assert_eq!(view.lights.len(), 2);
         assert!(
-            e.render(Layer::ThreeD, 1.)
-                .unwrap()
-                .lights
+            view.lights
                 .iter()
-                .any(|l| l.shadows.is_none())
+                .any(|l| l.color == [1.; 3] && l.intensity == 75. && l.shadows.is_none())
         );
-        assert!(
-            e.render(Layer::ThreeD, 1.)
-                .unwrap()
-                .lights
-                .iter()
-                .any(|l| l.intensity == 0.)
-        );
+        // A dark light remains in the Play world but is omitted from rendering.
+        // The independently edited blue copy must still render with its shadows.
+        let play = e.play.as_mut().unwrap();
+        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+        let view = e.render(Layer::ThreeD, 1.).unwrap();
+        assert_eq!(view.lights.len(), 1);
+        assert_eq!(view.lights[0].color, [0., 0., 1.]);
+        assert_eq!(view.lights[0].intensity, 150.);
+        assert!(view.lights[0].shadows.is_some());
+        let play = e.play.as_ref().unwrap();
+        let runtime_light = play.app.world.get::<Light>(entity).unwrap();
+        assert_eq!(runtime_light.intensity, 0.);
+        assert!(!runtime_light.shadows);
         let save = dir.0.join("lights.json");
         e.save(&save).unwrap();
         assert_eq!(Editor::open(&save).unwrap().scene(), &authored);
