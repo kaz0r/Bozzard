@@ -113,6 +113,18 @@ pub struct BlueprintRuntime {
     destroying: BTreeSet<String>,
 }
 impl BlueprintRuntime {
+    /// Scripts temporarily own the read boards during their synchronous hook pass.
+    /// The caller restores the original values and swaps them back before applying
+    /// commands (including on error), so Blueprint state is never partly published.
+    pub(crate) fn swap_script_boards(
+        &mut self,
+        scene: &mut Blackboard,
+        objects: &mut BTreeMap<String, Blackboard>,
+    ) {
+        std::mem::swap(&mut self.scene_board, scene);
+        std::mem::swap(&mut self.object_boards, objects);
+    }
+
     pub(crate) fn remove_objects(&mut self, ids: &BTreeSet<String>) {
         self.runs.retain(|(id, _), _| !ids.contains(id));
         self.object_boards.retain(|id, _| !ids.contains(id));

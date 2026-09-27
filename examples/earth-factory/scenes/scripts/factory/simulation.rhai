@@ -84,6 +84,19 @@ fn step_planet(planet,tick) {
         }
         set_color(visuals[cell], data::item_color(items[cell]));
     }
+    // Storage offers its first occupied slot from the start-of-transport snapshot.
+    // Keep these offers separate from machine buffers: stored stock never becomes
+    // a second inventory or a stationary item floating above the container.
+    let offered_items=items; let offered_amounts=amounts;
+    let storage_slots=grid::empty_numbers(count);
+    for key in state.storage.keys() {
+        let cell=parse_int(key); let slots=state.storage[key];
+        for slot in 0..16 {
+            if slots[slot*2+1]<=0.0 { continue; }
+            offered_items[cell]=slots[slot*2]; offered_amounts[cell]=1.0;
+            storage_slots[cell]=(slot+1).to_float(); break;
+        }
+    }
     // Reserve destinations before removing any source items. An occupied belt
     // blocks its upstream tile for this beat, irrespective of placement order.
     // Received items cannot jump through several machines in the same beat.
@@ -97,9 +110,9 @@ fn step_planet(planet,tick) {
         for entry in machine_cells {
             let cell = entry.to_int();
             let kind = builds[cell];
-            if routes[cell] != 0.0 || amounts[cell] == 0.0 || rotating[cell] > 0.0 { continue; }
+            if routes[cell] != 0.0 || offered_amounts[cell] == 0.0 || rotating[cell] > 0.0 { continue; }
             if kind != 1.0 && kind != 2.0 && kind != 3.0 &&
-                kind != 5.0 && kind != 7.0 && kind != 8.0 && kind != 11.0 { continue; }
+                kind != 4.0 && kind != 5.0 && kind != 7.0 && kind != 8.0 && kind != 11.0 { continue; }
             if attempt > 0 && kind != 7.0 { continue; }
             let direction = facings[cell].to_int();
             if kind == 7.0 {
@@ -137,7 +150,7 @@ fn step_planet(planet,tick) {
                 if !lookup.contains(address) { continue; }
                 let cell=lookup[address];
                 if requests[cell]!=(destination+1).to_float() { continue; }
-                let item = items[cell];
+                let item = offered_items[cell];
                 let load = next_amounts[destination] + input_amounts[destination] + iron[destination] + copper[destination];
                 let accepted = false;
                 // A junction stores one material stack. Let a waiting different
@@ -199,8 +212,16 @@ fn step_planet(planet,tick) {
     for entry in machine_cells {
         let cell = entry.to_int();
         if routes[cell] == 0.0 { continue; }
-        next_amounts[cell] -= 1.0;
-        if next_amounts[cell] == 0.0 { next_items[cell] = 0.0; }
+        if builds[cell]==4.0 {
+            let key=cell.to_string(); let slot=storage_slots[cell].to_int()-1;
+            let slots=state.storage[key]; slots[slot*2+1]-=1.0;
+            if slots[slot*2+1]==0.0 { slots[slot*2]=0.0; }
+            state.storage[key]=slots; state.storage_changed[key]=true;
+            counts[offered_items[cell].to_int()]-=1.0;
+        } else {
+            next_amounts[cell] -= 1.0;
+            if next_amounts[cell] == 0.0 { next_items[cell] = 0.0; }
+        }
         next_visuals[cell] = "";
     }
     for entry in machine_cells {
@@ -212,7 +233,7 @@ fn step_planet(planet,tick) {
             let position=[grid::global_x(ids[cell]),visuals::item_height(builds[cell]),grid::global_z(ids[cell])];
             if pool.len()>0 { visuals[cell]=pool.pop(); set_position(visuals[cell],position); set_visible(visuals[cell],true); }
             else { visuals[cell]=spawn_prefab("item",position); }
-            set_color(visuals[cell],data::item_color(items[cell]));
+            set_color(visuals[cell],data::item_color(offered_items[cell]));
         }
         if visuals[cell]=="" { continue; }
         let retained=resident[ids[destination]/225]>0.0 &&
@@ -233,7 +254,7 @@ fn step_planet(planet,tick) {
         set_color(next_visuals[cell], data::item_color(next_items[cell]));
     }
 
-    transports::record(planet,tick,ids,routes,items,builds);
+    transports::record(planet,tick,ids,routes,offered_items,builds);
     state.columns.items=next_items; state.columns.item_amounts=next_amounts;
     state.columns.input_items=inputs; state.columns.input_amounts=input_amounts;
     state.columns.progress=progress; state.columns.assembler_iron=iron; state.columns.assembler_copper=copper;

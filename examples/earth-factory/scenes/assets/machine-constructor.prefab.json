@@ -1,7 +1,13 @@
 {
   "version": 1,
-  "name": "Machine Constructor",
+  "name": "Constructor Mk1",
   "root": "root",
+  "assets": {
+    "constructor-mk1": {
+      "kind": "mesh",
+      "path": "models/constructor-mk1.glb"
+    }
+  },
   "objects": [
     {
       "id": "root",
@@ -22,187 +28,23 @@
           1,
           1
         ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "constructor-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
       }
-    },
-    {
-      "id": "base",
-      "name": "machine-constructor base",
-      "transform": {
-        "translation": [
-          0,
-          0.11,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.88,
-          0.22,
-          0.88
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.17,
-          0.27,
-          0.3
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "power-terminal",
-      "name": "Cable terminal",
-      "transform": {
-        "translation": [
-          0,
-          0.83,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.085,
-          0.34,
-          0.085
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.55,
-          0.38,
-          0.17
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-0",
-      "name": "machine-constructor detail 1",
-      "transform": {
-        "translation": [
-          0,
-          0.44,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.65,
-          0.46,
-          0.65
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.25,
-          0.55,
-          0.57
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-1",
-      "name": "machine-constructor detail 2",
-      "transform": {
-        "translation": [
-          0,
-          0.75,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.54,
-          0.16,
-          0.22
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.79,
-          0.71,
-          0.4
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-2",
-      "name": "machine-constructor detail 3",
-      "transform": {
-        "translation": [
-          0.33,
-          0.46,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.12,
-          0.22,
-          0.31
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.08,
-          0.15,
-          0.17
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
     }
   ]
 }

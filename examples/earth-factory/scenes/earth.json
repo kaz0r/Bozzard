@@ -435,6 +435,50 @@
     }
   },
   "assets": {
+    "miner-power-on": {
+      "kind": "prefab",
+      "path": "assets/miner-power-on.prefab.json"
+    },
+    "miner-power-off": {
+      "kind": "prefab",
+      "path": "assets/miner-power-off.prefab.json"
+    },
+    "smelter-power-on": {
+      "kind": "prefab",
+      "path": "assets/smelter-power-on.prefab.json"
+    },
+    "smelter-power-off": {
+      "kind": "prefab",
+      "path": "assets/smelter-power-off.prefab.json"
+    },
+    "smelter-heat": {
+      "kind": "prefab",
+      "path": "assets/smelter-heat.prefab.json"
+    },
+    "constructor-power-on": {
+      "kind": "prefab",
+      "path": "assets/constructor-power-on.prefab.json"
+    },
+    "constructor-power-off": {
+      "kind": "prefab",
+      "path": "assets/constructor-power-off.prefab.json"
+    },
+    "assembler-power-on": {
+      "kind": "prefab",
+      "path": "assets/assembler-power-on.prefab.json"
+    },
+    "assembler-power-off": {
+      "kind": "prefab",
+      "path": "assets/assembler-power-off.prefab.json"
+    },
+    "generator-power-on": {
+      "kind": "prefab",
+      "path": "assets/generator-power-on.prefab.json"
+    },
+    "generator-power-off": {
+      "kind": "prefab",
+      "path": "assets/generator-power-off.prefab.json"
+    },
     "node-iron": {
       "kind": "prefab",
       "path": "assets/node-iron.prefab.json"
@@ -547,6 +591,10 @@
       "kind": "prefab",
       "path": "assets/node-techtorium.prefab.json"
     },
+    "dev-floor": {
+      "kind": "prefab",
+      "path": "assets/dev-floor.prefab.json"
+    },
     "moon-ground": {
       "kind": "mesh",
       "path": "assets/moon-ground.obj"
@@ -590,6 +638,10 @@
     "factory-deposits": {
       "kind": "script",
       "path": "scripts/factory/deposits.rhai"
+    },
+    "factory-dev_world": {
+      "kind": "script",
+      "path": "scripts/factory/dev_world.rhai"
     },
     "factory-environment": {
       "kind": "script",
@@ -50350,7 +50402,7 @@
           ],
           "size": [
             820,
-            510
+            570
           ]
         },
         "text_color": [
@@ -51187,6 +51239,155 @@
       }
     },
     {
+      "id": "title-dev",
+      "name": "Title Dev",
+      "parent": "title-content",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "button",
+        "text": "Dev World",
+        "font_size": 18,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            4,
+            466
+          ],
+          "size": [
+            192,
+            42
+          ]
+        },
+        "text_color": [
+          0.94,
+          0.97,
+          0.92,
+          1
+        ],
+        "background": [
+          0.16,
+          0.22,
+          0.3,
+          1
+        ],
+        "padding": [
+          0,
+          10,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0,
+        "image": "ui-rounded",
+        "border": [
+          16,
+          16,
+          16,
+          16
+        ],
+        "text_alignment": "center",
+        "focus_order": 4
+      }
+    },
+    {
+      "id": "title-dev-detail",
+      "name": "Title Dev Detail",
+      "parent": "title-content",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "Fixed 2 \u00d7 2 checkerboard. Every deposit, machine and item.",
+        "font_size": 15,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            212,
+            476
+          ],
+          "size": [
+            598,
+            28
+          ]
+        },
+        "text_color": [
+          0.62,
+          0.74,
+          0.68,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
       "id": "coop-open-title",
       "name": "Coop Open Title",
       "parent": "title-content",
@@ -51226,7 +51427,7 @@
           ],
           "offset": [
             4,
-            466
+            528
           ],
           "size": [
             192,
@@ -51304,7 +51505,7 @@
           ],
           "offset": [
             212,
-            472
+            534
           ],
           "size": [
             598,
@@ -56260,6 +56461,13 @@
           "list": {
             "element": "text",
             "capacity": 867,
+            "values": []
+          }
+        },
+        "machine_light_slots": {
+          "list": {
+            "element": "text",
+            "capacity": 32,
             "values": []
           }
         },

@@ -37,8 +37,10 @@ fn recycle(targets) {
     set_scene_list("item_pool",pool);
 }
 fn retire_previous() {
+    let active=get_scene_list_item("motion_visuals",867);
+    if active=="" { return; }
     let targets=[];
-    for entry in grid::unpack_numbers(get_scene_list_item("motion_visuals",867),0) {
+    for entry in grid::unpack_numbers(active,0) {
         let page=get_scene_list_item("retired_visuals",entry.to_int());
         if page!="" { for target in grid::unpack_text(page,75) { if target!="" { targets.push(target); } } }
     }
@@ -140,6 +142,9 @@ fn assign(ids,handles) {
     set_scene_list("factory_visuals",pages);set_scene_list("item_visuals",current);
 }
 fn write_motions(motions) {
+    // Idle factories have no animation pages to clear. Still clear once after
+    // the last moving item so a stopped belt cannot replay its previous motion.
+    if motions.len()==0 && get_scene_list_item("motion_visuals",867)=="" { return; }
     let names=["motion_visuals","motion_from","motion_to","motion_from_y","motion_to_y","retired_visuals"];
     let motion_pages=#{};
     for motion in motions {

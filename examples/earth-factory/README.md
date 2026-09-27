@@ -10,6 +10,8 @@ cargo run -p bozzard-editor-app --bin bozzard-editor -- --scene examples/earth-f
 
 Click the green **▶ Play** button to open the **Stellar-IX** main menu. Select **Survival** or **Creative**, then **Create world**. Survival starts on **Stellar-BX** with manual gathering: hold **F** on iron, copper, and stone nodes, then deliver **12 iron ore + 8 copper ore + 8 stone** through journal **J**, page I. This unlocks the first miners, smelters, conveyors, poles, cables, and workbench recipes. Creative unlocks all implemented tools, recipes, and the completed rocket; construction and ingredient loading are free, but machines still need a working power connection. The same scene and controls work in the native player. Board the completed rocket with **E** and choose **Launch to Moon** to visit **Stella-Z2**; return trips currently require no fuel.
 
+**Dev World** opens directly from the main menu. Its fixed 2 × 2 chunks form a 30 × 30-tile checkerboard, one block thick. One spaced row contains all 13 Earth and Moon deposits; another contains every machine type, including storage and conveyor equipment, plus a cable between two poles. Two rows of isolated conveyors display all 25 item types, and the backpack starts with ten of each. The four chunks remain loaded, with no procedural deposits or neighboring regions. Machines use their ordinary simulation and power rules. **N** restores the showcase; save/load retains edits. Planet travel is unavailable in this world.
+
 A small debug HUD beneath the objective shows FPS, frame time, CPU draw time, loaded and explored chunks, simulating chunks, visible entities, draw calls, and submitted triangles. It refreshes four times per second in editor Play and the native player. FPS uses completed-frame wall time; CPU draw time measures renderer preparation and submission, not GPU execution. Visible entities exclude the HUD and count objects inside the camera frustum before GPU occlusion. Draws and triangles cover color-pass meshes. Headless runs show `--` for unavailable rendering measurements.
 
 Loaded chunks have live terrain, deposits, and machine models. Explored chunks include distant
@@ -212,7 +214,7 @@ Buffering does not speed up production or transfers: each connection still moves
 
 **Machine collection.** Press **E** on or within one tile of a miner or smelter (including diagonals) to take **finished output that fits** into your backpack. Assemblers and Constructors use their interface’s Collect output button instead. The nearest machine/container wins, and the tooltip shows the target. The tooltip shows total buffer usage out of 100 and the collectible quantity. Unfinished ingredients and recipe progress stay inside; collection frees capacity for further production. Check carried materials in **J**, or **I** after T1 P3.
 
-**Storage.** Each container has 16 slots with 100 items per stack. Press **E** within one tile, including diagonals. Drag stacks to move, merge, or swap them. Right-click for Split or Delete all; Delete all affects only that container. **Take items into backpack** transfers contents for crafting and deliveries. Full storage blocks incoming items. Demolition discards its inventory and updates stored totals.
+**Storage.** Each container has 16 slots with 100 items per stack. Its cyan rear port accepts input and its opposite gold port outputs one item per factory beat, starting with the first occupied slot. **R** rotates both ports. A full or missing downstream machine leaves items in storage; newly received items wait until the next beat before they can leave. Transfers continue across chunk boundaries and on other planets. Press **E** within one tile, including diagonals. Drag stacks to move, merge, or swap them. Right-click for Split or Delete all; Delete all affects only that container. **Take items into backpack** transfers contents for crafting and deliveries. Full storage blocks incoming items. Demolition discards its inventory and updates stored totals.
 
 **Landing site and rocket.** The upgraded asphalt platform is **4 × 4 tiles total and one block thick**, with its top flush with the build surface. The pod stays at tile (0,0); the rocket occupies (0,1), and the dock is at (2,1) on the east edge. Before the upgrade, remove any machines on the rocket and dock tiles; a blocked delivery consumes nothing and leaves machines intact, even when the home region is unloaded. Other machines can remain on the asphalt. Future building on the pod, rocket, and dock footprints is blocked.
 
@@ -318,6 +320,7 @@ cargo test -p bozzard-editor --test stellar_ix -- --ignored --nocapture
 | `grid.rhai` | Coordinates, packing helpers, region cache access |
 | `deposits.rhai` | Seeded Earth and Moon resource placement |
 | `world.rhai` | New worlds, region state, planet travel |
+| `dev_world.rhai` | Fixed checkerboard showroom and complete asset catalog |
 | `chunks.rhai` | Discovery, visual loading, bounded residency |
 | `simulation.rhai` | Production beats, conveyor/splitter/merger routing |
 | `factory_state.rhai` | Per-planet snapshots and writeback for all built regions, including off-planet factories |

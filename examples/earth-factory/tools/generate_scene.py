@@ -387,7 +387,7 @@ def factory_ui():
         x, y = (i * 173 + 17) % 1080, (i * 97 + 23) % 600
         widget(f"title-star-{i}", "title-overlay", (x, y), (2 if i % 5 else 3, 2 if i % 5 else 3),
                background=[0.34, 0.48, 0.65, 0.65])
-    widget("title-content", "title-overlay", (0, 0), (820, 510), anchor=(0.5, 0.5), pivot=(0.5, 0.5))
+    widget("title-content", "title-overlay", (0, 0), (820, 570), anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("title-kicker", "title-content", (0, 0), (820, 24), "BUILD A FACTORY. FIND YOUR WAY TO THE STARS.", 14, [0.48, 0.73, 0.76, 1])
     widget("title-name", "title-content", (0, 36), (820, 90), "Stellar-IX", 76)
     widget("title-description", "title-content", (4, 143), (810, 50),
@@ -410,9 +410,14 @@ def factory_ui():
     widget("title-exit", "title-content", (624, 398), (180, 54), "Exit", 18, muted,
            [0.08, 0.13, 0.19, 1], padding=(20, 17, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", focus_order=3)
-    widget("coop-open-title", "title-content", (4, 466), (192, 34), "Steam co-op", 16, cream, [0.10, 0.22, 0.28, 1], padding=(0, 8, 0, 0))
+    widget("title-dev", "title-content", (4, 466), (192, 42), "Dev World", 18, cream,
+           [0.16, 0.22, 0.30, 1], padding=(0, 10, 0, 0))
+    objects[-1]["ui_widget"].update(kind="button", text_alignment="center", focus_order=4)
+    widget("title-dev-detail", "title-content", (212, 476), (598, 28),
+           "Fixed 2 × 2 checkerboard. Every deposit, machine and item.", 15, muted)
+    widget("coop-open-title", "title-content", (4, 528), (192, 34), "Steam co-op", 16, cream, [0.10, 0.22, 0.28, 1], padding=(0, 8, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
-    widget("title-note", "title-content", (212, 472), (598, 28), "Auto-save every 20 minutes. Save anytime from the game menu.", 13, muted)
+    widget("title-note", "title-content", (212, 534), (598, 28), "Auto-save every 20 minutes. Save anytime from the game menu.", 13, muted)
     widget("coop-overlay", "factory-panels", (0, 0), (0, 0), background=[0.008, 0.014, 0.029, 0.94], order=600)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
@@ -494,7 +499,7 @@ def write_json(path, value):
     path.write_text(json.dumps(value, indent=2) + "\n")
 
 
-def bake_ground_mesh(moon=False):
+def bake_ground_mesh(moon=False, developer=False):
     """Bake the fixed board into one imported mesh, leaving nodes and machines to Rhai."""
     grass = (
         (0.28, 0.48, 0.25),
@@ -504,7 +509,9 @@ def bake_ground_mesh(moon=False):
     )
     if moon:
         grass = ((0.35, 0.36, 0.39), (0.30, 0.31, 0.34), (0.39, 0.40, 0.43), (0.33, 0.34, 0.37))
-    ground_name = "moon-ground" if moon else "earth-ground"
+    if developer:
+        grass = ((0.19, 0.22, 0.26), (0.59, 0.63, 0.67))
+    ground_name = "dev-floor" if developer else "moon-ground" if moon else "earth-ground"
     materials = {f"grass-{i}": [] for i in range(len(grass))}
     materials["earth-cliff"] = []
 
@@ -512,8 +519,9 @@ def bake_ground_mesh(moon=False):
         materials[material].append(corners)
 
     def block(material, x, z, top, bottom, exposed_sides):
-        left, right = x - 0.495, x + 0.495
-        near, far = z - 0.495, z + 0.495
+        half = 0.5 if developer else 0.495
+        left, right = x - half, x + half
+        near, far = z - half, z + half
         quad(material, ((left, top, near), (left, top, far),
                         (right, top, far), (right, top, near)))
         if "north" in exposed_sides:
@@ -529,29 +537,31 @@ def bake_ground_mesh(moon=False):
             quad(material, ((right, bottom, near), (right, top, near),
                             (right, top, far), (right, bottom, far)))
 
-    for z in range(-7, 8):
-        for x in range(-7, 8):
-            shade = (x * 13 + z * 7 + x * z) % len(grass)
+    edge = 22 if developer else 7
+    for z in range(-7, edge + 1):
+        for x in range(-7, edge + 1):
+            shade = (x + z) % 2 if developer else (x * 13 + z * 7 + x * z) % len(grass)
             sides = []
             if z == -7:
                 sides.append("north")
-            if z == 7:
+            if z == edge:
                 sides.append("south")
             if x == -7:
                 sides.append("west")
-            if x == 7:
+            if x == edge:
                 sides.append("east")
-            block(f"grass-{shade}", x, z, 0.08, -0.24, sides)
+            block(f"grass-{shade}", x, z, 0.08, -0.92 if developer else -0.24, sides)
 
     # The 0.01-unit tile seams reveal this darker soil instead of the sky beneath the island.
-    quad("earth-cliff", ((-7.495, -0.23, -7.495), (-7.495, -0.23, 7.495),
-                         (7.495, -0.23, 7.495), (7.495, -0.23, -7.495)))
+    low, high, bottom = (-7.5, 22.5, -0.92) if developer else (-7.495, 7.495, -0.23)
+    quad("earth-cliff", ((low, bottom, low), (low, bottom, high),
+                         (high, bottom, high), (high, bottom, low)))
 
     # The footprint stays inside 15 x 15 so neighboring chunks tile without overlaps.
 
     mtl = ["# Generated by tools/generate_scene.py"]
     for name, color in [(f"grass-{i}", shade) for i, shade in enumerate(grass)] + [
-        ("earth-cliff", (0.19, 0.20, 0.23) if moon else (0.33, 0.30, 0.22))
+        ("earth-cliff", (0.19, 0.20, 0.23) if moon or developer else (0.33, 0.30, 0.22))
     ]:
         mtl.extend((f"newmtl {name}",
                     "Kd " + " ".join(f"{channel:.3f}" for channel in color), ""))
@@ -626,73 +636,38 @@ def node_prefabs():
 
 
 def machine_prefabs():
-    prefab(
-        "machine-miner", [0.16, 0.23, 0.27],
-        [
-            ((0, 0.43, 0), (0.62, 0.43, 0.62), [0.32, 0.43, 0.48]),
-            ((0.24, 0.71, 0), (0.17, 0.16, 0.45), [0.83, 0.72, 0.29]),
-            ((0.37, 0.30, 0), (0.22, 0.17, 0.28), [0.08, 0.12, 0.15]),
-        ],
-    )
-    prefab(
-        "machine-belt", [0.13, 0.17, 0.20],
-        [
-            ((0, 0.24, 0), (0.78, 0.07, 0.60), [0.43, 0.33, 0.20]),
-            ((0.24, 0.29, 0), (0.17, 0.05, 0.30), [0.89, 0.72, 0.29]),
-            ((-0.26, 0.29, 0), (0.12, 0.05, 0.30), [0.89, 0.72, 0.29]),
-        ],
-    )
-    prefab(
-        "machine-smelter", [0.23, 0.24, 0.28],
-        [
-            ((0, 0.50, 0), (0.68, 0.63, 0.67), [0.34, 0.35, 0.39]),
-            ((0.22, 0.53, -0.35), (0.25, 0.25, 0.06), [0.95, 0.39, 0.10]),
-            ((-0.23, 0.91, 0.20), (0.16, 0.30, 0.17), [0.15, 0.17, 0.20]),
-        ],
-    )
-    prefab(
-        "machine-storage", [0.22, 0.27, 0.26],
-        [
-            ((0, 0.44, 0), (0.68, 0.47, 0.68), [0.38, 0.55, 0.39]),
-            ((0, 0.70, 0), (0.78, 0.12, 0.78), [0.17, 0.23, 0.21]),
-        ],
-    )
-    prefab(
-        "machine-assembler", [0.23, 0.19, 0.34],
-        [
-            ((0, 0.43, 0), (0.67, 0.46, 0.67), [0.48, 0.36, 0.67]),
-            ((-0.23, 0.72, 0), (0.17, 0.24, 0.46), [0.76, 0.72, 0.91]),
-            ((0.23, 0.72, 0), (0.17, 0.24, 0.46), [0.76, 0.72, 0.91]),
-        ],
-    )
-    prefab("machine-constructor", [0.17, 0.27, 0.30], [
-        ((0, 0.44, 0), (0.65, 0.46, 0.65), [0.25, 0.55, 0.57]),
-        ((0, 0.75, 0), (0.54, 0.16, 0.22), [0.79, 0.71, 0.40]),
-        ((0.33, 0.46, 0), (0.12, 0.22, 0.31), [0.08, 0.15, 0.17]),
-    ])
-    prefab(
-        "machine-generator", [0.21, 0.18, 0.13],
-        [
-            ((0, 0.47, 0), (0.70, 0.50, 0.64), [0.67, 0.51, 0.18]),
-            ((-0.20, 0.78, 0), (0.15, 0.25, 0.46), [0.12, 0.16, 0.16]),
-            ((0.20, 0.78, 0), (0.15, 0.25, 0.46), [0.12, 0.16, 0.16]),
-        ],
-    )
-    # Cyan marks an inlet, gold marks an outlet. Facing zero is +X;
-    # rotating the root rotates all four physical ports with the routing rules.
-    inlet, outlet = [0.24, 0.78, 0.84], [0.95, 0.73, 0.25]
-    for name, color in (("splitter", [0.24, 0.52, 0.59]), ("merger", [0.54, 0.36, 0.24])):
-        side_color = outlet if name == "splitter" else inlet
-        prefab(
-            f"machine-{name}", [0.13, 0.17, 0.20],
-            [
-                ((0, 0.30, 0), (0.65, 0.15, 0.65), color),
-                ((-0.34, 0.39, 0), (0.18, 0.06, 0.26), inlet),
-                ((0.34, 0.39, 0), (0.18, 0.06, 0.26), outlet),
-                ((0, 0.39, -0.34), (0.26, 0.06, 0.18), side_color),
-                ((0, 0.39, 0.34), (0.26, 0.06, 0.18), side_color),
-            ],
-        )
+    # Authored in Blender by generate_machines.py. Static pieces are batched by
+    # material; independently controlled lamps stay in small prefabs.
+    for name, lens, size in [("miner", (.345, 1.07, .287), (.015, .105, .045)),
+                              ("smelter", (.44, .56, .332), (.012, .10, .055)),
+                              ("constructor", (.447, .75, .32), (.012, .105, .045)),
+                              ("assembler", (.447, .75, .32), (.012, .105, .045)),
+                              ("splitter", None, None), ("merger", None, None),
+                              ("storage", None, None), ("belt", None, None), ("pole", None, None),
+                              ("generator", (.345, 1.055, .285), (.015, .09, .04))]:
+        mesh = name + "-mk1"
+        write_json(ASSETS / f"machine-{name}.prefab.json", {
+            "version": 1, "name": name.title() + " Mk1", "root": "root",
+            "assets": {mesh: {"kind": "mesh", "path": f"models/{mesh}.glb"}},
+            "objects": [{"id": "root", "name": "machine-" + name, "transform": transform(),
+                         "drawable": {"layer": "3d", "mesh": {"asset": mesh},
+                                      "texture": "white", "color": [1, 1, 1], "uv_scale": [1, 1]}}],
+        })
+        if lens is None:
+            continue
+        for state, color in [("on", [.24, .90, .29]), ("off", [.80, .045, .025])]:
+            lamp = glowing(cube("lens", "Power " + state, lens, size, color, "root"), color)
+            write_json(ASSETS / f"{name}-power-{state}.prefab.json", {
+                "version": 1, "name": name.title() + " power " + state, "root": "root",
+                "objects": [{"id": "root", "name": name + " indicator", "transform": transform()}, lamp],
+            })
+    color = [1.0, .23, .045]
+    write_json(ASSETS / "smelter-heat.prefab.json", {
+        "version": 1, "name": "Smelter heater elements", "root": "root",
+        "objects": [{"id": "root", "name": "Furnace heat", "transform": transform()}] + [
+            glowing(cube(f"element-{i}", "Heating element", (x, .883, 0), (.02, .038, .51), color, "root"), color)
+            for i, x in enumerate([-.397, .397])],
+    })
     write_json(
         ASSETS / "item.prefab.json",
         {
@@ -702,11 +677,6 @@ def machine_prefabs():
     )
 
 
-    prefab("machine-pole", [0.12, 0.18, 0.23], [
-        ((0, 0.92, 0), (0.12, 1.64, 0.12), [0.23, 0.32, 0.38]),
-        ((0, 1.39, 0), (0.55, 0.09, 0.14), [0.52, 0.34, 0.18]),
-        ((0, 1.69, 0), (0.25, 0.14, 0.25), [0.08, 0.13, 0.16]),
-    ])
     for name, size, color in [("power-wire", (1, 0.035, 0.035), [0.14, 0.21, 0.24]),
                                ("power-lamp", (0.21, 0.12, 0.21), [0.78, 1, 0.67])]:
         obj = cube("root", name, (0, 0, 0), size, color)
@@ -816,9 +786,13 @@ def scene():
         objects.append(lamp)
 
     asset_names = [
+        "miner-power-on", "miner-power-off", "smelter-power-on", "smelter-power-off", "smelter-heat",
+        "constructor-power-on", "constructor-power-off", "assembler-power-on", "assembler-power-off",
+        "generator-power-on", "generator-power-off",
         "node-iron", "node-copper", "node-limestone", "node-coal", "node-quartz", "node-oil", "node-water", "node-stone", "node-sand", "node-silver", "machine-constructor",
         "machine-miner", "machine-belt", "machine-smelter", "machine-storage", "machine-assembler",
         "machine-generator", "machine-splitter", "machine-merger", "machine-pole", "power-wire", "power-lamp", "item", "earth-chunk", "moon-chunk", "node-amorium", "node-moondust", "node-techtorium",
+        "dev-floor",
     ]
     assets = {name: {"kind": "prefab", "path": f"assets/{name}.prefab.json"} for name in asset_names}
     assets["moon-ground"] = {"kind": "mesh", "path": "assets/moon-ground.obj"}
@@ -835,6 +809,7 @@ def scene():
         return {"list": {"element": kind, "capacity": capacity, "values": []}}
 
     transport_board = {"earth": list_var("text", 867), "moon": list_var("text", 867),
+                       "machine_light_slots": list_var("text", 32),
                        "beats": list_var("number", 2), "guest_beat": list_var("number", 1)}
     transport_board["beats"]["list"]["values"] = [{"number": -1}, {"number": -1}]
     transport_board["guest_beat"]["list"]["values"] = [{"number": -1}]
@@ -985,6 +960,14 @@ def main():
     machine_prefabs()
     bake_ground_mesh()
     bake_ground_mesh(moon=True)
+    bake_ground_mesh(developer=True)
+    write_json(ASSETS / "dev-floor.prefab.json", {
+        "version": 1, "name": "Dev World checkerboard", "root": "root",
+        "assets": {"dev-floor": {"kind": "mesh", "path": "dev-floor.obj"}},
+        "objects": [{"id": "root", "name": "30 × 30 × 1 checkerboard", "transform": transform(),
+                     "drawable": {"layer": "3d", "mesh": {"asset": "dev-floor"},
+                                  "texture": "white", "color": [1, 1, 1], "uv_scale": [1, 1]}}],
+    })
     bake_ui_mask()
     write_json(ASSETS / "earth-chunk.prefab.json", {
         "version": 1, "name": "Earth terrain chunk", "root": "root",

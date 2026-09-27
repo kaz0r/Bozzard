@@ -187,7 +187,9 @@ fn resolve_graph(graph) {
 fn update_power() {
     let dirty = get_object_variable("power_dirty");
     let aspect = render_stats().viewport_aspect;
-    let view = get_object_list("resident").to_string() + "|" + get_scene_variable("chunk_x").to_string() + "," + get_scene_variable("chunk_z").to_string() + "|" + ceil(aspect).to_string() + "|" + get_object_variable("phase").to_string();
+    // Chunk load/unload invalidates this view. Do not format all 289 residency
+    // entries every tick just to rediscover that nothing has changed.
+    let view = get_scene_variable("chunk_x").to_string() + "," + get_scene_variable("chunk_z").to_string() + "|" + ceil(aspect).to_string() + "|" + get_object_variable("phase").to_string();
     if !dirty && view == get_object_list("ui_views")[4] { return; }
     let graph = power_graph();
     if dirty {
@@ -261,7 +263,24 @@ fn sync_power_visuals(graph) {
             set_position(lamp, [pos[0], pos[1] + 0.43, pos[2]]);
             set_visible(lamp, entry[1] > 0);
             effects["lamp"] = lamp;
-            if entry[1] > 0 { lamps.push(id); }
+            if entry[1] > 0 { lamps.push(#{id:id,role:"pole",kind:9,on:true}); }
+        }
+        if has_machine_indicator(entry[0]) && resident[id / 225] > 0.0 {
+            let on = entry[1] > 0;
+            let role = if on { "on" } else { "off" };
+            let prefix = if entry[0] == 1 { "miner" } else if entry[0] == 3 { "smelter" }
+                else if entry[0] == 5 { "assembler" } else if entry[0] == 6 { "generator" } else { "constructor" };
+            let lamp = if previous.contains(role) { previous[role] }
+                else { spawn_prefab(prefix + "-power-" + role, [pos[0],0.08,pos[2]]) };
+            align_machine_effect(lamp,id);
+            effects[role] = lamp;
+            lamps.push(#{id:id,role:"status",kind:entry[0],on:on});
+            if entry[0] == 3 && on {
+                let heat = if previous.contains("heat") { previous["heat"] }
+                    else { spawn_prefab("smelter-heat",[pos[0],0.08,pos[2]]) };
+                align_machine_effect(heat,id); effects["heat"] = heat;
+                lamps.push(#{id:id,role:"heat",kind:3,on:true});
+            }
         }
         for peer in entry.extract(2) {
             if peer < id { continue; }
@@ -294,31 +313,78 @@ fn sync_power_visuals(graph) {
         pages[group][page] += record;
     }
     for group in 0..5 { set_object_list("power_fx_" + group.to_string(), pages[group]); }
-    // All resident poles retain emissive status lamps. The nearest 32 also cast
-    // light; a powered, resident rocket borrows the final slot for its alternating
-    // navigation lights, keeping the total inside the engine's fixed budget.
+    // Fixed light budget shared by poles, faint status LEDs and furnace heat.
+    // Emissive lenses remain visible even beyond the nearest illumination slots.
     let center = [get_scene_variable("chunk_x") * 15.0, 0.0, get_scene_variable("chunk_z") * 15.0];
     let used = #{};
+    let slots = grid::empty_text(32);
     for light in 0..32 {
         if light == 31 && data::session_value(6) > 0.0 {
             set_light_intensity("pole-light-31", 0.0);
             continue;
         }
         let best = -1; let distance = 10000000.0;
-        for id in lamps {
-            if used.contains(id.to_string()) { continue; }
-            let pos = power_position(id);
+        for i in 0..lamps.len() {
+            if used.contains(i.to_string()) { continue; }
+            let pos = power_position(lamps[i].id);
             let d = pow(pos[0] - center[0], 2.0) + pow(pos[2] - center[2], 2.0);
-            if d < distance { distance = d; best = id; }
+            if d < distance { distance = d; best = i; }
         }
         let target = "pole-light-" + light.to_string();
         if best >= 0 {
             used[best.to_string()] = true;
-            let pos = power_position(best);
-            set_position(target, [pos[0], 1.98, pos[2]]);
-            set_light_color(target, [0.72, 1.0, 0.59]);
-            set_light_intensity(target, 9.0);
+            let lamp = lamps[best]; let pos = power_position(lamp.id);
+            if lamp.role == "pole" {
+                set_position(target, [pos[0],1.98,pos[2]]);
+                set_light_color(target,[0.72,1.0,0.59]); set_light_intensity(target,9.0);
+            } else {
+                slots[light] = lamp.id.to_string() + "," + lamp.kind.to_string() + "," + lamp.role;
+                position_machine_light(target,lamp.id,lamp.kind,lamp.role);
+                set_light_color(target, if lamp.role == "heat" { [1.0,0.23,0.045] }
+                    else if lamp.on { [0.24,0.90,0.29] } else { [0.80,0.045,0.025] });
+                set_light_intensity(target,if lamp.role == "heat" { 1.2 } else { 0.12 });
+            }
         } else { set_light_intensity(target, 0.0); }
+    }
+    set_object_list("factory-transports","machine_light_slots",slots);
+}
+
+// Resolve only resident presentation handles. No simulated state or saved data
+// is added for cosmetic effects, and remote regions use their own visual cache.
+fn has_machine_indicator(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 11 }
+
+fn machine_handle(id) {
+    if id / 225 == grid::current_chunk() { return get_scene_list_item("build_visuals",id % 225); }
+    grid::unpack_text(get_object_list_item("cache_visuals_"+((id % 225)/75).to_string(),id / 225),75)[id % 75]
+}
+
+fn align_machine_effect(effect,id) {
+    let machine = machine_handle(id);
+    if machine == "" { return; }
+    set_position(effect,get_position(machine)); set_rotation(effect,get_rotation(machine));
+}
+
+fn position_machine_light(light,id,kind,role) {
+    let machine = machine_handle(id); if machine == "" { return; }
+    let pos = get_position(machine); let angle = get_rotation(machine)[1] * 0.0174532925;
+    let local = if role == "heat" { [0.51,0.77,0.0] }
+        else if kind == 1 { [0.39,1.07,0.287] }
+        else if kind == 6 { [0.39,1.055,0.285] }
+        else if kind == 3 { [0.49,0.56,0.332] } else { [0.50,0.75,0.32] };
+    set_position(light,[pos[0]+cos(angle)*local[0]+sin(angle)*local[2],pos[1]+local[1],
+        pos[2]-sin(angle)*local[0]+cos(angle)*local[2]]);
+}
+
+fn animate_machine_effects(id) {
+    let effects = power_effects(id);
+    for role in ["on","off","heat"] {
+        if effects.contains(role) { align_machine_effect(effects[role],id); }
+    }
+    let slots = get_object_list("factory-transports","machine_light_slots");
+    for i in 0..slots.len() {
+        if slots[i] == "" { continue; }
+        let fields=slots[i].split(",");
+        if parse_int(fields[0]) == id { position_machine_light("pole-light-"+i.to_string(),id,parse_int(fields[1]),fields[2]); }
     }
 }
 
@@ -327,6 +393,7 @@ fn clear_power() {
     for group in 0..5 { set_object_list("power_fx_" + group.to_string(), grid::empty_text(867)); }
     set_object_list("power_data", grid::empty_text(867));
     set_object_list("power_live", grid::empty_numbers(225));
+    set_object_list("factory-transports","machine_light_slots",[]);
     set_object_variable("power_dirty", true);
     data::ui_view_changed(4, "");
     set_object_variable("wire_start", -1.0);
@@ -369,7 +436,8 @@ fn wire_demo() {
 
 fn power_anchor(id, kind) {
     let pos = power_position(id);
-    pos[1] = if kind == 9 { 1.47 } else if kind == 10 { 1.26 } else { 1.08 };
+    pos[1] = if kind == 9 { 1.47 } else if kind == 10 { 1.26 }
+        else if kind == 1 || kind == 6 { 1.35 } else if kind == 3 { 1.15 } else { 1.08 };
     if id / 225 == power_id(0) / 225 && kind != 10 {
         let target = get_scene_list("build_visuals")[id % 225];
         if target != "" { pos[1] += get_position(target)[1] - 0.08; }
@@ -415,6 +483,7 @@ fn animate_power_connections(cells) {
     for cell in cells {
         let id = power_id(cell.to_int()); let entry = power_entry(pages,id);
         if entry.len() == 0 { continue; }
+        if has_machine_indicator(entry[0]) { animate_machine_effects(id); }
         let pos = power_anchor(id,entry[0]);
         if entry[0] == 9 {
             let effects = power_effects(id);

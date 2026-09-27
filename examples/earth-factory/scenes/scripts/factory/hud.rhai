@@ -25,7 +25,11 @@ fn nearby_label(cell, nodes, builds) {
     }
     else if kind == 6 { machines[kind] + ": " + resource }
     else if kind == 4 { "Storage  [E] Open" }
-    else if kind == 2 { "Conveyor  |  One item in transit" }
+    else if kind == 2 {
+        let item=get_scene_list_item("items",cell);
+        if data::dev_world() && item>0.0 { data::item_name(item) + "  |  Conveyor sample" }
+        else { "Conveyor  |  One item in transit" }
+    }
     else {
         machines[kind] + "  " + get_scene_list("item_amounts")[cell].to_int().to_string() + "/10" +
             if kind == 7 { "  |  1 input / 3 outputs" } else { "  |  3 inputs / 1 output" }
@@ -174,6 +178,13 @@ fn update_hud(dt, daylight) {
         set_ui_text("objective-next", "M  MAP / E  BOARD ROCKET"); set_ui_text("objective-count", "");
         set_ui_visible("objective-fill", false);
     }
+    if data::dev_world() {
+        set_ui_text("objective-title","Dev World");set_ui_text("objective-tier","Dev");
+        set_ui_text("objective-text","Deposits / machines / item samples");
+        set_ui_text("objective-next","BUILD FREELY / N RESET SHOWCASE");
+        set_ui_text("objective-note","Fixed 2 × 2 chunks. No generated deposits.");
+        set_ui_text("chunk-status","Region " + cx.to_string() + ", " + cz.to_string() + "  /  2 × 2");
+    } else { set_ui_text("objective-note","Production continues while you build."); }
     set_ui_text("controls-hint", if selected == 10 { "Space Select / Connect   X Disconnect   R Cancel wire" } else { "WASD Move   Space Build   R Rotate machine   X Remove" });
     let directions = ["East", "South", "West", "North"];
     set_ui_text("build-status", data::build_name(kind) + "  /  Facing " + directions[facing.to_int()]);

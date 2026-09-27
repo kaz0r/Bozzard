@@ -84,6 +84,21 @@ fn integer(n: f32, min: f32, max: f32) -> Result<()> {
     Ok(())
 }
 impl State {
+    pub fn dev_world(&self) -> bool {
+        matches!(
+            self.controller["session"].values().get(63),
+            Some(Value::Number(1.))
+        )
+    }
+
+    pub fn allows_chunk(&self, planet: u8, x: i16, z: i16) -> bool {
+        if self.dev_world() {
+            planet == 0 && (0..=1).contains(&x) && (0..=1).contains(&z)
+        } else {
+            let radius = if planet == 1 { 6 } else { 8 };
+            planet < 2 && (-radius..=radius).contains(&x) && (-radius..=radius).contains(&z)
+        }
+    }
     /// Capture at the end of a normal gameplay tick without finishing rotations,
     /// moving the local player, or asking Rhai to archive its live chunk. Network
     /// snapshots must include edits and production made since the last crossing.
@@ -153,7 +168,8 @@ impl State {
         };
         if let Some(B::List { values, .. }) = state.controller.get_mut("session") {
             for (i, value) in values.iter_mut().enumerate() {
-                if i != 0 && !(7..40).contains(&i) && !(64..114).contains(&i) && i != 120 {
+                if i != 0 && i != 63 && !(7..40).contains(&i) && !(64..114).contains(&i) && i != 120
+                {
                     *value = Value::Number(0.);
                 }
             }
@@ -195,6 +211,8 @@ impl State {
         }
         integer(numeric(&session[0])?, 0., 1.)?;
         integer(numeric(&session[7])?, 0., 1.)?;
+        integer(numeric(&session[63])?, 0., 1.)?;
+        let developer = self.dev_world();
         let radius = if numeric(&session[7])? == 1. { 6. } else { 8. };
         for key in ["chunk_x", "chunk_z"] {
             integer(number(&self.scene, key)?, -radius, radius)?;
@@ -202,6 +220,14 @@ impl State {
         for key in ["cursor_x", "cursor_z"] {
             integer(number(&self.scene, key)?, -7., 7.)?;
         }
+        ensure!(
+            self.allows_chunk(
+                numeric(&session[7])? as u8,
+                number(&self.scene, "chunk_x")? as i16,
+                number(&self.scene, "chunk_z")? as i16
+            ),
+            "saved location outside world bounds"
+        );
         ensure!(
             (0. ..=1_000_000_000.).contains(&numeric(&session[120])?),
             "invalid world time"
@@ -246,11 +272,21 @@ impl State {
             } else {
                 31
             };
-            for page in pages {
+            for (index, page) in pages.iter().enumerate() {
                 let Value::Text(text) = page else {
                     anyhow::bail!("invalid archive page");
                 };
                 validate_rle(text, count, max)?;
+                if developer && *key == "chunk_nodes" && !text.is_empty() {
+                    ensure!(
+                        self.allows_chunk(
+                            (index / 289) as u8,
+                            (index % 17) as i16 - 8,
+                            (index % 289 / 17) as i16 - 8
+                        ),
+                        "Dev World contains an outside region"
+                    );
+                }
             }
         }
         let chunk = (number(&self.scene, "chunk_z")? as i32 + 8) as usize * 17

@@ -34,7 +34,7 @@ impl ItemMotion {
         ensure!(
             (a.x - b.x).abs() + (a.z - b.z).abs() == 1
                 && (1..=26).contains(&self.kind)
-                && [1, 2, 3, 5, 7, 8, 11].contains(&self.source)
+                && [1, 2, 3, 4, 5, 7, 8, 11].contains(&self.source)
                 && [2, 3, 4, 5, 7, 8, 11].contains(&self.target),
             "invalid item transfer"
         );

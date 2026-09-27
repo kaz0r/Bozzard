@@ -57,13 +57,15 @@ fn restore_view() {
     for id in 0..289 {if nodes[id]!="" {visited[id]=1.0;}}
     set_object_list("visited",visited);
     let cx=get_scene_variable("chunk_x").to_int();let cz=get_scene_variable("chunk_z").to_int();
-    chunks::load_chunk_visuals(cx,cz);world::restore_chunk(cx,cz);
+    if data::dev_world() { for z in 0..2 {for x in 0..2 {chunks::load_chunk_visuals(x,z);}} }
+    else { chunks::load_chunk_visuals(cx,cz); }
+    world::restore_chunk(cx,cz);
     set_position("cursor",[grid::world_x(get_scene_variable("cursor_x")),0.115,grid::world_z(get_scene_variable("cursor_z"))]);
     set_position("camera-rig",[(cx*15).to_float(),0.0,(cz*15).to_float()]);
     set_rotation("camera-rig",[0.0,0.0,0.0]);set_scene_variable("camera_heading",0.0);set_scene_variable("camera_pending",0.0);set_scene_variable("camera_progress",1.0);
     set_object_variable("camera_pan_progress",1.0);set_object_variable("camera_zoom",19.0);set_object_variable("camera_zoom_target",19.0);set_camera_size("camera",19.0);
     set_object_list("rotation_cells",[]);set_object_list("rotation_turns",grid::empty_numbers(225));
-    set_visible("ground",!data::on_moon());set_visible("cursor",true);set_visible("rocket-exhaust",false);set_visible("hover-tile",false);
+    set_visible("ground",!data::on_moon() && !data::dev_world());set_visible("cursor",true);set_visible("rocket-exhaust",false);set_visible("hover-tile",false);
     set_position("rocket-rig",[0.0,0.0,0.0]);
     power::update_power();visuals::update_projects();
     environment::update_daylight(if data::on_moon(){-1.0}else{sin(data::session_value(120)*0.10)});

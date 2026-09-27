@@ -14,6 +14,7 @@ fn transport_capacity(kind) { if kind == 2.0 { 1.0 } else { 10.0 } }
 // 8..39 other planet's live storage totals; 40 mouse placement, 41..43 world context menu,
 // 44..45 rocket flight phase/time, 46 generic inspector cell, 47..48 inventory drag/menu,
 // 49 inventory revision, 64..113 twenty-five kind/amount pairs,
+// 63 persistent Dev World flag (independent of the title's selected game mode).
 // 114 simulating factory regions across all planets, 115 storage UI occupied-slot count.
 // 118 acknowledged native host presentation batch (local; omitted from saves).
 // Inventory and unlocks travel with the player.
@@ -23,7 +24,14 @@ fn session_set(i, value) { let state = get_object_list("session"); state[i] = va
 
 fn on_moon() { session_value(7) == 1.0 }
 
-fn planet_name() { if on_moon() { "STELLA-Z2" } else { "STELLAR-BX" } }
+fn dev_world() { session_value(63) == 1.0 }
+
+fn planet_name() { if dev_world() { "DEV WORLD" } else if on_moon() { "STELLA-Z2" } else { "STELLAR-BX" } }
+
+fn chunk_allowed(x,z) {
+    if dev_world() { x>=0 && x<=1 && z>=0 && z<=1 }
+    else { abs(x)<=planet_radius() && abs(z)<=planet_radius() }
+}
 
 fn planet_count() { 2 }
 
@@ -97,10 +105,10 @@ fn spend(stock, cost) {
     stock
 }
 
-// Facing marks the forward outlet. Splitters receive only at the rear;
+// Facing marks the forward outlet. Storage and splitters receive only at the rear;
 // belts and mergers receive at the rear and both sides, never through the outlet.
 fn accepts_transport_input(kind, facing, direction) {
-    if kind == 7.0 { direction == facing }
+    if kind == 4.0 || kind == 7.0 { direction == facing }
     else if kind == 2.0 || kind == 8.0 { direction != (facing + 2) % 4 }
     else { true }
 }

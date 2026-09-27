@@ -4,6 +4,7 @@ import "factory-panels" as panels;
 import "factory-world" as world;
 
 fn start() {
+    if data::dev_world() { set_scene_variable("message","Dev World is a fixed showcase. Create a Survival or Creative world to travel."); return; }
     if net::guest() {net::send("travel",#{});panels::set_extra_panel("");return;}
     if data::session_value(44)>0.0 || get_object_variable("phase")<7.0 || get_scene_variable("demo_mode") ||
         get_scene_variable("chunk_x")!=0.0 || get_scene_variable("chunk_z")!=0.0 ||

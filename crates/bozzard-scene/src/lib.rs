@@ -1305,7 +1305,21 @@ impl SceneInstance {
         let mut shader_graphs = Vec::new();
         let mut material_instances = Vec::new();
         let mut texts = Vec::new();
-        for (id, entity) in &self.entities {
+        // HUD widgets and logic objects cannot contribute a mesh or world text.
+        // Query the relevant component stores once instead of probing every
+        // entity for both components (large hidden interfaces dominate that path).
+        let render_entities: BTreeMap<_, _> = world
+            .query::<Drawable>()
+            .map(|(entity, _)| entity)
+            .chain(world.query::<TextRendering>().map(|(entity, _)| entity))
+            .filter_map(|entity| {
+                self.object_indices
+                    .get(&entity)
+                    .map(|&index| (&self.document.objects[index].id, entity))
+            })
+            .collect();
+        for (id, entity) in &render_entities {
+            let id = *id;
             if let Some(text) = world.get::<TextRendering>(*entity)
                 && text.enabled
                 && text.layer == layer
@@ -1397,19 +1411,25 @@ impl SceneInstance {
         let mut shadowed_spots = 0;
         let mut shadowed_points = 0;
         if layer == Layer::ThreeD {
-            for (id, entity) in &self.entities {
-                if let Some(light) = world.get::<Light>(*entity) {
-                    light.validate()?;
-                    if light.requests_shadow_map() {
-                        match light.kind {
-                            LightKind::Spot => shadowed_spots += 1,
-                            LightKind::Point => shadowed_points += 1,
-                            LightKind::Directional => {}
-                        }
+            let light_entities: BTreeMap<_, _> = world
+                .query::<Light>()
+                .filter_map(|(entity, light)| {
+                    self.object_indices
+                        .get(&entity)
+                        .map(|&index| (&self.document.objects[index].id, light))
+                })
+                .collect();
+            for (id, light) in light_entities {
+                light.validate()?;
+                if light.requests_shadow_map() {
+                    match light.kind {
+                        LightKind::Spot => shadowed_spots += 1,
+                        LightKind::Point => shadowed_points += 1,
+                        LightKind::Directional => {}
                     }
-                    if light.enabled && light.intensity > 0. {
-                        lights.push(light.at(matrices[id])?);
-                    }
+                }
+                if light.enabled && light.intensity > 0. {
+                    lights.push(light.at(matrices[id])?);
                 }
             }
         }

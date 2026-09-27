@@ -488,6 +488,7 @@ impl Multiplayer {
             "title-load",
             "title-survival",
             "title-creative",
+            "title-dev",
         ] {
             control(demo, id, Control::Enabled(!self.open && (!joined || host)))?;
         }

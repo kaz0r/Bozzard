@@ -1,7 +1,13 @@
 {
   "version": 1,
-  "name": "Machine Pole",
+  "name": "Pole Mk1",
   "root": "root",
+  "assets": {
+    "pole-mk1": {
+      "kind": "mesh",
+      "path": "models/pole-mk1.glb"
+    }
+  },
   "objects": [
     {
       "id": "root",
@@ -22,151 +28,23 @@
           1,
           1
         ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "pole-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
       }
-    },
-    {
-      "id": "base",
-      "name": "machine-pole base",
-      "transform": {
-        "translation": [
-          0,
-          0.11,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.88,
-          0.22,
-          0.88
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.12,
-          0.18,
-          0.23
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-0",
-      "name": "machine-pole detail 1",
-      "transform": {
-        "translation": [
-          0,
-          0.92,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.12,
-          1.64,
-          0.12
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.23,
-          0.32,
-          0.38
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-1",
-      "name": "machine-pole detail 2",
-      "transform": {
-        "translation": [
-          0,
-          1.39,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.55,
-          0.09,
-          0.14
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.52,
-          0.34,
-          0.18
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-2",
-      "name": "machine-pole detail 3",
-      "transform": {
-        "translation": [
-          0,
-          1.69,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.25,
-          0.14,
-          0.25
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.08,
-          0.13,
-          0.16
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
     }
   ]
 }

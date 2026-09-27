@@ -35,7 +35,7 @@ fn on_start(me) {
     if get_scene_variable("demo_mode") || !get_object_variable("title_open") {
         navigation::show_title(false);
         let seed = get_scene_variable("seed").to_int();
-        world::begin_world(if seed > 0 { seed } else { fresh_seed() });
+        world::begin_world(if seed > 0 { seed } else { fresh_seed() }, data::dev_world());
     } else { navigation::show_title(true); }
 }
 
@@ -88,7 +88,7 @@ fn on_update(me, dt) {
     set_position("cursor", [grid::world_x(x), 0.115, grid::world_z(z)]);
 
     if !guest && !inventory_active && input_pressed("n") {
-        world::begin_world(fresh_seed());
+        world::begin_world(fresh_seed(),data::dev_world());
         return;
     }
 

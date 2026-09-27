@@ -214,6 +214,10 @@ impl Executor {
             }
             Action::Travel => {
                 ensure!(
+                    !world.state().dev_world(),
+                    "Dev World has no planet travel."
+                );
+                ensure!(
                     world.phase() >= 7
                         && player.position.x.abs() <= 1
                         && (player.position.z - 1).abs() <= 1,
@@ -434,20 +438,20 @@ impl Executor {
         let (cx, cz) = position.chunk();
         let (x, z) = position.cell();
         self.discover(state, position.planet, cx, cz)?;
-        let edge = if position.planet == 0 { 8 } else { 6 };
         for (dx, dz, show) in [
             (1, 0, x >= 6),
             (-1, 0, x <= -6),
             (0, 1, z >= 6),
             (0, -1, z <= -6),
         ] {
-            if show && (cx + dx).abs() <= edge && (cz + dz).abs() <= edge {
+            if show && state.allows_chunk(position.planet, cx + dx, cz + dz) {
                 self.discover(state, position.planet, cx + dx, cz + dz)?;
             }
         }
         Ok(())
     }
     fn discover(&self, state: &mut State, planet: u8, x: i16, z: i16) -> Result<()> {
+        ensure!(state.allows_chunk(planet, x, z), "World boundary reached.");
         let position = Position {
             planet,
             x: x * 15,
@@ -458,6 +462,7 @@ impl Executor {
         if matches!(&state.controller["chunk_nodes"].values()[at],Value::Text(t) if !t.is_empty()) {
             return Ok(());
         }
+        ensure!(!state.dev_world(), "Dev World has no generated regions.");
         let seed = state::number(&state.scene, "seed")? as i64;
         let nodes: Vec<f32> = self.rules.call_args(
             "discover",

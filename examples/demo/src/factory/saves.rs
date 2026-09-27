@@ -86,7 +86,13 @@ impl Save {
             phase % 4 + 1,
             cycle,
             if night { "Night" } else { "Day" },
-            if moon { "Stella-Z2" } else { "Stellar-BX" },
+            if self.state.dev_world() {
+                "Dev World"
+            } else if moon {
+                "Stella-Z2"
+            } else {
+                "Stellar-BX"
+            },
             ago
         ))
     }

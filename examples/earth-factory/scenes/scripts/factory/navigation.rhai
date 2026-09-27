@@ -36,21 +36,23 @@ fn update_map_display() {
     let loaded = 0;
     let explored = 0;
     let radius = data::planet_radius();
-    let width = radius * 2 + 1;
+    let width = if data::dev_world() {2}else{radius * 2 + 1};
     let spacing = 391.0 / width.to_float();
     set_ui_text("map-title", data::planet_name() + " / REGION MAP");
     for coordinate in [-8, 0, 8] {
-        let text = if coordinate < 0 { "-" + radius.to_string() } else if coordinate > 0 { "+" + radius.to_string() } else { "0" };
+        let text = if data::dev_world() { if coordinate<0 {"0"}else if coordinate>0 {"1"}else{""} }
+            else if coordinate < 0 { "-" + radius.to_string() } else if coordinate > 0 { "+" + radius.to_string() } else { "0" };
         set_ui_text("map-axis-x-" + coordinate.to_string(), text);
         set_ui_text("map-axis-z-" + coordinate.to_string(), text);
     }
     for id in 0..289 {
         let x = id % 17 - 8; let z = id / 17 - 8;
-        let visible = abs(x) <= radius && abs(z) <= radius;
+        let visible = data::chunk_allowed(x,z);
         let widget = "map-cell-" + id.to_string();
         set_ui_visible(widget, visible);
         if !visible { continue; }
-        set_ui_offset(widget, 50.0 + (x + radius).to_float() * spacing, 102.0 + (z + radius).to_float() * spacing);
+        let origin=if data::dev_world(){0}else{radius};
+        set_ui_offset(widget, 50.0 + (x + origin).to_float() * spacing, 102.0 + (z + origin).to_float() * spacing);
         set_ui_size(widget, spacing - 3.0, spacing - 3.0);
         if visited[id] > 0.0 { explored += 1; }
         if resident[id] > 0.0 { loaded += 1; }
@@ -114,6 +116,10 @@ fn update_title() {
         if event.kind != "activate" { continue; }
         if event.target == "title-exit" { quit_game(); }
         if event.target == "title-load" { persistence::open(2); }
+        if event.target == "title-dev" {
+            set_scene_variable("demo_mode",false);set_object_variable("creative",true);
+            show_title(false);world::begin_world(1,true);return;
+        }
         if event.target == "title-survival" || event.target == "title-creative" {
             data::session_set(0, if event.target == "title-creative" { 1.0 } else { 0.0 }); draw_title();
         }

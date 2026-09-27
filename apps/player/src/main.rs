@@ -537,30 +537,6 @@ impl View {
         self.renderer
             .set_hud_scale(self.window.scale_factor() as f32);
         assets.poll()?;
-        let (frame, reconfigure) = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface_status = "surface outdated";
-                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Timeout => {
-                self.surface_status = "surface acquisition timed out";
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Occluded => {
-                self.surface_status = "window occluded; an active desktop is required";
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                self.surface_recovery.lost()?;
-                self.surface_status = "surface lost; reconfiguring";
-                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Validation => bail!("graphics surface validation failed"),
-        };
         let mut scene = extract(
             demo,
             assets.store(),
@@ -589,7 +565,38 @@ impl View {
         if !assets.current() {
             scene.gi = None;
         }
-        let submit = || -> Result<()> {
+        // Streaming may skip a frame while a new mesh uploads. Do that before
+        // acquiring a swapchain image: dropping an acquired, unpresented image
+        // can exhaust the surface's images and stall subsequent acquisition.
+        // Surface acquisition may wait for VSync. Let simulation run during that
+        // wait as well as draw submission, rather than starting it afterwards.
+        let mut submit = || -> Result<bool> {
+            let (frame, reconfigure) = match self.surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
+                wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
+                wgpu::CurrentSurfaceTexture::Outdated => {
+                    self.surface_status = "surface outdated";
+                    configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Timeout => {
+                    self.surface_status = "surface acquisition timed out";
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Occluded => {
+                    self.surface_status = "window occluded; an active desktop is required";
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Lost => {
+                    self.surface_recovery.lost()?;
+                    self.surface_status = "surface lost; reconfiguring";
+                    configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Validation => {
+                    bail!("graphics surface validation failed")
+                }
+            };
             self.renderer.draw(
                 &self.gpu,
                 &frame.texture.create_view(&Default::default()),
@@ -598,12 +605,20 @@ impl View {
             )?;
             self.window.pre_present_notify();
             self.gpu.queue.present(frame);
-            Ok(())
+            self.surface_recovery.presented();
+            self.surface_status = "presented";
+            if reconfigure {
+                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+            }
+            Ok(true)
         };
-        if let Some(elapsed) = elapsed.take() {
-            demo.advance_with_frame(elapsed, submit)??;
+        let presented = if let Some(elapsed) = elapsed.take() {
+            demo.advance_with_frame(elapsed, submit)??
         } else {
-            submit()?;
+            submit()?
+        };
+        if !presented {
+            return Ok(false);
         }
         for timing in self.renderer.poll_gpu_profiles(&self.gpu)? {
             if !timing.failed {
@@ -617,11 +632,6 @@ impl View {
                 }
                 self.gpu_frame_ms.push_back(total);
             }
-        }
-        self.surface_recovery.presented();
-        self.surface_status = "presented";
-        if reconfigure {
-            configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
         }
         Ok(true)
     }
@@ -1754,6 +1764,158 @@ mod controls_tests {
             error: None,
             command_error: None,
         }
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires a desktop and GPU; exercises cold uploads in a live swapchain"]
+    fn newly_placed_factory_models_keep_the_window_presenting() -> Result<()> {
+        const MACHINES: [&str; 10] = [
+            "smelter",
+            "miner",
+            "constructor",
+            "assembler",
+            "splitter",
+            "merger",
+            "storage",
+            "generator",
+            "belt",
+            "pole",
+        ];
+        struct Probe {
+            player: Player,
+            placed: usize,
+            last_placement_tick: u64,
+        }
+        impl ApplicationHandler for Probe {
+            fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.resumed(event_loop);
+            }
+            fn window_event(
+                &mut self,
+                event_loop: &ActiveEventLoop,
+                id: WindowId,
+                event: WindowEvent,
+            ) {
+                self.player.window_event(event_loop, id, event);
+            }
+            fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.about_to_wait(event_loop);
+                if event_loop.exiting()
+                    || self.placed == MACHINES.len()
+                    || self.player.frames < 10 + self.placed as u32 * 20
+                {
+                    return;
+                }
+                let name = MACHINES[self.placed];
+                let mesh = format!("machine-{name}-{name}-mk1");
+                let result = (|| -> Result<()> {
+                    ensure!(
+                        self.player
+                            .view
+                            .as_ref()
+                            .unwrap()
+                            .renderer
+                            .model_upload_stats(&mesh)
+                            .is_none(),
+                        "{name} was preloaded; the test must exercise a cold upload"
+                    );
+                    let position = [
+                        (self.placed % 3) as f32 * 1.5 - 1.5,
+                        0.,
+                        (self.placed / 3) as f32 * 1.7 - 0.85,
+                    ];
+                    self.player.demo.with_instance(|instance, world| {
+                        instance.spawn_prefab(world, &format!("machine-{name}"), position)?;
+                        if self.placed < 4 || name == "generator" {
+                            instance.spawn_prefab(world, &format!("{name}-power-off"), position)?;
+                        }
+                        Ok::<_, anyhow::Error>(())
+                    })?;
+                    Ok(())
+                })();
+                if let Err(error) = result {
+                    self.player.fail(event_loop, error);
+                    return;
+                }
+                self.placed += 1;
+                self.last_placement_tick = self.player.demo.app.ticks();
+            }
+        }
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let mut catalog = load_document(Some(&path))?.assets;
+        catalog.retain(|id, _| {
+            MACHINES
+                .iter()
+                .any(|name| id == &format!("machine-{name}") || id == &format!("{name}-power-off"))
+        });
+        // Declare spawnable templates without creating any model at startup.
+        let spawn_nodes: Vec<_> = catalog
+            .keys()
+            .enumerate()
+            .map(|(i, asset)| {
+                serde_json::json!({
+                    "id": i + 1, "position": [0,0], "kind": "spawn_prefab", "prefab": asset,
+                    "inputs": ["exec", {"vector": [0,0,0]}]
+                })
+            })
+            .collect();
+        let document = bozzard_scene::Scene::from_json(&serde_json::json!({
+            "version": 1, "name": "Cold factory model placement", "assets": catalog,
+            "views": {"3d": "camera"},
+            "objects": [{
+                "id": "camera", "name": "Camera",
+                "transform": {"translation": [20,20,20], "rotation_degrees": [-35.264,45,0], "scale": [1,1,1]},
+                "camera": {"projection": "orthographic", "vertical_size": 6, "near": 0.1, "far": 100}
+            }, {
+                "id": "templates", "name": "Untriggered spawn declarations",
+                "transform": {"translation": [0,0,0], "rotation_degrees": [0,0,0], "scale": [1,1,1]},
+                "blueprints": [{"enabled": true, "graph": {
+                    "version": 1, "name": "Templates", "nodes": spawn_nodes, "wires": []
+                }}]
+            }]
+        }).to_string())?;
+        let mut player = authored_player();
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+        player.demo.set_threaded_simulation(true)?;
+        player.assets = assets::Assets::load(player.demo.instance().document(), Some(&path))?;
+        player.options.scene = Some(path);
+        player.options.frames = Some(230);
+        let mut probe = Probe {
+            player,
+            placed: 0,
+            last_placement_tick: 0,
+        };
+        let mut builder = EventLoop::builder();
+        winit::platform::x11::EventLoopBuilderExtX11::with_any_thread(&mut builder, true);
+        winit::platform::wayland::EventLoopBuilderExtWayland::with_any_thread(&mut builder, true);
+        builder.build()?.run_app(&mut probe)?;
+        if let Some(error) = probe.player.error {
+            return Err(error);
+        }
+        ensure!(
+            probe.placed == MACHINES.len() && probe.player.frames == 230,
+            "presentation stopped before all machines were placed"
+        );
+        for name in MACHINES {
+            ensure!(
+                probe
+                    .player
+                    .view
+                    .as_ref()
+                    .unwrap()
+                    .renderer
+                    .model_upload_stats(&format!("machine-{name}-{name}-mk1"))
+                    .is_some(),
+                "{name} was never uploaded"
+            );
+        }
+        ensure!(
+            probe.player.demo.app.ticks() > probe.last_placement_tick,
+            "simulation stopped during streaming"
+        );
+        Ok(())
     }
 
     #[test]

@@ -37,7 +37,7 @@ fn reset_interactions() {
     set_object_variable("gather_clock", 0.0);
     for i in 1..7 { data::session_set(i, 0.0); }
     data::session_set(3, 11.0); data::session_set(4, -1.0); data::session_set(5, -1.0);
-    for i in 40..64 { data::session_set(i,0.0); }
+    for i in 40..63 { data::session_set(i,0.0); }
     data::session_set(46,-1.0); data::session_set(47,-1.0); data::session_set(48,-1.0);
     set_position("rocket-rig",[0.0,0.0,0.0]);
     set_visible("rocket-exhaust",false); set_visible("hover-tile",false); set_visible("cursor",true);

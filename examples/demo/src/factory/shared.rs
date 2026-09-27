@@ -227,7 +227,7 @@ impl World {
             .iter()
             .enumerate()
         {
-            if i != 0 && !(7..40).contains(&i) && !(64..114).contains(&i) && i != 120 {
+            if i != 0 && i != 63 && !(7..40).contains(&i) && !(64..114).contains(&i) && i != 120 {
                 ensure!(
                     numeric(value)? == 0.,
                     "shared world contains local interface state"

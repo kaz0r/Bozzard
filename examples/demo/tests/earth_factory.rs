@@ -1272,6 +1272,55 @@ fn full_storage_blocks_delivery_until_a_stack_is_deleted_while_factory_keeps_run
 }
 
 #[test]
+fn idle_item_effects_do_no_work_and_clear_the_final_motion_once() {
+    let mut demo = stellar_fixture("");
+    factory_code(
+        &mut demo,
+        r#"import "factory-item_fx" as item_fx; item_fx::retire_previous(); item_fx::write_motions([]);"#,
+        2,
+    );
+    let commands = |demo: &SceneDemo| {
+        demo.app
+            .world
+            .resource::<bozzard_scene::ScriptRuntime>()
+            .unwrap()
+            .stats
+            .attachments[&("controller".into(), 0)]
+            .commands
+    };
+    assert_eq!(
+        commands(&demo),
+        0,
+        "idle effects must not rebuild empty pages"
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        import "factory-item_fx" as item_fx;
+        let handle=spawn_prefab("item",[0.0,0.5,0.0]);
+        item_fx::write_motions([[0,1,handle,0.5,0.5,true]]);
+        if get_scene_list_item("motion_visuals",867)=="" {throw "missing active motion";}
+        item_fx::retire_previous();
+        if get_scene_list("item_pool").len()!=1 {throw "consumed item was not recycled";}
+        item_fx::write_motions([]);
+        for name in ["motion_visuals","motion_from","motion_to","motion_from_y","motion_to_y","retired_visuals"] {
+            if get_scene_list_item(name,0)!="" {throw "stale animation page";}
+        }
+        item_fx::retire_previous();
+        if get_scene_list("item_pool").len()!=1 {throw "consumed item recycled twice";}
+        if get_scene_list_item("motion_visuals",867)!="" {throw "stale active motion";}
+        "#,
+        1,
+    );
+    factory_code(
+        &mut demo,
+        r#"import "factory-item_fx" as item_fx; item_fx::retire_previous(); item_fx::write_motions([]);"#,
+        2,
+    );
+    assert_eq!(commands(&demo), 0);
+}
+
+#[test]
 fn steady_production_reuses_item_visuals_without_changing_scene_membership() {
     let mut demo = demo_with_seed(Some(4.));
     for _ in 0..600 {
@@ -1761,6 +1810,12 @@ fn distant_chunks_unload_restore_factory_state_and_follow_the_zoom_footprint() {
         for entry in get_scene_list("machine_cells") {
             if get_scene_list("builds")[entry.to_int()]==6.0 { power::disconnect_power(power::power_id(entry.to_int()),-1); }
         }
+        // Restore the container inlet after checking that its deliberately
+        // rotated facing survived unloading; this line feeds from the assembler.
+        let builds=get_scene_list("builds"); let facings=get_scene_list("facings");
+        let facing=0.0; for i in 0..225 { if builds[i]==5.0 { facing=facings[i]; } }
+        for i in 0..225 { if builds[i]==4.0 { facings[i]=facing; } }
+        set_scene_list("facings",facings);
         power::wire_demo(); power::update_power();
     "#,
         1,
@@ -2173,12 +2228,84 @@ fn logistics_capacities_back_up_and_transfers_conserve_items() {
 }
 
 #[test]
+fn storage_outputs_opposite_its_input_and_preserves_blocked_stock_in_every_rotation() {
+    for facing in 0..4 {
+        let output = [113, 127, 111, 97][facing];
+        let mut demo = buffer_layout(
+            &format!("[[112,4,{facing},0,0],[{output},2,{facing},12,1]]"),
+            r#"
+            let slots=grid::empty_numbers(32); slots[6]=11.0; slots[7]=2.0;
+            slots[10]=12.0; slots[11]=1.0; inventory::storage_write(112,slots);
+            let counts=get_scene_list("counts"); counts[11]=2.0; counts[12]=1.0; set_scene_list("counts",counts);
+            for beat in 0..3 { simulation::factory_step(); }
+            "#,
+        );
+        assert_eq!(inventory(&demo, 112)[3], (11., 2.));
+        assert_eq!(numbers(&demo, "counts")[11], 2.);
+        for (kind, remaining) in [(11, 1.), (11, 0.), (12, 0.)] {
+            factory_code(
+                &mut demo,
+                &format!(
+                    r#"
+                    let amounts=get_scene_list("item_amounts"); amounts[{output}]=0.0; set_scene_list("item_amounts",amounts);
+                    let items=get_scene_list("items"); items[{output}]=0.0; set_scene_list("items",items);
+                    simulation::factory_step(); visuals::animate_items(0.5);
+                    let handle=get_scene_list("item_visuals")[{output}];
+                    if handle=="" || abs(get_position(handle)[1]-0.52)>0.001 {{ throw "storage output misses belt deck"; }}
+                    "#
+                ),
+                1,
+            );
+            assert_eq!(numbers(&demo, "items")[output], kind as f32);
+            assert_eq!(numbers(&demo, "item_amounts")[output], 1.);
+            assert_eq!(numbers(&demo, "counts")[kind], remaining);
+            assert_eq!(
+                machine_load(&demo, 112),
+                0.,
+                "storage must not duplicate its slots into machine buffers"
+            );
+        }
+        assert_eq!(inventory(&demo, 112), vec![(0., 0.); 16]);
+    }
+}
+
+#[test]
+fn storage_receives_and_sends_once_per_beat_without_forwarding_new_arrivals() {
+    let mut demo = buffer_layout(
+        "[[111,2,0,12,1],[112,4,0,0,0],[113,2,0,0,0]]",
+        r#"
+        let slots=grid::empty_numbers(32); slots[0]=11.0; slots[1]=1.0;
+        inventory::storage_write(112,slots);
+        let counts=get_scene_list("counts"); counts[11]=1.0; set_scene_list("counts",counts);
+        simulation::factory_step();
+        "#,
+    );
+    assert_eq!(numbers(&demo, "items")[113], 11.);
+    assert_eq!(numbers(&demo, "counts")[11], 0.);
+    assert_eq!(inventory(&demo, 112)[1], (12., 1.));
+    assert_eq!(numbers(&demo, "counts")[12], 1.);
+    factory_code(&mut demo, "simulation::factory_step();", 3);
+    assert_eq!(
+        inventory(&demo, 112)[1],
+        (12., 1.),
+        "full output belt must preserve new arrivals"
+    );
+
+    let demo = buffer_layout(
+        "[[111,2,0,11,1],[112,4,0,0,0],[113,2,0,0,0]]",
+        "simulation::factory_step();",
+    );
+    assert_eq!(numbers(&demo, "item_amounts")[113], 0.);
+    assert_eq!(inventory(&demo, 112)[0], (11., 1.));
+}
+
+#[test]
 fn logistics_splitters_use_three_rotating_outputs_and_skip_blocked_branches() {
     for facing in 0..4 {
         for blocked in [false, true] {
             let demo = buffer_layout(
                 &format!(
-                    "[[112, 7, {facing}, 20, 9], [97, 4, 0, 0, 0], [113, 4, 0, 0, 0], [127, 4, 0, 0, 0], [111, 4, 0, 0, 0]]"
+                    "[[112, 7, {facing}, 20, 9], [97, 4, 3, 0, 0], [113, 4, 0, 0, 0], [127, 4, 1, 0, 0], [111, 4, 2, 0, 0]]"
                 ),
                 &format!(
                     r#"
@@ -2213,7 +2340,7 @@ fn logistics_splitters_use_three_rotating_outputs_and_skip_blocked_branches() {
 
 #[test]
 fn logistics_inlets_match_facing_in_all_rotations() {
-    for kind in [2, 7, 8] {
+    for kind in [2, 4, 7, 8] {
         for facing in 0..4 {
             for side in 0..4 {
                 let cell = [113, 127, 111, 97][side];
@@ -2224,13 +2351,17 @@ fn logistics_inlets_match_facing_in_all_rotations() {
                     ),
                     "simulation::factory_step();",
                 );
-                let accepts = if kind == 7 {
+                let accepts = if kind == 4 || kind == 7 {
                     side == (facing + 2) % 4
                 } else {
                     side != facing
                 };
                 assert_eq!(
-                    numbers(&demo, "item_amounts")[112],
+                    if kind == 4 {
+                        inventory(&demo, 112)[0].1
+                    } else {
+                        numbers(&demo, "item_amounts")[112]
+                    },
                     if accepts { 1. } else { 0. },
                     "kind={kind}, facing={facing}, side={side}"
                 );
@@ -2263,7 +2394,7 @@ fn logistics_mergers_share_input_turns_and_release_mixed_material_batches() {
                     let front = grid::neighbor(112,{facing});
                     let nodes = get_scene_list("nodes"); nodes[front]=0.0; set_scene_list("nodes",nodes);
                     set_scene_variable("cursor_x",grid::cell_x(front).to_float()); set_scene_variable("cursor_z",grid::cell_z(front).to_float());
-                    set_scene_variable("selected",4.0); building::place_selected();
+                    set_scene_variable("selected",4.0); set_scene_variable("direction",{facing}.0); building::place_selected();
                 "#
                 ),
             );
@@ -2305,9 +2436,9 @@ fn logistics_mergers_share_input_turns_and_release_mixed_material_batches() {
 fn logistics_single_item_belts_preserve_corners_and_ignore_placement_order() {
     for reverse in [false, true] {
         let layout = if reverse {
-            "[[127,4,0,0,0],[112,2,1,20,1],[111,2,0,20,1]]"
+            "[[127,4,1,0,0],[112,2,1,20,1],[111,2,0,20,1]]"
         } else {
-            "[[111,2,0,20,1],[112,2,1,20,1],[127,4,0,0,0]]"
+            "[[111,2,0,20,1],[112,2,1,20,1],[127,4,1,0,0,0]]"
         };
         let demo = buffer_layout(
             layout,
@@ -2342,7 +2473,7 @@ fn logistics_routing_turns_and_buffers_survive_chunk_streaming_and_demolition() 
     assert_eq!(machine_load(&demo, 113), 1.);
 
     let demo = buffer_layout(
-        "[[112,7,0,20,10],[113,4,0,0,0],[127,4,0,0,0]]",
+        "[[112,7,0,20,10],[113,4,0,0,0],[127,4,1,0,0,0]]",
         r#"
         set_scene_variable("cursor_x",0.0); set_scene_variable("cursor_z",0.0);
         building::rotate_selected(); simulation::factory_step();
@@ -2910,6 +3041,204 @@ fn stellar_title_creates_survival_and_creative_worlds_and_blocks_hidden_shortcut
     assert_eq!(numbers(&demo, "builds")[113], 0.);
 }
 
+fn developer_world() -> SceneDemo {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../earth-factory/scenes/earth.json");
+    let scene = Scene::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    tick(&mut demo, None);
+    click_widget(&mut demo, "title-dev");
+    for _ in 0..24 {
+        tick(&mut demo, None);
+    }
+    demo
+}
+
+#[test]
+fn dev_world_catalog_is_spaced_complete_and_bounded_without_generation() {
+    use std::collections::BTreeSet;
+    let mut demo = developer_world();
+    assert_eq!(controller_number(&demo, "phase"), 7.);
+    assert_eq!(controller_numbers(&demo, "session")[63], 1.);
+    assert_eq!(
+        controller_numbers(&demo, "resident").iter().sum::<f32>(),
+        4.
+    );
+    let (world, player) = coop_world(&demo);
+    assert!(world.state().dev_world());
+    assert_eq!(
+        player.backpack.iter().filter(|s| s.amount == 10).count(),
+        25
+    );
+    let mut deposits = BTreeSet::new();
+    let mut machine_types = BTreeSet::new();
+    let mut samples = BTreeSet::new();
+    for chunk in [144, 145, 161, 162] {
+        let nodes = coop_page(&world, "chunk_nodes", 0, chunk, 225);
+        let builds = coop_page(&world, "cache_builds", 0, chunk, 225);
+        let items = coop_page(&world, "cache_items", 0, chunk, 225);
+        for cell in 0..225 {
+            let x = (chunk as i32 % 17 - 8) * 15 + cell as i32 % 15 - 7;
+            let z = (chunk as i32 / 17 - 8) * 15 + cell as i32 / 15 - 7;
+            if nodes[cell] > 0. {
+                assert_eq!(z, -5);
+                assert_eq!((x + 6) % 2, 0);
+                assert!(deposits.insert(nodes[cell] as u8), "duplicate deposit");
+            }
+            if builds[cell] > 0. {
+                assert!([5, 12, 16].contains(&z));
+                assert_eq!((x + 6) % 2, 0);
+                machine_types.insert(builds[cell] as u8);
+            }
+            if items[cell] > 0. {
+                assert_eq!(builds[cell], 2.);
+                assert!(samples.insert(items[cell] as u8), "duplicate sample");
+            }
+        }
+    }
+    assert_eq!(deposits, (1..=10).chain(24..=26).collect());
+    assert_eq!(machine_types, (1..=9).chain([11]).collect());
+    assert_eq!(samples, (1..=18).chain(20..=26).collect());
+    let original_nodes = world.state().controller["chunk_nodes"].clone();
+    factory_code(
+        &mut demo,
+        r#"
+        for pair in [[-1,0],[2,0],[0,-1],[0,2],[8,8]] {chunks::discover_chunk(pair[0],pair[1]);world::enter_chunk(pair[0],pair[1]);}
+        if get_scene_variable("chunk_x")!=0.0 || get_scene_variable("chunk_z")!=0.0 {throw "escaped showroom";}
+        if world::explore(-8,0)!=[-7,0] {throw "west boundary";}
+        world::enter_chunk(1,1);
+        if world::explore(8,8)!=[7,7] {throw "southeast boundary";}
+        world::enter_chunk(0,0);world::travel_to_other_planet();
+    "#,
+        1,
+    );
+    assert_eq!(controller_numbers(&demo, "visited").iter().sum::<f32>(), 4.);
+    assert_eq!(
+        coop_world(&demo).0.state().controller["chunk_nodes"],
+        original_nodes
+    );
+    restore_factory_update(&mut demo);
+    press(&mut demo, "M");
+    assert!(
+        demo.instance()
+            .ui_frame(&demo.app.world, bozzard_scene::Layer::ThreeD, [1080., 600.])
+            .unwrap()
+            .element("map-counts")
+            .unwrap()
+            .text
+            .contains("4 explored / 4")
+    );
+    press(&mut demo, "M");
+    press(&mut demo, "N");
+    assert_eq!(controller_numbers(&demo, "session")[63], 1.);
+    assert_eq!(
+        coop_world(&demo).0.state().controller["chunk_nodes"],
+        original_nodes
+    );
+    press(&mut demo, "Escape");
+    click_widget(&mut demo, "menu-main-menu");
+    click_widget(&mut demo, "title-survival");
+    click_widget(&mut demo, "title-create");
+    assert_eq!(controller_numbers(&demo, "session")[63], 0.);
+    assert_eq!(controller_number(&demo, "phase"), 0.);
+    assert!(numbers(&demo, "builds").iter().all(|v| *v == 0.));
+    factory_code(&mut demo, "world::enter_chunk(-1,0);", 1);
+    assert_eq!(number(&demo, "chunk_x"), -1.);
+}
+
+#[test]
+fn dev_world_survives_save_load_and_keeps_coop_guests_inside_the_showroom() {
+    use bozzard_demo::factory::{
+        Session, authority::Executor, replication::requests::Action, shared::Position,
+    };
+    use std::time::Duration;
+    let mut demo = developer_world();
+    let (mut world, mut player) = coop_world(&demo);
+    let mut executor = Executor::new(demo.instance()).unwrap();
+    player.position = Position {
+        planet: 0,
+        x: -7,
+        z: 0,
+    };
+    let before = world.clone();
+    assert!(
+        executor
+            .apply(
+                &mut world,
+                10,
+                &mut player,
+                &Action::Move { x: -1, z: 0 },
+                Duration::ZERO
+            )
+            .is_err()
+    );
+    assert_eq!(world, before);
+    assert_eq!(player.position.x, -7);
+    player.position = Position {
+        planet: 0,
+        x: 0,
+        z: 1,
+    };
+    assert!(
+        executor
+            .apply(&mut world, 10, &mut player, &Action::Travel, Duration::ZERO)
+            .is_err()
+    );
+    player.position = Position {
+        planet: 0,
+        x: 7,
+        z: 0,
+    };
+    assert!(
+        executor
+            .apply(
+                &mut world,
+                10,
+                &mut player,
+                &Action::Move { x: 1, z: 0 },
+                Duration::ZERO
+            )
+            .unwrap()
+            .accepted
+    );
+    assert_eq!(player.position.x, 8);
+    let directory = save_directory(&mut demo);
+    factory_code(
+        &mut demo,
+        "world::enter_chunk(1,1);persistence::prepare_save(1);",
+        1,
+    );
+    factory_code(&mut demo, "persistence::update(0.0);", 1);
+    finish_save_io(&mut demo);
+    let mut loaded = factory_with_mode(Some(17.), false);
+    tick(&mut loaded, None);
+    loaded
+        .app
+        .world
+        .resource_mut::<Session>()
+        .unwrap()
+        .directory = directory.clone();
+    factory_code(
+        &mut loaded,
+        "data::session_set(117,1.0);data::session_set(116,2.0);",
+        1,
+    );
+    factory_code(&mut loaded, "persistence::update(0.0);", 1);
+    finish_save_io(&mut loaded);
+    assert_eq!(controller_numbers(&loaded, "session")[63], 1.);
+    assert_eq!(
+        controller_numbers(&loaded, "resident").iter().sum::<f32>(),
+        4.
+    );
+    assert_eq!(number(&loaded, "chunk_x"), 1.);
+    assert_eq!(number(&loaded, "chunk_z"), 1.);
+    assert!(coop_world(&loaded).0.state().dev_world());
+    assert_eq!(
+        coop_world(&loaded).0.state().controller["chunk_nodes"],
+        before.state().controller["chunk_nodes"]
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
 #[test]
 fn early_manual_crafting_builds_a_pole_without_power_and_preserves_alloy() {
     let demo = stellar_fixture(
@@ -3039,6 +3368,107 @@ fn assembler_e_selects_real_output_preserves_inputs_and_obeys_shared_capacity() 
     tick(&mut demo, None);
     press(&mut demo, "E");
     assert_eq!(controller_number(&demo, "assembler_cell"), -1.);
+}
+
+#[test]
+fn redesigned_machine_lamps_follow_power_rotation_and_chunk_residency() {
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true); set_object_variable("phase",4.0);
+        test_build(113,9.0); test_build(128,3.0); test_build(129,11.0); test_build(130,5.0);
+        let nodes=get_scene_list("nodes"); nodes[114]=1.0; set_scene_list("nodes",nodes);
+        set_scene_variable("cursor_x",2.0); set_scene_variable("cursor_z",0.0);
+        set_scene_variable("selected",1.0); building::place_selected(); power::update_power();
+        for cell in [114,128,129,130] {
+            let fx=power::power_effects(power::power_id(cell));
+            if !fx.contains("off") || fx.contains("on") || fx.contains("heat") { throw "unpowered indicator"; }
+        }
+        "#,
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        power::connect_power(power::power_id(112),power::power_id(113));
+        for cell in [114,128,129,130] { power::connect_power(power::power_id(113),power::power_id(cell)); }
+        power::update_power();
+        for cell in [114,128,129,130] {
+            let fx=power::power_effects(power::power_id(cell));
+            if !fx.contains("on") || fx.contains("off") { throw "powered indicator"; }
+            if (cell==128)!=fx.contains("heat") { throw "furnace heat"; }
+        }
+        let slots=get_object_list("factory-transports","machine_light_slots");
+        let count=0;for slot in slots {if slot!="" {count+=1;}}
+        if count!=5 {throw "machine illumination slots";}
+    "#,
+        1,
+    );
+    restore_factory_update(&mut demo);
+    let count = demo.instance().document().objects.len();
+    settle(&mut demo, 20);
+    assert_eq!(
+        demo.instance().document().objects.len(),
+        count,
+        "steady power must reuse effects"
+    );
+    move_cursor(&mut demo, 1, 1);
+    press(&mut demo, "R");
+    settle(&mut demo, 12);
+    factory_code(
+        &mut demo,
+        r#"
+        let id=power::power_id(128);let machine=power::machine_handle(id);
+        for role in ["on","heat"] {
+            let effect=power::power_effects(id)[role];
+            if get_position(effect)!=get_position(machine) || get_rotation(effect)!=get_rotation(machine) {throw "detached machine effect";}
+        }
+        visuals::finish_rotations();
+        world::enter_chunk(1,0); power::update_power();
+        let fx=power::power_effects(144*225+128);
+        if !fx.contains("on") || !fx.contains("heat") {throw "resident neighbor lost power effects";}
+        chunks::unload_chunk_visuals(144);power::update_power();
+        if power::power_effects(144*225+128).len()!=0 {throw "unloaded effects leaked";}
+        world::enter_chunk(0,0);power::update_power();
+        if !power::power_effects(power::power_id(128)).contains("heat") {throw "heat not restored";}
+        power::disconnect_power(power::power_id(113),power::power_id(128));power::update_power();
+        let fx=power::power_effects(power::power_id(128));
+        if !fx.contains("off") || fx.contains("on") || fx.contains("heat") {throw "power loss kept heat";}
+        power::clear_power();
+        if power::read_power_fx().len()!=0 {throw "effects survived reset";}
+    "#,
+        1,
+    );
+}
+
+#[test]
+fn redesigned_generator_lamp_tracks_supply_overload_and_rotation() {
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true); set_object_variable("phase",4.0);
+        let nodes=get_scene_list("nodes"); nodes[114]=4.0; set_scene_list("nodes",nodes);
+        set_scene_variable("cursor_x",2.0); set_scene_variable("cursor_z",0.0);
+        set_scene_variable("selected",6.0); building::place_selected();
+        test_build(113,9.0); power::connect_power(power::power_id(114),power::power_id(113));
+        power::update_power();
+        if !power::power_effects(power::power_id(114)).contains("on") { throw "generator lamp not on"; }
+        if abs(power::power_anchor(power::power_id(114),6)[1]-1.35)>0.001 { throw "generator terminal height"; }
+        for cell in [128,129,130,131] {
+            test_build(cell,5.0); power::connect_power(power::power_id(113),power::power_id(cell));
+        }
+        power::update_power();
+        let fx=power::power_effects(power::power_id(114));
+        if !fx.contains("off") || fx.contains("on") { throw "overloaded generator lamp"; }
+        power::disconnect_power(power::power_id(113),power::power_id(131)); power::update_power();
+        if !power::power_effects(power::power_id(114)).contains("on") { throw "generator power recovery"; }
+        set_scene_variable("cursor_x",2.0); set_scene_variable("cursor_z",0.0);
+        building::rotate_selected(); visuals::finish_rotations();
+        let id=power::power_id(114); let machine=power::machine_handle(id);
+        let lamp=power::power_effects(id)["on"];
+        if get_rotation(machine)!=get_rotation(lamp) { throw "generator lamp detached during rotation"; }
+        "#,
+    );
+    restore_factory_update(&mut demo);
+    settle(&mut demo, 5);
+    assert_eq!(controller_numbers(&demo, "power_live")[114], 1.);
 }
 
 #[test]
@@ -3224,7 +3654,7 @@ fn cables_attach_in_all_eight_directions_and_follow_machine_lift() {
         "#
         ));
         let pole = Vec3::new(2., 1.47, 2.);
-        let endpoint = Vec3::new((2 + dx) as f32, 1.08, (2 + dz) as f32);
+        let endpoint = Vec3::new((2 + dx) as f32, 1.15, (2 + dz) as f32);
         let middle = (pole + endpoint) * 0.5;
         let document = demo.instance().capture(&demo.app.world).unwrap();
         let wire = document
@@ -4011,6 +4441,45 @@ fn multi_region_factory(layout: &str, setup: &str) -> SceneDemo {
         {setup}
     "#
     ))
+}
+
+#[test]
+fn storage_exports_across_chunk_seams_while_its_planet_is_unloaded() {
+    let mut demo = multi_region_factory(
+        "[[7,0,4,0,0],[8,0,2,0,0],[9,0,4,0,0]]",
+        r#"
+        let slots=grid::empty_numbers(32); slots[0]=11.0; slots[1]=100.0;
+        inventory::storage_write(119,slots);
+        let counts=get_scene_list("counts"); counts[11]=100.0; set_scene_list("counts",counts);
+        "#,
+    );
+    board_other_planet(&mut demo);
+    bozzard_demo::factory::host::HostRuntime::start(
+        &mut demo.app.world,
+        10,
+        1,
+        [(10, "Host".into()), (20, "Guest".into())].into(),
+    )
+    .unwrap();
+    factory_code(&mut demo, "simulation::factory_step();", 7);
+    let runtime = demo.app.world.resource::<BlueprintRuntime>().unwrap();
+    let motions =
+        bozzard_demo::factory::transport::capture(runtime, number(&demo, "ticks")).unwrap();
+    assert_eq!(motions.len(), 1);
+    assert_eq!(
+        (motions[0].planet, motions[0].source, motions[0].target),
+        (0, 4, 2)
+    );
+    assert_ne!(motions[0].from / 225, motions[0].to / 225);
+    // The exact inventory and its transport events must remain valid for Steam replicas.
+    coop_world(&demo);
+    assert_eq!(controller_numbers(&demo, "session")[8 + 11], 99.);
+    board_other_planet(&mut demo);
+    assert_eq!(inventory(&demo, 119)[0], (11., 96.));
+    factory_code(&mut demo, "world::enter_chunk(1,0);", 1);
+    assert_eq!(inventory(&demo, 106)[0], (11., 3.));
+    assert_eq!(numbers(&demo, "item_amounts")[105], 1.);
+    assert_eq!(numbers(&demo, "counts")[11], 99.);
 }
 
 #[test]

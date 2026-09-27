@@ -632,7 +632,12 @@ impl SceneInstance {
         let mut signals = world.remove_resource::<Signals>().unwrap_or_default();
         signals.begin(Kind::Sprite);
         let result = (|| -> Result<()> {
-            for (owner, &entity) in &self.entities {
+            let sources: BTreeMap<_, _> = self
+                .component_entities::<Sprite>(world)
+                .into_iter()
+                .chain(self.component_entities::<Tilemap>(world))
+                .collect();
+            for (owner, &entity) in sources {
                 if let Some(source) = world.get::<Sprite>(entity) {
                     let run = runtime
                         .players
@@ -712,6 +717,11 @@ impl SceneInstance {
         result
     }
     pub fn sprite_frame(&self, world: &World, layer: Layer) -> Result<Vec<Visual>> {
+        if self.component_entities::<Sprite>(world).is_empty()
+            && self.component_entities::<Tilemap>(world).is_empty()
+        {
+            return Ok(Vec::new());
+        }
         let matrices = self.global_transforms(world)?;
         self.sprite_frame_with_matrices(world, layer, &matrices)
     }
@@ -723,7 +733,12 @@ impl SceneInstance {
     ) -> Result<Vec<Visual>> {
         let runtime = world.resource::<Runtime>();
         let mut visuals = Vec::new();
-        for (owner, &entity) in &self.entities {
+        let sources: BTreeMap<_, _> = self
+            .component_entities::<Sprite>(world)
+            .into_iter()
+            .chain(self.component_entities::<Tilemap>(world))
+            .collect();
+        for (owner, &entity) in sources {
             if world
                 .get::<crate::BlueprintHidden>(entity)
                 .is_some_and(|h| h.0)

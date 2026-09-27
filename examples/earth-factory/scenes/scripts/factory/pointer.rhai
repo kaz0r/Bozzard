@@ -11,7 +11,7 @@ import "factory-inspection" as inspection;
 fn tile(x,z) {
     let wx=floor(x+0.5).to_int(); let wz=floor(z+0.5).to_int();
     let cx=floor((wx+7).to_float()/15.0).to_int(); let cz=floor((wz+7).to_float()/15.0).to_int();
-    if abs(cx)>data::planet_radius() || abs(cz)>data::planet_radius() { return []; }
+    if !data::chunk_allowed(cx,cz) { return []; }
     if get_object_list("resident")[grid::chunk_id(cx,cz)]==0.0 { return []; }
     [cx,cz,wx-cx*15,wz-cz*15]
 }
@@ -44,7 +44,7 @@ fn pick(ray) {
         let builds=if id==current { get_scene_list("builds") } else { grid::unpack_numbers(data::region_data("cache_builds")[id],225) };
         for cell in 0..225 {
             let kind=builds[cell].to_int(); if kind<=0 { continue; }
-            let height=[0.0,1.25,0.24,1.5,0.85,1.5,1.4,0.5,0.5,1.75,0.0,1.3][kind];
+            let height=[0.0,1.37,0.45,1.5,1.10,1.5,1.52,0.55,0.55,2.02,0.0,1.3][kind];
             let wx=cx*15+grid::cell_x(cell); let wz=cz*15+grid::cell_z(cell);
             let t=box_distance(ray,[wx.to_float(),height/2.0,wz.to_float()],[0.48,height/2.0,0.48]);
             if t>=0.0 && t<nearest { nearest=t; result=[cx,cz,grid::cell_x(cell),grid::cell_z(cell)]; }

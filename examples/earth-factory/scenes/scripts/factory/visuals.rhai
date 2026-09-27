@@ -11,8 +11,8 @@ fn clear_visuals(name) {
 }
 
 fn item_height(kind) {
-    if kind == 2.0 || kind == 7.0 || kind == 8.0 { 0.52 }
-    else if kind == 4.0 { 0.88 }
+    // The modeled production machines and junctions share the belt deck.
+    if kind == 1.0 || kind == 2.0 || kind == 3.0 || kind == 4.0 || kind == 5.0 || kind == 7.0 || kind == 8.0 || kind == 11.0 { 0.52 }
     else { 1.10 }
 }
 

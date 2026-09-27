@@ -5,11 +5,12 @@ import "factory-deposits" as deposits;
 import "factory-grid" as grid;
 
 fn discover_chunk(cx, cz) {
-    if abs(cx) > data::planet_radius() || abs(cz) > data::planet_radius() { return; }
+    if !data::chunk_allowed(cx,cz) { return; }
     let id = grid::chunk_id(cx, cz);
     let visited = get_object_list("visited");
     if visited[id] != 0.0 { load_chunk_visuals(cx, cz); return; }
-    let nodes = deposits::generate_region_nodes(get_scene_variable("seed").to_int(), cx, cz);
+    let nodes = if data::dev_world() { grid::empty_numbers(225) }
+        else { deposits::generate_region_nodes(get_scene_variable("seed").to_int(), cx, cz) };
     grid::cache_put("chunk_nodes", id, grid::pack_numbers(nodes));
     visited[id] = 1.0;
     set_object_list("visited", visited);
@@ -17,11 +18,14 @@ fn discover_chunk(cx, cz) {
 }
 
 fn load_chunk_visuals(cx, cz) {
+    if !data::chunk_allowed(cx,cz) { return; }
     let id = grid::chunk_id(cx, cz);
     let resident = get_object_list("resident");
     if resident[id] != 0.0 { return; }
     let grounds = get_object_list("grounds");
-    if id != 144 || data::on_moon() {
+    if data::dev_world() {
+        if id==144 { grounds[id]=spawn_prefab("dev-floor",[0.0,0.0,0.0]); }
+    } else if id != 144 || data::on_moon() {
         grounds[id] = spawn_prefab(if data::on_moon() { "moon-chunk" } else { "earth-chunk" }, [(cx * 15).to_float(), 0.0, (cz * 15).to_float()]);
     }
     let nodes = grid::unpack_numbers(data::region_data("chunk_nodes")[id], 225);
@@ -52,6 +56,7 @@ fn load_chunk_visuals(cx, cz) {
     }
     resident[id] = 1.0;
     set_object_list("resident", resident);
+    data::ui_view_changed(4, "");
 }
 
 fn unload_chunk_visuals(id) {
@@ -74,9 +79,12 @@ fn unload_chunk_visuals(id) {
     set_object_list("grounds", grounds);
     resident[id] = 0.0;
     set_object_list("resident", resident);
+    data::ui_view_changed(4, "");
 }
 
 fn update_chunk_residency() {
+    // The fixed showroom keeps all four chunks resident, including its shared floor.
+    if data::dev_world() { return; }
     let cx = get_scene_variable("chunk_x").to_int();
     let cz = get_scene_variable("chunk_z").to_int();
     let stats = render_stats();

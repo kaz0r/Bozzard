@@ -6,6 +6,7 @@ import "factory-item_fx" as item_fx;
 import "factory-visuals" as visuals;
 import "factory-panels" as panels;
 import "factory-guest_items" as guest_items;
+import "factory-power" as power;
 
 fn active() { network_active() && (network_state().contains("factory_host") || network_state().contains("factory_guest")) }
 fn value(name,id) {
@@ -90,5 +91,6 @@ fn animate() {
         let angle=value("facings",id)+grid::smooth(clamp((t-0.22)/0.56,0.0,1.0));
         set_position(target,[grid::global_x(id),0.08+0.55*lift,grid::global_z(id)]);
         set_rotation(target,[0.0,-90.0*angle,0.0]);
+        power::animate_machine_effects(id);
     }
 }

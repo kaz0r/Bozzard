@@ -133,7 +133,6 @@ struct ObjectView {
     position: [f32; 3],
     rotation: [f32; 3],
     scale: [f32; 3],
-    forward: [f32; 3],
     text: Option<String>,
     rigidbody: bool,
     grounded: bool,
@@ -278,6 +277,9 @@ struct Host {
     objects: BTreeMap<String, ObjectView>,
     object_boards: BTreeMap<String, BTreeMap<String, B>>,
     scene_board: BTreeMap<String, B>,
+    borrowed_boards: bool,
+    original_object_values: BTreeMap<String, BTreeMap<String, B>>,
+    original_scene_values: BTreeMap<String, B>,
     /// Spawn handles handed out so far, resolved to real IDs as they are created.
     tokens: BTreeMap<String, String>,
     /// Keep handles unique even after a spawned prefab is destroyed.
@@ -289,6 +291,62 @@ struct Host {
 }
 
 impl Host {
+    fn mirror_variable(&mut self, scope: VariableScope, owner: &str, name: String, value: B) {
+        let (board, originals) = match scope {
+            VariableScope::Object => (
+                self.object_boards
+                    .get_mut(owner)
+                    .expect("validated object board"),
+                &mut self.original_object_values,
+            ),
+            VariableScope::Scene => {
+                let previous = self
+                    .scene_board
+                    .insert(name.clone(), value)
+                    .expect("validated variable");
+                if self.borrowed_boards {
+                    self.original_scene_values.entry(name).or_insert(previous);
+                }
+                return;
+            }
+            VariableScope::Graph => unreachable!("scripts have no graph scope"),
+        };
+        let previous = board
+            .insert(name.clone(), value)
+            .expect("validated variable");
+        if self.borrowed_boards {
+            originals
+                .entry(owner.to_owned())
+                .or_default()
+                .entry(name)
+                .or_insert(previous);
+        }
+    }
+
+    fn return_boards(&mut self, runtime: &mut BlueprintRuntime) {
+        self.scene_board.append(&mut self.original_scene_values);
+        for (owner, mut originals) in std::mem::take(&mut self.original_object_values) {
+            self.object_boards
+                .get_mut(&owner)
+                .unwrap()
+                .append(&mut originals);
+        }
+        runtime.swap_script_boards(&mut self.scene_board, &mut self.object_boards);
+        self.borrowed_boards = false;
+    }
+
+    // Destruction callbacks run during command application, where Blueprints also
+    // need the boards. Their uncommon path retains an independent read snapshot.
+    fn copy_boards(&mut self, runtime: &BlueprintRuntime, document: &Scene) {
+        self.object_boards.clear();
+        for object in &document.objects {
+            if let Some(board) = runtime.object_blackboard(&object.id) {
+                self.object_boards.insert(object.id.clone(), board.clone());
+            }
+        }
+        self.scene_board = runtime.scene_blackboard().clone();
+    }
+
     fn view(&self, target: &str) -> Result<&ObjectView, Box<EvalAltResult>> {
         let id = self.object_id(target);
         self.objects
@@ -350,14 +408,8 @@ impl Host {
             K::SetPosition => view.position = value,
             K::SetRotation => view.rotation = value,
             K::SetScale => view.scale = value,
-            _ => return,
+            _ => (),
         }
-        view.forward = crate::physics::forward(&Transform {
-            translation: view.position,
-            rotation_degrees: view.rotation,
-            scale: view.scale,
-        })
-        .to_array();
     }
     /// A queued text or visibility write is readable through `get_text` in the same tick.
     fn mirror_text(&mut self, target: &str, text: String) {
@@ -775,11 +827,17 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         (target: ImmutableString), |state|
         Ok(Dynamic::from_array(array_of(state.view(&target)?.scale)))
     );
-    read!(
-        "forward_vector",
-        (target: ImmutableString), |state|
-        Ok(Dynamic::from_array(array_of(state.view(&target)?.forward)))
-    );
+    read!("forward_vector", (target: ImmutableString), |state| {
+        // Most scene objects (particularly UI widgets) never need a direction.
+        // Calculate it on demand from the read view, including queued rotations.
+        let view = state.view(&target)?;
+        let direction = crate::physics::forward(&Transform {
+            translation: view.position,
+            rotation_degrees: view.rotation,
+            scale: view.scale,
+        });
+        Ok(Dynamic::from_array(array_of(direction.to_array())))
+    });
     read!("get_text", (target: ImmutableString), |state| {
         let text = state
             .view(&target)?
@@ -1379,17 +1437,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                     None => return Err(fail(format!("unknown variable '{variable}'"))),
                 };
                 let value = scalar_of(value, declared)?;
-                if scope == VariableScope::Object {
-                    state
-                        .object_boards
-                        .get_mut(&owner)
-                        .expect("object board")
-                        .insert(variable.to_string(), B::Scalar(value.clone()));
-                } else {
-                    state
-                        .scene_board
-                        .insert(variable.to_string(), B::Scalar(value.clone()));
-                }
+                state.mirror_variable(scope, &owner, variable.to_string(), B::Scalar(value.clone()));
                 Command::Variable {
                     scope,
                     owner,
@@ -1426,15 +1474,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
                 capacity,
                 values: values.clone(),
             };
-            if scope == VariableScope::Object {
-                state
-                    .object_boards
-                    .get_mut(&owner)
-                    .expect("object board")
-                    .insert(variable.to_string(), replacement);
-            } else {
-                state.scene_board.insert(variable.to_string(), replacement);
-            }
+            state.mirror_variable(scope, &owner, variable.to_string(), replacement);
             Command::ListVariable {
                 scope,
                 owner,
@@ -1452,7 +1492,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         };
         ensure_script(values.len() <= capacity, || format!("list '{variable}' exceeds its capacity of {capacity}"))?;
         let values = values.into_iter().map(|v| scalar_of(v, element)).collect::<Result<Vec<_>, _>>()?;
-        state.object_boards.get_mut(&owner).expect("object board").insert(variable.to_string(),
+        state.mirror_variable(VariableScope::Object, &owner, variable.to_string(),
             B::List { element, capacity, values: values.clone() });
         Command::ListVariable { scope: VariableScope::Object, owner, name: variable.to_string(), values }
     });
@@ -2016,7 +2056,7 @@ impl SceneInstance {
                 ))
             })
             .collect();
-        {
+        bozzard_diagnostics::measure(world, "Script read view", |world| {
             let mut host = engine.lock();
             self.build_view(world, &mut host, runtime, &snapshot, dt, input);
             host.ui_events.clear();
@@ -2038,16 +2078,30 @@ impl SceneInstance {
                     host.ui_events.push(Dynamic::from_map(map));
                 }
             }
-        }
+        });
         runtime.stats.hooks = 0;
         runtime.stats.commands = 0;
         runtime.stats.attachments.clear();
         runtime.stats.truncated = false;
-        for (owner, attachments) in owners {
-            let overlap = overlaps.get(&owner).cloned().unwrap_or_default();
-            let owner_contacts = contacts.get(&owner).cloned().unwrap_or_default();
-            for (index, (enabled, compiled)) in attachments.into_iter().enumerate() {
-                let compiled = compiled.with_context(|| {
+        {
+            let mut host = engine.lock();
+            let Host {
+                scene_board,
+                object_boards,
+                ..
+            } = &mut *host;
+            world
+                .resource_mut::<BlueprintRuntime>()
+                .expect("initialized boards")
+                .swap_script_boards(scene_board, object_boards);
+            host.borrowed_boards = true;
+        }
+        let hooks = (|| -> Result<()> {
+            for (owner, attachments) in owners {
+                let overlap = overlaps.get(&owner).cloned().unwrap_or_default();
+                let owner_contacts = contacts.get(&owner).cloned().unwrap_or_default();
+                for (index, (enabled, compiled)) in attachments.into_iter().enumerate() {
+                    let compiled = compiled.with_context(|| {
                     let asset = self
                         .document_attachments(&owner)
                         .get(index)
@@ -2058,61 +2112,73 @@ impl SceneInstance {
                          opened without loading its script catalog"
                     )
                 })?;
-                let key = (owner.clone(), index);
-                engine.lock().attachment = index;
-                let mut run = runtime.runs.remove(&key).unwrap_or_default();
-                let hooks_before = runtime.stats.hooks;
-                let commands_before = engine.lock().commands.len();
-                let result = self.run_attachment(
-                    &engine,
-                    runtime,
-                    &mut run,
-                    &owner,
-                    &compiled,
-                    enabled,
-                    &overlap,
-                    &owner_contacts,
-                    dt,
-                );
-                if runtime.stats.attachments.len() < MAX_ATTACHMENT_STATS {
-                    runtime.stats.attachments.insert(
-                        key.clone(),
-                        ScriptAttachmentStats {
-                            hooks: runtime.stats.hooks - hooks_before,
-                            commands: engine.lock().commands.len() - commands_before,
-                        },
-                    );
-                } else {
-                    runtime.stats.truncated = true;
+                    let key = (owner.clone(), index);
+                    engine.lock().attachment = index;
+                    let mut run = runtime.runs.remove(&key).unwrap_or_default();
+                    let hooks_before = runtime.stats.hooks;
+                    let commands_before = engine.lock().commands.len();
+                    let result = bozzard_diagnostics::measure(world, "Script hooks", |_| {
+                        self.run_attachment(
+                            &engine,
+                            runtime,
+                            &mut run,
+                            &owner,
+                            &compiled,
+                            enabled,
+                            &overlap,
+                            &owner_contacts,
+                            dt,
+                        )
+                    });
+                    if runtime.stats.attachments.len() < MAX_ATTACHMENT_STATS {
+                        runtime.stats.attachments.insert(
+                            key.clone(),
+                            ScriptAttachmentStats {
+                                hooks: runtime.stats.hooks - hooks_before,
+                                commands: engine.lock().commands.len() - commands_before,
+                            },
+                        );
+                    } else {
+                        runtime.stats.truncated = true;
+                    }
+                    runtime.runs.insert(key, run);
+                    self.adopt_script_compute(&engine);
+                    if let Err(error) = &result {
+                        bozzard_diagnostics::log(
+                            world,
+                            bozzard_diagnostics::Level::Error,
+                            "Script",
+                            &format!("{error:#}"),
+                            bozzard_diagnostics::Location {
+                                object: Some(owner.clone()),
+                                attachment: Some(index),
+                                node: None,
+                                asset: self.document_attachments(&owner).get(index).cloned(),
+                                ..Default::default()
+                            },
+                        );
+                    }
+                    result?;
                 }
-                runtime.runs.insert(key, run);
-                self.adopt_script_compute(&engine);
-                if let Err(error) = &result {
-                    bozzard_diagnostics::log(
-                        world,
-                        bozzard_diagnostics::Level::Error,
-                        "Script",
-                        &format!("{error:#}"),
-                        bozzard_diagnostics::Location {
-                            object: Some(owner.clone()),
-                            attachment: Some(index),
-                            node: None,
-                            asset: self.document_attachments(&owner).get(index).cloned(),
-                            ..Default::default()
-                        },
-                    );
-                }
-                result?;
             }
-        }
+            Ok(())
+        })();
+        engine.lock().return_boards(
+            world
+                .resource_mut::<BlueprintRuntime>()
+                .expect("borrowed boards"),
+        );
+        hooks?;
         let commands = std::mem::take(&mut engine.lock().commands);
         runtime.stats.commands = commands.len();
         let mut tokens = std::mem::take(&mut runtime.tokens);
-        let result = self.apply_commands(world, runtime, engine, commands, &mut tokens);
+        let result = bozzard_diagnostics::measure(world, "Script commands", |world| {
+            self.apply_commands(world, runtime, engine, commands, &mut tokens)
+        });
         runtime.tokens = tokens;
         result
     }
-    /// Seeds the shared read view: every object's readable state and both blackboards.
+    /// Seeds readable object state. The caller then lends or copies the blackboards.
     fn build_view(
         &self,
         world: &World,
@@ -2176,6 +2242,9 @@ impl SceneInstance {
             *overlaps.entry(a).or_default() += 1;
             *overlaps.entry(b).or_default() += 1;
         }
+        let has_text = world.query::<TextRendering>().next().is_some();
+        let has_gravity = world.query::<Gravity>().next().is_some();
+        let has_grounded = world.query::<GravityState>().next().is_some();
         for (id, entity) in &self.entities {
             let Some(transform) = world.get::<Transform>(*entity) else {
                 continue;
@@ -2186,28 +2255,22 @@ impl SceneInstance {
                     position: transform.translation,
                     rotation: transform.rotation_degrees,
                     scale: transform.scale,
-                    forward: crate::physics::forward(transform).to_array(),
-                    text: world
-                        .get::<TextRendering>(*entity)
+                    text: has_text
+                        .then(|| world.get::<TextRendering>(*entity))
+                        .flatten()
                         .map(|text| text.text.clone()),
-                    rigidbody: world.get::<Gravity>(*entity).is_some_and(|g| g.enabled)
+                    rigidbody: has_gravity
+                        && world.get::<Gravity>(*entity).is_some_and(|g| g.enabled)
                         && world.get::<PlayerController>(*entity).is_none(),
                     grounded: runtime.moved.get(id).copied().unwrap_or_else(|| {
-                        world
-                            .get::<GravityState>(*entity)
-                            .is_some_and(|state| state.grounded)
+                        has_grounded
+                            && world
+                                .get::<GravityState>(*entity)
+                                .is_some_and(|state| state.grounded)
                     }),
                     overlaps: overlaps.get(id.as_str()).copied().unwrap_or(0),
                 },
             );
-        }
-        if let Some(runtime) = world.resource::<BlueprintRuntime>() {
-            for object in &self.document.objects {
-                if let Some(board) = runtime.object_blackboard(&object.id) {
-                    host.object_boards.insert(object.id.clone(), board.clone());
-                }
-            }
-            host.scene_board = runtime.scene_blackboard().clone();
         }
     }
     /// Overlap sets for script owners, matching what a blueprint sees for the same object.
@@ -2746,6 +2809,9 @@ impl SceneInstance {
             .values()
             .cloned()
             .collect();
+        if let Some(boards) = world.resource::<BlueprintRuntime>() {
+            engine.lock().copy_boards(boards, &self.document);
+        }
         for owner in &members {
             self.run_destroy_hooks(&engine, runtime, owner)?;
         }
@@ -2943,6 +3009,9 @@ impl SceneInstance {
             0.,
             GameplayInput::default(),
         );
+        if let Some(boards) = world.resource::<BlueprintRuntime>() {
+            engine.lock().copy_boards(boards, &self.document);
+        }
         let result = (|| -> Result<()> {
             for owner in owners {
                 self.run_destroy_hooks(&engine, &mut runtime, owner)?;
@@ -3112,6 +3181,94 @@ mod tests {
             );
             assert!(world.resource::<NetworkOutbox>().unwrap().is_empty());
         }
+    }
+
+    #[test]
+    fn borrowed_boards_restore_failed_hooks_and_observe_external_writes_and_destruction() {
+        let scene = Scene::from_json(r#"{"version":1,"name":"Borrowed boards","views":{},
+            "blackboard":{"fail":{"scalar":{"bool":false}},"number":{"scalar":{"number":1}},
+                "numbers":{"list":{"element":"number","capacity":4,"values":[{"number":1}]}}},
+            "assets":{"read":{"kind":"script","path":"read.rhai"}},
+            "objects":[{"id":"reader","name":"Reader","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                "blackboard":{"labels":{"list":{"element":"text","capacity":3,"values":[{"text":"first"}]}},"number":{"scalar":{"number":1}}},
+                "script_manager":{"scripts":[{"enabled":true,"script":"read"}]}}]}"#).unwrap();
+        let mut world = World::default();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        instance.register_script("read".into(), r#"
+            fn on_update(me,dt) {
+                let n=get_scene_list_item("numbers",0)+1.0;
+                set_scene_list("numbers",[0.0]); set_scene_list("numbers",[n]);
+                set_scene_variable("number",0.0); set_scene_variable("number",n);
+                set_object_variable("number",0.0); set_object_variable("number",n);
+                set_object_list("labels",["pending"]);
+                set_object_list(me,"labels",[n.to_string()]);
+                if get_object_list_item("labels",0)!=n.to_string() || get_scene_list_item("numbers",0)!=n {
+                    throw "pending writes must be readable";
+                }
+                if get_scene_variable("fail") {throw "intentional rollback";}
+            }
+            fn on_destroy(me) { print("destroyed " + get_object_list_item("labels",0)); }
+        "#.into()).unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let runtime = world.resource_mut::<BlueprintRuntime>().unwrap();
+        runtime
+            .patch_blackboards(
+                &[
+                    ("fail".into(), B::Scalar(Value::Bool(true))),
+                    (
+                        "numbers".into(),
+                        B::List {
+                            element: blueprint::PinType::Number,
+                            capacity: 4,
+                            values: vec![Value::Number(99.)],
+                        },
+                    ),
+                ]
+                .into(),
+                &Default::default(),
+            )
+            .unwrap();
+        let before_scene = runtime.scene_blackboard().clone();
+        let before_object = runtime.object_blackboard("reader").unwrap().clone();
+        let error = instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("intentional rollback"));
+        let runtime = world.resource_mut::<BlueprintRuntime>().unwrap();
+        assert_eq!(runtime.scene_blackboard(), &before_scene);
+        assert_eq!(runtime.object_blackboard("reader").unwrap(), &before_object);
+        runtime
+            .patch_blackboards(
+                &[("fail".into(), B::Scalar(Value::Bool(false)))].into(),
+                &Default::default(),
+            )
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let runtime = world.resource::<BlueprintRuntime>().unwrap();
+        assert_eq!(
+            runtime.scene_blackboard()["numbers"].values(),
+            &[Value::Number(100.)]
+        );
+        assert_eq!(
+            runtime.scene_blackboard()["number"],
+            B::Scalar(Value::Number(100.))
+        );
+        assert_eq!(
+            runtime.object_blackboard("reader").unwrap()["number"],
+            B::Scalar(Value::Number(100.))
+        );
+        instance.scene_script_destroy_events(&mut world).unwrap();
+        assert!(
+            world
+                .resource::<ScriptRuntime>()
+                .unwrap()
+                .messages()
+                .any(|message| message.contains("destroyed 100"))
+        );
     }
 
     #[test]
@@ -3519,6 +3676,24 @@ mod tests {
             [2., 3.],
             "earlier passive removals flush before hooks; later removals wait"
         );
+    }
+
+    #[test]
+    fn forward_vector_observes_queued_rotations_and_subsequent_ticks() {
+        let (mut instance, mut world) = demo(
+            r#"
+            fn on_update(me,dt) {
+                set_rotation(me,[0.0,90.0,0.0]);
+                let facing=forward_vector(me);
+                if abs(facing[0]+1.0)>0.0001 || abs(facing[2])>0.0001 {throw "stale direction";}
+            }
+        "#,
+        );
+        for _ in 0..2 {
+            instance
+                .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                .unwrap();
+        }
     }
 
     #[test]

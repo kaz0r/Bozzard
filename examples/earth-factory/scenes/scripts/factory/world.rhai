@@ -9,8 +9,11 @@ import "factory-panels" as panels;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
 import "factory-transports" as transports;
+import "factory-dev_world" as dev;
 
-fn begin_world(seed) {
+fn begin_world(seed) { begin_world(seed,false); }
+
+fn begin_world(seed, developer) {
     transports::clear();
     let generation=data::session_value(126)+1.0;
     let authority=data::session_value(122);
@@ -21,6 +24,7 @@ fn begin_world(seed) {
     let session = get_object_list("session");
     for i in 8..128 { session[i] = 0.0; }
     session[122]=authority;session[126]=generation;
+    session[63]=if developer {1.0}else{0.0};
     set_object_list("session", session);
     set_object_list("power_other", grid::empty_text(867));
     set_visible("ground", true);
@@ -124,7 +128,7 @@ fn begin_world(seed) {
         }
     }
 
-    } else { nodes = deposits::generate_region_nodes(seed, 0, 0); }
+    } else if !developer { nodes = deposits::generate_region_nodes(seed, 0, 0); }
     for cell in 0..225 {
         let x = grid::cell_x(cell);
         let z = grid::cell_z(cell);
@@ -184,6 +188,15 @@ fn begin_world(seed) {
         if power::electrical(builds[cell].to_int()) { power::power_register(144 * 225 + cell, builds[cell].to_int()); }
     }
     if get_scene_variable("demo_mode") { power::wire_demo(); }
+    if developer {
+        dev::populate();
+        restore_chunk(0,0);
+        set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",3.0);
+        set_position("cursor",[0.0,0.115,3.0]);
+        set_position("camera-rig",[7.5,0.0,7.5]);set_object_variable("camera_pan_progress",1.0);
+        set_object_variable("camera_zoom",32.0);set_object_variable("camera_zoom_target",32.0);set_camera_size("camera",32.0);
+        set_scene_variable("message","Dev World: deposits, machines and item samples. N resets the showcase.");
+    }
     power::update_power();
 }
 
@@ -251,7 +264,7 @@ fn archive_chunk() {
 }
 
 fn enter_chunk(cx, cz) {
-    if abs(cx) > data::planet_radius() || abs(cz) > data::planet_radius() { return; }
+    if !data::chunk_allowed(cx,cz) { return; }
     chunks::discover_chunk(cx, cz);
     archive_chunk();
     restore_chunk(cx, cz);
@@ -293,6 +306,7 @@ fn restore_chunk(cx, cz) {
 }
 
 fn travel_to_other_planet() {
+    if data::dev_world() { return; }
     // Only boarding the completed rocket at the landing site permits a trip.
     if get_object_variable("phase") < 7.0 || get_scene_variable("demo_mode") ||
         get_scene_variable("chunk_x") != 0.0 || get_scene_variable("chunk_z") != 0.0 ||
@@ -355,13 +369,14 @@ fn explore(x, z) {
     let nx = cx;
     let nz = cz;
     let radius = data::planet_radius();
-    if x > 7 && cx < radius { nx += 1; x -= 15; }
-    if x < -7 && cx > -radius { nx -= 1; x += 15; }
-    if z > 7 && cz < radius { nz += 1; z -= 15; }
-    if z < -7 && cz > -radius { nz -= 1; z += 15; }
+    if x > 7 && data::chunk_allowed(cx+1,cz) { nx += 1; x -= 15; }
+    if x < -7 && data::chunk_allowed(cx-1,cz) { nx -= 1; x += 15; }
+    if z > 7 && data::chunk_allowed(nx,cz+1) { nz += 1; z -= 15; }
+    if z < -7 && data::chunk_allowed(nx,cz-1) { nz -= 1; z += 15; }
     if nx != cx || nz != cz { enter_chunk(nx, nz); }
     if x < -7 || x > 7 || z < -7 || z > 7 {
-        set_scene_variable("message", "Planet boundary: " + radius.to_string() + " regions from the landing site in each direction.");
+        set_scene_variable("message", if data::dev_world() { "Dev World boundary: fixed 2 × 2 chunks." }
+            else { "Planet boundary: " + radius.to_string() + " regions from the landing site in each direction." });
     }
     [if x < -7 { -7 } else if x > 7 { 7 } else { x }, if z < -7 { -7 } else if z > 7 { 7 } else { z }]
 }
