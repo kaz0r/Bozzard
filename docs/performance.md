@@ -2,7 +2,19 @@
 
 For the September 2026 optimization pass, including shadow reuse, idle editor drawing, CPU caches, and before/after results, see [the optimization review](optimization-results.md). For the subsequent live collision, per-light shadow, shader pipeline, render attachment, and editor document work, see [the follow-up review](optimization-followup.md). The recorded measurements below describe an earlier pass.
 
-Bozzard has two small, reproducible benchmark paths. They answer different questions: the editor example measures CPU authoring and inspection work, while the player benchmark measures a synchronized render loop for several renderer configurations. Neither reports frames per second, GPU timestamp queries, or a direct GPU execution time.
+The benchmarks below separate factory simulation, editor CPU work, and synchronized rendering. Their elapsed CPU or synchronized wall times are not windowed FPS measurements.
+
+## Factory simulation
+
+Run the real factory scene in an empty creative world with a fixed seed, including its normal HUD and production updates:
+
+```sh
+cargo run -p bozzard-demo --example benchmark_factory --locked --offline
+```
+
+An optional scene path selects a copy of the factory for before/after comparisons. The benchmark warms up for 60 ticks, then reports median/p95 timings for 180 ticks and the recorded CPU stages. Script timings separate read-view preparation, Rhai hooks, and command application. It does not open a window or measure GPU work.
+
+Debug builds optimize Rhai and the `bozzard-scene`/`bozzard-render` engine packages at level 2, retaining debug information and assertions. Player, editor and demo application code remain unoptimized. This applies to ordinary `cargo run` and tests; the first build after changing the profile recompiles those packages. For instruction-by-instruction engine debugging, override the relevant package's optimization level to zero. Release settings are unchanged. Compare the same profile and workload: when a fixed simulation tick exceeds its 16.7 ms budget, repeated catch-up ticks can turn a modest overrun into a much larger frame stall.
 
 ## Editor CPU paths
 

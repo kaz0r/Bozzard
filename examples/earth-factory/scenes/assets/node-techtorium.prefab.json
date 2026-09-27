@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "name": "Node Techtorium",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "node-techtorium",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "base",
+      "name": "node-techtorium base",
+      "transform": {
+        "translation": [
+          0,
+          0.11,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.88,
+          0.22,
+          0.88
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.03,
+          0.04
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-0",
+      "name": "node-techtorium detail 1",
+      "transform": {
+        "translation": [
+          -0.22,
+          0.37,
+          -0.12
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.32,
+          0.52,
+          0.3
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.38,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-1",
+      "name": "node-techtorium detail 2",
+      "transform": {
+        "translation": [
+          0.18,
+          0.29,
+          0.1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.37,
+          0.37,
+          0.34
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.94,
+          0.96,
+          0.99
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-2",
+      "name": "node-techtorium detail 3",
+      "transform": {
+        "translation": [
+          0.04,
+          0.46,
+          -0.22
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.21,
+          0.7,
+          0.19
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.38,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-3",
+      "name": "node-techtorium detail 4",
+      "transform": {
+        "translation": [
+          0.21,
+          0.52,
+          0.09
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.15,
+          0.13,
+          0.22
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.025,
+          0.03,
+          0.04
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    }
+  ]
+}

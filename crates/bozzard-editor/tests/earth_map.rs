@@ -14,6 +14,16 @@ fn map_fits_wide_and_small_viewports() -> anyhow::Result<()> {
     let mut editor = Editor::open(&path)?;
     let mut scene = editor.scene().clone();
     scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap()
+        .blackboard
+        .insert(
+            "title_open".into(),
+            BlackboardValue::Scalar(Value::Bool(false)),
+        );
+    scene
         .blackboard
         .insert("seed".into(), BlackboardValue::Scalar(Value::Number(1.)));
     editor.apply("Map preview route", scene)?;
@@ -25,11 +35,11 @@ fn map_fits_wide_and_small_viewports() -> anyhow::Result<()> {
         r#"{source}
         fn on_start(me) {{
             factory_start(me);
-            for x in -2..4 {{ for z in -2..2 {{ discover_chunk(x, z); }} }}
-            for x in 3..8 {{ discover_chunk(x, 1); }}
-            enter_chunk(4, 1);
+            for x in -2..4 {{ for z in -2..2 {{ chunks::discover_chunk(x, z); }} }}
+            for x in 3..8 {{ chunks::discover_chunk(x, 1); }}
+            world::enter_chunk(4, 1);
             set_scene_variable("cursor_x", 0.0); set_scene_variable("cursor_z", 0.0);
-            set_map(true);
+            panels::set_map(true);
         }}
     "#
     );

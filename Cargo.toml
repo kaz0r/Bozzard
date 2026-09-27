@@ -43,3 +43,14 @@ all = "warn"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Keep the scene/render runtime and interpreter fast in development. Application
+# code stays unoptimized; engine debug symbols and assertions are retained.
+[profile.dev.package.rhai]
+opt-level = 2
+
+[profile.dev.package.bozzard-render]
+opt-level = 2
+
+[profile.dev.package.bozzard-scene]
+opt-level = 2

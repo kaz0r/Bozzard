@@ -224,6 +224,17 @@ pub fn widget_items(frame: &Frame, assets: &bozzard_assets::AssetStore) -> Resul
             )?);
         }
         if !element.text.is_empty() {
+            let alignment = match w.text_alignment {
+                bozzard_scene::TextAlignment::Left => bozzard_render::TextAlignment::Left,
+                bozzard_scene::TextAlignment::Center => {
+                    text_pos[0] += width * 0.5;
+                    bozzard_render::TextAlignment::Center
+                }
+                bozzard_scene::TextAlignment::Right => {
+                    text_pos[0] += width;
+                    bozzard_render::TextAlignment::Right
+                }
+            };
             let color = if element.high_contrast {
                 [1.; 4]
             } else {
@@ -246,6 +257,7 @@ pub fn widget_items(frame: &Frame, assets: &bozzard_assets::AssetStore) -> Resul
                     }),
                     text: element.text.clone(),
                     font_size: element.font_size,
+                    alignment,
                     max_width: Some(width.min(10000.)),
                     opacity: color[3],
                     ..Default::default()
@@ -253,7 +265,8 @@ pub fn widget_items(frame: &Frame, assets: &bozzard_assets::AssetStore) -> Resul
                 material: mat,
             });
         }
-        if element.focused || element.high_contrast && w.kind.interactive() {
+        if element.focused && element.focus_visible || element.high_contrast && w.kind.interactive()
+        {
             let line = (2. * scale).min(size[0] * 0.5).min(size[1] * 0.5);
             let color = if element.high_contrast {
                 [1., 1., 0., 1.]

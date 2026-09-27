@@ -1,7 +1,13 @@
 {
   "version": 1,
-  "name": "Machine Splitter",
+  "name": "Splitter Mk1",
   "root": "root",
+  "assets": {
+    "splitter-mk1": {
+      "kind": "mesh",
+      "path": "models/splitter-mk1.glb"
+    }
+  },
   "objects": [
     {
       "id": "root",
@@ -22,115 +28,23 @@
           1,
           1
         ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "splitter-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
       }
-    },
-    {
-      "id": "base",
-      "name": "machine-splitter base",
-      "transform": {
-        "translation": [
-          0,
-          0.11,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.88,
-          0.22,
-          0.88
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.13,
-          0.17,
-          0.2
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-0",
-      "name": "machine-splitter detail 1",
-      "transform": {
-        "translation": [
-          0,
-          0.3,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.65,
-          0.15,
-          0.65
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.24,
-          0.52,
-          0.59
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
-    },
-    {
-      "id": "detail-1",
-      "name": "machine-splitter detail 2",
-      "transform": {
-        "translation": [
-          0.25,
-          0.44,
-          0
-        ],
-        "rotation_degrees": [
-          0,
-          0,
-          0
-        ],
-        "scale": [
-          0.15,
-          0.16,
-          0.32
-        ]
-      },
-      "drawable": {
-        "layer": "3d",
-        "mesh": "cube",
-        "texture": "white",
-        "color": [
-          0.88,
-          0.8,
-          0.45
-        ],
-        "uv_scale": [
-          1,
-          1
-        ]
-      },
-      "parent": "root"
     }
   ]
 }

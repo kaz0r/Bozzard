@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Constructor Mk1",
+  "root": "root",
+  "assets": {
+    "constructor-mk1": {
+      "kind": "mesh",
+      "path": "models/constructor-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-constructor",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "constructor-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

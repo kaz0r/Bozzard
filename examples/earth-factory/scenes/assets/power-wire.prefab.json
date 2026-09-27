@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "name": "power-wire",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "power-wire",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          0.035,
+          0.035
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.21,
+          0.24
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

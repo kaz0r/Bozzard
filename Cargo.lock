@@ -659,6 +659,7 @@ dependencies = [
  "bozzard-network",
  "bozzard-scene",
  "glam 0.33.6",
+ "serde",
  "serde_json",
 ]
 

@@ -641,6 +641,7 @@ fn script_pointer_events_and_screen_popups_keep_viewport_coordinates_and_order()
         );
     }
     let ui = world.resource::<Runtime>().unwrap();
+    assert!(ui.script_events.iter().all(|event| event.blocked));
     assert_eq!(
         ui.script_events.iter().map(|e| e.kind).collect::<Vec<_>>(),
         ["down", "up", "activate", "secondary"]
@@ -682,4 +683,92 @@ fn script_pointer_events_and_screen_popups_keep_viewport_coordinates_and_order()
         restored.widgets["popup"].screen_position,
         Some([0.99, 0.99])
     );
+}
+
+#[test]
+fn cached_layout_refreshes_hover_press_and_same_tick_ui_edits() {
+    let mut scene = base();
+    canvas(&mut scene);
+    widget(
+        &mut scene,
+        "button",
+        "canvas",
+        Widget {
+            kind: WidgetKind::Button,
+            text: "Original".into(),
+            anchors: Anchors {
+                size: [100., 40.],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let mut world = World::new();
+    let instance = scene.spawn(&mut world).unwrap();
+    let size = [640., 480.];
+    let frame = |world: &World| instance.ui_frame(world, Layer::TwoD, size).unwrap();
+    let initial = frame(&world);
+    let rect = initial.element("button").unwrap().rect;
+    let point = [rect.min[0] + 10., rect.min[1] + 10.];
+    instance
+        .ui_input(&mut world, Layer::TwoD, size, Input::PointerMove(point))
+        .unwrap();
+    assert!(frame(&world).element("button").unwrap().hovered);
+    instance
+        .ui_input(&mut world, Layer::TwoD, size, Input::PointerDown(point))
+        .unwrap();
+    let pressed = frame(&world);
+    assert!(pressed.element("button").unwrap().pressed);
+    assert!(pressed.element("button").unwrap().focused);
+    assert!(!pressed.element("button").unwrap().focus_visible);
+    instance
+        .ui_input(&mut world, Layer::TwoD, size, Input::PointerUp(point))
+        .unwrap();
+    assert!(!frame(&world).element("button").unwrap().pressed);
+    assert!(!frame(&world).element("button").unwrap().focus_visible);
+    instance
+        .ui_input(
+            &mut world,
+            Layer::TwoD,
+            size,
+            Input::FocusNext { reverse: false },
+        )
+        .unwrap();
+    assert!(frame(&world).element("button").unwrap().focus_visible);
+
+    let tick = world.change_tick();
+    instance
+        .control_ui(&mut world, "button", Control::Text("Updated".into()))
+        .unwrap();
+    instance
+        .control_ui(&mut world, "button", Control::Size([200., 60.]))
+        .unwrap();
+    let updated = frame(&world);
+    assert_eq!(updated.element("button").unwrap().text, "Updated");
+    assert_eq!(updated.element("button").unwrap().rect.size, [200., 60.]);
+    let button = instance.entity("button").unwrap();
+    world.get_mut::<Widget>(button).unwrap().text_color = [0.2, 0.3, 0.4, 1.];
+    assert_eq!(
+        frame(&world).element("button").unwrap().widget.text_color,
+        [0.2, 0.3, 0.4, 1.]
+    );
+    instance
+        .control_ui(&mut world, "button", Control::Enabled(false))
+        .unwrap();
+    let disabled = frame(&world);
+    assert!(!disabled.element("button").unwrap().hovered);
+    assert!(!disabled.element("button").unwrap().focused);
+    instance
+        .control_ui(&mut world, "button", Control::Visible(false))
+        .unwrap();
+    assert!(frame(&world).element("button").is_none());
+    instance
+        .control_ui(&mut world, "button", Control::Visible(true))
+        .unwrap();
+    assert!(frame(&world).element("button").is_some());
+    world
+        .insert(button, bozzard_scene::BlueprintHidden(true))
+        .unwrap();
+    assert!(frame(&world).element("button").is_none());
+    assert_eq!(world.change_tick(), tick, "all edits occur within one tick");
 }

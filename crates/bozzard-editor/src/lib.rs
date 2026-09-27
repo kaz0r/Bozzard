@@ -727,21 +727,23 @@ impl Editor {
             bozzard_demo::pump_idle_steam_callbacks();
         }
         if let Some(play) = &mut self.play {
-            if play.multiplayer_active() {
-                if let Err(error) = play.pump_multiplayer() {
-                    bozzard_diagnostics::log(
-                        &mut play.app.world,
-                        bozzard_diagnostics::Level::Error,
-                        "Multiplayer",
-                        &format!("{error:#}"),
-                        Default::default(),
-                    );
-                    self.stop_play();
-                    return;
-                }
-                if play.multiplayer_quit() {
-                    self.stop_play();
-                }
+            // Pump pending lobby creation/join even before membership is bound.
+            if let Err(error) = play.pump_multiplayer() {
+                bozzard_diagnostics::log(
+                    &mut play.app.world,
+                    bozzard_diagnostics::Level::Error,
+                    "Multiplayer",
+                    &format!("{error:#}"),
+                    Default::default(),
+                );
+                self.stop_play();
+                return;
+            }
+            if play.multiplayer_quit() {
+                self.stop_play();
+                return;
+            }
+            if play.multiplayer_drives_simulation() {
                 return;
             }
             if let Err(error) = play.resume_debug_dispatch() {
@@ -783,7 +785,7 @@ impl Editor {
         if self
             .play
             .as_ref()
-            .is_none_or(|play| play.multiplayer_active())
+            .is_none_or(|play| play.multiplayer_drives_simulation())
         {
             self.advance(delta);
             return Ok(());
@@ -2048,22 +2050,28 @@ mod tests {
         e.start_play().unwrap();
         let play = e.play.as_mut().unwrap();
         let entity = play.instance().entity(&id).unwrap();
-        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 75.;
         play.app.world.get_mut::<Light>(entity).unwrap().shadows = false;
+        let view = e.render(Layer::ThreeD, 1.).unwrap();
+        assert_eq!(view.lights.len(), 2);
         assert!(
-            e.render(Layer::ThreeD, 1.)
-                .unwrap()
-                .lights
+            view.lights
                 .iter()
-                .any(|l| l.shadows.is_none())
+                .any(|l| l.color == [1.; 3] && l.intensity == 75. && l.shadows.is_none())
         );
-        assert!(
-            e.render(Layer::ThreeD, 1.)
-                .unwrap()
-                .lights
-                .iter()
-                .any(|l| l.intensity == 0.)
-        );
+        // A dark light remains in the Play world but is omitted from rendering.
+        // The independently edited blue copy must still render with its shadows.
+        let play = e.play.as_mut().unwrap();
+        play.app.world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+        let view = e.render(Layer::ThreeD, 1.).unwrap();
+        assert_eq!(view.lights.len(), 1);
+        assert_eq!(view.lights[0].color, [0., 0., 1.]);
+        assert_eq!(view.lights[0].intensity, 150.);
+        assert!(view.lights[0].shadows.is_some());
+        let play = e.play.as_ref().unwrap();
+        let runtime_light = play.app.world.get::<Light>(entity).unwrap();
+        assert_eq!(runtime_light.intensity, 0.);
+        assert!(!runtime_light.shadows);
         let save = dir.0.join("lights.json");
         e.save(&save).unwrap();
         assert_eq!(Editor::open(&save).unwrap().scene(), &authored);

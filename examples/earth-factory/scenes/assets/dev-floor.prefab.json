@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Dev World checkerboard",
+  "root": "root",
+  "assets": {
+    "dev-floor": {
+      "kind": "mesh",
+      "path": "dev-floor.obj"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "30 \u00d7 30 \u00d7 1 checkerboard",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "dev-floor"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

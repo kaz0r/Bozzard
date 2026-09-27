@@ -7,6 +7,7 @@ use crate::{
     AssetKind, Component, Field, FieldValue, GamePhase, Layer, Object, Scene, Ui, VectorRole,
 };
 use anyhow::{Result, ensure};
+pub(crate) use layout::LayoutCache;
 pub use layout::{Element, Frame, Rect};
 pub use runtime::{Control, Input, Preferences, Runtime, ScriptEvent};
 use serde::{Deserialize, Serialize};
@@ -257,12 +258,14 @@ pub struct Widget {
     pub padding: [f32; 4],
     pub grow: f32,
     pub clip_children: bool,
+    pub auto_text_width: bool,
     pub auto_text_height: bool,
     pub scrollable: bool,
     pub text: String,
     pub locale_key: String,
     pub binding: String,
     pub font_size: f32,
+    pub text_alignment: crate::TextAlignment,
     pub text_color: [f32; 4],
     pub background: [f32; 4],
     pub image: String,
@@ -292,12 +295,14 @@ impl Default for Widget {
             padding: [12.; 4],
             grow: 0.,
             clip_children: true,
+            auto_text_width: false,
             auto_text_height: true,
             scrollable: false,
             text: String::new(),
             locale_key: String::new(),
             binding: String::new(),
             font_size: 20.,
+            text_alignment: Default::default(),
             text_color: [0.95, 0.97, 1., 1.],
             background: [0.035, 0.055, 0.09, 0.95],
             image: String::new(),
@@ -345,6 +350,7 @@ impl Component for Widget {
             Field::range("gap", "Child gap", 1., 0., 1000.),
             Field::range("grow", "Flex weight", 0.1, 0., 100.),
             Field::bool("clip_children", "Clip children"),
+            Field::bool("auto_text_width", "Fit text width"),
             Field::bool("auto_text_height", "Fit text height"),
             Field::bool("scrollable", "Scroll overflowing content"),
             Field::integer_range("order", "Draw order", 1., -10000., 10000.),
@@ -356,6 +362,11 @@ impl Component for Widget {
                 &["None", "Game message", "Game title", "Game instructions"],
             ),
             Field::range("font_size", "Font size", 1., 6., 200.),
+            Field::options(
+                "text_alignment",
+                "Text alignment",
+                &["Left", "Center", "Right"],
+            ),
             Field::vector("text_color", "Text color", VectorRole::Color, 0.01).clamp(0., 1.),
             Field::range("text_opacity", "Text opacity", 0.01, 0., 1.),
             Field::vector("background", "Background", VectorRole::Color, 0.01).clamp(0., 1.),
@@ -388,6 +399,7 @@ impl Component for Widget {
             "gap" => FieldValue::Number(self.gap),
             "grow" => FieldValue::Number(self.grow),
             "clip_children" => FieldValue::Bool(self.clip_children),
+            "auto_text_width" => FieldValue::Bool(self.auto_text_width),
             "auto_text_height" => FieldValue::Bool(self.auto_text_height),
             "scrollable" => FieldValue::Bool(self.scrollable),
             "order" => FieldValue::Number(self.order as f32),
@@ -400,6 +412,7 @@ impl Component for Widget {
                     .unwrap_or(0),
             ),
             "font_size" => FieldValue::Number(self.font_size),
+            "text_alignment" => FieldValue::Index(self.text_alignment as usize),
             "text_color" => {
                 FieldValue::Vector([self.text_color[0], self.text_color[1], self.text_color[2]])
             }
@@ -454,6 +467,7 @@ impl Component for Widget {
             "gap" => self.gap = v.number()?,
             "grow" => self.grow = v.number()?,
             "clip_children" => self.clip_children = v.bool()?,
+            "auto_text_width" => self.auto_text_width = v.bool()?,
             "auto_text_height" => self.auto_text_height = v.bool()?,
             "scrollable" => self.scrollable = v.bool()?,
             "order" => self.order = v.number()? as i32,
@@ -466,6 +480,15 @@ impl Component for Widget {
                     .to_string()
             }
             "font_size" => self.font_size = v.number()?,
+            "text_alignment" => {
+                self.text_alignment = *[
+                    crate::TextAlignment::Left,
+                    crate::TextAlignment::Center,
+                    crate::TextAlignment::Right,
+                ]
+                .get(v.index()?)
+                .ok_or_else(|| anyhow::anyhow!("invalid widget text alignment"))?;
+            }
             "text_color" => self.text_color[..3].copy_from_slice(&v.vector()?),
             "text_opacity" => self.text_color[3] = v.number()?,
             "background" => self.background[..3].copy_from_slice(&v.vector()?),

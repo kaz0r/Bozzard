@@ -34,12 +34,25 @@ fn night_is_dark_with_stars_behind_terrain_and_readable_hud() -> anyhow::Result<
         let mut editor = Editor::open(&path)?;
         let mut scene = editor.scene().clone();
         scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "controller")
+            .unwrap()
+            .blackboard
+            .insert(
+                "title_open".into(),
+                BlackboardValue::Scalar(Value::Bool(false)),
+            );
+        scene
             .blackboard
             .insert("seed".into(), BlackboardValue::Scalar(Value::Number(1.)));
         editor.apply("Reproducible lighting preview", scene)?;
         editor.assets.require_ready()?;
         editor.start_play()?;
-        let script = source.replace("sin(elapsed_time() * 0.10)", &format!("{daylight:.1}"));
+        let script = source.replace(
+            "sin(data::session_value(120) * 0.10)",
+            &format!("{daylight:.1}"),
+        );
         let play = editor.play.as_mut().unwrap();
         play.with_instance(|instance, _| instance.register_script("earth-factory".into(), script))?;
         for _ in 0..24 {

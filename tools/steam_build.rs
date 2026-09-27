@@ -9,10 +9,18 @@ type BuildResult<T> = Result<T, Box<dyn std::error::Error>>;
 fn main() -> BuildResult<()> {
     println!("cargo:rerun-if-env-changed=STEAM_SDK_LOCATION");
     println!("cargo:rerun-if-env-changed=CARGO_HOME");
+    // Workspace feature unification can link a native executable to Steam through
+    // a dependency even when that executable has no local `steam` feature.
+    // Keep adjacent-library lookup available independently of SDK staging.
+    let os = env::var("CARGO_CFG_TARGET_OS")?;
+    match os.as_str() {
+        "linux" => println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN"),
+        "macos" => println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path"),
+        _ => {}
+    }
     if env::var_os("CARGO_FEATURE_STEAM").is_none() {
         return Ok(());
     }
-    let os = env::var("CARGO_CFG_TARGET_OS")?;
     let arch = env::var("CARGO_CFG_TARGET_ARCH")?;
     let (folder, library) = match (os.as_str(), arch.as_str()) {
         ("windows", "x86_64") => ("win64", "steam_api64.dll"),
@@ -44,12 +52,6 @@ fn main() -> BuildResult<()> {
         if fs::read(&target).ok().as_deref() != Some(&bytes) {
             fs::write(target, &bytes)?;
         }
-    }
-    // Executables and exported games load their adjacent redistributable without a launcher.
-    match os.as_str() {
-        "linux" => println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN"),
-        "macos" => println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path"),
-        _ => {}
     }
     Ok(())
 }

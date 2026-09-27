@@ -130,14 +130,15 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
             .count(),
         0
     );
-    assert!(
+    assert_eq!(
         authored
             .objects
             .iter()
-            .filter(|object| !object.extras.contains_key("ui_widget")
-                && !object.extras.contains_key("ui_canvas"))
-            .count()
-            < 50,
+            .filter(|object| object.drawable.as_ref().is_some_and(|drawable| {
+                matches!(&drawable.mesh, Mesh::Asset(id) if id == "earth-ground")
+            }))
+            .count(),
+        1,
         "the ground must be one scene object"
     );
     assert!(matches!(
@@ -155,7 +156,15 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
     };
     assert_eq!(mesh.parts.len(), 5, "four grass shades and the earth cliff");
     assert!(mesh.parts.iter().all(|part| part.count > 0));
-    for asset in ["machine-miner", "machine-smelter", "node-iron"] {
+    for asset in [
+        "machine-miner",
+        "machine-smelter",
+        "machine-constructor",
+        "node-iron",
+        "node-stone",
+        "node-sand",
+        "node-silver",
+    ] {
         let entry = editor
             .assets
             .entries()
@@ -173,14 +182,14 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
             root.transform.scale, [1.0; 3],
             "{asset} pivot flattens its children"
         );
-        let height = prefab
-            .objects
-            .iter()
-            .filter(|object| object.drawable.is_some())
-            .map(|object| object.transform.translation[1] + object.transform.scale[1] * 0.5)
-            .fold(0.0f32, f32::max);
+        // Imported machine meshes have unit-scale roots; measure their geometry
+        // as well as the primitive geometry used by resource nodes.
+        let prefab_path = path.parent().unwrap().join(&authored.assets[asset].path);
+        let model = Editor::new(prefab.authoring_scene(), &prefab_path)?;
+        model.assets.require_ready()?;
+        let [min, max] = model.frame_bounds(Layer::ThreeD, None)?.unwrap();
         assert!(
-            height > 0.7,
+            max.y - min.y > 0.7,
             "{asset} must read as a 3D object, not a flat tile"
         );
     }
@@ -189,7 +198,19 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
     let play = editor.play.as_mut().unwrap();
     play.app.step();
     play.check_simulation()?;
+    let initial_objects = play
+        .instance()
+        .view(&play.app.world, Layer::ThreeD, 16.0 / 9.0)?
+        .objects
+        .len();
 
+    play.ui_input(
+        Layer::ThreeD,
+        [1080., 600.],
+        bozzard_scene::middleware::ui::Input::ActivateObject("title-create".into()),
+    )?;
+    play.app.step();
+    play.check_simulation()?;
     let board = play.app.world.resource::<BlueprintRuntime>().unwrap();
     let BlackboardValue::List { values, .. } = board.scene_blackboard().get("nodes").unwrap()
     else {
@@ -200,12 +221,7 @@ fn earth_factory_opens_and_generates_a_world_in_editor_play() -> anyhow::Result<
         .instance()
         .view(&play.app.world, Layer::ThreeD, 16.0 / 9.0)?;
     assert!(
-        render.objects.len()
-            > authored
-                .objects
-                .iter()
-                .filter(|o| o.drawable.is_some())
-                .count(),
+        render.objects.len() > initial_objects,
         "Play adds the script-spawned nodes and machines to the authored ground"
     );
 
@@ -228,6 +244,16 @@ fn capture_earth_factory_debug_hud() -> anyhow::Result<()> {
     let mut editor = Editor::open(&path)?;
     let mut scene = editor.scene().clone();
     scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap()
+        .blackboard
+        .insert(
+            "title_open".into(),
+            BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(false)),
+        );
+    scene
         .blackboard
         .insert("seed".into(), BlackboardValue::Scalar(Value::Number(1.)));
     editor.apply("Reproducible HUD preview", scene)?;
@@ -246,6 +272,7 @@ fn capture_earth_factory_debug_hud() -> anyhow::Result<()> {
     }
     let mut menu_open = false;
     for (size, label, menu, scroll) in [
+        ([1920, 1080], "debug", false, 0.),
         ([1280, 800], "debug", false, 0.),
         ([900, 700], "debug", false, 0.),
         ([1280, 800], "menu", true, 0.),
@@ -345,6 +372,16 @@ fn capture_earth_factory_ui() -> anyhow::Result<()> {
         .join("../../examples/earth-factory/scenes/earth.json");
     let mut editor = Editor::open(&path)?;
     let mut scene = editor.scene().clone();
+    scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap()
+        .blackboard
+        .insert(
+            "title_open".into(),
+            BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(false)),
+        );
     scene.blackboard.insert(
         "demo_mode".into(),
         BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(true)),
@@ -511,6 +548,12 @@ fn capture_earth_factory_ui() -> anyhow::Result<()> {
     let mut journey = Editor::open(&path)?;
     journey.assets.require_ready()?;
     journey.start_play()?;
+    journey.play.as_mut().unwrap().app.step();
+    journey.play.as_mut().unwrap().ui_input(
+        Layer::ThreeD,
+        [1080., 600.],
+        bozzard_scene::middleware::ui::Input::ActivateObject("title-create".into()),
+    )?;
     {
         let play = journey.play.as_mut().unwrap();
         play.app.step();
@@ -585,6 +628,16 @@ fn chunk_streaming_matches_retained_world_rendering() -> anyhow::Result<()> {
             let mut editor = Editor::open(&path)?;
             let mut scene = editor.scene().clone();
             scene
+                .objects
+                .iter_mut()
+                .find(|o| o.id == "controller")
+                .unwrap()
+                .blackboard
+                .insert(
+                    "title_open".into(),
+                    BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(false)),
+                );
+            scene
                 .blackboard
                 .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
             editor.apply("Streaming comparison", scene)?;
@@ -593,7 +646,7 @@ fn chunk_streaming_matches_retained_world_rendering() -> anyhow::Result<()> {
             let mut script = source.replace("fn on_start(me)", "fn original_start(me)");
             if !streaming {
                 script = script.replace(
-                    "    update_chunk_residency();",
+                    "    chunks::update_chunk_residency();",
                     "    // Keep every chunk for the reference.",
                 );
             }
@@ -601,9 +654,9 @@ fn chunk_streaming_matches_retained_world_rendering() -> anyhow::Result<()> {
                 r#"
                 fn on_start(me) {{
                     original_start(me);
-                    for x in 1..9 {{ discover_chunk(x, 0); }}
-                    for z in 1..5 {{ discover_chunk(8, z); }}
-                    enter_chunk(8, 2);
+                    for x in 1..9 {{ chunks::discover_chunk(x, 0); }}
+                    for z in 1..5 {{ chunks::discover_chunk(8, z); }}
+                    world::enter_chunk(8, 2);
                     set_object_variable("camera_zoom", {zoom:.1});
                     set_object_variable("camera_zoom_target", {zoom:.1});
                     set_camera_size("camera", {zoom:.1});
@@ -674,6 +727,16 @@ fn profile_earth_factory_exploration() -> anyhow::Result<()> {
         .join("../../examples/earth-factory/scenes/earth.json");
     let mut editor = Editor::open(&path)?;
     let mut scene = editor.scene().clone();
+    scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap()
+        .blackboard
+        .insert(
+            "title_open".into(),
+            BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(false)),
+        );
     scene
         .blackboard
         .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
@@ -818,6 +881,16 @@ fn profile_earth_factory_cpu() -> anyhow::Result<()> {
         .join("../../examples/earth-factory/scenes/earth.json");
     let mut editor = Editor::open(&path)?;
     let mut scene = editor.scene().clone();
+    scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap()
+        .blackboard
+        .insert(
+            "title_open".into(),
+            BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(false)),
+        );
     scene.blackboard.insert(
         "demo_mode".into(),
         BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(true)),
@@ -932,6 +1005,16 @@ fn profile_earth_factory_render() -> anyhow::Result<()> {
         .join("../../examples/earth-factory/scenes/earth.json");
     let mut editor = Editor::open(&path)?;
     let mut scene = editor.scene().clone();
+    scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap()
+        .blackboard
+        .insert(
+            "title_open".into(),
+            BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(false)),
+        );
     scene.blackboard.insert(
         "demo_mode".into(),
         BlackboardValue::Scalar(bozzard_scene::blueprint::Value::Bool(true)),
@@ -1017,5 +1100,113 @@ fn profile_earth_factory_render() -> anyhow::Result<()> {
     }
     draws.sort();
     println!("shadow draw commands median={}", draws[30]);
+    Ok(())
+}
+
+#[test]
+#[ignore = "manual journal CPU profile; timing varies by host"]
+fn profile_stellar_journal_cpu() -> anyhow::Result<()> {
+    use bozzard_diagnostics::Diagnostics;
+    use bozzard_scene::middleware::ui::Input;
+    use std::{collections::BTreeMap, time::Instant};
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/earth.json");
+    let source_path = std::env::var_os("BOZZARD_PROFILE_SCRIPT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| path.parent().unwrap().join("scripts/earth_factory.rs"));
+    let source =
+        std::fs::read_to_string(source_path)?.replace("fn on_start(me)", "fn original_start(me)");
+    for mode in ["world", "journal", "hover"] {
+        let mut editor = Editor::open(&path)?;
+        editor.assets.require_ready()?;
+        editor.start_play()?;
+        editor.play.as_mut().unwrap().with_instance(|instance, _| {
+            instance.register_script("earth-factory".into(), format!(r#"{source}
+                fn on_start(me) {{
+                    navigation::show_title(false); set_object_variable("creative",true); world::begin_world(4);
+                    if "{mode}" != "world" {{ set_object_variable("journal_open",true); set_object_variable("journal_page",2.0); }}
+                }}"#))
+        })?;
+        for _ in 0..24 {
+            let play = editor.play.as_mut().unwrap();
+            play.app.step();
+            play.check_simulation()?;
+        }
+        let frame = editor.ui_frame(Layer::ThreeD, [1280., 800.])?;
+        let targets: Vec<_> = frame
+            .elements
+            .iter()
+            .filter(|e| e.owner.starts_with("journal-recipe-"))
+            .map(|e| {
+                [
+                    e.rect.min[0] + e.rect.size[0] * 0.5,
+                    e.rect.min[1] + e.rect.size[1] * 0.5,
+                ]
+            })
+            .collect();
+        let mut samples: BTreeMap<String, Vec<f64>> = BTreeMap::new();
+        for iteration in 0..60 {
+            let start = Instant::now();
+            if mode == "hover" {
+                // Eight mouse events per frame approximates a 500 Hz mouse at 60 FPS.
+                for event in 0..8 {
+                    editor.play.as_mut().unwrap().ui_input(
+                        Layer::ThreeD,
+                        [1280., 800.],
+                        Input::PointerMove(targets[(iteration + event) % targets.len()]),
+                    )?;
+                }
+            }
+            samples
+                .entry("pointer burst".into())
+                .or_default()
+                .push(start.elapsed().as_secs_f64() * 1000.);
+            let play = editor.play.as_mut().unwrap();
+            let diagnostics = play.app.world.resource_mut::<Diagnostics>().unwrap();
+            diagnostics.profiler.recording = true;
+            diagnostics.profiler.begin_frame();
+            let start = Instant::now();
+            play.app.step();
+            play.check_simulation()?;
+            samples
+                .entry("simulation".into())
+                .or_default()
+                .push(start.elapsed().as_secs_f64() * 1000.);
+            for span in &play
+                .app
+                .world
+                .resource::<Diagnostics>()
+                .unwrap()
+                .profiler
+                .spans
+            {
+                samples
+                    .entry(format!("span/{}", span.name))
+                    .or_default()
+                    .push(span.duration_ms);
+            }
+            let start = Instant::now();
+            let frame = editor.ui_frame(Layer::ThreeD, [1280., 800.])?;
+            samples
+                .entry("UI layout".into())
+                .or_default()
+                .push(start.elapsed().as_secs_f64() * 1000.);
+            let start = Instant::now();
+            std::hint::black_box(bozzard_render_assets::widget_items(&frame, &editor.assets)?);
+            samples
+                .entry("UI draw list".into())
+                .or_default()
+                .push(start.elapsed().as_secs_f64() * 1000.);
+        }
+        println!("mode={mode}");
+        for (name, mut values) in samples {
+            values.sort_by(f64::total_cmp);
+            println!(
+                "  {name}: median={:.3}ms p95={:.3}ms",
+                values[values.len() / 2],
+                values[values.len() * 95 / 100]
+            );
+        }
+    }
     Ok(())
 }

@@ -1,6 +1,40 @@
 use super::*;
 use crate::{SceneInstance, World};
 use std::hash::{Hash, Hasher};
+// One value-checked layout per scene. Pointer/focus/press feedback is applied
+// after cloning the cached geometry, so a mouse burst does not rerun text layout.
+// Compare live values rather than only change ticks: scripts, inspector edits and
+// direct ECS writes can all happen several times in the same simulation tick.
+#[derive(Default)]
+pub(crate) struct LayoutCache(std::sync::Mutex<Option<CachedLayout>>);
+impl Clone for LayoutCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+struct CachedNode {
+    entity: bozzard_ecs::Entity,
+    id: String,
+    parent: Option<String>,
+    hidden: bool,
+    canvas: Option<Canvas>,
+    widget: Option<Widget>,
+}
+struct CachedLayout {
+    layer: Layer,
+    size: [f32; 2],
+    phase: Option<GamePhase>,
+    projection: Option<glam::Mat4>,
+    preferences: Option<Preferences>,
+    locale: Option<Localization>,
+    message: Option<String>,
+    title: Option<String>,
+    instructions: Option<String>,
+    widgets: Option<BTreeMap<String, super::runtime::State>>,
+    nodes: Vec<CachedNode>,
+    frame: Frame,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rect {
@@ -48,6 +82,7 @@ pub struct Element {
     pub value: f32,
     pub enabled: bool,
     pub focused: bool,
+    pub focus_visible: bool,
     pub hovered: bool,
     pub pressed: bool,
     pub font_size: f32,
@@ -63,6 +98,20 @@ pub struct Frame {
     pub size: [f32; 2],
 }
 impl Frame {
+    fn update_interaction(&mut self, runtime: Option<&Runtime>) {
+        for element in &mut self.elements {
+            element.focused = element.enabled
+                && runtime.is_some_and(|r| r.focus.as_deref() == Some(&element.owner));
+            element.focus_visible = runtime.is_some_and(|r| r.focus_visible);
+            element.hovered = element.enabled
+                && runtime
+                    .and_then(|r| r.pointer)
+                    .is_some_and(|p| element.rect.contains(p) && element.clip.contains(p));
+            element.pressed = element.enabled
+                && runtime.is_some_and(|r| r.active.as_deref() == Some(&element.owner));
+        }
+    }
+
     /// Visible controls and scroll areas need a free pointer. Decorative HUD elements do not.
     pub fn wants_pointer(&self) -> bool {
         self.elements.iter().any(|element| {
@@ -224,30 +273,84 @@ impl SceneInstance {
         // and machine object. Preserve document order for widgets with equal order.
         let mut ui_objects: Vec<_> = world
             .query::<Canvas>()
-            .map(|(entity, _)| entity)
-            .chain(world.query::<Widget>().map(|(entity, _)| entity))
-            .filter_map(|entity| self.object_indices.get(&entity).copied())
+            .filter_map(|(entity, canvas)| {
+                self.object_indices
+                    .get(&entity)
+                    .map(|&index| (index, entity, Some(canvas), None))
+            })
+            .chain(world.query::<Widget>().filter_map(|(entity, widget)| {
+                self.object_indices
+                    .get(&entity)
+                    .map(|&index| (index, entity, None, Some(widget)))
+            }))
             .collect();
-        ui_objects.sort_unstable();
-        ui_objects.dedup();
-        for index in ui_objects {
+        ui_objects.sort_unstable_by_key(|node| node.0);
+        ui_objects.dedup_by(|a, b| {
+            if a.0 != b.0 {
+                return false;
+            }
+            b.2 = b.2.or(a.2);
+            b.3 = b.3.or(a.3);
+            true
+        });
+        let mut cached = self
+            .ui_layout_cache
+            .0
+            .lock()
+            .map_err(|_| anyhow::anyhow!("UI layout cache lock poisoned"))?;
+        let message = session.map(|s| s.message.as_str());
+        let title = self.document.game_flow.as_ref().map(|s| s.title.as_str());
+        let instructions = self
+            .document
+            .game_flow
+            .as_ref()
+            .map(|s| s.instructions.as_str());
+        let widgets = runtime.map(|r| &r.widgets);
+        if let Some(previous) = cached.as_ref()
+            && previous.layer == layer
+            && previous.size == size
+            && previous.phase == phase
+            && previous.projection == world_projection
+            && previous.preferences.as_ref() == preferences
+            && previous.locale.as_ref() == locale
+            && previous.message.as_deref() == message
+            && previous.title.as_deref() == title
+            && previous.instructions.as_deref() == instructions
+            && previous.widgets.as_ref() == widgets
+            && previous.nodes.len() == ui_objects.len()
+            && previous.nodes.iter().zip(&ui_objects).all(
+                |(node, &(index, entity, canvas, widget))| {
+                    let object = &self.document.objects[index];
+                    node.entity == entity
+                        && node.id == object.id
+                        && node.parent == object.parent
+                        && node.hidden
+                            == world
+                                .get::<crate::BlueprintHidden>(entity)
+                                .is_some_and(|h| h.0)
+                        && node.canvas.as_ref() == canvas
+                        && node.widget.as_ref() == widget
+                },
+            )
+        {
+            let mut frame = previous.frame.clone();
+            frame.update_interaction(runtime);
+            return Ok(frame);
+        }
+        for &(index, entity, canvas, widget) in &ui_objects {
             let object = &self.document.objects[index];
-            let entity = self.entities[&object.id];
             if world
                 .get::<crate::BlueprintHidden>(entity)
                 .is_some_and(|h| h.0)
             {
                 continue;
             }
-            if let Some(canvas) = world
-                .get::<Canvas>(entity)
-                .filter(|c| c.enabled && c.layer == layer && c.phase.matches(phase))
+            if let Some(canvas) =
+                canvas.filter(|c| c.enabled && c.layer == layer && c.phase.matches(phase))
             {
                 roots.push((object, canvas));
             }
-            if let (Some(parent), Some(widget)) =
-                (object.parent.as_deref(), world.get::<Widget>(entity))
-            {
+            if let (Some(parent), Some(widget)) = (object.parent.as_deref(), widget) {
                 let state = runtime.and_then(|r| r.widgets.get(&object.id));
                 if state.and_then(|s| s.visible).unwrap_or(widget.visible) {
                     let mut widget = widget.clone();
@@ -350,10 +453,34 @@ impl SceneInstance {
                     1
                 };
                 let width = (inside.size[0] - gap * (columns - 1) as f32) / columns as f32;
-                let heights = nodes
+                // Natural text width uses the same cached font metrics as rendering.
+                // Authored width remains a minimum; anchors/pivots apply afterwards.
+                let widths = nodes
                     .iter()
                     .zip(&texts)
                     .map(|((_, w), text)| -> Result<f32> {
+                        let base = w.anchors.size[0].max(0.) * scale;
+                        if !w.auto_text_width || text.is_empty() {
+                            return Ok(base);
+                        }
+                        let font = (w.font_size * scale * text_scale).clamp(0.001, 1000.);
+                        let measured = bozzard_text::screen_bounds_with_font(
+                            text, font, None, false, 0, None,
+                        )?
+                        .map_or(0., |b| b[1][0] - b[0][0]);
+                        let extra = if w.kind == WidgetKind::Toggle {
+                            font * 0.8 + 8. * scale
+                        } else {
+                            0.
+                        };
+                        Ok(base.max(measured + (w.padding[0] + w.padding[2]) * scale + extra))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let heights = nodes
+                    .iter()
+                    .zip(&texts)
+                    .enumerate()
+                    .map(|(index, ((_, w), text))| -> Result<f32> {
                         let base = w.anchors.size[1].max(0.) * scale;
                         if !w.auto_text_height || text.is_empty() {
                             return Ok(base);
@@ -364,6 +491,11 @@ impl SceneInstance {
                             font * 0.8 + 8. * scale
                         } else {
                             0.
+                        };
+                        let width = if w.auto_text_width && layout == Layout::Absolute {
+                            widths[index]
+                        } else {
+                            width
                         };
                         let width = (width - padding[0] - padding[2] - extra).clamp(0.001, 10000.);
                         let height = bozzard_text::screen_bounds_with_font(
@@ -393,13 +525,7 @@ impl SceneInstance {
                         .iter()
                         .enumerate()
                         .filter(|(_, (_, w))| w.grow == 0.)
-                        .map(|(i, (_, w))| {
-                            if axis == 1 {
-                                heights[i]
-                            } else {
-                                w.anchors.size[0].max(0.) * scale
-                            }
-                        })
+                        .map(|(i, _)| if axis == 1 { heights[i] } else { widths[i] })
                         .sum::<f32>()
                 } else {
                     0.
@@ -418,7 +544,13 @@ impl SceneInstance {
                     .collect();
                 for (index, (_, widget)) in nodes.iter().enumerate() {
                     let mut rect = match layout {
-                        Layout::Absolute => anchored(inside, widget.anchors, scale),
+                        Layout::Absolute => {
+                            let mut anchors = widget.anchors;
+                            if widget.auto_text_width && anchors.min[0] == anchors.max[0] {
+                                anchors.size[0] = widths[index] / scale;
+                            }
+                            anchored(inside, anchors, scale)
+                        }
                         Layout::Row | Layout::Column => {
                             let axis = usize::from(layout == Layout::Column);
                             let remaining = (inside.size[axis]
@@ -435,7 +567,7 @@ impl SceneInstance {
                                 if axis == 1 {
                                     heights[index]
                                 } else {
-                                    widget.anchors.size[0].max(0.) * scale
+                                    widths[index]
                                 }
                             };
                             let mut rect = inside;
@@ -543,6 +675,7 @@ impl SceneInstance {
                         enabled,
                         focused: enabled
                             && runtime.is_some_and(|r| r.focus.as_deref() == Some(&object.id)),
+                        focus_visible: runtime.is_some_and(|r| r.focus_visible),
                         hovered: enabled
                             && runtime
                                 .and_then(|r| r.pointer)
@@ -616,6 +749,35 @@ impl SceneInstance {
         let mut ordered: Vec<_> = frame.elements.into_iter().zip(paths).collect();
         ordered.sort_by(|a, b| a.1.cmp(&b.1));
         frame.elements = ordered.into_iter().map(|(e, _)| e).collect();
+        *cached = Some(CachedLayout {
+            layer,
+            size,
+            phase,
+            projection: world_projection,
+            preferences: preferences.cloned(),
+            locale: locale.cloned(),
+            message: message.map(str::to_owned),
+            title: title.map(str::to_owned),
+            instructions: instructions.map(str::to_owned),
+            widgets: widgets.cloned(),
+            nodes: ui_objects
+                .iter()
+                .map(|&(index, entity, canvas, widget)| {
+                    let object = &self.document.objects[index];
+                    CachedNode {
+                        entity,
+                        id: object.id.clone(),
+                        parent: object.parent.clone(),
+                        hidden: world
+                            .get::<crate::BlueprintHidden>(entity)
+                            .is_some_and(|h| h.0),
+                        canvas: canvas.cloned(),
+                        widget: widget.cloned(),
+                    }
+                })
+                .collect(),
+            frame: frame.clone(),
+        });
         Ok(frame)
     }
 }

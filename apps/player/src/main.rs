@@ -537,30 +537,6 @@ impl View {
         self.renderer
             .set_hud_scale(self.window.scale_factor() as f32);
         assets.poll()?;
-        let (frame, reconfigure) = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface_status = "surface outdated";
-                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Timeout => {
-                self.surface_status = "surface acquisition timed out";
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Occluded => {
-                self.surface_status = "window occluded; an active desktop is required";
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                self.surface_recovery.lost()?;
-                self.surface_status = "surface lost; reconfiguring";
-                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
-                return Ok(false);
-            }
-            wgpu::CurrentSurfaceTexture::Validation => bail!("graphics surface validation failed"),
-        };
         let mut scene = extract(
             demo,
             assets.store(),
@@ -589,7 +565,38 @@ impl View {
         if !assets.current() {
             scene.gi = None;
         }
-        let submit = || -> Result<()> {
+        // Streaming may skip a frame while a new mesh uploads. Do that before
+        // acquiring a swapchain image: dropping an acquired, unpresented image
+        // can exhaust the surface's images and stall subsequent acquisition.
+        // Surface acquisition may wait for VSync. Let simulation run during that
+        // wait as well as draw submission, rather than starting it afterwards.
+        let mut submit = || -> Result<bool> {
+            let (frame, reconfigure) = match self.surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
+                wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
+                wgpu::CurrentSurfaceTexture::Outdated => {
+                    self.surface_status = "surface outdated";
+                    configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Timeout => {
+                    self.surface_status = "surface acquisition timed out";
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Occluded => {
+                    self.surface_status = "window occluded; an active desktop is required";
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Lost => {
+                    self.surface_recovery.lost()?;
+                    self.surface_status = "surface lost; reconfiguring";
+                    configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+                    return Ok(false);
+                }
+                wgpu::CurrentSurfaceTexture::Validation => {
+                    bail!("graphics surface validation failed")
+                }
+            };
             self.renderer.draw(
                 &self.gpu,
                 &frame.texture.create_view(&Default::default()),
@@ -598,12 +605,20 @@ impl View {
             )?;
             self.window.pre_present_notify();
             self.gpu.queue.present(frame);
-            Ok(())
+            self.surface_recovery.presented();
+            self.surface_status = "presented";
+            if reconfigure {
+                configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
+            }
+            Ok(true)
         };
-        if let Some(elapsed) = elapsed.take() {
-            demo.advance_with_frame(elapsed, submit)??;
+        let presented = if let Some(elapsed) = elapsed.take() {
+            demo.advance_with_frame(elapsed, submit)??
         } else {
-            submit()?;
+            submit()?
+        };
+        if !presented {
+            return Ok(false);
         }
         for timing in self.renderer.poll_gpu_profiles(&self.gpu)? {
             if !timing.failed {
@@ -617,11 +632,6 @@ impl View {
                 }
                 self.gpu_frame_ms.push_back(total);
             }
-        }
-        self.surface_recovery.presented();
-        self.surface_status = "presented";
-        if reconfigure {
-            configure_surface_checked(&self.surface, &self.gpu, &self.config)?;
         }
         Ok(true)
     }
@@ -696,6 +706,12 @@ fn print_frame_percentiles(label: &str, samples: &VecDeque<f64>) {
 }
 
 impl Player {
+    fn simulation_elapsed(&self, now: Instant) -> Option<Duration> {
+        (!self.paused
+            && !self.demo.multiplayer_drives_simulation()
+            && !self.options.verify_first_trail)
+            .then(|| now.duration_since(self.last_frame))
+    }
     /// The game owns the pointer only while it is actually playing: menus, dialogs,
     /// pause and other views keep a usable cursor. A grab is attempted once per
     /// transition, never per frame, so a refused platform is not polled.
@@ -711,6 +727,7 @@ impl Player {
             .resource::<bozzard_scene::CursorCapture>()
             .and_then(|capture| capture.requested);
         let playing = self.view.is_some()
+            && !self.demo.steam_overlay_active()
             && cursor_capture_wanted(CursorCaptureState {
                 paused: self.paused,
                 focused: self.gameplay_controls.focused(),
@@ -814,10 +831,16 @@ impl Player {
         repeat: bool,
         synthetic: bool,
     ) -> Result<()> {
+        if self.demo.steam_overlay_active() {
+            self.gameplay_controls.reset();
+            self.menu_input = Default::default();
+            return Ok(());
+        }
         self.gameplay_controls.set_scene_keyboard(
             self.demo.gameplay().is_none() && self.demo.instance().has_gameplay_logic(),
         );
         if self.demo.multiplayer_chatting() {
+            self.gameplay_controls.reset();
             if state == ElementState::Pressed
                 && !synthetic
                 && let PhysicalKey::Code(code) = physical
@@ -838,10 +861,13 @@ impl Player {
                 && let Some(key) = bozzard_scene::keys::canonical(&format!("{code:?}"))
                 && self.demo.multiplayer_key(key)
             {
+                self.gameplay_controls.reset();
                 return Ok(());
             }
-            self.game_key(physical, state, repeat, synthetic)?;
-            return Ok(());
+            if self.demo.multiplayer_drives_simulation() {
+                self.game_key(physical, state, repeat, synthetic)?;
+                return Ok(());
+            }
         }
         if self.game_key(physical, state, repeat, synthetic)? {
             return Ok(());
@@ -1272,9 +1298,7 @@ impl ApplicationHandler for Player {
             return;
         }
         let now = Instant::now();
-        let simulation_elapsed =
-            (!self.paused && !self.demo.multiplayer_active() && !self.options.verify_first_trail)
-                .then(|| now.duration_since(self.last_frame));
+        let simulation_elapsed = self.simulation_elapsed(now);
         if matches!(event, WindowEvent::RedrawRequested) {
             self.demo
                 .with_instance(|instance, _| instance.set_gpu_particles(true));
@@ -1351,6 +1375,7 @@ impl ApplicationHandler for Player {
             WindowEvent::Occluded(occluded) => view.occluded = occluded,
             WindowEvent::KeyboardInput { event, .. }
                 if self.demo.game_session().is_none()
+                    && !self.demo.steam_overlay_active()
                     && !self.demo.multiplayer_active()
                     && !self.menu_input.consumed(KeyCode::Escape)
                     && event.state == ElementState::Pressed
@@ -1468,9 +1493,15 @@ impl ApplicationHandler for Player {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let overlay_was_active = self.demo.steam_overlay_active();
         if let Err(error) = self.demo.pump_multiplayer() {
             self.fail(event_loop, error);
             return;
+        }
+        if overlay_was_active || self.demo.steam_overlay_active() {
+            self.gameplay_controls.reset();
+            self.menu_input = Default::default();
+            self.sync_mouse_look();
         }
         if self.demo.multiplayer_quit() {
             event_loop.exit();
@@ -1530,6 +1561,7 @@ impl ApplicationHandler for Player {
 }
 
 fn main() -> Result<()> {
+    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
         return Ok(());
@@ -1570,6 +1602,8 @@ fn main() -> Result<()> {
         println!("scene_saved path={}", path.display());
         return Ok(());
     }
+    #[cfg(feature = "steam")]
+    bozzard_demo::steam_runtime::initialize_player(&document)?;
     let mut demo = SceneDemo::new_with_prefabs(&document, options.scene.as_deref())?;
     ensure!(
         demo.instance().has_view(options.layer),
@@ -1733,6 +1767,158 @@ mod controls_tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires a desktop and GPU; exercises cold uploads in a live swapchain"]
+    fn newly_placed_factory_models_keep_the_window_presenting() -> Result<()> {
+        const MACHINES: [&str; 10] = [
+            "smelter",
+            "miner",
+            "constructor",
+            "assembler",
+            "splitter",
+            "merger",
+            "storage",
+            "generator",
+            "belt",
+            "pole",
+        ];
+        struct Probe {
+            player: Player,
+            placed: usize,
+            last_placement_tick: u64,
+        }
+        impl ApplicationHandler for Probe {
+            fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.resumed(event_loop);
+            }
+            fn window_event(
+                &mut self,
+                event_loop: &ActiveEventLoop,
+                id: WindowId,
+                event: WindowEvent,
+            ) {
+                self.player.window_event(event_loop, id, event);
+            }
+            fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.about_to_wait(event_loop);
+                if event_loop.exiting()
+                    || self.placed == MACHINES.len()
+                    || self.player.frames < 10 + self.placed as u32 * 20
+                {
+                    return;
+                }
+                let name = MACHINES[self.placed];
+                let mesh = format!("machine-{name}-{name}-mk1");
+                let result = (|| -> Result<()> {
+                    ensure!(
+                        self.player
+                            .view
+                            .as_ref()
+                            .unwrap()
+                            .renderer
+                            .model_upload_stats(&mesh)
+                            .is_none(),
+                        "{name} was preloaded; the test must exercise a cold upload"
+                    );
+                    let position = [
+                        (self.placed % 3) as f32 * 1.5 - 1.5,
+                        0.,
+                        (self.placed / 3) as f32 * 1.7 - 0.85,
+                    ];
+                    self.player.demo.with_instance(|instance, world| {
+                        instance.spawn_prefab(world, &format!("machine-{name}"), position)?;
+                        if self.placed < 4 || name == "generator" {
+                            instance.spawn_prefab(world, &format!("{name}-power-off"), position)?;
+                        }
+                        Ok::<_, anyhow::Error>(())
+                    })?;
+                    Ok(())
+                })();
+                if let Err(error) = result {
+                    self.player.fail(event_loop, error);
+                    return;
+                }
+                self.placed += 1;
+                self.last_placement_tick = self.player.demo.app.ticks();
+            }
+        }
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let mut catalog = load_document(Some(&path))?.assets;
+        catalog.retain(|id, _| {
+            MACHINES
+                .iter()
+                .any(|name| id == &format!("machine-{name}") || id == &format!("{name}-power-off"))
+        });
+        // Declare spawnable templates without creating any model at startup.
+        let spawn_nodes: Vec<_> = catalog
+            .keys()
+            .enumerate()
+            .map(|(i, asset)| {
+                serde_json::json!({
+                    "id": i + 1, "position": [0,0], "kind": "spawn_prefab", "prefab": asset,
+                    "inputs": ["exec", {"vector": [0,0,0]}]
+                })
+            })
+            .collect();
+        let document = bozzard_scene::Scene::from_json(&serde_json::json!({
+            "version": 1, "name": "Cold factory model placement", "assets": catalog,
+            "views": {"3d": "camera"},
+            "objects": [{
+                "id": "camera", "name": "Camera",
+                "transform": {"translation": [20,20,20], "rotation_degrees": [-35.264,45,0], "scale": [1,1,1]},
+                "camera": {"projection": "orthographic", "vertical_size": 6, "near": 0.1, "far": 100}
+            }, {
+                "id": "templates", "name": "Untriggered spawn declarations",
+                "transform": {"translation": [0,0,0], "rotation_degrees": [0,0,0], "scale": [1,1,1]},
+                "blueprints": [{"enabled": true, "graph": {
+                    "version": 1, "name": "Templates", "nodes": spawn_nodes, "wires": []
+                }}]
+            }]
+        }).to_string())?;
+        let mut player = authored_player();
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+        player.demo.set_threaded_simulation(true)?;
+        player.assets = assets::Assets::load(player.demo.instance().document(), Some(&path))?;
+        player.options.scene = Some(path);
+        player.options.frames = Some(230);
+        let mut probe = Probe {
+            player,
+            placed: 0,
+            last_placement_tick: 0,
+        };
+        let mut builder = EventLoop::builder();
+        winit::platform::x11::EventLoopBuilderExtX11::with_any_thread(&mut builder, true);
+        winit::platform::wayland::EventLoopBuilderExtWayland::with_any_thread(&mut builder, true);
+        builder.build()?.run_app(&mut probe)?;
+        if let Some(error) = probe.player.error {
+            return Err(error);
+        }
+        ensure!(
+            probe.placed == MACHINES.len() && probe.player.frames == 230,
+            "presentation stopped before all machines were placed"
+        );
+        for name in MACHINES {
+            ensure!(
+                probe
+                    .player
+                    .view
+                    .as_ref()
+                    .unwrap()
+                    .renderer
+                    .model_upload_stats(&format!("machine-{name}-{name}-mk1"))
+                    .is_some(),
+                "{name} was never uploaded"
+            );
+        }
+        ensure!(
+            probe.player.demo.app.ticks() > probe.last_placement_tick,
+            "simulation stopped during streaming"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn the_pointer_is_never_captured_outside_a_running_game() {
         let base = CursorCaptureState {
             paused: false,
@@ -1788,6 +1974,233 @@ mod controls_tests {
             }),
             "an explicit Lock Cursor request controls mouse-look during gameplay"
         );
+    }
+
+    #[test]
+    #[cfg(all(feature = "steam", target_os = "linux"))]
+    #[ignore = "requires Steam overlay injection and a desktop; opens Friends during 600 frames, sends no invitations"]
+    fn steam_overlay_activates_in_native_window_and_keeps_presenting() -> Result<()> {
+        use bozzard_scene::middleware::ui::Input;
+        struct Probe {
+            player: Player,
+            requested: bool,
+            active_frame: Option<u32>,
+            overlay_frames: u32,
+        }
+        impl ApplicationHandler for Probe {
+            fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.resumed(event_loop);
+            }
+            fn window_event(
+                &mut self,
+                event_loop: &ActiveEventLoop,
+                id: WindowId,
+                event: WindowEvent,
+            ) {
+                let before = self.player.frames;
+                let active = self.player.demo.steam_overlay_active();
+                self.player.window_event(event_loop, id, event);
+                if active {
+                    self.overlay_frames += self.player.frames - before;
+                }
+            }
+            fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.about_to_wait(event_loop);
+                if !self.requested
+                    && self.player.frames >= 60
+                    && bozzard_demo::steam_runtime::overlay_available()
+                {
+                    self.requested = true;
+                    for id in ["coop-open-title", "coop-steam-overlay"] {
+                        if let Err(error) = self.player.ui_input(Input::ActivateObject(id.into())) {
+                            self.player.fail(event_loop, error);
+                            return;
+                        }
+                    }
+                }
+                if self.player.demo.steam_overlay_active() {
+                    self.active_frame.get_or_insert(self.player.frames);
+                }
+            }
+        }
+        let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let document = load_document(Some(&path))?;
+        bozzard_demo::steam_runtime::initialize_player(&document)?;
+        let mut player = authored_player();
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+        player.assets = assets::Assets::load(player.demo.instance().document(), Some(&path))?;
+        player.options.scene = Some(path);
+        player.options.frames = Some(600);
+        player.demo.enable_multiplayer(None)?;
+        let mut probe = Probe {
+            player,
+            requested: false,
+            active_frame: None,
+            overlay_frames: 0,
+        };
+        let mut builder = EventLoop::builder();
+        winit::platform::x11::EventLoopBuilderExtX11::with_any_thread(&mut builder, true);
+        winit::platform::wayland::EventLoopBuilderExtWayland::with_any_thread(&mut builder, true);
+        builder.build()?.run_app(&mut probe)?;
+        if let Some(error) = probe.player.error {
+            return Err(error);
+        }
+        ensure!(
+            probe.requested,
+            "Steam did not inject its overlay into the native window"
+        );
+        let active = probe
+            .active_frame
+            .context("Steam never reported GameOverlayActivated")?;
+        ensure!(
+            probe.overlay_frames > 5,
+            "frames stopped while overlay was active"
+        );
+        println!(
+            "steam_overlay_ok activated_at={active} presented={} overlay_frames={}",
+            probe.player.frames, probe.overlay_frames
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn steam_overlay_blocks_native_shortcuts_without_pausing() -> Result<()> {
+        let mut player = authored_player();
+        player.demo.set_steam_overlay_active(true);
+        for code in [
+            KeyCode::KeyW,
+            KeyCode::Space,
+            KeyCode::Escape,
+            KeyCode::F5,
+            KeyCode::F6,
+        ] {
+            player.dispatch_keyboard(
+                PhysicalKey::Code(code),
+                &Key::Named(NamedKey::Escape),
+                ElementState::Pressed,
+                false,
+                false,
+            )?;
+        }
+        assert!(!player.paused);
+        assert!(player.simulation_elapsed(Instant::now()).is_some());
+        assert!(!player.demo.accepts_gameplay_input());
+        player.demo.set_steam_overlay_active(false);
+        assert!(player.demo.accepts_gameplay_input());
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "steam")]
+    #[ignore = "requires local Steam; creates/leaves a solo lobby without sending invitations or chat"]
+    fn factory_lobby_preserves_native_frames_keyboard_and_chat_capture() -> Result<()> {
+        use bozzard_scene::{BlueprintRuntime, blueprint::Value, middleware::ui::Input};
+        let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let document = load_document(Some(&path))?;
+        let mut player = authored_player();
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        player.demo.enable_multiplayer(None)?;
+        player.demo.pump_multiplayer()?;
+        player.gameplay_controls.event(&WindowEvent::Focused(true));
+        for id in ["coop-open-title", "coop-create"] {
+            player.ui_input(Input::ActivateObject(id.into()))?;
+        }
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !player.demo.multiplayer_active() {
+            ensure!(Instant::now() < deadline, "Steam lobby did not start");
+            std::thread::sleep(Duration::from_millis(20));
+            player.demo.pump_multiplayer()?;
+        }
+        for id in ["coop-close", "title-create"] {
+            player.ui_input(Input::ActivateObject(id.into()))?;
+            player.demo.app.step();
+            player.demo.check_simulation()?;
+            player.demo.pump_multiplayer()?;
+        }
+        let value = |player: &Player, name: &str| match player
+            .demo
+            .app
+            .world
+            .resource::<BlueprintRuntime>()
+            .unwrap()
+            .scene_blackboard()[name]
+            .values()[0]
+        {
+            Value::Number(v) => v,
+            _ => panic!("missing {name}"),
+        };
+        let key = |player: &mut Player, code: KeyCode, logical: Key, state: ElementState| {
+            player.dispatch_keyboard(PhysicalKey::Code(code), &logical, state, false, false)
+        };
+        let x = value(&player, "cursor_x");
+        key(
+            &mut player,
+            KeyCode::KeyD,
+            Key::Character("d".into()),
+            ElementState::Pressed,
+        )?;
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        assert_eq!(value(&player, "cursor_x"), x + 1.);
+        key(
+            &mut player,
+            KeyCode::KeyD,
+            Key::Character("d".into()),
+            ElementState::Released,
+        )?;
+        let z = value(&player, "cursor_z");
+        key(
+            &mut player,
+            KeyCode::Enter,
+            Key::Named(NamedKey::Enter),
+            ElementState::Pressed,
+        )?;
+        assert!(player.demo.multiplayer_chatting());
+        key(
+            &mut player,
+            KeyCode::KeyW,
+            Key::Character("w".into()),
+            ElementState::Pressed,
+        )?;
+        assert!(player.demo.multiplayer_text("Unsent test"));
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        assert_eq!(value(&player, "cursor_z"), z);
+        key(
+            &mut player,
+            KeyCode::Escape,
+            Key::Named(NamedKey::Escape),
+            ElementState::Pressed,
+        )?;
+        assert!(!player.demo.multiplayer_chatting());
+        key(
+            &mut player,
+            KeyCode::KeyW,
+            Key::Character("w".into()),
+            ElementState::Released,
+        )?;
+        player.demo.set_threaded_simulation(true)?;
+        let before = value(&player, "ticks");
+        for _ in 0..60 {
+            let elapsed = player
+                .simulation_elapsed(player.last_frame + Duration::from_secs_f64(1. / 60.))
+                .context("co-op disabled native simulation")?;
+            player.demo.advance_with_frame(elapsed, || ())?;
+            player.demo.pump_multiplayer()?;
+        }
+        assert!(value(&player, "ticks") > before);
+        assert_eq!(
+            value(&player, "cursor_z"),
+            z,
+            "chat left a held movement key"
+        );
+        Ok(())
     }
 
     #[test]
@@ -1911,6 +2324,13 @@ mod controls_tests {
             .join("../../examples/earth-factory/scenes/earth.json");
         let scene = load_document(Some(&path)).unwrap();
         player.demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        player.demo.app.step();
+        player.demo.check_simulation().unwrap();
+        player
+            .ui_input(bozzard_scene::middleware::ui::Input::ActivateObject(
+                "title-create".into(),
+            ))
+            .unwrap();
         player.demo.app.step();
         player.demo.check_simulation().unwrap();
         player.gameplay_controls.event(&WindowEvent::Focused(true));
@@ -2359,6 +2779,16 @@ mod controls_tests {
             )
             .unwrap();
         assert_eq!(player.demo.app.ticks(), 0, "F6 reloads the authored scene");
+        // Reload returns to the title. Enter activates the focused Create button.
+        player.demo.app.step();
+        player.demo.check_simulation().unwrap();
+        assert!(
+            player
+                .ui_input(bozzard_scene::middleware::ui::Input::Focus(
+                    "title-create".into(),
+                ))
+                .unwrap()
+        );
         press(
             &mut player,
             KeyCode::NumpadEnter,

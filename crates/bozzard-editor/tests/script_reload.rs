@@ -15,11 +15,11 @@ fn spinner_rotation(editor: &Editor) -> f32 {
         .rotation_degrees[1]
 }
 
-fn await_reload(editor: &mut Editor) -> ScriptReloadFeedback {
+fn await_reload(editor: &mut Editor, asset: &str) -> ScriptReloadFeedback {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         editor.advance(Duration::ZERO);
-        match editor.script_reload_feedback("spin").unwrap() {
+        match editor.script_reload_feedback(asset).unwrap() {
             ScriptReloadFeedback::Compiling { .. } => {
                 assert!(Instant::now() < deadline, "script reload timed out");
                 std::thread::yield_now();
@@ -44,7 +44,7 @@ fn script_lab_edit_changes_running_play_and_bad_edit_keeps_last_program() {
         .request_script_reload("spin", original.replace("45.0", "90.0"))
         .unwrap();
     assert!(matches!(
-        await_reload(&mut editor),
+        await_reload(&mut editor, "spin"),
         ScriptReloadFeedback::Applied { .. }
     ));
     editor.advance(Duration::from_secs_f64(1. / 60.));
@@ -54,7 +54,7 @@ fn script_lab_edit_changes_running_play_and_bad_edit_keeps_last_program() {
     editor
         .request_script_reload("spin", "fn on_update(me) {}".into())
         .unwrap();
-    match await_reload(&mut editor) {
+    match await_reload(&mut editor, "spin") {
         ScriptReloadFeedback::Failed { message } => {
             assert!(
                 message.contains("spin") && message.contains("line 1"),
@@ -67,4 +67,48 @@ fn script_lab_edit_changes_running_play_and_bad_edit_keeps_last_program() {
     assert!((spinner_rotation(&editor) - changed - 1.5).abs() < 0.01);
     editor.stop_play();
     assert_eq!(editor.scene(), &authored);
+}
+
+#[test]
+fn editing_an_unattached_module_reloads_its_running_consumer() {
+    use bozzard_scene::{AssetKind, AssetSource};
+    use std::collections::BTreeMap;
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/script-lab.json");
+    let mut editor = Editor::open(&path).unwrap();
+    let mut scene = editor.scene().clone();
+    scene.assets.insert(
+        "spin-rate".into(),
+        AssetSource {
+            kind: AssetKind::Script,
+            path: "scripts/spin.rs".into(),
+        },
+    );
+    editor.apply("Add imported module", scene).unwrap();
+    editor.start_play().unwrap();
+    editor.play.as_mut().unwrap().with_instance(|instance, _| instance.register_scripts(BTreeMap::from([
+        ("spin-rate".into(), "fn speed() { 45.0 }".into()),
+        ("spin".into(), "import \"spin-rate\" as rate; fn on_update(me, dt) { rotate(me, [0.0, rate::speed() * dt, 0.0]); }".into()),
+    ]))).unwrap();
+    editor.advance(Duration::from_secs_f64(1. / 60.));
+    let before = spinner_rotation(&editor);
+    editor
+        .request_script_reload("spin-rate", "fn speed() { 90.0 }".into())
+        .unwrap();
+    assert!(matches!(
+        await_reload(&mut editor, "spin-rate"),
+        ScriptReloadFeedback::Applied { .. }
+    ));
+    editor.advance(Duration::from_secs_f64(1. / 60.));
+    let after = spinner_rotation(&editor);
+    assert!((after - before - 1.5).abs() < 0.01);
+    editor
+        .request_script_reload("spin-rate", "fn speed( {".into())
+        .unwrap();
+    assert!(matches!(
+        await_reload(&mut editor, "spin-rate"),
+        ScriptReloadFeedback::Failed { .. }
+    ));
+    editor.advance(Duration::from_secs_f64(1. / 60.));
+    assert!((spinner_rotation(&editor) - after - 1.5).abs() < 0.01);
 }
