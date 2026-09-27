@@ -299,13 +299,13 @@ pub(crate) fn step(world: &mut World, delta: Duration) {
     let Some(mut host) = world.remove_resource::<HostRuntime>() else {
         return;
     };
-    if host.error.is_none() {
-        if let Err(error) = host.update(world, delta) {
-            host.error = Some(format!("{error:#}"));
-            world.insert_resource(crate::SimulationStatus {
-                error: Some(format!("Factory co-op host: {error:#}")),
-            });
-        }
+    if host.error.is_none()
+        && let Err(error) = host.update(world, delta)
+    {
+        host.error = Some(format!("{error:#}"));
+        world.insert_resource(crate::SimulationStatus {
+            error: Some(format!("Factory co-op host: {error:#}")),
+        });
     }
     world.insert_resource(host);
 }

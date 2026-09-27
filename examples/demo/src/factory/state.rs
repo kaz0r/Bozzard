@@ -185,9 +185,7 @@ impl State {
             (0. ..0.32).contains(&number(&self.scene, "clock")?),
             "invalid factory clock"
         );
-        for key in ["counts"] {
-            check_numbers(&self.scene, key, 32, 0., 100_000_000.)?;
-        }
+        check_numbers(&self.scene, "counts", 32, 0., 100_000_000.)?;
         check_numbers(&self.controller, "stock", 32, 0., 2500.)?;
         check_numbers(&self.controller, "bar_slots", 3, 1., 8.)?;
         let session = values(&self.controller, "session")?;
@@ -243,9 +241,7 @@ impl State {
                 11
             } else if *key == "cache_facings" {
                 3
-            } else if *key == "cache_progress" {
-                2
-            } else if *key == "cache_split_state" {
+            } else if matches!(*key, "cache_progress" | "cache_split_state") {
                 2
             } else {
                 31

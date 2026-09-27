@@ -387,11 +387,10 @@ impl Lobby {
             let sender = packet.identity_peer().steam_id().map(|p| p.raw());
             if let Some(peer) = sender.filter(|peer| {
                 *peer != self.local && members.contains(peer) && (self.is_host() || *peer == owner)
-            }) {
-                if let Ok(payload) = decode(lobby, packet.data()) {
-                    incoming.push((peer, payload.to_vec()));
-                    continue;
-                }
+            }) && let Ok(payload) = decode(lobby, packet.data())
+            {
+                incoming.push((peer, payload.to_vec()));
+                continue;
             }
             self.rejected += 1;
         }

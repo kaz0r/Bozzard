@@ -56,8 +56,7 @@ pub fn capture(runtime: &BlueprintRuntime, tick: f32) -> Result<Vec<ItemMotion>>
             let Value::Text(encoded) = encoded else {
                 anyhow::bail!("invalid transport page");
             };
-            let mut count = 0;
-            for entry in encoded.split(';').filter(|s| !s.is_empty()) {
+            for (count, entry) in encoded.split(';').filter(|s| !s.is_empty()).enumerate() {
                 let fields = entry
                     .split(',')
                     .map(str::parse::<u32>)
@@ -76,7 +75,6 @@ pub fn capture(runtime: &BlueprintRuntime, tick: f32) -> Result<Vec<ItemMotion>>
                 };
                 motion.validate()?;
                 result.push(motion);
-                count += 1;
             }
         }
     }

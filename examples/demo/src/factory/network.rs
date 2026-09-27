@@ -267,10 +267,9 @@ impl Multiplayer {
                     if let Some(index) = action
                         .strip_prefix("coop-friend-")
                         .and_then(|s| s.parse::<usize>().ok())
+                        && let Some((peer, _)) = self.friends.get(self.friend_page * 4 + index)
                     {
-                        if let Some((peer, _)) = self.friends.get(self.friend_page * 4 + index) {
-                            lobby.invite_friend(*peer)?;
-                        }
+                        lobby.invite_friend(*peer)?;
                     }
                 }
             }
@@ -281,10 +280,10 @@ impl Multiplayer {
         if demo.app.world.resource::<BlueprintRuntime>().is_none() {
             return Ok(());
         }
-        if !self.initialized {
-            if let Err(error) = self.initialize() {
-                self.status = error.to_string();
-            }
+        if !self.initialized
+            && let Err(error) = self.initialize()
+        {
+            self.status = error.to_string();
         }
         #[cfg(feature = "steam")]
         if let Some(mut lobby) = self.lobby.take() {
@@ -316,11 +315,11 @@ impl Multiplayer {
                             .context("missing session")?;
                         session.authority = Authority::Host;
                         session.bind_local_peer(lobby.local);
-                        if self.names != lobby.members {
-                            if let Some(host) = demo.app.world.resource_mut::<HostRuntime>() {
-                                host.members(lobby.members.clone())?;
-                                self.names = lobby.members.clone();
-                            }
+                        if self.names != lobby.members
+                            && let Some(host) = demo.app.world.resource_mut::<HostRuntime>()
+                        {
+                            host.members(lobby.members.clone())?;
+                            self.names = lobby.members.clone();
                         }
                         if !title && super::session_value(&demo.app.world, 125)? == 0. {
                             if demo.app.world.resource::<HostRuntime>().is_none() {
@@ -581,11 +580,11 @@ impl Multiplayer {
             "coop-friends-next",
             Control::Visible(self.open && self.picking && self.friends.len() > 4),
         )?;
-        if let Some(frame) = demo.app.world.resource_mut::<NetworkFrame>() {
-            if frame.state.is_object() {
-                frame.state["session_panel"] =
-                    (self.open || self.chatting || crate::steam_runtime::overlay_active()).into();
-            }
+        if let Some(frame) = demo.app.world.resource_mut::<NetworkFrame>()
+            && frame.state.is_object()
+        {
+            frame.state["session_panel"] =
+                (self.open || self.chatting || crate::steam_runtime::overlay_active()).into();
         }
         Ok(())
     }

@@ -44,8 +44,8 @@ pub fn apply(
         .context("missing controller")?;
     let resident = state::values(board, "resident")?;
     let mut changes = Vec::new();
-    for id in 0..289 {
-        if state::numeric(&resident[id])? == 0. {
+    for (id, resident) in resident[..289].iter().enumerate() {
+        if state::numeric(resident)? == 0. {
             continue;
         }
         let at = planet * 289 + id;

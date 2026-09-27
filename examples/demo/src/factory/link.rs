@@ -54,13 +54,13 @@ impl Link {
             host.version(peer)?; // validates connected membership without cloning a world
             if bytes.starts_with(ACK) {
                 ensure!(bytes.len() == 28, "invalid world acknowledgement");
-                if let Some(recipient) = self.recipients.get_mut(&peer) {
-                    if recipient.transfer.as_ref().is_some_and(|t| {
+                if let Some(recipient) = self.recipients.get_mut(&peer)
+                    && recipient.transfer.as_ref().is_some_and(|t| {
                         acknowledgement(&t.replica) == bytes && t.index == t.sender.packets()
-                    }) {
-                        recipient.base = recipient.transfer.take().map(|t| t.replica);
-                        recipient.updated = now;
-                    }
+                    })
+                {
+                    recipient.base = recipient.transfer.take().map(|t| t.replica);
+                    recipient.updated = now;
                 }
             } else if bytes == RESYNC {
                 self.recipients.remove(&peer);
@@ -116,25 +116,23 @@ impl Link {
                 if recipient.transfer.is_none()
                     && (recipient.base.is_none()
                         || now.saturating_sub(recipient.updated) >= INTERVAL)
-                {
-                    if recipient
+                    && recipient
                         .base
                         .as_ref()
                         .is_none_or(|base| (base.epoch, base.revision, base.connection) != version)
-                    {
-                        let next = host.snapshot(peer)?;
-                        let update = if let Some(base) = &recipient.base {
-                            Update::between(base, &next)?
-                        } else {
-                            Update::Full(next.clone())
-                        };
-                        recipient.transfer = Some(Transfer {
-                            sender: Sender::new(&update)?,
-                            replica: next,
-                            index: 0,
-                            progress: now,
-                        });
-                    }
+                {
+                    let next = host.snapshot(peer)?;
+                    let update = if let Some(base) = &recipient.base {
+                        Update::between(base, &next)?
+                    } else {
+                        Update::Full(next.clone())
+                    };
+                    recipient.transfer = Some(Transfer {
+                        sender: Sender::new(&update)?,
+                        replica: next,
+                        index: 0,
+                        progress: now,
+                    });
                 }
                 if let Some(transfer) = &mut recipient.transfer {
                     for _ in 0..8 {

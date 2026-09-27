@@ -217,15 +217,14 @@ impl GuestRuntime {
                             &player,
                         )?);
                         self.destination = Some(destination);
-                        if let Some(feedback) = &next.effects.feedback {
-                            if self
+                        if let Some(feedback) = &next.effects.feedback
+                            && self
                                 .shown
                                 .as_ref()
                                 .and_then(|r| r.effects.feedback.as_ref())
                                 != Some(feedback)
-                            {
-                                super::notice(world, &feedback.message)?;
-                            }
+                        {
+                            super::notice(world, &feedback.message)?;
                         }
                         super::set_session(world, 124, 0.)?;
                         self.shown = Some(next);
@@ -357,13 +356,13 @@ pub(crate) fn step(world: &mut World) {
     let Some(mut service) = world.remove_resource::<GuestRuntime>() else {
         return;
     };
-    if service.error.is_none() {
-        if let Err(error) = service.update(world) {
-            service.error = Some(format!("{error:#}"));
-            world.insert_resource(crate::SimulationStatus {
-                error: Some(format!("Factory guest: {error:#}")),
-            });
-        }
+    if service.error.is_none()
+        && let Err(error) = service.update(world)
+    {
+        service.error = Some(format!("{error:#}"));
+        world.insert_resource(crate::SimulationStatus {
+            error: Some(format!("Factory guest: {error:#}")),
+        });
     }
     world.insert_resource(service);
 }

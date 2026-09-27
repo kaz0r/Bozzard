@@ -693,10 +693,10 @@ fn tooltip_labels_the_landing_pod_only_at_home_and_real_deposits_elsewhere() {
         let nodes = numbers(&demo, "nodes");
         // Sparse regions may have any resource near their center. Select actual
         // empty ground to check that the landing-pod label cannot follow us.
-        let empty = (0..225)
+        let empty = (0_i32..225)
             .find(|&cell| {
-                let x = cell as i32 % 15 - 7;
-                let z = cell as i32 / 15 - 7;
+                let x = cell % 15 - 7;
+                let z = cell / 15 - 7;
                 x.abs() <= 5
                     && z.abs() <= 5
                     && nodes.iter().enumerate().all(|(other, kind)| {
@@ -706,7 +706,7 @@ fn tooltip_labels_the_landing_pod_only_at_home_and_real_deposits_elsewhere() {
                     })
             })
             .unwrap();
-        move_cursor(&mut demo, empty as i32 % 15 - 7, empty as i32 / 15 - 7);
+        move_cursor(&mut demo, empty % 15 - 7, empty / 15 - 7);
         settle(&mut demo, 30);
         assert!(tooltip(&demo).is_none(), "empty ground must have no label");
         let deposit = nodes.iter().position(|&kind| kind > 0.).unwrap();
@@ -5126,11 +5126,13 @@ fn saves_retain_independent_steam_players_and_read_existing_solo_files() {
     let mut demo = multi_region_factory("[[6,0,1,0,1],[7,0,2,0,0],[8,0,2,0,0],[9,0,4,0,0]]", "");
     board_other_planet(&mut demo);
     let directory = save_directory(&mut demo);
-    let mut guest = Player::default();
-    guest.position = Position {
-        planet: 0,
-        x: 2,
-        z: 0,
+    let mut guest = Player {
+        position: Position {
+            planet: 0,
+            x: 2,
+            z: 0,
+        },
+        ..Player::default()
     };
     guest.backpack[12] = Stack {
         kind: 11,
