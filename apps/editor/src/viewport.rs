@@ -619,7 +619,10 @@ impl App {
         if let Some(play) = &mut self.editor.play {
             use bozzard_scene::middleware::ui::Input;
             let size = [rect.width(), rect.height()];
-            if !ui.input(|i| i.focused) {
+            if play.steam_overlay_active() {
+                ui_consumed = true;
+                play.clear_gameplay_input();
+            } else if !ui.input(|i| i.focused) {
                 play.ui_input(layer, size, Input::CancelPointer)?;
                 if play
                     .game_session()

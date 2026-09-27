@@ -101,8 +101,8 @@
       "name": "machine-splitter detail 2",
       "transform": {
         "translation": [
-          0.25,
-          0.44,
+          -0.34,
+          0.39,
           0
         ],
         "rotation_degrees": [
@@ -111,9 +111,9 @@
           0
         ],
         "scale": [
-          0.15,
-          0.16,
-          0.32
+          0.18,
+          0.06,
+          0.26
         ]
       },
       "drawable": {
@@ -121,9 +121,117 @@
         "mesh": "cube",
         "texture": "white",
         "color": [
-          0.88,
-          0.8,
-          0.45
+          0.24,
+          0.78,
+          0.84
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-2",
+      "name": "machine-splitter detail 3",
+      "transform": {
+        "translation": [
+          0.34,
+          0.39,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.18,
+          0.06,
+          0.26
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.73,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-3",
+      "name": "machine-splitter detail 4",
+      "transform": {
+        "translation": [
+          0,
+          0.39,
+          -0.34
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.26,
+          0.06,
+          0.18
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.73,
+          0.25
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
+      "id": "detail-4",
+      "name": "machine-splitter detail 5",
+      "transform": {
+        "translation": [
+          0,
+          0.39,
+          0.34
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.26,
+          0.06,
+          0.18
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.95,
+          0.73,
+          0.25
         ],
         "uv_scale": [
           1,

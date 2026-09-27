@@ -18,6 +18,8 @@ def main():
     parser.add_argument('--release', action='store_true')
     parser.add_argument('--prepare-only', action='store_true', help='Build and stage a native launcher without opening the app')
     parser.add_argument('--join-lobby', type=int)
+    parser.add_argument('--project', type=Path, default=ROOT / 'examples/demo/flap-woods-multiplayer.bozzard.json',
+                        help='Project to launch or export (defaults to the Flap multiplayer reference)')
     parser.add_argument('--output', type=Path, help='New portable package directory (package only)')
     args = parser.parse_args()
     profile = ['--release'] if args.release else []
@@ -32,7 +34,7 @@ def main():
     target = Path(metadata['target_directory']) / ('release' if args.release else 'debug')
     system = platform.system()
     exe = target / (binary_name + ('.exe' if system == 'Windows' else ''))
-    project = ROOT / 'examples/demo/flap-woods-multiplayer.bozzard.json'
+    project = args.project.resolve()
     # A native exec wrapper can be added to Steam's library for overlay launch testing.
     # It also avoids launching a different application through shared App ID 480.
     launcher_name = 'edit-steam' if args.action == 'editor' else 'play-steam'

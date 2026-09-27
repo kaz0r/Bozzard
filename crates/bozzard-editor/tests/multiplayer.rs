@@ -33,6 +33,88 @@ struct FakeSteam {
     sequence: u64,
 }
 const COUNTDOWN_TICKS: u16 = 300;
+
+#[test]
+#[cfg(feature = "steam")]
+#[ignore = "requires local Steam; creates/leaves a solo test lobby without inviting or messaging anyone"]
+fn factory_editor_lobby_keeps_serial_and_threaded_play_advancing() -> Result<()> {
+    use bozzard_scene::{BlueprintRuntime, blueprint::Value};
+    let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/earth.json");
+    let mut editor = Editor::open(&path)?;
+    editor.start_play()?;
+    editor.advance(Duration::from_secs_f64(1. / 60.));
+    for id in ["coop-open-title", "coop-create"] {
+        editor.play.as_mut().unwrap().ui_input(
+            Layer::ThreeD,
+            [1280., 720.],
+            Input::ActivateObject(id.into()),
+        )?;
+    }
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !editor.play.as_ref().unwrap().multiplayer_active() {
+        anyhow::ensure!(
+            Instant::now() < deadline,
+            "editor did not pump pending Steam lobby creation"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+        editor.advance(Duration::from_millis(20));
+    }
+    for id in ["coop-close", "title-create"] {
+        editor.play.as_mut().unwrap().ui_input(
+            Layer::ThreeD,
+            [1280., 720.],
+            Input::ActivateObject(id.into()),
+        )?;
+        editor.advance(Duration::from_secs_f64(1. / 60.));
+    }
+    editor.advance(Duration::from_secs_f64(1. / 60.));
+    assert!(
+        editor
+            .play
+            .as_ref()
+            .unwrap()
+            .app
+            .world
+            .resource::<bozzard_demo::factory::host::HostRuntime>()
+            .is_some()
+    );
+    let ticks = |editor: &Editor| match editor
+        .play
+        .as_ref()
+        .unwrap()
+        .app
+        .world
+        .resource::<BlueprintRuntime>()
+        .unwrap()
+        .scene_blackboard()["ticks"]
+        .values()[0]
+    {
+        Value::Number(v) => v,
+        _ => panic!("missing clock"),
+    };
+    let before = ticks(&editor);
+    for _ in 0..60 {
+        editor.advance(Duration::from_secs_f64(1. / 60.));
+    }
+    assert!(
+        ticks(&editor) > before,
+        "serial editor simulation stopped after lobby creation"
+    );
+    let before = ticks(&editor);
+    for _ in 0..60 {
+        editor.prepare_simulation_frame(Duration::from_secs_f64(1. / 60.), true)?;
+        editor.finish_simulation_frame()?;
+    }
+    assert!(
+        ticks(&editor) > before,
+        "native editor frame stopped its worker in co-op"
+    );
+    editor.play.as_ref().unwrap().check_simulation()?;
+    editor.stop_play();
+    Ok(())
+}
 fn scene_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/demo/scenes/flap-woods-multiplayer.json")

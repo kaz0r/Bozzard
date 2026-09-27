@@ -51,6 +51,31 @@ fn lights_roundtrip_transform_live_ecs_and_layer_isolation() {
             .intensity,
         25.
     );
+    world.get_mut::<Light>(entity).unwrap().intensity = 0.;
+    assert!(
+        instance
+            .view(&world, Layer::ThreeD, 1.)
+            .unwrap()
+            .lights
+            .is_empty(),
+        "pooled lights with zero intensity must not consume fragment lighting work"
+    );
+    assert_eq!(
+        instance.capture(&world).unwrap().objects[2]
+            .light
+            .unwrap()
+            .intensity,
+        0.
+    );
+    world.get_mut::<Light>(entity).unwrap().intensity = 25.;
+    assert_eq!(
+        instance
+            .view(&world, Layer::ThreeD, 1.)
+            .unwrap()
+            .lights
+            .len(),
+        1
+    );
     world.get_mut::<Light>(entity).unwrap().range = f32::NAN;
     assert!(instance.view(&world, Layer::ThreeD, 1.).is_err());
     assert!(instance.capture(&world).is_err());

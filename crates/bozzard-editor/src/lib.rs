@@ -727,21 +727,23 @@ impl Editor {
             bozzard_demo::pump_idle_steam_callbacks();
         }
         if let Some(play) = &mut self.play {
-            if play.multiplayer_active() {
-                if let Err(error) = play.pump_multiplayer() {
-                    bozzard_diagnostics::log(
-                        &mut play.app.world,
-                        bozzard_diagnostics::Level::Error,
-                        "Multiplayer",
-                        &format!("{error:#}"),
-                        Default::default(),
-                    );
-                    self.stop_play();
-                    return;
-                }
-                if play.multiplayer_quit() {
-                    self.stop_play();
-                }
+            // Pump pending lobby creation/join even before membership is bound.
+            if let Err(error) = play.pump_multiplayer() {
+                bozzard_diagnostics::log(
+                    &mut play.app.world,
+                    bozzard_diagnostics::Level::Error,
+                    "Multiplayer",
+                    &format!("{error:#}"),
+                    Default::default(),
+                );
+                self.stop_play();
+                return;
+            }
+            if play.multiplayer_quit() {
+                self.stop_play();
+                return;
+            }
+            if play.multiplayer_drives_simulation() {
                 return;
             }
             if let Err(error) = play.resume_debug_dispatch() {
@@ -783,7 +785,7 @@ impl Editor {
         if self
             .play
             .as_ref()
-            .is_none_or(|play| play.multiplayer_active())
+            .is_none_or(|play| play.multiplayer_drives_simulation())
         {
             self.advance(delta);
             return Ok(());

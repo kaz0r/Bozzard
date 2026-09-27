@@ -96,8 +96,10 @@ thread publishes Play, after cancellation/stale-document guards have passed. Fai
 leave the editor in Edit mode with an actionable error. Ordinary non-Steam builds explain
 how to rebuild instead of showing inert lobby buttons in Play.
 
-The SDK initializes before GPU creation only when the starting scene has a
-`steam_multiplayer` component. Blank and solo scenes never initialize Steam and do not
+The SDK initializes before GPU creation when the starting scene has a
+`steam_multiplayer` component or Stellar-IX's optional `steam_coop` settings.
+Factory initialization failures leave offline solo play available.
+Blank and other solo scenes never initialize Steam and do not
 require the Steam client. If you open a multiplayer scene later, its first Play initializes
 Steam; restart with that scene if the overlay needs initialization before graphics.
 Once initialized, the SDK stays alive across Play/Stop for overlay compatibility.
@@ -118,6 +120,10 @@ To test overlay injection, add the native editor/player executable to Steam’s 
 a non-Steam game, enable Steam’s in-game overlay and launch that entry. Set launch options
 to `--project` followed by the absolute path to the multiplayer project. The optional
 `tools/steam.py editor --prepare-only` still generates a convenience wrapper for this.
+Pass `--project examples/earth-factory/bozzard.project.json` to prepare a Stellar-IX
+launcher. Its co-op panel has **Open Steam overlay** and an availability indicator.
+The process-wide activation callback clears held gameplay controls and drags when
+the overlay opens or closes; simulation and network callbacks continue.
 Do not relaunch App 480 itself to fix this: it can start Valve’s Spacewar instead of this
 executable. Native overlay injection still needs verification on your graphics platform.
 

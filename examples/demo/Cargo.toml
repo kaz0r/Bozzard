@@ -12,6 +12,7 @@ steam = ["bozzard-network/steam"]
 [dependencies]
 bozzard-network = { path = "../../crates/bozzard-network" }
 serde_json.workspace = true
+serde.workspace = true
 bozzard-diagnostics.workspace = true
 bozzard-app.workspace = true
 bozzard-scene.workspace = true

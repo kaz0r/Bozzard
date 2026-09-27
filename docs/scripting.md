@@ -66,6 +66,53 @@ scripts are in `scenes/scripts/flap-woods-multiplayer/`, attached through Script
 Manager. It uses the same Rhai runtime for host rules, prediction/replay and
 ordinary presentation hooks. See [the multiplayer scripting contract](multiplayer.md#scenes-scripts-and-export).
 
+## Import shared Rhai modules
+
+Declare each library as a `script` asset, alongside the entry script:
+
+```json
+"assets": {
+  "controller": { "kind": "script", "path": "scripts/controller.rs" },
+  "factory-recipes": { "kind": "script", "path": "scripts/factory/recipes.rhai" }
+}
+```
+
+Import by **asset ID**, then call through its namespace:
+
+```rhai
+import "factory-recipes" as recipes;
+
+fn on_update(me, dt) {
+    let cost = recipes::recipe_cost(11);
+    // Use the result with the usual object/scene APIs.
+}
+```
+
+Only the entry script needs a Script Manager attachment. Libraries can import other libraries;
+function-local imports work too. Imports must resolve to literal IDs in the loaded scene catalog.
+Filesystem paths, dynamic import expressions, missing assets, and circular dependencies fail
+loading with a script diagnostic. Both `.rs` and `.rhai` source filenames work.
+
+Library top-level code is limited to imports and literal `const` declarations. Put gameplay
+operations in functions and mutable state in object/scene blackboards. A library function uses
+its caller's live object and world context, so existing `get_object_variable`, `spawn`, and UI
+commands work normally. Rhai module constants are accessed inside functions as `global::NAME`.
+Ordinary attached scripts still support persistent per-attachment globals.
+
+The loader resolves and embeds the complete import graph before play. Fixed ticks perform no
+source reads or compilation, and exported games use their packed script assets without the
+original source tree. Network/replay fingerprints include transitive imported code.
+
+**Apply to Play** on a library compiles a candidate on the worker and atomically replaces that
+library and its transitive consumers between ticks. Consumer script-local scopes restart;
+blackboards, entities, and lifecycle state remain intact. Bad imports or syntax keep the previous
+program running. A newer overlapping edit invalidates an older candidate instead of overwriting it.
+
+The Earth/Moon example uses this structure: `earth_factory.rs` owns lifecycle hooks and frame
+ordering, while `scripts/factory/*.rhai` owns individual gameplay systems. Its scene generator
+registers those modules automatically; it does not rewrite their source.
+
+
 ## Hooks
 
 A hook is a script function the engine calls. Missing hooks are simply not called; a hook declared
@@ -129,6 +176,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `network_active()` | Whether a multiplayer presentation frame is available; false in ordinary solo/editor simulation |
 | `network_object(target)` | Read-only map for a locally bound network object; empty when its slot has no player/state |
 | `network_state()` | Read-only session presentation map; the current reference provides `players`, including each player's `local` flag |
+| `network_send(kind, payload_map)` | Queues local gameplay intent for the application's network adapter. Returns false when no session is active or its 32-request queue is full. Kind is 1–64 ASCII letters/digits/`-_.`; payload is at most 4096 serialized JSON bytes. The adapter supplies peer identity and validates its game-specific command schema; queuing a request does not apply it to the world. |
 | `overlap_count(target)` | number of overlapping objects |
 | `delta_time()`, `elapsed_time()` | seconds |
 | `fresh_seed()` | new integer seed for procedural scenes; varies across runs, so store it if a world must be reproduced |
@@ -138,6 +186,8 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `move_x()`, `move_y()`, `mouse_x()`, `mouse_y()` | the same frame deltas the movement nodes report |
 | `get_object_variable(name)`, `get_scene_variable(name)` | the declared variable's value |
 | `get_object_list(name)`, `get_scene_list(name)` | a copy of a declared typed blackboard list as a Rhai array |
+| `get_object_list(target, name)` | read a declared list on another local object; target IDs are resolved and validated |
+| `get_object_list_item(name, index)`, `get_scene_list_item(name, index)` | one scalar entry without copying the whole list; zero-based, checked against its current length; reads see earlier writes in the same hook |
 | `raycast(origin, direction, distance, ignore)` | `#{ hit, object, position, normal, distance }` |
 | `sphere_overlap(center, radius, ignore)`, `box_overlap(center, size, ignore)` | array of object IDs |
 | `line_of_sight(from, to, ignore)` | `bool` |
@@ -158,6 +208,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_ui_screen_position(target, x, y)` | position a popup at normalized viewport coordinates (`0..1`); apply its pivot and canvas offset, then clamp its rectangle inside the viewport |
 | `set_ui_offset(target, x, y)` | replace the widget's anchor offset in canvas units, e.g. to animate a panel sliding into view |
 | `set_light_intensity(target, intensity)` | light |
+| `set_light_color(target, rgb)` | object light color (linear RGB, each channel 0..1) |
 | `set_sun_light(rgb, intensity)`, `set_ambient_light(rgb, intensity)` | scene light color (linear RGB 0..1) and intensity (0..100000); preserves sun direction/shadow settings |
 | `set_environment(zenith, horizon, ground, intensity)` | live sky/IBL colors (linear RGB 0..1), intensity 0..1000; preserves background visibility and stars |
 | `set_star_intensity(intensity)` | background-only stars (0..1000, default 0); perspective direction field / fixed distant field for orthographic cameras |
@@ -173,6 +224,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |
 | `set_object_list(name, values)`, `set_scene_list(name, values)` | replace a declared list with an array, checked against its element type and capacity |
+| `set_object_list(target, name, values)` | replace a declared list on another local object, with the same type/capacity checks and immediate read-after-write behavior |
 | `print(value)` | one line to stdout and the runtime's message list |
 
 Sun, ambient, environment, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
@@ -190,7 +242,8 @@ For example, a script can call `set_ui_world_position("label", [x, y + 1.0, z])`
 its input. See the Earth Factory example for proximity labels and a delivery progress bar.
 
 `ui_events()` returns this tick's ordered widget events as maps with `kind`, `target`, `x`,
-`y`, and `delta`. Unconsumed mouse-wheel input over the world emits `scroll` with an empty
+`y`, `delta`, and `blocked`. `blocked` records whether the pointer event landed over a
+UI surface; an empty `target` alone does not mean the click belongs to the world. Unconsumed mouse-wheel input over the world emits `scroll` with an empty
 target and a delta in logical points (positive down, 40 points per wheel notch). Panels and
 widgets block these world scroll events; scrollable widgets handle their own scrolling.
 Other event kinds have a zero delta: `down`, `up` (left button), `secondary` (right button), `activate`
@@ -198,6 +251,19 @@ Other event kinds have a zero delta: `down`, `up` (left button), `secondary` (ri
 interactive widget, or an empty string for a miss. Child labels route to their parent button.
 Coordinates are normalized to the game viewport, including inside editor Play.
 `ui_pointer()` returns the latest normalized `[x, y]`, or `[-1, -1]` outside the viewport.
+`world_pointer()` has the same format, but returns `[-1, -1]` while the pointer is over UI.
+`screen_ray(x, y)` unprojects normalized viewport coordinates through the active 3D camera
+(including its parent transforms). It returns `{valid, origin: [x,y,z], direction: [x,y,z]}`;
+check `valid` before using the vectors. Missing cameras and out-of-range coordinates return
+`valid: false`. `world_to_screen([x,y,z])` returns normalized `[x,y,depth]`, or `[-1,-1,-1]`
+without a camera or behind it. Both support orthographic and perspective views. World picking
+should ignore blocked events and intersect this ray against the game's terrain or objects.
+
+Pointer clicks retain UI focus without drawing a focus ring; keyboard and accessibility
+navigation show the ring. `clear_ui_focus()` releases focus, for example when selecting a
+world placement tool whose Space shortcut belongs to gameplay. High-contrast controls retain
+their visibility outline.
+
 Use these with `set_ui_screen_position` for a cursor-following drag preview or context menu.
 Events are delivered once per simulation tick to all scripts, are not saved, and are bounded
 to 256 entries; overflow emits `cancel` before subsequent events. A cancelled drag should

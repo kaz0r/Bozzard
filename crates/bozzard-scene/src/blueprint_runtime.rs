@@ -187,6 +187,43 @@ impl BlueprintRuntime {
     pub fn scene_blackboard(&self) -> &Blackboard {
         &self.scene_board
     }
+    /// Apply data-only changes at a tick boundary. Validate every field before
+    /// publishing any changes; callers cannot add variables or change schemas.
+    pub fn patch_blackboards(
+        &mut self,
+        scene: &Blackboard,
+        objects: &BTreeMap<String, Blackboard>,
+    ) -> Result<()> {
+        ensure!(!self.suspended(), "cannot patch suspended gameplay");
+        fn check(current: &Blackboard, patch: &Blackboard) -> Result<()> {
+            blueprint::validate_blackboard(patch)?;
+            for (key, value) in patch {
+                let expected = current.get(key).context("unknown patched variable")?;
+                validate_board_shape(
+                    &[(key.clone(), expected.clone())].into(),
+                    &[(key.clone(), value.clone())].into(),
+                )?;
+            }
+            Ok(())
+        }
+        check(&self.scene_board, scene)?;
+        for (owner, patch) in objects {
+            check(
+                self.object_boards
+                    .get(owner)
+                    .context("unknown patched object")?,
+                patch,
+            )?;
+        }
+        self.scene_board.extend(scene.clone());
+        for (owner, patch) in objects {
+            self.object_boards
+                .get_mut(owner)
+                .unwrap()
+                .extend(patch.clone());
+        }
+        Ok(())
+    }
     pub fn pending_timers(&self) -> usize {
         self.runs.values().map(|r| r.timers.len()).sum::<usize>()
             + self.pending.as_ref().map_or(0, |p| p.pending_timers())
@@ -2435,5 +2472,46 @@ impl SceneInstance {
         })();
         world.insert_resource(runtime);
         result
+    }
+}
+
+#[cfg(test)]
+mod data_patch_tests {
+    use super::*;
+    #[test]
+    fn blackboard_patch_rejects_whole_transaction_on_wrong_shape_or_nonfinite_value() {
+        let mut runtime = BlueprintRuntime::default();
+        runtime
+            .scene_board
+            .insert("seed".into(), B::Scalar(Value::Number(4.)));
+        runtime.object_boards.insert(
+            "controller".into(),
+            [("flag".into(), B::Scalar(Value::Bool(false)))].into(),
+        );
+        let scene = [("seed".into(), B::Scalar(Value::Number(7.)))].into();
+        let bad = [(
+            "controller".into(),
+            [("flag".into(), B::Scalar(Value::Text("oops".into())))].into(),
+        )]
+        .into();
+        assert!(runtime.patch_blackboards(&scene, &bad).is_err());
+        assert_eq!(runtime.scene_board["seed"], B::Scalar(Value::Number(4.)));
+        let nan = [("seed".into(), B::Scalar(Value::Number(f32::NAN)))].into();
+        assert!(
+            runtime
+                .patch_blackboards(&nan, &Default::default())
+                .is_err()
+        );
+        let good = [(
+            "controller".into(),
+            [("flag".into(), B::Scalar(Value::Bool(true)))].into(),
+        )]
+        .into();
+        runtime.patch_blackboards(&scene, &good).unwrap();
+        assert_eq!(runtime.scene_board["seed"], B::Scalar(Value::Number(7.)));
+        assert_eq!(
+            runtime.object_boards["controller"]["flag"],
+            B::Scalar(Value::Bool(true))
+        );
     }
 }

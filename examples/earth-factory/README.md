@@ -1,6 +1,6 @@
-# Earth Factory Prototype
+# Stellar-IX — Earth and Moon prototype
 
-An editor-playable, isometric 3D voxel-style factory slice for the first Earthlike world. The scene, machines, nodes, and HUD are ordinary Bozzard scene objects and prefabs. Gameplay runs in the attached Rhai script.
+An editor-playable, isometric 3D voxel-style factory slice for the first Earthlike world. The scene, machines, nodes, and HUD are ordinary Bozzard scene objects and prefabs. Gameplay runs in a Rhai entry script and imported modules.
 
 From the repository root:
 
@@ -8,7 +8,7 @@ From the repository root:
 cargo run -p bozzard-editor-app --bin bozzard-editor -- --scene examples/earth-factory/scenes/earth.json
 ```
 
-Click the green **▶ Play** button. A fresh game begins beside the landing pod with hand tools and a workbench. Walk onto iron or copper nodes and hold **F** to gather. Open **J**, then deliver four iron ore and four copper ore on page I to unlock smelting. The same scene and controls work in the native player.
+Click the green **▶ Play** button to open the **Stellar-IX** main menu. Select **Survival** or **Creative**, then **Create world**. Survival starts on **Stellar-BX** with manual gathering: hold **F** on iron, copper, and stone nodes, then deliver **12 iron ore + 8 copper ore + 8 stone** through journal **J**, page I. This unlocks the first miners, smelters, conveyors, poles, cables, and workbench recipes. Creative unlocks all implemented tools, recipes, and the completed rocket; construction and ingredient loading are free, but machines still need a working power connection. The same scene and controls work in the native player. Board the completed rocket with **E** and choose **Launch to Moon** to visit **Stella-Z2**; return trips currently require no fuel.
 
 A small debug HUD beneath the objective shows FPS, frame time, CPU draw time, loaded and explored chunks, simulating chunks, visible entities, draw calls, and submitted triangles. It refreshes four times per second in editor Play and the native player. FPS uses completed-frame wall time; CPU draw time measures renderer preparation and submission, not GPU execution. Visible entities exclude the HUD and count objects inside the camera frustum before GPU occlusion. Draws and triangles cover color-pass meshes. Headless runs show `--` for unavailable rendering measurements.
 
@@ -56,30 +56,52 @@ cargo test -p bozzard-editor --test threaded_render -- --ignored --nocapture
 | Ctrl + R | Smoothly orbit the camera by 90° |
 | F (hold) | Hand-gather a solid resource beneath the cursor |
 | J | Open or close the journal |
+| I | Open or close player inventory, unlocked in Tier 1 Phase 3 |
 | M | Open or close the region map |
 | Escape | Open the factory menu, or Continue when it is open |
+| Left click | Select an action-bar tool, then place it on the highlighted world tile; clicking a machine moves the player marker beneath it |
+| Right click | Inspect machine buffers; Link/Unlink power terminals and cables; cancel placement |
 | Mouse wheel | Smoothly zoom in or out over the world |
 | Left / Right, or journal tabs | Turn journal pages while the book is open |
-| E | Collect nearby machine output, or open/close storage |
+| E | Collect miner/smelter output; open a machine interface, storage, rocket, or fuel dock |
 | Space | Build the selected unlocked machine, paying its material cost |
 | X | Demolish a machine and discard its contents |
 | N | Reset the world, discoveries, backpack, and progression with a new seed |
 | F6 (player) | Reload the source scene |
 
-**Action bars.** Production contains smelters, miners, and assemblers; Logistics contains belts, storage, splitters, and mergers; Power contains generators. Locked slots stay visible and explain their requirements through the journal. Ctrl-number chords switch bars without also selecting a slot.
+**Action bars.** Production contains smelters, miners, Constructors, and assemblers; Logistics contains belts, storage, splitters, and mergers; Power contains generators, Mk1 poles (slot 2), and cables (slot 3). Locked slots stay visible and explain their requirements through the journal. Ctrl-number chords switch bars without also selecting a slot.
+
+**Player stacks.** Inventory **I** has 25 freely arranged slots, each holding up to 100 of one item. Drag to move, swap different items, or merge matching stacks (overflow stays in the source). Right-click a stack for **Split**, **Destroy**, or **Cancel**. Split puts half into an empty slot. **Destroy All**, at the bottom right, clears only carried items. Gathering and collection respect available room; uncollected machine output and stored items remain in place. Crafting checks the space available after spending ingredients before committing the transaction. Storage keeps its separate 16 × 100 capacity.
 
 **Machine rotation.** A turn takes 0.6 seconds: lift, quarter-turn, then lower. Repeated presses queue up to eight turns on each machine, while holding R does not repeat. The machine's production and item transfers wait until it lands, when its output direction changes. Other machines continue running. Removing an animating machine clears its pending turns, ingredients, and progress. Camera turns remain separate and take 0.55 seconds.
 
-**Exploration.** Regions contain 15 × 15 cells. The planet extends eight regions north, south, east, and west of the landing region: a 17 × 17 grid, including diagonals, for up to 289 regions. Neighboring ground and deposits appear before crossing an edge. Their layouts depend on the planet seed and region coordinates, so discovery order does not reroll a location. Every region contains all seven Earth resources. Revisited regions retain machine placement, facing, buffered items, production progress, and storage contents.
+**Exploration.** Regions contain 15 × 15 cells. The planet extends eight regions north, south, east, and west of the landing region: a 17 × 17 grid, including diagonals, for up to 289 regions. Neighboring ground and deposits appear before crossing an edge. Their layouts depend on the planet seed and region coordinates, so discovery order does not reroll a location. Ordinary regions have **2–4 deposits**, with no repeated resource type and at least **three tiles between deposit centers**, including across region boundaries. Iron, copper, stone, sand, and limestone are common; quartz, coal, and water are uncommon; silver and oil are rare. The landing region guarantees the five common materials outside the future landing pad, and one cardinal neighbor guarantees coal. Seeded outposts farther away guarantee water, quartz, oil, and silver somewhere on the finite planet. Solid nodes can be gathered by hand; liquids require miners. Silver has no processing recipe yet. Revisited regions retain machine placement, facing, buffered items, production progress, and storage contents. The optional production-test demonstration retains its compact factory and full resource set.
 
-Only the currently occupied region simulates production in this version. Distant chunk models unload;
-compressed archives retain deposits, machine placement and facing, buffered items, production
-progress, and storage inventory. Approaching again restores the models before they enter view.
+Every region containing factory equipment on Earth or Stella-Z2 simulates, including regions
+on a planet you have left. Production and transport share one clock across both planets: conveyors,
+splitters, mergers, and machine inputs/outputs connect across region boundaries with the same
+capacity and backpressure rules as neighboring tiles. Power networks also span regions.
+Each planet retains its own power networks, recipes, buffers, and storage totals. Machines still
+require power and stop when their buffers or destinations fill. The debug HUD's **Simulating**
+count reports factory regions across both planets; loaded/explored counts describe the planet in view.
+Distant chunk models unload while their compact factory state keeps advancing. Approaching
+again restores the models with their latest buffers, production progress, and storage contents.
 The loaded neighborhood includes a margin for tall machines and shadows and expands for zooming
 out or a wider viewport; camera orbit is covered throughout its animation. Unloading does not
-reroll deposits. Conveyors do not transfer across region boundaries yet. Region state lasts for
-the current Play session, not across closing the game. **N** deliberately clears it. Chunks share
-the same ground mesh, and the small authored landing-pod scene remains resident.
+reroll deposits or pause factories. Save the world to retain region state across closing the game.
+**N** deliberately starts a new world. Chunks share
+the same ground mesh, and the authored landing-site and rocket models remain resident.
+
+To profile one versus eight producing regions (including unloaded factories), or factories
+running on one versus both planets, run:
+
+```sh
+cargo test -p bozzard-demo --release --test earth_factory profile_world_factories -- --ignored --nocapture
+cargo test -p bozzard-demo --release --test earth_factory profile_planet_factories -- --ignored --nocapture
+```
+
+This reports headless CPU tick timings separately for ordinary frames and production beats;
+it does not measure GPU time or windowed FPS.
 
 Crossing a seam eases the camera to the next region over 0.55 seconds. Reversing direction
 retargets from its current position; orbit and zoom can continue during the pan. Residency
@@ -94,40 +116,119 @@ To measure the simulation cost of crossing, discovery, and streaming separately 
 cargo test --release -p bozzard-demo --test earth_factory profile_chunk_transitions -- --ignored --exact --nocapture
 ```
 
-**Map.** Press **M** or click **Map** to see the full 17 × 17 planet grid. Green cells are currently loaded; blue-gray cells were explored but have unloaded; dark cells are unexplored. Orange marks your current region, and **H** marks the landing site. Counts match the debug HUD. North stays at the top when the camera rotates. The map blocks movement, building, collection, and camera zoom while factories continue running. **M** or **Close** returns to play; **Escape** opens the factory menu. Opening the map closes the journal or storage.
+**Map.** Press **M** or click **Map** to see the current planet: **17 × 17** regions on Stellar-BX or **13 × 13** on Stella-Z2. Green cells are currently loaded; blue-gray cells were explored but have unloaded; dark cells are unexplored. Orange marks your current region, and **H** marks the landing site. Counts match the debug HUD. North stays at the top when the camera rotates. The map blocks movement, building, collection, and camera zoom while factories continue running. **M** or **Close** returns to play; **Escape** opens the factory menu. Opening the map closes the journal or storage.
 
 **Journal.** The book fades in with three pages:
 
-- **I — Unlocks:** available and locked equipment, the next delivery, backpack counts, and a delivery button.
-- **II — Recipes:** unlocked recipes, exact ingredients, crafting order, the selected machine's build cost, and crafting buttons. Hand-crafting requires standing on or adjacent to the landing pod in region 0,0. Machines can process the same ingot recipes automatically.
-- **III — Spaceship:** Tier 1 progress and the hull, flight systems, launchpad, and fuel milestones. Those systems remain locked, so launch readiness currently starts at 0/4; later tiers and spaceship construction are not implemented.
+- **I — Unlocks:** available and locked equipment, the next phase's delivery, carried materials, and a delivery button.
+- **II — Recipes:** select a material or equipment recipe to see its ingredients, output quantity, and crafting order. The workbench offers **Craft once** and **Craft up to 10**. Hand-crafting requires standing on or adjacent to the landing pod in region 0,0. Concrete requires an assembler. Pole and generator entries show their construction costs; place them from the Power action bar.
+- **III — Spaceship:** the landing-site upgrade, visible 0%/50%/100% rocket assembly, and the route to Stella-Z2.
 
-Movement, construction, gathering, and action-bar changes pause while the journal or storage is open or closing. Factory production continues.
+Movement, construction, gathering, and action-bar changes pause while a modal is open or closing. Factory production continues.
 
-**Factory menu.** Escape opens a menu with Continue, Save, Load, and Exit. Continue or Escape returns to play. Factories, conveyors, animations, and diagnostics continue running behind the menu, while gameplay input is blocked. Save and Load are disabled placeholders; no save/load logic is connected. Exit closes the standalone player or stops editor Play without saving the session.
+**Player inventory.** Phase 1 already retains gathered materials for journal crafting and deliveries. Tier 1 Phase 3 unlocks **I**, showing all carried materials and crafted Miner Mk1 items without resetting those quantities. This screen retains the prototype's aggregate material counts; no new carrying-capacity limit is imposed. Storage containers retain their separate stack system.
+
+**Machine interfaces.** **E** opens an assembler or Constructor within one tile. Assemblers choose conductive alloy, machine parts, or concrete; Constructors choose iron sheets, nuts and bolts, or cable. **Load ingredients** transfers up to ten recipe batches (ten inputs for a single-input machine), accounting for missing ingredients and the shared 100-item limit. Creative supplies ingredients freely. Conveyors can supply the same materials. **Collect output** transfers the finished stack. Collect existing output before changing recipes. Inputs return to carried stock when ingredient types or output batch sizes change; otherwise the machine keeps them. Recipes and buffers survive chunk unloading. **E** or **Close** returns to play.
+
+A smelter with finished output gives it to you immediately on **E**. When it has no finished output, **E** opens its loading interface for iron ore, copper ore, or sand. Production continues while the interface is open; use **Collect output** for the finished ingots or glass.
+
+**Factory menu.** Escape opens a menu with Continue, Save, Load, Main menu, and Exit. Continue or Escape returns to play. Factories, conveyors, animations, and diagnostics continue running behind the menu, while gameplay input is blocked. Save opens five manual slots; Load also offers the automatic slot. **Load world** is available from the main menu. Selecting a manual slot replaces that save; selecting a saved world replaces the running session. Main menu returns to world creation. Save before exiting; Exit itself does not create a save.
+
+**Saves.** Auto-save runs every twenty minutes of active world time, including time spent in menus, and waits for rocket landing before taking a snapshot. Manual saves reset that interval. The browser shows tier/phase, day/night cycle, planet, and save age. Both planets' explored deposits, factories, wiring, recipes, buffers, storage, the arranged player inventory, progression, and world clock survive loading. The file contains game data, not scene assets or render handles. File reads and atomic replacement writes run on a background worker. Invalid or incompatible saves are reported without replacing the running world. The native authority check rejects guest save/load requests; the Steam gameplay integration is still in progress.
+
+Factory exports use the controller's `steam_coop` settings (development App ID **480**, four players) and require a matching Steam-enabled player. The export includes the SDK library and development launch file. Steam remains optional for solo play. Guests receive the host's actual conveyor transfers and animate them locally, including factories on a different planet from the host.
+
+Save files live in `stellar-ix/saves` beneath the platform's application-data directory: `$XDG_DATA_HOME` or `~/.local/share` on Linux, `%APPDATA%` on Windows, and `~/Library/Application Support` on macOS. Slot zero is `autosave.json`; manual slots are `slot-1.json` through `slot-5.json`. Saves are shared between editor Play and the native player for the same user.
+
+Guest keyboard movement is predicted on the next local simulation tick and reconciled with host acknowledgements. Builds, inventories, production, new terrain and travel remain host-authoritative. Batched movement requests retain their order instead of losing steps to same-tick rate checks.
+
+The user confirmed the movement fix in a two-computer retest. For further live
+verification, follow the [two-computer Steam checklist](../../docs/stellar-ix-coop-test.md).
+
+**Steam overlay.** Launch through Steam with its in-game overlay enabled, then use
+**Shift+Tab** (Steam's default shortcut) or **Steam co-op → Open Steam overlay**.
+The co-op panel reports whether the overlay is ready. While it is open, gameplay
+input is blocked and factories keep running. **Invite friends** opens Steam's lobby
+invite dialog; the friend picker works when the overlay is unavailable.
+To prepare a source-build launcher for Steam's non-Steam-game library entry:
+
+```sh
+./tools/steam.sh run --release --prepare-only --project examples/earth-factory/bozzard.project.json
+```
+
+Add the printed launcher path to Steam and launch that entry. Use `editor` instead
+of `run` for an editor launcher. Exported packages can use their `Play-test.sh`
+launcher. No Steam settings are changed by the game.
+
+**Steam co-op (integration in progress).** Open **Steam co-op** from the title or **Steam co-op / Invite friends** from Escape. Create a friends-only lobby for one host and up to three guests. Close the lobby panel and create a world or load a save to start; the host can start alone. Invite friends through Steam's overlay or the friend picker, including during play. Guests use the host's world and cannot save or load it. **Enter** opens chat; Escape stops typing. Blue marks the host, with red, orange, and green for guests; nearby names appear above their cursors. Solo play remains available without Steam. The current development App ID is 480. In-process gameplay tests, native editor/player Steam host checks, and source-independent export checks pass; populated UI previews pass. The user has confirmed two-computer guest play, machines, electricity and planetary travel; save/load, chat, reconnect and four-player details still need live verification. See [session implementation and verification](../../docs/stellar-ix-sessions.md).
 
 **Zoom.** Scroll up to zoom in and down to zoom out. The camera eases between a vertical view span of 9–32 world units (starting at 19), keeping its isometric angle. HUD panels, storage, the journal, and the factory menu consume scrolling. New worlds reset zoom; orbiting and chunk travel preserve it.
 
-**Tier 1.** Deliveries consume backpack materials. They unlock equipment in this order:
+**Progression.** Deliveries consume carried materials to enter the target phase. Tier 1 Phase 1 starts unlocked.
 
-| Delivery | Required materials | Unlock |
+| Enter phase | Delivery | Unlock |
 | --- | --- | --- |
-| 1 | 4 iron ore + 4 copper ore | Smelter and both ingot recipes |
-| 2 | 4 iron ingots + 4 copper ingots | Coal generator |
-| 3 | 8 iron ingots + 4 copper ingots | Miner |
-| 4 | 12 iron ingots + 8 copper ingots | Belts and storage |
+| T1 P1 | None | Manual gathering |
+| T1 P2 | 12 iron ore + 8 copper ore + 8 stone | Smelter Mk1, Miner Mk1, Conveyor Mk1, poles, cables, basic journal crafting |
+| T1 P3 | 16 iron ingots + 8 copper ingots + 4 glass | Storage and player inventory [I] |
+| T1 P4 | 12 iron sheets + 40 nuts and bolts + 8 cables | Coal generator |
+| T2 P1 | 20 iron sheets + 80 nuts and bolts + 16 cables + 8 glass | Constructor and assembler |
+| T2 P2 | 80 concrete + 40 iron sheets + 80 nuts and bolts | 4 × 4 × 1 asphalt landing site and fuel INPUT dock |
+| T2 P3 | 160 iron sheets + 240 nuts and bolts + 80 cables + 40 glass | Rocket 50% assembled |
+| T2 P4 | 200 iron sheets + 320 nuts and bolts + 120 cables + 80 glass | Rocket complete, blinking lights, E destination interface |
 
-One ore makes one matching ingot. Assemblers, splitters, mergers, and machine-part crafting remain locked for the later automation tier. A smelter costs four iron ore, allowing the first processing machine to be built before the player has ingots. Miners and generators cost four iron ingots and two copper ingots; belts cost one iron ingot; storage costs four iron ingots. The landing pod provides eight power, and a generator on coal adds ten. Overload stops production while items already on belts can continue traveling.
+Splitters and mergers remain available in Creative and the demonstration; they have no assigned Survival phase.
 
-**Machine buffers.** Miners, smelters, assemblers, conveyors, splitters, and mergers hold at most **100 items total per machine**, counting ingredients and finished output together. Smelters keep separate ore and ingot stacks within that shared limit; an output stack must empty before switching to the other ingot type. Assemblers reserve room for a missing ingredient so a single feed cannot fill all 100 spaces. With two ingredients per part, an assembler may need its output collected before it can fit another complete recipe. Full machines block incoming transfers. Buffers survive region changes; demolition and **N** clear them.
+**Recipes.** Journal crafting for basic materials unlocks at T1 P2 so the first pole can be built before machinery is powered. Constructors later automate those same recipes.
+
+| Output | Ingredients per craft | Machine |
+| --- | --- | --- |
+| 1 iron ingot | 1 iron ore | Smelter |
+| 1 copper ingot | 1 copper ore | Smelter |
+| 1 glass | 1 sand | Smelter |
+| 1 iron sheet | 1 iron ingot | Constructor |
+| 4 nuts and bolts | 1 iron ingot | Constructor |
+| 1 cable | 1 copper ingot | Constructor |
+| 1 concrete | 2 stone + 1 limestone | Assembler only |
+| 1 conductive alloy | 1 iron ingot + 1 copper ingot | Journal or assembler |
+| 1 machine part | 1 iron ingot + 1 copper ingot | Journal or assembler, T2 P1 |
+
+**Equipment costs.** A smelter costs four iron ore; a Miner Mk1 costs four iron ingots and two copper ingots; a belt costs one iron ingot; storage costs four iron ingots. Constructors and assemblers each cost eight iron ingots and four copper ingots. A pole costs **20 nuts and bolts + 4 iron sheets + 2 glass**. A coal generator costs **80 nuts and bolts + 20 iron sheets + 2 crafted Miner Mk1 items + 4 copper ingots**. Craft the portable miners in journal page II. Placing a miner uses a carried Miner Mk1 item first, otherwise pays its material cost; generator construction consumes only carried miners, never placed machines.
+
+**Wired power.** The pod supplies eight power; a generator placed on a coal node supplies ten. Miners use one, smelters and Constructors two, and assemblers three. Each circuit checks its own supply. Unwired or overloaded machines stop producing while logistics continue moving existing output. One pole can be hand-crafted from **9 iron ore + 2 sand** through ingots, sheets, nuts and bolts, and glass. Craft cable separately from copper ingots.
+
+1. Press **Ctrl+3**, then **2**, and **Space** on an empty tile to place a pole.
+2. Choose power-bar slot **3** for the cable tool. Stand on the landing pod and press **Space**, then stand on the pole and press **Space** again.
+3. Repeat from the pole to a miner, smelter, Constructor, assembler, generator, or another pole. Each successful connection consumes **one cable item** in Survival. Failed or duplicate connections consume nothing; disconnecting does not refund the cable. Cables can run in any horizontal direction, including diagonals, and cross region seams.
+4. **R** cancels an unfinished cable. **X** with the cable tool disconnects all cables at the current terminal; with a machine selected, X demolishes it and removes its cables.
+
+Every cable must have a pole at one end. Each pole has **five connections total**, counting sources, machines, and neighboring poles; machines and sources have one port each. Duplicate and self-connections are rejected. Wires attach to raised terminals and follow machine rotation animations. Connected, adequately supplied poles show a glowing green lamp. All loaded poles retain their status lamps; up to **32** nearby powered poles also cast real, unshadowed light on ground and machines through a reusable light pool. The completed rocket borrows one slot while its home region is loaded and the landing pod's circuit has power: its red and green navigation lights alternate and illuminate nearby surfaces. An overloaded or missing pod supply switches them off. Unused lights do no fragment-lighting work. This is a visual light budget, not a limit on pole placement or power networks.
+
+**Machine buffers.** Miners, smelters, Constructors, and assemblers hold at most **100 items total per machine**, counting ingredients and finished output together. Smelters and Constructors keep input and output stacks within that shared limit. Constructors reserve capacity for a complete output batch, including the extra three items created when one ingot becomes four nuts and bolts. Assemblers reserve enough room for the other recipe ingredient, including two stone for concrete, so one feed cannot fill all 100 spaces. With two ingredients per part, an assembler may need its output collected before it can fit another complete recipe. Full machines block incoming transfers. Buffers survive region changes; demolition and **N** clear them.
+
+**Logistics.** Conveyors carry one visible item per tile, with no storage buffer. They accept rear or side feeds for corners, never through the forward outlet. Splitters and mergers each hold up to **10 items**, sharing one material stack. Facing indicates the forward direction: a splitter accepts only from the rear and sends to the front, left, and right in turn, skipping blocked outputs. A merger accepts from the rear, left, and right and sends forward. Its inputs take turns; a waiting different material lets the current batch drain before entering. Cyan model ports are inputs; gold ports are outputs. Full or disconnected routes back up without discarding items. Routing turns and contents survive region changes.
 
 Buffering does not speed up production or transfers: each connection still moves at most one item per factory beat. Quantities share one representative item model per occupied output, plus transient transfer visuals, so filling a buffer does not spawn 100 entities. The coal-node generator retains its existing power behavior without a fuel inventory.
 
-**Machine collection.** Press **E** on or within one tile of a miner, smelter, or assembler (including diagonals) to take **all finished output** into your backpack. The nearest machine/container wins, and the tooltip shows the target. The tooltip shows total buffer usage out of 100 and the collectible quantity. Unfinished ingredients and recipe progress stay inside; collection frees capacity for further production. Check the backpack in **J**.
+**Machine collection.** Press **E** on or within one tile of a miner or smelter (including diagonals) to take **finished output that fits** into your backpack. Assemblers and Constructors use their interface’s Collect output button instead. The nearest machine/container wins, and the tooltip shows the target. The tooltip shows total buffer usage out of 100 and the collectible quantity. Unfinished ingredients and recipe progress stay inside; collection frees capacity for further production. Check carried materials in **J**, or **I** after T1 P3.
 
 **Storage.** Each container has 16 slots with 100 items per stack. Press **E** within one tile, including diagonals. Drag stacks to move, merge, or swap them. Right-click for Split or Delete all; Delete all affects only that container. **Take items into backpack** transfers contents for crafting and deliveries. Full storage blocks incoming items. Demolition discards its inventory and updates stored totals.
 
-For the original prebuilt production demonstration and profiling fixtures, set the scene blackboard's **`demo_mode` to true** before Play. This unlocks all existing machines, makes construction free, and restores the iron/copper/assembler sample. Normal play defaults to the new Tier 1 start. Set **`seed` above zero** for a reproducible planet.
+**Landing site and rocket.** The upgraded asphalt platform is **4 × 4 tiles total and one block thick**, with its top flush with the build surface. The pod stays at tile (0,0); the rocket occupies (0,1), and the dock is at (2,1) on the east edge. Before the upgrade, remove any machines on the rocket and dock tiles; a blocked delivery consumes nothing and leaves machines intact, even when the home region is unloaded. Other machines can remain on the asphalt. Future building on the pod, rocket, and dock footprints is blocked.
+
+The T2 P3 delivery builds the lower rocket; T2 P4 adds the upper hull, nose, cockpit, and alternating navigation lights. Approach the completed rocket and press **E**. Its interface shows **Stellar-BX**, **Stella-Z2** as the next destination, and eight **Coming soon** entries. Choose **Launch to Moon** to close the destination panel and lift off. The rocket ascends for two seconds, the planet changes while it is offscreen, and it descends for 2.4 seconds onto Stella-Z2. World controls are suspended during flight; simulation continues. On the Moon, the same interface offers **Return to Earth**. Fuel is temporarily free in both directions; the other eight planets remain unavailable. The fuel dock's **E** interface identifies its INPUT role; it accepts no materials yet. New-world creation and **N** reset projects with progression. Creative begins with the completed site and rocket.
+
+**Stella-Z2.** The Moon extends **six regions in each direction**, including diagonals: **13 × 13 / 169 regions**, each still 15 × 15 build tiles. Its gray surface stays dark with stars throughout play. Most regions have no deposits; ordinary occupied regions have one. Only three resources appear:
+
+- **Amorium:** beige ore.
+- **Moondust:** low gray-white deposits.
+- **Techtorium:** exceptionally rare orange, black, and white crystals. Every seed guarantees **two** deposits in separate, widely spaced regions, four to six regions from landing.
+
+The landing region contains one Amorium and one Moondust deposit, keeping the rocket platform clear. All three can be gathered with **F**, extracted by powered miners, conveyed, stored, and carried home. They appear in inventory **I**; no lunar processing recipes or new phases are invented yet. The arriving rocket shares the existing powered landing-site/workbench setup. Bring Earth construction materials to establish an outpost.
+
+Travel preserves each planet's discovered nodes, factories, recipes, buffers, storage, and power wiring. Inventory, equipment unlocks, and progression travel with the player. Powered factories on both planets keep producing during flight and while you explore elsewhere; returning restores their latest items and storage contents. Departed terrain, deposits, machines, items, and cables unload, so background production creates no off-planet models. **N** or creating a new world resets both planets; existing save slots remain available.
+
+For a prebuilt, wired production demonstration and profiling fixtures, set the scene blackboard's **`demo_mode` to true** before Play. This unlocks all existing machines, makes construction free, and restores the iron/copper/assembler sample. Normal play opens the Survival/Creative menu. Automated gameplay fixtures can set the controller’s `title_open` to false to begin directly; demonstration mode also skips the menu. Set **`seed` above zero** for a reproducible planet.
 
 To compare CPU costs for simulation, UI layout, pointer input, scene extraction, and UI drawing
 with storage closed and open (timings depend on the machine and build profile):
@@ -135,6 +236,19 @@ with storage closed and open (timings depend on the machine and build profile):
 ```sh
 cargo test -p bozzard-editor --test earth_factory profile_earth_factory_cpu -- --ignored --nocapture
 ```
+
+For Creative mode with the journal closed, open, and under an eight-event mouse burst
+(approximately a 500 Hz mouse at 60 FPS), profile layout, input, and simulation separately:
+
+```sh
+cargo test --release -p bozzard-editor --test earth_factory profile_stellar_journal_cpu -- --ignored --nocapture
+```
+
+Omit `--release` to measure debug overhead. Compare FPS using the same build profile;
+debug Rhai execution is substantially slower. Journal, machine-interface, and inventory
+labels refresh when their data changes. The engine reuses unchanged UI layout while updating
+hover, focus, and pressed feedback immediately; live component edits, scrolling, resizing,
+localization, and camera-projected labels invalidate the cached geometry as needed.
 
 For a repeatable exploration route through 1, 3, 6, 11, and 13 discovered regions, including
 per-system CPU spans and total scene membership:
@@ -186,6 +300,45 @@ commands from **122 to 10**, while retaining 2,556 shadow triangles. These are l
 measurements, not whole-editor FPS. GPU tests compare the optimized path with uncached,
 individual draws, including offscreen casters, local lights, material edits, and temporal effects.
 
-The roughly 63-second day/night cycle smoothly fades the sun, ambient light, sky colors, and exposure into dark blue moonlight. Stars fade into the sky behind the terrain at night and disappear at dawn; the HUD stays readable and production continues. Stars use the existing sky pass without spawning entities or adding draw calls. A moving sun, disk saves, advanced tiers, and the spaceship remain later steps.
+The roughly 63-second day/night cycle smoothly fades the sun, ambient light, sky colors, and exposure into dark blue moonlight. Stars fade into the sky behind the terrain at night and disappear at dawn; the HUD stays readable and production continues. Stars use the existing sky pass without spawning entities or adding draw calls. Stella-Z2 holds a separate, permanent night sky with stars and neutral moonlight over gray regolith. A moving sun, disk saves, and rocket fuel remain later steps.
 
-The source of truth for the scene, tiled ground, UI, and prefabs is [`tools/generate_scene.py`](tools/generate_scene.py). Gameplay is [`scenes/scripts/earth_factory.rs`](scenes/scripts/earth_factory.rs). Rerunning the generator replaces manual edits to its generated files. Machine prefabs use unscaled pivots, so their children retain their intended height during rotation.
+The source of truth for the scene, tiled ground, UI, and prefabs is [`tools/generate_scene.py`](tools/generate_scene.py). Gameplay starts in [`scenes/scripts/earth_factory.rs`](scenes/scripts/earth_factory.rs), which only coordinates lifecycle hooks and frame order. The implementation lives in [`scenes/scripts/factory/`](scenes/scripts/factory/). The generator registers every `.rhai` module there as a script asset without rewriting it. Rerunning the generator replaces manual edits to its generated files. Machine prefabs use unscaled pivots, so their children retain their intended height during rotation.
+
+Native visual checks cover world creation, journal recipes, machine and inventory panels, the landing site, both rocket stages, destinations, and actual nighttime pole illumination:
+
+```sh
+cargo test -p bozzard-editor --test stellar_ix -- --ignored --nocapture
+```
+
+## Gameplay source layout
+
+| Module | Responsibility |
+| --- | --- |
+| `data.rhai` | Item/equipment metadata, recipes, costs, session flags |
+| `grid.rhai` | Coordinates, packing helpers, region cache access |
+| `deposits.rhai` | Seeded Earth and Moon resource placement |
+| `world.rhai` | New worlds, region state, planet travel |
+| `chunks.rhai` | Discovery, visual loading, bounded residency |
+| `simulation.rhai` | Production beats, conveyor/splitter/merger routing |
+| `factory_state.rhai` | Per-planet snapshots and writeback for all built regions, including off-planet factories |
+| `host_view.rhai` | Reconcile accepted co-op host edits and remote rotations with resident models |
+| `item_fx.rhai` | Resident item models, cross-region motion and bounded visual reuse |
+| `building.rhai` | Placement, removal, rotation requests, action bars |
+| `power.rhai` | Circuits, cables, supply, power lamps |
+| `inventory.rhai` | Machine collection and storage stacks/UI |
+| `backpack.rhai`, `backpack_ui.rhai` | Free player stacks, atomic capacity checks, drag/drop and stack menus |
+| `pointer.rhai`, `inspection.rhai` | Camera-aware world picking, placement, cable menus and buffer inspection |
+| `flight.rhai` | Departure, planet handoff and landing animation |
+| `machines.rhai` | Recipe selection, feeding, machine interface input |
+| `progression.rhai` | Gathering, deliveries, workbench crafting |
+| `environment.rhai` | Camera orbit/pan/zoom and planet lighting |
+| `visuals.rhai` | Item/machine animation, landing site and rocket visuals |
+| `hud.rhai` | HUD, contextual tooltip, debug statistics |
+| `journal.rhai` | Journal pages, recipes, crafting controls |
+| `panels.rhai` | Panel state and shared interface drawing |
+| `navigation.rhai` | Title, menu, map, destination input |
+
+Cross-module calls use explicit namespaces, such as `power::update_power()`. Imports use catalog
+IDs (`import "factory-power" as power;`), so editor Play, player, and exported builds resolve the
+same source. Keep mutable game state in the existing blackboards; module files contain functions.
+See [Rhai import rules and hot reload](../../docs/scripting.md#import-shared-rhai-modules).

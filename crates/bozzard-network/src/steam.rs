@@ -8,13 +8,24 @@ use crate::{
 use anyhow::Context;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     time::Instant,
 };
 use steamworks::{Client, LobbyId, SteamId, networking_types::SendFlags};
 const CHANNEL: u32 = 7;
 const TIMEOUT: Duration = Duration::from_secs(15);
-static CLIENT: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
+// One activation callback for the process, including title screens and editor
+// Play/Stop cycles. Drop the callback before releasing the SDK client.
+struct SharedClient {
+    _overlay: steamworks::CallbackHandle,
+    client: Client,
+}
+static CLIENT: Mutex<Option<SharedClient>> = Mutex::new(None);
+static OVERLAY_ACTIVE: AtomicBool = AtomicBool::new(false);
 enum Event {
     Invite(LobbyId),
     Joined(u64, bool, std::result::Result<LobbyId, String>),
@@ -584,9 +595,51 @@ impl Drop for Session {
 
 /// Pump only while no Play worker exists, so late lobby results can clean up after Stop.
 pub fn pump_idle_callbacks() {
-    if let Some(client) = CLIENT.get() {
+    let client = CLIENT
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|shared| shared.client.clone());
+    if let Some(client) = client {
         client.run_callbacks();
     }
+}
+
+/// Release process-wide SDK ownership after all Play sessions have been dropped.
+/// Keeping a static Client alive until the OS tears down the SDK skips its normal
+/// socket shutdown and can trigger Steam's open-socket assertion on exit.
+pub fn shutdown() {
+    let client = CLIENT.lock().unwrap().take();
+    drop(client);
+    OVERLAY_ACTIVE.store(false, Ordering::Release);
+}
+
+pub fn overlay_active() -> bool {
+    OVERLAY_ACTIVE.load(Ordering::Acquire)
+}
+
+pub fn overlay_available() -> bool {
+    CLIENT
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|shared| shared.client.utils().is_overlay_enabled())
+}
+
+/// Let Steam open its own friends overlay. Shift+Tab remains Steam's configurable
+/// shortcut; the game must not emulate it or replace a user's Steam settings.
+pub fn open_overlay() -> Result<()> {
+    let shared = CLIENT.lock().unwrap();
+    let client = &shared
+        .as_ref()
+        .context("Start Steam and sign in to use the overlay.")?
+        .client;
+    ensure!(
+        client.utils().is_overlay_enabled(),
+        "Steam overlay is unavailable. Launch the game through Steam with its overlay enabled."
+    );
+    client.friends().activate_game_overlay("Friends");
+    Ok(())
 }
 
 /// Keep the SDK alive across editor Play/Stop cycles, initialized before GPU creation.
@@ -601,12 +654,13 @@ pub fn initialize_editor(app_id: u32) -> Result<Client> {
 }
 
 fn initialize_mode(app_id: u32, development: bool) -> Result<Client> {
-    if let Some(client) = CLIENT.get() {
+    let mut shared = CLIENT.lock().unwrap();
+    if let Some(client) = shared.as_ref() {
         ensure!(
-            client.utils().app_id().0 == app_id,
+            client.client.utils().app_id().0 == app_id,
             "Steam already initialized with a different App ID. Restart the editor with this scene."
         );
-        return Ok(client.clone());
+        return Ok(client.client.clone());
     }
     let client = if development { Client::init_app(app_id) } else { Client::init() }
         .context("Steam initialization failed: start Steam and sign in. Published games must be launched through their Steam library entry.")?;
@@ -614,7 +668,13 @@ fn initialize_mode(app_id: u32, development: bool) -> Result<Client> {
         client.utils().app_id().0 == app_id,
         "Steam launched a different App ID; use this game's Steam library entry"
     );
-    let _ = CLIENT.set(client.clone());
+    let overlay = client.register_callback(|event: steamworks::GameOverlayActivated| {
+        OVERLAY_ACTIVE.store(event.active, Ordering::Release);
+    });
+    *shared = Some(SharedClient {
+        _overlay: overlay,
+        client: client.clone(),
+    });
     Ok(client)
 }
 pub use crate::lifecycle::parse_lobby_connect;

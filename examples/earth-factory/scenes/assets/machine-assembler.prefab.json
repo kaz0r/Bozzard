@@ -61,6 +61,42 @@
       "parent": "root"
     },
     {
+      "id": "power-terminal",
+      "name": "Cable terminal",
+      "transform": {
+        "translation": [
+          0,
+          0.83,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.085,
+          0.34,
+          0.085
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.55,
+          0.38,
+          0.17
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root"
+    },
+    {
       "id": "detail-0",
       "name": "machine-assembler detail 1",
       "transform": {

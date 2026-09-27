@@ -21,8 +21,9 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 mod compute_api;
+mod imports;
 mod module;
-pub use module::{NetworkFrame, ScriptModule};
+pub use module::{NetworkFrame, NetworkOutbox, NetworkRequest, ScriptModule};
 
 /// Largest accepted script source, matching the blueprint document limit.
 const MAX_SCRIPT_BYTES: usize = 1024 * 1024;
@@ -112,8 +113,11 @@ type Attachments = Vec<(bool, Option<Arc<CompiledScript>>)>;
 #[derive(Clone)]
 pub(crate) struct CompiledScript {
     ast: AST,
+    hook_ast: AST,
     hooks: BTreeMap<String, usize>,
     fingerprint: u64,
+    source: Arc<str>,
+    dependencies: BTreeSet<String>,
 }
 
 impl CompiledScript {
@@ -138,6 +142,7 @@ struct ObjectView {
 
 /// What a script asked the engine to do, applied in order once every script has run.
 enum Command {
+    NetworkRequest(NetworkRequest),
     SetVelocity {
         target: String,
         velocity: [f32; 3],
@@ -175,6 +180,10 @@ enum Command {
     LightIntensity {
         target: String,
         intensity: f32,
+    },
+    LightColor {
+        target: String,
+        color: [f32; 3],
     },
     SceneLight {
         ambient: bool,
@@ -248,6 +257,7 @@ struct Host {
     render: bozzard_diagnostics::RenderMetrics,
     simulation: bozzard_diagnostics::SimulationMetrics,
     network: NetworkFrame,
+    network_requests: usize,
     /// The attachment currently running, which bare `me` arguments resolve to.
     owner: String,
     attachment: usize,
@@ -261,6 +271,8 @@ struct Host {
     input: GameplayInput,
     ui_events: Array,
     ui_pointer: [f32; 2],
+    ui_pointer_blocked: bool,
+    view_projection: Option<Mat4>,
     /// Held keys of this attachment before the tick, for `input_pressed`.
     held: u128,
     objects: BTreeMap<String, ObjectView>,
@@ -388,25 +400,28 @@ pub struct ScriptAttachmentStats {
 }
 
 /// An edit request identifies the exact running scene and attachment set it was made for.
-/// Source is owned by the background compile job and is discarded before publication.
+/// The worker owns a source snapshot; compiled assets retain source for dependent reloads.
 pub struct ScriptReloadRequest {
     asset: String,
-    source: String,
+    sources: BTreeMap<String, String>,
+    baseline: BTreeMap<String, Arc<CompiledScript>>,
+    revisions: BTreeMap<String, u64>,
     instance: u64,
     serial: u64,
     revision: u64,
-    attachments: Vec<(String, usize)>,
+    attachments: Vec<(String, usize, String)>,
 }
 
-/// Fully compiled candidate. Publishing it is a constant-time asset swap plus bounded scope
-/// reset, and must happen between completed simulation ticks.
+/// Fully compiled candidate. Publishing swaps affected assets and resets their consumer scopes
+/// between completed simulation ticks; compilation and import resolution happen on the worker.
 pub struct ScriptReloadCandidate {
     asset: String,
     instance: u64,
     serial: u64,
     revision: u64,
-    attachments: Vec<(String, usize)>,
-    compiled: Arc<CompiledScript>,
+    attachments: Vec<(String, usize, String)>,
+    compiled: BTreeMap<String, Arc<CompiledScript>>,
+    stamps: BTreeMap<String, (u64, u64)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -426,7 +441,28 @@ impl ScriptReloadRequest {
     pub fn start(self) -> Result<bozzard_app::job::Job<ScriptReloadCandidate>> {
         bozzard_app::job::Job::start("Compiling script", move |progress| {
             progress.check()?;
-            let compiled = compile_source(&ScriptEngine::new(), &self.asset, &self.source)?;
+            let all = compile_sources(self.sources, &progress)?;
+            let compiled: BTreeMap<_, _> = all
+                .iter()
+                .filter(|(id, script)| {
+                    *id == &self.asset || script.dependencies.contains(&self.asset)
+                })
+                .map(|(id, script)| (id.clone(), script.clone()))
+                .collect();
+            let mut reads: BTreeSet<_> = compiled.keys().cloned().collect();
+            for script in compiled.values() {
+                reads.extend(script.dependencies.iter().cloned());
+            }
+            let stamps = reads
+                .into_iter()
+                .map(|id| {
+                    let stamp = (
+                        self.revisions.get(&id).copied().unwrap_or_default(),
+                        self.baseline[&id].fingerprint,
+                    );
+                    (id, stamp)
+                })
+                .collect();
             progress.check()?;
             Ok(ScriptReloadCandidate {
                 asset: self.asset,
@@ -435,6 +471,7 @@ impl ScriptReloadRequest {
                 revision: self.revision,
                 attachments: self.attachments,
                 compiled,
+                stamps,
             })
         })
     }
@@ -584,6 +621,8 @@ fn dynamic_of(value: &Value) -> Dynamic {
 /// `state`, so a function and its blueprint node stay easy to compare.
 fn register(host: Arc<Mutex<Host>>) -> Engine {
     let mut engine = Engine::new();
+    // Imports are embedded at load time; never read host files during gameplay/replay.
+    engine.set_module_resolver(rhai::module_resolvers::DummyModuleResolver);
     engine
         .set_max_operations(MAX_SCRIPT_OPERATIONS)
         .set_max_call_levels(32)
@@ -642,6 +681,40 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             None => Ok(Dynamic::from(Map::new())),
         }
     });
+    {
+        let host = host.clone();
+        engine.register_fn(
+            "network_send",
+            move |kind: ImmutableString, payload: Map| -> Result<bool, Box<EvalAltResult>> {
+                let mut state = borrow!(host);
+                if !state.network.active || state.network_requests >= module::MAX_NETWORK_REQUESTS {
+                    return Ok(false);
+                }
+                ensure_script(
+                    !kind.is_empty()
+                        && kind.len() <= 64
+                        && kind
+                            .chars()
+                            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')),
+                    || "invalid network request kind".into(),
+                )?;
+                let payload: serde_json::Value =
+                    rhai::serde::from_dynamic(&Dynamic::from_map(payload))?;
+                let bytes = serde_json::to_vec(&payload).map_err(|e| fail(e.to_string()))?;
+                ensure_script(bytes.len() <= module::MAX_NETWORK_REQUEST_BYTES, || {
+                    "network request exceeds 4096 bytes".into()
+                })?;
+                let owner = state.owner.clone();
+                state.record(Command::NetworkRequest(NetworkRequest {
+                    owner,
+                    kind: kind.to_string(),
+                    payload,
+                }));
+                state.network_requests += 1;
+                Ok(true)
+            },
+        );
+    }
     read!("delta_time", (), |state| Ok(Dynamic::from(state.dt)));
     read!("elapsed_time", (), |state| Ok(Dynamic::from(state.elapsed)));
     read!("render_stats", (), |state| rhai::serde::to_dynamic(
@@ -751,6 +824,40 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         state.ui_pointer.into_iter().map(Dynamic::from).collect()
     )));
 
+    read!("world_pointer", (), |state| Ok(Dynamic::from_array(
+        (if state.ui_pointer_blocked {
+            [-1.; 2]
+        } else {
+            state.ui_pointer
+        })
+        .into_iter()
+        .map(Dynamic::from)
+        .collect()
+    )));
+    read!("screen_ray", (x: f32, y: f32), |state| {
+        let mut result = Map::new();
+        let valid = x.is_finite() && y.is_finite() && (0.0..=1.0).contains(&x)
+            && (0.0..=1.0).contains(&y) && state.view_projection.is_some();
+        result.insert("valid".into(), valid.into());
+        if valid {
+            let inverse = state.view_projection.unwrap().inverse();
+            let near = inverse.project_point3(Vec3::new(x * 2. - 1., 1. - y * 2., 0.));
+            let far = inverse.project_point3(Vec3::new(x * 2. - 1., 1. - y * 2., 1.));
+            result.insert("origin".into(), Dynamic::from_array(array_of(near.to_array())));
+            result.insert("direction".into(), Dynamic::from_array(array_of((far-near).normalize_or_zero().to_array())));
+        }
+        Ok(Dynamic::from_map(result))
+    });
+    read!("world_to_screen", (position: Array), |state| {
+        let point = Vec3::from(vector_of(position)?);
+        let value = state.view_projection.map(|projection| {
+            let p = projection * point.extend(1.);
+            if p.w <= 0. { return [-1.; 3]; }
+            [p.x / p.w * 0.5 + 0.5, 0.5 - p.y / p.w * 0.5, p.z / p.w]
+        }).unwrap_or([-1.; 3]);
+        Ok(Dynamic::from_array(array_of(value)))
+    });
+
     // Blackboards, shared with graphs on the same object or scene.
     for (name, scope) in [
         ("get_object_variable", VariableScope::Object),
@@ -781,6 +888,35 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             match entry {
                 B::List { values, .. } => {
                     Ok(Dynamic::from_array(values.iter().map(dynamic_of).collect::<Array>()))
+                }
+                B::Scalar(_) => Err(fail(format!("variable '{variable}' is a scalar"))),
+            }
+        });
+    }
+    // Explicit object targets let a script keep bounded subsystem state on a
+    // separate authored blackboard without expanding the per-board limits.
+    read!("get_object_list", (target: ImmutableString, variable: ImmutableString), |state| {
+        let owner = state.target_of(&target)?;
+        match state.board(VariableScope::Object, &owner)?.get(variable.as_str()) {
+            Some(B::List { values, .. }) => Ok(Dynamic::from_array(values.iter().map(dynamic_of).collect::<Array>())),
+            Some(B::Scalar(_)) => Err(fail(format!("variable '{variable}' is a scalar"))),
+            None => Err(fail(format!("unknown variable '{variable}'"))),
+        }
+    });
+    // Sparse paged state (such as streamed factories) usually needs one entry,
+    // not a fresh Rhai array containing every page in the blackboard list.
+    for (name, scope) in [
+        ("get_object_list_item", VariableScope::Object),
+        ("get_scene_list_item", VariableScope::Scene),
+    ] {
+        read!(name, (variable: ImmutableString, index: rhai::INT), |state| {
+            let entry = state.board(scope, &state.owner)?.get(variable.as_str())
+                .ok_or_else(|| fail(format!("unknown variable '{variable}'")))?;
+            match entry {
+                B::List { values, .. } => {
+                    let value = usize::try_from(index).ok().and_then(|i| values.get(i))
+                        .ok_or_else(|| fail(format!("list '{variable}' index {index} is out of bounds")))?;
+                    Ok(dynamic_of(value))
                 }
                 B::Scalar(_) => Err(fail(format!("variable '{variable}' is a scalar"))),
             }
@@ -1004,6 +1140,12 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             intensity,
         }
     );
+    write!("set_light_color", (target: ImmutableString, color: Array), |state| {
+        Command::LightColor {
+            target: state.target_of(&target)?,
+            color: vector_of(color)?,
+        }
+    });
     for (name, ambient) in [("set_sun_light", false), ("set_ambient_light", true)] {
         write!(name, (color: Array, intensity: f32), |_state| {
             let color = vector_of(color)?;
@@ -1044,6 +1186,10 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     write!("set_ui_size", (target: ImmutableString, width: f32, height: f32), |state| {
         ensure_script([width, height].iter().all(|n| n.is_finite() && (0.0..=10000.).contains(n)), || "invalid UI size".into())?;
         Command::Ui { target: state.target_of(&target)?, control: middleware::ui::Control::Size([width, height]) }
+    });
+    write!("clear_ui_focus", (), |_state| Command::Ui {
+        target: String::new(),
+        control: middleware::ui::Control::ClearFocus
     });
     write!("set_ui_background", (target: ImmutableString, rgba: Array), |state| {
         ensure_script(rgba.len() == 4, || "UI background needs RGBA".into())?;
@@ -1297,6 +1443,19 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             }
         });
     }
+    write!("set_object_list", (target: ImmutableString, variable: ImmutableString, values: Array), |state| {
+        let owner = state.target_of(&target)?;
+        let (element, capacity) = match state.board(VariableScope::Object, &owner)?.get(variable.as_str()) {
+            Some(B::List { element, capacity, .. }) => (*element, *capacity),
+            Some(B::Scalar(_)) => return Err(fail(format!("variable '{variable}' is a scalar"))),
+            None => return Err(fail(format!("unknown variable '{variable}'"))),
+        };
+        ensure_script(values.len() <= capacity, || format!("list '{variable}' exceeds its capacity of {capacity}"))?;
+        let values = values.into_iter().map(|v| scalar_of(v, element)).collect::<Result<Vec<_>, _>>()?;
+        state.object_boards.get_mut(&owner).expect("object board").insert(variable.to_string(),
+            B::List { element, capacity, values: values.clone() });
+        Command::ListVariable { scope: VariableScope::Object, owner, name: variable.to_string(), values }
+    });
     // `print` is a Rhai keyword, so it is captured through the engine's own output hook rather
     // than registered as a function.
     {
@@ -1430,10 +1589,11 @@ fn compile_source(engine: &ScriptEngine, asset: &str, source: &str) -> Result<Ar
         source.len() <= MAX_SCRIPT_BYTES,
         "script '{asset}' exceeds 1 MiB"
     );
-    let ast = engine
+    let mut ast = engine
         .engine
         .compile(source)
         .map_err(|error| anyhow::anyhow!("script '{asset}': {error}"))?;
+    ast.set_source(asset);
     let mut hooks = BTreeMap::new();
     for function in ast.iter_functions() {
         if let Some((name, args)) = HOOKS.iter().find(|(name, _)| *name == function.name) {
@@ -1454,9 +1614,12 @@ fn compile_source(engine: &ScriptEngine, asset: &str, source: &str) -> Result<Ar
         (hash ^ u64::from(byte)).wrapping_mul(1099511628211)
     });
     Ok(Arc::new(CompiledScript {
+        hook_ast: ast.clone_functions_only(),
         ast,
         hooks,
         fingerprint,
+        source: Arc::from(source),
+        dependencies: BTreeSet::new(),
     }))
 }
 
@@ -1464,60 +1627,75 @@ pub(crate) fn compile_sources(
     sources: BTreeMap<String, String>,
     progress: &bozzard_app::job::Progress,
 ) -> Result<BTreeMap<String, Arc<CompiledScript>>> {
-    ensure!(
-        sources.len() <= MAX_SCRIPT_ASSETS,
-        "scene script catalog exceeds its limit"
-    );
-    ensure!(
-        sources.values().map(String::len).sum::<usize>() <= 32 * 1024 * 1024,
-        "scripts exceed 32 MiB"
-    );
-    if sources.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let engine = ScriptEngine::new();
-    sources
-        .into_iter()
-        .map(|(id, source)| {
-            progress.stage(format!("Compiling script {id}"))?;
-            let compiled = compile_source(&engine, &id, &source)?;
-            Ok((id, compiled))
-        })
-        .collect()
+    imports::compile_catalog(sources, progress)
 }
 
 // ---------------------------------------------------------------- instance binding
 
 impl SceneInstance {
-    /// Compiles one script asset and binds it for the attachments that reference it.
-    ///
-    /// Called for every `script` asset of the scene catalog when the scene loads, so a syntax error
-    /// fails where the scene is opened instead of on the first tick that runs it.
-    /// Compile every loaded source and fail if an attachment has none.
-    ///
-    /// This is what a scene loader calls once: the check turns a scene whose catalog and
-    /// attachments disagree into an error where the scene is opened, instead of a simulation that
-    /// stops on the first tick that runs the script.
+    /// Compile a catalog together so imports resolve regardless of asset ordering.
+    /// Validate attachments before publishing anything; a bad source or missing asset leaves
+    /// the previously loaded catalog intact.
     pub fn register_scripts(&mut self, sources: BTreeMap<String, String>) -> Result<()> {
-        for (asset, source) in sources {
-            self.register_script(asset, source)?;
+        self.register_scripts_with_progress(sources, &bozzard_app::job::Progress::default())
+    }
+    /// Resolve the entire import catalog together, with cancellable loading progress.
+    pub fn register_scripts_with_progress(
+        &mut self,
+        sources: BTreeMap<String, String>,
+        progress: &bozzard_app::job::Progress,
+    ) -> Result<()> {
+        self.bind_script_sources(sources, progress, true)
+    }
+    fn bind_script_sources(
+        &mut self,
+        sources: BTreeMap<String, String>,
+        progress: &bozzard_app::job::Progress,
+        require_attachments: bool,
+    ) -> Result<()> {
+        for asset in sources.keys() {
+            ensure!(
+                self.document
+                    .assets
+                    .get(asset)
+                    .is_some_and(|entry| entry.kind == AssetKind::Script),
+                "asset '{asset}' is not a script"
+            );
         }
-        for object in &self.document.objects {
-            for (index, attachment) in object
-                .script_manager
-                .iter()
-                .flat_map(|manager| &manager.scripts)
-                .enumerate()
-            {
-                let attachment = &attachment.script;
-                ensure!(
-                    self.scripts.contains_key(attachment),
-                    "script '{attachment}' on '{}' (attachment {index}) was not loaded; \
+        let mut catalog = self.script_sources();
+        catalog.extend(sources);
+        let compiled = compile_sources(catalog, progress)?;
+        if require_attachments {
+            for object in &self.document.objects {
+                for (index, attachment) in object
+                    .script_manager
+                    .iter()
+                    .flat_map(|manager| &manager.scripts)
+                    .enumerate()
+                {
+                    let attachment = &attachment.script;
+                    ensure!(
+                        compiled.contains_key(attachment),
+                        "script '{attachment}' on '{}' (attachment {index}) was not loaded; \
                      the scene catalog does not list it as a script asset",
-                    object.id
-                );
+                        object.id
+                    );
+                }
             }
         }
+        for (asset, script) in &compiled {
+            if self
+                .scripts
+                .get(asset)
+                .is_none_or(|old| old.source != script.source)
+            {
+                *self
+                    .script_reload_revisions
+                    .entry(asset.clone())
+                    .or_default() += 1;
+            }
+        }
+        self.scripts = compiled;
         Ok(())
     }
     /// Script asset IDs the object's attachments name, in order.
@@ -1537,24 +1715,17 @@ impl SceneInstance {
             .unwrap_or_default()
     }
     pub fn register_script(&mut self, asset: String, source: String) -> Result<()> {
-        ensure!(
-            self.document
-                .assets
-                .get(&asset)
-                .is_some_and(|entry| entry.kind == AssetKind::Script),
-            "asset '{asset}' is not a script"
-        );
-        ensure!(
-            self.scripts.contains_key(&asset) || self.scripts.len() < MAX_SCRIPT_ASSETS,
-            "scene compiles at most {MAX_SCRIPT_ASSETS} scripts"
-        );
-        let compiled = compile_source(&self.script_engine(), &asset, &source)?;
-        *self
-            .script_reload_revisions
-            .entry(asset.clone())
-            .or_default() += 1;
-        self.scripts.insert(asset, compiled);
-        Ok(())
+        self.bind_script_sources(
+            BTreeMap::from([(asset, source)]),
+            &bozzard_app::job::Progress::default(),
+            false,
+        )
+    }
+    fn script_sources(&self) -> BTreeMap<String, String> {
+        self.scripts
+            .iter()
+            .map(|(id, script)| (id.clone(), script.source.to_string()))
+            .collect()
     }
     /// Reserve a revision before starting background compilation. A newer edit invalidates any
     /// older result, even if the older worker completes last. The caller must reject this route
@@ -1586,6 +1757,13 @@ impl SceneInstance {
         *revision = revision
             .checked_add(1)
             .context("script edit revision exhausted")?;
+        let revision = *revision;
+        let affected: BTreeSet<_> = self
+            .scripts
+            .iter()
+            .filter(|(id, script)| id.as_str() == asset || script.dependencies.contains(asset))
+            .map(|(id, _)| id.clone())
+            .collect();
         let attachments = self
             .document
             .objects
@@ -1595,16 +1773,22 @@ impl SceneInstance {
                     .script_manager
                     .iter()
                     .flat_map(|manager| manager.scripts.iter().enumerate())
-                    .filter(move |(_, attachment)| attachment.script == asset)
-                    .map(move |(index, _)| (object.id.clone(), index))
+                    .filter(|(_, attachment)| affected.contains(&attachment.script))
+                    .map(move |(index, attachment)| {
+                        (object.id.clone(), index, attachment.script.clone())
+                    })
             })
             .collect();
+        let mut sources = self.script_sources();
+        sources.insert(asset.to_owned(), source);
         Ok(ScriptReloadRequest {
             asset: asset.to_owned(),
-            source,
+            sources,
+            baseline: self.scripts.clone(),
+            revisions: self.script_reload_revisions.clone(),
             instance: self.instance_id,
             serial: self.scene_serial,
-            revision: *revision,
+            revision,
             attachments,
         })
     }
@@ -1631,14 +1815,39 @@ impl SceneInstance {
                 .is_some_and(|a| a.kind == AssetKind::Script)
         {
             Some("script asset removed")
-        } else if candidate.attachments.iter().any(|(owner, index)| {
+        } else if candidate
+            .stamps
+            .iter()
+            .any(|(id, (revision, fingerprint))| {
+                self.script_reload_revisions
+                    .get(id)
+                    .copied()
+                    .unwrap_or_default()
+                    != *revision
+                    || self
+                        .scripts
+                        .get(id)
+                        .is_none_or(|script| script.fingerprint != *fingerprint)
+                    || !self
+                        .document
+                        .assets
+                        .get(id)
+                        .is_some_and(|entry| entry.kind == AssetKind::Script)
+            })
+        {
+            Some("import dependency or consumer changed")
+        } else if self.scripts.iter().any(|(id, script)| {
+            script.dependencies.contains(&candidate.asset) && !candidate.compiled.contains_key(id)
+        }) {
+            Some("new import consumer loaded")
+        } else if candidate.attachments.iter().any(|(owner, index, asset)| {
             self.document
                 .objects
                 .iter()
                 .find(|o| &o.id == owner)
                 .and_then(|o| o.script_manager.as_ref())
                 .and_then(|m| m.scripts.get(*index))
-                .is_none_or(|a| a.script != candidate.asset)
+                .is_none_or(|a| &a.script != asset)
         }) {
             Some("script attachment removed or changed")
         } else {
@@ -1657,7 +1866,7 @@ impl SceneInstance {
             for object in &self.document.objects {
                 if let Some(manager) = &object.script_manager {
                     for (index, attachment) in manager.scripts.iter().enumerate() {
-                        if attachment.script == candidate.asset
+                        if candidate.compiled.contains_key(&attachment.script)
                             && let Some(run) = runtime.runs.get_mut(&(object.id.clone(), index))
                         {
                             run.scope = Scope::new();
@@ -1669,7 +1878,7 @@ impl SceneInstance {
         }
         let asset = candidate.asset;
         let revision = candidate.revision;
-        self.scripts.insert(asset.clone(), candidate.compiled);
+        self.scripts.extend(candidate.compiled);
         Ok(ScriptReloadStatus::Applied { asset, revision })
     }
     fn script_engine(&self) -> Arc<ScriptEngine> {
@@ -1702,6 +1911,13 @@ impl SceneInstance {
     }
     /// Runs every script attachment once, then applies what they asked for.
     pub fn step_scripts(&mut self, world: &mut World, dt: f32, input: GameplayInput) -> Result<()> {
+        if !world
+            .resource::<NetworkFrame>()
+            .is_some_and(|frame| frame.active)
+            && let Some(outbox) = world.resource_mut::<NetworkOutbox>()
+        {
+            outbox.clear();
+        }
         if !crate::game_flow::simulation_running(world) {
             return Ok(());
         }
@@ -1805,7 +2021,9 @@ impl SceneInstance {
             self.build_view(world, &mut host, runtime, &snapshot, dt, input);
             host.ui_events.clear();
             host.ui_pointer = [-1.; 2];
+            host.ui_pointer_blocked = true;
             if let Some(ui) = world.resource_mut::<middleware::ui::Runtime>() {
+                host.ui_pointer_blocked = ui.pointer_blocked;
                 if let Some(p) = ui.pointer {
                     host.ui_pointer = std::array::from_fn(|i| p[i] / ui.viewport[i].max(1.));
                 }
@@ -1816,6 +2034,7 @@ impl SceneInstance {
                     map.insert("x".into(), event.position[0].into());
                     map.insert("y".into(), event.position[1].into());
                     map.insert("delta".into(), event.delta.into());
+                    map.insert("blocked".into(), event.blocked.into());
                     host.ui_events.push(Dynamic::from_map(map));
                 }
             }
@@ -1907,6 +2126,9 @@ impl SceneInstance {
             .resource::<NetworkFrame>()
             .cloned()
             .unwrap_or_default();
+        host.network_requests = world
+            .resource::<NetworkOutbox>()
+            .map_or(0, NetworkOutbox::len);
         host.dt = dt;
         host.render = world
             .resource::<bozzard_diagnostics::RenderDiagnostics>()
@@ -1916,6 +2138,28 @@ impl SceneInstance {
             .resource::<bozzard_diagnostics::SimulationMetrics>()
             .copied()
             .unwrap_or_default();
+        let viewport = world
+            .resource::<middleware::ui::Runtime>()
+            .map(|ui| ui.viewport);
+        let aspect = viewport
+            .filter(|size| size[0] > 0. && size[1] > 0.)
+            .map(|size| size[0] / size[1])
+            .unwrap_or_else(|| {
+                let measured = host.render.counters.viewport_aspect;
+                if measured.is_finite() && measured > 0. {
+                    measured
+                } else {
+                    1.
+                }
+            });
+        let camera_id = world
+            .resource::<crate::middleware::timeline::Runtime>()
+            .and_then(|r| r.cameras.get(&Layer::ThreeD))
+            .or_else(|| self.document.views.get(&Layer::ThreeD));
+        host.view_projection = camera_id.and_then(|id| {
+            let camera = world.get::<Camera>(self.entity(id)?)?;
+            Some(camera.projection(aspect).ok()? * self.global_transform(world, id).ok()?.inverse())
+        });
         self.prepare_script_compute(host);
         host.elapsed = runtime.elapsed;
         host.loading = self.scene_load_status(world);
@@ -2138,9 +2382,9 @@ impl SceneInstance {
             let _ = engine
                 .engine
                 .call_fn_with_options::<Dynamic>(
-                    CallFnOptions::new().eval_ast(false),
+                    CallFnOptions::new(),
                     &mut run.scope,
-                    &compiled.ast,
+                    &compiled.hook_ast,
                     hook,
                     args,
                 )
@@ -2177,6 +2421,12 @@ impl SceneInstance {
         let mut commands = commands.into_iter().peekable();
         while let Some(command) = commands.next() {
             match command {
+                Command::NetworkRequest(request) => {
+                    if world.resource::<NetworkOutbox>().is_none() {
+                        world.insert_resource(NetworkOutbox::default());
+                    }
+                    world.resource_mut::<NetworkOutbox>().unwrap().push(request);
+                }
                 Command::SetVelocity { target, velocity } => {
                     let target = resolve(tokens, &target);
                     let entity = *self
@@ -2245,6 +2495,19 @@ impl SceneInstance {
                         .get::<Light>(entity)
                         .context("Set Light Intensity needs a Light")?;
                     light.intensity = intensity;
+                    light.validate()?;
+                    world.insert(entity, light)?;
+                }
+                Command::LightColor { target, color } => {
+                    let target = resolve(tokens, &target);
+                    let entity = *self
+                        .entities
+                        .get(&target)
+                        .context("Set Light Color target does not exist")?;
+                    let mut light = *world
+                        .get::<Light>(entity)
+                        .context("Set Light Color needs a Light")?;
+                    light.color = color;
                     light.validate()?;
                     world.insert(entity, light)?;
                 }
@@ -2710,7 +2973,7 @@ fn resolve(tokens: &BTreeMap<String, String>, target: &str) -> String {
 /// Reads every `script` asset of a scene catalog next to the scene file.
 ///
 /// Mirrors the prefab loader: fixed ticks never touch the filesystem, so sources are read once when
-/// the scene is opened and handed to [`SceneInstance::register_script`].
+/// the scene is opened and handed together to [`SceneInstance::register_scripts`].
 pub fn load_sources(
     document: &Scene,
     path: Option<&std::path::Path>,
@@ -2762,6 +3025,248 @@ pub fn load_sources_with_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn network_requests_are_local_bounded_and_disabled_without_a_session() {
+        let (mut instance, mut world) = demo(
+            r#"
+            fn on_update(me,dt) {
+                let queued = network_send("factory.move", #{x:1,z:0});
+                if queued != network_active() { throw "wrong session acceptance"; }
+            }
+        "#,
+        );
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert!(world.resource::<NetworkOutbox>().is_none());
+        world.insert_resource(NetworkFrame {
+            active: true,
+            ..Default::default()
+        });
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        let requests: Vec<_> = world
+            .resource_mut::<NetworkOutbox>()
+            .unwrap()
+            .drain()
+            .collect();
+        assert_eq!(
+            requests,
+            vec![NetworkRequest {
+                owner: "thing".into(),
+                kind: "factory.move".into(),
+                payload: serde_json::json!({"x":1,"z":0}),
+            }]
+        );
+        assert!(world.resource::<NetworkOutbox>().unwrap().is_empty());
+        instance
+            .register_script(
+                "drift".into(),
+                r#"
+            fn on_update(me,dt) {
+                for i in 0..64 { network_send("factory.move", #{x:1,z:0}); }
+            }
+        "#
+                .into(),
+            )
+            .unwrap();
+        for _ in 0..3 {
+            instance
+                .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                .unwrap();
+        }
+        assert_eq!(
+            world.resource::<NetworkOutbox>().unwrap().len(),
+            module::MAX_NETWORK_REQUESTS
+        );
+        world.insert_resource(NetworkFrame::default());
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert!(
+            world.resource::<NetworkOutbox>().unwrap().is_empty(),
+            "disconnect must discard unsent intent"
+        );
+        world.insert_resource(NetworkFrame {
+            active: true,
+            ..Default::default()
+        });
+        world
+            .resource_mut::<NetworkOutbox>()
+            .unwrap()
+            .drain()
+            .for_each(drop);
+        for source in [
+            r#"fn on_update(me,dt) { network_send("bad kind", #{}); }"#,
+            r#"fn on_update(me,dt) { let text=""; for i in 0..1000 { text+="12345678"; } network_send("factory.move", #{text:text}); }"#,
+        ] {
+            instance
+                .register_script("drift".into(), source.into())
+                .unwrap();
+            assert!(
+                instance
+                    .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                    .is_err()
+            );
+            assert!(world.resource::<NetworkOutbox>().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn indexed_list_reads_share_pending_writes_and_validate_actual_length() {
+        let scene=Scene::from_json(r#"{"version":1,"name":"Indexed lists","views":{},
+            "blackboard":{"numbers":{"list":{"element":"number","capacity":4,"values":[{"number":1},{"number":2}]}}},
+            "assets":{"read":{"kind":"script","path":"read.rhai"}},
+            "objects":[{"id":"reader","name":"Reader","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                "blackboard":{"labels":{"list":{"element":"text","capacity":3,"values":[{"text":"first"}]}},"scalar":{"scalar":{"number":1}}},
+                "script_manager":{"scripts":[{"enabled":true,"script":"read"}]}}]}"#).unwrap();
+        let mut world = World::default();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        instance.register_script("read".into(),r#"
+            fn on_update(me,dt) {
+                if get_scene_list_item("numbers",1)!=2.0 || get_object_list_item("labels",0)!="first" { throw "wrong indexed value"; }
+                set_scene_list("numbers",[3.0,4.0]); set_object_list("labels",["second"]);
+                if get_scene_list_item("numbers",0)!=3.0 || get_object_list_item("labels",0)!="second" { throw "stale indexed value"; }
+            }
+        "#.into()).unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        for (call, expected) in [
+            ("get_scene_list_item(\"numbers\",-1)", "out of bounds"),
+            ("get_scene_list_item(\"numbers\",2)", "out of bounds"),
+            ("get_object_list_item(\"labels\",1)", "out of bounds"),
+            ("get_object_list_item(\"scalar\",0)", "is a scalar"),
+            ("get_scene_list_item(\"missing\",0)", "unknown variable"),
+        ] {
+            instance
+                .register_script("read".into(), format!("fn on_update(me,dt) {{ {call}; }}"))
+                .unwrap();
+            let error = instance
+                .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                .unwrap_err();
+            assert!(error.to_string().contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn targeted_object_lists_validate_and_publish_to_the_target_board() {
+        let scene=Scene::from_json(r#"{"version":1,"name":"Targeted lists","views":{},
+            "assets":{"writer":{"kind":"script","path":"writer.rhai"}},
+            "objects":[{"id":"writer","name":"Writer","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"script_manager":{"scripts":[{"enabled":true,"script":"writer"}]}},
+            {"id":"buffer","name":"Buffer","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},"blackboard":{"rows":{"list":{"element":"number","capacity":2,"values":[]}}}}]}"#).unwrap();
+        let mut world = World::default();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        instance
+            .register_script(
+                "writer".into(),
+                r#"fn on_update(me,dt) {
+            set_object_list("buffer","rows",[3.0,4.0]);
+            if get_object_list("buffer","rows")!=[3.0,4.0] {throw "stale target board";}
+        }"#
+                .into(),
+            )
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world
+                .resource::<BlueprintRuntime>()
+                .unwrap()
+                .object_blackboard("buffer")
+                .unwrap()["rows"]
+                .values(),
+            &[Value::Number(3.), Value::Number(4.)]
+        );
+        for call in [
+            r#"get_object_list("missing","rows")"#,
+            r#"set_object_list("buffer","missing",[])"#,
+            r#"set_object_list("buffer","rows",[1.0,2.0,3.0])"#,
+            r#"set_object_list("buffer","rows",["wrong type"])"#,
+        ] {
+            instance
+                .register_script(
+                    "writer".into(),
+                    format!("fn on_update(me,dt) {{ {call}; }}"),
+                )
+                .unwrap();
+            assert!(
+                instance
+                    .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                    .is_err()
+            );
+            assert_eq!(
+                world
+                    .resource::<BlueprintRuntime>()
+                    .unwrap()
+                    .object_blackboard("buffer")
+                    .unwrap()["rows"]
+                    .values(),
+                &[Value::Number(3.), Value::Number(4.)]
+            );
+        }
+    }
+
+    #[test]
+    fn screen_picking_round_trips_orthographic_perspective_and_parented_cameras() {
+        let mut scene = Scene::from_json(r#"{"version":1,"name":"Screen picking","views":{"3d":"camera"},
+            "assets":{"pick":{"kind":"script","path":"pick.rhai"}},"objects":[
+                {"id":"rig","name":"Rig","transform":{"translation":[3,1,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+                {"id":"camera","name":"Camera","parent":"rig","transform":{"translation":[0,0,10],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                 "camera":{"projection":"orthographic","vertical_size":10,"near":0.1,"far":100}},
+                {"id":"observer","name":"Observer","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                 "script_manager":{"scripts":[{"enabled":true,"script":"pick"}]}}
+            ]}"#).unwrap();
+        for perspective in [false, true] {
+            for viewport in [[1080., 600.], [600., 1080.]] {
+                scene
+                    .objects
+                    .iter_mut()
+                    .find(|o| o.id == "camera")
+                    .unwrap()
+                    .camera = Some(if perspective {
+                    Camera::Perspective {
+                        vertical_fov_degrees: 60.,
+                        near: 0.1,
+                        far: 100.,
+                    }
+                } else {
+                    Camera::Orthographic {
+                        vertical_size: 10.,
+                        near: 0.1,
+                        far: 100.,
+                    }
+                });
+                let mut world = World::default();
+                let mut instance = scene.spawn(&mut world).unwrap();
+                world.insert_resource(middleware::ui::Runtime {
+                    viewport,
+                    ..Default::default()
+                });
+                instance.register_script("pick".into(),r#"
+                    fn on_update(me,dt) {
+                        let center=world_to_screen([3.0,1.0,0.0]);
+                        if abs(center[0]-0.5)>0.001 || abs(center[1]-0.5)>0.001 { throw "parented camera projection"; }
+                        for point in [[3.0,1.0,0.0],[2.0,2.0,0.0],[4.0,0.0,0.0]] {
+                            let screen=world_to_screen(point); let ray=screen_ray(screen[0],screen[1]);
+                            if !ray.valid { throw "valid point rejected"; }
+                            let t=-ray.origin[2]/ray.direction[2];
+                            for axis in 0..3 {
+                                if abs(ray.origin[axis]+t*ray.direction[axis]-point[axis])>0.002 { throw "ray missed projected point"; }
+                            }
+                        }
+                        if screen_ray(-0.1,0.5).valid || screen_ray(0.5,1.1).valid { throw "outside viewport accepted"; }
+                    }
+                "#.into()).unwrap();
+                instance
+                    .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                    .unwrap();
+            }
+        }
+    }
 
     #[test]
     fn collisionless_script_queries_observe_a_collider_added_to_the_live_world() {
@@ -3066,6 +3571,181 @@ mod tests {
             );
             std::thread::yield_now();
         }
+    }
+
+    fn imported_demo() -> (SceneInstance, World) {
+        let (mut instance, world) = demo("");
+        for id in ["math", "motion"] {
+            instance.document.assets.insert(
+                id.into(),
+                AssetSource {
+                    kind: AssetKind::Script,
+                    path: format!("{id}.rhai"),
+                },
+            );
+        }
+        instance.register_scripts(BTreeMap::from([
+            ("math".into(), "const STEP = 2.0; fn step() { global::STEP }".into()),
+            ("motion".into(), "import \"math\" as math; fn move_object(me) { translate(me, [math::step(), 0.0, 0.0]); } fn step() { import \"math\" as local_math; local_math::step() }".into()),
+            ("drift".into(), r#"import "motion" as motion;
+                let count = 0;
+                fn on_start(me) { rotate(me, [0.0, 90.0, 0.0]); }
+                fn on_update(me, dt) { count += 1; motion::move_object(me); set_position(me, [get_position(me)[0], count.to_float(), 0.0]); }
+                fn step() { motion::step() }
+            "#.into()),
+        ])).unwrap();
+        (instance, world)
+    }
+
+    #[test]
+    fn asset_imports_use_live_host_preserve_globals_and_fingerprint_transitive_code() {
+        let (mut instance, mut world) = imported_demo();
+        let old_replay = instance.script_module("drift").unwrap();
+        assert_eq!(old_replay.call::<f32>("step", vec![]).unwrap(), 2.);
+        for _ in 0..2 {
+            instance
+                .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                .unwrap();
+        }
+        let entity = instance.entity("thing").unwrap();
+        assert_eq!(
+            world.get::<Transform>(entity).unwrap().translation,
+            [4., 2., 0.]
+        );
+        let edit = finish_reload(
+            instance
+                .request_script_reload(
+                    "math",
+                    "const STEP = 3.0; fn step() { global::STEP }".into(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            instance.publish_script_reload(&mut world, edit).unwrap(),
+            ScriptReloadStatus::Applied { .. }
+        ));
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        // Imported edits reset the consumer's local scope, but never restart its lifecycle/world.
+        let transform = world.get::<Transform>(entity).unwrap();
+        assert_eq!(transform.translation, [7., 1., 0.]);
+        assert_eq!(transform.rotation_degrees, [0., 90., 0.]);
+        let replay = instance.script_module("drift").unwrap();
+        assert_ne!(replay.fingerprint(), old_replay.fingerprint());
+        assert_eq!(replay.call::<f32>("step", vec![]).unwrap(), 3.);
+        assert_eq!(old_replay.call::<f32>("step", vec![]).unwrap(), 2.);
+    }
+
+    #[test]
+    fn invalid_imports_fail_atomically_before_publication() {
+        let (mut instance, mut world) = imported_demo();
+        let fingerprint = instance.script_module("drift").unwrap().fingerprint();
+        for (source, expected) in [
+            (
+                "import \"missing\" as x; fn step() { 1.0 }",
+                "was not loaded",
+            ),
+            ("import \"motion\" as x; fn step() { 1.0 }", "cyclic"),
+            (
+                "fn step() { import get_object_variable(\"module\") as x; 1.0 }",
+                "literal script asset IDs",
+            ),
+            ("print(\"side effect\"); fn step() { 1.0 }", "top-level"),
+            ("let shared_value = 1; fn step() { 1.0 }", "top-level"),
+            ("fn step( {", "math"),
+        ] {
+            let error = finish_reload(
+                instance
+                    .request_script_reload("math", source.into())
+                    .unwrap(),
+            )
+            .err()
+            .unwrap();
+            assert!(error.to_string().contains(expected), "{error:#}");
+            assert_eq!(
+                instance.script_module("drift").unwrap().fingerprint(),
+                fingerprint
+            );
+        }
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world
+                .get::<Transform>(instance.entity("thing").unwrap())
+                .unwrap()
+                .translation,
+            [2., 1., 0.]
+        );
+    }
+
+    #[test]
+    fn overlapping_import_edits_reject_stale_consumer_snapshots() {
+        let (mut instance, mut world) = imported_demo();
+        let old = finish_reload(
+            instance
+                .request_script_reload("math", "fn step() { 5.0 }".into())
+                .unwrap(),
+        )
+        .unwrap();
+        // An edit to a consumer must not be overwritten by an older dependency compile.
+        let newer = finish_reload(instance.request_script_reload("motion", "import \"math\" as math; fn step() { math::step() + 1.0 } fn move_object(me) {}".into()).unwrap()).unwrap();
+        assert!(matches!(
+            instance.publish_script_reload(&mut world, newer).unwrap(),
+            ScriptReloadStatus::Applied { .. }
+        ));
+        assert!(matches!(
+            instance.publish_script_reload(&mut world, old).unwrap(),
+            ScriptReloadStatus::Stale { .. }
+        ));
+        assert_eq!(
+            instance
+                .script_module("drift")
+                .unwrap()
+                .call::<f32>("step", vec![])
+                .unwrap(),
+            3.
+        );
+    }
+
+    #[test]
+    fn new_import_consumer_invalidates_an_inflight_dependency_reload() {
+        let (mut instance, mut world) = imported_demo();
+        let candidate = finish_reload(
+            instance
+                .request_script_reload("math", "fn step() { 5.0 }".into())
+                .unwrap(),
+        )
+        .unwrap();
+        instance.document.assets.insert(
+            "late-consumer".into(),
+            AssetSource {
+                kind: AssetKind::Script,
+                path: "late.rhai".into(),
+            },
+        );
+        instance
+            .register_script(
+                "late-consumer".into(),
+                "import \"math\" as math; fn step() { math::step() }".into(),
+            )
+            .unwrap();
+        assert!(matches!(
+            instance
+                .publish_script_reload(&mut world, candidate)
+                .unwrap(),
+            ScriptReloadStatus::Stale { .. }
+        ));
+        assert_eq!(
+            instance
+                .script_module("late-consumer")
+                .unwrap()
+                .call::<f32>("step", vec![])
+                .unwrap(),
+            2.
+        );
     }
 
     #[test]

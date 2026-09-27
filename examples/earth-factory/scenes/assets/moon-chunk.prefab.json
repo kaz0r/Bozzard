@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Stella-Z2 terrain chunk",
+  "root": "root",
+  "assets": {
+    "moon-ground": {
+      "kind": "mesh",
+      "path": "moon-ground.obj"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Lunar regolith",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "moon-ground"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

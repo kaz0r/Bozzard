@@ -30,10 +30,10 @@ pub use compute_runtime::{SceneCompute, load_compute_kernels, load_compute_kerne
 pub use script::{MAX_SCRIPTS, ScriptAttachment, ScriptManager};
 mod script_runtime;
 pub use script_runtime::{
-    NetworkFrame, ScriptAttachmentStats, ScriptModule, ScriptReloadCandidate, ScriptReloadRequest,
-    ScriptReloadStatus, ScriptRuntime, ScriptRuntimeStats, load_sources,
-    load_sources_with_progress, script_function_descriptions, script_hook_descriptions,
-    script_hook_signatures,
+    NetworkFrame, NetworkOutbox, NetworkRequest, ScriptAttachmentStats, ScriptModule,
+    ScriptReloadCandidate, ScriptReloadRequest, ScriptReloadStatus, ScriptRuntime,
+    ScriptRuntimeStats, load_sources, load_sources_with_progress, script_function_descriptions,
+    script_hook_descriptions, script_hook_signatures,
 };
 mod fog;
 pub use fog::FogSettings;
@@ -1104,6 +1104,7 @@ impl Scene {
             compute_capabilities: Default::default(),
             lod_history: Default::default(),
             transform_cache: Default::default(),
+            ui_layout_cache: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -1140,6 +1141,7 @@ pub struct SceneInstance {
     compute_capabilities: compute::Capabilities,
     lod_history: lod::History,
     transform_cache: transforms::Cache,
+    ui_layout_cache: middleware::ui::LayoutCache,
 }
 
 impl SceneInstance {
@@ -1405,7 +1407,7 @@ impl SceneInstance {
                             LightKind::Directional => {}
                         }
                     }
-                    if light.enabled {
+                    if light.enabled && light.intensity > 0. {
                         lights.push(light.at(matrices[id])?);
                     }
                 }

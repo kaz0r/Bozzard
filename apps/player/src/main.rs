@@ -696,6 +696,12 @@ fn print_frame_percentiles(label: &str, samples: &VecDeque<f64>) {
 }
 
 impl Player {
+    fn simulation_elapsed(&self, now: Instant) -> Option<Duration> {
+        (!self.paused
+            && !self.demo.multiplayer_drives_simulation()
+            && !self.options.verify_first_trail)
+            .then(|| now.duration_since(self.last_frame))
+    }
     /// The game owns the pointer only while it is actually playing: menus, dialogs,
     /// pause and other views keep a usable cursor. A grab is attempted once per
     /// transition, never per frame, so a refused platform is not polled.
@@ -711,6 +717,7 @@ impl Player {
             .resource::<bozzard_scene::CursorCapture>()
             .and_then(|capture| capture.requested);
         let playing = self.view.is_some()
+            && !self.demo.steam_overlay_active()
             && cursor_capture_wanted(CursorCaptureState {
                 paused: self.paused,
                 focused: self.gameplay_controls.focused(),
@@ -814,10 +821,16 @@ impl Player {
         repeat: bool,
         synthetic: bool,
     ) -> Result<()> {
+        if self.demo.steam_overlay_active() {
+            self.gameplay_controls.reset();
+            self.menu_input = Default::default();
+            return Ok(());
+        }
         self.gameplay_controls.set_scene_keyboard(
             self.demo.gameplay().is_none() && self.demo.instance().has_gameplay_logic(),
         );
         if self.demo.multiplayer_chatting() {
+            self.gameplay_controls.reset();
             if state == ElementState::Pressed
                 && !synthetic
                 && let PhysicalKey::Code(code) = physical
@@ -838,10 +851,13 @@ impl Player {
                 && let Some(key) = bozzard_scene::keys::canonical(&format!("{code:?}"))
                 && self.demo.multiplayer_key(key)
             {
+                self.gameplay_controls.reset();
                 return Ok(());
             }
-            self.game_key(physical, state, repeat, synthetic)?;
-            return Ok(());
+            if self.demo.multiplayer_drives_simulation() {
+                self.game_key(physical, state, repeat, synthetic)?;
+                return Ok(());
+            }
         }
         if self.game_key(physical, state, repeat, synthetic)? {
             return Ok(());
@@ -1272,9 +1288,7 @@ impl ApplicationHandler for Player {
             return;
         }
         let now = Instant::now();
-        let simulation_elapsed =
-            (!self.paused && !self.demo.multiplayer_active() && !self.options.verify_first_trail)
-                .then(|| now.duration_since(self.last_frame));
+        let simulation_elapsed = self.simulation_elapsed(now);
         if matches!(event, WindowEvent::RedrawRequested) {
             self.demo
                 .with_instance(|instance, _| instance.set_gpu_particles(true));
@@ -1351,6 +1365,7 @@ impl ApplicationHandler for Player {
             WindowEvent::Occluded(occluded) => view.occluded = occluded,
             WindowEvent::KeyboardInput { event, .. }
                 if self.demo.game_session().is_none()
+                    && !self.demo.steam_overlay_active()
                     && !self.demo.multiplayer_active()
                     && !self.menu_input.consumed(KeyCode::Escape)
                     && event.state == ElementState::Pressed
@@ -1468,9 +1483,15 @@ impl ApplicationHandler for Player {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let overlay_was_active = self.demo.steam_overlay_active();
         if let Err(error) = self.demo.pump_multiplayer() {
             self.fail(event_loop, error);
             return;
+        }
+        if overlay_was_active || self.demo.steam_overlay_active() {
+            self.gameplay_controls.reset();
+            self.menu_input = Default::default();
+            self.sync_mouse_look();
         }
         if self.demo.multiplayer_quit() {
             event_loop.exit();
@@ -1530,6 +1551,7 @@ impl ApplicationHandler for Player {
 }
 
 fn main() -> Result<()> {
+    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
         return Ok(());
@@ -1570,6 +1592,8 @@ fn main() -> Result<()> {
         println!("scene_saved path={}", path.display());
         return Ok(());
     }
+    #[cfg(feature = "steam")]
+    bozzard_demo::steam_runtime::initialize_player(&document)?;
     let mut demo = SceneDemo::new_with_prefabs(&document, options.scene.as_deref())?;
     ensure!(
         demo.instance().has_view(options.layer),
@@ -1788,6 +1812,233 @@ mod controls_tests {
             }),
             "an explicit Lock Cursor request controls mouse-look during gameplay"
         );
+    }
+
+    #[test]
+    #[cfg(all(feature = "steam", target_os = "linux"))]
+    #[ignore = "requires Steam overlay injection and a desktop; opens Friends during 600 frames, sends no invitations"]
+    fn steam_overlay_activates_in_native_window_and_keeps_presenting() -> Result<()> {
+        use bozzard_scene::middleware::ui::Input;
+        struct Probe {
+            player: Player,
+            requested: bool,
+            active_frame: Option<u32>,
+            overlay_frames: u32,
+        }
+        impl ApplicationHandler for Probe {
+            fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.resumed(event_loop);
+            }
+            fn window_event(
+                &mut self,
+                event_loop: &ActiveEventLoop,
+                id: WindowId,
+                event: WindowEvent,
+            ) {
+                let before = self.player.frames;
+                let active = self.player.demo.steam_overlay_active();
+                self.player.window_event(event_loop, id, event);
+                if active {
+                    self.overlay_frames += self.player.frames - before;
+                }
+            }
+            fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+                self.player.about_to_wait(event_loop);
+                if !self.requested
+                    && self.player.frames >= 60
+                    && bozzard_demo::steam_runtime::overlay_available()
+                {
+                    self.requested = true;
+                    for id in ["coop-open-title", "coop-steam-overlay"] {
+                        if let Err(error) = self.player.ui_input(Input::ActivateObject(id.into())) {
+                            self.player.fail(event_loop, error);
+                            return;
+                        }
+                    }
+                }
+                if self.player.demo.steam_overlay_active() {
+                    self.active_frame.get_or_insert(self.player.frames);
+                }
+            }
+        }
+        let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let document = load_document(Some(&path))?;
+        bozzard_demo::steam_runtime::initialize_player(&document)?;
+        let mut player = authored_player();
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+        player.assets = assets::Assets::load(player.demo.instance().document(), Some(&path))?;
+        player.options.scene = Some(path);
+        player.options.frames = Some(600);
+        player.demo.enable_multiplayer(None)?;
+        let mut probe = Probe {
+            player,
+            requested: false,
+            active_frame: None,
+            overlay_frames: 0,
+        };
+        let mut builder = EventLoop::builder();
+        winit::platform::x11::EventLoopBuilderExtX11::with_any_thread(&mut builder, true);
+        winit::platform::wayland::EventLoopBuilderExtWayland::with_any_thread(&mut builder, true);
+        builder.build()?.run_app(&mut probe)?;
+        if let Some(error) = probe.player.error {
+            return Err(error);
+        }
+        ensure!(
+            probe.requested,
+            "Steam did not inject its overlay into the native window"
+        );
+        let active = probe
+            .active_frame
+            .context("Steam never reported GameOverlayActivated")?;
+        ensure!(
+            probe.overlay_frames > 5,
+            "frames stopped while overlay was active"
+        );
+        println!(
+            "steam_overlay_ok activated_at={active} presented={} overlay_frames={}",
+            probe.player.frames, probe.overlay_frames
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn steam_overlay_blocks_native_shortcuts_without_pausing() -> Result<()> {
+        let mut player = authored_player();
+        player.demo.set_steam_overlay_active(true);
+        for code in [
+            KeyCode::KeyW,
+            KeyCode::Space,
+            KeyCode::Escape,
+            KeyCode::F5,
+            KeyCode::F6,
+        ] {
+            player.dispatch_keyboard(
+                PhysicalKey::Code(code),
+                &Key::Named(NamedKey::Escape),
+                ElementState::Pressed,
+                false,
+                false,
+            )?;
+        }
+        assert!(!player.paused);
+        assert!(player.simulation_elapsed(Instant::now()).is_some());
+        assert!(!player.demo.accepts_gameplay_input());
+        player.demo.set_steam_overlay_active(false);
+        assert!(player.demo.accepts_gameplay_input());
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "steam")]
+    #[ignore = "requires local Steam; creates/leaves a solo lobby without sending invitations or chat"]
+    fn factory_lobby_preserves_native_frames_keyboard_and_chat_capture() -> Result<()> {
+        use bozzard_scene::{BlueprintRuntime, blueprint::Value, middleware::ui::Input};
+        let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/earth-factory/scenes/earth.json");
+        let document = load_document(Some(&path))?;
+        let mut player = authored_player();
+        player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        player.demo.enable_multiplayer(None)?;
+        player.demo.pump_multiplayer()?;
+        player.gameplay_controls.event(&WindowEvent::Focused(true));
+        for id in ["coop-open-title", "coop-create"] {
+            player.ui_input(Input::ActivateObject(id.into()))?;
+        }
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !player.demo.multiplayer_active() {
+            ensure!(Instant::now() < deadline, "Steam lobby did not start");
+            std::thread::sleep(Duration::from_millis(20));
+            player.demo.pump_multiplayer()?;
+        }
+        for id in ["coop-close", "title-create"] {
+            player.ui_input(Input::ActivateObject(id.into()))?;
+            player.demo.app.step();
+            player.demo.check_simulation()?;
+            player.demo.pump_multiplayer()?;
+        }
+        let value = |player: &Player, name: &str| match player
+            .demo
+            .app
+            .world
+            .resource::<BlueprintRuntime>()
+            .unwrap()
+            .scene_blackboard()[name]
+            .values()[0]
+        {
+            Value::Number(v) => v,
+            _ => panic!("missing {name}"),
+        };
+        let key = |player: &mut Player, code: KeyCode, logical: Key, state: ElementState| {
+            player.dispatch_keyboard(PhysicalKey::Code(code), &logical, state, false, false)
+        };
+        let x = value(&player, "cursor_x");
+        key(
+            &mut player,
+            KeyCode::KeyD,
+            Key::Character("d".into()),
+            ElementState::Pressed,
+        )?;
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        assert_eq!(value(&player, "cursor_x"), x + 1.);
+        key(
+            &mut player,
+            KeyCode::KeyD,
+            Key::Character("d".into()),
+            ElementState::Released,
+        )?;
+        let z = value(&player, "cursor_z");
+        key(
+            &mut player,
+            KeyCode::Enter,
+            Key::Named(NamedKey::Enter),
+            ElementState::Pressed,
+        )?;
+        assert!(player.demo.multiplayer_chatting());
+        key(
+            &mut player,
+            KeyCode::KeyW,
+            Key::Character("w".into()),
+            ElementState::Pressed,
+        )?;
+        assert!(player.demo.multiplayer_text("Unsent test"));
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        assert_eq!(value(&player, "cursor_z"), z);
+        key(
+            &mut player,
+            KeyCode::Escape,
+            Key::Named(NamedKey::Escape),
+            ElementState::Pressed,
+        )?;
+        assert!(!player.demo.multiplayer_chatting());
+        key(
+            &mut player,
+            KeyCode::KeyW,
+            Key::Character("w".into()),
+            ElementState::Released,
+        )?;
+        player.demo.set_threaded_simulation(true)?;
+        let before = value(&player, "ticks");
+        for _ in 0..60 {
+            let elapsed = player
+                .simulation_elapsed(player.last_frame + Duration::from_secs_f64(1. / 60.))
+                .context("co-op disabled native simulation")?;
+            player.demo.advance_with_frame(elapsed, || ())?;
+            player.demo.pump_multiplayer()?;
+        }
+        assert!(value(&player, "ticks") > before);
+        assert_eq!(
+            value(&player, "cursor_z"),
+            z,
+            "chat left a held movement key"
+        );
+        Ok(())
     }
 
     #[test]

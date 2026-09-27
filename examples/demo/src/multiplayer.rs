@@ -320,7 +320,7 @@ impl Multiplayer {
                 Control::WorldPosition(value) => state.world_position == Some(*value),
                 Control::ScreenPosition(value) => state.screen_position == Some(*value),
                 Control::Offset(value) => state.offset == Some(*value),
-                Control::Focus => false,
+                Control::Focus | Control::ClearFocus => false,
             });
         if unchanged {
             return Ok(());
@@ -702,7 +702,7 @@ fn bindings(scene: &Scene) -> Result<Bindings> {
 }
 
 pub fn app_id(scene: &Scene) -> Result<Option<u32>> {
-    let mut id = None;
+    let mut id = crate::factory::network::app_id(scene)?;
     for config in scene
         .objects
         .iter()

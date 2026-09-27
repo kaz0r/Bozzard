@@ -26,7 +26,7 @@ Install [Rust through rustup](https://rustup.rs/). The repository pins **Rust 1.
 Run these commands from the repository root:
 
 ```sh
-# Open Earth Factory in the editor, then click Play.
+# Open Stellar-IX in the editor, then click Play.
 cargo run --release --locked -p bozzard-editor-app -- --scene examples/earth-factory/scenes/earth.json
 
 # Play the same factory directly.
@@ -45,18 +45,20 @@ The player also runs an embedded reference scene with `cargo run --release -p bo
 
 ## Example games
 
-### Earth Factory
+### Stellar-IX
 
-The [Earth Factory Prototype](examples/earth-factory/README.md) is an isometric 3D factory driven by Rhai. It includes:
+The [Stellar-IX Earth and Moon prototype](examples/earth-factory/README.md) is an isometric 3D factory driven by Rhai. It includes:
 
 - Seeded exploration across a 17 × 17 region grid, chunk streaming, an `M` map, and smooth camera transitions.
-- Tier 1 deliveries, grouped action bars, a three-page journal, and animated machine rotation.
-- Mining, smelting, assembly, conveyors, storage, and manual collection of machine output.
+- Survival and Creative world creation, two tiers of deliveries, player inventory, grouped action bars, a three-page journal, and animated machine rotation.
+- Explicit power circuits, five-connection Mk1 poles, conductive alloy crafting, and illuminated pole lamps.
+- Mining, smelting, Constructors, assembly, conveyors, storage, and manual collection of machine output.
+- A 4 × 4 landing site, staged rocket construction, and an E-opened destination interface.
 - Day/night lighting with stars, mouse-wheel zoom, and a debug HUD with frame and simulation timings.
 
-Start beside the landing pod, hold **F** on iron and copper deposits, then open **J** to deliver materials and unlock smelting. **E** collects nearby machine output or opens storage. **Escape** opens the menu while production continues. See the prototype's README for all controls and recipes.
+Choose a world mode in the **Stellar-IX** main menu. In Survival, start beside the landing pod, hold **F** on iron, copper, and stone deposits, then open **J** to deliver materials and unlock smelting. **E** collects miner/smelter output, opens a machine’s recipe interface, storage, or the finished rocket. **I** opens player inventory after Tier 1 Phase 3. **Escape** opens the menu while production continues. See the prototype's README for all controls and recipes.
 
-Only the occupied region simulates production in this version. Region state lasts for the current Play session; the factory menu's Save and Load buttons are placeholders.
+The completed rocket can travel to Stella-Z2, a smaller gray Moon with permanent night and three sparse lunar resources. Return trips currently need no fuel. Inventory and unlocks travel with the player, and both planets retain their factories and exploration for the current session. Only the occupied region simulates production; Save and Load remain placeholders.
 
 ### Bozz-torio
 

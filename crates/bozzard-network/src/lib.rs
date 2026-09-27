@@ -1,6 +1,8 @@
 //! Bounded, host-authoritative Flap Woods protocol. Steam authenticates sender IDs;
 //! the protocol additionally confines messages to a lobby, round and member roster.
 pub mod chat;
+#[cfg(feature = "steam")]
+pub mod coop_lobby;
 pub mod flap;
 pub mod lab;
 pub mod lifecycle;

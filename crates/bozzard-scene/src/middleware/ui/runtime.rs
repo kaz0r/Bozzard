@@ -2,7 +2,7 @@ use super::super::signals::{Kind, Signal, Signals};
 use super::*;
 use crate::{SceneInstance, World};
 use anyhow::Context;
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Preferences {
     pub language: Option<String>,
@@ -10,7 +10,7 @@ pub struct Preferences {
     pub high_contrast: Option<bool>,
     pub reduced_motion: Option<bool>,
 }
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct State {
     pub scroll: f32,
@@ -33,18 +33,24 @@ pub struct ScriptEvent {
     pub position: [f32; 2],
     /// Logical scroll points, positive down. Zero for non-scroll events.
     pub delta: f32,
+    pub blocked: bool,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Runtime {
     pub widgets: BTreeMap<String, State>,
     pub focus: Option<String>,
+    /// Draw a focus indicator for keyboard/accessibility navigation, not mouse clicks.
+    #[serde(skip)]
+    pub focus_visible: bool,
     #[serde(skip)]
     pub active: Option<String>,
     #[serde(skip)]
     pub pointer: Option<[f32; 2]>,
     #[serde(skip)]
     pub viewport: [f32; 2],
+    #[serde(skip)]
+    pub pointer_blocked: bool,
     #[serde(skip)]
     pub script_events: Vec<ScriptEvent>,
 }
@@ -77,6 +83,7 @@ pub enum Control {
     ScreenPosition([f32; 2]),
     Offset([f32; 2]),
     Focus,
+    ClearFocus,
 }
 fn emit(world: &mut World, element: &Element, value: f32) -> Result<()> {
     if world.resource::<Signals>().is_none() {
@@ -94,6 +101,13 @@ fn emit(world: &mut World, element: &Element, value: f32) -> Result<()> {
 }
 impl SceneInstance {
     pub fn control_ui(&self, world: &mut World, owner: &str, control: Control) -> Result<()> {
+        if matches!(control, Control::ClearFocus) {
+            if let Some(runtime) = world.resource_mut::<Runtime>() {
+                runtime.focus = None;
+                runtime.focus_visible = false;
+            }
+            return Ok(());
+        }
         let entity = self.entity(owner).context("UI target missing")?;
         let widget = world
             .get::<Widget>(entity)
@@ -134,6 +148,7 @@ impl SceneInstance {
         let runtime = world.resource_mut::<Runtime>().unwrap();
         if matches!(control, Control::Focus) {
             runtime.focus = Some(owner.into());
+            runtime.focus_visible = true;
             return Ok(());
         }
         let state = runtime.widgets.entry(owner.into()).or_default();
@@ -148,7 +163,7 @@ impl SceneInstance {
             Control::WorldPosition(v) => state.world_position = Some(v),
             Control::ScreenPosition(v) => state.screen_position = Some(v),
             Control::Offset(v) => state.offset = Some(v),
-            Control::Focus => {}
+            Control::Focus | Control::ClearFocus => {}
         }
         Ok(())
     }
@@ -187,6 +202,16 @@ impl SceneInstance {
         let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
         runtime.viewport = size;
         let previous_focus = runtime.focus.clone();
+        match &input {
+            Input::PointerDown(_) | Input::SecondaryDown(_) => runtime.focus_visible = false,
+            Input::FocusNext { .. }
+            | Input::Focus(_)
+            | Input::Key(_)
+            | Input::Activate
+            | Input::ActivateObject(_)
+            | Input::Adjust(_) => runtime.focus_visible = true,
+            _ => {}
+        }
         if runtime.focus.as_deref().is_some_and(|id| {
             frame.element(id).is_none_or(|e| {
                 !e.enabled
@@ -291,6 +316,7 @@ impl SceneInstance {
                 Input::PointerMove(p) | Input::PointerDown(p) | Input::PointerUp(p) => {
                     ensure!(p.iter().all(|v| v.is_finite()), "invalid UI pointer");
                     runtime.pointer = Some(p);
+                    runtime.pointer_blocked = frame.blocks_pointer(p);
                     let captured = runtime.active.is_some();
                     let hit = frame.hit(p);
                     if !matches!(input, Input::PointerMove(_)) {
@@ -338,6 +364,7 @@ impl SceneInstance {
                 Input::SecondaryDown(p) => {
                     ensure!(p.iter().all(|v| v.is_finite()), "invalid UI pointer");
                     runtime.pointer = Some(p);
+                    runtime.pointer_blocked = frame.blocks_pointer(p);
                     runtime.queue("secondary", frame.hit(p).map_or("", |e| e.owner.as_str()));
                     Ok(frame.blocks_pointer(p))
                 }
@@ -498,6 +525,7 @@ impl Runtime {
                 target: String::new(),
                 position: [0.; 2],
                 delta: 0.,
+                blocked: true,
             });
         }
         let p = self.pointer.unwrap_or([0.; 2]);
@@ -506,6 +534,7 @@ impl Runtime {
             target: target.into(),
             position: std::array::from_fn(|i| p[i] / self.viewport[i].max(1.)),
             delta: 0.,
+            blocked: self.pointer_blocked,
         });
     }
     pub fn validate(&self, scene: &Scene) -> Result<()> {

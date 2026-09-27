@@ -1,4 +1,5 @@
 //! Shared simulation for the native player and the headless executable.
+pub mod factory;
 pub mod multiplayer;
 mod prefab_sources;
 mod prefabs;
@@ -257,7 +258,9 @@ pub fn prepare_runtime_files(
 pub struct SceneDemo {
     pub app: App,
     multiplayer: Option<multiplayer::Multiplayer>,
+    factory_multiplayer: Option<factory::network::Multiplayer>,
     simulation_worker: Option<bozzard_app::simulation_worker::SimulationWorker>,
+    steam_overlay_active: bool,
 }
 
 impl SceneDemo {
@@ -267,7 +270,7 @@ impl SceneDemo {
         if enabled == self.simulation_worker.is_some() {
             return Ok(());
         }
-        let enabled = enabled && !self.requires_multiplayer() && !self.multiplayer_active();
+        let enabled = enabled && !self.requires_multiplayer() && self.multiplayer.is_none();
         if enabled && self.simulation_worker.is_none() {
             self.simulation_worker = Some(bozzard_app::simulation_worker::SimulationWorker::new()?);
         } else if !enabled {
@@ -310,6 +313,13 @@ impl SceneDemo {
     }
 
     pub fn enable_multiplayer(&mut self, join: Option<u64>) -> anyhow::Result<()> {
+        if factory::is_factory(self.instance().document()) {
+            if self.factory_multiplayer.is_none() {
+                self.factory_multiplayer =
+                    Some(factory::network::Multiplayer::new(self.instance(), join)?);
+            }
+            return Ok(());
+        }
         anyhow::ensure!(
             join.is_none() || self.requires_multiplayer(),
             "--join-lobby requires a multiplayer scene"
@@ -328,6 +338,15 @@ impl SceneDemo {
         Ok(())
     }
     pub fn multiplayer_active(&self) -> bool {
+        self.multiplayer.is_some()
+            || self
+                .factory_multiplayer
+                .as_ref()
+                .is_some_and(|net| net.active())
+    }
+    /// Flap's prediction worker owns its ticks; factory co-op uses the ordinary
+    /// local simulation worker for host production and guest presentation.
+    pub fn multiplayer_drives_simulation(&self) -> bool {
         self.multiplayer.is_some()
     }
     /// Live edits are local-only. Network peers must coordinate a restart so host and
@@ -366,26 +385,87 @@ impl SceneDemo {
     }
     pub fn multiplayer_chatting(&self) -> bool {
         self.multiplayer.as_ref().is_some_and(|net| net.chatting)
+            || self
+                .factory_multiplayer
+                .as_ref()
+                .is_some_and(|net| net.chatting)
     }
     pub fn multiplayer_text(&mut self, text: &str) -> bool {
+        if self.steam_overlay_active {
+            return true;
+        }
+        if let Some(net) = &mut self.factory_multiplayer {
+            return net.text(text);
+        }
         self.multiplayer.as_mut().is_some_and(|net| net.text(text))
     }
     pub fn multiplayer_key(&mut self, key: &str) -> bool {
+        if self.steam_overlay_active {
+            return true;
+        }
+        if let Some(net) = &mut self.factory_multiplayer {
+            let consumed = net.key(key);
+            if consumed {
+                self.clear_gameplay_input();
+            }
+            return consumed;
+        }
         self.multiplayer.as_mut().is_some_and(|net| net.key(key))
     }
     pub fn join_multiplayer(&mut self, id: u64) -> anyhow::Result<()> {
+        if let Some(net) = &mut self.factory_multiplayer {
+            return net.join(id);
+        }
         self.multiplayer
             .as_mut()
             .ok_or_else(|| anyhow::anyhow!("Start multiplayer Play first"))?
             .join(id)
     }
     pub fn pump_multiplayer(&mut self) -> anyhow::Result<()> {
+        if let Some(mut net) = self.factory_multiplayer.take() {
+            let result = net.update(self);
+            self.factory_multiplayer = Some(net);
+            result?;
+        }
         if let Some(mut net) = self.multiplayer.take() {
             let result = net.update(self);
             self.multiplayer = Some(net);
             result?;
         }
+        self.set_steam_overlay_active(steam_runtime::overlay_active());
         Ok(())
+    }
+
+    pub fn steam_overlay_active(&self) -> bool {
+        self.steam_overlay_active
+    }
+
+    /// Native overlay transitions cancel held controls and drags without pausing
+    /// the simulation. Clear both edges so closing it cannot replay stale input.
+    pub fn set_steam_overlay_active(&mut self, active: bool) {
+        if self.steam_overlay_active == active {
+            return;
+        }
+        self.steam_overlay_active = active;
+        self.clear_gameplay_input();
+        if let Some(ui) = self
+            .app
+            .world
+            .resource_mut::<bozzard_scene::middleware::ui::Runtime>()
+        {
+            ui.active = None;
+            ui.pointer = None;
+            ui.pointer_blocked = false;
+            ui.script_events.clear();
+            ui.script_events
+                .push(bozzard_scene::middleware::ui::ScriptEvent {
+                    kind: "cancel",
+                    target: String::new(),
+                    position: [0.; 2],
+                    delta: 0.,
+                    blocked: true,
+                });
+        }
     }
 
     pub fn ui_input(
@@ -394,6 +474,9 @@ impl SceneDemo {
         size: [f32; 2],
         input: bozzard_scene::middleware::ui::Input,
     ) -> anyhow::Result<bool> {
+        if self.steam_overlay_active {
+            return Ok(true);
+        }
         if let Some(mut net) = self.multiplayer.take() {
             let result = net.ui_input(self, layer, size, input);
             self.multiplayer = Some(net);
@@ -403,11 +486,14 @@ impl SceneDemo {
             return Ok(false);
         }
         let phase = self.game_session().map(|s| s.phase);
-        let consumed = self.with_instance(|instance, world| -> anyhow::Result<bool> {
-            let consumed = instance.ui_input(world, layer, size, input)?;
-            instance.dispatch_ui_blueprints(world)?;
-            Ok(consumed)
-        })?;
+        let consumed =
+            self.with_instance(|instance, world| instance.ui_input(world, layer, size, input))?;
+        if let Some(mut net) = self.factory_multiplayer.take() {
+            let result = net.handle_ui(self);
+            self.factory_multiplayer = Some(net);
+            result?;
+        }
+        self.with_instance(|instance, world| instance.dispatch_ui_blueprints(world))?;
         if phase != self.game_session().map(|s| s.phase) {
             self.clear_gameplay_input();
         }
@@ -490,14 +576,19 @@ impl SceneDemo {
         result
     }
     pub fn accepts_gameplay_input(&self) -> bool {
-        !self.app.is_paused() && (self.gameplay().is_some() || self.instance().has_gameplay_logic())
+        !self.steam_overlay_active
+            && !self.app.is_paused()
+            && (self.gameplay().is_some() || self.instance().has_gameplay_logic())
     }
     pub fn gameplay(&self) -> Option<&GameplayState> {
         self.app.world.resource::<GameplayState>()
     }
     /// Preserve queued edges until a fixed tick; neutral input clears them on focus loss.
     pub fn set_gameplay_input(&mut self, input: GameplayInput) {
-        if self.app.is_paused() || !bozzard_scene::game_flow::simulation_running(&self.app.world) {
+        if self.steam_overlay_active
+            || self.app.is_paused()
+            || !bozzard_scene::game_flow::simulation_running(&self.app.world)
+        {
             self.clear_gameplay_input();
             return;
         }
@@ -580,11 +671,7 @@ impl SceneDemo {
                 progress.check()?;
                 instance.register_prefab(asset, prefab)?;
             }
-            for (asset, source) in sources {
-                progress.stage(format!("Compiling script {asset}"))?;
-                instance.register_script(asset, source)?;
-            }
-            instance.register_scripts(Default::default())?;
+            instance.register_scripts_with_progress(sources, progress)?;
             instance.register_compute_kernels(kernels)?;
             Ok(())
         })?;
@@ -744,10 +831,13 @@ impl SceneDemo {
             world.insert_resource(gravity_instance);
             world.insert_resource(SimulationStatus { error });
         });
+        factory::install(&mut app, document);
         Ok(Self {
             app,
             multiplayer: None,
+            factory_multiplayer: None,
             simulation_worker: None,
+            steam_overlay_active: false,
         })
     }
 }

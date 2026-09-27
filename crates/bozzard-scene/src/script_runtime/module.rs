@@ -11,6 +11,40 @@ pub struct NetworkFrame {
     pub state: serde_json::Value,
 }
 
+pub const MAX_NETWORK_REQUESTS: usize = 32;
+pub const MAX_NETWORK_REQUEST_BYTES: usize = 4096;
+/// Local gameplay intent, not an authoritative world mutation. The application's
+/// network adapter parses a closed command schema and supplies Steam identity.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NetworkRequest {
+    pub owner: String,
+    pub kind: String,
+    pub payload: serde_json::Value,
+}
+#[derive(Default)]
+pub struct NetworkOutbox {
+    requests: Vec<NetworkRequest>,
+}
+impl NetworkOutbox {
+    pub fn len(&self) -> usize {
+        self.requests.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.requests.is_empty()
+    }
+    pub fn clear(&mut self) {
+        self.requests.clear();
+    }
+    pub fn drain(&mut self) -> std::vec::IntoIter<NetworkRequest> {
+        std::mem::take(&mut self.requests).into_iter()
+    }
+    pub(super) fn push(&mut self, request: NetworkRequest) {
+        if self.requests.len() < MAX_NETWORK_REQUESTS {
+            self.requests.push(request);
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ScriptModule {
     asset: String,
@@ -90,7 +124,7 @@ impl ScriptModule {
 }
 
 impl SceneInstance {
-    /// Reuses a loaded asset's AST, without file access or an embedded fallback.
+    /// Reuses a loaded asset's AST and embedded imports, without file access.
     pub fn script_module(&self, asset: &str) -> Result<ScriptModule> {
         let mut engine = ScriptEngine::new();
         // Replay can depend only on the loaded, fingerprinted source. Never
@@ -231,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn replay_rejects_side_effects_imports_and_runaway_functions() {
+    fn replay_rejects_side_effects_unloaded_imports_and_runaway_functions() {
         let commands = module("fn change() { set_exposure(1.0); true }");
         assert!(
             commands
@@ -240,8 +274,16 @@ mod tests {
                 .to_string()
                 .contains("scene commands")
         );
-        let imports = module("fn change() { import \"missing\" as other; true }");
-        assert!(imports.call::<bool>("change", vec![]).is_err());
+        assert!(
+            compile_sources(
+                BTreeMap::from([(
+                    "rules".into(),
+                    "fn change() { import \"missing\" as other; true }".into()
+                )]),
+                &bozzard_app::job::Progress::default(),
+            )
+            .is_err()
+        );
         let runaway = module("fn change() { loop {} }");
         assert!(runaway.call::<bool>("change", vec![]).is_err());
     }
