@@ -153,8 +153,8 @@ fn update_hud(dt, daylight) {
         set_ui_text("slot-key-" + i.to_string(), i.to_string() + if kind > 0.0 && !data::tool_unlocked(kind) { "  LOCKED" } else { "" });
         set_ui_opacity("slot-" + i.to_string(), if kind == 0.0 { 0.25 } else if data::tool_unlocked(kind) { 1.0 } else { 0.48 });
         set_ui_background("slot-" + i.to_string(), if kind == selected.to_float() {
-            [0.56, 0.22, 0.09, 0.96]
-        } else { [0.13, 0.19, 0.16, 0.80] });
+            [0.10, 0.17, 0.60, 0.96]
+        } else { [0.11, 0.122, 0.19, 0.80] });
     }
     set_ui_text("chunk-status", "Region " + cx.to_string() + ", " + cz.to_string() + "  /  ±" + data::planet_radius().to_string());
     if !demonstration {

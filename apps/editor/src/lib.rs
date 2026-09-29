@@ -673,11 +673,7 @@ impl App {
     }
     fn toolbar(&mut self, ui: &mut egui::Ui) {
         egui::Panel::top("menu-bar")
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(22, 22, 24))
-                    .inner_margin(4),
-            )
+            .frame(theme::bar())
             .show(ui, |ui| {
                 ui.add_enabled_ui(self.loading.is_none(), |ui| {
                     egui::MenuBar::new().ui(ui, |ui| {
@@ -927,13 +923,15 @@ impl App {
                             ui.label("Escape   Release / cancel / deselect");
                             ui.label("Drag files into the editor to import");
                         });
+                        ui.separator();
+                        self.view_tabs(ui);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.weak("BOZZARD  /  EDITOR");
                         });
                     });
                 });
             });
-        egui::Panel::top("scene-bar").show(ui, |ui| {
+        egui::Panel::top("scene-bar").frame(theme::bar()).show(ui, |ui| {
             ui.add_enabled_ui(self.loading.is_none(), |ui| {
                 ui.horizontal(|ui| {
                     let playing = self.editor.play.is_some();
@@ -1180,11 +1178,7 @@ impl App {
                 }
             });
     }
-    fn scene_content(&mut self, ui: &mut egui::Ui) {
-        if self.loading.is_some() {
-            ui.disable();
-        }
-        ui.horizontal(|ui| {
+    fn view_tabs(&mut self, ui: &mut egui::Ui) {
             let scene = ui.selectable_label(
                 !self.workspace.blueprints_visible && !self.workspace.shaders_visible,
                 "Scene",
@@ -1208,7 +1202,11 @@ impl App {
                 self.dock_focus = Some(docking::Pane::Scene);
                 self.workspace.blueprints_visible = false;
             }
-        });
+    }
+    fn scene_content(&mut self, ui: &mut egui::Ui) {
+        if self.loading.is_some() {
+            ui.disable();
+        }
         if self.workspace.shaders_visible {
             if let Err(error) = self.sync_assets() {
                 self.result(Err(error));
@@ -1455,6 +1453,7 @@ impl eframe::App for App {
     }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        theme::backdrop(&ctx);
         let debug_started = self.debug_begin_frame();
         self.poll_loading();
         self.editor.repair_surface_selection();
@@ -1652,7 +1651,7 @@ impl eframe::App for App {
             }
         }
         self.toolbar(ui);
-        egui::Panel::bottom("status").show(ui, |ui| {
+        egui::Panel::bottom("status").frame(theme::bar()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let memory = self.residency.stats();
                 ui.menu_button("GPU assets", |ui| {

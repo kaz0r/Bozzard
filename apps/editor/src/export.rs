@@ -99,117 +99,155 @@ impl App {
         let mut keep = true;
         egui::Window::new("Export game")
             .id(egui::Id::new("export-game"))
+            .title_bar(false)
+            .frame(theme::dialog_frame())
             .collapsible(false)
             .resizable(false)
-            .default_width(500.0)
+            .fixed_size(Vec2::new(540.0, 0.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
-                ui.label("Create a game you can open and play on its own.");
-                ui.add_space(12.0);
-                ui.label("Game name");
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut dialog.project_name)
-                            .desired_width(f32::INFINITY),
-                    )
-                    .changed()
-                {
-                    dialog.export_error = None;
-                }
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    ui.label("Export to");
-                    if ui.button("Choose folder…").clicked() {
-                        if let Some(parent) = rfd::FileDialog::new()
-                            .set_title("Choose where to export your game")
-                            .set_directory(&dialog.directory)
-                            .set_can_create_directories(true)
-                            .pick_folder()
+                // Header band with the target platform.
+                let header = egui::Frame::new()
+                    .fill(theme::glass(12))
+                    .corner_radius(egui::CornerRadius { nw: theme::RADIUS, ne: theme::RADIUS, sw: 0, se: 0 })
+                    .inner_margin(egui::Margin::symmetric(18, 14))
+                    .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("Export game").font(theme::bold(ctx, 19.0)));
+                                ui.weak("Build a standalone game you can open and play on its own.");
+                            });
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                                theme::chip(ui, &platform_label(), theme::ACCENT);
+                            });
+                        });
+                    });
+                ui.painter().hline(
+                    header.response.rect.x_range(),
+                    header.response.rect.bottom(),
+                    egui::Stroke::new(1.0, theme::glass(24)),
+                );
+                egui::Frame::new().inner_margin(egui::Margin::same(18)).show(ui, |ui| {
+                    theme::section(ui, "Game", |ui| {
+                        ui.label("Name");
+                        if ui
+                            .add(
+                                egui::TextEdit::singleline(&mut dialog.project_name)
+                                    .desired_width(f32::INFINITY)
+                                    .margin(Vec2::new(8.0, 6.0)),
+                            )
+                            .changed()
                         {
-                            dialog.directory = parent;
                             dialog.export_error = None;
                         }
-                        // Time spent in the native modal dialog must not advance Play on return.
-                        self.last_frame = Instant::now();
-                        ctx.request_repaint();
-                    }
-                });
-                ui.label(dialog.directory.display().to_string());
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    ui.label("Build for");
-                    ui.strong(platform_label());
-                });
-                ui.weak("A standalone game for this platform.");
-                egui::ComboBox::from_label("Asset cooking")
-                    .selected_text(dialog.cook_target.label()).show_ui(ui, |ui| {
-                        for target in bozzard_project::CookTarget::ALL {
-                            ui.selectable_value(&mut dialog.cook_target, target, target.label());
+                    });
+                    theme::section(ui, "Location", |ui| {
+                        ui.horizontal(|ui| {
+                            let browse = ui.button("Browse…");
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(dialog.directory.display().to_string()).monospace(),
+                                )
+                                .truncate(),
+                            );
+                            if browse.clicked() {
+                                if let Some(parent) = rfd::FileDialog::new()
+                                    .set_title("Choose where to export your game")
+                                    .set_directory(&dialog.directory)
+                                    .set_can_create_directories(true)
+                                    .pick_folder()
+                                {
+                                    dialog.directory = parent;
+                                    dialog.export_error = None;
+                                }
+                                // Time spent in the native modal dialog must not advance Play on return.
+                                self.last_frame = Instant::now();
+                                ctx.request_repaint();
+                            }
+                        });
+                    });
+                    theme::section(ui, "Build", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Asset cooking");
+                            egui::ComboBox::from_id_salt("export-cook")
+                                .selected_text(dialog.cook_target.label())
+                                .show_ui(ui, |ui| {
+                                    for target in bozzard_project::CookTarget::ALL {
+                                        ui.selectable_value(&mut dialog.cook_target, target, target.label());
+                                    }
+                                });
+                        });
+                        ui.weak("Compressed targets keep lossless fallback pixels. Unchanged assets reuse the cook cache.");
+                    });
+                    let output = validate_name(&dialog.project_name)
+                        .and_then(|()| destination(&dialog.directory, &dialog.project_name));
+                    theme::section(ui, "Result", |ui| {
+                        match &output {
+                            Ok(path) => {
+                                ui.horizontal(|ui| {
+                                    ui.colored_label(theme::GREEN, "✓");
+                                    ui.label(format!(
+                                        "Creates the folder {}",
+                                        path.file_name().unwrap().to_string_lossy()
+                                    ));
+                                });
+                                ui.weak("Previous exports are kept.");
+                            }
+                            Err(error) => {
+                                ui.colored_label(theme::CORAL, error.to_string());
+                            }
+                        }
+                        ui.weak("Includes current scene changes, even if you haven't saved them.");
+                        if let Ok(Some(id)) = bozzard_demo::multiplayer::app_id(self.editor.scene()) {
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                theme::chip(ui, &format!("Steam · App ID {id}"), theme::SKY);
+                            });
+                            ui.weak(if id == 480 {
+                                "Includes Steam API files and Spacewar development settings. Open the exported game with Steam running."
+                            } else {
+                                "Includes Steam API files. Launch the exported build through Steam; use editor Play for local testing."
+                            });
                         }
                     });
-                ui.weak("Compressed targets keep lossless fallback pixels. Unchanged assets reuse the cook cache.");
-                ui.add_space(10.0);
-                let output = validate_name(&dialog.project_name)
-                    .and_then(|()| destination(&dialog.directory, &dialog.project_name));
-                match &output {
-                    Ok(path) => {
-                        ui.label(format!(
-                            "Game folder: {}",
-                            path.file_name().unwrap().to_string_lossy()
-                        ));
-                        ui.weak("Created automatically. Previous exports are kept.");
+                    let runtime = std::env::current_exe()
+                        .map_err(anyhow::Error::from)
+                        .and_then(|path| bozzard_project::companion_player(&path));
+                    if runtime.is_err() {
+                        ui.colored_label(theme::CORAL, "The player needed for export is missing.");
+                        ui.label("Use the full Bozzard editor bundle, which includes the player.");
+                        ui.add_space(6.0);
                     }
-                    Err(error) => {
-                        ui.colored_label(Color32::LIGHT_RED, error.to_string());
+                    if let Some(error) = &dialog.export_error {
+                        ui.colored_label(theme::CORAL, error);
+                        ui.add_space(6.0);
                     }
-                }
-                ui.weak("Includes current scene changes, even if you haven't saved them.");
-                if let Ok(Some(id)) = bozzard_demo::multiplayer::app_id(self.editor.scene()) {
-                    ui.label(format!("Steam multiplayer · App ID {id}"));
-                    ui.weak(if id == 480 {
-                        "Includes Steam API files and Spacewar development settings. Open the exported game with Steam running."
-                    } else {
-                        "Includes Steam API files. Launch the exported build through Steam; use editor Play for local testing."
-                    });
-                }
-                let runtime = std::env::current_exe()
-                    .map_err(anyhow::Error::from)
-                    .and_then(|path| bozzard_project::companion_player(&path));
-                if runtime.is_err() {
-                    ui.add_space(8.0);
-                    ui.colored_label(
-                        Color32::LIGHT_RED,
-                        "The player needed for export is missing.",
-                    );
-                    ui.label("Use the full Bozzard editor bundle, which includes the player.");
-                }
-                if let Some(error) = &dialog.export_error {
-                    ui.colored_label(Color32::LIGHT_RED, error);
-                }
-                ui.add_space(14.0);
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let go = ui.add_enabled(
                             output.is_ok() && runtime.is_ok() && self.loading.is_none(),
                             egui::Button::new(
                                 egui::RichText::new("Export game")
+                                    .font(theme::bold(ctx, 13.0))
                                     .color(Color32::from_rgb(16, 32, 26)),
                             )
-                            .fill(theme::GREEN),
-                        )
-                        .clicked()
-                        && let Ok(path) = output
-                    {
-                        if self.start_export(path, dialog.project_name.clone(), dialog.cook_target) {
-                            self.export_parent = Some(dialog.directory.clone());
-                            keep = false;
-                        } else {
-                            dialog.export_error = Some(self.status.clone());
+                            .fill(theme::GREEN)
+                            .min_size(Vec2::new(130.0, 30.0)),
+                        );
+                        if go.clicked()
+                            && let Ok(path) = output
+                        {
+                            if self.start_export(path, dialog.project_name.clone(), dialog.cook_target) {
+                                self.export_parent = Some(dialog.directory.clone());
+                                keep = false;
+                            } else {
+                                dialog.export_error = Some(self.status.clone());
+                            }
                         }
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
+                        if ui.add(egui::Button::new("Cancel").min_size(Vec2::new(80.0, 30.0))).clicked() {
+                            keep = false;
+                        }
+                    });
                 });
             });
         keep
@@ -220,35 +258,82 @@ impl App {
         let folder = PathBuf::from(&dialog.path);
         egui::Window::new("Game exported")
             .id(egui::Id::new("game-exported"))
+            .title_bar(false)
+            .frame(theme::dialog_frame())
             .collapsible(false)
             .resizable(false)
-            .default_width(500.0)
+            .fixed_size(Vec2::new(480.0, 0.0))
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
-                ui.heading("Your game is ready to play");
-                ui.label(platform_label());
-                ui.add_space(10.0);
-                ui.label(folder.display().to_string());
-                ui.weak("Keep this folder's contents together when sharing or moving it.");
-                ui.add_space(14.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Play game").clicked() {
-                        dialog.export_error = play_game(&folder)
-                            .err()
-                            .map(|e| format!("Couldn't start the game: {e:#}"));
-                    }
-                    if ui.button("Open folder").clicked() {
-                        dialog.export_error = open_folder(&folder)
-                            .err()
-                            .map(|e| format!("Couldn't open the folder: {e:#}"));
-                    }
-                    if ui.button("Done").clicked() {
-                        keep = false;
-                    }
-                });
-                if let Some(error) = &dialog.export_error {
-                    ui.colored_label(Color32::LIGHT_RED, error);
-                }
+                egui::Frame::new()
+                    .inner_margin(egui::Margin::same(18))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("✓")
+                                    .font(theme::bold(ctx, 22.0))
+                                    .color(theme::GREEN),
+                            );
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    egui::RichText::new("Your game is ready to play")
+                                        .font(theme::bold(ctx, 17.0)),
+                                );
+                                theme::chip(ui, &platform_label(), theme::ACCENT);
+                            });
+                        });
+                        ui.add_space(12.0);
+                        theme::section(ui, "Location", |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(folder.display().to_string()).monospace(),
+                                )
+                                .wrap(),
+                            );
+                            ui.weak(
+                                "Keep this folder's contents together when sharing or moving it.",
+                            );
+                        });
+                        if let Some(error) = &dialog.export_error {
+                            ui.colored_label(theme::CORAL, error);
+                            ui.add_space(6.0);
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .add(
+                                    egui::Button::new(
+                                        egui::RichText::new("Play game")
+                                            .font(theme::bold(ctx, 13.0))
+                                            .color(Color32::from_rgb(16, 32, 26)),
+                                    )
+                                    .fill(theme::GREEN)
+                                    .min_size(Vec2::new(110.0, 30.0)),
+                                )
+                                .clicked()
+                            {
+                                dialog.export_error = play_game(&folder)
+                                    .err()
+                                    .map(|e| format!("Couldn't start the game: {e:#}"));
+                            }
+                            if ui
+                                .add(
+                                    egui::Button::new("Open folder")
+                                        .min_size(Vec2::new(100.0, 30.0)),
+                                )
+                                .clicked()
+                            {
+                                dialog.export_error = open_folder(&folder)
+                                    .err()
+                                    .map(|e| format!("Couldn't open the folder: {e:#}"));
+                            }
+                            if ui
+                                .add(egui::Button::new("Done").min_size(Vec2::new(70.0, 30.0)))
+                                .clicked()
+                            {
+                                keep = false;
+                            }
+                        });
+                    });
             });
         keep
     }

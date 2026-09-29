@@ -278,8 +278,8 @@ fn update_storage(dt) {
             set_ui_text(name + "-name", if amount > 0 { data::item_name(kind) } else { "Empty" });
             set_ui_text(name + "-count", if amount > 0 { amount.to_string() } else { "" });
             let color = data::item_color(kind);
-            set_ui_background(name + "-icon", if amount > 0 { [color[0], color[1], color[2], 1.0] } else { [0.24, 0.31, 0.26, 1.0] });
-            set_ui_background(name, if slot == menu { [0.27, 0.24, 0.14, 1.0] } else { [0.10, 0.15, 0.12, 1.0] });
+            set_ui_background(name + "-icon", if amount > 0 { [color[0], color[1], color[2], 1.0] } else { [0.18, 0.198, 0.31, 1.0] });
+            set_ui_background(name, if slot == menu { [0.157, 0.173, 0.27, 1.0] } else { [0.087, 0.096, 0.15, 1.0] });
             set_ui_opacity(name, if slot == drag { 0.45 } else { 1.0 });
         }
         set_ui_text("storage-subtitle", used.to_string() + " / 16 slots   •   " + total.to_string() + " items   •   100 per stack");

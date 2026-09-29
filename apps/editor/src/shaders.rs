@@ -147,6 +147,7 @@ impl App {
         }
     }
     pub fn shader_ui(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing.y = 3.;
         self.viewport_rect = None;
         self.mouse_captured = false;
         self.fly_latched = false;
@@ -191,9 +192,12 @@ impl App {
             && !self.confirm_discard;
         let mut graph = graph;
         ui.horizontal_wrapped(|ui| {
-            ui.strong("Shader Editor");
-            ui.label(&object.name);
-            if ui.button("Fit graph").clicked() {
+            ui.weak(&object.name);
+            if ui
+                .button("Fit graph")
+                .on_hover_text(theme::GRAPH_HELP)
+                .clicked()
+            {
                 self.shader_pane.fit(&graph);
             }
             ui.add_enabled_ui(editing, |ui| {
@@ -206,7 +210,6 @@ impl App {
             });
         });
         self.shader_pane.toolbar(ui, &mut graph, editing);
-        ui.small("Drag headers to move · Output → input to connect · Right-click input to disconnect · Middle-drag / scroll to pan · Ctrl+scroll to zoom · Live preview on the right");
         ui.horizontal_top(|ui| {
             let preview_width = (ui.available_width() * 0.34).clamp(240., 480.);
             let canvas_width = (ui.available_width() - preview_width - 10.).max(320.);
@@ -404,23 +407,12 @@ fn pin(node: &Node, port: usize, output: bool) -> Pos2 {
 }
 fn color(kind: PinType) -> Color32 {
     match kind {
-        PinType::Float => Color32::from_rgb(132, 206, 71),
-        PinType::Vector => Color32::from_rgb(88, 183, 225),
+        PinType::Float => Color32::from_rgb(140, 224, 96),
+        PinType::Vector => Color32::from_rgb(104, 200, 255),
     }
 }
 fn curve(painter: &egui::Painter, from: Pos2, to: Pos2, tint: Color32) {
-    let offset = ((to.x - from.x).abs() * 0.5).max(45.);
-    painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
-        [
-            from,
-            from + Vec2::new(offset, 0.),
-            to - Vec2::new(offset, 0.),
-            to,
-        ],
-        false,
-        Color32::TRANSPARENT,
-        egui::Stroke::new(2., tint),
-    ));
+    theme::wire(painter, from, to, tint);
 }
 impl ShaderPane {
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, graph: &mut ShaderGraph, editing: bool) {
@@ -528,25 +520,7 @@ impl ShaderPane {
             .drag_pan_buttons(egui::DragPanButtons::MIDDLE | egui::DragPanButtons::SECONDARY)
             .show(ui, &mut view, |ui| {
                 let clip = ui.clip_rect();
-                ui.painter()
-                    .rect_filled(clip, 0., Color32::from_rgb(25, 27, 30));
-                for axis in 0..2 {
-                    let start = (clip.min[axis] / 32.).floor() as i32;
-                    let end = (clip.max[axis] / 32.).ceil() as i32;
-                    for i in start..=end {
-                        let mut a = clip.min;
-                        let mut b = clip.max;
-                        a[axis] = i as f32 * 32.;
-                        b[axis] = a[axis];
-                        ui.painter().line_segment(
-                            [a, b],
-                            egui::Stroke::new(
-                                1.,
-                                Color32::from_gray(if i % 4 == 0 { 43 } else { 33 }),
-                            ),
-                        );
-                    }
-                }
+                theme::graph_background(ui.painter(), clip);
                 for wire in &graph.wires {
                     if let (Ok(from), Ok(to)) =
                         (graph.node(wire.from.node), graph.node(wire.to.node))
@@ -565,40 +539,20 @@ impl ShaderPane {
                     let rect = node_rect(node);
                     ui.expand_to_include_rect(rect);
                     let selected = self.selected == Some(node.id);
-                    ui.painter()
-                        .rect_filled(rect, 5., Color32::from_rgb(39, 43, 48));
-                    ui.painter().rect_stroke(
+                    let header = theme::node_card(
+                        ui.painter(),
                         rect,
-                        5.,
-                        egui::Stroke::new(
-                            if selected { 2. } else { 1. },
-                            if selected {
-                                theme::ACCENT
-                            } else {
-                                Color32::from_gray(65)
-                            },
-                        ),
-                        egui::StrokeKind::Inside,
-                    );
-                    let header = Rect::from_min_size(rect.min, Vec2::new(WIDTH, 30.));
-                    ui.painter().rect_filled(
-                        header,
-                        4.,
+                        30.,
                         if node.kind == NodeKind::Master {
-                            Color32::from_rgb(48, 92, 60)
+                            theme::GREEN
                         } else if node.kind.inputs().is_empty() {
-                            Color32::from_rgb(109, 48, 57)
+                            theme::CORAL
                         } else {
-                            Color32::from_rgb(38, 76, 100)
+                            theme::SKY
                         },
+                        selected.then_some((2., theme::ACCENT)),
                     );
-                    ui.painter().text(
-                        header.left_center() + Vec2::new(10., 0.),
-                        egui::Align2::LEFT_CENTER,
-                        node.kind.label(),
-                        egui::FontId::proportional(14.),
-                        Color32::WHITE,
-                    );
+                    theme::node_title(ui.painter(), header, node.kind.label());
                     let response = ui.interact(
                         header,
                         ui.id().with((node.id, "header")),
@@ -679,23 +633,8 @@ impl ShaderPane {
                                     port,
                                 };
                                 let linked = graph.wires.iter().any(|w| w.to == socket);
-                                ui.painter().circle(
-                                    p,
-                                    5.,
-                                    if linked {
-                                        color(*kind)
-                                    } else {
-                                        Color32::from_gray(25)
-                                    },
-                                    egui::Stroke::new(1.5, color(*kind)),
-                                );
-                                ui.painter().text(
-                                    p + Vec2::new(12., 0.),
-                                    egui::Align2::LEFT_CENTER,
-                                    label,
-                                    egui::FontId::proportional(11.),
-                                    Color32::LIGHT_GRAY,
-                                );
+                                theme::pin_dot(ui.painter(), p, color(*kind), linked);
+                                theme::pin_label(ui.painter(), p, label, false);
                                 let hit = ui.interact(
                                     Rect::from_center_size(p, Vec2::splat(18.)),
                                     ui.id().with((port, "in")),
@@ -761,14 +700,8 @@ impl ShaderPane {
                             }
                             for (port, (label, kind)) in node.kind.outputs().iter().enumerate() {
                                 let p = pin(node, port, true);
-                                ui.painter().circle_filled(p, 5., color(*kind));
-                                ui.painter().text(
-                                    p - Vec2::new(12., 0.),
-                                    egui::Align2::RIGHT_CENTER,
-                                    label,
-                                    egui::FontId::proportional(11.),
-                                    Color32::LIGHT_GRAY,
-                                );
+                                theme::pin_dot(ui.painter(), p, color(*kind), true);
+                                theme::pin_label(ui.painter(), p, label, true);
                                 let hit = ui.interact(
                                     Rect::from_center_size(p, Vec2::splat(18.)),
                                     ui.id().with((port, "out")),

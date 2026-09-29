@@ -436,14 +436,6 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard)
             .then_some(true);
-        theme::panel_title(
-            ui,
-            if self.editor.play.is_some() {
-                "Game"
-            } else {
-                "Scene"
-            },
-        );
         ui.horizontal_wrapped(|ui| {
             ui.add_enabled_ui(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && !self.fly_latched, |ui| {
                 ui.selectable_value(&mut self.workspace.tool, Tool::Move, "Move")
@@ -1397,11 +1389,11 @@ impl App {
         } else {
             self.viewport_reuses += 1;
         }
-        ui.painter().image(
-            target.id,
-            rect,
-            Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-            Color32::WHITE,
+        ui.painter().add(
+            egui::epaint::RectShape::filled(rect, 10, Color32::WHITE).with_texture(
+                target.id,
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+            ),
         );
         let canvas_handled = if self.editor.play.is_none() && self.workspace.layer_2d {
             self.canvas_overlay(ui, rect, &widgets, logical)?

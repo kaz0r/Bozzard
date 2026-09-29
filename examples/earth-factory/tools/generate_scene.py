@@ -47,10 +47,10 @@ def bake_ui_mask():
 
 
 def factory_ui():
-    cream = [0.94, 0.97, 0.92, 1]
-    muted = [0.62, 0.74, 0.68, 1]
-    panel = [0.055, 0.09, 0.078, 0.88]
-    accent = [0.74, 0.28, 0.11, 1]
+    cream = [0.95, 0.96, 1.0, 1]
+    muted = [0.66, 0.70, 0.84, 1]
+    panel = [0.052, 0.058, 0.09, 0.88]
+    accent = [0.20, 0.34, 1.0, 1]
     # Keep HUD reference units (including script-sized bars and tooltips), but
     # render them at 80% of the modal UI scale. Anchors still follow screen edges.
     objects = [{"id": "factory-ui", "name": "Factory HUD", "transform": transform(),
@@ -82,12 +82,12 @@ def factory_ui():
     widget("objective-panel", "factory-ui", (24, 24), (400, 180), background=panel, order=1)
     widget("objective-title", "objective-panel", (22, 18), (240, 32), "Objective", 27)
     widget("objective-tier", "objective-panel", (-22, 20), (80, 28), "Tier 1", 16,
-           background=[0.16, 0.23, 0.19, 0.9], anchor=(1, 0), pivot=(1, 0), padding=(8, 4.5, 8, 4.5))
+           background=[0.133, 0.147, 0.23, 0.9], anchor=(1, 0), pivot=(1, 0), padding=(8, 4.5, 8, 4.5))
     objects[-1]["ui_widget"].update(text_alignment="center", auto_text_width=True)
     widget("objective-text", "objective-panel", (22, 62), (356, 28), "Press Play to start your factory", 18)
     widget("objective-next", "objective-panel", (22, 101), (270, 20), "ASSEMBLY MILESTONE", 14, muted)
     widget("objective-count", "objective-panel", (320, 97), (64, 24), "0 / 8", 17)
-    widget("objective-track", "objective-panel", (22, 132), (356, 12), background=[0.018, 0.03, 0.025, 0.95])
+    widget("objective-track", "objective-panel", (22, 132), (356, 12), background=[0.017, 0.019, 0.03, 0.95])
     widget("objective-fill", "objective-panel", (22, 132), (0, 12), background=accent, order=2)
     widget("objective-note", "objective-panel", (22, 153), (356, 20), "Production continues while you build.", 14, muted)
 
@@ -113,7 +113,7 @@ def factory_ui():
     for i, name in enumerate(names):
         key = str(i + 1)
         widget("slot-" + key, "build-panel", (18 + i * 91, 12), (87, 58),
-               background=[0.13, 0.19, 0.16, 0.80])
+               background=[0.11, 0.122, 0.19, 0.80])
         objects[-1]["ui_widget"].update(kind="button", accessible_name=name)
         widget("slot-key-" + key, "slot-" + key, (10, 6), (60, 18), key, 11, muted)
         widget("slot-name-" + key, "slot-" + key, (8, 29), (78, 22), name, 11)
@@ -137,75 +137,75 @@ def factory_ui():
 
     # World labels sit below the fixed HUD panels and their text.
     widget("nearby-tooltip", "factory-ui", (0, -12), (0, 36), "Miner: Quartz", 16,
-           background=[0.024, 0.034, 0.029, 0.96], pivot=(0.5, 1), padding=(14, 8, 14, 8), order=-1)
+           background=[0.02, 0.022, 0.034, 0.96], pivot=(0.5, 1), padding=(14, 8, 14, 8), order=-1)
     objects[-1]["ui_widget"].update(visible=False, text_alignment="center", auto_text_width=True)
 
     for slot in range(4):
         widget(f"coop-name-{slot}", "factory-ui", (0, -8), (0, 30), "Player", 15,
-               background=[0.024, 0.034, 0.029, 0.96], pivot=(0.5, 1), padding=(12, 6, 12, 6), order=-1)
+               background=[0.02, 0.022, 0.034, 0.96], pivot=(0.5, 1), padding=(12, 6, 12, 6), order=-1)
         objects[-1]["ui_widget"].update(visible=False, text_alignment="center", auto_text_width=True)
 
     # Reading and interaction panels retain their larger scale above the HUD.
     objects.append({"id": "factory-panels", "name": "Factory Panels", "transform": transform(),
                     "ui_canvas": {"layer": "3d", "reference": [1080, 600], "scaling": "fit", "order": 21}})
     # A script-driven modal. Slot buttons supply hit targets; labels inherit their input.
-    widget("storage-overlay", "factory-panels", (0, 0), (0, 0), background=[0.01, 0.02, 0.015, 0.62], order=200)
+    widget("storage-overlay", "factory-panels", (0, 0), (0, 0), background=[0.012, 0.013, 0.02, 0.62], order=200)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
     objects[-1]["ui_widget"]["visible"] = False
-    widget("storage-panel", "storage-overlay", (0, 24), (640, 500), background=[0.045, 0.075, 0.06, 0.99],
+    widget("storage-panel", "storage-overlay", (0, 24), (640, 500), background=[0.043, 0.048, 0.075, 0.99],
            anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("storage-title", "storage-panel", (26, 20), (460, 34), "Storage", 27)
     widget("storage-subtitle", "storage-panel", (26, 63), (565, 23), "16 slots  /  100 items per stack", 15, muted)
     widget("storage-close", "storage-panel", (536, 24), (78, 32), "Close  E", 14, cream,
-           [0.16, 0.23, 0.19, 1], padding=(8, 7.5, 8, 7.5))
+           [0.133, 0.147, 0.23, 1], padding=(8, 7.5, 8, 7.5))
     objects[-1]["ui_widget"].update(kind="button", shortcuts=["E"], text_alignment="center")
     for slot in range(16):
         name = "inventory-slot-" + str(slot)
         widget(name, "storage-panel", (26 + (slot % 4) * 150, 104 + (slot // 4) * 88), (138, 78),
-               background=[0.10, 0.15, 0.12, 1])
+               background=[0.087, 0.096, 0.15, 1])
         objects[-1]["ui_widget"].update(kind="button", accessible_name="Storage slot " + str(slot + 1))
-        widget(name + "-icon", name, (12, 11), (14, 14), background=[0.24, 0.31, 0.26, 1])
+        widget(name + "-icon", name, (12, 11), (14, 14), background=[0.18, 0.198, 0.31, 1])
         widget(name + "-name", name, (12, 32), (119, 36), "Empty", 14, muted)
         widget(name + "-count", name, (79, 8), (48, 22), "", 17)
     widget("storage-help", "storage-panel", (26, 465), (590, 23),
            "Drag to move or merge  •  Right-click for stack actions", 14, muted)
     widget("storage-take", "storage-panel", (380, 63), (235, 30), "Take items into backpack", 14,
-           cream, [0.16, 0.23, 0.19, 1], padding=(10, 6, 0, 0))
+           cream, [0.133, 0.147, 0.23, 1], padding=(10, 6, 0, 0))
     objects[-1]["ui_widget"].update(kind="button")
-    widget("stack-menu", "storage-overlay", (0, 0), (192, 137), background=[0.025, 0.045, 0.033, 1], order=30)
+    widget("stack-menu", "storage-overlay", (0, 0), (192, 137), background=[0.026, 0.029, 0.045, 1], order=30)
     objects[-1]["ui_widget"]["visible"] = False
     widget("stack-menu-title", "stack-menu", (12, 12), (168, 26), "Stack", 14, muted)
     for name, label, y, color in [("stack-split", "Split", 44, cream), ("stack-delete", "Delete all", 86, [1, 0.6, 0.48, 1])]:
         widget(name, "stack-menu", (8, y), (176, 36), label, 16, color,
-               [0.12, 0.18, 0.14, 1], padding=(12, 8, 0, 0))
+               [0.104, 0.115, 0.18, 1], padding=(12, 8, 0, 0))
         objects[-1]["ui_widget"].update(kind="button")
     widget("stack-drag", "storage-overlay", (12, 12), (152, 68), "", 15, cream,
            [0.25, 0.35, 0.27, 0.95], padding=(12, 12, 8, 0), order=40)
     objects[-1]["ui_widget"].update(kind="label", visible=False)
 
-    widget("world-context", "game-panels", (0, 0), (170, 128), background=[0.025, 0.045, 0.06, 1], order=200)
+    widget("world-context", "game-panels", (0, 0), (170, 128), background=[0.035, 0.038, 0.06, 1], order=200)
     objects[-1]["ui_widget"].update(visible=False)
     for name, title, y in [("link", "Link", 8), ("unlink", "Unlink", 48), ("inspect", "Inspect", 8), ("cancel", "Cancel", 88)]:
         widget("world-"+name, "world-context", (8, y), (154, 32), title, 15,
-               cream, [0.10, 0.16, 0.19, 1], padding=(10, 7, 0, 0))
+               cream, [0.11, 0.122, 0.19, 1], padding=(10, 7, 0, 0))
         objects[-1]["ui_widget"].update(kind="button")
-    widget("machine-inspect-overlay", "game-panels", (0, 0), (0, 0), background=[0.008, 0.015, 0.025, 0.78], order=270)
+    widget("machine-inspect-overlay", "game-panels", (0, 0), (0, 0), background=[0.014, 0.016, 0.025, 0.78], order=270)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("machine-inspect-panel", "machine-inspect-overlay", (0, 0), (640, 330), background=[0.035, 0.065, 0.08, 1], anchor=(0.5, 0.5), pivot=(0.5, 0.5))
+    widget("machine-inspect-panel", "machine-inspect-overlay", (0, 0), (640, 330), background=[0.046, 0.051, 0.08, 1], anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("machine-inspect-title", "machine-inspect-panel", (28, 25), (480, 38), "Machine / Buffer", 25)
     widget("machine-inspect-close", "machine-inspect-panel", (504, 26), (108, 32), "Close  E", 14, cream,
-           [0.14, 0.21, 0.24, 1], padding=(8, 7.5, 8, 7.5))
+           [0.139, 0.154, 0.24, 1], padding=(8, 7.5, 8, 7.5))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("machine-inspect-body", "machine-inspect-panel", (28, 88), (580, 85), "Buffer empty", 22)
     widget("machine-inspect-status", "machine-inspect-panel", (28, 187), (580, 45), "", 15, muted)
     widget("machine-inspect-take", "machine-inspect-panel", (28, 260), (250, 40), "Collect items", 16, cream,
-           [0.18, 0.32, 0.32, 1], padding=(12, 10, 0, 0))
+           [0.186, 0.205, 0.32, 1], padding=(12, 10, 0, 0))
     objects[-1]["ui_widget"].update(kind="button")
 
     # A book built from ordinary editable widgets, sized to the canvas's fit scaling.
     ink, faded = [0.20, 0.13, 0.08, 1], [0.43, 0.34, 0.24, 1]
-    widget("journal-overlay", "factory-panels", (0, 0), (0, 0), background=[0.025, 0.02, 0.015, 0.7], order=250)
+    widget("journal-overlay", "factory-panels", (0, 0), (0, 0), background=[0.014, 0.016, 0.025, 0.7], order=250)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
     objects[-1]["ui_widget"]["visible"] = False
     widget("journal-book", "journal-overlay", (0, 0), (940, 540), background=[0.22, 0.12, 0.065, 1],
@@ -243,14 +243,14 @@ def factory_ui():
 
     # A fixed north-up map. Hidden cells are ordinary lightweight UI widgets;
     # the script updates their colors only when discovery or residency changes.
-    widget("map-overlay", "factory-panels", (0, 0), (0, 0), background=[0.008, 0.015, 0.012, 0.78], order=275)
+    widget("map-overlay", "factory-panels", (0, 0), (0, 0), background=[0.009, 0.01, 0.015, 0.78], order=275)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("map-panel", "map-overlay", (0, 0), (880, 540), background=[0.035, 0.065, 0.053, 0.99],
+    widget("map-panel", "map-overlay", (0, 0), (880, 540), background=[0.038, 0.042, 0.065, 0.99],
            anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("map-title", "map-panel", (28, 22), (600, 36), "STELLAR-BX / REGION MAP", 27)
     widget("map-close", "map-panel", (748, 24), (104, 32), "Close  M", 14, cream,
-           [0.16, 0.23, 0.19, 1], padding=(8, 7.5, 8, 7.5))
+           [0.133, 0.147, 0.23, 1], padding=(8, 7.5, 8, 7.5))
     objects[-1]["ui_widget"].update(kind="button", shortcuts=["M"], text_alignment="center")
     widget("map-north", "map-panel", (211, 62), (100, 20), "NORTH", 12, muted)
     for coordinate in [-8, 0, 8]:
@@ -262,7 +262,7 @@ def factory_ui():
         for x in range(17):
             region = z * 17 + x
             widget(f"map-cell-{region}", "map-panel", (50 + x * 23, 102 + z * 23), (20, 20),
-                   "H" if region == 144 else "", 12, cream, [0.018, 0.032, 0.026, 1], padding=(5, 3, 0, 0))
+                   "H" if region == 144 else "", 12, cream, [0.019, 0.02, 0.032, 1], padding=(5, 3, 0, 0))
             objects[-1]["ui_widget"].pop("image")
             objects[-1]["ui_widget"].pop("border")
     widget("map-south", "map-panel", (211, 496), (100, 20), "SOUTH", 12, muted)
@@ -271,8 +271,8 @@ def factory_ui():
     for row, (label, color) in enumerate([
         ("Your current region", [0.64, 0.29, 0.085, 1]),
         ("Loaded", [0.13, 0.38, 0.26, 1]),
-        ("Explored, currently unloaded", [0.11, 0.17, 0.20, 1]),
-        ("Unexplored", [0.018, 0.032, 0.026, 1]),
+        ("Explored, currently unloaded", [0.116, 0.128, 0.2, 1]),
+        ("Unexplored", [0.019, 0.02, 0.032, 1]),
     ]):
         widget(f"map-legend-{row}", "map-panel", (496, 220 + row * 40), (20, 20), background=color)
         objects[-1]["ui_widget"].pop("image")
@@ -282,10 +282,10 @@ def factory_ui():
     widget("map-help", "map-panel", (496, 434), (336, 44), "Explore to reveal neighboring regions.\nFactories continue while the map is open.", 14, muted)
     widget("map-footer", "map-panel", (50, 519), (800, 18), "North stays up as the camera turns.     M  Close map     Esc  Menu", 12, muted)
 
-    widget("menu-overlay", "factory-panels", (0, 0), (0, 0), background=[0.01, 0.02, 0.015, 0.60], order=300)
+    widget("menu-overlay", "factory-panels", (0, 0), (0, 0), background=[0.012, 0.013, 0.02, 0.60], order=300)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("menu-panel", "menu-overlay", (0, 0), (380, 530), background=[0.045, 0.075, 0.06, 0.98],
+    widget("menu-panel", "menu-overlay", (0, 0), (380, 530), background=[0.043, 0.048, 0.075, 0.98],
            anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("menu-title", "menu-panel", (28, 24), (324, 36), "Stellar-IX", 28)
     widget("menu-subtitle", "menu-panel", (28, 69), (324, 24), "Your factory keeps running.", 16, muted)
@@ -293,11 +293,11 @@ def factory_ui():
                            ("load", "Load", 222), ("main-menu", "Main menu", 278), ("exit", "Exit", 334)]:
         widget("menu-" + name, "menu-panel", (28, y), (324, 44), label, 18,
                cream if name != "exit" else [1, 0.66, 0.53, 1],
-               [0.16, 0.23, 0.19, 1], padding=(18, 11, 0, 0))
+               [0.133, 0.147, 0.23, 1], padding=(18, 11, 0, 0))
         objects[-1]["ui_widget"].update(kind="button", focus_order=y)
         if name == "continue":
             objects[-1]["ui_widget"]["shortcuts"] = ["Escape"]
-    widget("coop-open-menu", "menu-panel", (28, 390), (324, 44), "Steam co-op / Invite friends", 18, cream, [0.16, 0.23, 0.19, 1], padding=(0, 11, 0, 0))
+    widget("coop-open-menu", "menu-panel", (28, 390), (324, 44), "Steam co-op / Invite friends", 18, cream, [0.133, 0.147, 0.23, 1], padding=(0, 11, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("menu-save-note", "menu-panel", (28, 458), (324, 20), "Auto-save every 20 minutes. Host saves the world.", 13, muted)
     widget("menu-exit-note", "menu-panel", (28, 484), (324, 20), "Save your progress before leaving.", 13, muted)
@@ -310,24 +310,24 @@ def factory_ui():
         objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
         objects[-1]["ui_widget"].update(visible=False, enabled=False)
 
-    widget("assembler-overlay", "game-panels", (0, 0), (0, 0), background=[0.008, 0.015, 0.025, 0.75], order=260)
+    widget("assembler-overlay", "game-panels", (0, 0), (0, 0), background=[0.014, 0.016, 0.025, 0.75], order=260)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("assembler-panel", "assembler-overlay", (0, 0), (740, 460), background=[0.04, 0.07, 0.09, 1],
+    widget("assembler-panel", "assembler-overlay", (0, 0), (740, 460), background=[0.052, 0.058, 0.09, 1],
            anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("assembler-title", "assembler-panel", (30, 24), (500, 35), "ASSEMBLER / OUTPUT RECIPE", 25)
     widget("assembler-close", "assembler-panel", (590, 25), (120, 32), "Close  E", 14, cream,
-           [0.14, 0.21, 0.24, 1], padding=(8, 7.5, 8, 7.5))
+           [0.139, 0.154, 0.24, 1], padding=(8, 7.5, 8, 7.5))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("assembler-status", "assembler-panel", (30, 74), (680, 55), "", 16, muted)
     for i, (name, label) in enumerate([("alloy", "Conductive alloy"), ("parts", "Machine parts"), ("concrete", "Concrete")]):
         widget("assembler-" + name, "assembler-panel", (30 + i * 230, 140), (220, 98),
-               label + "\nChoose output", 14, cream, [0.12, 0.19, 0.23, 1], padding=(16, 16, 0, 0))
+               label + "\nChoose output", 14, cream, [0.133, 0.147, 0.23, 1], padding=(16, 16, 0, 0))
         objects[-1]["ui_widget"].update(kind="button")
     widget("assembler-buffer", "assembler-panel", (30, 255), (680, 66), "", 16, muted)
     for name, label, x in [("feed", "Load ingredients", 30), ("take", "Collect output", 380)]:
         widget("assembler-" + name, "assembler-panel", (x, 339), (330, 44), label, 17, cream,
-               [0.17, 0.29, 0.29, 1], padding=(16, 12, 0, 0))
+               [0.168, 0.186, 0.29, 1], padding=(16, 12, 0, 0))
         objects[-1]["ui_widget"].update(kind="button")
     widget("assembler-help", "assembler-panel", (30, 404), (690, 38),
            "Collect output before changing recipe. Unused inputs return to inventory.\nConnect a power pole to run this machine. Production continues while open.", 13, muted)
@@ -335,50 +335,50 @@ def factory_ui():
     for name, title in [("inventory", "PLAYER INVENTORY"), ("rocket", "ROCKET / DESTINATIONS"), ("dock", "FUEL DOCK / INPUT")]:
         overlay = f"player-{name}-overlay"
         panel_id = f"player-{name}-panel"
-        widget(overlay, "game-panels", (0, 0), (0, 0), background=[0.008, 0.015, 0.025, 0.78], order=270)
+        widget(overlay, "game-panels", (0, 0), (0, 0), background=[0.014, 0.016, 0.025, 0.78], order=270)
         objects[-1]["ui_widget"].update(visible=False, enabled=False)
         objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-        widget(panel_id, overlay, (0, 0), (820, 520), background=[0.035, 0.065, 0.08, 1],
+        widget(panel_id, overlay, (0, 0), (820, 520), background=[0.046, 0.051, 0.08, 1],
                anchor=(0.5, 0.5), pivot=(0.5, 0.5))
         widget(f"player-{name}-title", panel_id, (28, 24), (620, 38), title, 26)
         widget(f"player-{name}-close", panel_id, (684, 26), (108, 32), "Close  " + ("I" if name == "inventory" else "E"), 14,
-               cream, [0.14, 0.21, 0.24, 1], padding=(8, 7.5, 8, 7.5))
+               cream, [0.139, 0.154, 0.24, 1], padding=(8, 7.5, 8, 7.5))
         objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("player-inventory-help", "player-inventory-panel", (28, 72), (760, 26),
            "Drag to move, swap or merge / Right-click to split or destroy", 14, muted)
     for slot in range(25):
         widget(f"player-slot-{slot}", "player-inventory-panel", (28 + slot % 5 * 155, 112 + slot // 5 * 73), (145, 64),
-               "", 14, cream, [0.10, 0.16, 0.19, 1], padding=(12, 9, 0, 0))
+               "", 14, cream, [0.11, 0.122, 0.19, 1], padding=(12, 9, 0, 0))
         objects[-1]["ui_widget"].update(kind="button", accessible_name=f"Inventory slot {slot+1}")
     widget("player-inventory-footer", "player-inventory-panel", (28, 487), (490, 20), "25 slots / 100 per stack", 13, muted)
     widget("backpack-destroy-all", "player-inventory-panel", (647, 482), (145, 30), "Destroy All", 14,
            [1, 0.65, 0.52, 1], [0.24, 0.075, 0.045, 1], padding=(8, 6, 8, 6))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
-    widget("backpack-menu", "player-inventory-overlay", (0, 0), (170, 128), background=[0.025, 0.045, 0.06, 1], order=30)
+    widget("backpack-menu", "player-inventory-overlay", (0, 0), (170, 128), background=[0.035, 0.038, 0.06, 1], order=30)
     objects[-1]["ui_widget"]["visible"] = False
     for name, label, y in [("split", "Split", 8), ("destroy", "Destroy", 48), ("cancel", "Cancel", 88)]:
         widget("backpack-"+name, "backpack-menu", (8, y), (154, 32), label, 15,
-               cream, [0.10, 0.16, 0.19, 1], padding=(10, 7, 0, 0))
+               cream, [0.11, 0.122, 0.19, 1], padding=(10, 7, 0, 0))
         objects[-1]["ui_widget"].update(kind="button")
     widget("backpack-drag", "player-inventory-overlay", (12, 12), (165, 40), "", 14, cream,
-           [0.18, 0.32, 0.32, 0.9], padding=(10, 10, 0, 0), order=40)
+           [0.186, 0.205, 0.32, 0.9], padding=(10, 10, 0, 0), order=40)
     objects[-1]["ui_widget"].update(kind="label", visible=False)
     widget("rocket-current", "player-rocket-panel", (28, 79), (750, 30), "CURRENT WORLD / STELLAR-BX", 19, muted)
     widget("rocket-moon", "player-rocket-panel", (28, 124), (370, 76), "STELLA-Z2\nMoon / Next destination", 19,
-           cream, [0.15, 0.30, 0.34, 1], padding=(18, 12, 0, 0))
+           cream, [0.10, 0.16, 0.56, 1], padding=(18, 12, 0, 0))
     objects[-1]["ui_widget"].update(kind="button")
     widget("rocket-launch", "player-rocket-panel", (418, 124), (370, 76), "LAUNCH\nNo fuel required yet", 16,
-           muted, [0.09, 0.14, 0.18, 1], padding=(18, 15, 0, 0))
+           muted, [0.104, 0.115, 0.18, 1], padding=(18, 15, 0, 0))
     objects[-1]["ui_widget"].update(kind="button")
     for i in range(8):
         widget(f"rocket-future-{i}", "player-rocket-panel", (28 + i % 4 * 194, 222 + i // 4 * 72), (182, 62),
-               f"Planet {i+3}\nComing soon", 15, muted, [0.065, 0.11, 0.14, 1], padding=(14, 10, 0, 0))
+               f"Planet {i+3}\nComing soon", 15, muted, [0.081, 0.09, 0.14, 1], padding=(14, 10, 0, 0))
     widget("rocket-detail", "player-rocket-panel", (28, 392), (760, 95),
            "STELLA-Z2 / MOON\nPermanent night / Sparse lunar resources\nReturn trips available. No fuel required yet.", 17, muted)
     widget("dock-description", "player-dock-panel", (34, 117), (750, 260),
            "ROCKET FUEL INPUT\n\nThis dock is connected to the landing site.\n\nFuel production and launch requirements are still to come.\nNo materials are accepted or consumed yet.", 20, muted)
 
-    widget("title-overlay", "factory-panels", (0, 0), (0, 0), background=[0.008, 0.014, 0.029, 1], order=400)
+    widget("title-overlay", "factory-panels", (0, 0), (0, 0), background=[0.017, 0.019, 0.029, 1], order=400)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
     objects[-1]["ui_widget"].pop("image")
     objects[-1]["ui_widget"].pop("border")
@@ -388,7 +388,7 @@ def factory_ui():
         widget(f"title-star-{i}", "title-overlay", (x, y), (2 if i % 5 else 3, 2 if i % 5 else 3),
                background=[0.34, 0.48, 0.65, 0.65])
     widget("title-content", "title-overlay", (0, 0), (820, 570), anchor=(0.5, 0.5), pivot=(0.5, 0.5))
-    widget("title-kicker", "title-content", (0, 0), (820, 24), "BUILD A FACTORY. FIND YOUR WAY TO THE STARS.", 14, [0.48, 0.73, 0.76, 1])
+    widget("title-kicker", "title-content", (0, 0), (820, 24), "BUILD A FACTORY. FIND YOUR WAY TO THE STARS.", 14, [0.62, 0.70, 1.0, 1])
     widget("title-name", "title-content", (0, 36), (820, 90), "Stellar-IX", 76)
     widget("title-description", "title-content", (4, 143), (810, 50),
            "One landing pod. An unexplored world. Your first factory starts here.", 19, muted)
@@ -398,70 +398,70 @@ def factory_ui():
         ("creative", "Creative", "Every machine and recipe unlocked.\nBuild freely. Design a working power grid."),
     ]):
         widget("title-" + mode, "title-content", (4 + i * 414, 248), (398, 122), label, 25, cream,
-               [0.10, 0.20, 0.24, 1], padding=(20, 16, 0, 0))
+               [0.139, 0.154, 0.24, 1], padding=(20, 16, 0, 0))
         objects[-1]["ui_widget"].update(kind="button", focus_order=i)
         widget("title-" + mode + "-detail", "title-" + mode, (0, 44), (355, 54), detail, 15, muted)
     widget("title-create", "title-content", (4, 398), (398, 54), "Create Survival world", 20, cream,
-           [0.20, 0.41, 0.40, 1], padding=(20, 16, 0, 0))
+           [0.15, 0.24, 0.78, 1], padding=(20, 16, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", focus_order=2)
     widget("title-load", "title-content", (418, 398), (192, 54), "Load world", 18, cream,
-           [0.10, 0.22, 0.28, 1], padding=(20, 17, 0, 0))
+           [0.162, 0.179, 0.28, 1], padding=(20, 17, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", focus_order=3)
     widget("title-exit", "title-content", (624, 398), (180, 54), "Exit", 18, muted,
-           [0.08, 0.13, 0.19, 1], padding=(20, 17, 0, 0))
+           [0.11, 0.122, 0.19, 1], padding=(20, 17, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", focus_order=3)
     widget("title-dev", "title-content", (4, 466), (192, 42), "Dev World", 18, cream,
-           [0.16, 0.22, 0.30, 1], padding=(0, 10, 0, 0))
+           [0.174, 0.192, 0.3, 1], padding=(0, 10, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center", focus_order=4)
     widget("title-dev-detail", "title-content", (212, 476), (598, 28),
            "Fixed 2 × 2 checkerboard. Every deposit, machine and item.", 15, muted)
-    widget("coop-open-title", "title-content", (4, 528), (192, 34), "Steam co-op", 16, cream, [0.10, 0.22, 0.28, 1], padding=(0, 8, 0, 0))
+    widget("coop-open-title", "title-content", (4, 528), (192, 34), "Steam co-op", 16, cream, [0.162, 0.179, 0.28, 1], padding=(0, 8, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("title-note", "title-content", (212, 534), (598, 28), "Auto-save every 20 minutes. Save anytime from the game menu.", 13, muted)
-    widget("coop-overlay", "factory-panels", (0, 0), (0, 0), background=[0.008, 0.014, 0.029, 0.94], order=600)
+    widget("coop-overlay", "factory-panels", (0, 0), (0, 0), background=[0.017, 0.019, 0.029, 0.94], order=600)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("coop-panel", "coop-overlay", (0, 0), (900, 560), background=[0.045, 0.075, 0.10, 1], anchor=(0.5, 0.5), pivot=(0.5, 0.5))
+    widget("coop-panel", "coop-overlay", (0, 0), (900, 560), background=[0.058, 0.064, 0.1, 1], anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("coop-title", "coop-panel", (28, 24), (480, 40), "STEAM CO-OP", 28)
-    widget("coop-steam-overlay", "coop-panel", (552, 24), (196, 34), "Open Steam overlay", 15, cream, [0.14, 0.22, 0.26, 1], padding=(0, 8, 0, 0))
+    widget("coop-steam-overlay", "coop-panel", (552, 24), (196, 34), "Open Steam overlay", 15, cream, [0.151, 0.166, 0.26, 1], padding=(0, 8, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
-    widget("coop-close", "coop-panel", (760, 24), (112, 34), "Close", 16, cream, [0.14, 0.22, 0.26, 1], padding=(0, 7, 0, 0))
+    widget("coop-close", "coop-panel", (760, 24), (112, 34), "Close", 16, cream, [0.151, 0.166, 0.26, 1], padding=(0, 7, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center", shortcuts=["Escape"])
     widget("coop-status", "coop-panel", (28, 80), (588, 66), "Create a lobby to invite friends.", 16, muted)
     scroll_text("coop-members", "coop-panel", (630, 78), (242, 88), "", 16)
     x = 28
     for action, label, width in [("create", "Create lobby", 162), ("invite", "Invite friends", 158), ("friends", "Friend picker", 154), ("chat", "Chat", 100), ("leave", "Leave lobby", 148)]:
-        widget("coop-" + action, "coop-panel", (x, 174), (width, 42), label, 16, cream, [0.10, 0.22, 0.28, 1], padding=(0, 11, 0, 0))
+        widget("coop-" + action, "coop-panel", (x, 174), (width, 42), label, 16, cream, [0.162, 0.179, 0.28, 1], padding=(0, 11, 0, 0))
         objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
         x += width + 12
     widget("coop-hint", "coop-panel", (28, 234), (844, 46), "", 15, muted)
     widget("coop-friends-list", "coop-panel", (28, 300), (382, 172), padding=(0, 0, 12, 0))
     objects[-1]["ui_widget"].update(layout="column", gap=8, scrollable=True, clip_children=True)
     for i in range(4):
-        widget(f"coop-friend-{i}", "coop-friends-list", (0, 0), (370, 34), "Invite friend", 15, cream, [0.10, 0.18, 0.23, 1], padding=(12, 8, 12, 8))
+        widget(f"coop-friend-{i}", "coop-friends-list", (0, 0), (370, 34), "Invite friend", 15, cream, [0.133, 0.147, 0.23, 1], padding=(12, 8, 12, 8))
         objects[-1]["ui_widget"].update(kind="button", visible=False, auto_text_height=True)
-    widget("coop-friends-next", "coop-panel", (28, 478), (150, 34), "More friends", 15, cream, [0.10, 0.18, 0.23, 1], padding=(0, 8, 0, 0))
+    widget("coop-friends-next", "coop-panel", (28, 478), (150, 34), "More friends", 15, cream, [0.133, 0.147, 0.23, 1], padding=(0, 8, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", visible=False, text_alignment="center")
     scroll_text("coop-lobby-log", "coop-panel", (438, 296), (432, 134), "No messages yet.", 15, muted)
     scroll_text("coop-lobby-draft", "coop-panel", (438, 438), (432, 48), "Press Enter to chat", 16)
-    widget("coop-send", "coop-panel", (724, 504), (148, 34), "Send / Enter", 15, cream, [0.10, 0.22, 0.28, 1], padding=(0, 8, 0, 0))
+    widget("coop-send", "coop-panel", (724, 504), (148, 34), "Send / Enter", 15, cream, [0.162, 0.179, 0.28, 1], padding=(0, 8, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("coop-overlay-status", "coop-panel", (28, 526), (684, 20), "Checking Steam overlay…", 13, muted)
-    widget("coop-chat-overlay", "factory-panels", (20, -20), (560, 180), background=[0.025, 0.045, 0.06, 0.97], anchor=(0, 1), pivot=(0, 1), order=610)
+    widget("coop-chat-overlay", "factory-panels", (20, -20), (560, 180), background=[0.035, 0.038, 0.06, 0.97], anchor=(0, 1), pivot=(0, 1), order=610)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     scroll_text("coop-chat-log", "coop-chat-overlay", (16, 16), (528, 100), "", 15, muted)
     scroll_text("coop-chat-draft", "coop-chat-overlay", (16, 124), (528, 44), "Press Enter to chat", 16)
-    widget("saves-overlay", "factory-panels", (0, 0), (0, 0), background=[0.008, 0.014, 0.025, 0.90], order=500)
+    widget("saves-overlay", "factory-panels", (0, 0), (0, 0), background=[0.014, 0.016, 0.025, 0.90], order=500)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("saves-panel", "saves-overlay", (0, 0), (680, 568), background=[0.045, 0.075, 0.10, 1],
+    widget("saves-panel", "saves-overlay", (0, 0), (680, 568), background=[0.058, 0.064, 0.1, 1],
            anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("saves-title", "saves-panel", (28, 22), (450, 38), "LOAD WORLD", 26)
-    widget("saves-close", "saves-panel", (540, 22), (112, 34), "Close", 16, cream, [0.14, 0.22, 0.26, 1], padding=(0, 7, 0, 0))
+    widget("saves-close", "saves-panel", (540, 22), (112, 34), "Close", 16, cream, [0.151, 0.166, 0.26, 1], padding=(0, 7, 0, 0))
     objects[-1]["ui_widget"].update(kind="button", focus_order=7, text_alignment="center")
     for slot in range(6):
         widget(f"save-slot-{slot}", "saves-panel", (28, 74 + slot * 64), (624, 56),
-               "Auto-save" if slot == 0 else f"Save {slot}", 18, cream, [0.085, 0.145, 0.18, 1], padding=(16, 16, 0, 0))
+               "Auto-save" if slot == 0 else f"Save {slot}", 18, cream, [0.104, 0.115, 0.18, 1], padding=(16, 16, 0, 0))
         objects[-1]["ui_widget"].update(kind="button", focus_order=slot)
         widget(f"save-info-{slot}", f"save-slot-{slot}", (134, -6), (444, 44), "Reading saves…", 14, muted)
     widget("saves-status", "saves-panel", (28, 472), (624, 72), "", 14, muted)

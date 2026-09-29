@@ -270,7 +270,6 @@ impl App {
         owner: &str,
         graph: &Blueprint,
     ) {
-        let playing = self.editor.play.is_some();
         let paused = self.editor.play.as_ref().is_some_and(|p| p.app.is_paused());
         let scene = self
             .editor
@@ -309,7 +308,6 @@ impl App {
             toggle = ui.add_enabled(breakable, egui::Button::new(if has { "● Remove breakpoint" } else { "○ Add breakpoint" }))
                 .on_hover_text("Select an event or action node, then toggle its breakpoint. F9. Pure data nodes are inspected through Values.").clicked() || (shortcut && breakable);
             ui.checkbox(&mut self.blueprint_debug.visible, "Inspector");
-            if !playing { ui.weak("Set a breakpoint, then Play. Red dot = breakpoint."); }
         });
         if toggle
             && let Some(location) = location

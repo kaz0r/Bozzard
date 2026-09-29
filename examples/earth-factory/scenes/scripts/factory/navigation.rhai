@@ -106,7 +106,7 @@ fn draw_title() {
     set_ui_text("title-create", if creative { "Create Creative world" } else { "Create Survival world" });
     for mode in ["survival", "creative"] {
         let selected = (mode == "creative") == creative;
-        set_ui_background("title-" + mode, if selected { [0.14, 0.31, 0.33, 1.0] } else { [0.055, 0.10, 0.16, 1.0] });
+        set_ui_background("title-" + mode, if selected { [0.10, 0.16, 0.56, 1.0] } else { [0.093, 0.102, 0.16, 1.0] });
     }
 }
 

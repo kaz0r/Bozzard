@@ -41,7 +41,7 @@ fn update() {
         let kind=inventory[slot*2]; let amount=inventory[slot*2+1];
         if amount>0.0 { used+=1; }
         set_ui_text("player-slot-"+slot.to_string(),if amount>0.0 { data::item_name(kind)+"\n"+amount.to_int().to_string()+" / 100" } else { "" });
-        set_ui_background("player-slot-"+slot.to_string(),if drag==slot { [0.06,0.10,0.12,1.0] } else { [0.10,0.16,0.19,1.0] });
+        set_ui_background("player-slot-"+slot.to_string(),if drag==slot { [0.07, 0.077, 0.12, 1.0] } else { [0.11, 0.122, 0.19, 1.0] });
     }
     set_ui_text("player-inventory-footer",used.to_string()+" / 25 slots  /  100 per stack");
     set_ui_enabled("backpack-destroy-all",used>0);

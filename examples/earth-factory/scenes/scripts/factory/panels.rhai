@@ -125,7 +125,7 @@ fn draw_assembler() {
     for i in 0..3 {
         let choice = choices[i]; let ingredients = data::recipe_cost(choice.to_int());
         set_ui_text(names[i],data::item_name(choice) + " x" + data::recipe_yield(choice.to_int()).to_int().to_string() + "\n" + data::cost_label(ingredients,"\n"));
-        set_ui_background(names[i],if recipe == choice { [0.18,0.37,0.36,1.0] } else { [0.12,0.19,0.23,1.0] });
+        set_ui_background(names[i],if recipe == choice { [0.10,0.16,0.56,1.0] } else { [0.133, 0.147, 0.23, 1.0] });
         set_ui_enabled(names[i],data::recipe_unlocked(choice.to_int()) && (output == 0.0 || recipe == choice));
     }
     set_ui_enabled("assembler-take",output > 0.0 && get_object_list("rotation_turns")[cell] == 0.0);
