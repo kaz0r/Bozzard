@@ -3,8 +3,9 @@ import "factory-net_input" as net;
 // Rhai gameplay: power.
 import "factory-data" as data;
 import "factory-grid" as grid;
+import "factory-model_ports" as model_ports;
 
-fn electrical(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 9 || kind == 10 || kind == 11 }
+fn electrical(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 9 || kind == 10 || kind == 11 || kind>=12 && kind<=25 }
 
 fn power_id(cell) { grid::chunk_id(get_scene_variable("chunk_x").to_int(), get_scene_variable("chunk_z").to_int()) * 225 + cell }
 
@@ -153,7 +154,7 @@ fn pole_status(id) {
     (entry.len() - 2).to_string() + " / 5 cables  " + if entry[1] > 0 { "Powered" } else { "No power / overload" }
 }
 
-fn power_demand(kind) { if kind == 1 { 1 } else if kind == 3 { 2 } else if kind == 5 { 3 } else if kind == 11 { 2 } else { 0 } }
+fn power_demand(kind) { if kind>=12 && kind<=25 {[2,3,2,3,4,5,4,6,3,3,2,4,6,3][kind-12]}else if kind == 1 { 1 } else if kind == 3 { 2 } else if kind == 5 { 3 } else if kind == 11 { 2 } else { 0 } }
 
 fn resolve_graph(graph) {
     let visited = #{};
@@ -268,18 +269,18 @@ fn sync_power_visuals(graph) {
         if has_machine_indicator(entry[0]) && resident[id / 225] > 0.0 {
             let on = entry[1] > 0;
             let role = if on { "on" } else { "off" };
-            let prefix = if entry[0] == 1 { "miner" } else if entry[0] == 3 { "smelter" }
+            let prefix = if entry[0]>=12 && entry[0]<=25 {data::expansion_slug(entry[0].to_float())}else if entry[0] == 1 { "miner" } else if entry[0] == 3 { "smelter" }
                 else if entry[0] == 5 { "assembler" } else if entry[0] == 6 { "generator" } else { "constructor" };
             let lamp = if previous.contains(role) { previous[role] }
                 else { spawn_prefab(prefix + "-power-" + role, [pos[0],0.08,pos[2]]) };
             align_machine_effect(lamp,id);
             effects[role] = lamp;
             lamps.push(#{id:id,role:"status",kind:entry[0],on:on});
-            if entry[0] == 3 && on {
+            if [3,16,20,21].contains(entry[0]) && on {
                 let heat = if previous.contains("heat") { previous["heat"] }
-                    else { spawn_prefab("smelter-heat",[pos[0],0.08,pos[2]]) };
+                    else { spawn_prefab(prefix+"-heat",[pos[0],0.08,pos[2]]) };
                 align_machine_effect(heat,id); effects["heat"] = heat;
-                lamps.push(#{id:id,role:"heat",kind:3,on:true});
+                lamps.push(#{id:id,role:"heat",kind:entry[0],on:true});
             }
         }
         for peer in entry.extract(2) {
@@ -351,7 +352,7 @@ fn sync_power_visuals(graph) {
 
 // Resolve only resident presentation handles. No simulated state or saved data
 // is added for cosmetic effects, and remote regions use their own visual cache.
-fn has_machine_indicator(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 11 }
+fn has_machine_indicator(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 11 || kind>=12 && kind<=25 }
 
 fn machine_handle(id) {
     if id / 225 == grid::current_chunk() { return get_scene_list_item("build_visuals",id % 225); }
@@ -367,7 +368,7 @@ fn align_machine_effect(effect,id) {
 fn position_machine_light(light,id,kind,role) {
     let machine = machine_handle(id); if machine == "" { return; }
     let pos = get_position(machine); let angle = get_rotation(machine)[1] * 0.0174532925;
-    let local = if role == "heat" { [0.51,0.77,0.0] }
+    let local = if kind>=12 && kind<=25 {if role=="heat" {model_ports::heat(kind)}else{model_ports::indicator(kind)}}else if role == "heat" { [0.51,0.77,0.0] }
         else if kind == 1 { [0.39,1.07,0.287] }
         else if kind == 6 { [0.39,1.055,0.285] }
         else if kind == 3 { [0.49,0.56,0.332] } else { [0.50,0.75,0.32] };
@@ -435,6 +436,16 @@ fn wire_demo() {
 }
 
 fn power_anchor(id, kind) {
+    if kind>=12 && kind<=25 {
+        let local=model_ports::socket(kind);let pos=power_position(id);let angle=0.0;let lift=0.08;
+        let target=machine_handle(id);
+        if target!="" {angle=get_rotation(target)[1]*0.0174532925;lift=get_position(target)[1];}
+        else {
+            let facings=if id/225==grid::current_chunk() {get_scene_list("facings")}else{grid::unpack_numbers(data::region_entry("cache_facings",id/225),225)};
+            angle= -facings[id%225]*1.5707963268;
+        }
+        return [pos[0]+cos(angle)*local[0]+sin(angle)*local[2],lift+local[1],pos[2]-sin(angle)*local[0]+cos(angle)*local[2]];
+    }
     let pos = power_position(id);
     pos[1] = if kind == 9 { 1.47 } else if kind == 10 { 1.26 }
         else if kind == 1 || kind == 6 { 1.35 } else if kind == 3 { 1.15 } else { 1.08 };

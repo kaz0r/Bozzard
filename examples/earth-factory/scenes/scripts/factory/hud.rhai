@@ -9,6 +9,9 @@ fn nearby_label(cell, nodes, builds) {
     let names = ["", "Iron", "Copper", "Limestone", "Coal", "Quartz", "Oil", "Water", "Stone", "Sand", "Silver"];
     let machines = ["", "Miner", "Conveyor", "Smelter", "Storage", "Assembler", "Generator", "Splitter", "Merger", "Power pole Mk1", "Cable", "Constructor"];
     let kind = builds[cell].to_int();
+    if data::expansion(builds[cell]) {return data::build_name(builds[cell])+"  [E] Recipe / ingredients / collect";}
+    if data::pipe(builds[cell]) {return data::build_name(builds[cell])+" / "+data::item_name(get_scene_list_item("items",cell))+" "+get_scene_list_item("item_amounts",cell).to_int().to_string()+" / 100  [E] Inspect";}
+    if kind==28 || kind==29 {return data::build_name(builds[cell])+" / 90° turn";}
     let resource = if nodes[cell] >= 24.0 { data::node_name(nodes[cell]) } else { names[nodes[cell].to_int()] };
     if kind == 0 && nodes[cell] == 0.0 { let project = visuals::project_label(cell); if project != "" { project } else { "Landing pod  [J] Journal" } }
     else if kind == 0 { resource + " deposit" }
@@ -145,11 +148,11 @@ fn update_hud(dt, daylight) {
     set_ui_text("power-status", (if demand > supply { "OVERLOAD  " } else { "POWER  " })
         + demand.to_string() + " / " + supply.to_string());
     let tools = data::bar_tools(bar);
-    let titles = ["DEMONSTRATION", "I  /  PRODUCTION", "II  /  LOGISTICS", "III  /  POWER"];
+    let titles = ["DEMONSTRATION", "I  /  PRODUCTION", "II  /  LOGISTICS", "III  /  POWER", "IV  /  PROCESSING", "V  /  ADVANCED"];
     set_ui_text("bar-title", titles[bar]);
     for i in 1..9 {
         let kind = tools[i - 1];
-        set_ui_text("slot-name-" + i.to_string(), if kind == 0.0 { "—" } else { data::build_name(kind) });
+        set_ui_text("slot-name-" + i.to_string(), if kind == 0.0 { "—" } else { data::tool_label(kind) });
         set_ui_text("slot-key-" + i.to_string(), i.to_string() + if kind > 0.0 && !data::tool_unlocked(kind) { "  LOCKED" } else { "" });
         set_ui_opacity("slot-" + i.to_string(), if kind == 0.0 { 0.25 } else if data::tool_unlocked(kind) { 1.0 } else { 0.48 });
         set_ui_background("slot-" + i.to_string(), if kind == selected.to_float() {
@@ -187,6 +190,6 @@ fn update_hud(dt, daylight) {
     } else { set_ui_text("objective-note","Production continues while you build."); }
     set_ui_text("controls-hint", if selected == 10 { "Space Select / Connect   X Disconnect   R Cancel wire" } else { "WASD Move   Space Build   R Rotate machine   X Remove" });
     let directions = ["East", "South", "West", "North"];
-    set_ui_text("build-status", data::build_name(kind) + "  /  Facing " + directions[facing.to_int()]);
+    set_ui_text("build-status", (if kind==23.0 {"ELECTRONICS"}else{data::build_name(kind)}) + "  /  Facing " + directions[facing.to_int()]);
     set_ui_text("build-message", message);
 }

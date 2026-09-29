@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "90 degree pipe Mk1",
+  "root": "root",
+  "assets": {
+    "pipe-elbow-mk1": {
+      "kind": "mesh",
+      "path": "models/pipe-elbow-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-pipe-elbow",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "pipe-elbow-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

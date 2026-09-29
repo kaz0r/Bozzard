@@ -6,6 +6,8 @@ import "factory-item_fx" as item_fx;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
 import "factory-transports" as transports;
+import "factory-buffers" as buffers;
+import "factory-fluids" as fluids;
 
 fn factory_step() {
     visuals::animate_items(1.0);
@@ -43,7 +45,15 @@ fn step_planet(planet,tick) {
             let cell = entry.to_int();
             let kind = builds[cell];
             if rotating[cell] > 0.0 || powered[cell] == 0.0 { continue; }
-            if kind == 1.0 && nodes[cell] != 0.0 && amounts[cell] < data::buffer_capacity() && tick % 2 == 0 {
+            if data::expansion(kind) {
+                let recipe=recipes[cell].to_int(); let key=cell.to_string(); let slots=state.storage[key];
+                if recipe==0 || !buffers::ready(slots,recipe) {continue;}
+                if kind==12.0 && nodes[cell]!=7.0 || kind==13.0 && nodes[cell]!=6.0 {continue;}
+                progress[cell]+=1.0;
+                if progress[cell]>=data::recipe_beats(recipe) {
+                    state.storage[key]=buffers::produce(slots,recipe); state.storage_changed[key]=true; progress[cell]=0.0;
+                }
+            } else if kind == 1.0 && data::solid_node(nodes[cell]) && amounts[cell] < data::buffer_capacity() && tick % 2 == 0 {
                 items[cell] = nodes[cell];
                 amounts[cell] += 1.0;
             } else if kind == 3.0 || kind == 11.0 {
@@ -73,16 +83,16 @@ fn step_planet(planet,tick) {
 
     for entry in machine_cells {
         let cell = entry.to_int();
-        if amounts[cell] == 0.0 || resident[ids[cell]/225]==0.0 { continue; }
+        if amounts[cell] == 0.0 || data::pipe(builds[cell]) || resident[ids[cell]/225]==0.0 { continue; }
         if visuals[cell] == "" {
-            let position = [grid::global_x(ids[cell]), visuals::item_height(builds[cell]), grid::global_z(ids[cell])];
+            let position = item_fx::position(ids[cell],builds[cell],facings[cell],visuals::item_height(builds[cell],items[cell]));
             if pool.len() > 0 {
                 visuals[cell] = pool.pop();
                 set_position(visuals[cell], position);
                 set_visible(visuals[cell], true);
             } else { visuals[cell] = spawn_prefab("item", position); }
         }
-        set_color(visuals[cell], data::item_color(items[cell]));
+        item_fx::appearance(visuals[cell],items[cell]);
     }
     // Storage offers its first occupied slot from the start-of-transport snapshot.
     // Keep these offers separate from machine buffers: stored stock never becomes
@@ -91,8 +101,13 @@ fn step_planet(planet,tick) {
     let storage_slots=grid::empty_numbers(count);
     for key in state.storage.keys() {
         let cell=parse_int(key); let slots=state.storage[key];
-        for slot in 0..16 {
-            if slots[slot*2+1]<=0.0 { continue; }
+        // Rotate through solid byproducts so a continuously replenished primary
+        // product cannot starve recycler scrap or greenhouse seeds.
+        let first=if data::expansion(builds[cell]) {8}else{0};
+        let length=if first==8 {8}else{16};
+        for offset in 0..length {
+            let slot=first+(if first==8 {tick+offset}else{offset})%length;
+            if slots[slot*2+1]<=0.0 || data::fluid(slots[slot*2]) { continue; }
             offered_items[cell]=slots[slot*2]; offered_amounts[cell]=1.0;
             storage_slots[cell]=(slot+1).to_float(); break;
         }
@@ -111,8 +126,7 @@ fn step_planet(planet,tick) {
             let cell = entry.to_int();
             let kind = builds[cell];
             if routes[cell] != 0.0 || offered_amounts[cell] == 0.0 || rotating[cell] > 0.0 { continue; }
-            if kind != 1.0 && kind != 2.0 && kind != 3.0 &&
-                kind != 4.0 && kind != 5.0 && kind != 7.0 && kind != 8.0 && kind != 11.0 { continue; }
+            if data::fluid(offered_items[cell]) || !(kind==1.0 || data::belt(kind) || data::production(kind) || kind==4.0 || kind==7.0 || kind==8.0) {continue;}
             if attempt > 0 && kind != 7.0 { continue; }
             let direction = facings[cell].to_int();
             if kind == 7.0 {
@@ -126,8 +140,7 @@ fn step_planet(planet,tick) {
             let destination=lookup[address];
             if rotating[destination]>0.0 { continue; }
             let target = builds[destination];
-            if target != 2.0 && target != 3.0 && target != 4.0 && target != 5.0 &&
-                target != 7.0 && target != 8.0 && target != 11.0 { continue; }
+            if !(data::belt(target) || data::production(target) || target==4.0 || target==7.0 || target==8.0) {continue;}
             if !data::accepts_transport_input(target, facings[destination].to_int(), direction) { continue; }
             requests[cell] = (destination + 1).to_float();
             any_requests = true;
@@ -136,8 +149,7 @@ fn step_planet(planet,tick) {
         for entry in machine_cells {
             let destination = entry.to_int();
             let target = builds[destination];
-            if target != 2.0 && target != 3.0 && target != 4.0 && target != 5.0 &&
-                target != 7.0 && target != 8.0 && target != 11.0 { continue; }
+            if !(data::belt(target) || data::production(target) || target==4.0 || target==7.0 || target==8.0) {continue;}
             let priority = split[destination].to_int();
             for port in 0..4 {
                 let side = port;
@@ -166,7 +178,11 @@ fn step_planet(planet,tick) {
                         state.storage[key]=slots; state.storage_changed[key]=true;
                         counts[item.to_int()]+=1.0; accepted=true;
                     }
-                } else if target == 2.0 || target == 7.0 || target == 8.0 {
+                } else if data::expansion(target) {
+                    let key=destination.to_string();
+                    let result=buffers::accept(state.storage[key],recipes[destination].to_int(),item);
+                    if result.ok {state.storage[key]=result.slots;state.storage_changed[key]=true;accepted=true;}
+                } else if data::belt(target) || target == 7.0 || target == 8.0 {
                     if load < data::transport_capacity(target) &&
                         (next_amounts[destination] == 0.0 || next_items[destination] == item) {
                         next_items[destination] = item;
@@ -212,12 +228,12 @@ fn step_planet(planet,tick) {
     for entry in machine_cells {
         let cell = entry.to_int();
         if routes[cell] == 0.0 { continue; }
-        if builds[cell]==4.0 {
+        if data::has_slots(builds[cell]) {
             let key=cell.to_string(); let slot=storage_slots[cell].to_int()-1;
             let slots=state.storage[key]; slots[slot*2+1]-=1.0;
             if slots[slot*2+1]==0.0 { slots[slot*2]=0.0; }
             state.storage[key]=slots; state.storage_changed[key]=true;
-            counts[offered_items[cell].to_int()]-=1.0;
+            if builds[cell]==4.0 {counts[offered_items[cell].to_int()]-=1.0;}
         } else {
             next_amounts[cell] -= 1.0;
             if next_amounts[cell] == 0.0 { next_items[cell] = 0.0; }
@@ -230,28 +246,28 @@ fn step_planet(planet,tick) {
         let destination = routes[cell].to_int() - 1;
         let target = builds[destination];
         if visuals[cell]=="" && resident[ids[destination]/225]>0.0 {
-            let position=[grid::global_x(ids[cell]),visuals::item_height(builds[cell]),grid::global_z(ids[cell])];
+            let position=item_fx::position(ids[cell],builds[cell],facings[cell],visuals::item_height(builds[cell],offered_items[cell]));
             if pool.len()>0 { visuals[cell]=pool.pop(); set_position(visuals[cell],position); set_visible(visuals[cell],true); }
             else { visuals[cell]=spawn_prefab("item",position); }
-            set_color(visuals[cell],data::item_color(offered_items[cell]));
+            item_fx::appearance(visuals[cell],offered_items[cell]);
         }
         if visuals[cell]=="" { continue; }
         let retained=resident[ids[destination]/225]>0.0 &&
-            (target==2.0 || target==7.0 || target==8.0) && next_visuals[destination]=="";
+            (data::belt(target) || target==7.0 || target==8.0) && next_visuals[destination]=="";
         if retained { next_visuals[destination]=visuals[cell]; }
-        motions.push([ids[cell],ids[destination],visuals[cell],visuals::item_height(builds[cell]),visuals::item_height(target),!retained]);
+        motions.push([ids[cell],ids[destination],visuals[cell],visuals::item_height(builds[cell],offered_items[cell]),visuals::item_height(target,offered_items[cell]),!retained]);
     }
     // Sending one item from a stack leaves a single stationary representative.
     for entry in machine_cells {
         let cell = entry.to_int();
-        if next_amounts[cell] == 0.0 || next_visuals[cell] != "" || resident[ids[cell]/225]==0.0 { continue; }
-        let position = [grid::global_x(ids[cell]), visuals::item_height(builds[cell]), grid::global_z(ids[cell])];
+        if next_amounts[cell] == 0.0 || data::pipe(builds[cell]) || next_visuals[cell] != "" || resident[ids[cell]/225]==0.0 { continue; }
+        let position = item_fx::position(ids[cell],builds[cell],facings[cell],visuals::item_height(builds[cell],next_items[cell]));
         if pool.len() > 0 {
             next_visuals[cell] = pool.pop();
             set_position(next_visuals[cell], position);
             set_visible(next_visuals[cell], true);
         } else { next_visuals[cell] = spawn_prefab("item", position); }
-        set_color(next_visuals[cell], data::item_color(next_items[cell]));
+        item_fx::appearance(next_visuals[cell],next_items[cell]);
     }
 
     transports::record(planet,tick,ids,routes,offered_items,builds);
@@ -260,6 +276,9 @@ fn step_planet(planet,tick) {
     state.columns.progress=progress; state.columns.assembler_iron=iron; state.columns.assembler_copper=copper;
     state.columns.split_state=split;
     state.counts=counts;
+    // Production consumes the previous beat's inputs. Fluids received here can
+    // participate only in the next beat, just like belt deliveries.
+    state=fluids::step(state);
     factory_state::write(state);
     if state.active {
         item_fx::write(ids,next_visuals,motions);

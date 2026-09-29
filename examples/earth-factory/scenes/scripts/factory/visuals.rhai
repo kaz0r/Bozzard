@@ -3,6 +3,7 @@ import "factory-item_fx" as item_fx;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-power" as power;
+import "factory-material_models" as material_models;
 
 fn clear_visuals(name) {
     for target in get_scene_list(name) {
@@ -12,11 +13,27 @@ fn clear_visuals(name) {
 
 fn item_height(kind) {
     // The modeled production machines and junctions share the belt deck.
-    if kind == 1.0 || kind == 2.0 || kind == 3.0 || kind == 4.0 || kind == 5.0 || kind == 7.0 || kind == 8.0 || kind == 11.0 { 0.52 }
+    if kind == 1.0 || data::belt(kind) || data::production(kind) || kind == 4.0 || kind == 7.0 || kind == 8.0 { 0.52 }
     else { 1.10 }
+}
+fn item_height(kind,item) {
+    // Original cubes had a 0.10 half-height; each new silhouette rests on the
+    // same deck (0.34 local + 0.08 machine lift), with a small tread clearance.
+    item_height(kind)-0.10+material_models::half_height(item)+0.004
 }
 
 fn animate_items(fraction) { item_fx::animate(fraction); }
+
+fn reset_rotations() {
+    // Animation state is transient and is not stored in saves. Fresh title-menu
+    // loads and co-op restores need the same full tables as a newly created world.
+    set_object_list("rotation_cells", []);
+    set_object_list("rotation_from", grid::empty_numbers(225));
+    set_object_list("rotation_turns", grid::empty_numbers(225));
+    let times = [];
+    for cell in 0..225 { times.push(1.0); }
+    set_object_list("rotation_time", times);
+}
 
 fn finish_rotations() {
     let facings = get_scene_list("facings");
@@ -32,11 +49,7 @@ fn finish_rotations() {
     }
     set_scene_list("facings", facings);
     power::animate_power_connections(get_object_list("rotation_cells"));
-    set_object_list("rotation_cells", []);
-    set_object_list("rotation_turns", grid::empty_numbers(225));
-    let times = [];
-    for cell in 0..225 { times.push(1.0); }
-    set_object_list("rotation_time", times);
+    reset_rotations();
 }
 
 fn animate_machines(dt) {

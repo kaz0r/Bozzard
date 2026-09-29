@@ -44,6 +44,7 @@ fn update_journal(dt) {
     set_ui_visible("journal-deliver",page == 1 && phase < 7);
     set_ui_visible("journal-craft-one",page == 2); set_ui_visible("journal-craft-ten",page == 2);
     set_ui_visible("journal-left-body",page != 2);
+    set_ui_visible("journal-left-body-scroll",page!=2);
     for item in [11,12,14,15,16,17,13,21,18,20,23,22] {
         let id = "journal-recipe-" + item.to_string();
         set_ui_visible(id,page == 2);
@@ -57,10 +58,11 @@ fn update_journal(dt) {
     if page == 1 {
         set_ui_text("journal-left-title","I  /  Unlocked equipment");
         let body = "Hand tools and pod workbench\n";
-        for kind in [3.0,1.0,2.0,9.0,10.0,4.0,6.0,11.0,5.0] {
+        for kind in [3.0,1.0,2.0,9.0,10.0,4.0,6.0,11.0,5.0,7.0,8.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0] {
             body += (if data::tool_unlocked(kind) { "Ready    " } else { "Locked  " }) + data::build_name(kind) + "\n";
         }
         body += (if phase >= 2 { "Ready    " } else { "Locked  " }) + "Inventory [I]";
+        body+="\n\nCtrl+1 Production / Ctrl+2 Logistics\nCtrl+3 Power / Ctrl+4 Processing\nCtrl+5 Advanced machines\n\nE opens each machine's recipes.\nUse pipes for fluids and belts for solids.\nStorage accepts either at its rear.\n\nClay: region 1,1\nWild seeds: region -1,-1\nGreenhouses return seeds with biomass.\nPurified ores yield three ingots in a foundry.";
         set_ui_text("journal-left-body",body);
         set_ui_text("journal-right-title",if phase < 7 { data::phase_label(phase+1) } else { "Rocket complete" });
         if phase < 7 {

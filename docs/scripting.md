@@ -199,6 +199,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_position`, `set_rotation`, `set_scale`, `translate`, `rotate` | transform writes; `rotate` takes a degrees delta |
 | `set_velocity(target, v)`, `jump(target, speed)`, `move_with_collision(target, v)` | rigidbody actions; grounding is readable as `is_grounded(target)` |
 | `set_color(target, rgb)`, `set_visible(target, visible)`, `set_text(target, text)` | drawable, visibility and text |
+| `set_mesh(target, asset_id)` | replace a drawable's mesh with a registered mesh asset, preserving its entity, transform and tint; clears surface overrides belonging to the old mesh |
 | `set_ui_text(target, text)`, `set_ui_visible(target, visible)` | text (up to 4096 UTF-8 bytes) and visibility of a UI widget |
 | `set_ui_enabled(target, enabled)` | enable or disable input for a widget and its descendants (useful during closing animations) |
 | `set_ui_opacity(target, opacity)` | widget and descendant opacity multiplier, `0.0`–`1.0` |

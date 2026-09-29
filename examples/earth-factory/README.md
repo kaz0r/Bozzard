@@ -2,6 +2,13 @@
 
 An editor-playable, isometric 3D voxel-style factory slice for the first Earthlike world. The scene, machines, nodes, and HUD are ordinary Bozzard scene objects and prefabs. Gameplay runs in a Rhai entry script and imported modules.
 
+All 49 materials and equipment items have dedicated low-poly 3D assets matching
+the Mk1 machines. Conveyors, machine output and co-op transfers use the new meshes
+with reusable item entities and per-model deck heights. Fluid samples have drum,
+canister or cylinder art; pipes carry their contents normally. See
+[`assets/factory-materials`](../../assets/factory-materials/README.md) for the
+catalog, editable Blender source, native showroom and regeneration instructions.
+
 From the repository root:
 
 ```sh
@@ -10,7 +17,7 @@ cargo run -p bozzard-editor-app --bin bozzard-editor -- --scene examples/earth-f
 
 Click the green **▶ Play** button to open the **Stellar-IX** main menu. Select **Survival** or **Creative**, then **Create world**. Survival starts on **Stellar-BX** with manual gathering: hold **F** on iron, copper, and stone nodes, then deliver **12 iron ore + 8 copper ore + 8 stone** through journal **J**, page I. This unlocks the first miners, smelters, conveyors, poles, cables, and workbench recipes. Creative unlocks all implemented tools, recipes, and the completed rocket; construction and ingredient loading are free, but machines still need a working power connection. The same scene and controls work in the native player. Board the completed rocket with **E** and choose **Launch to Moon** to visit **Stella-Z2**; return trips currently require no fuel.
 
-**Dev World** opens directly from the main menu. Its fixed 2 × 2 chunks form a 30 × 30-tile checkerboard, one block thick. One spaced row contains all 13 Earth and Moon deposits; another contains every machine type, including storage and conveyor equipment, plus a cable between two poles. Two rows of isolated conveyors display all 25 item types, and the backpack starts with ten of each. The four chunks remain loaded, with no procedural deposits or neighboring regions. Machines use their ordinary simulation and power rules. **N** restores the showcase; save/load retains edits. Planet travel is unavailable in this world.
+**Dev World** opens directly from the main menu. Its fixed 2 × 2 chunks form a 30 × 30-tile checkerboard, one block thick. Spaced rows contain all 15 Earth and Moon deposits and every machine type, including the fourteen expansion machines, straight/elbow pipes and left/right corner belts, plus a cable between two poles. Isolated conveyors and pipes display all 49 item types; the backpack starts with ten of the original 25 types. The four chunks remain loaded, with no procedural deposits or neighboring regions. Machines use their ordinary simulation and power rules. **N** restores the showcase; save/load retains edits. Planet travel is unavailable in this world.
 
 A small debug HUD beneath the objective shows FPS, frame time, CPU draw time, loaded and explored chunks, simulating chunks, visible entities, draw calls, and submitted triangles. It refreshes four times per second in editor Play and the native player. FPS uses completed-frame wall time; CPU draw time measures renderer preparation and submission, not GPU execution. Visible entities exclude the HUD and count objects inside the camera frustum before GPU occlusion. Draws and triangles cover color-pass meshes. Headless runs show `--` for unavailable rendering measurements.
 
@@ -52,8 +59,8 @@ cargo test -p bozzard-editor --test threaded_render -- --ignored --nocapture
 | Key | Action |
 | --- | --- |
 | W/A/S/D | Move the build cursor; approaching an edge reveals the next region |
-| Ctrl + 1 / 2 / 3 | Select the Production / Logistics / Power action bar |
-| 1–8 | Select a slot on the current bar; each bar remembers its selection |
+| Ctrl + 1–5 | Select Production / Logistics / Power / Processing / Advanced |
+| 1–8 | Select a slot on the current bar |
 | R | Lift, rotate, and lower the machine under the cursor; on empty ground, turn the next placement |
 | Ctrl + R | Smoothly orbit the camera by 90° |
 | F (hold) | Hand-gather a solid resource beneath the cursor |
@@ -71,13 +78,13 @@ cargo test -p bozzard-editor --test threaded_render -- --ignored --nocapture
 | N | Reset the world, discoveries, backpack, and progression with a new seed |
 | F6 (player) | Reload the source scene |
 
-**Action bars.** Production contains smelters, miners, Constructors, and assemblers; Logistics contains belts, storage, splitters, and mergers; Power contains generators, Mk1 poles (slot 2), and cables (slot 3). Locked slots stay visible and explain their requirements through the journal. Ctrl-number chords switch bars without also selecting a slot.
+**Action bars.** Production contains smelters, miners, Constructors, assemblers, water pumps, oil extractors, crushers and ore washers. Logistics contains belts, storage, splitters, mergers, straight pipes, elbow pipes and left/right corner belts. Power contains generators, Mk1 poles (slot 2), and cables (slot 3). Processing contains foundries, refineries, chemical plants, electrolyzers, kilns, glassworks, greenhouses and electronics fabricators. Advanced contains manufacturers and recyclers. Locked slots stay visible and explain their requirements through the journal. Ctrl-number chords switch bars without also selecting a slot.
 
 **Player stacks.** Inventory **I** has 25 freely arranged slots, each holding up to 100 of one item. Drag to move, swap different items, or merge matching stacks (overflow stays in the source). Right-click a stack for **Split**, **Destroy**, or **Cancel**. Split puts half into an empty slot. **Destroy All**, at the bottom right, clears only carried items. Gathering and collection respect available room; uncollected machine output and stored items remain in place. Crafting checks the space available after spending ingredients before committing the transaction. Storage keeps its separate 16 × 100 capacity.
 
 **Machine rotation.** A turn takes 0.6 seconds: lift, quarter-turn, then lower. Repeated presses queue up to eight turns on each machine, while holding R does not repeat. The machine's production and item transfers wait until it lands, when its output direction changes. Other machines continue running. Removing an animating machine clears its pending turns, ingredients, and progress. Camera turns remain separate and take 0.55 seconds.
 
-**Exploration.** Regions contain 15 × 15 cells. The planet extends eight regions north, south, east, and west of the landing region: a 17 × 17 grid, including diagonals, for up to 289 regions. Neighboring ground and deposits appear before crossing an edge. Their layouts depend on the planet seed and region coordinates, so discovery order does not reroll a location. Ordinary regions have **2–4 deposits**, with no repeated resource type and at least **three tiles between deposit centers**, including across region boundaries. Iron, copper, stone, sand, and limestone are common; quartz, coal, and water are uncommon; silver and oil are rare. The landing region guarantees the five common materials outside the future landing pad, and one cardinal neighbor guarantees coal. Seeded outposts farther away guarantee water, quartz, oil, and silver somewhere on the finite planet. Solid nodes can be gathered by hand; liquids require miners. Silver has no processing recipe yet. Revisited regions retain machine placement, facing, buffered items, production progress, and storage contents. The optional production-test demonstration retains its compact factory and full resource set.
+**Exploration.** Regions contain 15 × 15 cells. The planet extends eight regions north, south, east, and west of the landing region: a 17 × 17 grid, including diagonals, for up to 289 regions. Neighboring ground and deposits appear before crossing an edge. Their layouts depend on the planet seed and region coordinates, so discovery order does not reroll a location. Ordinary regions have **2–4 deposits**, with no repeated resource type and at least **three tiles between deposit centers**, including across region boundaries. Iron, copper, stone, sand, and limestone are common; quartz, coal, and water are uncommon; silver and oil are rare. The landing region guarantees the five common materials outside the future landing pad, and one cardinal neighbor guarantees coal. Seeded outposts farther away guarantee water, quartz, oil, and silver somewhere on the finite planet. Solid nodes can be gathered by hand; water and crude oil require their dedicated pump or extractor. Silver has no processing recipe yet. Revisited regions retain machine placement, facing, buffered items, production progress, and storage contents. The optional production-test demonstration retains its compact factory and full resource set.
 
 Every region containing factory equipment on Earth or Stella-Z2 simulates, including regions
 on a planet you have left. Production and transport share one clock across both planets: conveyors,
@@ -128,7 +135,7 @@ cargo test --release -p bozzard-demo --test earth_factory profile_chunk_transiti
 
 Movement, construction, gathering, and action-bar changes pause while a modal is open or closing. Factory production continues.
 
-**Player inventory.** Phase 1 already retains gathered materials for journal crafting and deliveries. Tier 1 Phase 3 unlocks **I**, showing all carried materials and crafted Miner Mk1 items without resetting those quantities. This screen retains the prototype's aggregate material counts; no new carrying-capacity limit is imposed. Storage containers retain their separate stack system.
+**Player inventory.** Phase 1 already retains gathered materials for journal crafting and deliveries. Tier 1 Phase 3 unlocks **I**, showing all carried materials and crafted Miner Mk1 items without resetting those quantities. The screen shows the 25 arranged backpack stacks described above, including the expansion materials. Storage containers retain their separate stack system.
 
 **Machine interfaces.** **E** opens an assembler or Constructor within one tile. Assemblers choose conductive alloy, machine parts, or concrete; Constructors choose iron sheets, nuts and bolts, or cable. **Load ingredients** transfers up to ten recipe batches (ten inputs for a single-input machine), accounting for missing ingredients and the shared 100-item limit. Creative supplies ingredients freely. Conveyors can supply the same materials. **Collect output** transfers the finished stack. Collect existing output before changing recipes. Inputs return to carried stock when ingredient types or output batch sizes change; otherwise the machine keeps them. Recipes and buffers survive chunk unloading. **E** or **Close** returns to play.
 
@@ -174,12 +181,12 @@ launcher. No Steam settings are changed by the game.
 | T1 P2 | 12 iron ore + 8 copper ore + 8 stone | Smelter Mk1, Miner Mk1, Conveyor Mk1, poles, cables, basic journal crafting |
 | T1 P3 | 16 iron ingots + 8 copper ingots + 4 glass | Storage and player inventory [I] |
 | T1 P4 | 12 iron sheets + 40 nuts and bolts + 8 cables | Coal generator |
-| T2 P1 | 20 iron sheets + 80 nuts and bolts + 16 cables + 8 glass | Constructor and assembler |
+| T2 P1 | 20 iron sheets + 80 nuts and bolts + 16 cables + 8 glass | Constructor, assembler, all fourteen expansion machines, pipes, corner belts, splitters and mergers |
 | T2 P2 | 80 concrete + 40 iron sheets + 80 nuts and bolts | 4 × 4 × 1 asphalt landing site and fuel INPUT dock |
 | T2 P3 | 160 iron sheets + 240 nuts and bolts + 80 cables + 40 glass | Rocket 50% assembled |
 | T2 P4 | 200 iron sheets + 320 nuts and bolts + 120 cables + 80 glass | Rocket complete, blinking lights, E destination interface |
 
-Splitters and mergers remain available in Creative and the demonstration; they have no assigned Survival phase.
+Creative and the demonstration unlock every implemented tool immediately.
 
 **Recipes.** Journal crafting for basic materials unlocks at T1 P2 so the first pole can be built before machinery is powered. Constructors later automate those same recipes.
 
@@ -195,6 +202,52 @@ Splitters and mergers remain available in Creative and the demonstration; they h
 | 1 conductive alloy | 1 iron ingot + 1 copper ingot | Journal or assembler |
 | 1 machine part | 1 iron ingot + 1 copper ingot | Journal or assembler, T2 P1 |
 
+The expansion recipes unlock at Component automation (T2 P1). Open a machine
+with **E** to choose its recipe, load ingredients and collect every output. All
+fourteen require wired power and share a 100-unit buffer for inputs and products.
+Production waits for the entire ingredient batch and enough room for every
+byproduct. Changing recipes refunds ingredients atomically; collect existing
+products first. Pipes supply fluids and belts supply solids. Creative also lets
+you load ingredients freely for testing.
+
+| Machine | Recipes per cycle | Power |
+| --- | --- | --- |
+| Water pump | Water deposit → 1 water | 2 |
+| Oil extractor | Oil deposit → 1 crude oil | 3 |
+| Crusher | 1 stone → 1 gravel; 1 iron/copper ore → 1 crushed ore | 2 |
+| Ore washer | 1 crushed iron/copper ore + 1 water → 1 purified ore | 3 |
+| Foundry | 2 iron ingots + 1 coal → 2 steel; 1 purified ore → 3 matching ingots | 4 |
+| Refinery | 3 crude oil → 2 fuel + 1 heavy oil | 5 |
+| Chemical plant | 2 heavy oil → 1 plastic; 2 fuel → 1 rubber; 1 heavy oil + 1 limestone → 1 fertilizer | 4 |
+| Electrolyzer | 2 water → 2 hydrogen + 1 oxygen | 6 |
+| Kiln | 1 clay → 1 brick; 1 limestone → 1 lime; 1 quartz → 1 silicon | 3 |
+| Glassworks | 1 sand → 1 glass; 2 glass → 1 lens | 3 |
+| Greenhouse | 1 seed + 2 water + 1 fertilizer → 4 biomass + 1 returned seed | 2 |
+| Electronics fabricator | 1 copper ingot + 1 silicon + 1 plastic → 1 circuit | 4 |
+| Manufacturer | 1 steel + 2 cables → 1 motor; 2 motors + 2 circuits + 2 steel + 2 rubber → 1 machinery + 1 scrap | 6 |
+| Recycler | 2 scrap → 1 iron ingot + 1 plastic; 1 machinery → 2 iron ingots + 1 copper ingot + 1 plastic | 3 |
+
+Clay is guaranteed in Earth region **1,1** and wild seeds in **-1,-1**, including
+newly explored regions in existing saves. Gather either with **F** or a miner.
+Water pumps and oil extractors must stand on matching deposits. Miners now
+extract solid resources; liquids use the dedicated pump or extractor. Existing
+saves retain their factories and upgrade to the expanded material catalog.
+
+Each expansion machine costs **8 iron ingots + 4 copper ingots + 2 machine parts**.
+A pipe costs **1 iron ingot + 1 copper ingot**; a corner belt costs **1 iron ingot**.
+
+**Fluid routing.** Straight pipes connect opposite sides; elbows connect two
+adjacent sides. **R** rotates their ports. Each holds up to 100 units of one
+fluid: water, crude oil, fuel, heavy oil, hydrogen or oxygen. Up to five units
+move per connection each production beat, with pressure equalization between
+pipes. New arrivals wait until the next beat and different fluids never mix.
+Storage accepts fluids at its rear and exports them at its front. Machine fluid
+inputs are at the rear, except washers and greenhouses, whose water inlet is on
+their local +Z side. Outputs face forward; refinery heavy oil and electrolyzer
+oxygen use a separate +Z outlet. Empty or collect a line before changing fluids.
+Pipes need no power and continue draining buffered products from idle machines.
+Solid products leave through gold belt ports, alternating between byproducts.
+
 **Equipment costs.** A smelter costs four iron ore; a Miner Mk1 costs four iron ingots and two copper ingots; a belt costs one iron ingot; storage costs four iron ingots. Constructors and assemblers each cost eight iron ingots and four copper ingots. A pole costs **20 nuts and bolts + 4 iron sheets + 2 glass**. A coal generator costs **80 nuts and bolts + 20 iron sheets + 2 crafted Miner Mk1 items + 4 copper ingots**. Craft the portable miners in journal page II. Placing a miner uses a carried Miner Mk1 item first, otherwise pays its material cost; generator construction consumes only carried miners, never placed machines.
 
 **Wired power.** The pod supplies eight power; a generator placed on a coal node supplies ten. Miners use one, smelters and Constructors two, and assemblers three. Each circuit checks its own supply. Unwired or overloaded machines stop producing while logistics continue moving existing output. One pole can be hand-crafted from **9 iron ore + 2 sand** through ingots, sheets, nuts and bolts, and glass. Craft cable separately from copper ingots.
@@ -208,7 +261,7 @@ Every cable must have a pole at one end. Each pole has **five connections total*
 
 **Machine buffers.** Miners, smelters, Constructors, and assemblers hold at most **100 items total per machine**, counting ingredients and finished output together. Smelters and Constructors keep input and output stacks within that shared limit. Constructors reserve capacity for a complete output batch, including the extra three items created when one ingot becomes four nuts and bolts. Assemblers reserve enough room for the other recipe ingredient, including two stone for concrete, so one feed cannot fill all 100 spaces. With two ingredients per part, an assembler may need its output collected before it can fit another complete recipe. Full machines block incoming transfers. Buffers survive region changes; demolition and **N** clear them.
 
-**Logistics.** Conveyors carry one visible item per tile, with no storage buffer. They accept rear or side feeds for corners, never through the forward outlet. Splitters and mergers each hold up to **10 items**, sharing one material stack. Facing indicates the forward direction: a splitter accepts only from the rear and sends to the front, left, and right in turn, skipping blocked outputs. A merger accepts from the rear, left, and right and sends forward. Its inputs take turns; a waiting different material lets the current batch drain before entering. Cyan model ports are inputs; gold ports are outputs. Full or disconnected routes back up without discarding items. Routing turns and contents survive region changes.
+**Logistics.** Conveyors carry one visible solid item per tile, with no storage buffer. Straight belts accept rear or side feeds, never through the forward outlet. Left/right corner belts accept only their curved inlet and animate the item around a 90-degree arc. Splitters and mergers each hold up to **10 items**, sharing one material stack. Facing indicates the forward direction: a splitter accepts only from the rear and sends to the front, left, and right in turn, skipping blocked outputs. A merger accepts from the rear, left, and right and sends forward. Its inputs take turns; a waiting different material lets the current batch drain before entering. Cyan model ports are inputs; gold ports are outputs. Full or disconnected routes back up without discarding items. Routing turns and contents survive region changes.
 
 Buffering does not speed up production or transfers: each connection still moves at most one item per factory beat. Quantities share one representative item model per occupied output, plus transient transfer visuals, so filling a buffer does not spawn 100 entities. The coal-node generator retains its existing power behavior without a fuel inventory.
 
@@ -323,6 +376,9 @@ cargo test -p bozzard-editor --test stellar_ix -- --ignored --nocapture
 | `dev_world.rhai` | Fixed checkerboard showroom and complete asset catalog |
 | `chunks.rhai` | Discovery, visual loading, bounded residency |
 | `simulation.rhai` | Production beats, conveyor/splitter/merger routing |
+| `buffers.rhai` | Shared production buffers and atomic recipe/feed/refund/collection rules |
+| `fluids.rhai` | Conservative pipe pressure, fluid inputs and separate product outlets |
+| `model_ports.rhai` | Expansion-model cable, lamp and heat attachment coordinates |
 | `factory_state.rhai` | Per-planet snapshots and writeback for all built regions, including off-planet factories |
 | `host_view.rhai` | Reconcile accepted co-op host edits and remote rotations with resident models |
 | `item_fx.rhai` | Resident item models, cross-region motion and bounded visual reuse |

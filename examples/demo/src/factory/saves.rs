@@ -146,8 +146,11 @@ pub fn read(root: &Path, slot: usize) -> Result<Save> {
         bytes.len() as u64 <= MAX_SAVE_BYTES,
         "save exceeds size limit"
     );
-    let save: Save =
+    let mut save: Save =
         serde_json::from_slice(&bytes).context("This save is damaged or incompatible")?;
+    if save.version == 1 {
+        save.state.upgrade_legacy();
+    }
     save.validate()?;
     Ok(save)
 }

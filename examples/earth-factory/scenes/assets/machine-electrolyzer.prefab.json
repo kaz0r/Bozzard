@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Electrolyzer Mk1",
+  "root": "root",
+  "assets": {
+    "electrolyzer-mk1": {
+      "kind": "mesh",
+      "path": "models/electrolyzer-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-electrolyzer",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "electrolyzer-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

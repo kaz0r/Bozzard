@@ -1,0 +1,1105 @@
+{
+  "version": 1,
+  "units": "tile",
+  "up_axis": "Y",
+  "output_axis": "+X",
+  "belt_height": 0.34,
+  "gameplay_status": "implemented: powered production, recipes, buffers, solid/fluid transport, saves and co-op",
+  "machines": [
+    {
+      "id": "water-pump",
+      "name": "Water pump",
+      "design": "Centrifugal impeller, finned motor and raised outlet pipe",
+      "requires_power": true,
+      "mesh": "models/water-pump-mk1.glb",
+      "prefab": "machine-water-pump.prefab.json",
+      "triangles": 1744,
+      "surfaces": 4,
+      "bounds": [
+        [
+          -0.45,
+          0.0,
+          -0.41
+        ],
+        [
+          0.483,
+          0.825,
+          0.41
+        ]
+      ],
+      "power_socket": [
+        -0.12,
+        0.8,
+        0.28
+      ],
+      "indicator": {
+        "position": [
+          0.046,
+          0.65,
+          0.29
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "output",
+          "position": [
+            0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "oil-extractor",
+      "name": "Oil extractor",
+      "design": "Walking beam, horsehead and counterweighted pumpjack",
+      "requires_power": true,
+      "mesh": "models/oil-extractor-mk1.glb",
+      "prefab": "machine-oil-extractor.prefab.json",
+      "triangles": 1264,
+      "surfaces": 4,
+      "bounds": [
+        [
+          -0.45,
+          0.0,
+          -0.41
+        ],
+        [
+          0.483,
+          1.045,
+          0.41
+        ]
+      ],
+      "power_socket": [
+        -0.23,
+        0.58,
+        -0.24
+      ],
+      "indicator": {
+        "position": [
+          -0.037,
+          0.4,
+          -0.25
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "output",
+          "position": [
+            0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "crusher",
+      "name": "Crusher",
+      "design": "Tall open hopper feeding twin crushing rollers",
+      "requires_power": true,
+      "mesh": "models/crusher-mk1.glb",
+      "prefab": "machine-crusher.prefab.json",
+      "triangles": 2192,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.085,
+          0.41
+        ]
+      ],
+      "power_socket": [
+        0,
+        1.06,
+        -0.3
+      ],
+      "indicator": {
+        "position": [
+          0.317,
+          0.68,
+          0.29
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "ore-washer",
+      "name": "Ore washer",
+      "design": "Banded wash drum, spray header and drain tray",
+      "requires_power": true,
+      "mesh": "models/ore-washer-mk1.glb",
+      "prefab": "machine-ore-washer.prefab.json",
+      "triangles": 2536,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.008,
+          0.483
+        ]
+      ],
+      "power_socket": [
+        0.12,
+        0.67,
+        0.3
+      ],
+      "indicator": {
+        "position": [
+          0.29800000000000004,
+          0.47,
+          0.3
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "input",
+          "position": [
+            0,
+            0.34,
+            0.46
+          ],
+          "axis": "z"
+        },
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "foundry",
+      "name": "Foundry",
+      "design": "Open alloy crucible, dual feeds and extraction canopy",
+      "requires_power": true,
+      "mesh": "models/foundry-mk1.glb",
+      "prefab": "machine-foundry.prefab.json",
+      "triangles": 2076,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.359,
+          0.48
+        ]
+      ],
+      "power_socket": [
+        0,
+        1.18,
+        0
+      ],
+      "indicator": {
+        "position": [
+          0.34600000000000003,
+          0.72,
+          0.3
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.0,
+            0.34,
+            0.48
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": [
+        {
+          "name": "Molten alloy surface",
+          "position": [
+            -0.05,
+            0.79,
+            0
+          ],
+          "size": [
+            0.31,
+            0.02,
+            0.31
+          ],
+          "color": [
+            1.0,
+            0.23,
+            0.045
+          ]
+        }
+      ]
+    },
+    {
+      "id": "refinery",
+      "name": "Refinery",
+      "design": "Tall distillation tower, tray bands and separator vessel",
+      "requires_power": true,
+      "mesh": "models/refinery-mk1.glb",
+      "prefab": "machine-refinery.prefab.json",
+      "triangles": 3116,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.483,
+          0.0,
+          -0.41
+        ],
+        [
+          0.483,
+          1.467,
+          0.483
+        ]
+      ],
+      "power_socket": [
+        -0.14,
+        1.4,
+        -0.13
+      ],
+      "indicator": {
+        "position": [
+          -0.033,
+          0.44,
+          0.25
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "output",
+          "position": [
+            0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        },
+        {
+          "kind": "fluid",
+          "role": "output",
+          "position": [
+            0,
+            0.34,
+            0.46
+          ],
+          "axis": "z"
+        },
+        {
+          "kind": "fluid",
+          "role": "input",
+          "position": [
+            -0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "chemical-plant",
+      "name": "Chemical plant",
+      "design": "Agitated reaction vessel and separate reagent tank",
+      "requires_power": true,
+      "mesh": "models/chemical-plant-mk1.glb",
+      "prefab": "machine-chemical-plant.prefab.json",
+      "triangles": 2564,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.483,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.235,
+          0.48
+        ]
+      ],
+      "power_socket": [
+        -0.08,
+        1.21,
+        -0.09
+      ],
+      "indicator": {
+        "position": [
+          -0.062000000000000006,
+          0.58,
+          0.29
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "input",
+          "position": [
+            -0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        },
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.0,
+            0.34,
+            0.48
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "electrolyzer",
+      "name": "Electrolyzer",
+      "design": "Exposed electrode stack and twin gas reservoirs",
+      "requires_power": true,
+      "mesh": "models/electrolyzer-mk1.glb",
+      "prefab": "machine-electrolyzer.prefab.json",
+      "triangles": 3152,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.483,
+          0.0,
+          -0.41
+        ],
+        [
+          0.483,
+          1.152,
+          0.483
+        ]
+      ],
+      "power_socket": [
+        0,
+        1.085,
+        0.02
+      ],
+      "indicator": {
+        "position": [
+          0.253,
+          0.95,
+          0.13
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "input",
+          "position": [
+            -0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        },
+        {
+          "kind": "fluid",
+          "role": "output",
+          "position": [
+            0.46,
+            0.34,
+            0
+          ],
+          "axis": "x"
+        },
+        {
+          "kind": "fluid",
+          "role": "output",
+          "position": [
+            0,
+            0.34,
+            0.46
+          ],
+          "axis": "z"
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "kiln",
+      "name": "Kiln",
+      "design": "Octagonal refractory tunnel with a short chimney",
+      "requires_power": true,
+      "mesh": "models/kiln-mk1.glb",
+      "prefab": "machine-kiln.prefab.json",
+      "triangles": 1544,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.2675,
+          0.41
+        ]
+      ],
+      "power_socket": [
+        0,
+        1.05,
+        0
+      ],
+      "indicator": {
+        "position": [
+          0.36200000000000004,
+          0.67,
+          0.27
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": [
+        {
+          "name": "Hot kiln lintel",
+          "position": [
+            -0.327,
+            0.8,
+            0
+          ],
+          "size": [
+            0.018,
+            0.033,
+            0.25
+          ],
+          "color": [
+            1.0,
+            0.23,
+            0.045
+          ]
+        },
+        {
+          "name": "Hot kiln lintel",
+          "position": [
+            0.327,
+            0.8,
+            0
+          ],
+          "size": [
+            0.018,
+            0.033,
+            0.25
+          ],
+          "color": [
+            1.0,
+            0.23,
+            0.045
+          ]
+        }
+      ]
+    },
+    {
+      "id": "glassworks",
+      "name": "Glassworks",
+      "design": "Enclosed melting furnace and exposed forming rollers",
+      "requires_power": true,
+      "mesh": "models/glassworks-mk1.glb",
+      "prefab": "machine-glassworks.prefab.json",
+      "triangles": 1552,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.3525,
+          0.41
+        ]
+      ],
+      "power_socket": [
+        -0.13,
+        1.09,
+        0
+      ],
+      "indicator": {
+        "position": [
+          0.16499999999999998,
+          0.82,
+          0.275
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": [
+        {
+          "name": "Glass furnace glow",
+          "position": [
+            0.153,
+            0.625,
+            0
+          ],
+          "size": [
+            0.02,
+            0.033,
+            0.34
+          ],
+          "color": [
+            1.0,
+            0.23,
+            0.045
+          ]
+        }
+      ]
+    },
+    {
+      "id": "greenhouse",
+      "name": "Greenhouse",
+      "design": "Pitched glazed roof, growing trays and climate controls",
+      "requires_power": true,
+      "mesh": "models/greenhouse-mk1.glb",
+      "prefab": "machine-greenhouse.prefab.json",
+      "triangles": 3504,
+      "surfaces": 7,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.13,
+          0.483
+        ]
+      ],
+      "power_socket": [
+        0.21,
+        0.85,
+        0.35
+      ],
+      "indicator": {
+        "position": [
+          0.36400000000000005,
+          0.67,
+          0.35
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "input",
+          "position": [
+            0,
+            0.34,
+            0.46
+          ],
+          "axis": "z"
+        },
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "electronics-fabricator",
+      "name": "Electronics fabricator",
+      "design": "Filtered enclosure and fine circuit placement heads",
+      "requires_power": true,
+      "mesh": "models/electronics-fabricator-mk1.glb",
+      "prefab": "machine-electronics-fabricator.prefab.json",
+      "triangles": 2292,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          1.125,
+          0.41
+        ]
+      ],
+      "power_socket": [
+        0.17,
+        1.1,
+        0
+      ],
+      "indicator": {
+        "position": [
+          0.397,
+          0.71,
+          0.285
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "manufacturer",
+      "name": "Manufacturer",
+      "design": "Heavy gantry, twin robot arms and three component inputs",
+      "requires_power": true,
+      "mesh": "models/manufacturer-mk1.glb",
+      "prefab": "machine-manufacturer.prefab.json",
+      "triangles": 2692,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.48
+        ],
+        [
+          0.48,
+          1.25,
+          0.48
+        ]
+      ],
+      "power_socket": [
+        0,
+        1.225,
+        0
+      ],
+      "indicator": {
+        "position": [
+          0.391,
+          0.8,
+          0.31
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.0,
+            0.34,
+            0.48
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.0,
+            0.34,
+            -0.48
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    },
+    {
+      "id": "recycler",
+      "name": "Recycler",
+      "design": "Low open shredder, paired cutting shafts and separation roller",
+      "requires_power": true,
+      "mesh": "models/recycler-mk1.glb",
+      "prefab": "machine-recycler.prefab.json",
+      "triangles": 2276,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.48,
+          0.0,
+          -0.41
+        ],
+        [
+          0.48,
+          0.8125,
+          0.457
+        ]
+      ],
+      "power_socket": [
+        -0.1,
+        0.695,
+        0.37
+      ],
+      "indicator": {
+        "position": [
+          0.119,
+          0.52,
+          0.37
+        ],
+        "size": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            -0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.48,
+            0.34,
+            0.0
+          ],
+          "direction": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "heat": []
+    }
+  ]
+}

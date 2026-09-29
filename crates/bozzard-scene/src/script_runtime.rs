@@ -164,6 +164,10 @@ enum Command {
         target: String,
         color: [f32; 3],
     },
+    Mesh {
+        target: String,
+        asset: String,
+    },
     Text {
         target: String,
         text: String,
@@ -1169,6 +1173,10 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             target: state.target_of(&target)?,
             color,
         }
+    });
+    write!("set_mesh", (target: ImmutableString, asset: ImmutableString), |state| {
+        ensure_script(!asset.is_empty() && asset.len() <= 256, || "mesh asset ID must contain 1..256 bytes".into())?;
+        Command::Mesh { target: state.target_of(&target)?, asset: asset.to_string() }
     });
     write!(
         "set_visible",
@@ -2521,6 +2529,30 @@ impl SceneInstance {
                 Command::Color { target, color } => {
                     self.apply_color(world, &resolve(tokens, &target), color)?
                 }
+                Command::Mesh { target, asset } => {
+                    ensure!(
+                        self.document
+                            .assets
+                            .get(&asset)
+                            .is_some_and(|source| source.kind == AssetKind::Mesh),
+                        "Set Mesh requires a registered mesh asset: {asset}"
+                    );
+                    let target = resolve(tokens, &target);
+                    let entity = *self
+                        .entities
+                        .get(&target)
+                        .context("Set Mesh target does not exist")?;
+                    let previous = world
+                        .get::<Drawable>(entity)
+                        .context("Set Mesh needs a Drawable")?;
+                    let mesh = Mesh::Asset(asset);
+                    if previous.mesh != mesh {
+                        let mut next = previous.clone();
+                        next.mesh = mesh;
+                        next.material_overrides.clear();
+                        world.insert(entity, next)?;
+                    }
+                }
                 Command::Text { target, text } => {
                     let target = resolve(tokens, &target);
                     let entity = *self
@@ -3487,6 +3519,54 @@ mod tests {
             .unwrap();
         assert_eq!(world.get::<Transform>(entity).unwrap().translation[0], 1.);
         assert_eq!(world.changed_tick::<Transform>(entity), Some(tick));
+    }
+
+    /// Swapping a registered mesh preserves the entity and ignores unchanged writes.
+    #[test]
+    fn script_mesh_swaps_reuse_entities_and_validate_assets() {
+        let (mut instance, mut world) = demo(r#"fn on_update(me,dt) { set_mesh(me,"ingot"); }"#);
+        instance.document.assets.insert(
+            "ingot".into(),
+            AssetSource {
+                kind: AssetKind::Mesh,
+                path: "ingot.glb".into(),
+            },
+        );
+        let entity = instance.entity("thing").unwrap();
+        let transform = *world.get::<Transform>(entity).unwrap();
+        let count = instance.document.objects.len();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world.get::<Drawable>(entity).unwrap().mesh,
+            Mesh::Asset("ingot".into())
+        );
+        assert_eq!(*world.get::<Transform>(entity).unwrap(), transform);
+        assert_eq!(instance.document.objects.len(), count);
+        let tick = world.changed_tick::<Drawable>(entity).unwrap();
+        world.advance_change_tick();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(world.changed_tick::<Drawable>(entity), Some(tick));
+        for asset in ["missing", "drift"] {
+            instance
+                .register_script(
+                    "drift".into(),
+                    format!(r#"fn on_update(me,dt) {{ set_mesh(me,"{asset}"); }}"#),
+                )
+                .unwrap();
+            assert!(
+                instance
+                    .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                    .is_err()
+            );
+            assert_eq!(
+                world.get::<Drawable>(entity).unwrap().mesh,
+                Mesh::Asset("ingot".into())
+            );
+        }
     }
 
     /// A scene with one drawable object that runs one script.

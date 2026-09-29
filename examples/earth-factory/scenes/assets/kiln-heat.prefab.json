@@ -1,0 +1,250 @@
+{
+  "version": 1,
+  "name": "Kiln heat",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "Kiln heat",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "heat-0",
+      "name": "Hot kiln lintel",
+      "transform": {
+        "translation": [
+          -0.327,
+          0.8,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.018,
+          0.033,
+          0.25
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "heat-1",
+      "name": "Hot kiln lintel",
+      "transform": {
+        "translation": [
+          0.327,
+          0.8,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.018,
+          0.033,
+          0.25
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

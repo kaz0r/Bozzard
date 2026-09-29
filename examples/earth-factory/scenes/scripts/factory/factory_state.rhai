@@ -14,7 +14,7 @@ fn read(planet) {
     for name in names { columns[name]=[]; }
     let state=#{planet:planet, active:active, current:current, radius:data::planet_radius(planet),
         ids:[], regions:[], storage:#{}, storage_changed:#{}, lookup:#{}, columns:columns,
-        counts:if active { get_scene_list("counts") } else { get_object_list("session").extract(8,32) }};
+        counts:if active { get_scene_list("counts") } else { data::other_counts() }};
     state.columns.rotating=[]; state.columns.powered=[];
     // An unbuilt destination adds no graph decoding or simulation work.
     if !active {
@@ -45,9 +45,9 @@ fn read(planet) {
         }
         let turns=if id==current { get_object_list("rotation_turns") } else { grid::empty_numbers(225) };
         for cell in cells { state.columns.rotating.push(if remote_rotations.contains((id*225+cell).to_string()) { 1.0 } else { turns[cell] }); }
-        if !builds.contains(4.0) { continue; }
         let storage_cells=[];
-        for cell in cells { if builds[cell]==4.0 { storage_cells.push(cell); } }
+        for cell in cells { if data::has_slots(builds[cell]) { storage_cells.push(cell); } }
+        if storage_cells.len()==0 {continue;}
         let stored=#{};
         if id!=current {
             for page in 0..4 {
@@ -59,7 +59,7 @@ fn read(planet) {
         }
         let storage_index=0;
         for i in 0..cells.len() {
-            let cell=cells[i]; if builds[cell]!=4.0 { continue; }
+            let cell=cells[i]; if !data::has_slots(builds[cell]) { continue; }
             let slots=if id==current { inventory::storage_read(cell) } else { [] };
             if id!=current {
                 for slot in 0..16 {
@@ -129,9 +129,5 @@ fn write(state) {
     // One write per changed storage column, even when many remote containers fill.
     for name in storage_dirty.keys() { set_object_list(name,storage_pages[name]); }
     if state.active { set_scene_list("counts",state.counts); }
-    else {
-        let session=get_object_list("session");
-        for i in 0..32 { session[8+i]=state.counts[i]; }
-        set_object_list("session",session);
-    }
+    else { data::set_other_counts(state.counts); }
 }

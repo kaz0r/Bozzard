@@ -33,6 +33,7 @@ fn prepare_save(slot) {
     true
 }
 fn clear_view() {
+    visuals::reset_rotations();
     transports::clear();
     item_fx::clear();power::clear_power();
     world::reset_planet();
@@ -43,6 +44,7 @@ fn clear_view() {
     for panel in ["journal-overlay","storage-overlay","machine-inspect-overlay","world-context","stack-menu","stack-drag","nearby-tooltip"] {set_ui_visible(panel,false);}
 }
 fn restore_view() {
+    visuals::reset_rotations();
     let session=get_object_list("session");
     session[3]=11.0;session[4]=-1.0;session[5]=-2.0;session[46]=-1.0;session[47]=-1.0;session[48]=-1.0;
     session[116]=0.0;set_object_list("session",session);
@@ -64,7 +66,6 @@ fn restore_view() {
     set_position("camera-rig",[(cx*15).to_float(),0.0,(cz*15).to_float()]);
     set_rotation("camera-rig",[0.0,0.0,0.0]);set_scene_variable("camera_heading",0.0);set_scene_variable("camera_pending",0.0);set_scene_variable("camera_progress",1.0);
     set_object_variable("camera_pan_progress",1.0);set_object_variable("camera_zoom",19.0);set_object_variable("camera_zoom_target",19.0);set_camera_size("camera",19.0);
-    set_object_list("rotation_cells",[]);set_object_list("rotation_turns",grid::empty_numbers(225));
     set_visible("ground",!data::on_moon() && !data::dev_world());set_visible("cursor",true);set_visible("rocket-exhaust",false);set_visible("hover-tile",false);
     set_position("rocket-rig",[0.0,0.0,0.0]);
     power::update_power();visuals::update_projects();

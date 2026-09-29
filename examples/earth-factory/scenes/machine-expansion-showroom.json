@@ -1,0 +1,2683 @@
+{
+  "version": 1,
+  "name": "Stellar-IX \u2014 Mk1 expansion machine art showroom",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "water-pump-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/water-pump-mk1.glb"
+    },
+    "oil-extractor-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/oil-extractor-mk1.glb"
+    },
+    "crusher-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/crusher-mk1.glb"
+    },
+    "ore-washer-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/ore-washer-mk1.glb"
+    },
+    "foundry-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/foundry-mk1.glb"
+    },
+    "refinery-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/refinery-mk1.glb"
+    },
+    "chemical-plant-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/chemical-plant-mk1.glb"
+    },
+    "electrolyzer-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/electrolyzer-mk1.glb"
+    },
+    "kiln-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/kiln-mk1.glb"
+    },
+    "glassworks-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/glassworks-mk1.glb"
+    },
+    "greenhouse-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/greenhouse-mk1.glb"
+    },
+    "electronics-fabricator-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/electronics-fabricator-mk1.glb"
+    },
+    "manufacturer-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/manufacturer-mk1.glb"
+    },
+    "recycler-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/recycler-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Expansion showroom camera",
+      "transform": {
+        "translation": [
+          13,
+          13,
+          13
+        ],
+        "rotation_degrees": [
+          -35.264,
+          45,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 12,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Studio floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.06,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          20,
+          0.12,
+          18
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.18,
+          0.21,
+          0.23
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "water-pump",
+      "name": "Water pump Mk1",
+      "transform": {
+        "translation": [
+          -4,
+          0,
+          -3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "water-pump-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "water-pump-lens",
+      "name": "Water pump preview lamp",
+      "transform": {
+        "translation": [
+          0.046,
+          0.65,
+          0.29
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "water-pump",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "oil-extractor",
+      "name": "Oil extractor Mk1",
+      "transform": {
+        "translation": [
+          -2,
+          0,
+          -3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "oil-extractor-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "oil-extractor-lens",
+      "name": "Oil extractor preview lamp",
+      "transform": {
+        "translation": [
+          -0.037,
+          0.4,
+          -0.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "oil-extractor",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "crusher",
+      "name": "Crusher Mk1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          -3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "crusher-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "crusher-lens",
+      "name": "Crusher preview lamp",
+      "transform": {
+        "translation": [
+          0.317,
+          0.68,
+          0.29
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "crusher",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ore-washer",
+      "name": "Ore washer Mk1",
+      "transform": {
+        "translation": [
+          2,
+          0,
+          -3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "ore-washer-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "ore-washer-lens",
+      "name": "Ore washer preview lamp",
+      "transform": {
+        "translation": [
+          0.29800000000000004,
+          0.47,
+          0.3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "ore-washer",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "foundry",
+      "name": "Foundry Mk1",
+      "transform": {
+        "translation": [
+          4,
+          0,
+          -3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundry-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "foundry-lens",
+      "name": "Foundry preview lamp",
+      "transform": {
+        "translation": [
+          0.34600000000000003,
+          0.72,
+          0.3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "foundry",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "foundry-heat-0",
+      "name": "Molten alloy surface",
+      "transform": {
+        "translation": [
+          -0.05,
+          0.79,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.31,
+          0.02,
+          0.31
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "foundry",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "refinery",
+      "name": "Refinery Mk1",
+      "transform": {
+        "translation": [
+          -4,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "refinery-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "refinery-lens",
+      "name": "Refinery preview lamp",
+      "transform": {
+        "translation": [
+          -0.033,
+          0.44,
+          0.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "refinery",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "chemical-plant",
+      "name": "Chemical plant Mk1",
+      "transform": {
+        "translation": [
+          -2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "chemical-plant-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "chemical-plant-lens",
+      "name": "Chemical plant preview lamp",
+      "transform": {
+        "translation": [
+          -0.062000000000000006,
+          0.58,
+          0.29
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "chemical-plant",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "electrolyzer",
+      "name": "Electrolyzer Mk1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "electrolyzer-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "electrolyzer-lens",
+      "name": "Electrolyzer preview lamp",
+      "transform": {
+        "translation": [
+          0.253,
+          0.95,
+          0.13
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "electrolyzer",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "kiln",
+      "name": "Kiln Mk1",
+      "transform": {
+        "translation": [
+          2,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "kiln-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "kiln-lens",
+      "name": "Kiln preview lamp",
+      "transform": {
+        "translation": [
+          0.36200000000000004,
+          0.67,
+          0.27
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "kiln",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "kiln-heat-0",
+      "name": "Hot kiln lintel",
+      "transform": {
+        "translation": [
+          -0.327,
+          0.8,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.018,
+          0.033,
+          0.25
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "kiln",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "kiln-heat-1",
+      "name": "Hot kiln lintel",
+      "transform": {
+        "translation": [
+          0.327,
+          0.8,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.018,
+          0.033,
+          0.25
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "kiln",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "glassworks",
+      "name": "Glassworks Mk1",
+      "transform": {
+        "translation": [
+          4,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "glassworks-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "glassworks-lens",
+      "name": "Glassworks preview lamp",
+      "transform": {
+        "translation": [
+          0.16499999999999998,
+          0.82,
+          0.275
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "glassworks",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "glassworks-heat-0",
+      "name": "Glass furnace glow",
+      "transform": {
+        "translation": [
+          0.153,
+          0.625,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.02,
+          0.033,
+          0.34
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "glassworks",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "greenhouse",
+      "name": "Greenhouse Mk1",
+      "transform": {
+        "translation": [
+          -4,
+          0,
+          3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "greenhouse-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "greenhouse-lens",
+      "name": "Greenhouse preview lamp",
+      "transform": {
+        "translation": [
+          0.36400000000000005,
+          0.67,
+          0.35
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "greenhouse",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "electronics-fabricator",
+      "name": "Electronics fabricator Mk1",
+      "transform": {
+        "translation": [
+          -2,
+          0,
+          3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "electronics-fabricator-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "electronics-fabricator-lens",
+      "name": "Electronics fabricator preview lamp",
+      "transform": {
+        "translation": [
+          0.397,
+          0.71,
+          0.285
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "electronics-fabricator",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "manufacturer",
+      "name": "Manufacturer Mk1",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "manufacturer-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "manufacturer-lens",
+      "name": "Manufacturer preview lamp",
+      "transform": {
+        "translation": [
+          0.391,
+          0.8,
+          0.31
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "manufacturer",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "recycler",
+      "name": "Recycler Mk1",
+      "transform": {
+        "translation": [
+          2,
+          0,
+          3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "recycler-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "recycler-lens",
+      "name": "Recycler preview lamp",
+      "transform": {
+        "translation": [
+          0.119,
+          0.52,
+          0.37
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "recycler",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "environment": {
+    "zenith": [
+      0.25,
+      0.29,
+      0.32
+    ],
+    "horizon": [
+      0.25,
+      0.29,
+      0.32
+    ],
+    "ground": [
+      0.18,
+      0.21,
+      0.23
+    ],
+    "intensity": 0.55,
+    "background": true
+  },
+  "lighting": {
+    "sun_direction": [
+      0.46,
+      0.81,
+      0.35
+    ],
+    "sun_color": [
+      1.0,
+      0.96,
+      0.9
+    ],
+    "sun_intensity": 2.6,
+    "ambient_color": [
+      0.86,
+      0.94,
+      1.0
+    ],
+    "ambient_intensity": 0.24
+  }
+}

@@ -4,6 +4,7 @@ import "factory-net_input" as net;
 import "factory-data" as data;
 import "factory-inventory" as inventory;
 import "factory-panels" as panels;
+import "factory-buffers" as buffers;
 
 fn select_recipe(cell, recipe) {
     if net::guest() {net::send("configure",#{at:net::position(cell),recipe:recipe.to_int()});return;}
@@ -11,6 +12,15 @@ fn select_recipe(cell, recipe) {
     if !data::recipe_choices(kind).contains(recipe) || !data::recipe_unlocked(recipe.to_int()) { return; }
     let recipes = get_object_list("recipes");
     if recipes[cell] == recipe { return; }
+    if data::expansion(kind) {
+        let slots=inventory::storage_read(cell);
+        if buffers::output_load(slots)>0.0 {set_scene_variable("message","Collect every finished output before changing the recipe.");return;}
+        let refunded=buffers::refund(slots,backpack::slots());
+        if !refunded.ok {set_scene_variable("message","Make room for unused ingredients first.");return;}
+        backpack::commit(refunded.inventory); inventory::storage_write(cell,buffers::empty());
+        recipes[cell]=recipe; set_object_list("recipes",recipes);
+        let progress=get_scene_list("progress");progress[cell]=0.0;set_scene_list("progress",progress);return;
+    }
     if get_scene_list("item_amounts")[cell] > 0.0 { return; }
     let previous = data::recipe_cost(recipes[cell].to_int()); let next = data::recipe_cost(recipe.to_int());
     if previous != next || data::recipe_yield(recipes[cell].to_int()) != data::recipe_yield(recipe.to_int()) {
@@ -38,6 +48,12 @@ fn feed_assembler(cell) {
     let kind = get_scene_list("builds")[cell];
     let recipe = get_object_list("recipes")[cell]; let cost = data::recipe_cost(recipe.to_int());
     if cost.len() == 0 || !data::recipe_unlocked(recipe.to_int()) || get_object_list("rotation_turns")[cell] > 0.0 { return; }
+    if data::expansion(kind) {
+        let limit=0.0;for i in 0..cost.len()/2 {limit+=cost[i*2+1]*10.0;}
+        let result=buffers::feed(inventory::storage_read(cell),recipe.to_int(),backpack::slots(),data::free_build(),0.0,limit.to_int());
+        if result.moved==0.0 {set_scene_variable("message","Missing ingredients or machine buffer is full.");return;}
+        backpack::commit(result.inventory);inventory::storage_write(cell,result.slots);return;
+    }
     let stock = get_object_list("stock"); let output = get_scene_list("item_amounts")[cell];
     if kind == 5.0 {
         let a = get_scene_list("assembler_iron"); let b = get_scene_list("assembler_copper");
@@ -74,7 +90,7 @@ fn update_assembler() {
         if event.target == "assembler-close" { panels::set_assembler(-1); return; }
         let choices = data::recipe_choices(get_scene_list("builds")[cell]);
         let names = ["assembler-alloy","assembler-parts","assembler-concrete"];
-        for i in 0..3 { if event.target == names[i] { select_recipe(cell,choices[i]); } }
+        for i in 0..choices.len() { if event.target == names[i] { select_recipe(cell,choices[i]); } }
         if event.target == "assembler-feed" { feed_assembler(cell); }
         if event.target == "assembler-take" { inventory::collect_machine(cell); }
     }

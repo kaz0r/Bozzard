@@ -5,6 +5,7 @@ import "factory-backpack" as backpack;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-panels" as panels;
+import "factory-buffers" as buffers;
 
 // Sixteen stacks per container, stored in four bounded blackboard pages.
 // Each page contains four slots for each of the 225 build cells.
@@ -69,7 +70,7 @@ fn nearby_interactable() {
             if x + dx < -7 || x + dx > 7 || z + dz < -7 || z + dz > 7 { continue; }
             let cell = grid::index(x + dx, z + dz);
             let kind = builds[cell];
-            if kind != 1.0 && kind != 3.0 && kind != 4.0 && kind != 5.0 && kind != 11.0 { continue; }
+            if kind!=1.0 && !data::production(kind) && kind!=4.0 && !data::pipe(kind) { continue; }
             let distance = (dx * dx + dz * dz).to_float();
             if distance < best { best = distance; result = cell; }
         }
@@ -79,6 +80,7 @@ fn nearby_interactable() {
 
 fn machine_output(cell) {
     let kind = get_scene_list("builds")[cell];
+    if data::expansion(kind) {let slots=storage_read(cell);for i in 8..16 {if slots[i*2+1]>0.0 {return slots[i*2];}}return 0.0;}
     let item = get_scene_list("items")[cell];
     if get_scene_list("item_amounts")[cell] == 0.0 { return 0.0; }
     if kind == 1.0 || kind == 3.0 || kind == 5.0 || kind == 11.0 || kind == 7.0 || kind == 8.0 { item } else { 0.0 }
@@ -89,6 +91,12 @@ fn collect_machine(cell) {
     if get_object_list("rotation_turns")[cell] > 0.0 {
         set_scene_variable("message", "Wait for the machine to finish turning.");
         return;
+    }
+    if data::expansion(get_scene_list("builds")[cell]) {
+        let result=buffers::collect(storage_read(cell),backpack::slots());
+        if result.moved==0.0 {set_scene_variable("message","No finished output or inventory is full.");return;}
+        backpack::commit(result.inventory);storage_write(cell,result.slots);
+        set_scene_variable("message","Collected "+result.moved.to_int().to_string()+" products.");return;
     }
     let item = machine_output(cell);
     if item == 0.0 {
@@ -187,9 +195,11 @@ fn update_storage(dt) {
         if get_scene_variable("storage_open") { panels::close_storage(); }
         else if get_scene_variable("storage_alpha") <= 0.0 {
             cell = nearby_interactable();
-            if cell >= 0 && (get_scene_list("builds")[cell] == 5.0 || get_scene_list("builds")[cell] == 11.0 ||
+            if cell >= 0 && (data::expansion(get_scene_list("builds")[cell]) || get_scene_list("builds")[cell] == 5.0 || get_scene_list("builds")[cell] == 11.0 ||
                 (get_scene_list("builds")[cell] == 3.0 && machine_output(cell) == 0.0)) {
                 panels::set_assembler(cell);
+            } else if cell>=0 && data::pipe(get_scene_list("builds")[cell]) {
+                data::session_set(46,cell.to_float());set_ui_visible("machine-inspect-overlay",true);set_ui_enabled("machine-inspect-overlay",true);
             } else if cell >= 0 && get_scene_list("builds")[cell] != 4.0 {
                 collect_machine(cell);
             } else if cell >= 0 {

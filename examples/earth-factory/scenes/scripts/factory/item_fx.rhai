@@ -5,6 +5,48 @@
 import "factory-data" as data;
 import "factory-grid" as grid;
 
+// Pooled item entities keep their identity as their material changes. The mesh
+// supplies its own colors and surfaces, including copper contacts and markings.
+fn appearance(target,kind) {
+    set_mesh(target,data::item_model(kind));set_color(target,[1.0,1.0,1.0]);
+}
+
+fn value(name,id) {
+    if id/225==grid::current_chunk() {return get_scene_list_item(name,id%225);}
+    grid::unpack_numbers(data::region_entry("cache_"+name,id/225),225)[id%225]
+}
+fn position(id,kind,facing,height) {
+    let local=curve(kind,facing,0.5);
+    [grid::global_x(id)+local[0],height,grid::global_z(id)+local[1]]
+}
+fn curve(kind,facing,t) {
+    if kind!=28.0 && kind!=29.0 {return [0.0,0.0];}
+    let side=if kind==28.0 {-1.0}else{1.0}; let angle=3.1415926536+t*1.5707963268;
+    let x=0.5+0.5*cos(angle);let z=side*(0.5+0.5*sin(angle));
+    let turn=facing*1.5707963268;
+    [cos(turn)*x-sin(turn)*z,sin(turn)*x+cos(turn)*z]
+}
+// Height's low three digits retain centimetres. The remaining digits cache a
+// corner's kind and facing, avoiding archive reads in every animation frame.
+fn encode_height(id,height) {
+    let kind=value("builds",id);
+    round(height*100.0)+if kind==28.0 || kind==29.0 {kind*1000.0+value("facings",id)*100000.0}else{0.0}
+}
+fn path(a,b,from_code,to_code,fraction) {
+    let ak=((from_code.to_int()/1000)%100).to_float();let bk=((to_code.to_int()/1000)%100).to_float();
+    let af=(from_code.to_int()/100000).to_float();let bf=(to_code.to_int()/100000).to_float();
+    let start=position(a,ak,af,0.0);let end=position(b,bk,bf,0.0);
+    let x=0.0;let z=0.0;
+    if fraction<0.5 && ak>0.0 {let local=curve(ak,af,0.5+fraction);x=grid::global_x(a)+local[0];z=grid::global_z(a)+local[1];}
+    else if fraction>=0.5 && bk>0.0 {let local=curve(bk,bf,fraction-0.5);x=grid::global_x(b)+local[0];z=grid::global_z(b)+local[1];}
+    else {
+        let edge_x=(grid::global_x(a)+grid::global_x(b))/2.0;let edge_z=(grid::global_z(a)+grid::global_z(b))/2.0;
+        if fraction<0.5 {x=lerp(start[0],edge_x,fraction*2.0);z=lerp(start[2],edge_z,fraction*2.0);}
+        else {x=lerp(edge_x,end[0],fraction*2.0-1.0);z=lerp(edge_z,end[2],fraction*2.0-1.0);}
+    }
+    [x,lerp((from_code.to_int()%1000).to_float(),(to_code.to_int()%1000).to_float(),fraction)/100.0,z]
+}
+
 fn archive_current() {
     let handles=get_scene_list("item_visuals"); let pages=get_scene_list("factory_visuals");
     if handles.len()!=225 || pages.len()!=867 { return; }
@@ -108,8 +150,7 @@ fn animate(fraction) {
         for cell in 0..75 {
             if visual[cell]=="" { continue; }
             let a=from[cell].to_int(); let b=to[cell].to_int();
-            set_position(visual[cell],[lerp(grid::global_x(a),grid::global_x(b),fraction),
-                lerp(from_y[cell],to_y[cell],fraction)/100.0,lerp(grid::global_z(a),grid::global_z(b),fraction)]);
+            set_position(visual[cell],path(a,b,from_y[cell],to_y[cell],fraction));
         }
     }
 }
@@ -153,7 +194,7 @@ fn write_motions(motions) {
             motion_pages[page]=[grid::empty_text(75),grid::empty_numbers(75),grid::empty_numbers(75),grid::empty_numbers(75),grid::empty_numbers(75),grid::empty_text(75),[]];
         }
         motion_pages[page][0][cell]=motion[2]; motion_pages[page][1][cell]=motion[0].to_float(); motion_pages[page][2][cell]=motion[1].to_float();
-        motion_pages[page][3][cell]=round(motion[3]*100.0); motion_pages[page][4][cell]=round(motion[4]*100.0);
+        motion_pages[page][3][cell]=encode_height(motion[0],motion[3]); motion_pages[page][4][cell]=encode_height(motion[1],motion[4]);
         if motion[5] { motion_pages[page][5][cell]=motion[2]; }
         motion_pages[page][6].push(cell);
     }

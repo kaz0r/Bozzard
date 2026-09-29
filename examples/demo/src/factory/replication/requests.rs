@@ -113,7 +113,7 @@ impl Action {
             Ok(())
         };
         let recipe = |recipe: u8| -> Result<()> {
-            ensure!((1..32).contains(&recipe), "invalid recipe");
+            ensure!((1..=53).contains(&recipe), "invalid recipe");
             Ok(())
         };
         match self {
@@ -131,7 +131,7 @@ impl Action {
                 );
             }
             Self::Place { kind, direction } => ensure!(
-                (1..=11).contains(kind) && *kind != 10 && *direction < 4,
+                (1..=29).contains(kind) && *kind != 10 && *direction < 4,
                 "invalid machine"
             ),
             Self::Craft {

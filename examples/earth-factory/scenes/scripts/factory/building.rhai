@@ -25,18 +25,8 @@ fn place_selected() {
         set_scene_variable("message", "Remove the existing machine with X first.");
         return;
     }
-    if selected == 1.0 && nodes[cell] == 0.0 {
-        set_scene_variable("message", "A miner must sit on a resource node.");
-        return;
-    }
-    if selected == 6.0 && nodes[cell] != 4.0 {
-        set_scene_variable("message", "A generator needs a coal node.");
-        return;
-    }
-    if selected != 1.0 && selected != 6.0 && nodes[cell] != 0.0 {
-        set_scene_variable("message", "Only a miner or coal generator can cover a node.");
-        return;
-    }
+    let error=data::deposit_error(selected,nodes[cell]);
+    if error!="" {set_scene_variable("message",error);return;}
     if !data::pay_for_build(selected) { return; }
     let facing = get_scene_variable("direction").to_int();
     let machine_cells = get_scene_list("machine_cells");
@@ -48,7 +38,7 @@ fn place_selected() {
     set_scene_list("builds", builds);
     set_scene_list("facings", facings);
     set_scene_list("build_visuals", visuals);
-    if selected == 5.0 || selected == 11.0 || selected == 3.0 {
+    if data::production(selected) {
         let recipes = get_object_list("recipes"); recipes[cell] = data::recipe_choices(selected)[0]; set_object_list("recipes", recipes);
     }
     if power::electrical(selected.to_int()) { power::power_register(power::power_id(cell), selected.to_int()); }
@@ -74,6 +64,7 @@ fn remove_selected() {
         set_scene_list("counts", counts);
         inventory::storage_write(cell, grid::empty_numbers(32));
     }
+    if data::expansion(builds[cell]) {inventory::storage_write(cell,grid::empty_numbers(32));}
     let visuals = get_scene_list("build_visuals");
     destroy_prefab(visuals[cell]);
     visuals[cell] = "";
@@ -141,16 +132,16 @@ fn action_bar_input() {
     for key in 1..9 {
         if !input_pressed(key.to_string()) { continue; }
         if ctrl {
-            if key <= 3 {
+            if key <= 5 {
                 bar = key;
                 set_object_variable("bar", bar.to_float());
-                set_scene_variable("selected", data::bar_tools(bar)[slots[bar - 1].to_int() - 1]);
+                set_scene_variable("selected", data::bar_tools(bar)[if bar<=3 {slots[bar-1].to_int()-1}else{0}]);
             }
         } else {
             let kind = data::bar_tools(bar)[key - 1];
             if kind != 0.0 {
                 set_scene_variable("selected", kind);
-                if bar > 0 { slots[bar - 1] = key.to_float(); }
+                if bar > 0 && bar<=3 { slots[bar - 1] = key.to_float(); }
                 if !data::tool_unlocked(kind) { set_scene_variable("message", "Locked. Open J to see the next delivery."); }
             }
         }
@@ -162,7 +153,7 @@ fn action_bar_input() {
             let kind=data::bar_tools(bar)[key-1];
             if kind==0.0 { continue; }
             set_scene_variable("selected",kind);
-            if bar>0 { slots[bar-1]=key.to_float(); }
+            if bar>0 && bar<=3 { slots[bar-1]=key.to_float(); }
             data::session_set(40,if data::tool_unlocked(kind) { 1.0 } else { 0.0 });
             clear_ui_focus();
             set_scene_variable("message",if data::tool_unlocked(kind) { "Click a highlighted tile to build. Right-click cancels." } else { "Locked. Open J to see the next delivery." });

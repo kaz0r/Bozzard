@@ -324,7 +324,7 @@
     "counts": {
       "list": {
         "element": "number",
-        "capacity": 32,
+        "capacity": 64,
         "values": []
       }
     },
@@ -595,6 +595,602 @@
       "kind": "prefab",
       "path": "assets/dev-floor.prefab.json"
     },
+    "machine-water-pump": {
+      "kind": "prefab",
+      "path": "assets/machine-water-pump.prefab.json"
+    },
+    "water-pump-power-on": {
+      "kind": "prefab",
+      "path": "assets/water-pump-power-on.prefab.json"
+    },
+    "water-pump-power-off": {
+      "kind": "prefab",
+      "path": "assets/water-pump-power-off.prefab.json"
+    },
+    "machine-oil-extractor": {
+      "kind": "prefab",
+      "path": "assets/machine-oil-extractor.prefab.json"
+    },
+    "oil-extractor-power-on": {
+      "kind": "prefab",
+      "path": "assets/oil-extractor-power-on.prefab.json"
+    },
+    "oil-extractor-power-off": {
+      "kind": "prefab",
+      "path": "assets/oil-extractor-power-off.prefab.json"
+    },
+    "machine-crusher": {
+      "kind": "prefab",
+      "path": "assets/machine-crusher.prefab.json"
+    },
+    "crusher-power-on": {
+      "kind": "prefab",
+      "path": "assets/crusher-power-on.prefab.json"
+    },
+    "crusher-power-off": {
+      "kind": "prefab",
+      "path": "assets/crusher-power-off.prefab.json"
+    },
+    "machine-ore-washer": {
+      "kind": "prefab",
+      "path": "assets/machine-ore-washer.prefab.json"
+    },
+    "ore-washer-power-on": {
+      "kind": "prefab",
+      "path": "assets/ore-washer-power-on.prefab.json"
+    },
+    "ore-washer-power-off": {
+      "kind": "prefab",
+      "path": "assets/ore-washer-power-off.prefab.json"
+    },
+    "machine-foundry": {
+      "kind": "prefab",
+      "path": "assets/machine-foundry.prefab.json"
+    },
+    "foundry-power-on": {
+      "kind": "prefab",
+      "path": "assets/foundry-power-on.prefab.json"
+    },
+    "foundry-power-off": {
+      "kind": "prefab",
+      "path": "assets/foundry-power-off.prefab.json"
+    },
+    "machine-refinery": {
+      "kind": "prefab",
+      "path": "assets/machine-refinery.prefab.json"
+    },
+    "refinery-power-on": {
+      "kind": "prefab",
+      "path": "assets/refinery-power-on.prefab.json"
+    },
+    "refinery-power-off": {
+      "kind": "prefab",
+      "path": "assets/refinery-power-off.prefab.json"
+    },
+    "machine-chemical-plant": {
+      "kind": "prefab",
+      "path": "assets/machine-chemical-plant.prefab.json"
+    },
+    "chemical-plant-power-on": {
+      "kind": "prefab",
+      "path": "assets/chemical-plant-power-on.prefab.json"
+    },
+    "chemical-plant-power-off": {
+      "kind": "prefab",
+      "path": "assets/chemical-plant-power-off.prefab.json"
+    },
+    "machine-electrolyzer": {
+      "kind": "prefab",
+      "path": "assets/machine-electrolyzer.prefab.json"
+    },
+    "electrolyzer-power-on": {
+      "kind": "prefab",
+      "path": "assets/electrolyzer-power-on.prefab.json"
+    },
+    "electrolyzer-power-off": {
+      "kind": "prefab",
+      "path": "assets/electrolyzer-power-off.prefab.json"
+    },
+    "machine-kiln": {
+      "kind": "prefab",
+      "path": "assets/machine-kiln.prefab.json"
+    },
+    "kiln-power-on": {
+      "kind": "prefab",
+      "path": "assets/kiln-power-on.prefab.json"
+    },
+    "kiln-power-off": {
+      "kind": "prefab",
+      "path": "assets/kiln-power-off.prefab.json"
+    },
+    "machine-glassworks": {
+      "kind": "prefab",
+      "path": "assets/machine-glassworks.prefab.json"
+    },
+    "glassworks-power-on": {
+      "kind": "prefab",
+      "path": "assets/glassworks-power-on.prefab.json"
+    },
+    "glassworks-power-off": {
+      "kind": "prefab",
+      "path": "assets/glassworks-power-off.prefab.json"
+    },
+    "machine-greenhouse": {
+      "kind": "prefab",
+      "path": "assets/machine-greenhouse.prefab.json"
+    },
+    "greenhouse-power-on": {
+      "kind": "prefab",
+      "path": "assets/greenhouse-power-on.prefab.json"
+    },
+    "greenhouse-power-off": {
+      "kind": "prefab",
+      "path": "assets/greenhouse-power-off.prefab.json"
+    },
+    "machine-electronics-fabricator": {
+      "kind": "prefab",
+      "path": "assets/machine-electronics-fabricator.prefab.json"
+    },
+    "electronics-fabricator-power-on": {
+      "kind": "prefab",
+      "path": "assets/electronics-fabricator-power-on.prefab.json"
+    },
+    "electronics-fabricator-power-off": {
+      "kind": "prefab",
+      "path": "assets/electronics-fabricator-power-off.prefab.json"
+    },
+    "machine-manufacturer": {
+      "kind": "prefab",
+      "path": "assets/machine-manufacturer.prefab.json"
+    },
+    "manufacturer-power-on": {
+      "kind": "prefab",
+      "path": "assets/manufacturer-power-on.prefab.json"
+    },
+    "manufacturer-power-off": {
+      "kind": "prefab",
+      "path": "assets/manufacturer-power-off.prefab.json"
+    },
+    "machine-recycler": {
+      "kind": "prefab",
+      "path": "assets/machine-recycler.prefab.json"
+    },
+    "recycler-power-on": {
+      "kind": "prefab",
+      "path": "assets/recycler-power-on.prefab.json"
+    },
+    "recycler-power-off": {
+      "kind": "prefab",
+      "path": "assets/recycler-power-off.prefab.json"
+    },
+    "foundry-heat": {
+      "kind": "prefab",
+      "path": "assets/foundry-heat.prefab.json"
+    },
+    "kiln-heat": {
+      "kind": "prefab",
+      "path": "assets/kiln-heat.prefab.json"
+    },
+    "glassworks-heat": {
+      "kind": "prefab",
+      "path": "assets/glassworks-heat.prefab.json"
+    },
+    "machine-pipe-straight": {
+      "kind": "prefab",
+      "path": "assets/machine-pipe-straight.prefab.json"
+    },
+    "machine-pipe-elbow": {
+      "kind": "prefab",
+      "path": "assets/machine-pipe-elbow.prefab.json"
+    },
+    "machine-belt-turn-left": {
+      "kind": "prefab",
+      "path": "assets/machine-belt-turn-left.prefab.json"
+    },
+    "machine-belt-turn-right": {
+      "kind": "prefab",
+      "path": "assets/machine-belt-turn-right.prefab.json"
+    },
+    "node-clay": {
+      "kind": "prefab",
+      "path": "assets/node-clay.prefab.json"
+    },
+    "node-seeds": {
+      "kind": "prefab",
+      "path": "assets/node-seeds.prefab.json"
+    },
+    "item-model-1": {
+      "kind": "mesh",
+      "path": "assets/models/materials/iron-ore.glb"
+    },
+    "item-iron-ore": {
+      "kind": "prefab",
+      "path": "assets/item-iron-ore.prefab.json"
+    },
+    "item-model-2": {
+      "kind": "mesh",
+      "path": "assets/models/materials/copper-ore.glb"
+    },
+    "item-copper-ore": {
+      "kind": "prefab",
+      "path": "assets/item-copper-ore.prefab.json"
+    },
+    "item-model-3": {
+      "kind": "mesh",
+      "path": "assets/models/materials/limestone.glb"
+    },
+    "item-limestone": {
+      "kind": "prefab",
+      "path": "assets/item-limestone.prefab.json"
+    },
+    "item-model-4": {
+      "kind": "mesh",
+      "path": "assets/models/materials/coal.glb"
+    },
+    "item-coal": {
+      "kind": "prefab",
+      "path": "assets/item-coal.prefab.json"
+    },
+    "item-model-5": {
+      "kind": "mesh",
+      "path": "assets/models/materials/quartz.glb"
+    },
+    "item-quartz": {
+      "kind": "prefab",
+      "path": "assets/item-quartz.prefab.json"
+    },
+    "item-model-6": {
+      "kind": "mesh",
+      "path": "assets/models/materials/crude-oil.glb"
+    },
+    "item-crude-oil": {
+      "kind": "prefab",
+      "path": "assets/item-crude-oil.prefab.json"
+    },
+    "item-model-7": {
+      "kind": "mesh",
+      "path": "assets/models/materials/water.glb"
+    },
+    "item-water": {
+      "kind": "prefab",
+      "path": "assets/item-water.prefab.json"
+    },
+    "item-model-8": {
+      "kind": "mesh",
+      "path": "assets/models/materials/stone.glb"
+    },
+    "item-stone": {
+      "kind": "prefab",
+      "path": "assets/item-stone.prefab.json"
+    },
+    "item-model-9": {
+      "kind": "mesh",
+      "path": "assets/models/materials/sand.glb"
+    },
+    "item-sand": {
+      "kind": "prefab",
+      "path": "assets/item-sand.prefab.json"
+    },
+    "item-model-10": {
+      "kind": "mesh",
+      "path": "assets/models/materials/silver-ore.glb"
+    },
+    "item-silver-ore": {
+      "kind": "prefab",
+      "path": "assets/item-silver-ore.prefab.json"
+    },
+    "item-model-11": {
+      "kind": "mesh",
+      "path": "assets/models/materials/iron-ingot.glb"
+    },
+    "item-iron-ingot": {
+      "kind": "prefab",
+      "path": "assets/item-iron-ingot.prefab.json"
+    },
+    "item-model-12": {
+      "kind": "mesh",
+      "path": "assets/models/materials/copper-ingot.glb"
+    },
+    "item-copper-ingot": {
+      "kind": "prefab",
+      "path": "assets/item-copper-ingot.prefab.json"
+    },
+    "item-model-13": {
+      "kind": "mesh",
+      "path": "assets/models/materials/conductive-alloy.glb"
+    },
+    "item-conductive-alloy": {
+      "kind": "prefab",
+      "path": "assets/item-conductive-alloy.prefab.json"
+    },
+    "item-model-14": {
+      "kind": "mesh",
+      "path": "assets/models/materials/glass.glb"
+    },
+    "item-glass": {
+      "kind": "prefab",
+      "path": "assets/item-glass.prefab.json"
+    },
+    "item-model-15": {
+      "kind": "mesh",
+      "path": "assets/models/materials/iron-sheet.glb"
+    },
+    "item-iron-sheet": {
+      "kind": "prefab",
+      "path": "assets/item-iron-sheet.prefab.json"
+    },
+    "item-model-16": {
+      "kind": "mesh",
+      "path": "assets/models/materials/nuts-bolts.glb"
+    },
+    "item-nuts-bolts": {
+      "kind": "prefab",
+      "path": "assets/item-nuts-bolts.prefab.json"
+    },
+    "item-model-17": {
+      "kind": "mesh",
+      "path": "assets/models/materials/cable.glb"
+    },
+    "item-cable": {
+      "kind": "prefab",
+      "path": "assets/item-cable.prefab.json"
+    },
+    "item-model-18": {
+      "kind": "mesh",
+      "path": "assets/models/materials/concrete.glb"
+    },
+    "item-concrete": {
+      "kind": "prefab",
+      "path": "assets/item-concrete.prefab.json"
+    },
+    "item-model-20": {
+      "kind": "mesh",
+      "path": "assets/models/materials/machine-part.glb"
+    },
+    "item-machine-part": {
+      "kind": "prefab",
+      "path": "assets/item-machine-part.prefab.json"
+    },
+    "item-model-21": {
+      "kind": "mesh",
+      "path": "assets/models/materials/portable-miner.glb"
+    },
+    "item-portable-miner": {
+      "kind": "prefab",
+      "path": "assets/item-portable-miner.prefab.json"
+    },
+    "item-model-22": {
+      "kind": "mesh",
+      "path": "assets/models/materials/generator-unit.glb"
+    },
+    "item-generator-unit": {
+      "kind": "prefab",
+      "path": "assets/item-generator-unit.prefab.json"
+    },
+    "item-model-23": {
+      "kind": "mesh",
+      "path": "assets/models/materials/pole-bundle.glb"
+    },
+    "item-pole-bundle": {
+      "kind": "prefab",
+      "path": "assets/item-pole-bundle.prefab.json"
+    },
+    "item-model-24": {
+      "kind": "mesh",
+      "path": "assets/models/materials/amorium.glb"
+    },
+    "item-amorium": {
+      "kind": "prefab",
+      "path": "assets/item-amorium.prefab.json"
+    },
+    "item-model-25": {
+      "kind": "mesh",
+      "path": "assets/models/materials/moondust.glb"
+    },
+    "item-moondust": {
+      "kind": "prefab",
+      "path": "assets/item-moondust.prefab.json"
+    },
+    "item-model-26": {
+      "kind": "mesh",
+      "path": "assets/models/materials/techtorium.glb"
+    },
+    "item-techtorium": {
+      "kind": "prefab",
+      "path": "assets/item-techtorium.prefab.json"
+    },
+    "item-model-27": {
+      "kind": "mesh",
+      "path": "assets/models/materials/gravel.glb"
+    },
+    "item-gravel": {
+      "kind": "prefab",
+      "path": "assets/item-gravel.prefab.json"
+    },
+    "item-model-28": {
+      "kind": "mesh",
+      "path": "assets/models/materials/crushed-iron-ore.glb"
+    },
+    "item-crushed-iron-ore": {
+      "kind": "prefab",
+      "path": "assets/item-crushed-iron-ore.prefab.json"
+    },
+    "item-model-29": {
+      "kind": "mesh",
+      "path": "assets/models/materials/crushed-copper-ore.glb"
+    },
+    "item-crushed-copper-ore": {
+      "kind": "prefab",
+      "path": "assets/item-crushed-copper-ore.prefab.json"
+    },
+    "item-model-30": {
+      "kind": "mesh",
+      "path": "assets/models/materials/purified-iron-ore.glb"
+    },
+    "item-purified-iron-ore": {
+      "kind": "prefab",
+      "path": "assets/item-purified-iron-ore.prefab.json"
+    },
+    "item-model-31": {
+      "kind": "mesh",
+      "path": "assets/models/materials/purified-copper-ore.glb"
+    },
+    "item-purified-copper-ore": {
+      "kind": "prefab",
+      "path": "assets/item-purified-copper-ore.prefab.json"
+    },
+    "item-model-32": {
+      "kind": "mesh",
+      "path": "assets/models/materials/steel.glb"
+    },
+    "item-steel": {
+      "kind": "prefab",
+      "path": "assets/item-steel.prefab.json"
+    },
+    "item-model-33": {
+      "kind": "mesh",
+      "path": "assets/models/materials/fuel.glb"
+    },
+    "item-fuel": {
+      "kind": "prefab",
+      "path": "assets/item-fuel.prefab.json"
+    },
+    "item-model-34": {
+      "kind": "mesh",
+      "path": "assets/models/materials/heavy-oil.glb"
+    },
+    "item-heavy-oil": {
+      "kind": "prefab",
+      "path": "assets/item-heavy-oil.prefab.json"
+    },
+    "item-model-35": {
+      "kind": "mesh",
+      "path": "assets/models/materials/plastic.glb"
+    },
+    "item-plastic": {
+      "kind": "prefab",
+      "path": "assets/item-plastic.prefab.json"
+    },
+    "item-model-36": {
+      "kind": "mesh",
+      "path": "assets/models/materials/rubber.glb"
+    },
+    "item-rubber": {
+      "kind": "prefab",
+      "path": "assets/item-rubber.prefab.json"
+    },
+    "item-model-37": {
+      "kind": "mesh",
+      "path": "assets/models/materials/fertilizer.glb"
+    },
+    "item-fertilizer": {
+      "kind": "prefab",
+      "path": "assets/item-fertilizer.prefab.json"
+    },
+    "item-model-38": {
+      "kind": "mesh",
+      "path": "assets/models/materials/hydrogen.glb"
+    },
+    "item-hydrogen": {
+      "kind": "prefab",
+      "path": "assets/item-hydrogen.prefab.json"
+    },
+    "item-model-39": {
+      "kind": "mesh",
+      "path": "assets/models/materials/oxygen.glb"
+    },
+    "item-oxygen": {
+      "kind": "prefab",
+      "path": "assets/item-oxygen.prefab.json"
+    },
+    "item-model-40": {
+      "kind": "mesh",
+      "path": "assets/models/materials/clay.glb"
+    },
+    "item-clay": {
+      "kind": "prefab",
+      "path": "assets/item-clay.prefab.json"
+    },
+    "item-model-41": {
+      "kind": "mesh",
+      "path": "assets/models/materials/bricks.glb"
+    },
+    "item-bricks": {
+      "kind": "prefab",
+      "path": "assets/item-bricks.prefab.json"
+    },
+    "item-model-42": {
+      "kind": "mesh",
+      "path": "assets/models/materials/lime.glb"
+    },
+    "item-lime": {
+      "kind": "prefab",
+      "path": "assets/item-lime.prefab.json"
+    },
+    "item-model-43": {
+      "kind": "mesh",
+      "path": "assets/models/materials/silicon.glb"
+    },
+    "item-silicon": {
+      "kind": "prefab",
+      "path": "assets/item-silicon.prefab.json"
+    },
+    "item-model-44": {
+      "kind": "mesh",
+      "path": "assets/models/materials/lenses.glb"
+    },
+    "item-lenses": {
+      "kind": "prefab",
+      "path": "assets/item-lenses.prefab.json"
+    },
+    "item-model-45": {
+      "kind": "mesh",
+      "path": "assets/models/materials/seeds.glb"
+    },
+    "item-seeds": {
+      "kind": "prefab",
+      "path": "assets/item-seeds.prefab.json"
+    },
+    "item-model-46": {
+      "kind": "mesh",
+      "path": "assets/models/materials/biomass.glb"
+    },
+    "item-biomass": {
+      "kind": "prefab",
+      "path": "assets/item-biomass.prefab.json"
+    },
+    "item-model-47": {
+      "kind": "mesh",
+      "path": "assets/models/materials/circuits.glb"
+    },
+    "item-circuits": {
+      "kind": "prefab",
+      "path": "assets/item-circuits.prefab.json"
+    },
+    "item-model-48": {
+      "kind": "mesh",
+      "path": "assets/models/materials/motor.glb"
+    },
+    "item-motor": {
+      "kind": "prefab",
+      "path": "assets/item-motor.prefab.json"
+    },
+    "item-model-49": {
+      "kind": "mesh",
+      "path": "assets/models/materials/machinery.glb"
+    },
+    "item-machinery": {
+      "kind": "prefab",
+      "path": "assets/item-machinery.prefab.json"
+    },
+    "item-model-50": {
+      "kind": "mesh",
+      "path": "assets/models/materials/scrap.glb"
+    },
+    "item-scrap": {
+      "kind": "prefab",
+      "path": "assets/item-scrap.prefab.json"
+    },
     "moon-ground": {
       "kind": "mesh",
       "path": "assets/moon-ground.obj"
@@ -622,6 +1218,10 @@
     "factory-backpack_ui": {
       "kind": "script",
       "path": "scripts/factory/backpack_ui.rhai"
+    },
+    "factory-buffers": {
+      "kind": "script",
+      "path": "scripts/factory/buffers.rhai"
     },
     "factory-building": {
       "kind": "script",
@@ -654,6 +1254,10 @@
     "factory-flight": {
       "kind": "script",
       "path": "scripts/factory/flight.rhai"
+    },
+    "factory-fluids": {
+      "kind": "script",
+      "path": "scripts/factory/fluids.rhai"
     },
     "factory-grid": {
       "kind": "script",
@@ -694,6 +1298,14 @@
     "factory-machines": {
       "kind": "script",
       "path": "scripts/factory/machines.rhai"
+    },
+    "factory-material_models": {
+      "kind": "script",
+      "path": "scripts/factory/material_models.rhai"
+    },
+    "factory-model_ports": {
+      "kind": "script",
+      "path": "scripts/factory/model_ports.rhai"
     },
     "factory-navigation": {
       "kind": "script",
@@ -835,7 +1447,7 @@
         "session": {
           "list": {
             "element": "number",
-            "capacity": 128,
+            "capacity": 160,
             "values": [
               {
                 "number": 0
@@ -854,6 +1466,102 @@
               },
               {
                 "number": -1
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
+              },
+              {
+                "number": 0
               },
               {
                 "number": 0
@@ -1309,7 +2017,7 @@
         "stock": {
           "list": {
             "element": "number",
-            "capacity": 32,
+            "capacity": 64,
             "values": []
           }
         },
@@ -5339,7 +6047,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Miner",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -5355,11 +6063,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -5557,7 +6265,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Belt",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -5573,11 +6281,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -5775,7 +6483,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Smelter",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -5791,11 +6499,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -5993,7 +6701,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Storage",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -6009,11 +6717,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -6211,7 +6919,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Assembler",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -6227,11 +6935,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -6429,7 +7137,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Generator",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -6445,11 +7153,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -6647,7 +7355,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Splitter",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -6663,11 +7371,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -6865,7 +7573,7 @@
       "ui_widget": {
         "kind": "label",
         "text": "Merger",
-        "font_size": 11,
+        "font_size": 10,
         "anchors": {
           "min": [
             0,
@@ -6881,11 +7589,11 @@
           ],
           "offset": [
             8,
-            29
+            26
           ],
           "size": [
             78,
-            22
+            29
           ]
         },
         "text_color": [
@@ -7074,7 +7782,7 @@
       },
       "ui_widget": {
         "kind": "label",
-        "text": "Ctrl + 1/2/3  Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera",
+        "text": "Ctrl + 1\u20135 Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera",
         "font_size": 13,
         "anchors": {
           "min": [
@@ -15359,9 +16067,81 @@
       }
     },
     {
+      "id": "journal-left-body-scroll",
+      "name": "Journal Left Body Scroll",
+      "parent": "journal-book",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            38,
+            219
+          ],
+          "size": [
+            390,
+            247
+          ]
+        },
+        "text_color": [
+          0.95,
+          0.96,
+          1.0,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          12,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": true,
+        "order": 0,
+        "layout": "column",
+        "scrollable": true
+      }
+    },
+    {
       "id": "journal-left-body",
       "name": "Journal Left Body",
-      "parent": "journal-book",
+      "parent": "journal-left-body-scroll",
       "transform": {
         "translation": [
           0,
@@ -15397,12 +16177,12 @@
             0
           ],
           "offset": [
-            38,
-            219
+            0,
+            0
           ],
           "size": [
-            390,
-            247
+            378,
+            0
           ]
         },
         "text_color": [
@@ -15423,7 +16203,7 @@
           0,
           0
         ],
-        "auto_text_height": false,
+        "auto_text_height": true,
         "clip_children": false,
         "order": 0
       }
@@ -15499,9 +16279,81 @@
       }
     },
     {
+      "id": "journal-right-body-scroll",
+      "name": "Journal Right Body Scroll",
+      "parent": "journal-book",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "panel",
+        "text": "",
+        "font_size": 14,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            502,
+            117
+          ],
+          "size": [
+            380,
+            212
+          ]
+        },
+        "text_color": [
+          0.95,
+          0.96,
+          1.0,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          12,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": true,
+        "order": 0,
+        "layout": "column",
+        "scrollable": true
+      }
+    },
+    {
       "id": "journal-right-body",
       "name": "Journal Right Body",
-      "parent": "journal-book",
+      "parent": "journal-right-body-scroll",
       "transform": {
         "translation": [
           0,
@@ -15537,12 +16389,12 @@
             0
           ],
           "offset": [
-            502,
-            117
+            0,
+            0
           ],
           "size": [
-            380,
-            212
+            368,
+            0
           ]
         },
         "text_color": [
@@ -15563,7 +16415,7 @@
           0,
           0
         ],
-        "auto_text_height": false,
+        "auto_text_height": true,
         "clip_children": false,
         "order": 0
       }
@@ -40137,7 +40989,7 @@
           ],
           "size": [
             740,
-            460
+            560
           ]
         },
         "text_color": [
@@ -40412,7 +41264,7 @@
       "ui_widget": {
         "kind": "button",
         "text": "Conductive alloy\nChoose output",
-        "font_size": 14,
+        "font_size": 13,
         "anchors": {
           "min": [
             0,
@@ -40432,7 +41284,7 @@
           ],
           "size": [
             220,
-            98
+            160
           ]
         },
         "text_color": [
@@ -40448,9 +41300,9 @@
           1
         ],
         "padding": [
-          16,
-          16,
-          0,
+          12,
+          12,
+          12,
           0
         ],
         "auto_text_height": false,
@@ -40489,7 +41341,7 @@
       "ui_widget": {
         "kind": "button",
         "text": "Machine parts\nChoose output",
-        "font_size": 14,
+        "font_size": 13,
         "anchors": {
           "min": [
             0,
@@ -40509,7 +41361,7 @@
           ],
           "size": [
             220,
-            98
+            160
           ]
         },
         "text_color": [
@@ -40525,9 +41377,9 @@
           1
         ],
         "padding": [
-          16,
-          16,
-          0,
+          12,
+          12,
+          12,
           0
         ],
         "auto_text_height": false,
@@ -40566,7 +41418,7 @@
       "ui_widget": {
         "kind": "button",
         "text": "Concrete\nChoose output",
-        "font_size": 14,
+        "font_size": 13,
         "anchors": {
           "min": [
             0,
@@ -40586,7 +41438,7 @@
           ],
           "size": [
             220,
-            98
+            160
           ]
         },
         "text_color": [
@@ -40602,9 +41454,9 @@
           1
         ],
         "padding": [
-          16,
-          16,
-          0,
+          12,
+          12,
+          12,
           0
         ],
         "auto_text_height": false,
@@ -40643,7 +41495,7 @@
       "ui_widget": {
         "kind": "panel",
         "text": "",
-        "font_size": 16,
+        "font_size": 15,
         "anchors": {
           "min": [
             0,
@@ -40659,11 +41511,11 @@
           ],
           "offset": [
             30,
-            255
+            321
           ],
           "size": [
             680,
-            66
+            96
           ]
         },
         "text_color": [
@@ -40729,7 +41581,7 @@
           ],
           "offset": [
             30,
-            339
+            436
           ],
           "size": [
             330,
@@ -40806,7 +41658,7 @@
           ],
           "offset": [
             380,
-            339
+            436
           ],
           "size": [
             330,
@@ -40883,7 +41735,7 @@
           ],
           "offset": [
             30,
-            404
+            506
           ],
           "size": [
             690,

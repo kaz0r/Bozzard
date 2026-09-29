@@ -36,6 +36,11 @@ fn box_distance(ray, center, half) {
 fn pick(ray) {
     let result=ground(ray); if !ray.valid { return result; }
     let nearest=10000.0; let resident=get_object_list("resident");
+    // Grounded model heights, indexed by build kind. Include the full catalog
+    // so clicking anywhere in a region containing expansion machines is safe.
+    let heights=[0.0,1.37,0.45,1.5,1.10,1.5,1.52,0.55,0.55,2.02,0.0,1.3,
+        0.825,1.045,1.085,1.008,1.359,1.467,1.235,1.152,1.2675,1.3525,
+        1.13,1.125,1.25,0.8125,0.422,0.422,0.363,0.363];
     let current=grid::chunk_id(get_scene_variable("chunk_x").to_int(),get_scene_variable("chunk_z").to_int());
     for id in 0..289 {
         if resident[id]==0.0 { continue; }
@@ -43,10 +48,11 @@ fn pick(ray) {
         if box_distance(ray,[cx.to_float()*15.0,1.5,cz.to_float()*15.0],[7.5,1.5,7.5])<0.0 { continue; }
         let builds=if id==current { get_scene_list("builds") } else { grid::unpack_numbers(data::region_data("cache_builds")[id],225) };
         for cell in 0..225 {
-            let kind=builds[cell].to_int(); if kind<=0 { continue; }
-            let height=[0.0,1.37,0.45,1.5,1.10,1.5,1.52,0.55,0.55,2.02,0.0,1.3][kind];
+            let kind=builds[cell].to_int(); if kind<=0 || kind>=heights.len() { continue; }
+            let height=heights[kind]; if height<=0.0 {continue;}
             let wx=cx*15+grid::cell_x(cell); let wz=cz*15+grid::cell_z(cell);
-            let t=box_distance(ray,[wx.to_float(),height/2.0,wz.to_float()],[0.48,height/2.0,0.48]);
+            let width=if kind>=12 {0.5}else{0.48};
+            let t=box_distance(ray,[wx.to_float(),height/2.0,wz.to_float()],[width,height/2.0,width]);
             if t>=0.0 && t<nearest { nearest=t; result=[cx,cz,grid::cell_x(cell),grid::cell_z(cell)]; }
         }
     }
@@ -113,7 +119,7 @@ fn right_click(x,y) {
         let current=grid::chunk_id(get_scene_variable("chunk_x").to_int(),get_scene_variable("chunk_z").to_int());
         let builds=if region==current { get_scene_list("builds") } else { grid::unpack_numbers(data::region_data("cache_builds")[region],225) };
         let kind=builds[cell];
-        if kind==1.0 || kind==3.0 || kind==4.0 || kind==5.0 || kind==7.0 || kind==8.0 || kind==11.0 {
+        if kind==1.0 || data::production(kind) || kind==4.0 || kind==7.0 || kind==8.0 || data::pipe(kind) || data::belt(kind) {
             select_tile(at); show_menu(3.0,power::power_id(cell),-1,x,y); return;
         }
     }

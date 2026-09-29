@@ -1,0 +1,2120 @@
+{
+  "version": 1,
+  "name": "Stellar-IX material catalog",
+  "assets": {
+    "item-model-1": {
+      "kind": "mesh",
+      "path": "assets/models/materials/iron-ore.glb"
+    },
+    "item-model-2": {
+      "kind": "mesh",
+      "path": "assets/models/materials/copper-ore.glb"
+    },
+    "item-model-3": {
+      "kind": "mesh",
+      "path": "assets/models/materials/limestone.glb"
+    },
+    "item-model-4": {
+      "kind": "mesh",
+      "path": "assets/models/materials/coal.glb"
+    },
+    "item-model-5": {
+      "kind": "mesh",
+      "path": "assets/models/materials/quartz.glb"
+    },
+    "item-model-6": {
+      "kind": "mesh",
+      "path": "assets/models/materials/crude-oil.glb"
+    },
+    "item-model-7": {
+      "kind": "mesh",
+      "path": "assets/models/materials/water.glb"
+    },
+    "item-model-8": {
+      "kind": "mesh",
+      "path": "assets/models/materials/stone.glb"
+    },
+    "item-model-9": {
+      "kind": "mesh",
+      "path": "assets/models/materials/sand.glb"
+    },
+    "item-model-10": {
+      "kind": "mesh",
+      "path": "assets/models/materials/silver-ore.glb"
+    },
+    "item-model-11": {
+      "kind": "mesh",
+      "path": "assets/models/materials/iron-ingot.glb"
+    },
+    "item-model-12": {
+      "kind": "mesh",
+      "path": "assets/models/materials/copper-ingot.glb"
+    },
+    "item-model-13": {
+      "kind": "mesh",
+      "path": "assets/models/materials/conductive-alloy.glb"
+    },
+    "item-model-14": {
+      "kind": "mesh",
+      "path": "assets/models/materials/glass.glb"
+    },
+    "item-model-15": {
+      "kind": "mesh",
+      "path": "assets/models/materials/iron-sheet.glb"
+    },
+    "item-model-16": {
+      "kind": "mesh",
+      "path": "assets/models/materials/nuts-bolts.glb"
+    },
+    "item-model-17": {
+      "kind": "mesh",
+      "path": "assets/models/materials/cable.glb"
+    },
+    "item-model-18": {
+      "kind": "mesh",
+      "path": "assets/models/materials/concrete.glb"
+    },
+    "item-model-20": {
+      "kind": "mesh",
+      "path": "assets/models/materials/machine-part.glb"
+    },
+    "item-model-21": {
+      "kind": "mesh",
+      "path": "assets/models/materials/portable-miner.glb"
+    },
+    "item-model-22": {
+      "kind": "mesh",
+      "path": "assets/models/materials/generator-unit.glb"
+    },
+    "item-model-23": {
+      "kind": "mesh",
+      "path": "assets/models/materials/pole-bundle.glb"
+    },
+    "item-model-24": {
+      "kind": "mesh",
+      "path": "assets/models/materials/amorium.glb"
+    },
+    "item-model-25": {
+      "kind": "mesh",
+      "path": "assets/models/materials/moondust.glb"
+    },
+    "item-model-26": {
+      "kind": "mesh",
+      "path": "assets/models/materials/techtorium.glb"
+    },
+    "item-model-27": {
+      "kind": "mesh",
+      "path": "assets/models/materials/gravel.glb"
+    },
+    "item-model-28": {
+      "kind": "mesh",
+      "path": "assets/models/materials/crushed-iron-ore.glb"
+    },
+    "item-model-29": {
+      "kind": "mesh",
+      "path": "assets/models/materials/crushed-copper-ore.glb"
+    },
+    "item-model-30": {
+      "kind": "mesh",
+      "path": "assets/models/materials/purified-iron-ore.glb"
+    },
+    "item-model-31": {
+      "kind": "mesh",
+      "path": "assets/models/materials/purified-copper-ore.glb"
+    },
+    "item-model-32": {
+      "kind": "mesh",
+      "path": "assets/models/materials/steel.glb"
+    },
+    "item-model-33": {
+      "kind": "mesh",
+      "path": "assets/models/materials/fuel.glb"
+    },
+    "item-model-34": {
+      "kind": "mesh",
+      "path": "assets/models/materials/heavy-oil.glb"
+    },
+    "item-model-35": {
+      "kind": "mesh",
+      "path": "assets/models/materials/plastic.glb"
+    },
+    "item-model-36": {
+      "kind": "mesh",
+      "path": "assets/models/materials/rubber.glb"
+    },
+    "item-model-37": {
+      "kind": "mesh",
+      "path": "assets/models/materials/fertilizer.glb"
+    },
+    "item-model-38": {
+      "kind": "mesh",
+      "path": "assets/models/materials/hydrogen.glb"
+    },
+    "item-model-39": {
+      "kind": "mesh",
+      "path": "assets/models/materials/oxygen.glb"
+    },
+    "item-model-40": {
+      "kind": "mesh",
+      "path": "assets/models/materials/clay.glb"
+    },
+    "item-model-41": {
+      "kind": "mesh",
+      "path": "assets/models/materials/bricks.glb"
+    },
+    "item-model-42": {
+      "kind": "mesh",
+      "path": "assets/models/materials/lime.glb"
+    },
+    "item-model-43": {
+      "kind": "mesh",
+      "path": "assets/models/materials/silicon.glb"
+    },
+    "item-model-44": {
+      "kind": "mesh",
+      "path": "assets/models/materials/lenses.glb"
+    },
+    "item-model-45": {
+      "kind": "mesh",
+      "path": "assets/models/materials/seeds.glb"
+    },
+    "item-model-46": {
+      "kind": "mesh",
+      "path": "assets/models/materials/biomass.glb"
+    },
+    "item-model-47": {
+      "kind": "mesh",
+      "path": "assets/models/materials/circuits.glb"
+    },
+    "item-model-48": {
+      "kind": "mesh",
+      "path": "assets/models/materials/motor.glb"
+    },
+    "item-model-49": {
+      "kind": "mesh",
+      "path": "assets/models/materials/machinery.glb"
+    },
+    "item-model-50": {
+      "kind": "mesh",
+      "path": "assets/models/materials/scrap.glb"
+    }
+  },
+  "views": {
+    "3d": "camera"
+  },
+  "objects": [
+    {
+      "id": "iron-ore",
+      "name": "Iron ore",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.17169,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-ore",
+      "name": "Copper ore",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.1961175,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-2"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "limestone",
+      "name": "Limestone",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.158215,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-3"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "coal",
+      "name": "Coal",
+      "transform": {
+        "translation": [
+          0.0,
+          0.11706749999999999,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-4"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "quartz",
+      "name": "Quartz",
+      "transform": {
+        "translation": [
+          1.25,
+          0.3065,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-5"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "crude-oil",
+      "name": "Crude oil",
+      "transform": {
+        "translation": [
+          2.5,
+          0.239,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-6"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "water",
+      "name": "Water",
+      "transform": {
+        "translation": [
+          3.75,
+          0.209625,
+          -3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-7"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "stone",
+      "name": "Stone",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.1705325,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-8"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sand",
+      "name": "Sand",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.05637250000000002,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-9"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "silver-ore",
+      "name": "Silver ore",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.189965,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-10"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "iron-ingot",
+      "name": "Iron ingot",
+      "transform": {
+        "translation": [
+          0.0,
+          0.10900000000000001,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-11"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "copper-ingot",
+      "name": "Copper ingot",
+      "transform": {
+        "translation": [
+          1.25,
+          0.10900000000000001,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-12"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "conductive-alloy",
+      "name": "Conductive alloy",
+      "transform": {
+        "translation": [
+          2.5,
+          0.10900000000000001,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-13"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "glass",
+      "name": "Glass",
+      "transform": {
+        "translation": [
+          3.75,
+          0.04337500000000001,
+          -2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-14"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "iron-sheet",
+      "name": "Iron sheet",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.06025,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-15"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "nuts-bolts",
+      "name": "Nuts and bolts",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.09854000000000002,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-16"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "cable",
+      "name": "Cable",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.10212500000000002,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-17"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "concrete",
+      "name": "Concrete",
+      "transform": {
+        "translation": [
+          0.0,
+          0.10400000000000001,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-18"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "machine-part",
+      "name": "Machine part",
+      "transform": {
+        "translation": [
+          1.25,
+          0.10275000000000001,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-20"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "portable-miner",
+      "name": "Portable miner",
+      "transform": {
+        "translation": [
+          2.5,
+          0.284625,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-21"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "generator-unit",
+      "name": "Generator unit",
+      "transform": {
+        "translation": [
+          3.75,
+          0.339625,
+          -1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-22"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "pole-bundle",
+      "name": "Pole bundle",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.269,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-23"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "amorium",
+      "name": "Amorium",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.192115,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-24"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "moondust",
+      "name": "Moondust",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.05637250000000002,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-25"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "techtorium",
+      "name": "Techtorium",
+      "transform": {
+        "translation": [
+          0.0,
+          0.308875,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-26"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "gravel",
+      "name": "Gravel",
+      "transform": {
+        "translation": [
+          1.25,
+          0.12450750000000002,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-27"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "crushed-iron-ore",
+      "name": "Crushed iron ore",
+      "transform": {
+        "translation": [
+          2.5,
+          0.12450750000000002,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-28"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "crushed-copper-ore",
+      "name": "Crushed copper ore",
+      "transform": {
+        "translation": [
+          3.75,
+          0.12450750000000002,
+          0.0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-29"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "purified-iron-ore",
+      "name": "Purified iron ore",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.11145750000000001,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-30"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "purified-copper-ore",
+      "name": "Purified copper ore",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.11145750000000001,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-31"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "steel",
+      "name": "Steel",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.08775000000000002,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-32"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "fuel",
+      "name": "Fuel",
+      "transform": {
+        "translation": [
+          0.0,
+          0.2765,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-33"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "heavy-oil",
+      "name": "Heavy oil",
+      "transform": {
+        "translation": [
+          1.25,
+          0.239,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-34"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "plastic",
+      "name": "Plastic",
+      "transform": {
+        "translation": [
+          2.5,
+          0.10525000000000001,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-35"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "rubber",
+      "name": "Rubber",
+      "transform": {
+        "translation": [
+          3.75,
+          0.11150000000000002,
+          1.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-36"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "fertilizer",
+      "name": "Fertilizer",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.13025,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-37"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "hydrogen",
+      "name": "Hydrogen",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.30274999999999996,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-38"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "oxygen",
+      "name": "Oxygen",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.30274999999999996,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-39"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "transform": {
+        "translation": [
+          0.0,
+          0.16675500000000001,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-40"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "bricks",
+      "name": "Bricks",
+      "transform": {
+        "translation": [
+          1.25,
+          0.12087499999999998,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-41"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lime",
+      "name": "Lime",
+      "transform": {
+        "translation": [
+          2.5,
+          0.05637250000000002,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-42"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "silicon",
+      "name": "Silicon",
+      "transform": {
+        "translation": [
+          3.75,
+          -0.019125,
+          2.5
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-43"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lenses",
+      "name": "Lenses",
+      "transform": {
+        "translation": [
+          -3.75,
+          0.05025000000000002,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-44"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "seeds",
+      "name": "Seeds",
+      "transform": {
+        "translation": [
+          -2.5,
+          0.13025,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-45"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "biomass",
+      "name": "Biomass",
+      "transform": {
+        "translation": [
+          -1.25,
+          0.16025,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-46"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "circuits",
+      "name": "Circuits",
+      "transform": {
+        "translation": [
+          0.0,
+          0.02900000000000001,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-47"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "motor",
+      "name": "Motor",
+      "transform": {
+        "translation": [
+          1.25,
+          0.23712499999999997,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-48"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "machinery",
+      "name": "Machinery",
+      "transform": {
+        "translation": [
+          2.5,
+          0.20087499999999997,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-49"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "scrap",
+      "name": "Scrap",
+      "transform": {
+        "translation": [
+          3.75,
+          0.12181999999999998,
+          3.75
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          2.5,
+          2.5,
+          2.5
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-50"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "camera",
+      "name": "Material catalog camera",
+      "transform": {
+        "translation": [
+          10,
+          13,
+          15
+        ],
+        "rotation_degrees": [
+          -37,
+          34,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 13,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Studio floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.11,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          12,
+          0.1,
+          12
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.19,
+          0.22,
+          0.23
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "environment": {
+    "zenith": [
+      0.25,
+      0.29,
+      0.32
+    ],
+    "horizon": [
+      0.25,
+      0.29,
+      0.32
+    ],
+    "ground": [
+      0.19,
+      0.22,
+      0.23
+    ],
+    "intensity": 0.55,
+    "background": true
+  },
+  "lighting": {
+    "sun_direction": [
+      0.46,
+      0.81,
+      0.35
+    ],
+    "sun_color": [
+      1,
+      0.96,
+      0.9
+    ],
+    "sun_intensity": 2.6,
+    "ambient_color": [
+      0.86,
+      0.94,
+      1
+    ],
+    "ambient_intensity": 0.24
+  }
+}

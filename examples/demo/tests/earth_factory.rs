@@ -116,7 +116,7 @@ fn resource_planets_are_sparse_spaced_seeded_and_progression_safe() {
             .unwrap();
         let mut planet = BTreeMap::new();
         let mut positions = BTreeSet::new();
-        let mut counts = [0usize; 11];
+        let mut counts = [0usize; 64];
         for step in 0..289 {
             tick(&mut demo, None);
             let id = if reverse { 288 - step } else { step };
@@ -155,7 +155,7 @@ fn resource_planets_are_sparse_spaced_seeded_and_progression_safe() {
             planet.insert(id, nodes);
         }
         assert!(
-            counts[1..].iter().all(|&count| count > 0),
+            (1..=10).chain([40, 45]).all(|kind| counts[kind] > 0),
             "finite planet missing a resource"
         );
         assert!(
@@ -1349,6 +1349,73 @@ fn steady_production_reuses_item_visuals_without_changing_scene_membership() {
     );
 }
 
+#[test]
+fn material_models_follow_pooled_items_and_rest_on_the_belt_deck() {
+    use bozzard_scene::{Drawable, Mesh, Transform};
+    let mut demo = buffer_layout(
+        "[[112,2,0,11,1],[113,4,0,0,0]]",
+        "simulation::factory_step();",
+    );
+    let item_ids = |demo: &SceneDemo| -> Vec<String> {
+        demo.instance()
+            .document()
+            .objects
+            .iter()
+            .filter(|object| object.name == "Moving item")
+            .map(|object| object.id.clone())
+            .collect()
+    };
+    let ids = item_ids(&demo);
+    assert_eq!(ids.len(), 1);
+    let entity = demo.instance().entity(&ids[0]).unwrap();
+    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../assets/factory-materials/manifest.json");
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(manifest_path).unwrap()).unwrap();
+    for item in manifest["items"].as_array().unwrap() {
+        if item["fluid_sample"].as_bool().unwrap() {
+            continue;
+        }
+        let kind = item["kind"].as_u64().unwrap();
+        factory_code(
+            &mut demo,
+            r#"
+            // The previous transfer finished in storage; the next beat returns
+            // its visual to the pool. Make room for the next material sample.
+            inventory::storage_write(113,grid::empty_numbers(32));
+            simulation::factory_step();
+        "#,
+            1,
+        );
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            let items=get_scene_list("items");items[112]={kind}.0;set_scene_list("items",items);
+            let amounts=get_scene_list("item_amounts");amounts[112]=1.0;set_scene_list("item_amounts",amounts);
+            simulation::factory_step();
+        "#
+            ),
+            1,
+        );
+        assert_eq!(
+            item_ids(&demo),
+            ids,
+            "kind {kind} must reuse the item entity"
+        );
+        let drawable = demo.app.world.get::<Drawable>(entity).unwrap();
+        assert_eq!(drawable.mesh, Mesh::Asset(format!("item-model-{kind}")));
+        assert_eq!(drawable.color, [1., 1., 1.]);
+        let transform = demo.app.world.get::<Transform>(entity).unwrap();
+        assert_eq!(transform.scale, [1., 1., 1.]);
+        let bottom = transform.translation[1] + item["bounds"][0][1].as_f64().unwrap() as f32;
+        assert!(
+            (bottom - 0.424).abs() < 0.00001,
+            "kind {kind} floats or clips into the belt: {bottom}"
+        );
+    }
+}
+
 fn controller_value(demo: &SceneDemo, name: &str) -> BlackboardValue {
     demo.app
         .world
@@ -1397,10 +1464,17 @@ fn action_bars_switch_by_ctrl_chord_and_remember_each_selection() {
     assert_eq!(number(&demo, "selected"), 4.);
     tick(&mut demo, None);
     tick_keys(&mut demo, &["Ctrl", "4"]);
-    assert_eq!(controller_number(&demo, "bar"), 2.);
+    assert_eq!(controller_number(&demo, "bar"), 4.);
+    assert_eq!(number(&demo, "selected"), 16.);
+    tick(&mut demo, None);
+    tick_keys(&mut demo, &["Ctrl", "5"]);
+    assert_eq!(controller_number(&demo, "bar"), 5.);
+    assert_eq!(number(&demo, "selected"), 24.);
+    tick(&mut demo, None);
+    tick_keys(&mut demo, &["Ctrl", "6"]);
     assert_eq!(
         number(&demo, "selected"),
-        4.,
+        24.,
         "unsupported chords cannot select tools"
     );
     press(&mut demo, "Space");
@@ -2251,7 +2325,7 @@ fn storage_outputs_opposite_its_input_and_preserves_blocked_stock_in_every_rotat
                     let items=get_scene_list("items"); items[{output}]=0.0; set_scene_list("items",items);
                     simulation::factory_step(); visuals::animate_items(0.5);
                     let handle=get_scene_list("item_visuals")[{output}];
-                    if handle=="" || abs(get_position(handle)[1]-0.52)>0.001 {{ throw "storage output misses belt deck"; }}
+                    if handle=="" || abs(get_position(handle)[1]-visuals::item_height(2.0,get_scene_list("items")[{output}]))>0.006 {{ throw "storage output misses belt deck"; }}
                     "#
                 ),
                 1,
@@ -2812,7 +2886,7 @@ fn moon_round_trips_preserve_both_factories_power_storage_and_carried_stock() {
         machines::select_recipe(115,16.0); machines::feed_assembler(115); power::update_power();
         let earth_power = get_object_list("power_data");
         let inventory = grid::empty_numbers(32); inventory[0]=11.0; inventory[1]=37.0; inventory::storage_write(117,inventory);
-        let counts=grid::empty_numbers(32); counts[11]=37.0; set_scene_list("counts",counts);
+        let counts=grid::empty_numbers(64); counts[11]=37.0; set_scene_list("counts",counts);
         let stock=get_object_list("stock"); stock[11]=29.0; backpack::set_stock(stock);
         world::enter_chunk(2,1); test_build(114,5.0); machines::select_recipe(114,18.0); machines::feed_assembler(114);
         world::enter_chunk(0,0);
@@ -2828,7 +2902,7 @@ fn moon_round_trips_preserve_both_factories_power_storage_and_carried_stock() {
         machines::select_recipe(115,17.0); machines::feed_assembler(115); power::update_power();
         let moon_power=get_object_list("power_data");
         let inventory=grid::empty_numbers(32); inventory[0]=24.0; inventory[1]=19.0; inventory::storage_write(117,inventory);
-        let counts=grid::empty_numbers(32); counts[24]=19.0; set_scene_list("counts",counts);
+        let counts=grid::empty_numbers(64); counts[24]=19.0; set_scene_list("counts",counts);
         let stock=get_object_list("stock"); stock[26]=2.0; backpack::set_stock(stock);
         chunks::discover_chunk(-3,2);
         set_scene_variable("cursor_x",0.0); set_scene_variable("cursor_z",1.0); world::travel_to_other_planet();
@@ -3085,19 +3159,19 @@ fn dev_world_catalog_is_spaced_complete_and_bounded_without_generation() {
                 assert!(deposits.insert(nodes[cell] as u8), "duplicate deposit");
             }
             if builds[cell] > 0. {
-                assert!([5, 12, 16].contains(&z));
+                assert!([-1, 3, 5, 8, 12, 16, 20].contains(&z));
                 assert_eq!((x + 6) % 2, 0);
                 machine_types.insert(builds[cell] as u8);
             }
             if items[cell] > 0. {
-                assert_eq!(builds[cell], 2.);
+                assert!([2., 26.].contains(&builds[cell]));
                 assert!(samples.insert(items[cell] as u8), "duplicate sample");
             }
         }
     }
-    assert_eq!(deposits, (1..=10).chain(24..=26).collect());
-    assert_eq!(machine_types, (1..=9).chain([11]).collect());
-    assert_eq!(samples, (1..=18).chain(20..=26).collect());
+    assert_eq!(deposits, (1..=10).chain(24..=26).chain([40, 45]).collect());
+    assert_eq!(machine_types, (1..=9).chain(11..=29).collect());
+    assert_eq!(samples, (1..=18).chain(20..=50).collect());
     let original_nodes = world.state().controller["chunk_nodes"].clone();
     factory_code(
         &mut demo,
@@ -3726,21 +3800,23 @@ fn progression_deliveries_are_atomic_and_unlock_all_eight_phases_in_order() {
             [15,200.0,16,320.0,17,120.0,14,80.0]
         ];
         for phase in 0..7 {
-            let stock = grid::empty_numbers(32); let cost = deliveries[phase];
+            let stock = grid::empty_numbers(64); let cost = deliveries[phase];
             for i in 0..cost.len()/2 { stock[cost[i*2]] = cost[i*2+1]; }
             stock[cost[0]] -= 1.0; backpack::set_stock(stock); progression::deliver_phase();
             if get_object_variable("phase") != phase.to_float() || get_object_list("stock") != stock { throw "partial delivery was charged"; }
             stock[cost[0]] += 1.0; backpack::set_stock(stock); progression::deliver_phase();
             if get_object_variable("phase") != (phase+1).to_float() { throw "phase did not unlock"; }
-            if get_object_list("stock") != grid::empty_numbers(32) { throw "wrong delivery cost"; }
+            if get_object_list("stock") != grid::empty_numbers(64) { throw "wrong delivery cost"; }
             if data::tool_unlocked(4.0) != (phase>=1) || data::tool_unlocked(6.0) != (phase>=2) || data::tool_unlocked(11.0) != (phase>=3) || data::tool_unlocked(5.0) != (phase>=3) { throw "wrong unlock sequence"; }
-            if data::tool_unlocked(7.0) || data::tool_unlocked(8.0) { throw "unassigned Survival tools unlocked"; }
+            for kind in [7.0,8.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0] {
+                if data::tool_unlocked(kind)!=(phase>=3) {throw "wrong expansion unlock sequence";}
+            }
         }
         progression::deliver_phase();
     "#,
     );
     assert_eq!(controller_number(&demo, "phase"), 7.);
-    assert_eq!(controller_numbers(&demo, "stock"), vec![0.; 32]);
+    assert_eq!(controller_numbers(&demo, "stock"), vec![0.; 64]);
 }
 
 #[test]
@@ -4167,28 +4243,55 @@ fn mouse_power_context_links_unlinks_and_hides_unavailable_actions() {
 
 #[test]
 fn mouse_inspect_dispatches_every_machine_buffer_to_its_interface() {
-    for (kind, panel) in [
+    let expansion_manifest: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../assets/factory-machines/expansion-manifest.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let cases = [
         (1, "machine-inspect-overlay"),
+        (2, "machine-inspect-overlay"),
         (3, "assembler-overlay"),
         (4, "storage-panel"),
         (5, "assembler-overlay"),
         (7, "machine-inspect-overlay"),
         (8, "machine-inspect-overlay"),
         (11, "assembler-overlay"),
-    ] {
+    ]
+    .into_iter()
+    .chain((12..=25).map(|kind| (kind, "assembler-overlay")))
+    .chain((26..=29).map(|kind| (kind, "machine-inspect-overlay")));
+    for (kind, panel) in cases {
         let setup = format!(
             r#"
             set_object_variable("creative",true); set_object_variable("phase",7.0);
-            test_build(157,{kind}.0);
-            if {kind}==1 {{
-                let nodes=get_scene_list("nodes"); nodes[157]=1.0; set_scene_list("nodes",nodes);
-                set_scene_variable("selected",1.0); building::place_selected();
-            }}
+            let nodes=get_scene_list("nodes");nodes[157]=if {kind}==1 {{1.0}}else if {kind}==12 {{7.0}}else if {kind}==13 {{6.0}}else{{0.0}};
+            set_scene_list("nodes",nodes);set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",3.0);
+            set_scene_variable("selected",{kind}.0);building::place_selected();
         "#
         );
         let mut demo = stellar_fixture(&setup);
         assert_eq!(numbers(&demo, "builds")[157], kind as f32);
-        click_world(&mut demo, [0., 0.3, 3.], true);
+        let height = if (12..=25).contains(&kind) {
+            expansion_manifest["machines"][(kind - 12) as usize]["bounds"][1][1]
+                .as_f64()
+                .unwrap() as f32
+                * 0.9
+        } else {
+            0.3
+        };
+        // Click the raised body, then inspect it through real pointer/UI events.
+        // The projected ground tile may lie behind tall machine silhouettes.
+        click_world(&mut demo, [0., height, 3.], false);
+        assert_eq!(
+            (number(&demo, "cursor_x"), number(&demo, "cursor_z")),
+            (0., 3.),
+            "body picking for kind {kind}"
+        );
+        click_world(&mut demo, [0., height, 3.], true);
         assert!(shown(&demo, "world-inspect"), "kind {kind}");
         assert!(!shown(&demo, "world-unlink"));
         click_widget(&mut demo, "world-inspect");
@@ -4295,7 +4398,7 @@ fn backpack_drag_swap_merge_split_destroy_and_cancel_preserve_stacks() {
     click_widget(&mut demo, "backpack-destroy");
     assert_eq!(controller_numbers(&demo, "stock")[2], 11.);
     click_widget(&mut demo, "backpack-destroy-all");
-    assert_eq!(controller_numbers(&demo, "stock"), vec![0.; 32]);
+    assert_eq!(controller_numbers(&demo, "stock"), vec![0.; 64]);
     assert!(
         controller_numbers(&demo, "session")[64..114]
             .iter()
@@ -5158,6 +5261,53 @@ fn saves_restore_both_planets_power_storage_inventory_and_clock_in_a_fresh_sessi
     assert_eq!(controller_numbers(&loaded, "session")[9], earth + 20.);
     board_other_planet(&mut loaded);
     assert_eq!(numbers(&loaded, "counts")[1], earth + 20.);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn loading_from_a_fresh_title_initializes_machine_rotation_animation() {
+    use bozzard_demo::factory::Session;
+    // Match the reported cell, near the end of the 225-cell animation tables.
+    let mut original = buffer_layout(
+        "[[203,11,0,0,0]]",
+        r#"set_scene_variable("cursor_x",1.0);set_scene_variable("cursor_z",6.0);"#,
+    );
+    let directory = save_directory(&mut original);
+    factory_code(&mut original, "persistence::prepare_save(1);", 1);
+    factory_code(&mut original, "persistence::update(0.0);", 1);
+    finish_save_io(&mut original);
+    drop(original);
+
+    // Load directly from the authored title, without creating a new world first.
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../earth-factory/scenes/earth.json");
+    let scene = Scene::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let mut loaded = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    tick(&mut loaded, None);
+    assert!(controller_numbers(&loaded, "rotation_from").is_empty());
+    loaded
+        .app
+        .world
+        .resource_mut::<Session>()
+        .unwrap()
+        .directory = directory.clone();
+    click_widget(&mut loaded, "title-load");
+    finish_save_io(&mut loaded);
+    click_widget(&mut loaded, "save-slot-1");
+    finish_save_io(&mut loaded);
+    assert_eq!(numbers(&loaded, "builds")[203], 11.);
+    assert_eq!(number(&loaded, "cursor_x"), 1.);
+    assert_eq!(number(&loaded, "cursor_z"), 6.);
+
+    press(&mut loaded, "R");
+    assert_eq!(controller_numbers(&loaded, "rotation_cells"), vec![203.]);
+    for name in ["rotation_time", "rotation_from", "rotation_turns"] {
+        assert_eq!(controller_numbers(&loaded, name).len(), 225, "{name}");
+    }
+    settle(&mut loaded, 45);
+    assert_eq!(numbers(&loaded, "facings")[203], 1.);
+    assert!(controller_numbers(&loaded, "rotation_cells").is_empty());
+    assert_eq!(controller_numbers(&loaded, "rotation_turns")[203], 0.);
+    assert_eq!(controller_numbers(&loaded, "rotation_time")[203], 1.);
     std::fs::remove_dir_all(directory).unwrap();
 }
 
@@ -7555,4 +7705,563 @@ fn coop_players_show_slot_colors_and_only_nearby_names() {
     coop_guest_snapshot(&host, &mut guest);
     settle(&mut guest, 3);
     assert!(!shown(&guest, "coop-name-2"));
+}
+
+#[test]
+fn expansion_every_machine_and_recipe_produces_all_outputs_only_with_power() {
+    // Explicit game recipes: the assertions do not derive expected products
+    // from the implementation's recipe table.
+    let recipes: &[(u8, u8, &[(u8, u8)], &[(u8, u8)], usize)] = &[
+        (12, 7, &[], &[(7, 1)], 2),
+        (13, 6, &[], &[(6, 1)], 2),
+        (14, 27, &[(8, 1)], &[(27, 1)], 4),
+        (14, 28, &[(1, 1)], &[(28, 1)], 4),
+        (14, 29, &[(2, 1)], &[(29, 1)], 4),
+        (15, 30, &[(28, 1), (7, 1)], &[(30, 1)], 4),
+        (15, 31, &[(29, 1), (7, 1)], &[(31, 1)], 4),
+        (16, 32, &[(11, 2), (4, 1)], &[(32, 2)], 4),
+        (16, 52, &[(30, 1)], &[(11, 3)], 4),
+        (16, 53, &[(31, 1)], &[(12, 3)], 4),
+        (17, 33, &[(6, 3)], &[(33, 2), (34, 1)], 4),
+        (18, 35, &[(34, 2)], &[(35, 1)], 4),
+        (18, 36, &[(33, 2)], &[(36, 1)], 4),
+        (18, 37, &[(34, 1), (3, 1)], &[(37, 1)], 4),
+        (19, 38, &[(7, 2)], &[(38, 2), (39, 1)], 4),
+        (20, 41, &[(40, 1)], &[(41, 1)], 4),
+        (20, 42, &[(3, 1)], &[(42, 1)], 4),
+        (20, 43, &[(5, 1)], &[(43, 1)], 4),
+        (21, 14, &[(9, 1)], &[(14, 1)], 2),
+        (21, 44, &[(14, 2)], &[(44, 1)], 4),
+        (22, 46, &[(45, 1), (7, 2), (37, 1)], &[(46, 4), (45, 1)], 8),
+        (23, 47, &[(12, 1), (43, 1), (35, 1)], &[(47, 1)], 4),
+        (24, 48, &[(32, 1), (17, 2)], &[(48, 1)], 4),
+        (
+            24,
+            49,
+            &[(48, 2), (47, 2), (32, 2), (36, 2)],
+            &[(49, 1), (50, 1)],
+            6,
+        ),
+        (25, 50, &[(50, 2)], &[(11, 1), (35, 1)], 4),
+        (25, 51, &[(49, 1)], &[(11, 2), (12, 1), (35, 1)], 4),
+    ];
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        test_build(157,9.0);power::connect_power(power::power_id(112),power::power_id(157));
+    "#,
+    );
+    for &(kind, recipe, inputs, outputs, beats) in recipes {
+        let pairs: Vec<_> = inputs.iter().map(|&(k, a)| vec![k, a]).collect();
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            set_scene_variable("cursor_x",3.0);set_scene_variable("cursor_z",1.0);
+            building::remove_selected();
+            let nodes=get_scene_list("nodes");nodes[130]={node}.0;set_scene_list("nodes",nodes);
+            set_scene_variable("selected",{kind}.0);set_scene_variable("direction",0.0);building::place_selected();
+            let recipes=get_object_list("recipes");recipes[130]={recipe}.0;set_object_list("recipes",recipes);
+            let slots=grid::empty_numbers(32);let pairs={pairs:?};
+            for i in 0..pairs.len() {{slots[i*2]=pairs[i][0].to_float();slots[i*2+1]=pairs[i][1].to_float();}}
+            inventory::storage_write(130,slots);
+        "#,
+                node = if kind == 12 {
+                    7
+                } else if kind == 13 {
+                    6
+                } else {
+                    0
+                }
+            ),
+            1,
+        );
+        assert_eq!(numbers(&demo, "builds")[130], kind as f32);
+        factory_code(&mut demo, "simulation::factory_step();", 2);
+        assert!(
+            inventory(&demo, 130)[8..].iter().all(|&(_, a)| a == 0.),
+            "unpowered kind {kind}"
+        );
+        factory_code(
+            &mut demo,
+            "power::connect_power(power::power_id(157),power::power_id(130));simulation::factory_step();",
+            1,
+        );
+        assert_eq!(controller_numbers(&demo, "power_live")[130], 1.);
+        factory_code(&mut demo, "simulation::factory_step();", beats - 1);
+        let slots = inventory(&demo, 130);
+        assert!(
+            slots[..8].iter().all(|&(_, a)| a == 0.),
+            "inputs not consumed for recipe {recipe}"
+        );
+        let got: Vec<_> = slots[8..]
+            .iter()
+            .copied()
+            .filter(|&(_, a)| a > 0.)
+            .collect();
+        let expected: Vec<_> = outputs.iter().map(|&(k, a)| (k as f32, a as f32)).collect();
+        assert_eq!(got, expected, "machine {kind}, recipe {recipe}");
+        assert_eq!(numbers(&demo, "progress")[130], 0.);
+        assert_eq!(
+            numbers(&demo, "counts").iter().sum::<f32>(),
+            0.,
+            "production buffers are not container stock"
+        );
+    }
+}
+
+#[test]
+fn expansion_fluid_pipes_conserve_units_lock_material_and_forward_once_per_beat() {
+    let mut demo = buffer_layout("[[112,26,0,7,40],[113,26,0,0,0],[114,4,0,0,0]]", "");
+    factory_code(&mut demo, "simulation::factory_step();", 1);
+    assert_eq!(numbers(&demo, "item_amounts")[112], 35.);
+    assert_eq!(numbers(&demo, "item_amounts")[113], 5.);
+    assert_eq!(inventory(&demo, 114).iter().map(|s| s.1).sum::<f32>(), 0.);
+    factory_code(&mut demo, "simulation::factory_step();", 20);
+    let stored = inventory(&demo, 114).iter().map(|s| s.1).sum::<f32>();
+    assert!(stored > 30.);
+    assert_eq!(
+        numbers(&demo, "item_amounts")[112] + numbers(&demo, "item_amounts")[113] + stored,
+        40.
+    );
+    assert_eq!(numbers(&demo, "counts")[7], stored);
+    let visual = demo
+        .app
+        .world
+        .resource::<BlueprintRuntime>()
+        .unwrap()
+        .scene_blackboard()["item_visuals"]
+        .values();
+    assert!(matches!(&visual[112],Value::Text(t) if t.is_empty()));
+    assert!(matches!(&visual[113],Value::Text(t) if t.is_empty()));
+    factory_code(
+        &mut demo,
+        r#"
+        let items=get_scene_list("items");items[112]=7.0;items[113]=6.0;set_scene_list("items",items);
+        let amounts=get_scene_list("item_amounts");amounts[112]=80.0;amounts[113]=10.0;set_scene_list("item_amounts",amounts);
+        set_scene_variable("cursor_x",2.0);set_scene_variable("cursor_z",0.0);building::remove_selected();
+        simulation::factory_step();
+    "#,
+        1,
+    );
+    assert_eq!(&numbers(&demo, "item_amounts")[112..114], &[80., 10.]);
+    assert_eq!(&numbers(&demo, "items")[112..114], &[7., 6.]);
+}
+
+#[test]
+fn expansion_pipe_elbows_and_corner_belts_match_ports_in_all_rotations() {
+    for facing in 0..4 {
+        let mut demo = buffer_layout("[]", "");
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            let center=112;let source=grid::index(grid::layout_x(0,1,0,{facing}),grid::layout_z(0,1,0,{facing}));
+            let target=grid::index(grid::layout_x(1,0,0,{facing}),grid::layout_z(1,0,0,{facing}));
+            for row in [[center,27,{facing}],[source,26,({facing}+1)%4],[target,4,{facing}]] {{
+                let nodes=get_scene_list("nodes");nodes[row[0]]=0.0;set_scene_list("nodes",nodes);
+                set_scene_variable("cursor_x",grid::cell_x(row[0]).to_float());set_scene_variable("cursor_z",grid::cell_z(row[0]).to_float());
+                set_scene_variable("selected",row[1].to_float());set_scene_variable("direction",row[2].to_float());building::place_selected();
+            }}
+            let items=get_scene_list("items");items[source]=7.0;set_scene_list("items",items);
+            let amounts=get_scene_list("item_amounts");amounts[source]=20.0;set_scene_list("item_amounts",amounts);
+            simulation::factory_step();
+        "#
+            ),
+            1,
+        );
+        assert_eq!(
+            numbers(&demo, "item_amounts")[112],
+            5.,
+            "elbow rotation {facing}"
+        );
+        factory_code(&mut demo, "simulation::factory_step();", 5);
+        assert!(numbers(&demo, "counts")[7] > 0.);
+        for kind in [28, 29] {
+            let side = if kind == 28 { -1 } else { 1 };
+            let mut belt_demo = buffer_layout("[]", "");
+            factory_code(
+                &mut belt_demo,
+                &format!(
+                    r#"
+                let source=grid::index(grid::layout_x(0,{side},0,{facing}),grid::layout_z(0,{side},0,{facing}));
+                let target=grid::index(grid::layout_x(1,0,0,{facing}),grid::layout_z(1,0,0,{facing}));
+                let wrong=grid::index(grid::layout_x(-1,0,0,{facing}),grid::layout_z(-1,0,0,{facing}));
+                for row in [[112,{kind},{facing}],[source,2,({facing}+{inlet})%4],[target,4,{facing}],[wrong,2,{facing}]] {{
+                    let nodes=get_scene_list("nodes");nodes[row[0]]=0.0;set_scene_list("nodes",nodes);
+                    set_scene_variable("cursor_x",grid::cell_x(row[0]).to_float());set_scene_variable("cursor_z",grid::cell_z(row[0]).to_float());
+                    set_scene_variable("selected",row[1].to_float());set_scene_variable("direction",row[2].to_float());building::place_selected();
+                }}
+                let items=get_scene_list("items");items[source]=11.0;items[wrong]=12.0;set_scene_list("items",items);
+                let amounts=get_scene_list("item_amounts");amounts[source]=1.0;amounts[wrong]=1.0;set_scene_list("item_amounts",amounts);
+                simulation::factory_step();
+            "#,
+                    inlet = if kind == 28 { 1 } else { 3 }
+                ),
+                1,
+            );
+            assert_eq!(numbers(&belt_demo, "items")[112], 11.);
+            assert_eq!(
+                numbers(&belt_demo, "counts")[11],
+                0.,
+                "new arrival must wait"
+            );
+            factory_code(&mut belt_demo, "simulation::factory_step();", 1);
+            assert_eq!(numbers(&belt_demo, "counts")[11], 1.);
+            assert_eq!(
+                numbers(&belt_demo, "item_amounts").iter().sum::<f32>(),
+                1.,
+                "wrong inlet stays blocked"
+            );
+        }
+    }
+}
+
+#[test]
+fn expansion_mixed_ingredients_reserve_capacity_and_recipe_changes_refund_atomically() {
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);test_build(130,24.0);
+        machines::select_recipe(130,49.0);
+        import "factory-buffers" as buffers;
+        let slots=grid::empty_numbers(32);
+        for i in 0..100 {let result=buffers::accept(slots,49,48.0);if result.ok {slots=result.slots;}}
+        inventory::storage_write(130,slots);
+    "#,
+    );
+    assert_eq!(inventory(&demo, 130)[0], (48., 94.));
+    factory_code(
+        &mut demo,
+        r#"
+        set_object_variable("creative",false);backpack::give(47.0,2.0);backpack::give(32.0,2.0);backpack::give(36.0,2.0);
+        machines::feed_assembler(130);
+    "#,
+        1,
+    );
+    assert_eq!(inventory(&demo, 130).iter().map(|s| s.1).sum::<f32>(), 100.);
+    assert_eq!(controller_numbers(&demo, "stock").iter().sum::<f32>(), 0.);
+    factory_code(&mut demo, "machines::select_recipe(130,48.0);", 1);
+    assert_eq!(controller_numbers(&demo, "stock")[48], 94.);
+    assert_eq!(controller_numbers(&demo, "stock")[47], 2.);
+    assert!(inventory(&demo, 130).iter().all(|s| s.1 == 0.));
+    factory_code(
+        &mut demo,
+        r#"
+        let slots=grid::empty_numbers(32);slots[0]=32.0;slots[1]=3.0;slots[16]=48.0;slots[17]=2.0;
+        inventory::storage_write(130,slots);machines::select_recipe(130,49.0);
+    "#,
+        1,
+    );
+    assert_eq!(controller_numbers(&demo, "recipes")[130], 48.);
+    assert_eq!(inventory(&demo, 130)[8], (48., 2.));
+    factory_code(
+        &mut demo,
+        "inventory::collect_machine(130);machines::select_recipe(130,49.0);",
+        1,
+    );
+    assert_eq!(controller_numbers(&demo, "recipes")[130], 49.);
+    assert_eq!(controller_numbers(&demo, "stock")[48], 96.);
+    assert_eq!(controller_numbers(&demo, "stock")[32], 5.);
+}
+
+#[test]
+fn expansion_saves_round_trip_buffers_fluids_and_upgrade_original_material_arrays() {
+    use bozzard_demo::factory::{
+        saves,
+        shared::{Player, World},
+        state::State,
+    };
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        test_build(130,17.0);test_build(131,26.0);
+        let slots=grid::empty_numbers(32);slots[0]=6.0;slots[1]=3.0;slots[16]=33.0;slots[17]=20.0;slots[18]=34.0;slots[19]=10.0;
+        inventory::storage_write(130,slots);backpack::give(47.0,5.0);
+        let items=get_scene_list("items");items[131]=33.0;set_scene_list("items",items);
+        let amounts=get_scene_list("item_amounts");amounts[131]=37.0;set_scene_list("item_amounts",amounts);
+        let counts=get_scene_list("counts");counts[49]=7.0;set_scene_list("counts",counts);
+        let other=grid::empty_numbers(64);other[49]=11.0;data::set_other_counts(other);
+    "#,
+    );
+    let state =
+        State::capture_live(demo.app.world.resource::<BlueprintRuntime>().unwrap()).unwrap();
+    let root = save_directory(&mut demo);
+    saves::write(&root, 1, &saves::Save::new(state.clone())).unwrap();
+    assert_eq!(saves::read(&root, 1).unwrap().state, state);
+    let mut oversized = state.clone();
+    let mut amounts = vec![0; 900];
+    amounts[130 * 4] = 90;
+    oversized
+        .controller
+        .get_mut("cache_storage_amounts_0")
+        .unwrap()
+        .values_mut()[144] = Value::Text(
+        amounts
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    assert!(
+        oversized.validate().is_err(),
+        "oversized saved production buffers must be rejected"
+    );
+    let (_, mut player) = World::from_local(state.clone()).unwrap();
+    player.position.planet = 1;
+    // The lunar home has not been discovered in this fixture. Test swapping via
+    // a discovered copy while preserving all expansion fields.
+    let mut explored = state.clone();
+    explored
+        .controller
+        .get_mut("chunk_nodes")
+        .unwrap()
+        .values_mut()[433] = Value::Text("0:225".into());
+    let (world, _) = World::from_local(explored).unwrap();
+    let moon = world.project(&player).unwrap();
+    assert_eq!(moon.scene["counts"].values()[49], Value::Number(11.));
+    assert_eq!(moon.controller["session"].values()[145], Value::Number(7.));
+    assert_eq!(
+        world
+            .project(&Player::capture(&state).unwrap())
+            .unwrap()
+            .controller["stock"]
+            .values()[47],
+        Value::Number(5.)
+    );
+    let mut old = stellar_fixture("");
+    let original =
+        State::capture_live(old.app.world.resource::<BlueprintRuntime>().unwrap()).unwrap();
+    let mut legacy = saves::Save::new(original.clone());
+    for (board, key, length) in [
+        (&mut legacy.state.scene, "counts", 32),
+        (&mut legacy.state.controller, "stock", 32),
+    ] {
+        if let BlackboardValue::List {
+            values, capacity, ..
+        } = board.get_mut(key).unwrap()
+        {
+            values.truncate(length);
+            *capacity = length;
+        }
+    }
+    if let BlackboardValue::List {
+        values, capacity, ..
+    } = legacy.state.controller.get_mut("session").unwrap()
+    {
+        values.truncate(128);
+        *capacity = 128;
+    }
+    let old_root = save_directory(&mut old);
+    std::fs::create_dir_all(&old_root).unwrap();
+    std::fs::write(
+        old_root.join("slot-1.json"),
+        serde_json::to_vec(&legacy).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(saves::read(&old_root, 1).unwrap().state, original);
+    std::fs::remove_dir_all(root).unwrap();
+    std::fs::remove_dir_all(old_root).unwrap();
+}
+
+#[test]
+fn expansion_refinery_backpressure_retains_both_products_and_separate_outlets_drain_them() {
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        for row in [[157,9.0],[146,17.0],[145,26.0]] {test_build(row[0],row[1]);}
+        power::connect_power(power::power_id(112),power::power_id(157));power::connect_power(power::power_id(157),power::power_id(146));
+        let items=get_scene_list("items");items[145]=6.0;set_scene_list("items",items);
+        let amounts=get_scene_list("item_amounts");amounts[145]=30.0;set_scene_list("item_amounts",amounts);
+        let slots=grid::empty_numbers(32);slots[16]=33.0;slots[17]=50.0;slots[18]=34.0;slots[19]=50.0;
+        inventory::storage_write(146,slots);
+    "#,
+    );
+    factory_code(&mut demo, "simulation::factory_step();", 8);
+    assert_eq!(numbers(&demo, "item_amounts")[145], 30.);
+    assert_eq!(inventory(&demo, 146)[8..10], [(33., 50.), (34., 50.)]);
+    factory_code(
+        &mut demo,
+        r#"
+        inventory::storage_write(146,grid::empty_numbers(32));
+        for row in [[147,26.0,0.0],[148,4.0,0.0],[161,26.0,1.0],[176,4.0,1.0]] {
+            let cell=row[0];let nodes=get_scene_list("nodes");nodes[cell]=0.0;set_scene_list("nodes",nodes);
+            set_scene_variable("cursor_x",grid::cell_x(cell).to_float());set_scene_variable("cursor_z",grid::cell_z(cell).to_float());
+            set_scene_variable("direction",row[2]);set_scene_variable("selected",row[1]);building::place_selected();
+            if get_scene_list("builds")[cell]!=row[1] {throw "refinery outlet not placed";}
+        }
+    "#,
+        1,
+    );
+    factory_code(&mut demo, "simulation::factory_step();", 60);
+    assert_eq!(numbers(&demo, "counts")[33], 20.);
+    assert_eq!(numbers(&demo, "counts")[34], 10.);
+    assert!(inventory(&demo, 146).iter().all(|s| s.1 == 0.));
+    assert_eq!(
+        numbers(&demo, "item_amounts")[145]
+            + numbers(&demo, "item_amounts")[147]
+            + numbers(&demo, "item_amounts")[161],
+        0.
+    );
+    assert_eq!(inventory(&demo, 148)[0], (33., 20.));
+    assert_eq!(inventory(&demo, 176)[0], (34., 10.));
+}
+
+#[test]
+fn expansion_factories_and_fluid_lines_cross_seams_and_continue_on_other_planets() {
+    let mut demo = multi_region_factory(
+        "[[6,0,16,0,0],[7,0,2,0,0],[8,0,4,0,0]]",
+        r#"let slots=grid::empty_numbers(32);slots[0]=11.0;slots[1]=20.0;slots[2]=4.0;slots[3]=10.0;inventory::storage_write(118,slots);"#,
+    );
+    factory_code(&mut demo, "simulation::factory_step();", 10);
+    let stored = numbers(&demo, "counts")[32];
+    assert!(stored > 0.);
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",1.0);world::travel_to_other_planet();
+    "#,
+        1,
+    );
+    assert_eq!(controller_numbers(&demo, "session")[7], 1.);
+    factory_code(&mut demo, "simulation::factory_step();", 45);
+    assert_eq!(controller_numbers(&demo, "session")[128], 20.);
+    assert_eq!(numbers(&demo, "counts")[32], 0.);
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",1.0);world::travel_to_other_planet();
+    "#,
+        1,
+    );
+    assert_eq!(numbers(&demo, "counts")[32], 20.);
+    assert!(inventory(&demo, 118).iter().all(|s| s.1 == 0.));
+    let mut fluid = multi_region_factory(
+        "[[6,0,12,0,7],[7,0,26,0,0],[8,0,26,0,0],[9,0,27,1,0],[9,1,26,1,0],[9,2,4,1,0]]",
+        "",
+    );
+    factory_code(&mut fluid, "simulation::factory_step();", 40);
+    assert!(
+        numbers(&fluid, "counts")[7] > 0.,
+        "water must cross the region seam and elbow"
+    );
+    let stored = numbers(&fluid, "counts")[7];
+    factory_code(
+        &mut fluid,
+        r#"set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",1.0);world::travel_to_other_planet();"#,
+        1,
+    );
+    factory_code(&mut fluid, "simulation::factory_step();", 40);
+    assert!(controller_numbers(&fluid, "session")[15] > stored);
+}
+
+#[test]
+fn expansion_coop_guest_builds_feeds_and_collects_manufacturer_through_a_corner_belt() {
+    use bozzard_demo::factory::{
+        host::HostRuntime, replication::requests::Action, shared::Position,
+    };
+    let mut host = stellar_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        test_build(157,9.0);power::connect_power(power::power_id(112),power::power_id(157));
+        let nodes=get_scene_list("nodes");for cell in [142,143,128,113] {nodes[cell]=0.0;}set_scene_list("nodes",nodes);
+        set_scene_variable("cursor_x",-4.0);set_scene_variable("cursor_z",0.0);backpack::give(8.0,11.0);
+    "#,
+    );
+    host.set_threaded_simulation(true).unwrap();
+    HostRuntime::start(
+        &mut host.app.world,
+        10,
+        1,
+        [(10, "Host".into()), (20, "Guest".into())].into(),
+    )
+    .unwrap();
+    assert!(coop_host_action(
+        &mut host,
+        20,
+        Action::Place {
+            kind: 24,
+            direction: 0
+        }
+    ));
+    let machine = Position {
+        planet: 0,
+        x: 0,
+        z: 2,
+    };
+    assert!(coop_host_action(
+        &mut host,
+        20,
+        Action::Configure {
+            at: machine,
+            recipe: 49
+        }
+    ));
+    assert!(coop_host_action(
+        &mut host,
+        20,
+        Action::Feed { at: machine }
+    ));
+    assert!(coop_host_action(
+        &mut host,
+        20,
+        Action::Wire {
+            from: machine,
+            to: Position {
+                planet: 0,
+                x: 0,
+                z: 3
+            }
+        }
+    ));
+    for (x, z, kind, direction) in [(1, 0, 28, 3), (0, -1, 2, 3), (0, -1, 4, 3)] {
+        assert!(coop_host_action(&mut host, 20, Action::Move { x, z }));
+        assert!(coop_host_action(
+            &mut host,
+            20,
+            Action::Place { kind, direction }
+        ));
+    }
+    let mut guest = coop_guest(&host);
+    for i in 0..360 {
+        coop_host_tick(&mut host);
+        if i % 12 == 0 {
+            coop_guest_snapshot(&host, &mut guest);
+            tick(&mut guest, None);
+        }
+    }
+    assert!(numbers(&host, "counts")[49] > 0.);
+    assert!(
+        numbers(&host, "counts")[50] > 0.,
+        "scrap byproduct must also leave the manufacturer"
+    );
+    coop_guest_snapshot(&host, &mut guest);
+    settle(&mut guest, 3);
+    assert_eq!(numbers(&guest, "counts")[49], numbers(&host, "counts")[49]);
+    assert_eq!(numbers(&guest, "counts")[50], numbers(&host, "counts")[50]);
+    assert!(coop_host_action(
+        &mut host,
+        20,
+        Action::TakeStorage {
+            at: Position {
+                planet: 0,
+                x: 1,
+                z: 0
+            }
+        }
+    ));
+    let player = host
+        .app
+        .world
+        .resource::<HostRuntime>()
+        .unwrap()
+        .snapshot(20)
+        .unwrap()
+        .player;
+    assert!(player.backpack.iter().any(|s| s.kind == 49 && s.amount > 0));
+    assert!(player.backpack.iter().any(|s| s.kind == 50 && s.amount > 0));
+    assert_eq!(
+        controller_numbers(&host, "stock")[8],
+        11.,
+        "guest transactions preserve the host's backpack"
+    );
 }

@@ -2,6 +2,12 @@
   "version": 1,
   "name": "Moving item",
   "root": "root",
+  "assets": {
+    "item-default": {
+      "kind": "mesh",
+      "path": "models/materials/iron-ore.glb"
+    }
+  },
   "objects": [
     {
       "id": "root",
@@ -18,24 +24,27 @@
           0
         ],
         "scale": [
-          0.23,
-          0.23,
-          0.23
+          1,
+          1,
+          1
         ]
       },
       "drawable": {
         "layer": "3d",
-        "mesh": "cube",
+        "mesh": {
+          "asset": "item-default"
+        },
         "texture": "white",
         "color": [
-          0.85,
-          0.78,
-          0.54
+          1,
+          1,
+          1
         ],
         "uv_scale": [
           1,
           1
-        ]
+        ],
+        "gi_static": false
       }
     }
   ]

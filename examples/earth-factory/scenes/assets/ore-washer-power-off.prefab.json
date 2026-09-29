@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "name": "Ore washer power off",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "Ore washer indicator",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lens",
+      "name": "Power off",
+      "transform": {
+        "translation": [
+          0.29800000000000004,
+          0.47,
+          0.3
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.8,
+          0.045,
+          0.025
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.8,
+                  0.045,
+                  0.025
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.8,
+                  0.045,
+                  0.025
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.8,
+                  0.045,
+                  0.025
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

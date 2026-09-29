@@ -104,16 +104,16 @@ impl Player {
     pub fn validate(&self) -> Result<()> {
         self.position.validate()?;
         ensure!(
-            (1..=11).contains(&self.selected)
+            (1..=29).contains(&self.selected)
                 && self.direction < 4
-                && self.bar <= 3
+                && self.bar <= 5
                 && self.bar_slots.iter().all(|s| (1..=8).contains(s)),
             "invalid player tools"
         );
         ensure!(
             self.backpack
                 .iter()
-                .all(|s| s.kind < 32 && s.amount <= 100 && (s.kind > 0 || s.amount == 0)),
+                .all(|s| s.kind <= 50 && s.amount <= 100 && (s.kind > 0 || s.amount == 0)),
             "invalid player inventory"
         );
         Ok(())
@@ -182,7 +182,7 @@ impl Player {
         }
         let session = state.controller.get_mut("session").unwrap().values_mut();
         session[7] = Value::Number(self.position.planet as f32);
-        let mut stock = [0.; 32];
+        let mut stock = [0.; 64];
         for (i, stack) in self.backpack.iter().enumerate() {
             session[64 + 2 * i] = Value::Number(stack.kind as f32);
             session[65 + 2 * i] = Value::Number(stack.amount as f32);
@@ -227,7 +227,13 @@ impl World {
             .iter()
             .enumerate()
         {
-            if i != 0 && i != 63 && !(7..40).contains(&i) && !(64..114).contains(&i) && i != 120 {
+            if i != 0
+                && i != 63
+                && !(7..40).contains(&i)
+                && !(64..114).contains(&i)
+                && !(128..160).contains(&i)
+                && i != 120
+            {
                 ensure!(
                     numeric(value)? == 0.,
                     "shared world contains local interface state"
@@ -277,7 +283,10 @@ fn swap_planets(state: &mut State) {
     state.controller.insert("power_other".into(), a);
     let counts = state.scene.get_mut("counts").unwrap().values_mut();
     let session = state.controller.get_mut("session").unwrap().values_mut();
-    for i in 0..32 {
-        std::mem::swap(&mut counts[i], &mut session[8 + i]);
+    for i in 0..64 {
+        std::mem::swap(
+            &mut counts[i],
+            &mut session[if i < 32 { 8 + i } else { 96 + i }],
+        );
     }
 }

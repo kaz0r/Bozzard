@@ -3,7 +3,7 @@ import "factory-net_input" as net;
 // stock remains a derived per-material total for recipes, deliveries and the HUD.
 fn slots() { get_object_list("session").extract(64, 50) }
 fn totals(inventory) {
-    let stock = []; stock.pad(32, 0.0);
+    let stock = []; stock.pad(64, 0.0);
     for slot in 0..25 { if inventory[slot*2+1] > 0.0 { stock[inventory[slot*2].to_int()] += inventory[slot*2+1]; } }
     stock
 }
@@ -24,6 +24,7 @@ fn set_stock(desired) {
 }
 // Shared pure transaction for host-authoritative actors and the local backpack.
 fn arrange(inventory,desired) {
+    if desired.len()<64 {desired.pad(64,0.0);}
     let current = totals(inventory);
     for slot in 0..25 {
         let at = (24-slot)*2; let kind = inventory[at].to_int();
@@ -32,7 +33,7 @@ fn arrange(inventory,desired) {
         inventory[at+1] -= removed; current[kind] -= removed;
         if inventory[at+1] == 0.0 { inventory[at] = 0.0; }
     }
-    for kind in 1..32 {
+    for kind in 1..64 {
         let remaining = desired[kind]-current[kind];
         if desired[kind] < 0.0 || floor(desired[kind]) != desired[kind] { return #{ok:false,inventory:[]}; }
         for empty in [false,true] {

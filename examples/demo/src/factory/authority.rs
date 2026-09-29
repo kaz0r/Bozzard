@@ -595,7 +595,7 @@ fn set_inventory(player: &mut Player, slots: &[f32]) -> Result<()> {
         ensure!(
             values[0].is_finite()
                 && values[0].fract() == 0.
-                && (0. ..32.).contains(&values[0])
+                && (0. ..=50.).contains(&values[0])
                 && values[1].is_finite()
                 && values[1].fract() == 0.
                 && (0. ..=100.).contains(&values[1]),
@@ -691,8 +691,17 @@ fn write_cell(state: &mut State, p: Position, before: &Cell, cell: &Cell) -> Res
         cell.storage.len() == 32 && cell.node == before.node,
         "invalid cell transaction"
     );
-    let load = cell.amount + cell.input_amount + cell.iron + cell.copper;
-    let capacity = if cell.build == 2. {
+    let expansion = (12. ..=25.).contains(&cell.build);
+    let load = cell.amount
+        + cell.input_amount
+        + cell.iron
+        + cell.copper
+        + if expansion {
+            cell.storage.chunks_exact(2).map(|s| s[1]).sum::<f32>()
+        } else {
+            0.
+        };
+    let capacity = if [2., 28., 29.].contains(&cell.build) {
         1.
     } else if cell.build == 7. || cell.build == 8. {
         10.
@@ -737,20 +746,31 @@ fn write_cell(state: &mut State, p: Position, before: &Cell, cell: &Cell) -> Res
                 set_page(state, &name, at, &values)?;
             }
         }
-        let counts = if p.planet == 0 {
-            state.scene.get_mut("counts").unwrap().values_mut()
-        } else {
-            &mut state.controller.get_mut("session").unwrap().values_mut()[8..40]
-        };
-        for (slots, sign) in [(&before.storage, -1.), (&cell.storage, 1.)] {
+        for (stored, sign) in [(before, -1.), (cell, 1.)] {
+            if stored.build != 4. {
+                continue;
+            }
+            let counts = if p.planet == 0 {
+                state.scene.get_mut("counts").unwrap().values_mut()
+            } else {
+                state.controller.get_mut("session").unwrap().values_mut()
+            };
+            let slots = &stored.storage;
             for stack in slots.chunks_exact(2) {
                 ensure!(
                     stack[0].is_finite()
                         && stack[0].fract() == 0.
-                        && (0. ..32.).contains(&stack[0]),
+                        && (0. ..=50.).contains(&stack[0]),
                     "invalid storage item"
                 );
-                let index = stack[0] as usize;
+                let item = stack[0] as usize;
+                let index = if p.planet == 0 {
+                    item
+                } else if item < 32 {
+                    8 + item
+                } else {
+                    96 + item
+                };
                 counts[index] = Value::Number(state::numeric(&counts[index])? + sign * stack[1]);
             }
         }

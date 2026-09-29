@@ -43,6 +43,10 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
         "landing",
         "cross-chunk",
         "saves",
+        "expansion-manufacturer",
+        "expansion-refinery",
+        "dev-world",
+        "materials-belts",
     ] {
         if std::env::var("BOZZARD_PREVIEW_LABEL")
             .is_ok_and(|only| only.split(',').all(|candidate| candidate != label))
@@ -57,7 +61,18 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                 .replace("fn on_start(me)", "fn original_start(me)")
                 .replace(
                     "sin(data::session_value(120) * 0.10)",
-                    if ["half", "site", "ship", "resources"].contains(&label) {
+                    if [
+                        "half",
+                        "site",
+                        "ship",
+                        "resources",
+                        "dev-world",
+                        "materials-belts",
+                        "expansion-manufacturer",
+                        "expansion-refinery",
+                    ]
+                    .contains(&label)
+                    {
                         "1.0"
                     } else {
                         "-1.0"
@@ -66,6 +81,28 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
             let script = format!(
                 r#"{source}
             fn on_start(me) {{
+                if "{label}"=="materials-belts" {{
+                    navigation::show_title(false);set_object_variable("creative",true);world::begin_world(4,true);
+                    world::enter_chunk(0,1);set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",0.0);
+                    set_position("camera-rig",[0.0,0.0,15.0]);set_object_variable("camera_pan_progress",1.0);
+                    set_camera_size("camera",9.0);set_object_variable("camera_zoom",9.0);set_object_variable("camera_zoom_target",9.0);
+                    set_ui_visible("game-hud",false);return;
+                }}
+                if "{label}"=="dev-world" {{
+                    navigation::show_title(false);set_object_variable("creative",true);world::begin_world(4,true);return;
+                }}
+                if "{label}".starts_with("expansion-") {{
+                    navigation::show_title(false);set_object_variable("creative",true);world::begin_world(4);
+                    let kind=if "{label}"=="expansion-manufacturer" {{24.0}}else{{17.0}};
+                    for row in [[157,9.0],[130,kind]] {{
+                        let nodes=get_scene_list("nodes");nodes[row[0]]=0.0;set_scene_list("nodes",nodes);
+                        set_scene_variable("cursor_x",grid::cell_x(row[0]).to_float());set_scene_variable("cursor_z",grid::cell_z(row[0]).to_float());
+                        set_scene_variable("selected",row[1]);building::place_selected();
+                    }}
+                    power::connect_power(power::power_id(112),power::power_id(157));power::connect_power(power::power_id(157),power::power_id(130));power::update_power();
+                    if kind==24.0 {{machines::select_recipe(130,49.0);}}
+                    machines::feed_assembler(130);panels::set_assembler(130);set_object_variable("bar",if kind==24.0 {{5.0}}else{{4.0}});return;
+                }}
                 if "{label}".starts_with("moon") {{
                     navigation::show_title(false); set_object_variable("creative",true); world::begin_world(4);
                     set_scene_variable("cursor_x",0.0); set_scene_variable("cursor_z",1.0);
@@ -258,7 +295,9 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                 "title" => "title-content",
                 "coop" => "coop-panel",
                 "journal" | "unlocks" | "ship-journal" => "journal-book",
-                "assembler" | "constructor" => "assembler-panel",
+                "assembler" | "constructor" | "expansion-manufacturer" | "expansion-refinery" => {
+                    "assembler-panel"
+                }
                 "inventory" | "backpack-menu" => "player-inventory-panel",
                 "power-context" => "world-context",
                 "inspect" => "machine-inspect-panel",
@@ -266,7 +305,7 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                 "moon-rocket" => "player-rocket-panel",
                 "moon-map" => "map-panel",
                 "saves" => "saves-panel",
-                "moon-deposit" => "",
+                "moon-deposit" | "materials-belts" => "",
                 "half" | "site" | "ship" => "",
                 _ => "build-panel",
             };

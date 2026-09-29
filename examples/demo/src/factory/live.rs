@@ -96,7 +96,7 @@ pub fn apply(
         }
     }
     let mut session = board["session"].clone();
-    for i in (8..40).chain(64..114).chain([120]) {
+    for i in (8..40).chain(64..114).chain(128..160).chain([120]) {
         session.values_mut()[i] = after.controller["session"].values()[i].clone();
     }
     if session.values()[64..114] != board["session"].values()[64..114] {

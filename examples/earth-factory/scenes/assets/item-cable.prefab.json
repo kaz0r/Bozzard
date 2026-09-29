@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "Cable item",
+  "root": "root",
+  "assets": {
+    "item-model-17": {
+      "kind": "mesh",
+      "path": "models/materials/cable.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Moving item",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-17"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    }
+  ]
+}

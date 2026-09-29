@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "units": "tile",
+  "up_axis": "Y",
+  "connection_height": 0.34,
+  "gameplay_status": "implemented: straight/elbow fluid transport and left/right corner belts, saves and co-op",
+  "models": [
+    {
+      "id": "pipe-straight",
+      "name": "Straight pipe",
+      "mesh": "models/pipe-straight-mk1.glb",
+      "prefab": "machine-pipe-straight.prefab.json",
+      "requires_power": false,
+      "triangles": 752,
+      "surfaces": 3,
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "bidirectional",
+          "position": [
+            -0.5,
+            0.34,
+            0
+          ],
+          "outward": [
+            -1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fluid",
+          "role": "bidirectional",
+          "position": [
+            0.5,
+            0.34,
+            0
+          ],
+          "outward": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "bounds": [
+        [
+          -0.5,
+          0.0,
+          -0.145
+        ],
+        [
+          0.5,
+          0.422,
+          0.145
+        ]
+      ]
+    },
+    {
+      "id": "pipe-elbow",
+      "name": "90 degree pipe",
+      "mesh": "models/pipe-elbow-mk1.glb",
+      "prefab": "machine-pipe-elbow.prefab.json",
+      "requires_power": false,
+      "triangles": 1472,
+      "surfaces": 3,
+      "ports": [
+        {
+          "kind": "fluid",
+          "role": "bidirectional",
+          "position": [
+            0.5,
+            0.34,
+            0
+          ],
+          "outward": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "kind": "fluid",
+          "role": "bidirectional",
+          "position": [
+            0,
+            0.34,
+            0.5
+          ],
+          "outward": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "bounds": [
+        [
+          -0.122307,
+          0.0,
+          -0.122307
+        ],
+        [
+          0.5,
+          0.422,
+          0.5
+        ]
+      ]
+    },
+    {
+      "id": "belt-turn-left",
+      "name": "90 degree belt - left",
+      "mesh": "models/belt-turn-left-mk1.glb",
+      "prefab": "machine-belt-turn-left.prefab.json",
+      "requires_power": false,
+      "triangles": 1368,
+      "surfaces": 4,
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            0,
+            0.34,
+            -0.5
+          ],
+          "outward": [
+            0,
+            0,
+            -1
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.5,
+            0.34,
+            0
+          ],
+          "outward": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "bounds": [
+        [
+          -0.282802,
+          0.0,
+          -0.5
+        ],
+        [
+          0.5,
+          0.363,
+          0.282802
+        ]
+      ]
+    },
+    {
+      "id": "belt-turn-right",
+      "name": "90 degree belt - right",
+      "mesh": "models/belt-turn-right-mk1.glb",
+      "prefab": "machine-belt-turn-right.prefab.json",
+      "requires_power": false,
+      "triangles": 1368,
+      "surfaces": 4,
+      "ports": [
+        {
+          "kind": "solid",
+          "role": "input",
+          "position": [
+            0,
+            0.34,
+            0.5
+          ],
+          "outward": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "kind": "solid",
+          "role": "output",
+          "position": [
+            0.5,
+            0.34,
+            0
+          ],
+          "outward": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "bounds": [
+        [
+          -0.282802,
+          0.0,
+          -0.282802
+        ],
+        [
+          0.5,
+          0.363,
+          0.5
+        ]
+      ]
+    }
+  ]
+}

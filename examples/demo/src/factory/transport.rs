@@ -33,9 +33,12 @@ impl ItemMotion {
         let b = self.position(self.to)?;
         ensure!(
             (a.x - b.x).abs() + (a.z - b.z).abs() == 1
-                && (1..=26).contains(&self.kind)
-                && [1, 2, 3, 4, 5, 7, 8, 11].contains(&self.source)
-                && [2, 3, 4, 5, 7, 8, 11].contains(&self.target),
+                && (1..=50).contains(&self.kind)
+                && ![6, 7, 33, 34, 38, 39].contains(&self.kind)
+                && ([1, 2, 3, 4, 5, 7, 8, 11, 28, 29].contains(&self.source)
+                    || (12..=25).contains(&self.source))
+                && ([2, 3, 4, 5, 7, 8, 11, 28, 29].contains(&self.target)
+                    || (12..=25).contains(&self.target)),
             "invalid item transfer"
         );
         Ok(())

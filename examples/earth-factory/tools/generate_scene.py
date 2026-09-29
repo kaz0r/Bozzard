@@ -116,10 +116,10 @@ def factory_ui():
                background=[0.11, 0.122, 0.19, 0.80])
         objects[-1]["ui_widget"].update(kind="button", accessible_name=name)
         widget("slot-key-" + key, "slot-" + key, (10, 6), (60, 18), key, 11, muted)
-        widget("slot-name-" + key, "slot-" + key, (8, 29), (78, 22), name, 11)
+        widget("slot-name-" + key, "slot-" + key, (8, 26), (78, 29), name, 10)
     widget("build-status", "build-panel", (22, 83), (250, 22), "MINER  /  Facing East", 14)
     widget("controls-hint", "build-panel", (280, 83), (466, 22), "WASD Move   Space Build   R Rotate machine   X Remove", 14, muted)
-    widget("camera-hint", "build-panel", (22, 108), (720, 20), "Ctrl + 1/2/3  Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera", 13, muted)
+    widget("camera-hint", "build-panel", (22, 108), (720, 20), "Ctrl + 1–5 Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera", 13, muted)
     widget("bar-title", "factory-ui", (0, -167), (720, 22), "I  /  PRODUCTION", 14,
            anchor=(0.5, 1), pivot=(0.5, 0))
     widget("chunk-status", "factory-ui", (-24, 216), (206, 40), "Region 0, 0", 13, muted,
@@ -220,9 +220,9 @@ def factory_ui():
                [0.77, 0.67, 0.48, 1], padding=(9, 10, 0, 0))
         objects[-1]["ui_widget"].update(kind="button", accessible_name=title)
     widget("journal-left-title", "journal-book", (38, 177), (390, 28), "Your discoveries", 21, ink)
-    widget("journal-left-body", "journal-book", (38, 219), (390, 247), "", 16, ink)
+    scroll_text("journal-left-body", "journal-book", (38, 219), (390, 247), "", 16, ink)
     widget("journal-right-title", "journal-book", (502, 68), (380, 36), "Next delivery", 23, ink)
-    widget("journal-right-body", "journal-book", (502, 117), (380, 212), "", 16, ink)
+    scroll_text("journal-right-body", "journal-book", (502, 117), (380, 212), "", 16, ink)
     widget("journal-backpack", "journal-book", (502, 341), (380, 58), "", 14, faded)
     for row, item in enumerate([11, 12, 14, 15, 16, 17, 13, 21, 18, 20, 23, 22]):
         widget(f"journal-recipe-{item}", "journal-book", (38, 216 + row * 20), (390, 19), "Recipe", 13, ink,
@@ -313,7 +313,7 @@ def factory_ui():
     widget("assembler-overlay", "game-panels", (0, 0), (0, 0), background=[0.014, 0.016, 0.025, 0.75], order=260)
     objects[-1]["ui_widget"].update(visible=False, enabled=False)
     objects[-1]["ui_widget"]["anchors"]["max"] = (1, 1)
-    widget("assembler-panel", "assembler-overlay", (0, 0), (740, 460), background=[0.052, 0.058, 0.09, 1],
+    widget("assembler-panel", "assembler-overlay", (0, 0), (740, 560), background=[0.052, 0.058, 0.09, 1],
            anchor=(0.5, 0.5), pivot=(0.5, 0.5))
     widget("assembler-title", "assembler-panel", (30, 24), (500, 35), "ASSEMBLER / OUTPUT RECIPE", 25)
     widget("assembler-close", "assembler-panel", (590, 25), (120, 32), "Close  E", 14, cream,
@@ -321,15 +321,15 @@ def factory_ui():
     objects[-1]["ui_widget"].update(kind="button", text_alignment="center")
     widget("assembler-status", "assembler-panel", (30, 74), (680, 55), "", 16, muted)
     for i, (name, label) in enumerate([("alloy", "Conductive alloy"), ("parts", "Machine parts"), ("concrete", "Concrete")]):
-        widget("assembler-" + name, "assembler-panel", (30 + i * 230, 140), (220, 98),
-               label + "\nChoose output", 14, cream, [0.133, 0.147, 0.23, 1], padding=(16, 16, 0, 0))
+        widget("assembler-" + name, "assembler-panel", (30 + i * 230, 140), (220, 160),
+               label + "\nChoose output", 13, cream, [0.133, 0.147, 0.23, 1], padding=(12, 12, 12, 0))
         objects[-1]["ui_widget"].update(kind="button")
-    widget("assembler-buffer", "assembler-panel", (30, 255), (680, 66), "", 16, muted)
+    widget("assembler-buffer", "assembler-panel", (30, 321), (680, 96), "", 15, muted)
     for name, label, x in [("feed", "Load ingredients", 30), ("take", "Collect output", 380)]:
-        widget("assembler-" + name, "assembler-panel", (x, 339), (330, 44), label, 17, cream,
+        widget("assembler-" + name, "assembler-panel", (x, 436), (330, 44), label, 17, cream,
                [0.168, 0.186, 0.29, 1], padding=(16, 12, 0, 0))
         objects[-1]["ui_widget"].update(kind="button")
-    widget("assembler-help", "assembler-panel", (30, 404), (690, 38),
+    widget("assembler-help", "assembler-panel", (30, 506), (690, 38),
            "Collect output before changing recipe. Unused inputs return to inventory.\nConnect a power pole to run this machine. Production continues while open.", 13, muted)
 
     for name, title in [("inventory", "PLAYER INVENTORY"), ("rocket", "ROCKET / DESTINATIONS"), ("dock", "FUEL DOCK / INPUT")]:
@@ -672,7 +672,10 @@ def machine_prefabs():
         ASSETS / "item.prefab.json",
         {
             "version": 1, "name": "Moving item", "root": "root",
-            "objects": [cube("root", "Moving item", (0, 0, 0), (0.23, 0.23, 0.23), [0.85, 0.78, 0.54])],
+            "assets": {"item-default": {"kind": "mesh", "path": "models/materials/iron-ore.glb"}},
+            "objects": [{"id":"root","name":"Moving item","transform":transform(),
+                         "drawable":{"layer":"3d","mesh":{"asset":"item-default"},
+                                     "texture":"white","color":[1,1,1],"uv_scale":[1,1],"gi_static":False}}],
         },
     )
 
@@ -794,7 +797,35 @@ def scene():
         "machine-generator", "machine-splitter", "machine-merger", "machine-pole", "power-wire", "power-lamp", "item", "earth-chunk", "moon-chunk", "node-amorium", "node-moondust", "node-techtorium",
         "dev-floor",
     ]
+    expansion = [m["id"] for m in json.loads((ROOT.parent.parent / "assets/factory-machines/expansion-manifest.json").read_text())["machines"]]
+    for name in expansion:
+        asset_names.extend([f"machine-{name}", f"{name}-power-on", f"{name}-power-off"])
+    asset_names.extend(["foundry-heat", "kiln-heat", "glassworks-heat"])
+    asset_names.extend(f"machine-{name}" for name in ["pipe-straight", "pipe-elbow", "belt-turn-left", "belt-turn-right"])
+    # Clay and seeds use the existing low-poly resource marker with distinct colors.
+    for name, source, color in [("clay", "stone", [0.78, 0.38, 0.24]), ("seeds", "quartz", [0.35, 0.75, 0.35])]:
+        marker = json.loads((ASSETS / f"node-{source}.prefab.json").read_text())
+        for obj in marker["objects"]:
+            obj["name"] = obj["name"].replace(f"node-{source}", f"node-{name}")
+            if "drawable" in obj: obj["drawable"]["color"] = color
+        (ASSETS / f"node-{name}.prefab.json").write_text(json.dumps(marker, indent=2) + "\n")
+        asset_names.append(f"node-{name}")
     assets = {name: {"kind": "prefab", "path": f"assets/{name}.prefab.json"} for name in asset_names}
+    materials = json.loads((ROOT.parent.parent / "assets/factory-materials/manifest.json").read_text())["items"]
+    half_heights = [0.0] * 51
+    for item in materials:
+        half_heights[item["kind"]] = item["bounds"][1][1]
+    (SCENES / "scripts/factory/material_models.rhai").write_text(
+        "// Generated from factory-materials/manifest.json; game-space Y extents.\n"
+        "fn half_height(kind) {\n"
+        "    let index=kind.to_int();\n"
+        "    if index<=0 || index==19 || index>50 {index=8;}\n"
+        f"    {json.dumps(half_heights)}[index]\n"
+        "}\n"
+    )
+    for item in materials:
+        assets[item["mesh_asset"]] = {"kind":"mesh","path":"assets/"+item["mesh"]}
+        assets["item-"+item["id"]] = {"kind":"prefab","path":"assets/"+item["prefab"]}
     assets["moon-ground"] = {"kind": "mesh", "path": "assets/moon-ground.obj"}
     assets["earth-ground"] = {"kind": "mesh", "path": "assets/earth-ground.obj"}
     assets["ui-rounded"] = {"kind": "image", "path": "assets/ui-rounded.png"}
@@ -865,7 +896,7 @@ def scene():
         "node_visuals": list_var("text", 225),
         "build_visuals": list_var("text", 225),
         "item_visuals": list_var("text", 225),
-        "counts": list_var("number", 32),
+        "counts": list_var("number", 64),
         # Three 75-cell pages per region; motion_visuals adds an active-page index.
         "motion_visuals": list_var("text", 868),
         "motion_from": list_var("text", 867),
@@ -883,7 +914,7 @@ def scene():
     controller = next(obj for obj in objects if obj["id"] == "controller")
     controller["blackboard"] = {
         "title_open": scalar("bool", True),
-        "session": {"list": {"element": "number", "capacity": 128, "values": [{"number": n} for n in [0, 0, 0, 11, -1, -1, 0] + [0]*121]}},
+        "session": {"list": {"element": "number", "capacity": 160, "values": [{"number": n} for n in [0, 0, 0, 11, -1, -1, 0] + [0]*153]}},
         "creative": scalar("bool", False),
         "assembler_cell": scalar("number", -1),
         "recipes": list_var("number", 225),
@@ -896,7 +927,7 @@ def scene():
         "bar": scalar("number", 1),
         "bar_slots": {"list": {"element": "number", "capacity": 3, "values": [{"number": 1}] * 3}},
         "phase": scalar("number", 0),
-        "stock": list_var("number", 32),
+        "stock": list_var("number", 64),
         "gather_clock": scalar("number", 0),
         "debug_clock": scalar("number", 0.25),
         "ui_views": {"list": {"element": "text", "capacity": 6, "values": [{"text": ""}] * 6}},

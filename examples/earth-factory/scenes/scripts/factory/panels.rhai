@@ -4,6 +4,7 @@ import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
+import "factory-buffers" as buffers;
 
 fn close_storage() {
     set_scene_variable("storage_open", false);
@@ -20,13 +21,7 @@ fn reset_interactions() {
     set_camera_size("camera", 19.0);
     set_object_variable("debug_clock", 0.25);
     set_object_list("ui_views", ["", "", "", "", "", ""]);
-    set_object_list("rotation_cells", []);
-    set_object_list("rotation_time", []);
-    set_object_list("rotation_from", grid::empty_numbers(225));
-    set_object_list("rotation_turns", grid::empty_numbers(225));
-    let times = [];
-    for cell in 0..225 { times.push(1.0); }
-    set_object_list("rotation_time", times);
+    visuals::reset_rotations();
     set_object_variable("journal_open", false);
     set_object_variable("journal_alpha", 0.0);
     set_ui_visible("journal-overlay", false);
@@ -104,6 +99,7 @@ fn set_assembler(cell) {
 fn draw_assembler() {
     let cell = get_object_variable("assembler_cell").to_int(); if cell < 0 { return; }
     let kind = get_scene_list("builds")[cell]; let recipe = get_object_list("recipes")[cell];
+    if data::expansion(kind) {draw_expansion(cell,kind,recipe);return;}
     if kind == 3.0 && get_scene_list("input_amounts")[cell] > 0.0 {
         recipe = data::smelt_output(get_scene_list("input_items")[cell]);
         let recipes = get_object_list("recipes"); recipes[cell] = recipe; set_object_list("recipes",recipes);
@@ -123,6 +119,7 @@ fn draw_assembler() {
     set_ui_text("assembler-buffer","Input: " + input + "\nOutput: " + output.to_int().to_string() + " " + data::item_name(if output > 0.0 { get_scene_list("items")[cell] } else { recipe }) + "    |    Buffer " + (a+b+output).to_int().to_string() + " / 100");
     let choices = data::recipe_choices(kind); let names = ["assembler-alloy","assembler-parts","assembler-concrete"];
     for i in 0..3 {
+        set_ui_visible(names[i],true);
         let choice = choices[i]; let ingredients = data::recipe_cost(choice.to_int());
         set_ui_text(names[i],data::item_name(choice) + " x" + data::recipe_yield(choice.to_int()).to_int().to_string() + "\n" + data::cost_label(ingredients,"\n"));
         set_ui_background(names[i],if recipe == choice { [0.10,0.16,0.56,1.0] } else { [0.133, 0.147, 0.23, 1.0] });
@@ -135,6 +132,29 @@ fn draw_assembler() {
             ((data::free_build() || stock[cost[2]] > 0.0) && a+b+output+1.0+max(0.0,cost[1]-a) <= 100.0);
     } else { can_feed = (data::free_build() || stock[cost[0]] > 0.0) && a+output+1.0+max(0.0,data::recipe_yield(recipe.to_int())-1.0) <= 100.0; }
     set_ui_enabled("assembler-feed",can_feed && get_object_list("rotation_turns")[cell] == 0.0);
+}
+
+fn draw_expansion(cell,kind,recipe) {
+    let slots=buffers::read(cell); let powered=get_object_list("power_live")[cell]>0.0;
+    let turning=get_object_list("rotation_turns")[cell]>0.0; let progress=get_scene_list("progress")[cell];
+    let state=[cell,kind,recipe,powered,turning,progress,get_object_variable("phase"),data::free_build()].to_string()+slots.to_string()+get_object_list("stock").to_string();
+    if !data::ui_view_changed(2,state) {return;}
+    let ready=buffers::ready(slots,recipe.to_int());
+    set_ui_text("assembler-title",data::build_name(kind));
+    set_ui_text("assembler-status",if turning {"TURNING"}else if !powered {"NO POWER / Wire to a supplied pole"}else if ready {"PRODUCING / "+round(progress/data::recipe_beats(recipe.to_int())*100.0).to_int().to_string()+"%"}else{"WAITING / Ingredients or output space"});
+    set_ui_text("assembler-buffer","Input: "+buffers::describe(slots,false)+"\nOutput: "+buffers::describe(slots,true)+"\nBuffer "+buffers::load(slots).to_int().to_string()+" / 100    •    "+power::power_demand(kind.to_int()).to_string()+" power");
+    let choices=data::recipe_choices(kind); let names=["assembler-alloy","assembler-parts","assembler-concrete"];
+    for i in 0..3 {
+        set_ui_visible(names[i],i<choices.len()); if i>=choices.len() {continue;}
+        let choice=choices[i]; let cost=data::recipe_cost(choice.to_int()); let outputs=data::recipe_outputs(choice.to_int());
+        set_ui_text(names[i],data::recipe_name(choice)+"\n"+(if cost.len()==0 {"Extracts deposit"}else{data::cost_label(cost,"\n")})+"\nOutput: "+data::cost_label(outputs)+"\nCycle: "+(data::recipe_beats(choice.to_int())*0.32).to_string()+" s");
+        set_ui_background(names[i],if recipe==choice {[0.10,0.16,0.56,1.0]}else{[0.133,0.147,0.23,1.0]});
+        set_ui_enabled(names[i],!turning && data::recipe_unlocked(choice.to_int()) && (buffers::output_load(slots)==0.0 || recipe==choice));
+    }
+    set_ui_enabled("assembler-take",!turning && buffers::output_load(slots)>0.0);
+    let cost=data::recipe_cost(recipe.to_int()); let can_feed=false; let stock=get_object_list("stock");
+    for i in 0..cost.len()/2 {if (data::free_build() || stock[cost[i*2]]>0.0) && buffers::accept(slots,recipe.to_int(),cost[i*2].to_float()).ok {can_feed=true;}}
+    set_ui_enabled("assembler-feed",!turning && can_feed);
 }
 
 fn set_extra_panel(name) {

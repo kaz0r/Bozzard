@@ -5,6 +5,7 @@ import "factory-backpack" as backpack;
 import "factory-progression" as progression;
 import "factory-power" as power;
 import "factory-deposits" as deposits;
+import "factory-buffers" as buffers;
 
 fn denied(ctx,message) { ctx.ok=false; ctx.message=message; ctx }
 fn accepted(ctx,message) { ctx.ok=true; ctx.message=message; ctx }
@@ -29,15 +30,13 @@ fn apply(ctx,kind,args) {
         if cell.build!=0.0 { return denied(ctx,"A machine already occupies this tile."); }
         let x=ctx.at[1]; let z=ctx.at[2];
         if (x==0 && z==0) || (ctx.phase>=5.0 && z==1 && (x==0 || x==2)) { return denied(ctx,"Keep the landing pod, rocket and dock clear."); }
-        if machine==1.0 && cell.node==0.0 { return denied(ctx,"A miner needs a deposit."); }
-        if machine==6.0 && cell.node!=4.0 { return denied(ctx,"A generator needs a coal deposit."); }
-        if machine!=1.0 && machine!=6.0 && cell.node!=0.0 { return denied(ctx,"Only extraction equipment can cover a deposit."); }
+        let error=data::deposit_error(machine,cell.node);if error!="" {return denied(ctx,error);}
         let cost=data::build_cost(machine);
         if machine==1.0 && stock(ctx)[21]>0.0 { cost=[21,1.0]; }
         let paid=pay(ctx,cost); if !paid.ok { return denied(ctx,"Not enough building materials."); }
         ctx.inventory=paid.inventory;
         cell=blank_cell(cell.node); cell.build=machine; cell.facing=args.direction.to_float();
-        if machine==3.0 || machine==5.0 || machine==11.0 { cell.recipe=data::recipe_choices(machine)[0]; }
+        if data::production(machine) { cell.recipe=data::recipe_choices(machine)[0]; }
     } else if kind=="remove" {
         if cell.build==0.0 { return denied(ctx,"No machine here."); }
         cell=blank_cell(cell.node);
@@ -46,7 +45,7 @@ fn apply(ctx,kind,args) {
         cell.facing=((cell.facing.to_int()+1)%4).to_float();
     } else if kind=="gather_tick" {
         let node=cell.node.to_int();
-        if !((node>=1 && node<=5) || (node>=8 && node<=10) || (node>=24 && node<=26)) {
+        if !data::solid_node(node.to_float()) {
             return denied(ctx,"Stand on a solid deposit to gather.");
         }
         let result=backpack::give_to(ctx.inventory,cell.node,1.0);
@@ -55,7 +54,7 @@ fn apply(ctx,kind,args) {
     } else if kind=="craft" {
         let item=args.recipe; let cost=data::recipe_cost(item);
         if abs(ctx.here[1])>1 || abs(ctx.here[2])>1 { return denied(ctx,"Craft at the landing workbench."); }
-        if !data::recipe_unlocked(item,ctx.phase,ctx.creative) || item==18 || item==22 || item==23 || cost.len()==0 {
+        if !data::recipe_unlocked(item,ctx.phase,ctx.creative) || !data::workbench_recipe(item) || cost.len()==0 {
             return denied(ctx,"This recipe is unavailable at the workbench.");
         }
         let crafted=0;
@@ -81,11 +80,18 @@ fn apply(ctx,kind,args) {
         ctx.inventory=result.inventory; ctx.phase+=1.0;
     } else if kind=="configure" {
         let recipe=args.recipe.to_float();
-        if !(cell.build==3.0 || cell.build==5.0 || cell.build==11.0) ||
+        if !data::production(cell.build) ||
             !data::recipe_choices(cell.build).contains(recipe) || !data::recipe_unlocked(args.recipe,ctx.phase,ctx.creative) {
             return denied(ctx,"This machine cannot make that recipe.");
         }
         if cell.recipe==recipe { return accepted(ctx,"Recipe already selected."); }
+        if data::expansion(cell.build) {
+            if buffers::output_load(cell.storage)>0.0 {return denied(ctx,"Collect every finished output first.");}
+            let result=buffers::refund(cell.storage,ctx.inventory);
+            if !result.ok {return denied(ctx,"Make room for unused ingredients first.");}
+            ctx.inventory=result.inventory; cell.storage=buffers::empty();cell.recipe=recipe;cell.progress=0.0;
+            ctx.cell=cell;return accepted(ctx,"Recipe selected.");
+        }
         if cell.amount>0.0 { return denied(ctx,"Collect the finished output first."); }
         let previous=data::recipe_cost(cell.recipe.to_int()); let next=data::recipe_cost(args.recipe);
         if previous!=next || data::recipe_yield(cell.recipe.to_int())!=data::recipe_yield(args.recipe) {
@@ -99,6 +105,11 @@ fn apply(ctx,kind,args) {
         }
         cell.recipe=recipe; cell.progress=0.0;
     } else if kind=="collect" {
+        if data::expansion(cell.build) {
+            let result=buffers::collect(cell.storage,ctx.inventory);
+            if result.moved==0.0 {return denied(ctx,"No finished output or inventory is full.");}
+            cell.storage=result.slots;ctx.inventory=result.inventory;ctx.cell=cell;return accepted(ctx,"Products collected.");
+        }
         if !(cell.build==1.0 || cell.build==3.0 || cell.build==5.0 || cell.build==7.0 || cell.build==8.0 || cell.build==11.0) || cell.amount<=0.0 {
             return denied(ctx,"No finished output to collect.");
         }
@@ -108,8 +119,20 @@ fn apply(ctx,kind,args) {
         if cell.amount==0.0 { cell.item=0.0; }
     } else if kind=="feed" || kind=="insert" {
         let cost=data::recipe_cost(cell.recipe.to_int());
-        if !(cell.build==3.0 || cell.build==5.0 || cell.build==11.0) || cost.len()==0 || !data::recipe_unlocked(cell.recipe.to_int(),ctx.phase,ctx.creative) {
+        if !data::production(cell.build) || cost.len()==0 || !data::recipe_unlocked(cell.recipe.to_int(),ctx.phase,ctx.creative) {
             return denied(ctx,"Select an unlocked production recipe first.");
+        }
+        if data::expansion(cell.build) {
+            let limit=0.0;for i in 0..cost.len()/2 {limit+=cost[i*2+1]*10.0;}
+            let given=if kind=="insert" {ctx.inventory[args.slot*2]}else{0.0};
+            if kind=="insert" {limit=min(args.amount.to_float(),ctx.inventory[args.slot*2+1]);}
+            let result=buffers::feed(cell.storage,cell.recipe.to_int(),ctx.inventory,ctx.creative,given,limit.to_int());
+            if result.moved==0.0 {return denied(ctx,"Missing ingredients or machine buffer is full.");}
+            cell.storage=result.slots;
+            if kind=="insert" && !ctx.creative {
+                let at=args.slot*2;ctx.inventory[at+1]-=result.moved;if ctx.inventory[at+1]==0.0 {ctx.inventory[at]=0.0;}
+            }else{ctx.inventory=result.inventory;}
+            ctx.cell=cell;return accepted(ctx,"Ingredients inserted.");
         }
         let carried=stock(ctx); let before=cell.input_amount+cell.iron+cell.copper;
         let given=if kind=="insert" { ctx.inventory[args.slot*2] } else { 0.0 };

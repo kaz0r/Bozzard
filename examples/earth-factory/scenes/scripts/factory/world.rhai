@@ -22,7 +22,7 @@ fn begin_world(seed, developer) {
     reset_planet();
     data::session_set(7, 0.0);
     let session = get_object_list("session");
-    for i in 8..128 { session[i] = 0.0; }
+    for i in 8..160 { session[i] = 0.0; }
     session[122]=authority;session[126]=generation;
     session[63]=if developer {1.0}else{0.0};
     set_object_list("session", session);
@@ -158,7 +158,7 @@ fn begin_world(seed, developer) {
     set_scene_list("assembler_iron", grid::empty_numbers(225));
     set_scene_list("assembler_copper", grid::empty_numbers(225));
     set_scene_list("split_state", grid::empty_numbers(225));
-    set_scene_list("counts", grid::empty_numbers(32));
+    set_scene_list("counts", grid::empty_numbers(64));
     set_scene_list("node_visuals", node_visuals);
     set_scene_list("build_visuals", build_visuals);
     set_scene_list("item_visuals", item_visuals);
@@ -244,7 +244,7 @@ fn archive_chunk() {
     grid::cache_put("cache_recipes", id, grid::pack_cells(get_object_list("recipes"), cells, 1));
     let storage = [];
     let builds = get_scene_list("builds");
-    for entry in cells { if builds[entry.to_int()] == 4.0 { storage.push(entry); } }
+    for entry in cells { if data::has_slots(builds[entry.to_int()]) { storage.push(entry); } }
     for name in ["builds", "facings", "items", "item_amounts", "input_items", "input_amounts", "progress", "assembler_iron", "assembler_copper", "split_state"] {
         grid::cache_put("cache_" + name, id, if cells.len() == 0 { "" } else { grid::pack_cells(get_scene_list(name), cells, 1) });
     }
@@ -325,8 +325,8 @@ fn travel_to_other_planet() {
     set_object_list("power_data", incoming_power);
     let session = get_object_list("session");
     let counts = get_scene_list("counts");
-    let incoming_counts = session.extract(8, 32);
-    for i in 0..32 { session[8 + i] = counts[i]; }
+    let incoming_counts = session.extract(8,32)+session.extract(128,32);
+    for i in 0..64 { session[if i<32 {8+i}else{96+i}] = counts[i]; }
     session[7] = 1.0 - session[7];
     session[4] = -1.0; session[5] = -2.0;
     set_object_list("session", session);

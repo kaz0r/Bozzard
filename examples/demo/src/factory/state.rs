@@ -114,7 +114,7 @@ impl State {
             .any(|v| numeric(v).is_ok_and(|n| n > 0.));
         let storage = values(scene, "builds")?
             .iter()
-            .any(|v| numeric(v).ok() == Some(4.));
+            .any(|v| numeric(v).is_ok_and(|kind| kind == 4. || (12. ..=25.).contains(&kind)));
         for name in OBJECT
             .iter()
             .filter(|k| k.starts_with("cache_") || **k == "chunk_nodes")
@@ -168,7 +168,12 @@ impl State {
         };
         if let Some(B::List { values, .. }) = state.controller.get_mut("session") {
             for (i, value) in values.iter_mut().enumerate() {
-                if i != 0 && i != 63 && !(7..40).contains(&i) && !(64..114).contains(&i) && i != 120
+                if i != 0
+                    && i != 63
+                    && !(7..40).contains(&i)
+                    && !(64..114).contains(&i)
+                    && !(128..160).contains(&i)
+                    && i != 120
                 {
                     *value = Value::Number(0.);
                 }
@@ -193,19 +198,19 @@ impl State {
         }
         integer(number(&self.scene, "seed")?, 1., 2_147_483_648.)?;
         integer(number(&self.controller, "phase")?, 0., 7.)?;
-        integer(number(&self.controller, "bar")?, 0., 3.)?;
-        integer(number(&self.scene, "selected")?, 1., 11.)?;
+        integer(number(&self.controller, "bar")?, 0., 5.)?;
+        integer(number(&self.scene, "selected")?, 1., 29.)?;
         integer(number(&self.scene, "direction")?, 0., 3.)?;
         integer(number(&self.scene, "ticks")?, 0., f32::MAX)?;
         ensure!(
             (0. ..0.32).contains(&number(&self.scene, "clock")?),
             "invalid factory clock"
         );
-        check_numbers(&self.scene, "counts", 32, 0., 100_000_000.)?;
-        check_numbers(&self.controller, "stock", 32, 0., 2500.)?;
+        check_numbers(&self.scene, "counts", 64, 0., 100_000_000.)?;
+        check_numbers(&self.controller, "stock", 64, 0., 2500.)?;
         check_numbers(&self.controller, "bar_slots", 3, 1., 8.)?;
         let session = values(&self.controller, "session")?;
-        ensure!(session.len() == 128, "invalid session length");
+        ensure!(session.len() == 160, "invalid session length");
         for value in session {
             numeric(value)?;
         }
@@ -232,14 +237,14 @@ impl State {
             (0. ..=1_000_000_000.).contains(&numeric(&session[120])?),
             "invalid world time"
         );
-        for value in &session[8..40] {
+        for value in session[8..40].iter().chain(&session[128..160]) {
             integer(numeric(value)?, 0., 100_000_000.)?;
         }
-        let mut totals = [0.; 32];
+        let mut totals = [0.; 64];
         for stack in session[64..114].chunks_exact(2) {
             let kind = numeric(&stack[0])?;
             let amount = numeric(&stack[1])?;
-            integer(kind, 0., 31.)?;
+            integer(kind, 0., 50.)?;
             integer(amount, 0., 100.)?;
             ensure!(
                 kind > 0. || amount == 0.,
@@ -264,13 +269,15 @@ impl State {
             let max = if key.contains("amount") || key.contains("assembler_") {
                 100
             } else if *key == "cache_builds" {
-                11
+                29
             } else if *key == "cache_facings" {
                 3
-            } else if matches!(*key, "cache_progress" | "cache_split_state") {
+            } else if *key == "cache_progress" {
+                8
+            } else if *key == "cache_split_state" {
                 2
             } else {
-                31
+                53
             };
             for (index, page) in pages.iter().enumerate() {
                 let Value::Text(text) = page else {
@@ -289,6 +296,7 @@ impl State {
                 }
             }
         }
+        self.validate_expansion_buffers()?;
         let chunk = (number(&self.scene, "chunk_z")? as i32 + 8) as usize * 17
             + (number(&self.scene, "chunk_x")? as i32 + 8) as usize;
         let at = numeric(&session[7])? as usize * 289 + chunk;
@@ -301,6 +309,113 @@ impl State {
         }
         Ok(())
     }
+
+    /// Version-one worlds used 32 material totals and a 128-number session.
+    /// Extend only those exact legacy shapes; validation still rejects damaged data.
+    pub fn upgrade_legacy(&mut self) {
+        for (board, key, old, new) in [
+            (&mut self.scene, "counts", 32, 64),
+            (&mut self.controller, "stock", 32, 64),
+        ] {
+            if let Some(B::List {
+                values, capacity, ..
+            }) = board.get_mut(key)
+            {
+                if values.len() == old && *capacity == old {
+                    values.resize(new, Value::Number(0.));
+                    *capacity = new;
+                }
+            }
+        }
+        if let Some(B::List {
+            values, capacity, ..
+        }) = self.controller.get_mut("session")
+        {
+            if values.len() == 128 && *capacity == 128 {
+                values.resize(160, Value::Number(0.));
+                *capacity = 160;
+            }
+        }
+    }
+
+    fn validate_expansion_buffers(&self) -> Result<()> {
+        for (at, encoded) in values(&self.controller, "cache_builds")?.iter().enumerate() {
+            let Value::Text(text) = encoded else {
+                unreachable!()
+            };
+            if text.is_empty() {
+                continue;
+            }
+            let builds = decode_rle(text, 225)?;
+            if !builds.iter().any(|kind| (12. ..=29.).contains(kind)) {
+                continue;
+            }
+            let column = |name: &str, count| -> Result<Vec<f32>> {
+                let Value::Text(text) = &values(&self.controller, name)?[at] else {
+                    unreachable!()
+                };
+                decode_rle(text, count)
+            };
+            let items = column("cache_items", 225)?;
+            let amounts = column("cache_item_amounts", 225)?;
+            let kinds = (0..4)
+                .map(|page| column(&format!("cache_storage_kinds_{page}"), 900))
+                .collect::<Result<Vec<_>>>()?;
+            let stored = (0..4)
+                .map(|page| column(&format!("cache_storage_amounts_{page}"), 900))
+                .collect::<Result<Vec<_>>>()?;
+            for (cell, kind) in builds.into_iter().enumerate() {
+                if (12. ..=25.).contains(&kind) {
+                    ensure!(
+                        items[cell] == 0. && amounts[cell] == 0.,
+                        "expansion output outside saved slots"
+                    );
+                    let mut load = 0.;
+                    for slot in 0..16 {
+                        let item = kinds[slot / 4][cell * 4 + slot % 4];
+                        let amount = stored[slot / 4][cell * 4 + slot % 4];
+                        ensure!(
+                            item <= 50. && (item > 0. || amount == 0.),
+                            "invalid production stack"
+                        );
+                        load += amount;
+                    }
+                    ensure!(load <= 100., "production buffer capacity exceeded");
+                } else if kind == 26. || kind == 27. {
+                    ensure!(
+                        amounts[cell] <= 100.
+                            && (amounts[cell] == 0.
+                                || [6., 7., 33., 34., 38., 39.].contains(&items[cell])),
+                        "invalid pipe contents"
+                    );
+                } else if kind == 28. || kind == 29. {
+                    ensure!(
+                        amounts[cell] <= 1. && ![6., 7., 33., 34., 38., 39.].contains(&items[cell]),
+                        "invalid corner belt contents"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
+fn decode_rle(text: &str, count: usize) -> Result<Vec<f32>> {
+    if text.is_empty() {
+        return Ok(vec![0.; count]);
+    }
+    let mut result = Vec::with_capacity(count);
+    for part in text.split(',') {
+        let (value, run) = part.split_once(':').unwrap_or((part, "1"));
+        let value: u32 = value.parse()?;
+        let run: usize = run.parse()?;
+        ensure!(
+            run > 0 && run <= count - result.len(),
+            "invalid archive length"
+        );
+        result.resize(result.len() + run, value as f32);
+    }
+    ensure!(result.len() == count, "invalid archive length");
+    Ok(result)
 }
 pub(crate) fn pack_numbers(values: &[Value]) -> Result<String> {
     let mut tokens = Vec::new();
@@ -370,7 +485,8 @@ fn validate_power(pages: &[Value]) -> Result<()> {
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             ensure!(
                 (2..=10).contains(&entry.len())
-                    && [1, 3, 5, 6, 9, 10, 11].contains(&entry[0])
+                    && ([1, 3, 5, 6, 9, 10, 11].contains(&entry[0])
+                        || (12..=25).contains(&entry[0]))
                     && entry[1] <= 1,
                 "invalid circuit entry"
             );

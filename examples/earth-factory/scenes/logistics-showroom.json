@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "name": "Stellar-IX \u2014 Mk1 pipes and corner belts",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "pipe-straight-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/pipe-straight-mk1.glb"
+    },
+    "pipe-elbow-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/pipe-elbow-mk1.glb"
+    },
+    "belt-turn-left-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/belt-turn-left-mk1.glb"
+    },
+    "belt-turn-right-mk1": {
+      "kind": "mesh",
+      "path": "assets/models/belt-turn-right-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Logistics showroom camera",
+      "transform": {
+        "translation": [
+          8,
+          8,
+          8
+        ],
+        "rotation_degrees": [
+          -35.264,
+          45,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 4.5,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Studio floor",
+      "transform": {
+        "translation": [
+          0,
+          -0.06,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          20,
+          0.12,
+          20
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.18,
+          0.21,
+          0.23
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "pipe-straight",
+      "name": "Straight pipe",
+      "transform": {
+        "translation": [
+          -1.0,
+          0,
+          -1.15
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "pipe-straight-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "pipe-elbow",
+      "name": "90 degree pipe",
+      "transform": {
+        "translation": [
+          1.0,
+          0,
+          -1.15
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "pipe-elbow-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "belt-turn-left",
+      "name": "90 degree belt - left",
+      "transform": {
+        "translation": [
+          -1.0,
+          0,
+          1.15
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "belt-turn-left-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "belt-turn-right",
+      "name": "90 degree belt - right",
+      "transform": {
+        "translation": [
+          1.0,
+          0,
+          1.15
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "belt-turn-right-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "environment": {
+    "zenith": [
+      0.25,
+      0.29,
+      0.32
+    ],
+    "horizon": [
+      0.25,
+      0.29,
+      0.32
+    ],
+    "ground": [
+      0.18,
+      0.21,
+      0.23
+    ],
+    "intensity": 0.55,
+    "background": true
+  },
+  "lighting": {
+    "sun_direction": [
+      0.46,
+      0.81,
+      0.35
+    ],
+    "sun_color": [
+      1.0,
+      0.96,
+      0.9
+    ],
+    "sun_intensity": 2.6,
+    "ambient_color": [
+      0.86,
+      0.94,
+      1.0
+    ],
+    "ambient_intensity": 0.24
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Electronics fabricator Mk1",
+  "root": "root",
+  "assets": {
+    "electronics-fabricator-mk1": {
+      "kind": "mesh",
+      "path": "models/electronics-fabricator-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-electronics-fabricator",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "electronics-fabricator-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}
