@@ -120,8 +120,7 @@ fn step_planet(planet,tick) {
     let next_visuals = visuals;
     let routes = grid::empty_numbers(count); // destination + 1; zero means not moving
     for attempt in 0..3 {
-        let requests = grid::empty_numbers(count);
-        let any_requests = false;
+        let requests = #{};
         for entry in machine_cells {
             let cell = entry.to_int();
             let kind = builds[cell];
@@ -142,14 +141,19 @@ fn step_planet(planet,tick) {
             let target = builds[destination];
             if !(data::belt(target) || data::production(target) || target==4.0 || target==7.0 || target==8.0) {continue;}
             if !data::accepts_transport_input(target, facings[destination].to_int(), direction) { continue; }
-            requests[cell] = (destination + 1).to_float();
-            any_requests = true;
+            // Bucket by destination and inlet while the source address is known.
+            // No second world-neighbor search is needed for every destination.
+            let key=destination.to_string();
+            if !requests.contains(key) { requests[key]=[-1,-1,-1,-1]; }
+            requests[key][(direction+2)%4]=cell;
         }
-        if !any_requests { continue; }
+        if requests.len()==0 { continue; }
         for entry in machine_cells {
             let destination = entry.to_int();
+            let key=destination.to_string();
+            if !requests.contains(key) { continue; }
+            let inlets=requests[key];
             let target = builds[destination];
-            if !(data::belt(target) || data::production(target) || target==4.0 || target==7.0 || target==8.0) {continue;}
             let priority = split[destination].to_int();
             for port in 0..4 {
                 let side = port;
@@ -158,10 +162,8 @@ fn step_planet(planet,tick) {
                     if port == 3 { continue; }
                     side = (facings[destination].to_int() + [2, 3, 1][inlet]) % 4;
                 }
-                let address=grid::global_neighbor(ids[destination],side,state.radius).to_string();
-                if !lookup.contains(address) { continue; }
-                let cell=lookup[address];
-                if requests[cell]!=(destination+1).to_float() { continue; }
+                let cell=inlets[side];
+                if cell<0 { continue; }
                 let item = offered_items[cell];
                 let load = next_amounts[destination] + input_amounts[destination] + iron[destination] + copper[destination];
                 let accepted = false;

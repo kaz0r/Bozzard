@@ -23,6 +23,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod compute_api;
 mod imports;
 mod module;
+mod numeric_archive;
 pub use module::{NetworkFrame, NetworkOutbox, NetworkRequest, ScriptModule};
 
 /// Largest accepted script source, matching the blueprint document limit.
@@ -688,6 +689,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         .set_max_array_size(1 << 16)
         .set_max_map_size(1 << 16);
     compute_api::register(&mut engine, host.clone());
+    numeric_archive::register(&mut engine);
     macro_rules! borrow {
         ($host:expr) => {
             $host.lock().unwrap_or_else(|error| error.into_inner())
@@ -2843,7 +2845,7 @@ impl SceneInstance {
                 }
             }
         }
-        self.destroy_script_prefabs(world, runtime, engine, destroy)?;
+        self.destroy_script_prefabs(world, runtime, engine, destroy, tokens)?;
         Ok(())
     }
     /// Scenery has no lifecycle callbacks, so adjacent removals can share a scene
@@ -2854,6 +2856,7 @@ impl SceneInstance {
         runtime: &mut ScriptRuntime,
         engine: Arc<ScriptEngine>,
         targets: Vec<String>,
+        tokens: &mut BTreeMap<String, String>,
     ) -> Result<()> {
         let mut pending = BTreeSet::new();
         for target in targets {
@@ -2880,7 +2883,7 @@ impl SceneInstance {
             } else {
                 self.destroy_passive_prefabs(world, runtime, &pending)?;
                 pending.clear();
-                self.destroy_script_prefab(world, runtime, engine.clone(), &target)?;
+                self.destroy_script_prefab(world, runtime, engine.clone(), &target, tokens)?;
             }
         }
         self.destroy_passive_prefabs(world, runtime, &pending)
@@ -2910,6 +2913,7 @@ impl SceneInstance {
         runtime: &mut ScriptRuntime,
         engine: Arc<ScriptEngine>,
         target: &str,
+        tokens: &mut BTreeMap<String, String>,
     ) -> Result<()> {
         if !self.entities.contains_key(target) {
             return Ok(());
@@ -2930,6 +2934,10 @@ impl SceneInstance {
         for owner in &members {
             self.run_destroy_hooks(&engine, runtime, owner)?;
         }
+        // Lifecycle actions must publish while the members still exist. In
+        // particular, the next prefab's callback must read this cleanup state.
+        let commands = std::mem::take(&mut engine.lock().commands);
+        self.apply_commands(world, runtime, engine.clone(), commands, tokens)?;
         let mut blueprint_runtime = world
             .remove_resource::<BlueprintRuntime>()
             .unwrap_or_default();
@@ -3886,6 +3894,81 @@ mod tests {
             xs,
             [2., 3.],
             "earlier passive removals flush before hooks; later removals wait"
+        );
+    }
+
+    #[test]
+    fn prefab_destroy_hooks_apply_cleanup_commands_before_the_next_destroy() {
+        let (mut instance, mut world) = scenery_demo(
+            r#"let roots=[];
+            fn on_start(me) {
+                roots.push(spawn_prefab("scenery",[1.0,0.0,0.0]));
+                roots.push(spawn_prefab("scenery",[2.0,0.0,0.0]));
+            }
+            fn on_update(me,dt) {
+                if input_pressed("x") {for root in roots {destroy_prefab(root);}}
+            }"#,
+        );
+        instance.document.assets.insert(
+            "cleanup".into(),
+            AssetSource {
+                kind: AssetKind::Script,
+                path: "cleanup.rhai".into(),
+            },
+        );
+        let mut prefab = instance.templates["scenery"].clone();
+        let root = prefab.objects.iter_mut().find(|o| o.id == "root").unwrap();
+        let mut manager = instance.document.objects[0].script_manager.clone().unwrap();
+        manager.scripts[0].script = "cleanup".into();
+        root.script_manager = Some(manager);
+        prefab.assets.insert(
+            "cleanup".into(),
+            instance.document.assets["cleanup"].clone(),
+        );
+        instance.register_prefab("scenery".into(), prefab).unwrap();
+        instance
+            .register_script(
+                "cleanup".into(),
+                r#"
+            fn on_destroy(me) {
+                let previous=get_position("thing");
+                set_position("thing",[previous[0]+1.0,0.0,0.0]);
+                set_position(me,[0.0,1.0,0.0]);
+                print("cleanup "+get_position("thing")[0].to_string());
+            }"#
+                .into(),
+            )
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1.0 / 60.0, GameplayInput::default())
+            .unwrap();
+        instance
+            .step_scripts(
+                &mut world,
+                1.0 / 60.0,
+                GameplayInput {
+                    keys: crate::keys::bit("x"),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(instance.document.prefabs.is_empty());
+        assert_eq!(
+            world
+                .get::<Transform>(instance.entity("thing").unwrap())
+                .unwrap()
+                .translation,
+            [2.0, 0.0, 0.0]
+        );
+        assert_eq!(
+            world
+                .resource::<ScriptRuntime>()
+                .unwrap()
+                .messages
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            ["cleanup 1.0", "cleanup 2.0"]
         );
     }
 

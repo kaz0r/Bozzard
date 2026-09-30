@@ -9,7 +9,7 @@ from mathutils import Vector
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_spaceship_debris as kit
 import generate_foundations as export_kit
-from generate_scene import write_json
+from generate_scene import transform, write_json
 
 SOURCE = kit.ROOT / 'assets/renewables'
 OUT = kit.ASSETS / 'models/renewables'
@@ -57,6 +57,7 @@ def turbine():
     box('Cyan service indicator',(0,.28,-.095),(.07,.025,.008),cyan,0)
     box('Generator nacelle',(0,1.70,0),(.24,.21,.39),steel,.015)
     box('Nacelle vent',(0,1.70,.201),(.12,.09,.009),graphite,0)
+    rotor_start=len(kit.parts)
     # Three swept blades in the X/Y plane, on the nose of the compact nacelle.
     blade=[(-.045,.075,-.24),(-.038,.36,-.23),(.025,.425,-.22),
            (.055,.15,-.245),(-.045,.075,-.26),(-.038,.36,-.25),
@@ -66,8 +67,10 @@ def turbine():
         a=i*2*math.pi/3
         vertices=[(math.cos(a)*x-math.sin(a)*y,1.70+math.sin(a)*x+math.cos(a)*y,z) for x,y,z in blade]
         kit.mesh_part('Swept rotor blade',vertices,faces,silver)
-    box('Rotor hub',(0,1.70,-.25),(.13,.13,.11),graphite,.015)
+    box('Rotor hub',(0,1.70,-.25),(.13,.13,.11),silver,.015)
     box('Gold rotor cap',(0,1.70,-.312),(.06,.06,.014),gold)
+    global ROTOR
+    ROTOR=list(kit.parts[rotor_start:])
     kit.mesh_part('Tail vane',[(0,1.73,.20),(0,1.85,.43),(0,1.60,.43),
         (.02,1.73,.20),(.02,1.85,.43),(.02,1.60,.43)],
         [(0,2,1),(3,4,5),(0,1,4,3),(1,2,5,4),(2,0,3,5)],cyan)
@@ -91,7 +94,18 @@ def main():
     export_kit.CATALOG.clear();export_kit.GROUPS.clear()
     for slug,kind,name,build in [('solar-panel',40,'Solar panel',lambda:panel(0)),
         ('solar-array',41,'Solar array',solar_array),('wind-turbine',42,'Small wind turbine',turbine)]:
-        build();export_kit.export(slug,kind,name)
+        build()
+        if kind==42:
+            kit.parts[:]=[obj for obj in kit.parts if obj not in ROTOR]
+        export_kit.export(slug,kind,name)
+    # Export a rigid child around the nacelle axle. It remains an indexed stock
+    # mesh, so animated turbines continue to use the regular instance batches.
+    for obj in ROTOR:
+        for vertex in obj.data.vertices: vertex.co-=kit.point((0,1.70,.25))
+    kit.parts[:]=ROTOR
+    export_kit.export('wind-turbine-rotor',0,'Wind turbine rotor')
+    rotor_entry=export_kit.CATALOG.pop()
+    (kit.ASSETS/rotor_entry['prefab']).unlink()
     catalog=export_kit.CATALOG
     # The reusable exporter supplies geometry merging; renewables are machine assets.
     for entry in catalog:
@@ -100,6 +114,17 @@ def main():
         data['assets'][new]=data['assets'].pop(old)
         data['assets'][new]['path']=f"models/renewables/{new.removeprefix('machine-')}.glb"
         data['objects'][0]['drawable']['mesh']['asset']=new
+        if entry['kind']==42:
+            data['assets']['wind-turbine-rotor']={'kind':'mesh','path':'models/renewables/wind-turbine-rotor.glb'}
+            data['assets']['wind-rotor']={'kind':'script','path':'../scripts/wind_rotor.rhai'}
+            data['objects'].append({'id':'rotor','name':'Wind turbine rotor','parent':'root',
+                'transform':transform(0,1.70,.25),
+                'drawable':{'layer':'3d','mesh':{'asset':'wind-turbine-rotor'},'texture':'white',
+                    'color':[1,1,1],'uv_scale':[1,1],'gi_static':False},
+                'script_manager':{'scripts':[{'enabled':True,'script':'wind-rotor'}]}})
+            entry['rotor_mesh']='models/renewables/wind-turbine-rotor.glb'
+            entry['rotor_triangles']=rotor_entry['triangles']
+            entry['rotor_pivot']=[0,1.70,.25]
         prefab.unlink();entry['id']=new;entry['prefab']=new+'.prefab.json'
         entry['mesh']=data['assets'][new]['path']
         write_json(kit.ASSETS/entry['prefab'],data)
@@ -109,6 +134,7 @@ def main():
     # Arrange the editable source on a shared studio ground.
     for slug,offset in [('solar-panel',(-1.65,0,0)),('solar-array',(-.35,0,0)),('wind-turbine',(2.0,0,0))]:
         for obj in export_kit.GROUPS[slug]:obj.location+=kit.point(offset)
+    for obj in ROTOR:obj.location+=kit.point((2.0,1.70,.25))
     ground=kit.create_principled_material(bpy,'Studio ground',(.07,.11,.12),0,.9)
     box('Studio',(0,-.06,0),(200,.10,200),ground,0)
     for name,pos,power,size in [('Key',(3,-5,7),1300,6),('Rim',(-4,3,6),1000,5)]:

@@ -753,9 +753,10 @@ impl Executor {
     }
     fn write_power(&self, state: &mut State, planet: u8, graph: Graph) -> Result<()> {
         let time = state::numeric(&state::values(&state.controller, "session")?[120])?;
+        let seed = state::number(&state.scene, "seed")? as i64;
         let graph: Graph = self
             .rules
-            .call_args("resolve_power", (graph, time, i64::from(planet)))?;
+            .call_args("resolve_power", (graph, time, i64::from(planet), seed))?;
         let name = if planet == 0 {
             "power_data"
         } else {

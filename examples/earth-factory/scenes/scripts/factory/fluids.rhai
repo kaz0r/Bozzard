@@ -12,14 +12,16 @@ fn step(state) {
     for source in 0..state.ids.len() {
         if state.columns.rotating[source]>0.0 {continue;}
         let kind=builds[source];
-        if !data::pipe(kind) && !data::expansion(kind) && kind!=4.0 {continue;}
-        for outlet in 0..(if data::pipe(kind) {4}else if kind==4.0 {16}else{8}) {
+        let pipe=data::pipe(kind);
+        if !pipe && !data::expansion(kind) && kind!=4.0 {continue;}
+        let slots=if pipe {[]}else{original_slots[source.to_string()]};
+        for outlet in 0..(if pipe {4}else if kind==4.0 {16}else{8}) {
             let side=outlet; let slot=(if kind==4.0 {0}else{8})+outlet; let fluid=items[source]; let offered=available[source];
-            if data::pipe(kind) {
+            if pipe {
                 if !buffers::pipe_port(kind,facings[source].to_int(),side) {continue;}
             } else {
-                let slots=original_slots[source.to_string()]; fluid=slots[slot*2]; offered=slots[slot*2+1];
-                if !data::fluid(fluid) || offered==0.0 {continue;}
+                fluid=slots[slot*2]; offered=slots[slot*2+1];
+                if offered==0.0 || !data::fluid(fluid) {continue;}
                 side=if kind==4.0 {facings[source].to_int()}else{buffers::fluid_output_side(kind,facings[source].to_int(),slot)};
             }
             if offered<=0.0 {continue;}
@@ -30,7 +32,7 @@ fn step(state) {
             let opposite=(side+2)%4; let moved=0.0;
             if data::pipe(target_kind) && buffers::pipe_port(target_kind,facings[target].to_int(),opposite) {
                 if (original[target]>0.0 && old_items[target]!=fluid) || (amounts[target]>0.0 && items[target]!=fluid) {continue;}
-                let pressure=if data::pipe(kind) {original[source]-original[target]}else{10.0};
+                let pressure=if pipe {original[source]-original[target]}else{10.0};
                 if pressure<=0.0 {continue;}
                 moved=min(min(offered,5.0),min(ceil(pressure/2.0),100.0-amounts[target]));
                 if moved>0.0 {items[target]=fluid; amounts[target]+=moved;}
@@ -50,7 +52,7 @@ fn step(state) {
                 if moved>0.0 {state.storage[key]=slots;state.storage_changed[key]=true;}
             }
             if moved<=0.0 {continue;}
-            if data::pipe(kind) {
+            if pipe {
                 available[source]-=moved; amounts[source]-=moved;
                 if amounts[source]==0.0 {items[source]=0.0;}
             } else {

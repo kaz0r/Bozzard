@@ -191,6 +191,8 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `get_object_list_item(name, index)`, `get_scene_list_item(name, index)` | one scalar entry without copying the whole list; zero-based, checked against its current length; reads see earlier writes in the same hook |
 | `get_object_list_item(target, name, index)` | the same indexed read on another local object's declared list |
 | `object_lists_equal(left_target, left_name, right_target, right_name)` | compare the ordered values of two declared lists in place, without allocating Rhai arrays; observes earlier writes in the same hook and ignores declared capacities |
+| `pack_numeric_cells(values, cells, stride)` | Pack selected numeric cells into comma-separated integers with `value:length` runs. Unselected slots encode as zero; an empty cell list returns an empty string. Numeric values truncate to integers, matching `to_int()`. |
+| `unpack_numeric_cells(text, cells, stride)` | Decode the selected cells into a compact numeric array. An empty archive yields zeros. Existing literal and run-length pages both work. Cells must be sorted, unique, nonnegative, and within 65,536 slots; stride is positive. Both helpers bound input/output arrays and archive lengths. |
 | `raycast(origin, direction, distance, ignore)` | `#{ hit, object, position, normal, distance }` |
 | `sphere_overlap(center, radius, ignore)`, `box_overlap(center, size, ignore)` | array of object IDs |
 | `line_of_sight(from, to, ignore)` | `bool` |

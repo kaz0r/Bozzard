@@ -1131,6 +1131,7 @@ fn ctrl_r_eases_and_queues_quarter_turns_without_rotating_machines() {
     }
     let produced = numbers(&demo, "counts")[20];
     move_cursor(&mut demo, 0, 0);
+    settle(&mut demo, 40);
     let original = demo.instance().global_transforms(&demo.app.world).unwrap()["camera"];
     let facings = numbers(&demo, "facings");
     let direction = number(&demo, "direction");
@@ -1185,8 +1186,11 @@ fn ctrl_r_eases_and_queues_quarter_turns_without_rotating_machines() {
     assert_eq!(number(&demo, "camera_heading"), 0.);
     let camera = demo.instance().global_transforms(&demo.app.world).unwrap()["camera"];
     assert!(
-        camera.abs_diff_eq(original, 0.0001),
-        "four turns return without drift"
+        camera.abs_diff_eq(
+            glam::Mat4::from_translation(glam::Vec3::new(-1., 0., 0.)) * original,
+            0.0001
+        ),
+        "four turns preserve orientation while the camera follows the moved player"
     );
     assert!(
         numbers(&demo, "counts")[20] > produced,
@@ -1940,7 +1944,7 @@ fn neighboring_regions_preserve_factories_inventory_and_seeded_nodes() {
 }
 
 #[test]
-fn chunk_camera_glides_retargets_and_finishes_while_orbiting() {
+fn player_camera_follows_steps_seams_and_reversals_while_orbiting() {
     use bozzard_scene::Transform;
     let mut demo = factory_with_mode(Some(4.), false);
     tick(&mut demo, None);
@@ -1951,44 +1955,113 @@ fn chunk_camera_glides_retargets_and_finishes_while_orbiting() {
             .unwrap()
             .translation
     };
-    move_cursor(&mut demo, 7, 0);
     assert_eq!(position(&demo), [0., 0., 0.]);
     press(&mut demo, "D");
-    let first = position(&demo)[0];
+    assert_eq!(number(&demo, "chunk_x"), 0.);
     assert!(
-        first > 0. && first < 0.1,
-        "pan eases in instead of snapping"
-    );
-    let mut previous = first;
-    for _ in 0..10 {
-        tick(&mut demo, None);
-        let x = position(&demo)[0];
-        assert!(x > previous && x < 15.);
-        previous = x;
-    }
-    press(&mut demo, "A");
-    assert!(
-        position(&demo)[0] > previous - 0.1 && position(&demo)[0] < previous,
-        "reversing at the seam starts from the current view"
+        position(&demo)[0] > 0. && position(&demo)[0] < 1.,
+        "camera follows an ordinary step smoothly"
     );
     settle(&mut demo, 40);
-    assert_eq!(position(&demo), [0., 0., 0.]);
+    assert_eq!(position(&demo), [1., 0., 0.]);
+    move_cursor(&mut demo, 7, 0);
+    settle(&mut demo, 40);
+    assert_eq!(position(&demo), [7., 0., 0.]);
+    press(&mut demo, "D");
+    assert_eq!(
+        (number(&demo, "chunk_x"), number(&demo, "cursor_x")),
+        (1., -7.)
+    );
+    assert!(
+        position(&demo)[0] > 7. && position(&demo)[0] < 8.,
+        "seam target is the player's tile, rather than region center 15"
+    );
+    settle(&mut demo, 40);
+    assert_eq!(position(&demo), [8., 0., 0.]);
+    press(&mut demo, "A");
+    assert!(
+        position(&demo)[0] > 7. && position(&demo)[0] < 8.,
+        "reversal eases from the existing camera position"
+    );
+    settle(&mut demo, 40);
+    assert_eq!(position(&demo), [7., 0., 0.]);
     press(&mut demo, "D");
     tick_keys(&mut demo, &["Ctrl", "R"]);
     settle(&mut demo, 40);
-    assert_eq!(position(&demo), [15., 0., 0.]);
+    assert_eq!(position(&demo), [8., 0., 0.]);
     assert_eq!(number(&demo, "camera_heading"), 90.);
     assert!(
         number(&demo, "ticks") > 0.,
-        "factory clock keeps advancing during pans"
+        "production continues while following and orbiting"
     );
     tick(&mut demo, Some("N"));
-    assert_eq!(position(&demo), [0., 0., 0.]);
     settle(&mut demo, 40);
     assert_eq!(
         position(&demo),
         [0., 0., 0.],
-        "reset cancels the old destination"
+        "a new world cancels the previous player target"
+    );
+}
+
+#[test]
+fn player_camera_damping_is_frame_rate_independent_and_load_centers_on_the_player() {
+    use bozzard_scene::Transform;
+    let mut demo = factory_with_mode(Some(4.), false);
+    tick(&mut demo, None);
+    let position = |demo: &SceneDemo| {
+        demo.app
+            .world
+            .get::<Transform>(demo.instance().entity("camera-rig").unwrap())
+            .unwrap()
+            .translation
+    };
+    let mut results = Vec::new();
+    // Use an exactly equal simulation interval at each rate.
+    for fps in [30, 60, 120] {
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            set_scene_variable("cursor_x",6.0);set_scene_variable("cursor_z",-4.0);
+            set_position("camera-rig",[0.0,0.0,0.0]);
+            for frame in 0..{} {{ environment::update_camera(1.0/{}.0); }}
+        "#,
+                fps / 2,
+                fps
+            ),
+            1,
+        );
+        let p = position(&demo);
+        assert!(p[0] > 5.98 && p[0] < 6. && p[2] > -4. && p[2] < -3.98);
+        results.push(p);
+    }
+    for p in &results {
+        assert!((p[0] - results[0][0]).abs() < 0.0001 && (p[2] - results[0][2]).abs() < 0.0001);
+    }
+    factory_code(
+        &mut demo,
+        r#"
+        world::enter_chunk(-1,1);set_scene_variable("cursor_x",-5.0);set_scene_variable("cursor_z",6.0);
+        set_position("camera-rig",[100.0,0.0,-100.0]);persistence::restore_view();
+    "#,
+        1,
+    );
+    assert_eq!(
+        position(&demo),
+        [-20., 0., 21.],
+        "restore uses saved world coordinates, including negative chunks"
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",-4.0);environment::update_camera(0.0);
+    "#,
+        1,
+    );
+    assert_eq!(
+        position(&demo),
+        [-20., 0., 21.],
+        "zero elapsed time cannot move the camera"
     );
 }
 
@@ -2055,7 +2128,8 @@ fn distant_chunks_unload_restore_factory_state_and_follow_the_zoom_footprint() {
         set_scene_variable("cursor_x", 0.0); set_scene_variable("cursor_z", 0.0);
     "#,
     );
-    settle(&mut demo, 40);
+    // Let the camera finish following this fixture's sixty-tile teleport.
+    settle(&mut demo, 60);
     let occupied = |demo: &SceneDemo| {
         controller_numbers(demo, "resident")
             .iter()
@@ -9211,8 +9285,171 @@ fn renewables_fixture(setup: &str) -> SceneDemo {
     ))
 }
 
+// Populate in separate hooks, as individual placements happen across frames in
+// the player. The measured hook still uses the normal controller and its budget.
+fn dense_factory_fixture(kind: i32) -> SceneDemo {
+    let mut demo = renewables_fixture("");
+    for (cx, cz) in [(1, 0), (0, 1)] {
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+                world::enter_chunk({cx},{cz});
+                let builds=grid::empty_numbers(225);let nodes=grid::empty_numbers(225);
+                let recipes=grid::empty_numbers(225);let inputs=grid::empty_numbers(225);let amounts=grid::empty_numbers(225);
+                let visuals=grid::empty_text(225);let cells=[];let graph=power::power_graph();
+                for group in 0..40 {{
+                    let base=group*5;let pole=power::power_id(base+1);
+                    let peers=[9,0];
+                    for offset in 0..5 {{
+                        let cell=base+offset;let kind=if offset==0 {{6}} else if offset==1 {{9}} else {{{kind}}};
+                        builds[cell]=kind.to_float();cells.push(cell.to_float());
+                        visuals[cell]=grid::spawn_build(kind.to_float(),grid::cell_x(cell),grid::cell_z(cell),0);
+                        if offset==1 {{continue;}}
+                        let id=power::power_id(cell);graph[id.to_string()]=[kind,0,pole];peers.push(id);
+                        if kind==6 {{nodes[cell]=4.0;}}
+                        else {{recipes[cell]=data::recipe_choices(kind.to_float())[0];inputs[cell]=1.0;amounts[cell]=100.0;}}
+                    }}
+                    graph[pole.to_string()]=peers;
+                }}
+                set_scene_list("builds",builds);set_scene_list("nodes",nodes);
+                set_scene_list("build_visuals",visuals);set_scene_list("machine_cells",cells);
+                set_scene_list("input_items",inputs);set_scene_list("input_amounts",amounts);set_object_list("recipes",recipes);
+                if {kind}>=12 {{
+                    for page in 0..4 {{
+                        let kinds=grid::empty_numbers(900);let amounts=grid::empty_numbers(900);
+                        for cell in 0..200 {{
+                            if builds[cell]!={kind}.0 {{continue;}}
+                            let cost=data::recipe_cost(recipes[cell].to_int());
+                            for slot in 0..4 {{
+                                let input=page*4+slot;
+                                if input>=cost.len()/2 {{continue;}}
+                                kinds[cell*4+slot]=cost[input*2].to_float();amounts[cell*4+slot]=8.0;
+                            }}
+                        }}
+                        set_scene_list("storage_kinds_"+page.to_string(),kinds);set_scene_list("storage_amounts_"+page.to_string(),amounts);
+                    }}
+                }}
+                power::write_power(graph);set_object_variable("power_dirty",true);
+                "#
+            ),
+            1,
+        );
+    }
+    demo
+}
+
 #[test]
-fn renewables_generate_daylight_solar_and_continuous_wind_through_real_cables() {
+fn four_hundred_powered_machines_fit_the_normal_controller_operation_budget() {
+    let mut demo = dense_factory_fixture(3);
+    factory_code(&mut demo, "power::update_power();", 1);
+    assert_eq!(number(&demo, "power_demand"), 480.);
+    // Match the previous nearest-light scan, including stable tie order and the
+    // shared status/heat slots. Sorting must not change which surfaces are lit.
+    let mut lamps = Vec::new();
+    for (chunk, cx, cz) in [(145i64, 1i64, 0i64), (161, 0, 1)] {
+        for cell in 0..200i64 {
+            let id = chunk * 225 + cell;
+            let x = cx * 15 + cell % 15 - 7;
+            let z = cz * 15 + cell / 15 - 7;
+            let distance = x * x + (z - 15) * (z - 15);
+            let kind = if cell % 5 == 0 {
+                6
+            } else if cell % 5 == 1 {
+                9
+            } else {
+                3
+            };
+            let slot = if kind == 9 {
+                String::new()
+            } else {
+                format!("{id},{kind},status")
+            };
+            lamps.push((distance, lamps.len(), slot));
+            if kind == 3 {
+                lamps.push((distance, lamps.len(), format!("{id},3,heat")));
+            }
+        }
+    }
+    lamps.sort_by_key(|(distance, index, _)| (*distance, *index));
+    let expected: Vec<_> = lamps
+        .into_iter()
+        .take(32)
+        .map(|(_, _, slot)| Value::Text(slot))
+        .collect();
+    let slots = demo
+        .app
+        .world
+        .resource::<BlueprintRuntime>()
+        .unwrap()
+        .object_blackboard("factory-transports")
+        .unwrap()["machine_light_slots"]
+        .values();
+    assert_eq!(slots, expected);
+    factory_code(&mut demo, "simulation::factory_step();", 1);
+    factory_code(
+        &mut demo,
+        "set_object_variable(\"power_dirty\",true);set_scene_variable(\"clock\",0.32);normal_update(me,dt);",
+        1,
+    );
+    restore_factory_update(&mut demo);
+    settle(&mut demo, 40);
+    assert!(number(&demo, "ticks") > 1.);
+}
+
+#[test]
+fn four_hundred_expansion_machines_fit_the_normal_controller_operation_budget() {
+    let mut demo = dense_factory_fixture(21);
+    // Existing saves can have literal-heavy pages. They must work before any
+    // production beat has had a chance to rewrite them with the new encoder.
+    factory_code(
+        &mut demo,
+        r#"
+        for name in ["builds","facings","recipes","items","item_amounts","input_items","input_amounts","progress","assembler_iron","assembler_copper","split_state",
+            "storage_kinds_0","storage_amounts_0","storage_kinds_1","storage_amounts_1","storage_kinds_2","storage_amounts_2","storage_kinds_3","storage_amounts_3"] {
+            let count=if name.starts_with("storage_") {900}else{225};
+            let values=grid::unpack_numbers(get_object_list_item("cache_"+name,145),count);
+            let text="";
+            for value in values {if text!="" {text+=",";}text+=value.to_int().to_string();}
+            grid::cache_put("cache_"+name,145,text);
+        }
+        "#,
+        1,
+    );
+    factory_code(
+        &mut demo,
+        "set_object_variable(\"power_dirty\",true);set_scene_variable(\"clock\",0.32);normal_update(me,dt);",
+        5,
+    );
+    // Place the next machine through actual input on a producing frame, while
+    // all existing machines refresh their power effects and finish their batch.
+    factory_code(
+        &mut demo,
+        "set_scene_variable(\"cursor_x\",-2.0);set_scene_variable(\"cursor_z\",6.0);set_scene_variable(\"selected\",3.0);set_scene_variable(\"clock\",0.32);",
+        1,
+    );
+    restore_factory_update(&mut demo);
+    tick(&mut demo, Some("Space"));
+    assert_eq!(numbers(&demo, "builds")[200], 3.);
+    settle(&mut demo, 4);
+    assert_eq!(number(&demo, "ticks"), 6.);
+    let (world, _) = coop_world(&demo);
+    for chunk in [145, 161] {
+        let inputs = coop_page(&world, "cache_storage_amounts_0", 0, chunk, 900);
+        let outputs = coop_page(&world, "cache_storage_amounts_2", 0, chunk, 900);
+        let kinds = coop_page(&world, "cache_storage_kinds_2", 0, chunk, 900);
+        for cell in 0..200 {
+            if cell % 5 >= 2 {
+                assert_eq!(inputs[cell * 4], 5.);
+                assert_eq!(outputs[cell * 4], 3.);
+                assert_eq!(kinds[cell * 4], 14.);
+            }
+        }
+    }
+}
+
+#[test]
+fn renewables_generate_daylight_solar_and_gust_driven_wind_through_real_cables() {
     let mut demo = renewables_fixture(
         r#"
         for row in [[2,3,40],[4,3,41],[2,5,42],[3,4,9],[3,5,3]] {
@@ -9232,11 +9469,22 @@ fn renewables_generate_daylight_solar_and_continuous_wind_through_real_cables() 
         "data::session_set(120,47.1);power::update_power();",
         1,
     );
+    assert_eq!(
+        number(&demo, "power_supply"),
+        8.,
+        "calm night leaves only the isolated landing pod"
+    );
+    assert_eq!(controller_numbers(&demo, "power_live")[consumer], 0.);
+    factory_code(
+        &mut demo,
+        "data::session_set(120,119.0);power::update_power();",
+        1,
+    );
     assert_eq!(number(&demo, "power_supply"), 14.);
     assert_eq!(
         controller_numbers(&demo, "power_live")[consumer],
         1.,
-        "wind continues after sunset"
+        "a night gust powers the circuit"
     );
     factory_code(
         &mut demo,
@@ -9456,4 +9704,407 @@ fn renewables_earth_solar_circuits_follow_dawn_and_dusk_while_on_the_other_plane
         );
     }
     coop_world(&demo);
+}
+
+fn gust_fixture() -> SceneDemo {
+    let mut demo = renewables_fixture(
+        r#"
+        for row in [[2,3,42],[2,4,9],[3,4,3]] {
+            set_scene_variable("cursor_x",row[0].to_float());set_scene_variable("cursor_z",row[1].to_float());
+            set_scene_variable("selected",row[2].to_float());building::place_selected();
+        }
+        let pole=power::power_id(grid::index(2,4));
+        power::connect_power(pole,power::power_id(grid::index(2,3)));
+        power::connect_power(pole,power::power_id(grid::index(3,4)));
+        let input=get_scene_list("input_items");input[grid::index(3,4)]=1.0;set_scene_list("input_items",input);
+        let amounts=get_scene_list("input_amounts");amounts[grid::index(3,4)]=4.0;set_scene_list("input_amounts",amounts);
+        data::session_set(120,0.0);power::update_power();
+    "#,
+    );
+    factory_code(&mut demo, "wind::update();", 2); // Start the rotor's lifetime hook.
+    demo
+}
+
+fn gust_rotor(demo: &SceneDemo) -> bozzard_scene::Transform {
+    let id = &demo
+        .instance()
+        .document()
+        .objects
+        .iter()
+        .find(|o| o.name == "Wind turbine rotor")
+        .expect("resident rotor")
+        .id;
+    *demo
+        .app
+        .world
+        .get::<bozzard_scene::Transform>(demo.instance().entity(id).unwrap())
+        .unwrap()
+}
+
+fn gust_rotor_count(demo: &SceneDemo) -> f32 {
+    let BlackboardValue::Scalar(Value::Number(count)) = demo
+        .app
+        .world
+        .resource::<BlueprintRuntime>()
+        .unwrap()
+        .object_blackboard("renewable-view")
+        .unwrap()["rotor_count"]
+    else {
+        panic!("rotor count")
+    };
+    count
+}
+
+#[test]
+fn wind_gusts_have_calm_intervals_smooth_ramps_and_deterministic_angles() {
+    let demo = renewables_fixture("");
+    let weather = demo.instance().script_module("factory-renewables").unwrap();
+    for seed in [1i64, 4, 2_000_000_000] {
+        for planet in [0i64, 1] {
+            for cycle in [0i64, 1, 6, 7, 55] {
+                let window: serde_json::Value = weather
+                    .call_args("wind_window", (seed, planet, cycle))
+                    .unwrap();
+                let start = cycle as f32 * 48. + window["start"].as_f64().unwrap() as f32;
+                let duration = window["duration"].as_f64().unwrap() as f32;
+                assert!((10.0..=16.0).contains(&duration));
+                let motion = |time: f32| -> (f32, f32) {
+                    let result: serde_json::Value = weather
+                        .call_args("wind_motion", (seed, planet, time))
+                        .unwrap();
+                    (
+                        result["angle"].as_f64().unwrap() as f32,
+                        result["strength"].as_f64().unwrap() as f32,
+                    )
+                };
+                for (time, active) in [
+                    (start, false),
+                    (start + 0.1, true),
+                    (start + 4., true),
+                    (start + duration, false),
+                    (cycle as f32 * 48. + 47., false),
+                ] {
+                    let running: bool = weather
+                        .call_args("wind_active", (seed, planet, time))
+                        .unwrap();
+                    assert_eq!(running, active);
+                    assert_eq!(
+                        motion(time).1 > 0.,
+                        active,
+                        "power and visible motion disagree"
+                    );
+                    assert_eq!(
+                        motion(time),
+                        motion(time),
+                        "weather must not advance on reads"
+                    );
+                }
+                assert_eq!(motion(start).1, 0.);
+                assert!((motion(start + 1.).1 - 0.5).abs() < 0.001);
+                assert_eq!(motion(start + 4.).1, 1.);
+                assert!((motion(start + duration - 1.).1 - 0.5).abs() < 0.001);
+                assert_eq!(
+                    motion(start + duration).0,
+                    motion(cycle as f32 * 48. + 47.).0
+                );
+                let slow = (motion(start + 0.2).0 - motion(start).0).rem_euclid(360.);
+                let fast = (motion(start + 4.2).0 - motion(start + 4.).0).rem_euclid(360.);
+                assert!(slow < fast * 0.2, "rotor must accelerate into a gust");
+                assert!((motion(start - 0.1).0 - motion(start).0).abs() < 0.001);
+            }
+        }
+    }
+}
+
+#[test]
+fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
+    let mut demo = gust_fixture();
+    let consumer = (11 * 15 + 10) as usize; // World tile (3,4).
+    assert_eq!(gust_rotor_count(&demo), 1.);
+    let stopped = gust_rotor(&demo);
+    factory_code(
+        &mut demo,
+        "data::session_set(120,10.0);wind::update();simulation::factory_step();",
+        1,
+    );
+    assert_eq!(gust_rotor(&demo), stopped);
+    assert_eq!(controller_numbers(&demo, "power_live")[consumer], 0.);
+    assert_eq!(numbers(&demo, "progress")[consumer], 0.);
+    factory_code(
+        &mut demo,
+        "data::session_set(120,20.0);wind::update();simulation::factory_step();",
+        1,
+    );
+    let moving = gust_rotor(&demo);
+    assert_ne!(moving.rotation_degrees[2], stopped.rotation_degrees[2]);
+    assert_eq!(
+        moving.translation,
+        [0., 1.7, 0.25],
+        "rotate around the axle"
+    );
+    assert_eq!(moving.rotation_degrees[..2], [0., 0.]);
+    assert_eq!(controller_numbers(&demo, "power_live")[consumer], 1.);
+    assert_eq!(numbers(&demo, "progress")[consumer], 1.);
+    let membership = demo.instance().document().objects.len();
+    factory_code(&mut demo, "data::session_set(120,20.1);wind::update();", 1);
+    assert_ne!(
+        gust_rotor(&demo).rotation_degrees[2],
+        moving.rotation_degrees[2]
+    );
+    assert_eq!(
+        membership,
+        demo.instance().document().objects.len(),
+        "gust effects must reuse their objects"
+    );
+    factory_code(
+        &mut demo,
+        "data::session_set(120,40.0);wind::update();power::update_power();",
+        1,
+    );
+    let calm = gust_rotor(&demo);
+    assert_eq!(controller_numbers(&demo, "power_live")[consumer], 0.);
+    factory_code(&mut demo, "wind::update();power::update_power();", 3);
+    assert_eq!(gust_rotor(&demo), calm);
+    assert_eq!(
+        demo.app
+            .world
+            .resource::<bozzard_scene::ScriptRuntime>()
+            .unwrap()
+            .stats
+            .commands,
+        0,
+        "calm weather must not enqueue transforms or circuit writes"
+    );
+    factory_code(
+        &mut demo,
+        "data::session_set(120,69.0);wind::update();power::update_power();",
+        1,
+    );
+    assert_eq!(
+        controller_numbers(&demo, "power_live")[consumer],
+        1.,
+        "the next gust restarts power"
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",2.0);set_scene_variable("cursor_z",3.0);
+        building::remove_selected();wind::update();power::update_power();
+    "#,
+        1,
+    );
+    assert_eq!(
+        gust_rotor_count(&demo),
+        0.,
+        "demolition unregisters the rotor"
+    );
+    factory_code(&mut demo, "wind::update();", 1);
+}
+
+#[test]
+fn wind_gusts_restore_from_saves_and_stream_rotors_without_stale_handles() {
+    let mut demo = gust_fixture();
+    factory_code(
+        &mut demo,
+        "data::session_set(120,20.0);wind::update();power::update_power();world::archive_chunk();",
+        1,
+    );
+    let angle = gust_rotor(&demo).rotation_degrees[2];
+    factory_code(
+        &mut demo,
+        "chunks::unload_chunk_visuals(144);wind::update();",
+        1,
+    );
+    assert_eq!(gust_rotor_count(&demo), 0.);
+    factory_code(
+        &mut demo,
+        "chunks::load_chunk_visuals(0,0);world::restore_chunk(0,0);wind::update();",
+        2,
+    );
+    assert_eq!(gust_rotor_count(&demo), 1.);
+    assert_eq!(gust_rotor(&demo).rotation_degrees[2], angle);
+    let directory = save_directory(&mut demo);
+    factory_code(&mut demo, "persistence::prepare_save(1);", 1);
+    factory_code(&mut demo, "persistence::update(0.0);", 1);
+    finish_save_io(&mut demo);
+    factory_code(
+        &mut demo,
+        "world::begin_world(17);data::session_set(117,1.0);data::session_set(116,2.0);",
+        1,
+    );
+    factory_code(&mut demo, "persistence::update(0.0);", 1);
+    finish_save_io(&mut demo);
+    factory_code(&mut demo, "wind::update();power::update_power();", 2);
+    assert_eq!(number(&demo, "seed"), 4.);
+    assert_eq!(controller_numbers(&demo, "session")[120], 20.);
+    assert_eq!(gust_rotor_count(&demo), 1.);
+    assert_eq!(
+        gust_rotor(&demo).rotation_degrees[2],
+        angle,
+        "save must not reroll or reset the gust"
+    );
+    assert_eq!(controller_numbers(&demo, "power_live")[11 * 15 + 10], 1.);
+    // Earth keeps observing its own weather while the player visits Stella-Z2.
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("demo_mode",false);set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",1.0);
+        world::travel_to_other_planet();
+    "#,
+        1,
+    );
+    assert_eq!(gust_rotor_count(&demo), 0.);
+    for (time, expected) in [(40., 0.), (69., 1.), (95., 0.)] {
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            data::session_set(120,{time:.1});simulation::factory_step();wind::update();
+            let graph=power::power_graph("power_other");
+            set_scene_variable("power_demand",graph[(144*225+grid::index(3,4)).to_string()][1].to_float());
+        "#
+            ),
+            1,
+        );
+        assert_eq!(
+            number(&demo, "power_demand"),
+            expected,
+            "off-world gust at {time}"
+        );
+    }
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn wind_gusts_native_multiplayer_wiring_uses_the_same_seeded_world_clock() {
+    use bozzard_demo::factory::{
+        authority::Executor, replication::requests::Action, shared::Position,
+    };
+    use std::time::Duration;
+    let mut demo = gust_fixture();
+    for (time, expected) in [(10., 0), (20., 1), (40., 0), (69., 1)] {
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            data::session_set(120,{time:.1});
+            power::disconnect_power(power::power_id(grid::index(2,3)),power::power_id(grid::index(2,4)));
+            power::update_power();wind::update();
+        "#
+            ),
+            1,
+        );
+        let (mut world, mut player) = coop_world(&demo);
+        let mut executor = Executor::new(demo.instance()).unwrap();
+        let turbine = Position {
+            planet: 0,
+            x: 2,
+            z: 3,
+        };
+        let pole = Position {
+            planet: 0,
+            x: 2,
+            z: 4,
+        };
+        player.position = turbine;
+        let result = executor
+            .apply(
+                &mut world,
+                20,
+                &mut player,
+                &Action::Wire {
+                    from: turbine,
+                    to: pole,
+                },
+                Duration::ZERO,
+            )
+            .unwrap();
+        assert!(result.accepted, "{}", result.message);
+        let id = 144 * 225 + 11 * 15 + 10;
+        let Value::Text(page) = &world.state().controller["power_data"].values()[id / 75] else {
+            panic!("power page")
+        };
+        let powered = page
+            .split('|')
+            .nth(id % 75)
+            .unwrap()
+            .split(',')
+            .nth(1)
+            .unwrap()
+            .parse::<i32>()
+            .unwrap();
+        assert_eq!(powered, expected, "native wiring at world time {time}");
+        let restored: bozzard_demo::factory::shared::World =
+            serde_json::from_slice(&serde_json::to_vec(&world).unwrap()).unwrap();
+        assert_eq!(restored, world);
+    }
+}
+
+#[test]
+fn wind_gusts_coop_guests_follow_weather_and_reconcile_remote_rotor_lifetimes() {
+    use bozzard_demo::factory::{host::HostRuntime, replication::requests::Action};
+    let mut host = gust_fixture();
+    HostRuntime::start(
+        &mut host.app.world,
+        10,
+        1,
+        [(10, "Host".into()), (20, "Guest".into())].into(),
+    )
+    .unwrap();
+    factory_code(
+        &mut host,
+        "host_view::synchronize();data::session_set(120,10.0);power::update_power();wind::update();",
+        1,
+    );
+    coop_host_tick(&mut host);
+    let mut guest = coop_guest(&host);
+    assert_eq!(gust_rotor_count(&guest), 1.);
+    for (time, expected) in [(20., 1.), (40., 0.), (69., 1.)] {
+        factory_code(
+            &mut host,
+            &format!(
+                "host_view::synchronize();data::session_set(120,{time:.1});power::update_power();wind::update();"
+            ),
+            1,
+        );
+        coop_host_tick(&mut host);
+        coop_guest_snapshot(&host, &mut guest);
+        settle(&mut guest, 3);
+        assert_eq!(controller_numbers(&guest, "session")[120], time);
+        assert_eq!(
+            controller_numbers(&guest, "power_live")[11 * 15 + 10],
+            expected
+        );
+        let before = gust_rotor(&guest);
+        settle(&mut guest, 2);
+        if expected > 0. {
+            assert_ne!(
+                gust_rotor(&guest).rotation_degrees[2],
+                before.rotation_degrees[2]
+            );
+        } else {
+            assert_eq!(gust_rotor(&guest), before);
+        }
+    }
+    assert!(coop_host_action(
+        &mut host,
+        20,
+        Action::Place {
+            kind: 42,
+            direction: 0
+        }
+    ));
+    coop_host_tick(&mut host); // Present the accepted edit on the host.
+    coop_host_tick(&mut host); // Start the newly spawned rotor's lifetime hook.
+    coop_guest_snapshot(&host, &mut guest);
+    settle(&mut guest, 3);
+    assert_eq!(gust_rotor_count(&host), 2.);
+    assert_eq!(gust_rotor_count(&guest), 2.);
+    assert!(coop_host_action(&mut host, 20, Action::Remove));
+    coop_host_tick(&mut host);
+    coop_guest_snapshot(&host, &mut guest);
+    settle(&mut guest, 3);
+    assert_eq!(gust_rotor_count(&host), 1.);
+    assert_eq!(gust_rotor_count(&guest), 1.);
+    settle(&mut guest, 3);
 }

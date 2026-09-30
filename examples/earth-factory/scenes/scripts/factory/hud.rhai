@@ -12,9 +12,11 @@ fn nearby_label(cell, nodes, builds) {
     let machines = ["", "Miner", "Conveyor", "Smelter", "Storage", "Assembler", "Generator", "Splitter", "Merger", "Power pole Mk1", "Cable", "Constructor"];
     let kind = builds[cell].to_int();
     if renewables::renewable(builds[cell]) {
-        let output=renewables::supply(kind,renewables::solar_active(data::session_value(120),data::session_value(7).to_int()));
+        let time=data::session_value(120);let planet=data::session_value(7).to_int();
+        let windy=renewables::wind_active(get_scene_variable("seed").to_int(),planet,time);
+        let output=renewables::supply(kind,renewables::solar_active(time,planet),windy);
         return data::build_name(builds[cell])+" / "+output.to_string()+" power"+
-            (if kind==41 {" / 2 spots"}else{""})+"  Ctrl+3 / cable to a pole";
+            (if kind==41 {" / 2 spots"}else if kind==42 {if windy {" / Wind gust"}else{" / Calm"}}else{""})+"  Ctrl+3 / cable to a pole";
     }
     if data::expansion(builds[cell]) {return data::build_name(builds[cell])+"  [E] Recipe / ingredients / collect";}
     if data::pipe(builds[cell]) {return data::build_name(builds[cell])+" / "+data::item_name(get_scene_list_item("items",cell))+" "+get_scene_list_item("item_amounts",cell).to_int().to_string()+" / 100  [E] Inspect";}

@@ -107,42 +107,13 @@ fn packed_value(text,index) {
 // Read only occupied cells from a numeric archive. Storage pages otherwise
 // expand hundreds of empty slots for each container on every production beat.
 fn unpack_cells(text, cells, stride) {
-    let count=cells.len()*stride;
-    if text=="" { return empty_numbers(count); }
-    let values=[]; let cursor=0; let wanted=0;
-    for part in text.split(",") {
-        let run=part.split(":"); let value=parse_int(run[0]).to_float();
-        let end=cursor+if run.len()==2 { parse_int(run[1]) } else { 1 };
-        while wanted<count && cells[wanted/stride].to_int()*stride+wanted%stride<end {
-            values.push(value); wanted+=1;
-        }
-        cursor=end;
-        if wanted==count { break; }
-    }
-    values
+    unpack_numeric_cells(text,cells,stride)
 }
 
-// Only occupied cells can contain machine/storage state. Encode zero gaps in bulk
-// instead of walking thousands of empty storage slots whenever we cross a seam.
-// This uses the same run-length format as the other numeric chunk archives.
+// The bounded native encoder uses the same integer/run-length archive format.
+// It also compresses uniform occupied values, rather than expanding every zero.
 fn pack_cells(values, cells, stride) {
-    if cells.len() == 0 { return ""; }
-    let text = "";
-    let next = 0;
-    for entry in cells {
-        let start = entry.to_int() * stride;
-        if start > next {
-            if text != "" { text += ","; }
-            text += "0:" + (start - next).to_string();
-        }
-        for i in start..start + stride {
-            if text != "" { text += ","; }
-            text += values[i].to_int().to_string();
-        }
-        next = start + stride;
-    }
-    if next < values.len() { text += ",0:" + (values.len() - next).to_string(); }
-    text
+    pack_numeric_cells(values,cells,stride)
 }
 
 fn pack_text(values) {

@@ -24,5 +24,5 @@ fn on_start(me) {
     set_scene_variable("selected",40.0);set_object_variable("bar",3.0);
     set_position("camera-rig",[0.0,0.0,-3.5]);set_object_variable("camera_pan_progress",1.0);
     set_camera_size("camera",10.0);set_object_variable("camera_zoom",10.0);set_object_variable("camera_zoom_target",10.0);
-    set_scene_variable("message","Solar + wind: Ctrl+3, slots 4 / 5 / 6. The array occupies 2 spots. Solar sleeps at night.");
+    set_scene_variable("message","Solar + wind: Ctrl+3, slots 4 / 5 / 6. Arrays use 2 spots. Solar runs by day; wind runs in gusts.");
 }

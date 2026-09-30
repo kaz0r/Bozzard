@@ -6,6 +6,14 @@
     "machine-wind-turbine": {
       "kind": "mesh",
       "path": "models/renewables/wind-turbine.glb"
+    },
+    "wind-turbine-rotor": {
+      "kind": "mesh",
+      "path": "models/renewables/wind-turbine-rotor.glb"
+    },
+    "wind-rotor": {
+      "kind": "script",
+      "path": "../scripts/wind_rotor.rhai"
     }
   },
   "objects": [
@@ -43,6 +51,53 @@
         "uv_scale": [
           1,
           1
+        ]
+      }
+    },
+    {
+      "id": "rotor",
+      "name": "Wind turbine rotor",
+      "parent": "root",
+      "transform": {
+        "translation": [
+          0,
+          1.7,
+          0.25
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "wind-turbine-rotor"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      },
+      "script_manager": {
+        "scripts": [
+          {
+            "enabled": true,
+            "script": "wind-rotor"
+          }
         ]
       }
     }

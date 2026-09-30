@@ -244,7 +244,9 @@ fn discover(seed,planet,cx,cz) { deposits::generate_region_nodes(seed,cx,cz,plan
 fn electrical(kind) { power::electrical(kind) }
 fn connection_error(graph,from,to) { power::connection_error(graph,from,to) }
 fn resolve_power(graph) { power::resolve_graph(graph).graph }
-fn resolve_power(graph,time,planet) { power::resolve_graph(graph,renewables::solar_active(time,planet)).graph }
+fn resolve_power(graph,time,planet,seed) {
+    power::resolve_graph(graph,renewables::solar_active(time,planet),renewables::wind_active(seed,planet,time)).graph
+}
 fn footprint_error(builds,facings,nodes,planet,id,kind,direction,ignore,seed,free,dev,phase) {
     renewables::placement_error(builds,facings,nodes,planet,id,kind,direction,ignore,seed,free,dev,phase)
 }

@@ -2,7 +2,6 @@
 // Only the occupied region uses live UI arrays; every other region uses archives.
 import "factory-data" as data;
 import "factory-grid" as grid;
-import "factory-inventory" as inventory;
 import "factory-power" as power;
 import "factory-host_view" as host_view;
 
@@ -49,22 +48,22 @@ fn read(planet) {
         for cell in cells { if data::has_slots(builds[cell]) { storage_cells.push(cell); } }
         if storage_cells.len()==0 {continue;}
         let stored=#{};
-        if id!=current {
-            for page in 0..4 {
-                for prefix in ["storage_kinds_","storage_amounts_"] {
-                    let name=prefix+page.to_string();
-                    stored[name]=grid::unpack_cells(data::planet_region_entry("cache_"+name,planet,id),storage_cells,4);
-                }
+        for page in 0..4 {
+            for prefix in ["storage_kinds_","storage_amounts_"] {
+                let name=prefix+page.to_string();
+                stored[name]=if id==current { get_scene_list(name) }
+                    else { grid::unpack_cells(data::planet_region_entry("cache_"+name,planet,id),storage_cells,4) };
             }
         }
         let storage_index=0;
         for i in 0..cells.len() {
             let cell=cells[i]; if !data::has_slots(builds[cell]) { continue; }
-            let slots=if id==current { inventory::storage_read(cell) } else { [] };
-            if id!=current {
-                for slot in 0..16 {
-                    let page=(slot/4).to_string(); let at=storage_index*4+slot%4;
-                    slots.push(stored["storage_kinds_"+page][at]); slots.push(stored["storage_amounts_"+page][at]);
+            let slots=[];
+            for page in 0..4 {
+                let kinds=stored["storage_kinds_"+page.to_string()];let amounts=stored["storage_amounts_"+page.to_string()];
+                let base=(if id==current {cell}else{storage_index})*4;
+                for slot in 0..4 {
+                    slots.push(kinds[base+slot]);slots.push(amounts[base+slot]);
                 }
             }
             state.storage[(first+i).to_string()]=slots;
@@ -96,26 +95,35 @@ fn write(state) {
     let storage_pages=#{}; let storage_dirty=#{};
     for region in state.regions {
         let id=region[0]; let first=region[1]; let cells=region[2];
-        let storage_cells=[]; let changed=false;
+        let storage_cells=[]; let storage_indices=[]; let changed_indices=[];
         for i in 0..cells.len() {
             let key=(first+i).to_string();
             if !state.storage.contains(key) { continue; }
-            storage_cells.push(cells[i]);
+            storage_cells.push(cells[i]);storage_indices.push(i);
             if state.storage_changed.contains(key) {
-                changed=true;
-                if id==current { inventory::storage_write(cells[i],state.storage[key]); }
+                changed_indices.push(i);
             }
         }
-        if !changed || id==current { continue; }
+        if changed_indices.len()==0 { continue; }
+        if id==current {
+            set_scene_variable("storage_revision",get_scene_variable("storage_revision")+changed_indices.len().to_float());
+        }
+        // Read and write each live page once, even when every machine finishes
+        // together. Remote pages still contain the complete occupied snapshot.
         for page in 0..4 {
-            let kinds=grid::empty_numbers(900); let amounts=grid::empty_numbers(900);
-            for i in 0..cells.len() {
-                let key=(first+i).to_string(); if !state.storage.contains(key) { continue; }
-                let slots=state.storage[key];
+            let suffix=page.to_string();
+            let kinds=if id==current {get_scene_list("storage_kinds_"+suffix)}else{grid::empty_numbers(900)};
+            let amounts=if id==current {get_scene_list("storage_amounts_"+suffix)}else{grid::empty_numbers(900)};
+            for i in if id==current {changed_indices}else{storage_indices} {
+                let slots=state.storage[(first+i).to_string()];
                 for slot in 0..4 {
                     let at=cells[i]*4+slot; let source=(page*4+slot)*2;
                     kinds[at]=slots[source]; amounts[at]=slots[source+1];
                 }
+            }
+            if id==current {
+                set_scene_list("storage_kinds_"+suffix,kinds);set_scene_list("storage_amounts_"+suffix,amounts);
+                continue;
             }
             for prefix in ["storage_kinds_","storage_amounts_"] {
                 let name="cache_"+prefix+page.to_string();

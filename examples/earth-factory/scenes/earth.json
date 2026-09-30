@@ -1295,6 +1295,10 @@
       "kind": "script",
       "path": "scripts/earth_factory.rs"
     },
+    "wind-rotor": {
+      "kind": "script",
+      "path": "scripts/wind_rotor.rhai"
+    },
     "factory-architecture": {
       "kind": "script",
       "path": "scripts/factory/architecture.rhai"
@@ -1454,6 +1458,10 @@
     "factory-visuals": {
       "kind": "script",
       "path": "scripts/factory/visuals.rhai"
+    },
+    "factory-wind": {
+      "kind": "script",
+      "path": "scripts/factory/wind.rhai"
     },
     "factory-world": {
       "kind": "script",
@@ -56648,7 +56656,7 @@
     },
     {
       "id": "renewable-view",
-      "name": "Transient renewable power cache",
+      "name": "Transient renewable power and wind cache",
       "transform": {
         "translation": [
           0,
@@ -56676,7 +56684,341 @@
           "scalar": {
             "number": -1
           }
+        },
+        "earth_wind": {
+          "scalar": {
+            "number": -1
+          }
+        },
+        "moon_wind": {
+          "scalar": {
+            "number": -1
+          }
+        },
+        "angle": {
+          "scalar": {
+            "number": -1
+          }
+        },
+        "rotor_count": {
+          "scalar": {
+            "number": 0
+          }
+        },
+        "gust_visible": {
+          "scalar": {
+            "bool": false
+          }
+        },
+        "rotors_0": {
+          "list": {
+            "element": "text",
+            "capacity": 1024,
+            "values": []
+          }
+        },
+        "rotors_1": {
+          "list": {
+            "element": "text",
+            "capacity": 1024,
+            "values": []
+          }
+        },
+        "rotors_2": {
+          "list": {
+            "element": "text",
+            "capacity": 1024,
+            "values": []
+          }
         }
+      }
+    },
+    {
+      "id": "wind-streak-0",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-1",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-2",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-3",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-4",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-5",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-6",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    },
+    {
+      "id": "wind-streak-7",
+      "name": "Wind gust",
+      "transform": {
+        "translation": [
+          0,
+          -1000,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          -19.3,
+          0
+        ],
+        "scale": [
+          0.5,
+          0.003,
+          0.012
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.44,
+          0.59,
+          0.52
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
       }
     },
     {

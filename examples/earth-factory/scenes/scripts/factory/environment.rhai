@@ -1,18 +1,28 @@
 // Rhai gameplay: environment.
 import "factory-data" as data;
+import "factory-grid" as grid;
+
+fn player_center() {
+    [grid::world_x(get_scene_variable("cursor_x")),0.0,grid::world_z(get_scene_variable("cursor_z"))]
+}
+
+// New worlds, save restoration and planet arrival start at the local player.
+fn center_on_player() {
+    set_position("camera-rig",player_center());
+    set_object_variable("camera_pan_progress",1.0);
+}
 
 fn update_camera(dt) {
-    let pan = get_object_variable("camera_pan_progress");
-    if pan < 1.0 {
-        pan = min(1.0, pan + dt / 0.55);
-        let eased = pan * pan * pan * (pan * (6.0 * pan - 15.0) + 10.0);
-        let from = get_object_list("camera_pan_from");
-        set_position("camera-rig", [
-            lerp(from[0], get_scene_variable("chunk_x") * 15.0, eased), 0.0,
-            lerp(from[2], get_scene_variable("chunk_z") * 15.0, eased)
-        ]);
-        set_object_variable("camera_pan_progress", pan);
-    }
+    let from=get_position("camera-rig");let target=player_center();
+    // Exponential damping has the same response at different frame rates and
+    // follows every player step, including seams and prediction corrections.
+    let blend=1.0-exp(-max(0.0,dt)*12.0);
+    let next=[lerp(from[0],target[0],blend),0.0,lerp(from[2],target[2],blend)];
+    let settled=max(abs(next[0]-target[0]),abs(next[2]-target[2]))<0.001;
+    if settled {next=target;}
+    if next!=from {set_position("camera-rig",next);}
+    let pan=if settled {1.0}else{0.0};
+    if get_object_variable("camera_pan_progress")!=pan {set_object_variable("camera_pan_progress",pan);}
     let heading = get_scene_variable("camera_heading");
     let t = get_scene_variable("camera_progress");
     let pending = get_scene_variable("camera_pending");

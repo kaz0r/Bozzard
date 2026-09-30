@@ -40,9 +40,16 @@
       "id": "machine-wind-turbine",
       "kind": 42,
       "name": "Small wind turbine",
-      "triangles": 348,
+      "triangles": 224,
       "mesh": "models/renewables/wind-turbine.glb",
       "prefab": "machine-wind-turbine.prefab.json",
+      "rotor_mesh": "models/renewables/wind-turbine-rotor.glb",
+      "rotor_triangles": 124,
+      "rotor_pivot": [
+        0,
+        1.7,
+        0.25
+      ],
       "footprint": [
         [
           0,

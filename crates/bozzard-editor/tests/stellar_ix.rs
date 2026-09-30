@@ -524,5 +524,154 @@ fn renewable_power_models_render_in_the_playable_showroom() -> anyhow::Result<()
         renderer.draw(&gpu, target, size, &render)
     })?;
     capture.write_ppm(&std::env::temp_dir().join("stellar-renewables.ppm"))?;
+    let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
+        .replace("fn on_update(me, dt)", "fn normal_update(me, dt)");
+    let mut previous_angle = None;
+    let mut previous_pixels = None;
+    for (stage, time, supply) in [
+        ("calm-before", 10.0, 20.0),
+        ("gust", 20.0, 26.0),
+        ("gust-moving", 20.1, 26.0),
+        ("calm-after", 40.0, 8.0),
+        ("calm-still", 40.1, 8.0),
+    ] {
+        let play = editor.play.as_mut().unwrap();
+        let script = format!(
+            r#"{source}
+            fn on_update(me,dt) {{
+                data::session_set(120,{time:.1});power::update_power();wind::update();
+                set_scene_variable("cursor_x",3.0);set_scene_variable("cursor_z",-2.0);
+                set_visible("cursor",false);set_ui_visible("game-hud",false);
+                set_position("camera-rig",[3.0,0.7,-4.0]);set_camera_size("camera",3.5);
+            }}"#
+        );
+        play.with_instance(|instance, _| instance.register_script("earth-factory".into(), script))?;
+        play.app.step();
+        play.check_simulation()?;
+        let rotor = play
+            .instance()
+            .document()
+            .objects
+            .iter()
+            .find(|o| o.name == "Wind turbine rotor")
+            .unwrap();
+        let angle = play
+            .app
+            .world
+            .get::<bozzard_scene::Transform>(play.instance().entity(&rotor.id).unwrap())
+            .unwrap()
+            .rotation_degrees[2];
+        let boards = play
+            .app
+            .world
+            .resource::<bozzard_scene::BlueprintRuntime>()
+            .unwrap();
+        assert_eq!(
+            boards.scene_blackboard()["power_supply"].values()[0].number()?,
+            supply
+        );
+        if stage == "gust-moving" {
+            assert_ne!(Some(angle), previous_angle);
+        }
+        if stage == "calm-still" {
+            assert_eq!(Some(angle), previous_angle);
+        }
+        let render = editor.render(Layer::ThreeD, size[0] as f32 / size[1] as f32)?;
+        let capture = bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
+            renderer.draw(&gpu, target, size, &render)
+        })?;
+        if stage == "gust-moving" {
+            assert_ne!(Some(&capture.rgba), previous_pixels.as_ref());
+        }
+        if stage == "calm-still" {
+            assert_eq!(Some(&capture.rgba), previous_pixels.as_ref());
+        }
+        capture.write_ppm(&std::env::temp_dir().join(format!("stellar-wind-{stage}.ppm")))?;
+        previous_angle = Some(angle);
+        previous_pixels = Some(capture.rgba);
+    }
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires a native graphics adapter; captures player-follow camera movement"]
+fn player_camera_renders_centered_after_crossing_a_seam_and_orbiting() -> anyhow::Result<()> {
+    use bozzard_scene::{GameplayInput, Transform, keys};
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/earth.json");
+    let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
+        .replace("fn on_start(me)", "fn original_start(me)");
+    let source = format!(
+        r#"{source}
+        fn on_start(me) {{
+            navigation::show_title(false);world::begin_world(4);
+            set_scene_variable("cursor_x",6.0);set_scene_variable("cursor_z",2.0);
+            environment::center_on_player();
+        }}
+    "#
+    );
+    let mut editor = Editor::open(&path)?;
+    editor.assets.require_ready()?;
+    editor.start_play()?;
+    let play = editor.play.as_mut().unwrap();
+    play.with_instance(|instance, _| instance.register_script("earth-factory".into(), source))?;
+    play.app.step();
+    play.check_simulation()?;
+    let gpu = pollster::block_on(Gpu::request(
+        &bozzard_render::instance(bozzard_render::Backend::native()),
+        None,
+        false,
+    ))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    for entry in editor.assets.entries() {
+        if let Some(data) = entry.data() {
+            bozzard_render_assets::upload(&gpu, &mut renderer, &entry.id, data)?;
+        }
+    }
+    let size = [1080, 720];
+    for (stage, frames) in [("start", 0), ("follow", 4), ("settled", 60), ("orbit", 60)] {
+        let play = editor.play.as_mut().unwrap();
+        for frame in 0..frames {
+            let input = if stage == "follow" && frame % 2 == 0 {
+                keys::bit("D")
+            } else if stage == "orbit" && frame == 0 {
+                keys::bit("Ctrl") | keys::bit("R")
+            } else {
+                0
+            };
+            play.set_gameplay_input(GameplayInput {
+                keys: input,
+                ..Default::default()
+            });
+            play.app.step();
+            play.check_simulation()?;
+        }
+        if stage == "settled" || stage == "orbit" {
+            let rig = play
+                .app
+                .world
+                .get::<Transform>(play.instance().entity("camera-rig").unwrap())
+                .unwrap();
+            assert_eq!(rig.translation, [8., 0., 2.]);
+            let camera = play
+                .app
+                .world
+                .get::<bozzard_scene::Camera>(play.instance().entity("camera").unwrap())
+                .unwrap();
+            let matrix = camera.projection(size[0] as f32 / size[1] as f32)?
+                * play.instance().global_transforms(&play.app.world)?["camera"].inverse();
+            let point = matrix * glam::Vec3::new(8., 0., 2.).extend(1.);
+            assert!(
+                point.x.abs() < 0.001 && point.y.abs() < 0.001,
+                "player tile must project to viewport center after following/orbiting"
+            );
+        }
+        let render = editor.render(Layer::ThreeD, size[0] as f32 / size[1] as f32)?;
+        let capture = bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
+            renderer.draw(&gpu, target, size, &render)
+        })?;
+        capture
+            .write_ppm(&std::env::temp_dir().join(format!("stellar-player-camera-{stage}.ppm")))?;
+    }
     Ok(())
 }

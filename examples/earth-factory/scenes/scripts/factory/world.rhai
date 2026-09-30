@@ -197,10 +197,10 @@ fn begin_world(seed, developer) {
         restore_chunk(0,0);
         set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",3.0);
         set_position("cursor",[0.0,0.115,3.0]);
-        set_position("camera-rig",[7.5,0.0,7.5]);set_object_variable("camera_pan_progress",1.0);
         set_object_variable("camera_zoom",32.0);set_object_variable("camera_zoom_target",32.0);set_camera_size("camera",32.0);
         set_scene_variable("message","Dev World: deposits, machines and item samples. N resets the showcase.");
     }
+    environment::center_on_player();
     power::update_power();
 }
 
@@ -306,8 +306,6 @@ fn restore_chunk(cx, cz) {
     set_scene_variable("tooltip_cell", -1.0);
     set_scene_variable("tooltip_alpha", 0.0);
     set_ui_visible("nearby-tooltip", false);
-    set_object_list("camera_pan_from", get_position("camera-rig"));
-    set_object_variable("camera_pan_progress", 0.0);
     set_scene_variable("message", "Region " + cx.to_string() + ", " + cz.to_string() + ". Your factories remain where you built them.");
 }
 
@@ -356,8 +354,7 @@ fn travel_to_other_planet() {
     set_object_list("ui_views", ["", "", "", "", "", ""]);
     set_scene_variable("cursor_x", 0.0); set_scene_variable("cursor_z", 2.0);
     set_position("cursor", [0.0, 0.115, 2.0]);
-    set_position("camera-rig", [0.0, 0.0, 0.0]);
-    set_object_variable("camera_pan_progress", 1.0);
+    environment::center_on_player();
     set_object_variable("gather_clock", 0.0);
     power::update_power(); visuals::update_projects();
     environment::update_daylight(if data::on_moon() { -1.0 } else { sin(data::session_value(120) * 0.10) });

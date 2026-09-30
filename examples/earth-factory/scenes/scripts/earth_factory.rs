@@ -29,6 +29,7 @@ import "factory-progression" as progression;
 import "factory-simulation" as simulation;
 import "factory-visuals" as visuals;
 import "factory-world" as world;
+import "factory-wind" as wind;
 
 fn on_start(me) {
     set_visible("hover-tile",false); set_visible("rocket-exhaust",false);
@@ -49,7 +50,7 @@ fn on_update(me, dt) {
     if !guest && persistence::update(dt) { return; }
     if guest {data::session_set(124,data::session_value(124)+dt);}
     let saves_open=data::session_value(123)>0.0;
-    if get_object_variable("title_open") { if !saves_open {navigation::update_title();} return; }
+    if get_object_variable("title_open") { wind::hide();if !saves_open {navigation::update_title();} return; }
     let flight_active=if guest {guest_view::flight(dt)}else{flight::update(dt)};
     let inspecting=data::session_value(46)>=0.0;
     let menu_active = saves_open || if !flight_active { navigation::update_menu() } else { false };
@@ -138,6 +139,7 @@ fn on_update(me, dt) {
     }
     visuals::update_projects();
     interiors::update(dt);
+    wind::update();
     players::update(dt,inventory_active);
     hud::update_hud(dt, daylight);
     hud::update_debug_hud(dt);

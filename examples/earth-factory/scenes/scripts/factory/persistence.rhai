@@ -65,7 +65,7 @@ fn restore_view() {
     else { chunks::load_chunk_visuals(cx,cz); }
     world::restore_chunk(cx,cz);
     set_position("cursor",[grid::world_x(get_scene_variable("cursor_x")),0.115,grid::world_z(get_scene_variable("cursor_z"))]);
-    set_position("camera-rig",[(cx*15).to_float(),0.0,(cz*15).to_float()]);
+    environment::center_on_player();
     set_rotation("camera-rig",[0.0,0.0,0.0]);set_scene_variable("camera_heading",0.0);set_scene_variable("camera_pending",0.0);set_scene_variable("camera_progress",1.0);
     set_object_variable("camera_pan_progress",1.0);set_object_variable("camera_zoom",19.0);set_object_variable("camera_zoom_target",19.0);set_camera_size("camera",19.0);
     set_visible("ground",!data::on_moon() && !data::dev_world());set_visible("cursor",true);set_visible("rocket-exhaust",false);set_visible("hover-tile",false);

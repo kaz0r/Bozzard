@@ -112,12 +112,27 @@ cargo test -p bozzard-demo --release --test earth_factory profile_planet_factori
 This reports headless CPU tick timings separately for ordinary frames and production beats;
 it does not measure GPU time or windowed FPS.
 
-Crossing a seam eases the camera to the next region over 0.55 seconds. Reversing direction
-retargets from its current position; orbit and zoom can continue during the pan. Residency
+The camera smoothly follows the local player's world position on every step, including
+across region seams. Reversing direction retargets from its current position without
+snapping to a region center. Orbit and zoom continue around the player during movement.
+New worlds, save restoration, and planet arrivals center on the local player. Residency
 covers both the moving view and its destination, and surrounding loads/removals drain one
 region per tick. Chunk switches archive occupied machine/storage cells and reuse item models.
 The engine batches consecutive scripted prefab spawns and callback-free removals into single
 scene validations, while preserving lifecycle callbacks for scripted machines.
+
+Dense factories keep the normal 2,000,000-operation script limit. Power refreshes
+rank nearby lamps once for the 32-light pool; storage reads/writes are batched per
+region and page. Numeric archive packing and selected-cell decoding use bounded
+native helpers, retaining the existing save format. Transport requests group by
+destination/inlet while retaining one-hop movement and merger priority; empty
+fluid slots skip fluid checks. Regressions run 400-machine factories through the
+normal controller, including simultaneous power refresh/production, old literal
+archive pages, and placement during a production beat:
+
+```sh
+cargo test --offline -p bozzard-demo --test earth_factory four_hundred_
+```
 
 To measure the simulation cost of crossing, discovery, and streaming separately in release mode:
 
@@ -550,7 +565,7 @@ on clear ground and cable each source to a power pole using slot 3.
 | --- | --- | --- | --- |
 | Solar panel | 1 spot | 4 power during Earth's daytime | 4 iron ingots, 2 copper ingots, 2 glass, 2 cables |
 | Solar array | 2 adjacent spots | 8 power during Earth's daytime | 8 iron ingots, 4 copper ingots, 4 glass, 4 cables |
-| Small wind turbine | 1 spot | 6 power continuously | 6 iron ingots, 4 copper ingots, 2 cables |
+| Small wind turbine | 1 spot | 6 power while the rotor spins | 6 iron ingots, 4 copper ingots, 2 cables |
 
 **R** rotates the array around its first spot; the second spot follows its facing.
 Both spots must be explored, clear of deposits, machines and wreckage, and inside
@@ -561,14 +576,22 @@ same footprint and costs in multiplayer.
 
 Solar-only circuits stop at night and restart at dawn, including when Earth is
 simulating in the background. Solar has no output on the permanently dark lunar
-map. Wind is steady in this prototype, without a weather simulation. Dawn/dusk
-refreshes the circuit graph once per transition; unchanged frames reuse the
-existing power state. The turbine rotor is static in these prototype meshes.
+map. Both planets have occasional seeded wind gusts: 10–16 seconds of wind in
+each 48-second weather window, with varied timing and speed. The turbine blades
+accelerate and decelerate over two seconds, then remain still during the calm.
+They supply 6 power throughout a gust and zero while stopped; a wind-only circuit
+pauses and resumes with the weather. Subtle pooled ground streaks show the gust
+outdoors. The saved world clock determines weather and rotor angle, including
+after loading, streaming regions, and synchronizing a multiplayer session.
+
+Dawn/dusk and wind transitions refresh each planet’s circuit graph only when its
+supply changes. Calm frames reuse the power state and rotor transforms. Only
+resident rotors animate, using indexed meshes and regular instance batches.
 
 Open [`scenes/renewables-showroom.json`](scenes/renewables-showroom.json) in Editor
 Play to inspect a wired solar/wind circuit. Editable meshes, the model manifest,
 and the studio preview are in [`../../assets/renewables/`](../../assets/renewables/).
-The indexed GLBs use 560 / 1,220 / 348 triangles with 5–6 shared material groups.
+The indexed GLBs use 560 / 1,220 / 348 triangles with 5–6 shared material groups, including the rotating child mesh.
 
 ```sh
 blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_renewables.py

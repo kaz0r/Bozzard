@@ -166,6 +166,9 @@ fn resolve_graph(graph) {
     resolve_graph(graph,true)
 }
 fn resolve_graph(graph,sunny) {
+    resolve_graph(graph,sunny,false)
+}
+fn resolve_graph(graph,sunny,windy) {
     let visited = #{};
     let total_supply = 0;
     let total_demand = 0;
@@ -179,7 +182,7 @@ fn resolve_graph(graph,sunny) {
         while at < queue.len() {
             let key = queue[at]; at += 1;
             let entry = graph[key]; members.push(key);
-            supply += renewables::supply(entry[0],sunny);
+            supply += renewables::supply(entry[0],sunny,windy);
             demand += power_demand(entry[0]);
             for target in entry.extract(2) {
                 let peer = target.to_string();
@@ -196,14 +199,22 @@ fn resolve_graph(graph,sunny) {
 fn update_power() {
     let planet=if data::on_moon(){1}else{0};let time=data::session_value(120);
     let sunny=renewables::solar_active(time,planet);
+    let seed=get_scene_variable("seed").to_int();
+    let windy=renewables::wind_active(seed,planet,time);
+    let other_windy=renewables::wind_active(seed,1-planet,time);
     let daylight=if renewables::solar_active(time,0){1.0}else{0.0};
     let changed=get_object_variable("renewable-view","day")!=daylight || get_object_variable("renewable-view","planet")!=planet.to_float();
-    let dirty = get_object_variable("power_dirty") || changed;
-    if changed {
-        // Refresh the other planet only at dawn/dusk or a planet switch.
-        write_power("power_other",resolve_graph(power_graph("power_other"),renewables::solar_active(time,1-planet)).graph);
+    let wind_key=if planet==0 {"earth_wind"}else{"moon_wind"};
+    let other_key=if planet==0 {"moon_wind"}else{"earth_wind"};
+    let wind_value=if windy {1.0}else{0.0};let other_value=if other_windy {1.0}else{0.0};
+    let dirty = get_object_variable("power_dirty") || changed || get_object_variable("renewable-view",wind_key)!=wind_value;
+    if changed || get_object_variable("renewable-view",other_key)!=other_value {
+        // Weather transitions update off-world circuits as well as the visible one.
+        write_power("power_other",resolve_graph(power_graph("power_other"),renewables::solar_active(time,1-planet),other_windy).graph);
         set_object_variable("renewable-view","day",daylight);set_object_variable("renewable-view","planet",planet.to_float());
     }
+    if get_object_variable("renewable-view",wind_key)!=wind_value {set_object_variable("renewable-view",wind_key,wind_value);}
+    if get_object_variable("renewable-view",other_key)!=other_value {set_object_variable("renewable-view",other_key,other_value);}
     let aspect = render_stats().viewport_aspect;
     // Chunk load/unload invalidates this view. Do not format all 289 residency
     // entries every tick just to rediscover that nothing has changed.
@@ -211,7 +222,7 @@ fn update_power() {
     if !dirty && view == get_object_list("ui_views")[4] { return; }
     let graph = power_graph();
     if dirty {
-        let resolved=resolve_graph(graph,sunny); graph=resolved.graph;
+        let resolved=resolve_graph(graph,sunny,windy); graph=resolved.graph;
         let total_supply=resolved.supply; let total_demand=resolved.demand;
         write_power(graph);
         let live = grid::empty_numbers(225);
@@ -333,24 +344,26 @@ fn sync_power_visuals(graph) {
     for group in 0..5 { set_object_list("power_fx_" + group.to_string(), pages[group]); }
     // Fixed light budget shared by poles, faint status LEDs and furnace heat.
     // Emissive lenses remain visible even beyond the nearest illumination slots.
-    let center = [get_scene_variable("chunk_x") * 15.0, 0.0, get_scene_variable("chunk_z") * 15.0];
-    let used = #{};
+    let center_x = get_scene_variable("chunk_x").to_int() * 15;
+    let center_z = get_scene_variable("chunk_z").to_int() * 15;
+    let ranked = [];
+    for i in 0..lamps.len() {
+        let pos = power_position(lamps[i].id);
+        let dx = pos[0].to_int() - center_x; let dz = pos[2].to_int() - center_z;
+        // Grid coordinates have integral squared distances. Include the original
+        // index to preserve the previous selection order for equally near lamps.
+        ranked.push((dx * dx + dz * dz) * lamps.len() + i);
+    }
+    ranked.sort();
     let slots = grid::empty_text(32);
     for light in 0..32 {
         if light == 31 && data::session_value(6) > 0.0 {
             set_light_intensity("pole-light-31", 0.0);
             continue;
         }
-        let best = -1; let distance = 10000000.0;
-        for i in 0..lamps.len() {
-            if used.contains(i.to_string()) { continue; }
-            let pos = power_position(lamps[i].id);
-            let d = pow(pos[0] - center[0], 2.0) + pow(pos[2] - center[2], 2.0);
-            if d < distance { distance = d; best = i; }
-        }
+        let best = if light < ranked.len() { ranked[light] % lamps.len() } else { -1 };
         let target = "pole-light-" + light.to_string();
         if best >= 0 {
-            used[best.to_string()] = true;
             let lamp = lamps[best]; let pos = power_position(lamp.id);
             if lamp.role == "pole" {
                 set_position(target, [pos[0],1.98,pos[2]]);

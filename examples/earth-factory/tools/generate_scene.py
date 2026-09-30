@@ -817,6 +817,7 @@ def scene():
     for model in json.loads((ROOT.parent.parent / "assets/renewables/manifest.json").read_text())["models"]:
         assets[model["id"]] = {"kind": "prefab", "path": "assets/"+model["prefab"]}
     assets["earth-factory"] = {"kind": "script", "path": "scripts/earth_factory.rs"}
+    assets["wind-rotor"] = {"kind": "script", "path": "scripts/wind_rotor.rhai"}
     for module in sorted((SCENES / "scripts" / "factory").glob("*.rhai")):
         assets["factory-" + module.stem] = {"kind": "script", "path": module.relative_to(SCENES).as_posix()}
 
@@ -826,8 +827,17 @@ def scene():
     def list_var(kind, capacity):
         return {"list": {"element": kind, "capacity": capacity, "values": []}}
 
-    objects.append({"id":"renewable-view","name":"Transient renewable power cache",
-        "transform":transform(),"blackboard":{"day":scalar("number",-1),"planet":scalar("number",-1)}})
+    renewable_board = {"day":scalar("number",-1),"planet":scalar("number",-1),
+        "earth_wind":scalar("number",-1),"moon_wind":scalar("number",-1),
+        "angle":scalar("number",-1),"rotor_count":scalar("number",0),"gust_visible":scalar("bool",False)}
+    for page in range(3): renewable_board["rotors_"+str(page)] = list_var("text",1024)
+    objects.append({"id":"renewable-view","name":"Transient renewable power and wind cache",
+        "transform":transform(),"blackboard":renewable_board})
+    for i in range(8):
+        streak = cube(f"wind-streak-{i}","Wind gust",(0,-1000,0),(.5,.003,.012),[.44,.59,.52])
+        streak["transform"]["rotation_degrees"][1] = -19.3
+        streak["drawable"]["gi_static"] = False
+        objects.append(streak)
 
     architecture_board = {"observed": list_var("text", 578), "rooms": list_var("text", 289),
         "door_progress": list_var("text", 289), "loaded": list_var("text", 289),
