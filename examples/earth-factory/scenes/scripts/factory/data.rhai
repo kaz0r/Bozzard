@@ -213,6 +213,7 @@ fn node_name(kind) {
 }
 
 fn build_asset(kind) {
+    if kind>=40.0 && kind<=42.0 {return "machine-"+["solar-panel","solar-array","wind-turbine"][kind.to_int()-40];}
     if kind>=12.0 && kind<=29.0 { return "machine-"+expansion_slug(kind); }
     if kind == 1.0 { "machine-miner" }
     else if kind == 2.0 { "machine-belt" }
@@ -227,6 +228,8 @@ fn build_asset(kind) {
 }
 
 fn build_name(kind) {
+    if kind>=40.0 && kind<=42.0 {return ["SOLAR PANEL","SOLAR ARRAY","WIND TURBINE"][kind.to_int()-40];}
+    if kind>=30.0 && kind<=39.0 {return ["CONCRETE FLOOR","WOOD FLOOR","CONCRETE WALL","BRICK WALL","METAL WALL","WOOD WALL","CONCRETE ROOF","WOOD ROOF","SLIDING DOOR","WALL WINDOW"][kind.to_int()-30];}
     if kind>=12.0 && kind<=29.0 { return ["WATER PUMP","OIL EXTRACTOR","CRUSHER","ORE WASHER","FOUNDRY","REFINERY","CHEMICAL PLANT","ELECTROLYZER","KILN","GLASSWORKS","GREENHOUSE","ELECTRONICS FABRICATOR","MANUFACTURER","RECYCLER","PIPE","PIPE ELBOW","BELT LEFT","BELT RIGHT"][kind.to_int()-12]; }
     if kind == 1.0 { "MINER" }
     else if kind == 2.0 { "BELT" }
@@ -298,7 +301,9 @@ fn tool_unlocked(kind) {
     tool_unlocked(kind,get_object_variable("phase"),free_build())
 }
 fn tool_unlocked(kind,phase,creative) {
-    if creative { return kind > 0.0 && kind<=29.0; }
+    if creative { return kind > 0.0 && kind<=42.0; }
+    if kind>=40.0 && kind<=42.0 {return phase>=4.0;}
+    if kind>=30.0 && kind<=39.0 {return phase>=4.0;}
     if kind == 1.0 || kind == 3.0 || kind == 2.0 || kind == 9.0 || kind == 10.0 { phase >= 1.0 }
     else if kind == 4.0 { phase >= 2.0 }
     else if kind == 6.0 { phase >= 3.0 }
@@ -311,11 +316,22 @@ fn bar_tools(bar) {
     else if bar == 1 { [3.0, 1.0, 11.0, 5.0, 12.0, 13.0, 14.0, 15.0] }
     else if bar == 2 { [2.0, 4.0, 7.0, 8.0, 26.0, 27.0, 28.0, 29.0] }
     else if bar == 4 { [16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0] }
+    else if bar == 6 {[30.0,31.0,32.0,33.0,34.0,35.0,38.0,39.0]}
+    else if bar == 7 {[36.0,37.0,0.0,0.0,0.0,0.0,0.0,0.0]}
     else if bar == 5 { [24.0,25.0,0.0,0.0,0.0,0.0,0.0,0.0] }
-    else { [6.0, 9.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0] }
+    else { [6.0, 9.0, 10.0, 40.0, 41.0, 42.0, 0.0, 0.0] }
 }
 
 fn build_cost(kind) {
+    if kind==40.0 {return [11,4.0,12,2.0,14,2.0,17,2.0];}
+    if kind==41.0 {return [11,8.0,12,4.0,14,4.0,17,4.0];}
+    if kind==42.0 {return [11,6.0,12,4.0,17,2.0];}
+    if kind==30.0 || kind==32.0 || kind==36.0 {return [18,2.0];}
+    if kind==31.0 || kind==35.0 || kind==37.0 {return [46,4.0];}
+    if kind==33.0 {return [41,4.0];}
+    if kind==34.0 {return [15,2.0];}
+    if kind==38.0 {return [15,2.0,14,2.0,47,1.0];}
+    if kind==39.0 {return [15,1.0,14,2.0];}
     if kind==26.0 || kind==27.0 { return [11,1.0,12,1.0]; }
     if kind==28.0 || kind==29.0 { return [11,1.0]; }
     if expansion(kind) { return [11,8.0,12,4.0,20,2.0]; }

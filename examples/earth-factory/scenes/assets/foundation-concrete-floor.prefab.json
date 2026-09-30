@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Concrete foundation",
+  "root": "root",
+  "assets": {
+    "foundation-concrete-floor": {
+      "kind": "mesh",
+      "path": "models/foundations/concrete-floor.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Concrete foundation",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-concrete-floor"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Split cargo hull",
+  "root": "root",
+  "assets": {
+    "debris-hull": {
+      "kind": "mesh",
+      "path": "models/debris/debris-hull.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Split cargo hull",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "debris-hull"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

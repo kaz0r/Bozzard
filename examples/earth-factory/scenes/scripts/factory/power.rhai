@@ -4,8 +4,9 @@ import "factory-net_input" as net;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-model_ports" as model_ports;
+import "factory-renewables" as renewables;
 
-fn electrical(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 9 || kind == 10 || kind == 11 || kind>=12 && kind<=25 }
+fn electrical(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 9 || kind == 10 || kind == 11 || kind>=12 && kind<=25 || kind>=40 && kind<=42 }
 
 fn power_id(cell) { grid::chunk_id(get_scene_variable("chunk_x").to_int(), get_scene_variable("chunk_z").to_int()) * 225 + cell }
 
@@ -37,6 +38,9 @@ fn power_graph(name) {
 }
 
 fn write_power(graph) {
+    write_power("power_data",graph);
+}
+fn write_power(name,graph) {
     let pages = grid::empty_text(867);
     let decoded = #{};
     for key in graph.keys() {
@@ -49,7 +53,7 @@ fn write_power(graph) {
         decoded[page][id % 75] = text;
     }
     for page in decoded.keys() { pages[parse_int(page)] = grid::pack_text(decoded[page]); }
-    set_object_list("power_data", pages);
+    set_object_list(name, pages);
 }
 
 fn power_register(id, kind) {
@@ -102,6 +106,7 @@ fn connection_error(graph,a,b) {
 fn wire_selected() {
     if !data::tool_unlocked(10.0) { set_scene_variable("message", "Unlock smelting to use poles and cables."); return; }
     let id = power_id(grid::index(get_scene_variable("cursor_x").to_int(), get_scene_variable("cursor_z").to_int()));
+    let owner=renewables::local_owner(id);if renewables::array_kind(owner)==41.0 {id=owner;}
     let graph = power_graph();
     if !graph.contains(id.to_string()) { set_scene_variable("message", "Stand on a pole, powered machine, generator or landing pod."); return; }
     let start = get_object_variable("wire_start").to_int();
@@ -139,6 +144,7 @@ fn disconnect_power(id, peer) {
 
 fn disconnect_selected() {
     let id = power_id(grid::index(get_scene_variable("cursor_x").to_int(), get_scene_variable("cursor_z").to_int()));
+    let owner=renewables::local_owner(id);if renewables::array_kind(owner)==41.0 {id=owner;}
     if net::guest() {net::send("unwire",#{from:net::address(id),to:()});return;}
     let graph = power_graph();
     if !graph.contains(id.to_string()) { return; }
@@ -157,6 +163,9 @@ fn pole_status(id) {
 fn power_demand(kind) { if kind>=12 && kind<=25 {[2,3,2,3,4,5,4,6,3,3,2,4,6,3][kind-12]}else if kind == 1 { 1 } else if kind == 3 { 2 } else if kind == 5 { 3 } else if kind == 11 { 2 } else { 0 } }
 
 fn resolve_graph(graph) {
+    resolve_graph(graph,true)
+}
+fn resolve_graph(graph,sunny) {
     let visited = #{};
     let total_supply = 0;
     let total_demand = 0;
@@ -170,8 +179,7 @@ fn resolve_graph(graph) {
         while at < queue.len() {
             let key = queue[at]; at += 1;
             let entry = graph[key]; members.push(key);
-            if entry[0] == 10 { supply += 8; }
-            if entry[0] == 6 { supply += 10; }
+            supply += renewables::supply(entry[0],sunny);
             demand += power_demand(entry[0]);
             for target in entry.extract(2) {
                 let peer = target.to_string();
@@ -186,7 +194,16 @@ fn resolve_graph(graph) {
 }
 
 fn update_power() {
-    let dirty = get_object_variable("power_dirty");
+    let planet=if data::on_moon(){1}else{0};let time=data::session_value(120);
+    let sunny=renewables::solar_active(time,planet);
+    let daylight=if renewables::solar_active(time,0){1.0}else{0.0};
+    let changed=get_object_variable("renewable-view","day")!=daylight || get_object_variable("renewable-view","planet")!=planet.to_float();
+    let dirty = get_object_variable("power_dirty") || changed;
+    if changed {
+        // Refresh the other planet only at dawn/dusk or a planet switch.
+        write_power("power_other",resolve_graph(power_graph("power_other"),renewables::solar_active(time,1-planet)).graph);
+        set_object_variable("renewable-view","day",daylight);set_object_variable("renewable-view","planet",planet.to_float());
+    }
     let aspect = render_stats().viewport_aspect;
     // Chunk load/unload invalidates this view. Do not format all 289 residency
     // entries every tick just to rediscover that nothing has changed.
@@ -194,7 +211,7 @@ fn update_power() {
     if !dirty && view == get_object_list("ui_views")[4] { return; }
     let graph = power_graph();
     if dirty {
-        let resolved=resolve_graph(graph); graph=resolved.graph;
+        let resolved=resolve_graph(graph,sunny); graph=resolved.graph;
         let total_supply=resolved.supply; let total_demand=resolved.demand;
         write_power(graph);
         let live = grid::empty_numbers(225);
@@ -436,8 +453,9 @@ fn wire_demo() {
 }
 
 fn power_anchor(id, kind) {
-    if kind>=12 && kind<=25 {
-        let local=model_ports::socket(kind);let pos=power_position(id);let angle=0.0;let lift=0.08;
+    if kind>=12 && kind<=25 || kind>=40 && kind<=42 {
+        let local=if kind==40 {[0.0,0.16,0.405]}else if kind==41 {[0.5,0.23,0.40]}else if kind==42 {[0.0,0.28,0.10]}else{model_ports::socket(kind)};
+        let pos=power_position(id);let angle=0.0;let lift=0.08;
         let target=machine_handle(id);
         if target!="" {angle=get_rotation(target)[1]*0.0174532925;lift=get_position(target)[1];}
         else {

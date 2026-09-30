@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "units": "tile",
+  "up_axis": "Y",
+  "array_pivot": "first tile; second tile along facing",
+  "models": [
+    {
+      "id": "machine-solar-panel",
+      "kind": 40,
+      "name": "Solar panel",
+      "triangles": 560,
+      "mesh": "models/renewables/solar-panel.glb",
+      "prefab": "machine-solar-panel.prefab.json",
+      "footprint": [
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "machine-solar-array",
+      "kind": 41,
+      "name": "Solar array",
+      "triangles": 1220,
+      "mesh": "models/renewables/solar-array.glb",
+      "prefab": "machine-solar-array.prefab.json",
+      "footprint": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "machine-wind-turbine",
+      "kind": 42,
+      "name": "Small wind turbine",
+      "triangles": 348,
+      "mesh": "models/renewables/wind-turbine.glb",
+      "prefab": "machine-wind-turbine.prefab.json",
+      "footprint": [
+        [
+          0,
+          0
+        ]
+      ]
+    }
+  ]
+}

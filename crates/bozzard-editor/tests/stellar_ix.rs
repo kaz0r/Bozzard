@@ -10,12 +10,25 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?;
+    let showroom = std::fs::read_to_string(
+        path.parent()
+            .unwrap()
+            .join("scripts/foundation_showroom.rhai"),
+    )?;
+    let showroom = format!(
+        "fn foundation_setup(me){}",
+        showroom.split_once("fn on_start(me)").unwrap().1
+    );
     let gpu = pollster::block_on(Gpu::request(
         &bozzard_render::instance(bozzard_render::Backend::native()),
         None,
         false,
     ))?;
     for label in [
+        "foundation-outside",
+        "foundation-window",
+        "foundation-inside",
+        "foundation-door",
         "title",
         "coop",
         "journal",
@@ -72,12 +85,14 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                         "expansion-refinery",
                     ]
                     .contains(&label)
+                        || label.starts_with("foundation-")
                     {
                         "1.0"
                     } else {
                         "-1.0"
                     },
                 );
+            let source = format!("{source}\n{showroom}");
             let script = format!(
                 r#"{source}
             fn on_start(me) {{
@@ -150,6 +165,7 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                     return;
                 }}
                 navigation::show_title(false); set_object_variable("creative",true); world::begin_world(4);
+                if !"{label}".starts_with("foundation-") {{
                 for row in [[113,9.0],[115,9.0],[145,9.0],[147,9.0],[146,5.0],[116,3.0]] {{
                     let cell = row[0]; let nodes = get_scene_list("nodes"); nodes[cell]=0.0; set_scene_list("nodes",nodes);
                     set_scene_variable("cursor_x",grid::cell_x(cell).to_float()); set_scene_variable("cursor_z",grid::cell_z(cell).to_float());
@@ -157,8 +173,16 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                 }}
                 for edge in [[112,113],[113,115],[115,145],[145,147],[147,146],[115,116]] {{ power::connect_power(power::power_id(edge[0]),power::power_id(edge[1])); }}
                 power::update_power();
+                }}
                 set_scene_variable("cursor_x",0.0); set_scene_variable("cursor_z",0.0);
                 if "{label}" == "tooltip" {{ set_scene_variable("cursor_x",2.0); set_scene_variable("cursor_z",1.0); }}
+                if "{label}".starts_with("foundation-") {{
+                    foundation_setup(me);
+                    set_scene_variable("cursor_x",if "{label}"=="foundation-window" {{-2.0}}else{{-5.0}});
+                    set_scene_variable("cursor_z",if "{label}"=="foundation-window" || "{label}"=="foundation-inside" {{-3.0}}else{{if "{label}"=="foundation-door" {{-1.0}}else{{1.0}}}});
+                    set_camera_size("camera",10.0);set_object_variable("camera_zoom",10.0);set_object_variable("camera_zoom_target",10.0);
+                    set_ui_visible("game-hud",false);interiors::update(0.0);
+                }}
                 if "{label}" == "journal" {{ set_scene_variable("selected",9.0); set_object_variable("journal_open",true); set_object_variable("journal_page",2.0); data::session_set(3,22.0); }}
                 if "{label}" == "assembler" {{ panels::set_assembler(146); machines::select_recipe(146,18.0); machines::feed_assembler(146); }}
                 if ["inventory","backpack-menu"].contains("{label}") {{
@@ -201,7 +225,7 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
             })?;
         }
         let play = editor.play.as_mut().unwrap();
-        for _ in 0..24 {
+        for _ in 0..if label == "foundation-door" { 60 } else { 24 } {
             play.app.step();
             play.check_simulation()?;
         }
@@ -291,23 +315,28 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
                     "Fuel dock / INPUT  [E] Inspect"
                 );
             }
-            let panel_id = match label {
-                "title" => "title-content",
-                "coop" => "coop-panel",
-                "journal" | "unlocks" | "ship-journal" => "journal-book",
-                "assembler" | "constructor" | "expansion-manufacturer" | "expansion-refinery" => {
-                    "assembler-panel"
+            let panel_id = if label.starts_with("foundation-") {
+                ""
+            } else {
+                match label {
+                    "title" => "title-content",
+                    "coop" => "coop-panel",
+                    "journal" | "unlocks" | "ship-journal" => "journal-book",
+                    "assembler"
+                    | "constructor"
+                    | "expansion-manufacturer"
+                    | "expansion-refinery" => "assembler-panel",
+                    "inventory" | "backpack-menu" => "player-inventory-panel",
+                    "power-context" => "world-context",
+                    "inspect" => "machine-inspect-panel",
+                    "rocket" => "player-rocket-panel",
+                    "moon-rocket" => "player-rocket-panel",
+                    "moon-map" => "map-panel",
+                    "saves" => "saves-panel",
+                    "moon-deposit" | "materials-belts" => "",
+                    "half" | "site" | "ship" => "",
+                    _ => "build-panel",
                 }
-                "inventory" | "backpack-menu" => "player-inventory-panel",
-                "power-context" => "world-context",
-                "inspect" => "machine-inspect-panel",
-                "rocket" => "player-rocket-panel",
-                "moon-rocket" => "player-rocket-panel",
-                "moon-map" => "map-panel",
-                "saves" => "saves-panel",
-                "moon-deposit" | "materials-belts" => "",
-                "half" | "site" | "ship" => "",
-                _ => "build-panel",
             };
             if !panel_id.is_empty() {
                 let panel = ui.element(panel_id).unwrap().rect;
@@ -321,9 +350,22 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
             }
             if label == "night" {
                 assert_eq!(
-                    render.lights.len(),
-                    5,
-                    "four powered poles and the rocket's active navigation lamp"
+                    render
+                        .lights
+                        .iter()
+                        .filter(|light| light.intensity == 9.0)
+                        .count(),
+                    4,
+                    "four powered pole lights, alongside machine indicators"
+                );
+                assert_eq!(
+                    render
+                        .lights
+                        .iter()
+                        .filter(|light| light.intensity == 2.5)
+                        .count(),
+                    1,
+                    "the rocket's active navigation lamp"
                 );
                 let lit = bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
                     renderer.draw(&gpu, target, size, &render)
@@ -442,5 +484,45 @@ fn logistics_ports_render() -> anyhow::Result<()> {
         renderer.draw(&gpu, target, size, &render)
     })?;
     capture.write_ppm(&std::env::temp_dir().join("stellar-logistics-ports.ppm"))?;
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires a native graphics adapter; writes the renewable power preview"]
+fn renewable_power_models_render_in_the_playable_showroom() -> anyhow::Result<()> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/renewables-showroom.json");
+    let mut editor = Editor::open(&path)?;
+    editor.assets.require_ready()?;
+    editor.start_play()?;
+    let play = editor.play.as_mut().unwrap();
+    for _ in 0..12 {
+        play.app.step();
+        play.check_simulation()?;
+    }
+    let gpu = pollster::block_on(Gpu::request(
+        &bozzard_render::instance(bozzard_render::Backend::native()),
+        None,
+        false,
+    ))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    for entry in editor.assets.entries() {
+        if let Some(data) = entry.data() {
+            bozzard_render_assets::upload(&gpu, &mut renderer, &entry.id, data)?;
+        }
+    }
+    let size = [1400, 900];
+    let mut render = editor.render(Layer::ThreeD, size[0] as f32 / size[1] as f32)?;
+    let ui = editor.ui_frame(Layer::ThreeD, size.map(|v| v as f32))?;
+    assert_eq!(ui.element("slot-name-4").unwrap().text, "SOLAR\nPANEL");
+    assert_eq!(ui.element("slot-name-5").unwrap().text, "SOLAR\nARRAY");
+    assert_eq!(ui.element("slot-name-6").unwrap().text, "WIND\nTURBINE");
+    render
+        .items
+        .extend(bozzard_render_assets::widget_items(&ui, &editor.assets)?);
+    let capture = bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
+        renderer.draw(&gpu, target, size, &render)
+    })?;
+    capture.write_ppm(&std::env::temp_dir().join("stellar-renewables.ppm"))?;
     Ok(())
 }

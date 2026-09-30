@@ -104,9 +104,9 @@ impl Player {
     pub fn validate(&self) -> Result<()> {
         self.position.validate()?;
         ensure!(
-            (1..=29).contains(&self.selected)
+            (1..=42).contains(&self.selected)
                 && self.direction < 4
-                && self.bar <= 5
+                && self.bar <= 7
                 && self.bar_slots.iter().all(|s| (1..=8).contains(s)),
             "invalid player tools"
         );

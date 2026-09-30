@@ -1,4 +1,6 @@
 // Game entry point: coordinate input, simulation and presentation modules.
+import "factory-architecture" as architecture;
+import "factory-interiors" as interiors;
 import "factory-pointer" as pointer;
 import "factory-net_input" as net;
 import "factory-guest_view" as guest_view;
@@ -13,6 +15,7 @@ import "factory-building" as building;
 import "factory-chunks" as chunks;
 import "factory-data" as data;
 import "factory-deposits" as deposits;
+import "factory-debris" as debris;
 import "factory-panels" as panels;
 import "factory-environment" as environment;
 import "factory-grid" as grid;
@@ -78,7 +81,7 @@ fn on_update(me, dt) {
     let view_turn = (4 - (get_scene_variable("camera_heading") / 90.0).to_int()) % 4;
     let step_x=grid::layout_x(dx,dz,0,view_turn);let step_z=grid::layout_z(dx,dz,0,view_turn);
     if guest {if step_x!=0 || step_z!=0 {net::send("move",#{x:step_x,z:step_z});}}
-    else {x+=step_x;z+=step_z;}
+    else if interiors::path_clear(grid::world_x(x).to_int(),grid::world_z(z).to_int(),grid::world_x(x).to_int()+step_x,grid::world_z(z).to_int()+step_z) {x+=step_x;z+=step_z;}
     if !guest && !inventory_active {
         let position = world::explore(x, z);
         x = position[0]; z = position[1];
@@ -134,6 +137,7 @@ fn on_update(me, dt) {
         hud::update_tooltip(dt, x, z, get_scene_list("nodes"), get_scene_list("builds"));
     }
     visuals::update_projects();
+    interiors::update(dt);
     players::update(dt,inventory_active);
     hud::update_hud(dt, daylight);
     hud::update_debug_hud(dt);

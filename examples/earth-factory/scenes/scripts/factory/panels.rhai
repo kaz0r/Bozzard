@@ -19,7 +19,7 @@ fn reset_interactions() {
     set_object_variable("camera_zoom", 19.0);
     set_object_variable("camera_zoom_target", 19.0);
     set_camera_size("camera", 19.0);
-    set_object_variable("debug_clock", 0.25);
+    set_object_variable("factory-transports","debug_clock", 0.25);
     set_object_list("ui_views", ["", "", "", "", "", ""]);
     visuals::reset_rotations();
     set_object_variable("journal_open", false);

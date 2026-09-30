@@ -63,8 +63,9 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         reduced.pipeline_binds == 1
             && all.pipeline_binds == 4
             && all.color_draws == 4
-            && reduced.color_draws == 2
-            && reduced.shadow_draws == all.shadow_draws,
+            && reduced.color_draws == 1
+            && reduced.shadow_draws == 3
+            && reduced.shadow_triangles == all.shadow_triangles,
         "batching or shadow counters incorrect: {all:?} {reduced:?}"
     );
     let mut shadow_scene = RenderScene {

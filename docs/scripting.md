@@ -185,9 +185,12 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `simulation_stats()` | Last completed native simulation batch: `available`, `threaded`, `cpu_ms`, `wait_ms`, `steps`. CPU time includes every fixed tick in that batch; wait is the main thread's remaining join time after frame submission. Native local Play/player use a dedicated worker by default; `--single-threaded` enables the serial comparison path. Uninstrumented headless stepping returns unavailable values. This is separate from renderer CPU/GPU time. |
 | `move_x()`, `move_y()`, `mouse_x()`, `mouse_y()` | the same frame deltas the movement nodes report |
 | `get_object_variable(name)`, `get_scene_variable(name)` | the declared variable's value |
+| `get_object_variable(target, name)` | read a declared scalar on another local object; resolves and validates its target |
 | `get_object_list(name)`, `get_scene_list(name)` | a copy of a declared typed blackboard list as a Rhai array |
 | `get_object_list(target, name)` | read a declared list on another local object; target IDs are resolved and validated |
 | `get_object_list_item(name, index)`, `get_scene_list_item(name, index)` | one scalar entry without copying the whole list; zero-based, checked against its current length; reads see earlier writes in the same hook |
+| `get_object_list_item(target, name, index)` | the same indexed read on another local object's declared list |
+| `object_lists_equal(left_target, left_name, right_target, right_name)` | compare the ordered values of two declared lists in place, without allocating Rhai arrays; observes earlier writes in the same hook and ignores declared capacities |
 | `raycast(origin, direction, distance, ignore)` | `#{ hit, object, position, normal, distance }` |
 | `sphere_overlap(center, radius, ignore)`, `box_overlap(center, size, ignore)` | array of object IDs |
 | `line_of_sight(from, to, ignore)` | `bool` |
@@ -200,6 +203,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_velocity(target, v)`, `jump(target, speed)`, `move_with_collision(target, v)` | rigidbody actions; grounding is readable as `is_grounded(target)` |
 | `set_color(target, rgb)`, `set_visible(target, visible)`, `set_text(target, text)` | drawable, visibility and text |
 | `set_mesh(target, asset_id)` | replace a drawable's mesh with a registered mesh asset, preserving its entity, transform and tint; clears surface overrides belonging to the old mesh |
+| `set_tile_view(cells, exterior, objects)` | transient 3D cutaway/tint: flat `[x, z, factor, ...]` integer tile coordinates, default exterior factor, and a map of object or prefab-root exceptions; factors are `0..1`, with `0` hiding geometry, text, lights, and shadows |
 | `set_ui_text(target, text)`, `set_ui_visible(target, visible)` | text (up to 4096 UTF-8 bytes) and visibility of a UI widget |
 | `set_ui_enabled(target, enabled)` | enable or disable input for a widget and its descendants (useful during closing animations) |
 | `set_ui_opacity(target, opacity)` | widget and descendant opacity multiplier, `0.0`–`1.0` |
@@ -224,11 +228,17 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
 | `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |
+| `set_object_variable(target, name, value)` | write another local object's declared scalar with the same type checks and immediate read-after-write behavior |
 | `set_object_list(name, values)`, `set_scene_list(name, values)` | replace a declared list with an array, checked against its element type and capacity |
 | `set_object_list(target, name, values)` | replace a declared list on another local object, with the same type/capacity checks and immediate read-after-write behavior |
 | `print(value)` | one line to stdout and the runtime's message list |
 
 Sun, ambient, environment, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
+
+Tile views are local to the scene instance and reset on restart/Stop. They leave
+simulation entities, authored material colors, and the 2D HUD intact. Tiles use
+rounded world X/Z origins; a prefab-root exception also applies to its members.
+Call `set_tile_view([], 1.0, #{})` to restore the normal view.
 
 **Math Rhai does not provide**: `lerp`, `lerp_vector`, `clamp`, `length`, `normalize`, `dot`,
 `cross`, `distance`, `add_vector`, `scale_vector`, `vector_x/y/z`, `modulo`, `pow`, `atan2`,

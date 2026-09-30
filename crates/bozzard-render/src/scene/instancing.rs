@@ -1,5 +1,5 @@
 use super::*;
-use std::ops::Range;
+use std::collections::HashMap;
 
 // Fits the downlevel 16 KiB uniform-binding limit without storage-buffer features.
 pub(super) const MAX_INSTANCES: usize = 32;
@@ -16,19 +16,24 @@ pub(super) struct InstanceBinding {
 }
 pub(super) struct Instancing {
     enabled: bool,
+    global: bool,
+    plan: Option<Plan>,
     layout: wgpu::BindGroupLayout,
     pub pipelines: Option<Pipelines>,
     pub shadow_pipelines: Option<[wgpu::RenderPipeline; 2]>,
     pub bindings: Vec<InstanceBinding>,
 }
+#[derive(Clone)]
 pub(super) struct Batch {
-    pub range: Range<usize>,
+    pub indices: Vec<usize>,
     pub slot: Option<usize>,
 }
 impl Instancing {
     pub fn new(layout: wgpu::BindGroupLayout) -> Self {
         Self {
             enabled: true,
+            global: true,
+            plan: None,
             layout,
             pipelines: None,
             shadow_pipelines: None,
@@ -67,18 +72,224 @@ fn compatible(a: &PreparedDraw, b: &PreparedDraw) -> bool {
 fn batches(draws: &[PreparedDraw], visible: &[bool], enabled: bool) -> Vec<Batch> {
     let mut result: Vec<Batch> = Vec::new();
     for (index, draw) in draws.iter().enumerate().filter(|(i, _)| visible[*i]) {
-        // Consecutive runs preserve the equal-depth winner and submission order.
-        // A measured need for cross-run grouping must define coplanar ordering first.
         if enabled
             && let Some(last) = result.last_mut()
-            && last.range.end == index
-            && last.range.len() < MAX_INSTANCES
-            && compatible(&draws[last.range.start], draw)
+            && last.indices.last() == index.checked_sub(1).as_ref()
+            && last.indices.len() < MAX_INSTANCES
+            && compatible(&draws[last.indices[0]], draw)
         {
-            last.range.end += 1;
+            last.indices.push(index);
         } else {
             result.push(Batch {
-                range: index..index + 1,
+                indices: vec![index],
+                slot: None,
+            });
+        }
+    }
+    result
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum MeshKey {
+    Quad,
+    Cube,
+    Sphere,
+    Imported(String),
+    Part(String, usize),
+}
+#[derive(PartialEq, Eq, Hash)]
+struct Key(MeshKey, TextureKind, bool);
+fn key(draw: &PreparedDraw) -> Option<Key> {
+    if draw.transparent || draw.shader.is_some() || draw.deformation != 0 {
+        return None;
+    }
+    let mesh = match &draw.object.mesh {
+        MeshKind::Quad => MeshKey::Quad,
+        MeshKind::Cube => MeshKey::Cube,
+        MeshKind::Sphere => MeshKey::Sphere,
+        MeshKind::Imported(id) => MeshKey::Imported(id.clone()),
+        MeshKind::ModelPart(id, part) => MeshKey::Part(id.clone(), *part),
+        _ => return None,
+    };
+    Some(Key(mesh, draw.object.material.texture.clone(), draw.pbr))
+}
+
+struct Input {
+    mesh: MeshKind,
+    texture: TextureKind,
+    model: Mat4,
+    bounds: [Vec3; 2],
+    shader: Option<u64>,
+    deformation: u64,
+    pbr: bool,
+    transparent: bool,
+    visible: bool,
+}
+impl Input {
+    fn matches(&self, draw: &PreparedDraw, bounds: [Vec3; 2], visible: bool) -> bool {
+        self.visible == visible
+            && self.model == draw.object.model
+            && self.bounds == bounds
+            && self.mesh == draw.object.mesh
+            && self.texture == draw.object.material.texture
+            && self.shader == draw.shader
+            && self.deformation == draw.deformation
+            && self.pbr == draw.pbr
+            && self.transparent == draw.transparent
+    }
+}
+struct Plan {
+    camera: Mat4,
+    inputs: Vec<Input>,
+    batches: Vec<Batch>,
+}
+
+// An opaque reorder can change an equal-depth winner. Retain original order for
+// intersecting projected bounds (including their depth intervals). Disjoint
+// bounds cannot cover the same sample at equal depth. Near-plane crossings use
+// unbounded boxes, so uncertain projections always retain their dependencies.
+fn projected_bounds(bounds: [Vec3; 2], matrix: Mat4) -> [Vec3; 2] {
+    let mut result = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
+    for corner in 0..8 {
+        let point = matrix
+            * Vec3::new(
+                bounds[(corner & 1) as usize].x,
+                bounds[((corner >> 1) & 1) as usize].y,
+                bounds[((corner >> 2) & 1) as usize].z,
+            )
+            .extend(1.);
+        if !point.is_finite() || point.w <= 1e-6 {
+            return [Vec3::splat(f32::NEG_INFINITY), Vec3::splat(f32::INFINITY)];
+        }
+        let point = point.truncate() / point.w;
+        result[0] = result[0].min(point);
+        result[1] = result[1].max(point);
+    }
+    // Cover projection roundoff and Depth32Float quantization conservatively.
+    let padding = Vec3::splat(2e-5);
+    [result[0] - padding, result[1] + padding]
+}
+
+fn enqueue(
+    index: usize,
+    group: usize,
+    queues: &mut [BTreeSet<usize>],
+    ready: &mut BTreeSet<(usize, usize)>,
+) {
+    if let Some(&first) = queues[group].first() {
+        ready.remove(&(first, group));
+    }
+    queues[group].insert(index);
+    ready.insert((*queues[group].first().unwrap(), group));
+}
+
+fn global_batches(draws: &[PreparedDraw], inputs: &[Input], camera: Mat4) -> Vec<Batch> {
+    let mut groups = HashMap::new();
+    let mut group_of = vec![0; draws.len()];
+    let mut queues: Vec<BTreeSet<usize>> = Vec::new();
+    let mut sweep = Vec::new();
+    let mut boxes = vec![[Vec3::ZERO; 2]; draws.len()];
+    let mut world_boxes = vec![[Vec3::ZERO; 2]; draws.len()];
+    // In an orthographic view, coincident screen/depth samples map to the same
+    // world point. Disjoint world bounds can therefore remove false projected
+    // overlaps. Expand by the inverse camera's NDC-roundoff footprint; retain
+    // projected-only ordering for perspective cameras and uncertain inverses.
+    let inverse = camera.inverse();
+    let world_padding = (camera.x_axis.w == 0.
+        && camera.y_axis.w == 0.
+        && camera.z_axis.w == 0.
+        && inverse.is_finite()
+        && inverse.w_axis.w.abs() > 1e-6)
+        .then(|| {
+            (inverse.x_axis.truncate().abs()
+                + inverse.y_axis.truncate().abs()
+                + inverse.z_axis.truncate().abs())
+                * (2e-5 / inverse.w_axis.w.abs())
+        });
+    for (index, (draw, input)) in draws.iter().zip(inputs).enumerate() {
+        if !input.visible || draw.transparent {
+            continue;
+        }
+        let group = key(draw).and_then(|key| groups.get(&key).copied());
+        group_of[index] = group.unwrap_or_else(|| {
+            let group = queues.len();
+            queues.push(BTreeSet::new());
+            if let Some(key) = key(draw) {
+                groups.insert(key, group);
+            }
+            group
+        });
+        boxes[index] = projected_bounds(input.bounds, camera * input.model);
+        if let Some(padding) = world_padding {
+            let bounds = projected_bounds(input.bounds, input.model);
+            world_boxes[index] = [bounds[0] - padding, bounds[1] + padding];
+        }
+        sweep.push(index);
+    }
+    sweep.sort_by(|&a, &b| boxes[a][0].x.total_cmp(&boxes[b][0].x).then(a.cmp(&b)));
+    let mut followers = vec![Vec::new(); draws.len()];
+    let mut pending = vec![0usize; draws.len()];
+    let mut active: Vec<usize> = Vec::new();
+    for &index in &sweep {
+        let bounds = boxes[index];
+        active.retain(|&other| boxes[other][1].x >= bounds[0].x);
+        for &other in &active {
+            let previous = boxes[other];
+            if previous[1].y < bounds[0].y
+                || bounds[1].y < previous[0].y
+                || previous[1].z < bounds[0].z
+                || bounds[1].z < previous[0].z
+            {
+                continue;
+            }
+            if world_padding.is_some() {
+                let a = world_boxes[index];
+                let b = world_boxes[other];
+                if a[1].cmplt(b[0]).any() || b[1].cmplt(a[0]).any() {
+                    continue;
+                }
+            }
+            let (before, after) = (index.min(other), index.max(other));
+            followers[before].push(after);
+            pending[after] += 1;
+        }
+        active.push(index);
+    }
+    let mut ready = BTreeSet::new();
+    for &index in &sweep {
+        if pending[index] == 0 {
+            enqueue(index, group_of[index], &mut queues, &mut ready);
+        }
+    }
+    let mut result = Vec::new();
+    while let Some(&(_, group)) = ready.first() {
+        let mut indices = Vec::new();
+        while indices.len() < MAX_INSTANCES {
+            let Some(index) = queues[group].pop_first() else {
+                break;
+            };
+            ready.remove(&(index, group));
+            if let Some(&next) = queues[group].first() {
+                ready.insert((next, group));
+            }
+            indices.push(index);
+            for &next in &followers[index] {
+                pending[next] -= 1;
+                if pending[next] == 0 {
+                    enqueue(next, group_of[next], &mut queues, &mut ready);
+                }
+            }
+        }
+        result.push(Batch {
+            indices,
+            slot: None,
+        });
+    }
+    // Transparent items retain their original back-to-front order and single draws.
+    for (index, draw) in draws.iter().enumerate() {
+        if inputs[index].visible && draw.transparent {
+            result.push(Batch {
+                indices: vec![index],
                 slot: None,
             });
         }
@@ -95,14 +306,56 @@ impl SceneRenderer {
         }
     }
 
+    /// Compare scene-wide grouping with the former consecutive-run batcher.
+    pub fn set_global_batching_enabled(&mut self, enabled: bool) {
+        self.instancing.global = enabled;
+        self.instancing.plan = None;
+    }
+
     pub(super) fn prepare_instances(
         &mut self,
         gpu: &Gpu,
         draws: &[PreparedDraw],
         visible: &[bool],
+        camera: Mat4,
     ) -> Result<Vec<Batch>> {
-        let mut batches = batches(draws, visible, self.instancing.enabled);
-        let count = batches.iter().filter(|b| b.range.len() > 1).count();
+        let mut batches = if self.instancing.enabled && self.instancing.global {
+            let unchanged = self.instancing.plan.as_ref().is_some_and(|plan| {
+                plan.camera == camera
+                    && plan.inputs.len() == draws.len()
+                    && plan.inputs.iter().zip(draws).zip(visible).all(
+                        |((input, draw), &visible)| {
+                            input.matches(draw, self.mesh_for(&draw.object).bounds, visible)
+                        },
+                    )
+            });
+            if !unchanged {
+                let inputs = draws
+                    .iter()
+                    .zip(visible)
+                    .map(|(draw, &visible)| Input {
+                        mesh: draw.object.mesh.clone(),
+                        texture: draw.object.material.texture.clone(),
+                        model: draw.object.model,
+                        bounds: self.mesh_for(&draw.object).bounds,
+                        shader: draw.shader,
+                        deformation: draw.deformation,
+                        pbr: draw.pbr,
+                        transparent: draw.transparent,
+                        visible,
+                    })
+                    .collect::<Vec<_>>();
+                self.instancing.plan = Some(Plan {
+                    camera,
+                    batches: global_batches(draws, &inputs, camera),
+                    inputs,
+                });
+            }
+            self.instancing.plan.as_ref().unwrap().batches.clone()
+        } else {
+            batches(draws, visible, self.instancing.enabled)
+        };
+        let count = batches.iter().filter(|b| b.indices.len() > 1).count();
         self.instancing.bindings.truncate(count);
         if count == 0 {
             return Ok(batches);
@@ -141,8 +394,12 @@ impl SceneRenderer {
             });
             self.instancing.pipelines = Some(Pipelines { pipelines });
         }
-        for (slot, batch) in batches.iter_mut().filter(|b| b.range.len() > 1).enumerate() {
-            let texture = &draws[batch.range.start].object.material.texture;
+        for (slot, batch) in batches
+            .iter_mut()
+            .filter(|b| b.indices.len() > 1)
+            .enumerate()
+        {
+            let texture = &draws[batch.indices[0]].object.material.texture;
             if slot == self.instancing.bindings.len()
                 || self.instancing.bindings[slot].texture != *texture
             {
@@ -167,10 +424,10 @@ impl SceneRenderer {
                 }
             }
             let binding = &mut self.instancing.bindings[slot];
-            let uniforms = &self.objects[batch.range.clone()];
-            let unchanged = binding.bytes.len() == uniforms.len() * OBJECT_UNIFORM_BYTES
+            let uniforms = batch.indices.iter().map(|&index| &self.objects[index]);
+            let unchanged = binding.bytes.len() == batch.indices.len() * OBJECT_UNIFORM_BYTES
                 && uniforms
-                    .iter()
+                    .clone()
                     .zip(binding.bytes.chunks_exact(OBJECT_UNIFORM_BYTES))
                     .all(|(object, bytes)| object.uniform.as_ref().unwrap().as_slice() == bytes);
             if !self.state_caching || !unchanged {
@@ -239,7 +496,7 @@ mod tests {
         let sizes = |draws: &[PreparedDraw], visible: &[bool], enabled| {
             batches(draws, visible, enabled)
                 .iter()
-                .map(|b| b.range.len())
+                .map(|b| b.indices.len())
                 .collect::<Vec<_>>()
         };
         assert_eq!(sizes(&draws, &visible, true), [32, 32, 3]);

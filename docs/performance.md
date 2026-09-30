@@ -44,6 +44,61 @@ Keep device, backend, scene, render size, shadow settings, and build mode fixed 
 
 The benchmark’s reference/culling/cache comparison is a diagnostic for renderer correctness and CPU-side cost. It does not establish image quality, power use, GPU occupancy, or a windowed presentation rate. For Sponza setup and the ignored dataset location, see [the Sponza reproduction](sponza.md).
 
+## Scene-wide opaque batching
+
+The scene renderer groups visible repeated meshes across intervening model parts,
+using the same mesh, texture and stock shader flavor. Each indexed draw packs up
+to 32 instances within the portable 16 KiB uniform limit. A cached plan avoids
+rebuilding the grouping when geometry, visibility and camera remain unchanged.
+Packed instances reuse their buffers; individual uniform uploads are deferred
+until a color or shadow draw needs them.
+
+Conservative projected bounds and depth intervals retain ordering dependencies
+for potentially coincident samples. Orthographic views also check world bounds,
+expanded by the inverse camera's projection-roundoff footprint, so physically
+separate objects need not retain false projected overlaps. This preserves
+coplanar winners. Transparent objects keep their back-to-front individual draws;
+custom shaders and deformed meshes remain individual. Sun shadows reuse complete
+batches, while offscreen casters and partial light frusta retain individual draws.
+Occlusion tests enclose every member of a potentially nonconsecutive batch.
+
+Compare the previous consecutive batcher with scene-wide grouping using real game
+assets in six loaded regions, including 324 multipart machine prefabs:
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_scene_batching -- --ignored --exact --nocapture
+```
+
+The benchmark interleaves both modes on the same simulated frames, warms up for
+12 frames, then reports 60 CPU and synchronized wall samples at 1280 × 800. Four
+camera headings must produce exact matching pixels and triangle counts. These
+renderer times exclude simulation and window presentation.
+
+For an interleaved-mesh stress test, including all-moving instances:
+
+```sh
+cargo test --release --offline -p bozzard-render --test instancing \
+  scale_benchmark -- --ignored --exact --nocapture
+```
+
+September 30 local release measurements on Intel Iris Xe / Vulkan, using the
+six-region fixture above (419 visible items / 1,430 visible surfaces):
+
+| Batching | Color draw commands | Renderer CPU median / p95 | Synchronized wall median |
+| --- | ---: | ---: | ---: |
+| Previous consecutive runs | 1,356 | 9.665 / 13.086 ms | 23.474 ms |
+| Scene-wide grouping | 80 | 3.762 / 6.248 ms | 10.844 ms |
+
+The measurements preserve triangle counts and exact pixels at all four camera
+headings. Four indoor/outdoor/window/door captures also remain pixel-identical to
+the earlier foundation previews. Native 180-frame runs of the same fixture at
+1024 × 640 reduced median whole-frame CPU from **8.201 to 5.459 ms**, and median
+presentation interval from **18.239 to 16.740 ms** (about 55 to 60 FPS). Presentation
+p95 changed from **36.507 to 33.701 ms**; startup outliers remain. GPU-pass medians
+were similar (**8.165 / 8.047 ms**). These are local measurements of this fixture,
+not a frame-rate guarantee for other saves, hardware or resolutions.
+
 ## Recorded Sponza measurements
 
 The editor picking comparison used 200 same-process samples, alternating BVH and linear traversal order for each paired measurement. The reported values use midpoint medians in milliseconds; p95 values, when printed by the example, use nearest-rank selection. The wider 1,681-ray checks were untimed and compared object and surface identities against the linear oracle.

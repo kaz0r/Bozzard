@@ -639,22 +639,8 @@ impl SceneRenderer {
                         )
                     }))
         };
-        let mut batches = batches.iter().peekable();
-        let mut index = 0;
         let mut was_instanced = None;
-        while index < draws.len() {
-            while batches.peek().is_some_and(|b| b.range.start < index) {
-                batches.next();
-            }
-            // Reuse color-pass instance buffers only when the whole run casts into this map.
-            // Offscreen casters and runs crossing a light frustum retain the exact single-draw path.
-            let batch = batches.peek().filter(|b| {
-                b.range.start == index
-                    && b.slot.is_some()
-                    && draws[b.range.clone()].iter().all(&casts)
-            });
-            let count = batch.map_or(1, |b| b.range.len());
-            let slot = batch.and_then(|b| b.slot);
+        let mut submit = |index: usize, count: usize, slot: Option<usize>| {
             let draw = &draws[index];
             if casts(draw) {
                 let instanced = slot.is_some();
@@ -679,7 +665,27 @@ impl SceneRenderer {
                 counts.0 += 1;
                 counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
-            index += count;
+        };
+        let mut covered = vec![false; draws.len()];
+        for batch in batches {
+            for &index in &batch.indices {
+                covered[index] = true;
+            }
+            // Reuse the same packed instances only if every member casts into
+            // this light. Partial light frusta and unlit members remain individual.
+            if batch.slot.is_some() && batch.indices.iter().all(|&i| casts(&draws[i])) {
+                submit(batch.indices[0], batch.indices.len(), batch.slot);
+            } else {
+                for &index in &batch.indices {
+                    submit(index, 1, None);
+                }
+            }
+        }
+        // Camera-culled objects still cast into visible sun/local shadow maps.
+        for (index, &covered) in covered.iter().enumerate() {
+            if !covered {
+                submit(index, 1, None);
+            }
         }
         counts
     }

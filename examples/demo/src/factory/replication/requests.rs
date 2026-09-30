@@ -34,6 +34,11 @@ pub enum Action {
         kind: u8,
         direction: u8,
     },
+    Structure {
+        kind: u8,
+        direction: u8,
+        remove: bool,
+    },
     Remove,
     Rotate,
     Gather {
@@ -131,8 +136,16 @@ impl Action {
                 );
             }
             Self::Place { kind, direction } => ensure!(
-                (1..=29).contains(kind) && *kind != 10 && *direction < 4,
+                ((1..=29).contains(kind) || (40..=42).contains(kind))
+                    && *kind != 10
+                    && *direction < 4,
                 "invalid machine"
+            ),
+            Self::Structure {
+                kind, direction, ..
+            } => ensure!(
+                (30..=39).contains(kind) && *direction < 4,
+                "invalid structure"
             ),
             Self::Craft {
                 recipe: kind,

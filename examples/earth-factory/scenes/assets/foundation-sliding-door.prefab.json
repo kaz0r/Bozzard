@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Modern sliding door",
+  "root": "root",
+  "assets": {
+    "foundation-sliding-door": {
+      "kind": "mesh",
+      "path": "models/foundations/sliding-door.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Modern sliding door",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-sliding-door"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

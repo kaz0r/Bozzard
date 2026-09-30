@@ -1,3 +1,4 @@
+import "factory-interiors" as interiors;
 import "factory-item_fx" as item_fx;
 import "factory-net_input" as net;
 import "factory-backpack" as backpack;
@@ -71,6 +72,7 @@ fn nearby_interactable() {
             let cell = grid::index(x + dx, z + dz);
             let kind = builds[cell];
             if kind!=1.0 && !data::production(kind) && kind!=4.0 && !data::pipe(kind) { continue; }
+            if !interiors::accessible(cell) {continue;}
             let distance = (dx * dx + dz * dz).to_float();
             if distance < best { best = distance; result = cell; }
         }

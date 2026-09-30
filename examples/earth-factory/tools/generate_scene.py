@@ -119,7 +119,7 @@ def factory_ui():
         widget("slot-name-" + key, "slot-" + key, (8, 26), (78, 29), name, 10)
     widget("build-status", "build-panel", (22, 83), (250, 22), "MINER  /  Facing East", 14)
     widget("controls-hint", "build-panel", (280, 83), (466, 22), "WASD Move   Space Build   R Rotate machine   X Remove", 14, muted)
-    widget("camera-hint", "build-panel", (22, 108), (720, 20), "Ctrl + 1–5 Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera", 13, muted)
+    widget("camera-hint", "build-panel", (22, 108), (720, 20), "Ctrl + 1–7 Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera", 13, muted)
     widget("bar-title", "factory-ui", (0, -167), (720, 22), "I  /  PRODUCTION", 14,
            anchor=(0.5, 1), pivot=(0.5, 0))
     widget("chunk-status", "factory-ui", (-24, 216), (206, 40), "Region 0, 0", 13, muted,
@@ -742,45 +742,25 @@ def scene():
     ]):
         objects.append(cube(f"pod-{i}", "Landing pod", (dx, dy, dz), size, color))
 
-    asphalt = [0.10, 0.13, 0.16]
-    markings = [0.82, 0.67, 0.25]
-    site = [
-        ((0.5, -0.40, 0.5), (4, 1, 4), asphalt),
-        ((0.5, 0.108, -1.3), (3.5, 0.015, 0.07), markings),
-        ((0.5, 0.108, 2.3), (3.5, 0.015, 0.07), markings),
-        ((-1.3, 0.108, 0.5), (0.07, 0.015, 3.5), markings),
-        ((2.3, 0.108, 0.5), (0.07, 0.015, 3.5), markings),
-        ((2, 0.27, 1), (0.72, 0.44, 0.78), [0.21, 0.33, 0.40]),
-        ((2.40, 0.29, 1), (0.10, 0.25, 0.42), [0.84, 0.50, 0.16]),
-        ((1.12, 0.12, 1), (1.25, 0.13, 0.16), [0.41, 0.47, 0.49]),
-    ]
-    lower = [
-        ((0, 0.20, 1), (1.25, 0.25, 1.25), [0.16, 0.22, 0.28]),
-        ((0, 0.51, 1), (0.67, 0.48, 0.67), [0.26, 0.30, 0.36]),
-        ((0, 1.05, 1), (0.95, 0.78, 0.95), [0.71, 0.77, 0.77]),
-        ((-0.58, 0.57, 1), (0.25, 0.65, 0.72), [0.29, 0.43, 0.50]),
-        ((0.58, 0.57, 1), (0.25, 0.65, 0.72), [0.29, 0.43, 0.50]),
-        ((-0.36, 1.58, 1.36), (0.10, 0.45, 0.10), [0.34, 0.43, 0.48]),
-        ((0.36, 1.58, 0.64), (0.10, 0.45, 0.10), [0.34, 0.43, 0.48]),
-        ((0, 1.15, 1), (0.98, 0.14, 0.98), [0.25, 0.49, 0.61]),
-    ]
-    upper = [
-        ((0, 1.92, 1), (0.93, 1.02, 0.93), [0.80, 0.84, 0.79]),
-        ((0, 2.52, 1), (0.76, 0.27, 0.76), [0.73, 0.78, 0.75]),
-        ((0, 2.76, 1), (0.55, 0.23, 0.55), [0.62, 0.73, 0.75]),
-        ((0, 2.97, 1), (0.28, 0.23, 0.28), [0.38, 0.56, 0.64]),
-        ((0, 2.08, 1.48), (0.55, 0.26, 0.06), [0.14, 0.42, 0.57]),
-        ((-0.44, 1.79, 1.48), (0.12, 0.66, 0.09), [0.32, 0.44, 0.51]),
-        ((0.44, 1.79, 1.48), (0.12, 0.66, 0.09), [0.32, 0.44, 0.51]),
-        ((0, 1.47, 1), (0.97, 0.13, 0.97), [0.25, 0.49, 0.61]),
-    ]
+    travel = json.loads((ROOT.parent.parent / "assets/travel-ship/manifest.json").read_text())
     objects.append({"id": "rocket-rig", "name": "Rocket flight pivot", "transform": transform()})
-    for prefix, parts in [("site", site), ("rocket-lower", lower), ("rocket-upper", upper)]:
-        for i, (position, size, color) in enumerate(parts):
-            objects.append(cube(f"{prefix}-{i}", prefix, position, size, color, parent="rocket-rig" if prefix.startswith("rocket") else None))
-    objects.append(glowing(cube("rocket-exhaust", "Rocket thruster", (0, -0.12, 1), (0.28, 0.7, 0.28), [0.3, 0.8, 1.0], parent="rocket-rig"), [0.3, 0.8, 1.0]))
+    for object_id, asset, title in [
+        ("site-0", "landing-station", "Space rocket launch pad"),
+        ("rocket-lower-0", "survey-ship-lower", "Space rocket lower stage and engines"),
+        ("rocket-upper-0", "survey-ship-upper", "Space rocket upper stage and pointed nose"),
+        ("rocket-exhaust", "survey-ship-exhaust", "Downward rocket engine exhaust"),
+    ]:
+        obj = {"id": object_id, "name": title,
+               "transform": transform(*(travel["ship_position"] if object_id != "site-0" else [0, 0, 0])),
+               "drawable": {"layer": "3d", "mesh": {"asset": asset},
+                            "texture": "white", "color": [1, 1, 1], "uv_scale": [1, 1]}}
+        if object_id != "site-0":
+            obj["parent"] = "rocket-rig"
+        if object_id == "rocket-exhaust":
+            glowing(obj, [0.3, 0.8, 1.0])
+        objects.append(obj)
     for i, color in enumerate([[0.95, 0.20, 0.10], [0.20, 0.95, 0.58]]):
-        lamp = cube(f"rocket-light-{i}", "Blinking navigation light", ((i*2-1)*0.58, 0.97, 1.38), (0.16, 0.12, 0.12), color, parent="rocket-rig")
+        lamp = cube(f"rocket-light-{i}", "Blinking navigation light", travel["navigation_lights"][i], (0.09, 0.07, 0.06), color, parent="rocket-rig")
         lamp["shader_graph"] = {"version": 1, "name": "Navigation light", "nodes": [
             {"id": 1, "position": [0, 0], "kind": "master", "inputs": [
                 {"vector": color}, {"float": 0}, {"float": 0.8}, {"vector": color}, {"float": 1}, {"vector": [0, 1, 0]}]},
@@ -802,6 +782,7 @@ def scene():
         asset_names.extend([f"machine-{name}", f"{name}-power-on", f"{name}-power-off"])
     asset_names.extend(["foundry-heat", "kiln-heat", "glassworks-heat"])
     asset_names.extend(f"machine-{name}" for name in ["pipe-straight", "pipe-elbow", "belt-turn-left", "belt-turn-right"])
+    asset_names.extend(f"debris-{name}" for name in ["cockpit", "hull", "wing", "engine"])
     # Clay and seeds use the existing low-poly resource marker with distinct colors.
     for name, source, color in [("clay", "stone", [0.78, 0.38, 0.24]), ("seeds", "quartz", [0.35, 0.75, 0.35])]:
         marker = json.loads((ASSETS / f"node-{source}.prefab.json").read_text())
@@ -811,6 +792,8 @@ def scene():
         (ASSETS / f"node-{name}.prefab.json").write_text(json.dumps(marker, indent=2) + "\n")
         asset_names.append(f"node-{name}")
     assets = {name: {"kind": "prefab", "path": f"assets/{name}.prefab.json"} for name in asset_names}
+    for model in travel["models"]:
+        assets[model["id"]] = {"kind": "mesh", "path": "assets/" + model["mesh"]}
     materials = json.loads((ROOT.parent.parent / "assets/factory-materials/manifest.json").read_text())["items"]
     half_heights = [0.0] * 51
     for item in materials:
@@ -829,6 +812,10 @@ def scene():
     assets["moon-ground"] = {"kind": "mesh", "path": "assets/moon-ground.obj"}
     assets["earth-ground"] = {"kind": "mesh", "path": "assets/earth-ground.obj"}
     assets["ui-rounded"] = {"kind": "image", "path": "assets/ui-rounded.png"}
+    for model in json.loads((ROOT.parent.parent / "assets/foundations/manifest.json").read_text())["models"]:
+        assets[model["id"]] = {"kind": "prefab", "path": "assets/"+model["prefab"]}
+    for model in json.loads((ROOT.parent.parent / "assets/renewables/manifest.json").read_text())["models"]:
+        assets[model["id"]] = {"kind": "prefab", "path": "assets/"+model["prefab"]}
     assets["earth-factory"] = {"kind": "script", "path": "scripts/earth_factory.rs"}
     for module in sorted((SCENES / "scripts" / "factory").glob("*.rhai")):
         assets["factory-" + module.stem] = {"kind": "script", "path": module.relative_to(SCENES).as_posix()}
@@ -839,8 +826,23 @@ def scene():
     def list_var(kind, capacity):
         return {"list": {"element": kind, "capacity": capacity, "values": []}}
 
+    objects.append({"id":"renewable-view","name":"Transient renewable power cache",
+        "transform":transform(),"blackboard":{"day":scalar("number",-1),"planet":scalar("number",-1)}})
+
+    architecture_board = {"observed": list_var("text", 578), "rooms": list_var("text", 289),
+        "door_progress": list_var("text", 289), "loaded": list_var("text", 289),
+        "glimpses": list_var("text",1024), "view": scalar("text", ""), "inside": scalar("number", 0), "planet": scalar("number", -1),
+        "active": list_var("number",289), "slots": list_var("text",289), "kinds": list_var("text",289), "doors": list_var("text",289)}
+    for page in range(12):
+        architecture_board["handles_" + str(page)] = list_var("text", 289)
+    for value in architecture_board.values():
+        if "list" in value and value["list"]["element"] == "text" and value["list"]["capacity"] == 289:
+            value["list"]["values"] = [{"text": ""}] * 289
+    objects.append({"id": "architecture-view", "name": "Transient factory cutaways",
+        "transform": transform(), "blackboard": architecture_board})
     transport_board = {"earth": list_var("text", 867), "moon": list_var("text", 867),
-                       "machine_light_slots": list_var("text", 32),
+                       "debris_layouts": list_var("text", 2), "debris_handles": list_var("text", 6),
+                       "machine_light_slots": list_var("text", 32), "debug_clock": scalar("number", 0.25),
                        "beats": list_var("number", 2), "guest_beat": list_var("number", 1)}
     transport_board["beats"]["list"]["values"] = [{"number": -1}, {"number": -1}]
     transport_board["guest_beat"]["list"]["values"] = [{"number": -1}]
@@ -929,7 +931,6 @@ def scene():
         "phase": scalar("number", 0),
         "stock": list_var("number", 64),
         "gather_clock": scalar("number", 0),
-        "debug_clock": scalar("number", 0.25),
         "ui_views": {"list": {"element": "text", "capacity": 6, "values": [{"text": ""}] * 6}},
         "menu_open": scalar("bool", False),
         "map_open": scalar("bool", False),
@@ -954,6 +955,7 @@ def scene():
     }
     for name in ["builds", "facings", "items", "item_amounts", "input_items", "input_amounts", "progress", "assembler_iron", "assembler_copper", "split_state"]:
         controller["blackboard"]["cache_" + name] = list_var("text", 289)
+    controller["blackboard"]["cache_structures"] = list_var("text", 578)
     for page in range(4):
         for name in ["storage_kinds_", "storage_amounts_"]:
             controller["blackboard"]["cache_" + name + str(page)] = list_var("text", 289)

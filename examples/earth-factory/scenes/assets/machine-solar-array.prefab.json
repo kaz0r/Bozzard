@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Solar array",
+  "root": "root",
+  "assets": {
+    "machine-solar-array": {
+      "kind": "mesh",
+      "path": "models/renewables/solar-array.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Solar array",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "machine-solar-array"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

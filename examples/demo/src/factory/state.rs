@@ -32,6 +32,7 @@ const OBJECT: &[&str] = &[
     "chunk_nodes",
     "cache_recipes",
     "cache_builds",
+    "cache_structures",
     "cache_facings",
     "cache_items",
     "cache_item_amounts",
@@ -115,10 +116,9 @@ impl State {
         let storage = values(scene, "builds")?
             .iter()
             .any(|v| numeric(v).is_ok_and(|kind| kind == 4. || (12. ..=25.).contains(&kind)));
-        for name in OBJECT
-            .iter()
-            .filter(|k| k.starts_with("cache_") || **k == "chunk_nodes")
-        {
+        for name in OBJECT.iter().filter(|k| {
+            (**k != "cache_structures" && k.starts_with("cache_")) || **k == "chunk_nodes"
+        }) {
             let source = if *name == "chunk_nodes" {
                 "nodes"
             } else {
@@ -198,8 +198,8 @@ impl State {
         }
         integer(number(&self.scene, "seed")?, 1., 2_147_483_648.)?;
         integer(number(&self.controller, "phase")?, 0., 7.)?;
-        integer(number(&self.controller, "bar")?, 0., 5.)?;
-        integer(number(&self.scene, "selected")?, 1., 29.)?;
+        integer(number(&self.controller, "bar")?, 0., 7.)?;
+        integer(number(&self.scene, "selected")?, 1., 42.)?;
         integer(number(&self.scene, "direction")?, 0., 3.)?;
         integer(number(&self.scene, "ticks")?, 0., f32::MAX)?;
         ensure!(
@@ -265,11 +265,17 @@ impl State {
         {
             let pages = values(&self.controller, key)?;
             ensure!(pages.len() == 578, "invalid planet archive size");
-            let count = if key.contains("storage_") { 900 } else { 225 };
+            let count = if key.contains("storage_") || *key == "cache_structures" {
+                900
+            } else {
+                225
+            };
             let max = if key.contains("amount") || key.contains("assembler_") {
                 100
+            } else if *key == "cache_structures" {
+                39
             } else if *key == "cache_builds" {
-                29
+                42
             } else if *key == "cache_facings" {
                 3
             } else if *key == "cache_progress" {
@@ -284,6 +290,30 @@ impl State {
                     anyhow::bail!("invalid archive page");
                 };
                 validate_rle(text, count, max)?;
+                if *key == "cache_builds" && !text.is_empty() {
+                    ensure!(
+                        text.split(',')
+                            .all(|token| token.split(':').next().is_some_and(|v| v
+                                .parse::<u32>()
+                                .is_ok_and(|kind| kind <= 29 || kind >= 40))),
+                        "structure stored as a machine"
+                    );
+                }
+                if *key == "cache_structures" && !text.is_empty() {
+                    let cells = decode_rle(text, 900)?;
+                    for cell in cells.chunks_exact(4) {
+                        ensure!(
+                            [0., 30., 31.].contains(&cell[0])
+                                && [0., 36., 37.].contains(&cell[1])
+                                && cell[2..].iter().all(|v| *v == 0.
+                                    || (32. ..=35.).contains(v)
+                                    || *v == 38.
+                                    || *v == 39.),
+                            "invalid structure layer"
+                        );
+                        ensure!(cell[1] == 0. || cell[0] > 0., "roof without foundation");
+                    }
+                }
                 if developer && *key == "chunk_nodes" && !text.is_empty() {
                     ensure!(
                         self.allows_chunk(
@@ -297,6 +327,7 @@ impl State {
             }
         }
         self.validate_expansion_buffers()?;
+        self.validate_array_footprints()?;
         let chunk = (number(&self.scene, "chunk_z")? as i32 + 8) as usize * 17
             + (number(&self.scene, "chunk_x")? as i32 + 8) as usize;
         let at = numeric(&session[7])? as usize * 289 + chunk;
@@ -310,9 +341,16 @@ impl State {
         Ok(())
     }
 
-    /// Version-one worlds used 32 material totals and a 128-number session.
-    /// Extend only those exact legacy shapes; validation still rejects damaged data.
+    /// Add empty structure pages to older worlds and extend the known legacy
+    /// inventory/session shapes. Validation still rejects damaged data.
     pub fn upgrade_legacy(&mut self) {
+        self.controller
+            .entry("cache_structures".into())
+            .or_insert_with(|| B::List {
+                element: bozzard_scene::blueprint::PinType::Text,
+                capacity: 578,
+                values: vec![Value::Text(String::new()); 578],
+            });
         for (board, key, old, new) in [
             (&mut self.scene, "counts", 32, 64),
             (&mut self.controller, "stock", 32, 64),
@@ -320,22 +358,82 @@ impl State {
             if let Some(B::List {
                 values, capacity, ..
             }) = board.get_mut(key)
+                && values.len() == old
+                && *capacity == old
             {
-                if values.len() == old && *capacity == old {
-                    values.resize(new, Value::Number(0.));
-                    *capacity = new;
-                }
+                values.resize(new, Value::Number(0.));
+                *capacity = new;
             }
         }
         if let Some(B::List {
             values, capacity, ..
         }) = self.controller.get_mut("session")
+            && values.len() == 128
+            && *capacity == 128
         {
-            if values.len() == 128 && *capacity == 128 {
-                values.resize(160, Value::Number(0.));
-                *capacity = 160;
+            values.resize(160, Value::Number(0.));
+            *capacity = 160;
+        }
+    }
+
+    fn validate_array_footprints(&self) -> Result<()> {
+        use std::collections::{BTreeMap, BTreeSet};
+        if !values(&self.controller,"cache_builds")?.iter().any(|page|
+            matches!(page,Value::Text(text) if text.split(',').any(|token| token.split(':').next()==Some("41")))) {
+            return Ok(());
+        }
+        let mut machines = BTreeMap::new();
+        let mut arrays = Vec::new();
+        for (region, encoded) in values(&self.controller, "cache_builds")?.iter().enumerate() {
+            let Value::Text(text) = encoded else {
+                anyhow::bail!("invalid building archive")
+            };
+            if text.is_empty() {
+                continue;
+            }
+            for (cell, kind) in decode_rle(text, 225)?.into_iter().enumerate() {
+                if kind == 0. {
+                    continue;
+                }
+                let planet = (region / 289) as u8;
+                let chunk = region % 289;
+                let x = (chunk % 17) as i32 * 15 - 127 + (cell % 15) as i32;
+                let z = (chunk / 17) as i32 * 15 - 127 + (cell / 15) as i32;
+                machines.insert((planet, x, z), kind);
+                if kind == 41. {
+                    arrays.push((region, cell, planet, x, z));
+                }
             }
         }
+        let mut reserved = BTreeSet::new();
+        for (region, cell, planet, x, z) in arrays {
+            let facing = decode_rle(
+                text_value(&values(&self.controller, "cache_facings")?[region])?,
+                225,
+            )?[cell] as usize;
+            let (dx, dz) = [(1, 0), (0, 1), (-1, 0), (0, -1)][facing];
+            let other = (planet, x + dx, z + dz);
+            ensure!(
+                !machines.contains_key(&other) && reserved.insert(other),
+                "overlapping solar array footprint"
+            );
+            for (cx, cz) in [(x, z), (x + dx, z + dz)] {
+                let rx = (cx + 7).div_euclid(15);
+                let rz = (cz + 7).div_euclid(15);
+                ensure!(
+                    self.allows_chunk(planet, rx as i16, rz as i16),
+                    "array outside world bounds"
+                );
+                let at = usize::from(planet) * 289 + ((rz + 8) * 17 + rx + 8) as usize;
+                let slot = ((cz - rz * 15 + 7) * 15 + cx - rx * 15 + 7) as usize;
+                let page = text_value(&values(&self.controller, "chunk_nodes")?[at])?;
+                ensure!(
+                    !page.is_empty() && decode_rle(page, 225)?[slot] == 0.,
+                    "array needs two explored, clear spots"
+                );
+            }
+        }
+        Ok(())
     }
 
     fn validate_expansion_buffers(&self) -> Result<()> {
@@ -397,6 +495,12 @@ impl State {
             }
         }
         Ok(())
+    }
+}
+fn text_value(value: &Value) -> Result<&str> {
+    match value {
+        Value::Text(text) => Ok(text),
+        _ => anyhow::bail!("invalid text archive"),
     }
 }
 fn decode_rle(text: &str, count: usize) -> Result<Vec<f32>> {
@@ -486,7 +590,8 @@ fn validate_power(pages: &[Value]) -> Result<()> {
             ensure!(
                 (2..=10).contains(&entry.len())
                     && ([1, 3, 5, 6, 9, 10, 11].contains(&entry[0])
-                        || (12..=25).contains(&entry[0]))
+                        || (12..=25).contains(&entry[0])
+                        || (40..=42).contains(&entry[0]))
                     && entry[1] <= 1,
                 "invalid circuit entry"
             );

@@ -65,6 +65,7 @@ struct Actor {
     gathering: bool,
     next_gather: Duration,
     last_move: Option<Duration>,
+    doors: BTreeMap<(Position, usize), Duration>,
     flight: Option<Flight>,
 }
 #[derive(Clone, Copy)]
@@ -96,6 +97,7 @@ pub struct FlightView {
 
 pub struct Executor {
     rules: ScriptModule,
+    architecture: ScriptModule,
     actors: BTreeMap<Peer, Actor>,
     rotations: BTreeMap<Position, Rotation>,
 }
@@ -105,6 +107,7 @@ impl Executor {
         rules.require_function("apply", 3)?;
         Ok(Self {
             rules,
+            architecture: scene.script_module("factory-architecture")?,
             actors: BTreeMap::new(),
             rotations: BTreeMap::new(),
         })
@@ -160,12 +163,19 @@ impl Executor {
             self.actors.get(&peer).is_none_or(|a| a.flight.is_none()),
             "Wait until the rocket lands."
         );
+        self.observe_doors(world.state(), peer, player.position, now)?;
         match action {
+            Action::Structure {
+                kind,
+                direction,
+                remove,
+            } => return self.structure(world, player, *kind, *direction, *remove),
             Action::Point { at } => {
                 ensure!(
                     player.position.near(*at, 90) && world.discovered(*at)?,
                     "Select nearby discovered terrain."
                 );
+                self.check_path(world.state(), player.position, *at, now)?;
                 player.position = *at;
                 return Ok(accepted("Cursor moved."));
             }
@@ -181,6 +191,7 @@ impl Executor {
                 destination.x += i16::from(*x);
                 destination.z += i16::from(*z);
                 destination.validate()?;
+                self.check_path(world.state(), player.position, destination, now)?;
                 let mut state = world.state().clone();
                 self.discover_near(&mut state, destination)?;
                 let next = World::from_canonical(state)?;
@@ -235,8 +246,12 @@ impl Executor {
             Action::Wire { from, to } => return self.wire(world, player, *from, Some(*to), true),
             Action::Unwire { from, to } => return self.wire(world, player, *from, *to, false),
             Action::Rotate => {
-                let cell = read_cell(world.state(), player.position)?;
+                let at = array_owner(world.state(), player.position)?;
+                let cell = read_cell(world.state(), at)?;
                 ensure!(cell.build > 0., "No machine here.");
+                if cell.build == 41. {
+                    return self.transaction(world, player, at, "rotate", serde_json::Value::Null);
+                }
                 let rotation = self.rotations.entry(player.position).or_insert(Rotation {
                     began: now,
                     turns: 0,
@@ -248,7 +263,7 @@ impl Executor {
             }
             _ => (),
         }
-        let at = match action {
+        let mut at = match action {
             Action::Configure { at, .. }
             | Action::Collect { at }
             | Action::Feed { at }
@@ -260,10 +275,14 @@ impl Executor {
             | Action::StorageDeleteKind { at, .. } => *at,
             _ => player.position,
         };
+        if matches!(action, Action::Remove) {
+            at = array_owner(world.state(), at)?;
+        }
         ensure!(
             player.position.near(at, 1),
             "Walk next to that machine first."
         );
+        self.check_path(world.state(), player.position, at, now)?;
         if !matches!(action, Action::Remove) {
             ensure!(
                 !self.rotations.contains_key(&at),
@@ -302,6 +321,9 @@ impl Executor {
         players: &mut BTreeMap<Peer, Player>,
         now: Duration,
     ) -> Result<()> {
+        for (peer, player) in players.iter() {
+            self.observe_doors(world.state(), *peer, player.position, now)?;
+        }
         for (at, rotation) in self.rotations.clone() {
             let mut cell = read_cell(world.state(), at)?;
             if cell.build as u8 != rotation.kind {
@@ -379,6 +401,201 @@ impl Executor {
         }
         Ok(())
     }
+    fn observe_doors(
+        &mut self,
+        state: &State,
+        peer: Peer,
+        at: Position,
+        now: Duration,
+    ) -> Result<()> {
+        if state::values(&state.controller, "cache_structures")?
+            .iter()
+            .all(|v| matches!(v,Value::Text(s) if s.is_empty()))
+        {
+            if let Some(actor) = self.actors.get_mut(&peer) {
+                actor.doors.clear();
+            }
+            return Ok(());
+        }
+        let mut near = BTreeSet::new();
+        for (dx, dz) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
+            let p = Position {
+                x: at.x + dx,
+                z: at.z + dz,
+                ..at
+            };
+            if p.validate().is_err() {
+                continue;
+            }
+            for dir in 0..4 {
+                let (kind, base, slot) = structure_edge(state, p, dir)?;
+                if kind == 38 {
+                    near.insert((base, slot));
+                }
+            }
+        }
+        let doors = &mut self.actors.entry(peer).or_default().doors;
+        doors.retain(|key, _| near.contains(key));
+        for key in near {
+            doors.entry(key).or_insert(now);
+        }
+        Ok(())
+    }
+    fn check_path(&self, state: &State, from: Position, to: Position, now: Duration) -> Result<()> {
+        ensure!(
+            from.planet == to.planet,
+            "Use the rocket to change planets."
+        );
+        let check =
+            |at, dir| -> Result<()> {
+                let (kind, base, slot) = structure_edge(state, at, dir)?;
+                if kind == 38 {
+                    ensure!(
+                        self.actors.values().any(|actor| actor
+                            .doors
+                            .get(&(base, slot))
+                            .is_some_and(
+                                |began| now.saturating_sub(*began) >= Duration::from_millis(650)
+                            )),
+                        "Wait for the sliding door to open."
+                    );
+                } else {
+                    ensure!(kind == 0, "A wall blocks the way. Use the door.");
+                }
+                Ok(())
+            };
+        let mut at = from;
+        let (dx, dz) = ((to.x - from.x).abs(), (to.z - from.z).abs());
+        let (sx, sz) = ((to.x - from.x).signum(), (to.z - from.z).signum());
+        let (mut ix, mut iz) = (0, 0);
+        while ix < dx || iz < dz {
+            let (a, b) = ((1 + 2 * ix) * dz, (1 + 2 * iz) * dx);
+            let xd = if sx > 0 { 0 } else { 2 };
+            let zd = if sz > 0 { 1 } else { 3 };
+            if a == b {
+                check(at, xd)?;
+                check(at, zd)?;
+                check(Position { x: at.x + sx, ..at }, zd)?;
+                check(Position { z: at.z + sz, ..at }, xd)?;
+                at.x += sx;
+                at.z += sz;
+                ix += 1;
+                iz += 1;
+            } else if a < b {
+                check(at, xd)?;
+                at.x += sx;
+                ix += 1;
+            } else {
+                check(at, zd)?;
+                at.z += sz;
+                iz += 1;
+            }
+        }
+        Ok(())
+    }
+    fn structure(
+        &mut self,
+        world: &mut World,
+        player: &mut Player,
+        kind: u8,
+        direction: u8,
+        remove: bool,
+    ) -> Result<Outcome> {
+        #[derive(Deserialize)]
+        struct Edit {
+            ok: bool,
+            message: String,
+            region: usize,
+            slot: usize,
+            data: Vec<f32>,
+        }
+        #[derive(Deserialize)]
+        struct Payment {
+            ok: bool,
+            message: String,
+            inventory: Vec<f32>,
+        }
+        let state = world.state();
+        let at = player.position;
+        let pages = state::values(&state.controller, "cache_structures")?
+            .iter()
+            .map(|v| match v {
+                Value::Text(s) => Ok(s.clone()),
+                _ => anyhow::bail!("invalid structure archive"),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let demonstration = matches!(state.scene["demo_mode"], B::Scalar(Value::Bool(true)));
+        let edit: Edit = self.architecture.call_args(
+            "edit",
+            (
+                pages,
+                i64::from(at.planet),
+                i64::from(at.x),
+                i64::from(at.z),
+                f32::from(kind),
+                i64::from(direction),
+                remove,
+                state::number(&state.scene, "seed")? as i64,
+                demonstration,
+                state.dev_world(),
+            ),
+        )?;
+        if !edit.ok {
+            return Ok(Outcome {
+                accepted: false,
+                message: edit.message,
+            });
+        }
+        ensure!(
+            edit.data.len() == 900 && edit.region < 289 && edit.slot < 900,
+            "invalid structure transaction"
+        );
+        let mut next_player = player.clone();
+        if !remove {
+            let payment: Payment = self.rules.call_args(
+                "structure_payment",
+                (
+                    inventory(player),
+                    f32::from(kind),
+                    f32::from(world.phase()),
+                    demonstration
+                        || matches!(state.controller["creative"], B::Scalar(Value::Bool(true))),
+                ),
+            )?;
+            if !payment.ok {
+                return Ok(Outcome {
+                    accepted: false,
+                    message: payment.message,
+                });
+            }
+            set_inventory(&mut next_player, &payment.inventory)?;
+        }
+        next_player.selected = kind;
+        next_player.direction = direction;
+        let mut next = state.clone();
+        let base = Position {
+            planet: at.planet,
+            x: ((edit.region % 17) as i16 - 8) * 15 + (edit.slot / 4 % 15) as i16 - 7,
+            z: ((edit.region / 17) as i16 - 8) * 15 + (edit.slot / 4 / 15) as i16 - 7,
+        };
+        self.discover_near(&mut next, base)?;
+        set_page(
+            &mut next,
+            "cache_structures",
+            usize::from(at.planet) * 289 + edit.region,
+            &edit.data,
+        )?;
+        *world = World::from_canonical(next)?;
+        *player = next_player;
+        for actor in self.actors.values_mut() {
+            actor.doors.clear();
+        }
+        Ok(accepted(if remove {
+            "Structure removed. Machines stay in place."
+        } else {
+            "Structure built."
+        }))
+    }
     fn transaction(
         &self,
         world: &mut World,
@@ -390,6 +607,68 @@ impl Executor {
         ensure!(world.discovered(at)?, "That region is not discovered.");
         let state = world.state();
         let before = read_cell(state, at)?;
+        if kind == "place" || kind == "rotate" && before.build == 41. {
+            let machine = if kind == "place" {
+                args["kind"].as_u64().context("missing machine kind")? as f32
+            } else {
+                41.
+            };
+            let direction = if kind == "place" {
+                args["direction"].as_u64().context("missing facing")? as i64
+            } else {
+                (before.facing as i64 + 1) % 4
+            };
+            let pages = |name: &str| -> Result<Vec<String>> {
+                state::values(&state.controller, name)?
+                    .iter()
+                    .map(|v| match v {
+                        Value::Text(t) => Ok(t.clone()),
+                        _ => anyhow::bail!("invalid archive"),
+                    })
+                    .collect()
+            };
+            let error: String = self.rules.call_args(
+                "footprint_error",
+                (
+                    pages("cache_builds")?,
+                    pages("cache_facings")?,
+                    pages("chunk_nodes")?,
+                    i64::from(at.planet),
+                    address(at),
+                    machine,
+                    direction,
+                    if kind == "rotate" { address(at) } else { -1 },
+                    state::number(&state.scene, "seed")? as i64,
+                    matches!(state.scene["demo_mode"], B::Scalar(Value::Bool(true))),
+                    state.dev_world(),
+                    f32::from(world.phase()),
+                ),
+            )?;
+            if !error.is_empty() {
+                return Ok(Outcome {
+                    accepted: false,
+                    message: error,
+                });
+            }
+        }
+        if kind == "place"
+            && !state.dev_world()
+            && !matches!(state.scene["demo_mode"], B::Scalar(Value::Bool(true)))
+            && self.rules.call_args::<_, bool>(
+                "debris_blocked",
+                (
+                    state::number(&state.scene, "seed")? as i64,
+                    i64::from(at.planet),
+                    i64::from(at.x),
+                    i64::from(at.z),
+                ),
+            )?
+        {
+            return Ok(Outcome {
+                accepted: false,
+                message: "Keep the spaceship wreckage clear.".into(),
+            });
+        }
         let input = Transaction {
             ok: false,
             message: String::new(),
@@ -473,7 +752,10 @@ impl Executor {
         Ok(())
     }
     fn write_power(&self, state: &mut State, planet: u8, graph: Graph) -> Result<()> {
-        let graph: Graph = self.rules.call_args("resolve_power", (graph,))?;
+        let time = state::numeric(&state::values(&state.controller, "session")?[120])?;
+        let graph: Graph = self
+            .rules
+            .call_args("resolve_power", (graph, time, i64::from(planet)))?;
         let name = if planet == 0 {
             "power_data"
         } else {
@@ -521,6 +803,8 @@ impl Executor {
                 && to.map(|p| world.discovered(p)).transpose()?.unwrap_or(true),
             "Unknown cable endpoint."
         );
+        let from = array_owner(world.state(), from)?;
+        let to = to.map(|at| array_owner(world.state(), at)).transpose()?;
         let mut state = world.state().clone();
         let mut graph = read_power(&state, from.planet)?;
         let a = address(from);
@@ -568,6 +852,24 @@ impl Executor {
             "Cable disconnected."
         }))
     }
+}
+
+fn structure_edge(state: &State, mut at: Position, direction: u8) -> Result<(u8, Position, usize)> {
+    if direction == 2 {
+        at.x -= 1;
+    } else if direction == 3 {
+        at.z -= 1;
+    }
+    let slot = cell_index(at) * 4 + 2 + usize::from(direction % 2);
+    if at.validate().is_err() {
+        return Ok((0, at, slot));
+    }
+    if matches!(&state::values(&state.controller,"cache_structures")?[at.archive_index()],Value::Text(s) if s.is_empty())
+    {
+        return Ok((0, at, slot));
+    }
+    let values = page(state, "cache_structures", at.archive_index(), 900)?;
+    Ok((values[slot] as u8, at, slot))
 }
 
 type Graph = BTreeMap<String, Vec<i64>>;
@@ -685,6 +987,34 @@ fn read_cell(state: &State, p: Position) -> Result<Cell> {
         split: read("cache_split_state")?,
         storage,
     })
+}
+
+// A two-tile array has one saved machine/circuit node. Resolve either occupied
+// tile back to that anchor for demolition, rotation and cable interaction.
+fn array_owner(state: &State, p: Position) -> Result<Position> {
+    let kind = |at: Position| -> Result<f32> {
+        Ok(page(state, "cache_builds", at.archive_index(), 225)?[cell_index(at)])
+    };
+    if kind(p)? > 0. {
+        return Ok(p);
+    }
+    for (x, z) in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
+        let anchor = Position {
+            planet: p.planet,
+            x: p.x + x,
+            z: p.z + z,
+        };
+        if anchor.validate().is_err() || kind(anchor)? != 41. {
+            continue;
+        }
+        let facing =
+            page(state, "cache_facings", anchor.archive_index(), 225)?[cell_index(anchor)] as usize;
+        let (dx, dz) = [(1, 0), (0, 1), (-1, 0), (0, -1)][facing];
+        if anchor.x + dx == p.x && anchor.z + dz == p.z {
+            return Ok(anchor);
+        }
+    }
+    Ok(p)
 }
 fn write_cell(state: &mut State, p: Position, before: &Cell, cell: &Cell) -> Result<()> {
     ensure!(

@@ -1,6 +1,7 @@
 // Data-only save bridge: native code validates and writes files off the game thread.
 // session: 116 command, 117 slot, 120 world time, 121 autosave time,
 // 122 authority (solo/host/guest), 123 browser mode, 125 I/O busy, 126 world generation.
+import "factory-interiors" as interiors;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-world" as world;
@@ -33,6 +34,7 @@ fn prepare_save(slot) {
     true
 }
 fn clear_view() {
+    interiors::clear();
     visuals::reset_rotations();
     transports::clear();
     item_fx::clear();power::clear_power();
@@ -70,6 +72,7 @@ fn restore_view() {
     set_position("rocket-rig",[0.0,0.0,0.0]);
     power::update_power();visuals::update_projects();
     environment::update_daylight(if data::on_moon(){-1.0}else{sin(data::session_value(120)*0.10)});
+    interiors::update(0.0);
     set_scene_variable("message","World loaded. Your factories are running.");
 }
 // True means this tick is a consistent snapshot/restore boundary.

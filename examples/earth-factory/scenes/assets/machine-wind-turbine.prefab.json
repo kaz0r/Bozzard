@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Small wind turbine",
+  "root": "root",
+  "assets": {
+    "machine-wind-turbine": {
+      "kind": "mesh",
+      "path": "models/renewables/wind-turbine.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Small wind turbine",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "machine-wind-turbine"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Sliding door leaf",
+  "root": "root",
+  "assets": {
+    "foundation-door-leaf": {
+      "kind": "mesh",
+      "path": "models/foundations/door-leaf.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Sliding door leaf",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-door-leaf"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

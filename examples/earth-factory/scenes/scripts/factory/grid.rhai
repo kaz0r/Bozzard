@@ -93,6 +93,17 @@ fn unpack_numbers(text, count) {
     values
 }
 
+// Read one archived cell without allocating the complete region.
+fn packed_value(text,index) {
+    if text=="" {return 0.0;}
+    let at=0;
+    for part in text.split(",") {
+        let run=part.split(":");let end=at+if run.len()==2 {parse_int(run[1])}else{1};
+        if index<end {return parse_int(run[0]).to_float();}at=end;
+    }
+    0.0
+}
+
 // Read only occupied cells from a numeric archive. Storage pages otherwise
 // expand hundreds of empty slots for each container on every production beat.
 fn unpack_cells(text, cells, stride) {

@@ -1,13 +1,17 @@
 // Pure factory transactions. No scene reads, rendering commands or local UI state:
 // the host passes one actor and one addressed cell, then commits a valid result.
+import "factory-architecture" as architecture;
+import "factory-renewables" as renewables;
 import "factory-data" as data;
 import "factory-backpack" as backpack;
 import "factory-progression" as progression;
 import "factory-power" as power;
 import "factory-deposits" as deposits;
+import "factory-debris" as debris;
 import "factory-buffers" as buffers;
 
 fn denied(ctx,message) { ctx.ok=false; ctx.message=message; ctx }
+fn debris_blocked(seed,planet,x,z) { debris::blocked(seed,planet,x,z) }
 fn accepted(ctx,message) { ctx.ok=true; ctx.message=message; ctx }
 fn stock(ctx) { backpack::totals(ctx.inventory) }
 fn pay(ctx,cost) {
@@ -240,3 +244,13 @@ fn discover(seed,planet,cx,cz) { deposits::generate_region_nodes(seed,cx,cz,plan
 fn electrical(kind) { power::electrical(kind) }
 fn connection_error(graph,from,to) { power::connection_error(graph,from,to) }
 fn resolve_power(graph) { power::resolve_graph(graph).graph }
+fn resolve_power(graph,time,planet) { power::resolve_graph(graph,renewables::solar_active(time,planet)).graph }
+fn footprint_error(builds,facings,nodes,planet,id,kind,direction,ignore,seed,free,dev,phase) {
+    renewables::placement_error(builds,facings,nodes,planet,id,kind,direction,ignore,seed,free,dev,phase)
+}
+
+fn structure_payment(inventory,kind,phase,creative) {
+    if !data::tool_unlocked(kind,phase,creative) {return #{ok:false,message:"Foundations unlock at Tier 2.",inventory:inventory};}
+    let result=pay(#{inventory:inventory,creative:creative},data::build_cost(kind));
+    #{ok:result.ok,message:if result.ok {""}else{"Needs "+data::cost_label(data::build_cost(kind))},inventory:if result.ok {result.inventory}else{inventory}}
+}

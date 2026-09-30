@@ -83,6 +83,249 @@ fn factory_with_mode(seed: Option<f32>, demonstration: bool) -> SceneDemo {
 }
 
 #[test]
+fn spaceship_debris_is_sparse_seeded_bounded_and_clear_of_resources_on_both_planets() {
+    use std::collections::BTreeSet;
+    let mut demo = factory_with_mode(Some(4.), false);
+    tick(&mut demo, None);
+    let wrecks = demo.instance().script_module("factory-debris").unwrap();
+    let deposits = demo.instance().script_module("factory-deposits").unwrap();
+    let mut histogram = [0usize; 7];
+    for seed in (1i64..=64).chain([1926, 8362, 2_000_000_000]) {
+        let mut earth = Vec::new();
+        for planet in 0i64..2 {
+            let plan: Vec<f32> = wrecks.call_args("layout", (seed, planet)).unwrap();
+            let count = plan[0] as usize;
+            assert!((2..=6).contains(&count));
+            assert_eq!(plan.len(), 1 + count * 5);
+            histogram[count] += 1;
+            let replay: Vec<f32> = wrecks.call_args("layout", (seed, planet)).unwrap();
+            assert_eq!(plan, replay, "layout depends on exploration or call order");
+            let mut regions = BTreeSet::new();
+            let mut variants = BTreeSet::new();
+            let radius = if planet == 0 { 8 } else { 6 };
+            for wreck in plan[1..].chunks_exact(5) {
+                let id = wreck[0] as i64;
+                assert!(regions.insert(id), "two wrecks occupy the same region");
+                let (cx, cz) = (id % 17 - 8, id / 17 - 8);
+                assert!(cx.abs() <= radius && cz.abs() <= radius);
+                assert!(
+                    cx.abs().max(cz.abs()) >= 2,
+                    "wreck crowds the landing region"
+                );
+                let (x, z) = (wreck[1] as i64, wreck[2] as i64);
+                assert!(x.abs() <= 4 && z.abs() <= 4);
+                assert!((0..4).contains(&(wreck[3] as i64)));
+                assert!([0., 90., 180., 270.].contains(&wreck[4]));
+                variants.insert(wreck[3] as i64);
+                let nodes: Vec<f32> = deposits
+                    .call_args("generate_region_nodes", (seed, cx, cz, planet))
+                    .unwrap();
+                for dz in -1..=1 {
+                    for dx in -1..=1 {
+                        assert_eq!(
+                            nodes[((z + dz + 7) * 15 + x + dx + 7) as usize],
+                            0.,
+                            "wreck covers a deposit"
+                        );
+                        assert!(
+                            wrecks
+                                .call_args::<_, bool>(
+                                    "blocked",
+                                    (seed, planet, cx * 15 + x + dx, cz * 15 + z + dz)
+                                )
+                                .unwrap()
+                        );
+                    }
+                }
+                assert!(
+                    !wrecks
+                        .call_args::<_, bool>(
+                            "blocked",
+                            (seed, planet, cx * 15 + x + 2, cz * 15 + z)
+                        )
+                        .unwrap()
+                );
+            }
+            assert_eq!(variants.len(), count.min(4));
+            if planet == 0 {
+                earth = plan;
+            } else {
+                assert_ne!(earth, plan);
+            }
+        }
+    }
+    assert!(
+        histogram[2] > histogram[3] && histogram[3] > histogram[4],
+        "extra debris is too common: {histogram:?}"
+    );
+    assert!(histogram[4] > 0, "optional slots never spawn");
+    assert!(histogram[6] > 0, "maximum layout is never exercised");
+    println!("debris count distribution across 134 seeded planets: {histogram:?}");
+}
+
+#[test]
+fn spaceship_debris_caps_live_models_at_six_and_restores_after_planet_travel() {
+    let mut demo = factory_with_mode(Some(1926.), false);
+    tick(&mut demo, None);
+    let original: Vec<f32> = demo
+        .instance()
+        .script_module("factory-debris")
+        .unwrap()
+        .call_args("layout", (1926i64, 0i64))
+        .unwrap();
+    assert_eq!(original[0], 6.);
+    let load_all = r#"
+        let plan=debris::current_layout();
+        for slot in 0..plan[0].to_int() {
+            let id=plan[1+slot*5].to_int();chunks::discover_chunk(id%17-8,id/17-8);
+        }
+        let live=0;for handle in get_object_list("factory-transports","debris_handles") {if handle!="" {live+=1;}}
+        if live!=plan[0].to_int() {throw "incorrect planet-wide wreck count";}
+    "#;
+    factory_code(&mut demo, load_all, 1);
+    factory_code(&mut demo, "set_object_variable(\"phase\",7.0);", 1);
+    board_other_planet(&mut demo);
+    assert_eq!(controller_numbers(&demo, "session")[7], 1.);
+    factory_code(
+        &mut demo,
+        r#"
+        for handle in get_object_list("factory-transports","debris_handles") {if handle!="" {throw "off-planet wreck leaked";}}
+    "#,
+        1,
+    );
+    factory_code(&mut demo, load_all, 1);
+    board_other_planet(&mut demo);
+    assert_eq!(controller_numbers(&demo, "session")[7], 0.);
+    factory_code(&mut demo, load_all, 1);
+    let replay: Vec<f32> = demo
+        .instance()
+        .script_module("factory-debris")
+        .unwrap()
+        .call_args("layout", (1926i64, 0i64))
+        .unwrap();
+    assert_eq!(original, replay);
+    factory_code(
+        &mut demo,
+        r#"
+        world::begin_world(4);
+        for handle in get_object_list("factory-transports","debris_handles") {if handle!="" {throw "new world kept old wrecks";}}
+        if debris::current_layout()!=debris::layout(4,0) {throw "new world kept old layout";}
+    "#,
+        1,
+    );
+}
+
+#[test]
+fn spaceship_debris_reserves_story_tiles_in_coop_without_spending_inventory() {
+    use bozzard_demo::factory::{
+        authority::Executor, replication::requests::Action, shared::Stack,
+    };
+    use std::time::Duration;
+    let mut demo = factory_with_mode(Some(4.), false);
+    tick(&mut demo, None);
+    factory_code(
+        &mut demo,
+        r#"
+        let plan=debris::current_layout();let id=plan[1].to_int();
+        world::enter_chunk(id%17-8,id/17-8);
+        set_scene_variable("cursor_x",plan[2]);set_scene_variable("cursor_z",plan[3]);
+        set_object_variable("phase",7.0);
+    "#,
+        1,
+    );
+    let (mut world, mut player) = coop_world(&demo);
+    player.backpack[0] = Stack {
+        kind: 1,
+        amount: 100,
+    };
+    let before = world.clone();
+    let inventory = player.backpack;
+    let mut executor = Executor::new(demo.instance()).unwrap();
+    let result = executor
+        .apply(
+            &mut world,
+            10,
+            &mut player,
+            &Action::Place {
+                kind: 2,
+                direction: 0,
+            },
+            Duration::ZERO,
+        )
+        .unwrap();
+    assert!(!result.accepted);
+    assert_eq!(result.message, "Keep the spaceship wreckage clear.");
+    assert_eq!(world, before);
+    assert_eq!(player.backpack, inventory);
+}
+
+#[test]
+fn spaceship_debris_streams_without_duplicates_and_survives_view_restore() {
+    let mut demo = factory_with_mode(Some(4.), false);
+    tick(&mut demo, None);
+    factory_code(
+        &mut demo,
+        r#"
+        let plan=debris::current_layout();let id=plan[1].to_int();
+        let cx=id%17-8;let cz=id/17-8;
+        world::enter_chunk(cx,cz);
+        let before=get_object_list("factory-transports","debris_handles");
+        if before[0]=="" {throw "wreck missing from its region";}
+        chunks::load_chunk_visuals(cx,cz);debris::load_region(id);
+        if get_object_list("factory-transports","debris_handles")!=before {throw "duplicate wreck";}
+        chunks::unload_chunk_visuals(id);
+        if get_object_list("factory-transports","debris_handles")[0]!="" {throw "wreck leaked after unload";}
+        chunks::load_chunk_visuals(cx,cz);world::restore_chunk(cx,cz);
+        if get_object_list("factory-transports","debris_handles")[0]=="" {throw "wreck missing after reload";}
+        set_object_variable("creative",true);
+        set_scene_variable("cursor_x",plan[2]);set_scene_variable("cursor_z",plan[3]);
+        set_scene_variable("selected",2.0);building::place_selected();
+        if get_scene_list("builds")[grid::index(plan[2].to_int(),plan[3].to_int())]!=0.0 {throw "built over story wreck";}
+        world::archive_chunk();
+    "#,
+        1,
+    );
+    let old = demo
+        .instance()
+        .document()
+        .objects
+        .iter()
+        .filter(|o| {
+            o.name == "Broken cockpit"
+                || o.name == "Split cargo hull"
+                || o.name == "Torn survey wing"
+                || o.name == "Ruptured engine"
+        })
+        .count();
+    assert!(old > 0);
+    // Native persistence copies only game data. Clearing/restoring presentation
+    // must reconstruct the same wreck locations without retaining stale handles.
+    let directory = save_directory(&mut demo);
+    factory_code(&mut demo, "persistence::prepare_save(1);", 1);
+    factory_code(&mut demo, "persistence::update(0.0);", 1);
+    finish_save_io(&mut demo);
+    factory_code(
+        &mut demo,
+        "world::begin_world(17);data::session_set(117,1.0);data::session_set(116,2.0);",
+        1,
+    );
+    factory_code(&mut demo, "persistence::update(0.0);", 1);
+    finish_save_io(&mut demo);
+    factory_code(
+        &mut demo,
+        r#"
+        let plan=debris::current_layout();
+        if get_object_list("factory-transports","debris_handles")[0]=="" {throw "saved wreck missing";}
+        let expected=debris::layout(get_scene_variable("seed").to_int(),data::session_value(7).to_int());
+        if plan!=expected {throw "saved wreck rerolled";}
+    "#,
+        1,
+    );
+    assert_eq!(number(&demo, "seed"), 4.);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn resource_planets_are_sparse_spaced_seeded_and_progression_safe() {
     use std::collections::{BTreeMap, BTreeSet};
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1472,9 +1715,17 @@ fn action_bars_switch_by_ctrl_chord_and_remember_each_selection() {
     assert_eq!(number(&demo, "selected"), 24.);
     tick(&mut demo, None);
     tick_keys(&mut demo, &["Ctrl", "6"]);
+    assert_eq!(controller_number(&demo, "bar"), 6.);
+    assert_eq!(number(&demo, "selected"), 30.);
+    press(&mut demo, "8");
+    assert_eq!(number(&demo, "selected"), 39.);
+    tick_keys(&mut demo, &["Ctrl", "7"]);
+    assert_eq!(number(&demo, "selected"), 36.);
+    tick(&mut demo, None);
+    tick_keys(&mut demo, &["Ctrl", "8"]);
     assert_eq!(
         number(&demo, "selected"),
-        24.,
+        36.,
         "unsupported chords cannot select tools"
     );
     press(&mut demo, "Space");
@@ -3957,6 +4208,13 @@ fn progression_landing_expansion_preserves_obstacles_and_rocket_stages_and_modal
         assert_eq!(!hidden(&demo, "site-0"), site);
         assert_eq!(!hidden(&demo, "rocket-lower-0"), lower);
         assert_eq!(!hidden(&demo, "rocket-upper-0"), upper);
+        for i in 0..3 {
+            assert_eq!(
+                hidden(&demo, &format!("pod-{i}")),
+                site,
+                "service pad replaces the starter pod without overlapping it"
+            );
+        }
     }
     let demo = stellar_fixture(
         r#"
@@ -4472,6 +4730,20 @@ fn rocket_flight_closes_ui_lifts_swaps_offscreen_lands_and_preserves_inventory()
         let ticks = number(&demo, "ticks");
         settle(&mut demo, 60);
         assert!(height(&demo) > 5. && height(&demo) < 12.);
+        let transforms = demo.instance().global_transforms(&demo.app.world).unwrap();
+        for part in ["rocket-lower-0", "rocket-upper-0", "rocket-exhaust"] {
+            let position = transforms[part].transform_point3(glam::Vec3::ZERO);
+            assert!(
+                (position.y - height(&demo) - 0.10).abs() < 0.001,
+                "ship part {part} did not follow the shared flight pivot"
+            );
+            assert_eq!(position.z, 1.);
+        }
+        assert_eq!(
+            transforms["site-0"].transform_point3(glam::Vec3::ZERO),
+            glam::Vec3::ZERO,
+            "station lifted off with the ship"
+        );
         assert_ne!(controller_numbers(&demo, "session")[7], destination);
         tick_keys(&mut demo, &["E", "I", "M", "Escape", "D", "Space"]);
         assert!(!shown(&demo, "player-rocket-panel") && !shown(&demo, "menu-panel"));
@@ -8264,4 +8536,924 @@ fn expansion_coop_guest_builds_feeds_and_collects_manufacturer_through_a_corner_
         11.,
         "guest transactions preserve the host's backpack"
     );
+}
+
+fn foundation_fixture() -> SceneDemo {
+    script_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        let pieces=grid::empty_numbers(900);
+        for z in 3..6 {for x in 3..6 {
+            let cell=grid::index(x,z);pieces[cell*4]=30.0;pieces[cell*4+1]=36.0;
+            for dir in 0..4 {
+                let nx=x+grid::step_x(dir);let nz=z+grid::step_z(dir);
+                if nx>=3 && nx<=5 && nz>=3 && nz<=5 {continue;}
+                let a=architecture::address(x,z,32.0,dir);pieces[a.slot]=32.0;
+            }
+        }}
+        pieces[architecture::address(4,5,38.0,1).slot]=38.0;
+        pieces[architecture::address(5,4,39.0,0).slot]=39.0;
+        grid::cache_put("cache_structures",144,grid::pack_numbers(pieces));
+        set_scene_variable("cursor_x",4.0);set_scene_variable("cursor_z",4.0);
+        set_scene_variable("selected",3.0);building::remove_selected();building::place_selected();
+        set_scene_variable("cursor_x",4.0);set_scene_variable("cursor_z",6.0);
+        interiors::load(144);interiors::update(0.0);
+    "#,
+    )
+}
+fn foundation_mesh_visible(demo: &SceneDemo, asset: &str, x: f32, z: f32) -> bool {
+    demo.instance()
+        .view(&demo.app.world, bozzard_scene::Layer::ThreeD, 1.6)
+        .unwrap()
+        .objects
+        .iter()
+        .any(|(m, d)| {
+            matches!(&d.mesh,bozzard_scene::Mesh::Asset(id) if id.ends_with(asset))
+                && (m.w_axis.x - x).abs() < 0.001
+                && (m.w_axis.z - z).abs() < 0.001
+        })
+}
+#[test]
+fn foundations_hide_sealed_rooms_reveal_only_window_sightlines_and_cut_away_inside() {
+    let mut demo = foundation_fixture();
+    assert!(!foundation_mesh_visible(&demo, "smelter-mk1", 4., 4.));
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        4.,
+        4.
+    ));
+    factory_code(
+        &mut demo,
+        "set_scene_variable(\"cursor_x\",6.0);set_scene_variable(\"cursor_z\",4.0);interiors::update(0.0);",
+        1,
+    );
+    assert!(
+        foundation_mesh_visible(&demo, "smelter-mk1", 4., 4.),
+        "window exposes two tiles inward"
+    );
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        4.,
+        4.
+    ));
+    assert!(
+        foundation_mesh_visible(&demo, "foundation-concrete-roof", 3., 4.),
+        "window cannot expose the whole room"
+    );
+    factory_code(
+        &mut demo,
+        "set_scene_variable(\"cursor_x\",4.0);set_scene_variable(\"cursor_z\",4.0);interiors::update(0.0);",
+        1,
+    );
+    assert!(foundation_mesh_visible(&demo, "smelter-mk1", 4., 4.));
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        3.,
+        3.
+    ));
+    let view = demo
+        .instance()
+        .view(&demo.app.world, bozzard_scene::Layer::ThreeD, 1.6)
+        .unwrap();
+    let (_,ground)=view.objects.iter().find(|(_,d)|matches!(&d.mesh,bozzard_scene::Mesh::Asset(id) if id.ends_with("earth-ground"))).unwrap();
+    assert!(
+        ground.color.iter().all(|v| *v <= 0.1),
+        "outdoors is darkened"
+    );
+    let (_,floor)=view.objects.iter().find(|(m,d)|m.w_axis.x==4. && m.w_axis.z==4. && matches!(&d.mesh,bozzard_scene::Mesh::Asset(id) if id.ends_with("foundation-concrete-floor"))).unwrap();
+    assert_eq!(floor.color, [1.; 3], "indoor materials retain clear view");
+    let at = demo
+        .instance()
+        .document()
+        .objects
+        .iter()
+        .find(|o| o.name == "Concrete foundation")
+        .unwrap();
+    assert_eq!(
+        demo.app
+            .world
+            .get::<bozzard_scene::Drawable>(demo.instance().entity(&at.id).unwrap())
+            .unwrap()
+            .color,
+        [1.; 3],
+        "cutaway must not alter persistent material colors"
+    );
+}
+#[test]
+fn foundations_doors_wait_before_entry_walls_block_keyboard_and_click_teleports() {
+    let mut demo = foundation_fixture();
+    press(&mut demo, "W");
+    assert_eq!(number(&demo, "cursor_z"), 6., "door is still opening");
+    settle(&mut demo, 20);
+    press(&mut demo, "W");
+    assert_eq!(
+        number(&demo, "cursor_z"),
+        6.,
+        "partly open doors still block entry"
+    );
+    settle(&mut demo, 20);
+    press(&mut demo, "W");
+    assert_eq!(number(&demo, "cursor_z"), 5.);
+    let count = demo.instance().document().objects.len();
+    settle(&mut demo, 20);
+    assert_eq!(
+        demo.instance().document().objects.len(),
+        count,
+        "door motion reuses its leaves"
+    );
+    press(&mut demo, "D");
+    assert_eq!(number(&demo, "cursor_x"), 5.);
+    press(&mut demo, "D");
+    assert_eq!(
+        number(&demo, "cursor_x"),
+        5.,
+        "concrete wall blocks movement"
+    );
+    factory_code(&mut demo, "pointer::select_tile([0,0,6,4]);", 1);
+    assert_eq!(
+        number(&demo, "cursor_x"),
+        5.,
+        "pointer cannot jump across the window wall"
+    );
+    factory_code(
+        &mut demo,
+        "let pieces=architecture::page(get_object_list(\"cache_structures\"),0,144);pieces[grid::index(3,3)*4+1]=0.0;grid::cache_put(\"cache_structures\",144,grid::pack_numbers(pieces));interiors::update(0.0);",
+        1,
+    );
+    assert!(
+        foundation_mesh_visible(&demo, "foundation-concrete-roof", 4., 4.),
+        "missing roof makes the factory unenclosed"
+    );
+}
+#[test]
+fn foundations_layers_preserve_machines_and_survive_save_travel_and_reset() {
+    use bozzard_demo::factory::state::State;
+    let mut demo = foundation_fixture();
+    let cell = (4 + 7) * 15 + 4 + 7;
+    let builds = numbers(&demo, "builds");
+    assert_eq!(builds[cell], 3.);
+    let saved =
+        State::capture_live(demo.app.world.resource::<BlueprintRuntime>().unwrap()).unwrap();
+    saved.validate().unwrap();
+    assert!(
+        !saved.controller["cache_structures"].values()[144]
+            .text()
+            .unwrap()
+            .is_empty()
+    );
+    let decoded: State = serde_json::from_str(&serde_json::to_string(&saved).unwrap()).unwrap();
+    assert_eq!(saved, decoded);
+    let mut legacy = saved.clone();
+    legacy.controller.remove("cache_structures");
+    legacy.upgrade_legacy();
+    legacy.validate().unwrap();
+    factory_code(
+        &mut demo,
+        "set_scene_variable(\"demo_mode\",false);set_scene_variable(\"cursor_x\",0.0);set_scene_variable(\"cursor_z\",1.0);world::travel_to_other_planet();interiors::update(0.0);",
+        1,
+    );
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        4.,
+        4.
+    ));
+    factory_code(
+        &mut demo,
+        "set_scene_variable(\"demo_mode\",false);set_scene_variable(\"cursor_x\",0.0);set_scene_variable(\"cursor_z\",1.0);world::travel_to_other_planet();interiors::update(0.0);",
+        1,
+    );
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        4.,
+        4.
+    ));
+    assert_eq!(numbers(&demo, "builds")[cell], 3.);
+    factory_code(
+        &mut demo,
+        "world::begin_world(19);interiors::update(0.0);",
+        1,
+    );
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        4.,
+        4.
+    ));
+    assert!(
+        demo.app
+            .world
+            .resource::<BlueprintRuntime>()
+            .unwrap()
+            .object_blackboard("controller")
+            .unwrap()["cache_structures"]
+            .values()
+            .iter()
+            .all(|v| v.text().unwrap().is_empty())
+    );
+}
+#[test]
+fn foundations_build_and_remove_every_layer_through_the_normal_controls() {
+    let mut demo = foundation_fixture();
+    let machines = numbers(&demo, "builds");
+    factory_code(
+        &mut demo,
+        "set_scene_variable(\"cursor_x\",6.0);set_scene_variable(\"cursor_z\",3.0);set_scene_variable(\"selected\",31.0);set_scene_variable(\"direction\",0.0);",
+        1,
+    );
+    restore_factory_update(&mut demo);
+    press(&mut demo, "Space");
+    assert!(
+        foundation_mesh_visible(&demo, "foundation-wood-floor", 6., 3.),
+        "selected={}, message={:?}",
+        number(&demo, "selected"),
+        demo.app
+            .world
+            .resource::<BlueprintRuntime>()
+            .unwrap()
+            .scene_blackboard()["message"]
+    );
+    factory_code(&mut demo, "set_scene_variable(\"selected\",37.0);", 1);
+    restore_factory_update(&mut demo);
+    press(&mut demo, "Space");
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-wood-roof",
+        6.,
+        3.
+    ));
+    factory_code(&mut demo, "set_scene_variable(\"selected\",31.0);", 1);
+    restore_factory_update(&mut demo);
+    press(&mut demo, "X");
+    assert!(
+        foundation_mesh_visible(&demo, "foundation-wood-floor", 6., 3.),
+        "remove the roof before its supporting floor"
+    );
+    for (kind, asset) in [
+        (32, "concrete-wall"),
+        (33, "brick-wall"),
+        (34, "metal-wall"),
+        (35, "wood-wall"),
+        (38, "sliding-door"),
+        (39, "window"),
+    ] {
+        factory_code(
+            &mut demo,
+            &format!("set_scene_variable(\"selected\",{kind}.0);"),
+            1,
+        );
+        restore_factory_update(&mut demo);
+        press(&mut demo, "Space");
+        assert!(foundation_mesh_visible(
+            &demo,
+            &format!("foundation-{asset}"),
+            6.5,
+            3.
+        ));
+        press(&mut demo, "X");
+        assert!(!foundation_mesh_visible(
+            &demo,
+            &format!("foundation-{asset}"),
+            6.5,
+            3.
+        ));
+    }
+    press(&mut demo, "R");
+    assert_eq!(number(&demo, "direction"), 1.);
+    press(&mut demo, "Space");
+    assert!(
+        foundation_mesh_visible(&demo, "foundation-window", 6., 3.5),
+        "R chooses the south edge"
+    );
+    press(&mut demo, "X");
+    factory_code(&mut demo, "set_scene_variable(\"selected\",37.0);", 1);
+    restore_factory_update(&mut demo);
+    press(&mut demo, "X");
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-wood-roof",
+        6.,
+        3.
+    ));
+    factory_code(&mut demo, "set_scene_variable(\"selected\",31.0);", 1);
+    restore_factory_update(&mut demo);
+    press(&mut demo, "X");
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-wood-floor",
+        6.,
+        3.
+    ));
+    assert_eq!(
+        numbers(&demo, "builds"),
+        machines,
+        "structure controls must preserve machines"
+    );
+}
+#[test]
+fn foundations_coop_uses_shared_layers_costs_and_authoritative_door_waits() {
+    use bozzard_demo::factory::{
+        authority::Executor,
+        replication::requests::Action,
+        shared::{Position, Stack},
+    };
+    use std::time::Duration;
+    let mut demo = foundation_fixture();
+    factory_code(
+        &mut demo,
+        "set_object_variable(\"creative\",false);set_scene_variable(\"demo_mode\",false);",
+        1,
+    );
+    let (mut world, mut player) = coop_world(&demo);
+    let mut executor = Executor::new(demo.instance()).unwrap();
+    let before = player.position;
+    assert!(
+        executor
+            .apply(
+                &mut world,
+                10,
+                &mut player,
+                &Action::Move { x: 0, z: -1 },
+                Duration::ZERO
+            )
+            .is_err()
+    );
+    assert_eq!(player.position, before);
+    executor
+        .apply(
+            &mut world,
+            10,
+            &mut player,
+            &Action::Move { x: 0, z: -1 },
+            Duration::from_millis(700),
+        )
+        .unwrap();
+    assert_eq!(player.position.z, 5);
+    assert!(
+        executor
+            .apply(
+                &mut world,
+                10,
+                &mut player,
+                &Action::Point {
+                    at: Position {
+                        x: 6,
+                        z: 4,
+                        ..before
+                    }
+                },
+                Duration::from_millis(720)
+            )
+            .is_err()
+    );
+    player.position = Position {
+        x: 6,
+        z: 3,
+        ..before
+    };
+    player.backpack[0] = Stack {
+        kind: 18,
+        amount: 6,
+    };
+    let build = Action::Structure {
+        kind: 30,
+        direction: 0,
+        remove: false,
+    };
+    let placed = executor
+        .apply(&mut world, 10, &mut player, &build, Duration::from_secs(1))
+        .unwrap();
+    assert!(placed.accepted, "{}", placed.message);
+    assert_eq!(player.backpack[0].amount, 4);
+    let committed = world.clone();
+    assert!(
+        !executor
+            .apply(&mut world, 10, &mut player, &build, Duration::from_secs(2))
+            .unwrap()
+            .accepted
+    );
+    assert_eq!(player.backpack[0].amount, 4);
+    assert_eq!(world, committed);
+    executor
+        .apply(
+            &mut world,
+            10,
+            &mut player,
+            &Action::Structure {
+                kind: 36,
+                direction: 0,
+                remove: false,
+            },
+            Duration::from_secs(3),
+        )
+        .unwrap();
+    assert_eq!(player.backpack[0].amount, 2);
+    assert!(
+        !executor
+            .apply(
+                &mut world,
+                10,
+                &mut player,
+                &Action::Structure {
+                    kind: 30,
+                    direction: 0,
+                    remove: true
+                },
+                Duration::from_secs(4)
+            )
+            .unwrap()
+            .accepted,
+        "floor with a roof cannot be removed"
+    );
+    world.validate().unwrap();
+    let handles = demo
+        .app
+        .world
+        .resource::<BlueprintRuntime>()
+        .unwrap()
+        .scene_blackboard()["build_visuals"]
+        .clone();
+    demo.app
+        .world
+        .resource_mut::<BlueprintRuntime>()
+        .unwrap()
+        .patch_blackboards(
+            &Default::default(),
+            &[(
+                "controller".into(),
+                [(
+                    "cache_structures".into(),
+                    world.state().controller["cache_structures"].clone(),
+                )]
+                .into(),
+            )]
+            .into(),
+        )
+        .unwrap();
+    assert_eq!(
+        demo.app
+            .world
+            .resource::<BlueprintRuntime>()
+            .unwrap()
+            .scene_blackboard()["build_visuals"],
+        handles
+    );
+    factory_code(&mut demo, "interiors::update(0.0);", 1);
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        6.,
+        3.
+    ));
+}
+#[test]
+fn foundations_enclosure_crosses_chunk_seams_and_door_edges_are_canonical() {
+    use std::collections::BTreeMap;
+    let mut demo = factory_with_mode(Some(4.), false);
+    tick(&mut demo, None);
+    let module = demo
+        .instance()
+        .script_module("factory-architecture")
+        .unwrap();
+    let mut data: BTreeMap<usize, Vec<f32>> = BTreeMap::new();
+    let mut assign = |x: i64, z: i64, kind: f32, dir: i64| {
+        let at: serde_json::Value = module.call_args("address", (x, z, kind, dir)).unwrap();
+        let region = at["region"].as_i64().unwrap() as usize;
+        let slot = at["slot"].as_i64().unwrap() as usize;
+        data.entry(region).or_insert_with(|| vec![0.; 900])[slot] = kind;
+    };
+    for x in 7..=8 {
+        assign(x, 4, 30., 0);
+        assign(x, 4, 36., 0);
+        assign(x, 4, 32., 1);
+        assign(x, 4, 32., 3);
+    }
+    assign(7, 4, 38., 2);
+    assign(8, 4, 39., 0);
+    let pages = |data: &BTreeMap<usize, Vec<f32>>| {
+        let mut pages = vec![String::new(); 578];
+        for (region, values) in data {
+            pages[*region] = values
+                .iter()
+                .map(|v| (*v as u32).to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+        }
+        pages
+    };
+    let plan: serde_json::Value = module.call_args("topology", (pages(&data), 0i64)).unwrap();
+    assert_eq!(plan["rooms"].as_array().unwrap().len(), 1);
+    assert_eq!(plan["membership"]["7,4"], plan["membership"]["8,4"]);
+    for (x, dir) in [(6i64, 0i64), (7, 2)] {
+        let kind: f32 = module
+            .call_args("barrier", (pages(&data), 0i64, x, 4i64, dir))
+            .unwrap();
+        assert_eq!(kind, 38.);
+    }
+    let at: serde_json::Value = module
+        .call_args("address", (8i64, 4i64, 36f32, 0i64))
+        .unwrap();
+    data.get_mut(&(at["region"].as_i64().unwrap() as usize))
+        .unwrap()[at["slot"].as_i64().unwrap() as usize] = 0.;
+    let open: serde_json::Value = module.call_args("topology", (pages(&data), 0i64)).unwrap();
+    assert!(open["rooms"].as_array().unwrap().is_empty());
+}
+#[test]
+fn foundations_cached_doors_and_cutaways_survive_crossing_and_reloading_a_chunk_seam() {
+    let mut demo = script_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        let parts=#{};
+        for z in 4..6 {for x in 7..9 {
+            for kind in [30.0,36.0] {
+                let a=architecture::address(x,z,kind,0);let key=a.region.to_string();
+                if !parts.contains(key) {parts[key]=grid::empty_numbers(900);}
+                parts[key][a.slot]=kind;
+            }
+            for dir in 0..4 {
+                let nx=x+grid::step_x(dir);let nz=z+grid::step_z(dir);
+                if nx>=7 && nx<=8 && nz>=4 && nz<=5 {continue;}
+                let a=architecture::address(x,z,32.0,dir);let key=a.region.to_string();
+                if !parts.contains(key) {parts[key]=grid::empty_numbers(900);}
+                parts[key][a.slot]=32.0;
+            }
+        }}
+        let west=architecture::address(7,4,38.0,2);parts[west.region.to_string()][west.slot]=38.0;
+        let south=architecture::address(8,5,38.0,1);parts[south.region.to_string()][south.slot]=38.0;
+        let window=architecture::address(8,5,39.0,0);parts[window.region.to_string()][window.slot]=39.0;
+        for key in parts.keys() {grid::cache_put("cache_structures",parse_int(key),grid::pack_numbers(parts[key]));}
+        chunks::discover_chunk(1,0);interiors::load(144);interiors::load(145);
+        spawn_prefab(data::build_asset(3.0),[8.0,0.08,5.0]);
+        set_scene_variable("cursor_x",6.0);set_scene_variable("cursor_z",4.0);interiors::update(0.0);
+    "#,
+    );
+    assert!(!foundation_mesh_visible(&demo, "smelter-mk1", 8., 5.));
+    press(&mut demo, "D");
+    assert_eq!(number(&demo, "cursor_x"), 6.);
+    settle(&mut demo, 40);
+    press(&mut demo, "D");
+    press(&mut demo, "D");
+    assert_eq!(number(&demo, "chunk_x"), 1.);
+    assert_eq!(number(&demo, "cursor_x"), -7.);
+    assert!(foundation_mesh_visible(&demo, "smelter-mk1", 8., 5.));
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        7.,
+        5.
+    ));
+    factory_code(
+        &mut demo,
+        "chunks::unload_chunk_visuals(144);interiors::update(0.0);",
+        1,
+    );
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-floor",
+        7.,
+        5.
+    ));
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        8.,
+        5.
+    ));
+    factory_code(
+        &mut demo,
+        "chunks::load_chunk_visuals(0,0);interiors::update(0.0);if interiors::board(\"active\").len()!=2 {throw \"duplicate active regions\";}",
+        1,
+    );
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-floor",
+        7.,
+        5.
+    ));
+    restore_factory_update(&mut demo);
+    settle(&mut demo, 40);
+    press(&mut demo, "S");
+    press(&mut demo, "S");
+    assert_eq!(
+        number(&demo, "cursor_z"),
+        6.,
+        "the independently cached south door opens"
+    );
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        8.,
+        4.
+    ));
+    factory_code(
+        &mut demo,
+        r#"
+        let pieces=architecture::page(get_object_list("cache_structures"),0,144);
+        let roof=architecture::address(7,5,36.0,0);pieces[roof.slot]=0.0;
+        grid::cache_put("cache_structures",144,grid::pack_numbers(pieces));
+        set_scene_variable("cursor_z",4.0);interiors::update(0.0);
+    "#,
+        1,
+    );
+    assert!(
+        foundation_mesh_visible(&demo, "foundation-concrete-roof", 8., 5.),
+        "a change in the other chunk unseals the whole room"
+    );
+}
+
+#[test]
+fn foundations_showroom_starts_inside_a_powered_factory_using_the_normal_game() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../earth-factory/scenes/foundations-showroom.json");
+    let scene = Scene::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    tick(&mut demo, None);
+    assert_eq!(controller_number(&demo, "bar"), 6.);
+    assert!(foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-floor",
+        -5.,
+        -3.
+    ));
+    assert!(!foundation_mesh_visible(
+        &demo,
+        "foundation-concrete-roof",
+        -5.,
+        -3.
+    ));
+    assert!(foundation_mesh_visible(&demo, "assembler-mk1", -5., -3.));
+    assert!(controller_numbers(&demo, "power_live")[(4 * 15 + 2) as usize] > 0.);
+    let before = demo.instance().document().objects.len();
+    settle(&mut demo, 30);
+    assert_eq!(
+        before,
+        demo.instance().document().objects.len(),
+        "indoor view must reuse its models"
+    );
+}
+
+fn renewables_fixture(setup: &str) -> SceneDemo {
+    stellar_fixture(&format!(
+        r#"
+        import "factory-renewables" as renewables;
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        set_scene_variable("demo_mode",true);
+        let empty=grid::empty_numbers(225);
+        set_scene_list("nodes",empty);grid::cache_put("chunk_nodes",144,grid::pack_numbers(empty));
+        chunks::discover_chunk(1,0);grid::cache_put("chunk_nodes",145,grid::pack_numbers(empty));
+        data::session_set(120,15.7);
+        {setup}
+    "#
+    ))
+}
+
+#[test]
+fn renewables_generate_daylight_solar_and_continuous_wind_through_real_cables() {
+    let mut demo = renewables_fixture(
+        r#"
+        for row in [[2,3,40],[4,3,41],[2,5,42],[3,4,9],[3,5,3]] {
+            set_scene_variable("cursor_x",row[0].to_float());set_scene_variable("cursor_z",row[1].to_float());
+            set_scene_variable("selected",row[2].to_float());set_scene_variable("direction",0.0);building::place_selected();
+        }
+        let pole=power::power_id(grid::index(3,4));
+        for at in [[2,3],[4,3],[2,5],[3,5]] {power::connect_power(pole,power::power_id(grid::index(at[0],at[1])));}
+        power::update_power();
+    "#,
+    );
+    let consumer = ((5 + 7) * 15 + 3 + 7) as usize;
+    assert_eq!(number(&demo, "power_supply"), 26.);
+    assert_eq!(controller_numbers(&demo, "power_live")[consumer], 1.);
+    factory_code(
+        &mut demo,
+        "data::session_set(120,47.1);power::update_power();",
+        1,
+    );
+    assert_eq!(number(&demo, "power_supply"), 14.);
+    assert_eq!(
+        controller_numbers(&demo, "power_live")[consumer],
+        1.,
+        "wind continues after sunset"
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",2.0);set_scene_variable("cursor_z",5.0);
+        set_scene_variable("selected",42.0);building::remove_selected();power::update_power();
+    "#,
+        1,
+    );
+    assert_eq!(
+        controller_numbers(&demo, "power_live")[consumer],
+        0.,
+        "solar-only circuit stops at night"
+    );
+    factory_code(
+        &mut demo,
+        "data::session_set(120,15.7);power::update_power();",
+        1,
+    );
+    assert_eq!(controller_numbers(&demo, "power_live")[consumer], 1.);
+    coop_world(&demo); // Renewable machines and terminals pass persistent-state validation.
+}
+
+#[test]
+fn renewables_array_reserves_two_spots_rotates_without_overlap_and_removes_from_either() {
+    let mut demo = renewables_fixture(
+        r#"
+        set_scene_variable("cursor_x",4.0);set_scene_variable("cursor_z",3.0);
+        set_scene_variable("selected",41.0);set_scene_variable("direction",0.0);building::place_selected();
+        set_scene_variable("cursor_x",5.0);set_scene_variable("selected",42.0);building::place_selected();
+        if get_scene_list_item("builds",grid::index(5,3))!=0.0 {throw "array second spot was overwritten";}
+        set_scene_variable("cursor_x",4.0);set_scene_variable("cursor_z",4.0);
+        set_scene_variable("selected",4.0);building::place_selected();
+        set_scene_variable("cursor_z",3.0);building::rotate_selected();
+        if get_scene_list_item("facings",grid::index(4,3))!=0.0 {throw "array rotated into storage";}
+        set_scene_variable("cursor_z",4.0);building::remove_selected();
+        set_scene_variable("cursor_z",3.0);building::rotate_selected();
+    "#,
+    );
+    assert_eq!(numbers(&demo, "facings")[(3 + 7) * 15 + 4 + 7], 1.);
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",5.0);set_scene_variable("cursor_z",3.0);set_scene_variable("selected",42.0);building::place_selected();
+        set_scene_variable("cursor_x",4.0);set_scene_variable("cursor_z",4.0);building::remove_selected();
+    "#,
+        1,
+    );
+    assert_eq!(numbers(&demo, "builds")[(3 + 7) * 15 + 4 + 7], 0.);
+    assert_eq!(
+        numbers(&demo, "builds")[(3 + 7) * 15 + 5 + 7],
+        42.,
+        "rotation released the original second spot"
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        set_scene_variable("cursor_x",5.0);set_scene_variable("cursor_z",3.0);building::remove_selected();
+        set_scene_variable("cursor_x",4.0);set_scene_variable("cursor_z",3.0);set_scene_variable("selected",41.0);set_scene_variable("direction",0.0);
+        let nodes=get_scene_list("nodes");nodes[grid::index(5,3)]=1.0;set_scene_list("nodes",nodes);building::place_selected();
+    "#,
+        1,
+    );
+    assert_eq!(
+        numbers(&demo, "builds")[(3 + 7) * 15 + 4 + 7],
+        0.,
+        "blocked placement is atomic"
+    );
+}
+
+#[test]
+fn renewables_array_crosses_region_seams_and_survives_saves_and_remote_demolition() {
+    use bozzard_demo::factory::state::State;
+    let mut demo = renewables_fixture(
+        r#"
+        set_scene_variable("cursor_x",7.0);set_scene_variable("cursor_z",2.0);
+        set_scene_variable("selected",41.0);set_scene_variable("direction",0.0);building::place_selected();
+        world::archive_chunk();world::enter_chunk(1,0);
+        set_scene_variable("cursor_x",-7.0);set_scene_variable("cursor_z",2.0);set_scene_variable("selected",42.0);building::place_selected();
+        if get_scene_list_item("builds",grid::index(-7,2))!=0.0 {throw "seam reservation missing";}
+    "#,
+    );
+    let state =
+        State::capture_live(demo.app.world.resource::<BlueprintRuntime>().unwrap()).unwrap();
+    let restored: State = serde_json::from_slice(&serde_json::to_vec(&state).unwrap()).unwrap();
+    restored.validate().unwrap();
+    let mut damaged = restored.clone();
+    damaged
+        .controller
+        .get_mut("cache_builds")
+        .unwrap()
+        .values_mut()[145] = Value::Text("0:135,42,0:89".into());
+    assert!(
+        damaged.validate().is_err(),
+        "loading rejects a machine on the reserved second spot"
+    );
+    factory_code(
+        &mut demo,
+        "building::remove_selected();world::enter_chunk(0,0);",
+        1,
+    );
+    assert_eq!(numbers(&demo, "builds")[(2 + 7) * 15 + 7 + 7], 0.);
+    coop_world(&demo);
+}
+
+#[test]
+fn renewables_coop_owns_array_footprints_and_rejects_invalid_edits_without_payment() {
+    use bozzard_demo::factory::{
+        authority::Executor, replication::requests::Action, shared::Position,
+    };
+    use std::time::Duration;
+    let mut demo = renewables_fixture("");
+    factory_code(
+        &mut demo,
+        r#"
+        import "factory-backpack" as backpack;
+        set_scene_variable("demo_mode",false);set_object_variable("creative",false);
+        for kind in [11.0,12.0,14.0,17.0] {backpack::give(kind,50.0);}
+    "#,
+        1,
+    );
+    let (mut world, mut player) = coop_world(&demo);
+    let mut executor = Executor::new(demo.instance()).unwrap();
+    player.position = Position {
+        planet: 0,
+        x: 7,
+        z: 2,
+    };
+    let outcome = executor
+        .apply(
+            &mut world,
+            10,
+            &mut player,
+            &Action::Place {
+                kind: 41,
+                direction: 0,
+            },
+            Duration::ZERO,
+        )
+        .unwrap();
+    assert!(outcome.accepted, "{}", outcome.message);
+    player.position.x = 8;
+    let before = world.clone();
+    let inventory = player.backpack;
+    let rejected = executor
+        .apply(
+            &mut world,
+            20,
+            &mut player,
+            &Action::Place {
+                kind: 42,
+                direction: 0,
+            },
+            Duration::ZERO,
+        )
+        .unwrap();
+    assert!(!rejected.accepted);
+    assert_eq!(player.backpack, inventory);
+    assert_eq!(world, before);
+    assert!(
+        executor
+            .apply(&mut world, 20, &mut player, &Action::Remove, Duration::ZERO)
+            .unwrap()
+            .accepted
+    );
+    player.position.x = 7;
+    assert!(
+        executor
+            .apply(
+                &mut world,
+                10,
+                &mut player,
+                &Action::Place {
+                    kind: 42,
+                    direction: 0
+                },
+                Duration::ZERO
+            )
+            .unwrap()
+            .accepted
+    );
+    world.validate().unwrap();
+}
+
+#[test]
+fn renewables_earth_solar_circuits_follow_dawn_and_dusk_while_on_the_other_planet() {
+    let mut demo = renewables_fixture(
+        r#"
+        for row in [[2,3,41],[2,5,9],[3,5,3]] {
+            set_scene_variable("cursor_x",row[0].to_float());set_scene_variable("cursor_z",row[1].to_float());
+            set_scene_variable("selected",row[2].to_float());set_scene_variable("direction",0.0);building::place_selected();
+        }
+        let pole=power::power_id(grid::index(2,5));
+        power::connect_power(pole,power::power_id(grid::index(2,3)));
+        power::connect_power(pole,power::power_id(grid::index(3,5)));power::update_power();
+        set_scene_variable("demo_mode",false);set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",1.0);
+        world::travel_to_other_planet();
+    "#,
+    );
+    assert_eq!(controller_numbers(&demo, "session")[7], 1.);
+    for (time, expected) in [(47.1, 0.), (15.7, 1.)] {
+        factory_code(
+            &mut demo,
+            &format!(
+                r#"
+            data::session_set(120,{time});simulation::factory_step();
+            let graph=power::power_graph("power_other");
+            set_scene_variable("power_demand",graph[(144*225+grid::index(3,5)).to_string()][1].to_float());
+        "#
+            ),
+            1,
+        );
+        assert_eq!(
+            number(&demo, "power_demand"),
+            expected,
+            "departed Earth circuit at time {time}"
+        );
+    }
+    coop_world(&demo);
 }

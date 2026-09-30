@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Timber foundation",
+  "root": "root",
+  "assets": {
+    "foundation-wood-floor": {
+      "kind": "mesh",
+      "path": "models/foundations/wood-floor.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Timber foundation",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-wood-floor"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

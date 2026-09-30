@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "name": "Stellar-IX \u2014 survey ship wreckage prototypes",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "debris-cockpit": {
+      "kind": "mesh",
+      "path": "assets/models/debris/debris-cockpit.glb"
+    },
+    "debris-hull": {
+      "kind": "mesh",
+      "path": "assets/models/debris/debris-hull.glb"
+    },
+    "debris-wing": {
+      "kind": "mesh",
+      "path": "assets/models/debris/debris-wing.glb"
+    },
+    "debris-engine": {
+      "kind": "mesh",
+      "path": "assets/models/debris/debris-engine.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Debris showroom camera",
+      "transform": {
+        "translation": [
+          10,
+          10,
+          10
+        ],
+        "rotation_degrees": [
+          -35.264,
+          45,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 10.8,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "floor",
+      "name": "Neutral planet surface",
+      "transform": {
+        "translation": [
+          0,
+          -0.06,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          30,
+          0.12,
+          30
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.17,
+          0.18
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "debris-cockpit",
+      "name": "Broken cockpit",
+      "transform": {
+        "translation": [
+          -2.2,
+          0,
+          -2.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "debris-cockpit"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "debris-hull",
+      "name": "Split cargo hull",
+      "transform": {
+        "translation": [
+          2.2,
+          0,
+          -2.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "debris-hull"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "debris-wing",
+      "name": "Torn survey wing",
+      "transform": {
+        "translation": [
+          -2.2,
+          0,
+          2.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "debris-wing"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "debris-engine",
+      "name": "Ruptured engine",
+      "transform": {
+        "translation": [
+          2.2,
+          0,
+          2.2
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "debris-engine"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "environment": {
+    "zenith": [
+      0.2,
+      0.25,
+      0.29
+    ],
+    "horizon": [
+      0.2,
+      0.25,
+      0.29
+    ],
+    "ground": [
+      0.14,
+      0.17,
+      0.18
+    ],
+    "intensity": 0.55,
+    "background": true
+  },
+  "lighting": {
+    "shadows": true,
+    "sun_direction": [
+      0.46,
+      0.81,
+      0.35
+    ],
+    "sun_color": [
+      1,
+      0.96,
+      0.9
+    ],
+    "sun_intensity": 2.6,
+    "ambient_color": [
+      0.86,
+      0.94,
+      1
+    ],
+    "ambient_intensity": 0.24
+  }
+}

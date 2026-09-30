@@ -222,6 +222,7 @@ struct ObjectBinding {
     texture: TextureKind,
     binding: wgpu::BindGroup,
     uniform: Option<[u8; OBJECT_UNIFORM_BYTES]>,
+    dirty: bool,
     source: Option<ObjectUniformSource>,
 }
 
@@ -874,6 +875,7 @@ impl SceneRenderer {
             texture: key.clone(),
             binding,
             uniform: None,
+            dirty: true,
             source: None,
         })
     }
@@ -2049,13 +2051,12 @@ impl SceneRenderer {
                 slot.copy_from_slice(&value.to_le_bytes());
             }
             if !self.state_caching || binding.uniform.as_ref() != Some(&uniform) {
-                gpu.queue.write_buffer(&binding.buffer, 0, &uniform);
                 binding.uniform = Some(uniform);
-                self.stats.object_uniform_writes += 1;
+                binding.dirty = true;
             }
             binding.source = Some(source);
         }
-        let batches = self.prepare_instances(gpu, &draws, &visible)?;
+        let batches = self.prepare_instances(gpu, &draws, &visible, view_projection)?;
         let occlusion = self.prepare_occlusion(
             gpu,
             &mut encoder,
@@ -2102,6 +2103,46 @@ impl SceneRenderer {
                         .any(Option::is_some))
             {
                 self.prepare_instanced_shadows(gpu);
+            }
+        }
+        // Packed batches already contain their members' uniforms. Upload single
+        // object buffers only for draws that actually use them. Keep offscreen
+        // sun casters and partial/local-light shadow batches on the reference path.
+        let sun_individuals = !self.stats.shadow_cache_hit
+            && sun_changed
+            && scene.lighting.shadows
+            && scene.lighting.sun_intensity > 0.;
+        let local_individuals = spot_changes
+            .iter()
+            .chain(&point_changes)
+            .any(Option::is_some);
+        let mut individual = vec![false; draws.len()];
+        for batch in &batches {
+            if batch.slot.is_none() {
+                individual[batch.indices[0]] = true;
+            } else if sun_individuals
+                && !batch
+                    .indices
+                    .iter()
+                    .all(|&index| !draws[index].transparent && draws[index].object.material.lit)
+            {
+                for &index in &batch.indices {
+                    individual[index] |=
+                        !draws[index].transparent && draws[index].object.material.lit;
+                }
+            }
+        }
+        for (index, draw) in draws.iter().enumerate() {
+            individual[index] |= !draw.transparent
+                && draw.object.material.lit
+                && (local_individuals || sun_individuals && !visible[index]);
+        }
+        for (needed, binding) in individual.into_iter().zip(&mut self.objects) {
+            if needed && binding.dirty {
+                gpu.queue
+                    .write_buffer(&binding.buffer, 0, binding.uniform.as_ref().unwrap());
+                binding.dirty = false;
+                self.stats.object_uniform_writes += 1;
             }
         }
         let has_particles = !raw && !scene.particles.is_empty();
@@ -2237,16 +2278,16 @@ impl SceneRenderer {
                 {
                     continue;
                 }
-                let draw = &draws[batch.range.start];
+                let draw = &draws[batch.indices[0]];
                 if has_particles && draw.transparent {
                     continue;
                 }
                 let binding = batch
                     .slot
-                    .map_or(&self.objects[batch.range.start].binding, |slot| {
+                    .map_or(&self.objects[batch.indices[0]].binding, |slot| {
                         &self.instancing.bindings[slot].binding
                     });
-                let count = batch.range.len() as u32;
+                let count = batch.indices.len() as u32;
                 let (triangles, binds) = self.draw_prepared(
                     &mut pass,
                     draw,

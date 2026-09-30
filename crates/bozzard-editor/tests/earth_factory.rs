@@ -1103,6 +1103,165 @@ fn profile_earth_factory_render() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Shared, deterministic six-region fixture for batching measurements. Uses the
+// game's actual multipart machine and resource prefabs, plus its normal updates.
+const BATCHING_FIXTURE: &str = r#"
+    for region in [[-1,0],[1,0],[-1,1],[0,1],[1,1]] {
+        chunks::discover_chunk(region[0],region[1]);
+    }
+    for z in -9..9 { for x in -9..9 {
+        spawn_prefab(data::build_asset(if (x+z)%2==0 {3.0}else{4.0}),
+            [x.to_float(),0.08,z.to_float()]);
+    }}
+    set_object_variable("camera_zoom",32.0);
+    set_object_variable("camera_zoom_target",32.0);
+    environment::update_zoom(0.0,true);
+"#;
+
+#[test]
+#[ignore = "release-mode real-asset batching profile; requires a graphics adapter"]
+fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
+    use bozzard_render::{Gpu, SceneRenderer, wgpu};
+    use bozzard_scene::blueprint::Value;
+    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/earth.json");
+    let mut editor = Editor::open(&path)?;
+    let mut scene = editor.scene().clone();
+    let controller = scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap();
+    controller.blackboard.insert(
+        "title_open".into(),
+        BlackboardValue::Scalar(Value::Bool(false)),
+    );
+    controller.blackboard.insert(
+        "creative".into(),
+        BlackboardValue::Scalar(Value::Bool(true)),
+    );
+    scene
+        .blackboard
+        .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
+    editor.apply("Batching profile", scene)?;
+    editor.assets.require_ready()?;
+    editor.start_play()?;
+    let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
+        .replace("fn on_start(me)", "fn normal_start(me)");
+    editor.play.as_mut().unwrap().with_instance(|instance, _| {
+        instance.register_script(
+            "earth-factory".into(),
+            format!("{source}\nfn on_start(me) {{normal_start(me);{BATCHING_FIXTURE}}}"),
+        )
+    })?;
+    for _ in 0..60 {
+        let play = editor.play.as_mut().unwrap();
+        play.app.step();
+        play.check_simulation()?;
+    }
+    let gpu = pollster::block_on(Gpu::request(
+        &bozzard_render::instance(bozzard_render::Backend::native()),
+        None,
+        false,
+    ))?;
+    gpu.require_hardware()?;
+    println!("batching adapter: {:?}", gpu.adapter.get_info());
+    let mut renderers: [SceneRenderer; 2] =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_global_batching_enabled(false);
+    for renderer in &mut renderers {
+        for entry in editor.assets.entries() {
+            if let Some(data) = entry.data() {
+                bozzard_render_assets::upload(&gpu, renderer, &entry.id, data)?;
+            }
+        }
+    }
+    let size = [1280, 800];
+    let target = gpu
+        .device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("scene batching profile"),
+            size: wgpu::Extent3d {
+                width: size[0],
+                height: size[1],
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&Default::default());
+    let mut samples: [Vec<(f64, f64)>; 2] = Default::default();
+    for tick in 0..72 {
+        let play = editor.play.as_mut().unwrap();
+        play.app.step();
+        play.check_simulation()?;
+        let scene = editor.render(Layer::ThreeD, 1.6)?;
+        for mode in if tick % 2 == 0 { [0, 1] } else { [1, 0] } {
+            let start = std::time::Instant::now();
+            renderers[mode].draw(&gpu, &target, size, &scene)?;
+            gpu.wait()?;
+            if tick >= 12 {
+                samples[mode].push((
+                    renderers[mode].frame_stats().cpu_ms,
+                    start.elapsed().as_secs_f64() * 1000.,
+                ));
+            }
+        }
+    }
+    for (mode, values) in samples.iter().enumerate() {
+        let mut cpu: Vec<_> = values.iter().map(|v| v.0).collect();
+        let mut wall: Vec<_> = values.iter().map(|v| v.1).collect();
+        cpu.sort_by(f64::total_cmp);
+        wall.sort_by(f64::total_cmp);
+        let stats = renderers[mode].frame_stats();
+        println!(
+            "mode={} visible={} surfaces={} draws={} shadow_draws={} cpu_median_ms={:.3} cpu_p95_ms={:.3} synchronized_median_ms={:.3}",
+            ["consecutive", "global"][mode],
+            stats.visible_items,
+            stats.visible_surfaces,
+            stats.color_draws,
+            stats.shadow_draws,
+            cpu[30],
+            cpu[57],
+            wall[30]
+        );
+    }
+    assert!(renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2);
+    // Validate this game's real multipart materials, shadows and camera rotation.
+    for heading in [0., 90., 180., 270.] {
+        let play = editor.play.as_mut().unwrap();
+        let source = format!(
+            "fn on_update(me,dt) {{set_rotation(\"camera-rig\",[0.0,{heading:.1},0.0]);}} "
+        );
+        play.with_instance(|instance, _| instance.register_script("earth-factory".into(), source))?;
+        play.app.step();
+        play.check_simulation()?;
+        let scene = editor.render(Layer::ThreeD, 1.6)?;
+        let captures = renderers
+            .iter_mut()
+            .map(|renderer| {
+                bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
+                    renderer.draw(&gpu, target, size, &scene)
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            captures[0].rgba, captures[1].rgba,
+            "factory pixels at heading {heading}"
+        );
+        assert_eq!(
+            renderers[0].frame_stats().color_triangles,
+            renderers[1].frame_stats().color_triangles
+        );
+    }
+    Ok(())
+}
+
 #[test]
 #[ignore = "manual journal CPU profile; timing varies by host"]
 fn profile_stellar_journal_cpu() -> anyhow::Result<()> {

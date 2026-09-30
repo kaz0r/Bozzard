@@ -59,6 +59,7 @@ pub use light::{
 };
 mod lighting;
 mod lod;
+mod tile_view;
 mod transforms;
 pub use lighting::Lighting;
 
@@ -1096,6 +1097,7 @@ impl Scene {
             display_overrides: Default::default(),
             lighting_override: None,
             environment_override: None,
+            tile_view: Default::default(),
             script_engine: std::sync::OnceLock::new(),
             scripts: BTreeMap::new(),
             script_reload_revisions: BTreeMap::new(),
@@ -1121,6 +1123,7 @@ pub struct SceneInstance {
     display_overrides: display::DisplayOverrides,
     lighting_override: Option<Lighting>,
     environment_override: Option<EnvironmentSettings>,
+    tile_view: tile_view::TileView,
     templates: BTreeMap<String, Prefab>,
     next_spawn: u64,
     restart_document: std::sync::Arc<Scene>,
@@ -1320,6 +1323,15 @@ impl SceneInstance {
             .collect();
         for (id, entity) in &render_entities {
             let id = *id;
+            let view_factor = if layer == Layer::ThreeD {
+                self.tile_view
+                    .factor(id, matrices[id].transform_point3(Vec3::ZERO))
+            } else {
+                1.
+            };
+            if view_factor == 0. {
+                continue;
+            }
             if let Some(text) = world.get::<TextRendering>(*entity)
                 && text.enabled
                 && text.layer == layer
@@ -1329,7 +1341,11 @@ impl SceneInstance {
                     .is_some_and(|s| s.collected.contains(id))
             {
                 text.validate()?;
-                texts.push((matrices[id], text.clone()));
+                let mut text = text.clone();
+                for channel in &mut text.color[..3] {
+                    *channel *= view_factor;
+                }
+                texts.push((matrices[id], text));
             }
             if let Some(drawable) = world.get::<Drawable>(*entity)
                 && drawable.layer == layer
@@ -1360,6 +1376,9 @@ impl SceneInstance {
                 }
                 if let Some(material) = world.get::<Material>(*entity) {
                     material.apply(&mut drawable);
+                }
+                for channel in &mut drawable.color {
+                    *channel *= view_factor;
                 }
                 use std::hash::{Hash, Hasher};
                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -1421,6 +1440,12 @@ impl SceneInstance {
                 .collect();
             for (id, light) in light_entities {
                 light.validate()?;
+                let factor = self
+                    .tile_view
+                    .factor(id, matrices[id].transform_point3(Vec3::ZERO));
+                if factor == 0. {
+                    continue;
+                }
                 if light.requests_shadow_map() {
                     match light.kind {
                         LightKind::Spot => shadowed_spots += 1,
@@ -1429,7 +1454,11 @@ impl SceneInstance {
                     }
                 }
                 if light.enabled && light.intensity > 0. {
-                    lights.push(light.at(matrices[id])?);
+                    if factor > 0. {
+                        let mut light = light.at(matrices[id])?;
+                        light.light.intensity *= factor;
+                        lights.push(light);
+                    }
                 }
             }
         }

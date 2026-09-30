@@ -1,8 +1,10 @@
 // Rhai gameplay: world.
+import "factory-interiors" as interiors;
 import "factory-item_fx" as item_fx;
 import "factory-chunks" as chunks;
 import "factory-data" as data;
 import "factory-deposits" as deposits;
+import "factory-debris" as debris;
 import "factory-environment" as environment;
 import "factory-grid" as grid;
 import "factory-panels" as panels;
@@ -14,6 +16,8 @@ import "factory-dev_world" as dev;
 fn begin_world(seed) { begin_world(seed,false); }
 
 fn begin_world(seed, developer) {
+    interiors::clear();
+    set_object_list("cache_structures",grid::empty_text(578));
     transports::clear();
     let generation=data::session_value(126)+1.0;
     let authority=data::session_value(122);
@@ -201,6 +205,8 @@ fn begin_world(seed, developer) {
 }
 
 fn reset_planet() {
+    interiors::clear();
+    debris::clear();
     let active = grid::chunk_id(get_scene_variable("chunk_x").to_int(), get_scene_variable("chunk_z").to_int());
     let visited = get_object_list("visited");
     let grounds = get_object_list("grounds");
@@ -313,7 +319,7 @@ fn travel_to_other_planet() {
         abs(get_scene_variable("cursor_x")) > 1.0 || abs(get_scene_variable("cursor_z") - 1.0) > 1.0 { return; }
     archive_chunk();
     // Settle pending wiring changes before retaining this planet's circuit state.
-    // With no remote construction or fuel consumption, it stays valid while away.
+    // Keep the wiring; dawn/dusk refreshes solar supply on the departed planet.
     power::update_power();
     let resident = get_object_list("resident");
     for id in 0..289 { if resident[id] > 0.0 { chunks::unload_chunk_visuals(id); } }

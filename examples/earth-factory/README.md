@@ -78,7 +78,7 @@ cargo test -p bozzard-editor --test threaded_render -- --ignored --nocapture
 | N | Reset the world, discoveries, backpack, and progression with a new seed |
 | F6 (player) | Reload the source scene |
 
-**Action bars.** Production contains smelters, miners, Constructors, assemblers, water pumps, oil extractors, crushers and ore washers. Logistics contains belts, storage, splitters, mergers, straight pipes, elbow pipes and left/right corner belts. Power contains generators, Mk1 poles (slot 2), and cables (slot 3). Processing contains foundries, refineries, chemical plants, electrolyzers, kilns, glassworks, greenhouses and electronics fabricators. Advanced contains manufacturers and recyclers. Locked slots stay visible and explain their requirements through the journal. Ctrl-number chords switch bars without also selecting a slot.
+**Action bars.** Production contains smelters, miners, Constructors, assemblers, water pumps, oil extractors, crushers and ore washers. Logistics contains belts, storage, splitters, mergers, straight pipes, elbow pipes and left/right corner belts. Power contains generators, Mk1 poles (slot 2), cables (slot 3), solar panels (slot 4), two-spot solar arrays (slot 5), and small wind turbines (slot 6). Processing contains foundries, refineries, chemical plants, electrolyzers, kilns, glassworks, greenhouses and electronics fabricators. Advanced contains manufacturers and recyclers. Locked slots stay visible and explain their requirements through the journal. Ctrl-number chords switch bars without also selecting a slot.
 
 **Player stacks.** Inventory **I** has 25 freely arranged slots, each holding up to 100 of one item. Drag to move, swap different items, or merge matching stacks (overflow stays in the source). Right-click a stack for **Split**, **Destroy**, or **Cancel**. Split puts half into an empty slot. **Destroy All**, at the bottom right, clears only carried items. Gathering and collection respect available room; uncollected machine output and stored items remain in place. Crafting checks the space available after spending ingredients before committing the transaction. Storage keeps its separate 16 × 100 capacity.
 
@@ -269,7 +269,7 @@ Buffering does not speed up production or transfers: each connection still moves
 
 **Storage.** Each container has 16 slots with 100 items per stack. Its cyan rear port accepts input and its opposite gold port outputs one item per factory beat, starting with the first occupied slot. **R** rotates both ports. A full or missing downstream machine leaves items in storage; newly received items wait until the next beat before they can leave. Transfers continue across chunk boundaries and on other planets. Press **E** within one tile, including diagonals. Drag stacks to move, merge, or swap them. Right-click for Split or Delete all; Delete all affects only that container. **Take items into backpack** transfers contents for crafting and deliveries. Full storage blocks incoming items. Demolition discards its inventory and updates stored totals.
 
-**Landing site and rocket.** The upgraded asphalt platform is **4 × 4 tiles total and one block thick**, with its top flush with the build surface. The pod stays at tile (0,0); the rocket occupies (0,1), and the dock is at (2,1) on the east edge. Before the upgrade, remove any machines on the rocket and dock tiles; a blocked delivery consumes nothing and leaves machines intact, even when the home region is unloaded. Other machines can remain on the asphalt. Future building on the pod, rocket, and dock footprints is blocked.
+**Landing site and rocket.** The upgraded platform is **4 × 4 tiles total and one block thick**, with its top flush with the build surface. Its power cabinet replaces the pod at tile (0,0); the upright rocket occupies (0,1), and the fuel dock is at (2,1) on the east edge. Before the upgrade, remove any machines on the rocket and dock tiles; a blocked delivery consumes nothing and leaves machines intact, even when the home region is unloaded. Other machines can remain on the platform. Future building on the pod, rocket, and dock footprints is blocked.
 
 The T2 P3 delivery builds the lower rocket; T2 P4 adds the upper hull, nose, cockpit, and alternating navigation lights. Approach the completed rocket and press **E**. Its interface shows **Stellar-BX**, **Stella-Z2** as the next destination, and eight **Coming soon** entries. Choose **Launch to Moon** to close the destination panel and lift off. The rocket ascends for two seconds, the planet changes while it is offscreen, and it descends for 2.4 seconds onto Stella-Z2. World controls are suspended during flight; simulation continues. On the Moon, the same interface offers **Return to Earth**. Fuel is temporarily free in both directions; the other eight planets remain unavailable. The fuel dock's **E** interface identifies its INPUT role; it accepts no materials yet. New-world creation and **N** reset projects with progression. Creative begins with the completed site and rocket.
 
@@ -355,6 +355,14 @@ commands from **122 to 10**, while retaining 2,556 shadow triangles. These are l
 measurements, not whole-editor FPS. GPU tests compare the optimized path with uncached,
 individual draws, including offscreen casters, local lights, material edits, and temporal effects.
 
+Scene-wide opaque batching groups repeated meshes across intervening model parts
+and reuses packed instance buffers, with ordering checks for coplanar surfaces.
+A local release test with six loaded regions and 324 multipart machine prefabs
+reduced color draws from **1,356 to 80** and renderer CPU from **9.67 to 3.76 ms**
+at 1280 × 800. The four camera angles match the former batcher's pixels exactly;
+indoor/window/door captures are unchanged. See [the batching reproduction and
+native frame measurements](../../docs/performance.md#scene-wide-opaque-batching).
+
 The roughly 63-second day/night cycle smoothly fades the sun, ambient light, sky colors, and exposure into dark blue moonlight. Stars fade into the sky behind the terrain at night and disappear at dawn; the HUD stays readable and production continues. Stars use the existing sky pass without spawning entities or adding draw calls. Stella-Z2 holds a separate, permanent night sky with stars and neutral moonlight over gray regolith. A moving sun, disk saves, and rocket fuel remain later steps.
 
 The source of truth for the scene, tiled ground, UI, and prefabs is [`tools/generate_scene.py`](tools/generate_scene.py). Gameplay starts in [`scenes/scripts/earth_factory.rs`](scenes/scripts/earth_factory.rs), which only coordinates lifecycle hooks and frame order. The implementation lives in [`scenes/scripts/factory/`](scenes/scripts/factory/). The generator registers every `.rhai` module there as a script asset without rewriting it. Rerunning the generator replaces manual edits to its generated files. Machine prefabs use unscaled pivots, so their children retain their intended height during rotation.
@@ -365,6 +373,132 @@ Native visual checks cover world creation, journal recipes, machine and inventor
 cargo test -p bozzard-editor --test stellar_ix -- --ignored --nocapture
 ```
 
+## Space rocket and launch pad
+
+The travel craft is an upright space rocket with stacked ivory hull sections,
+a pointed nose, four vertical fins, blue cockpit ports, and three engine bells
+underneath. It shares its armor, gold identification bars, and cyan service lines
+with the wreckage. The launch pad has a graphite deck, an octagonal landing target,
+perimeter guidance markings, a power cabinet, and a fuel input cabinet with an umbilical.
+
+The existing construction deliveries reveal the pad at phase 5, engines/lower
+fuel tank/fins at phase 6, and upper hull/cockpit/nose at phase 7. The upgraded power
+cabinet replaces the starter pod visually, retaining its cable socket at `(0, 1.26, 0)`. Boarding
+and fuel inspection remain on tiles `(0, 1)` and `(2, 1)`. Both ship halves share
+one flight pivot; the pad stays on the ground. Powered navigation lamps follow
+the hull, and three downward exhaust plumes appear during vertical flight.
+Travel, fuel rules, saves, and co-op use the existing gameplay.
+
+Review [`scenes/travel-ship-showroom.json`](scenes/travel-ship-showroom.json).
+Editable Blender source, construction previews, and the manifest are in
+[`../../assets/travel-ship/`](../../assets/travel-ship/); the GLBs are in
+[`scenes/assets/models/travel/`](scenes/assets/models/travel/).
+
+```sh
+blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_travel_ship.py
+python3 examples/earth-factory/tools/generate_scene.py
+python3 examples/earth-factory/tools/validate_travel_ship.py
+cargo test --offline -p bozzard-demo --test earth_factory rocket
+```
+
+## Spaceship debris prototypes
+
+Four wreck sections share one survey-ship design: a broken cockpit, split cargo hull,
+torn wing, and ruptured engine. Ivory armor, graphite interiors, gold identification
+bands, and cyan service lines tie them together. The meshes include open fractures,
+exposed ribs, severed cables, and loose armor fragments.
+
+Every generated planet has **2–6 wrecks in total**. Two are guaranteed; each of four
+optional slots has a **12% chance**, so most planets have two. They occupy distinct
+regions at least two regions from the landing site. Seeded placement and rotation
+stay the same through exploration, streaming, travel, and save/load. Their 3 × 3
+footprints avoid deposits and are reserved against building in solo and co-op.
+The production demonstration and fixed Dev World keep their authored layouts.
+These are story props; salvage and story interactions are not implemented yet.
+
+Open [`scenes/debris-showroom.json`](scenes/debris-showroom.json) in the editor to
+review all four models. The self-contained GLBs and reusable prefabs live in
+[`scenes/assets/models/debris/`](scenes/assets/models/debris/) and `scenes/assets/`.
+Editable Blender source, a preview, and the geometry/spawn manifest are in
+[`../../assets/spaceship-debris/`](../../assets/spaceship-debris/).
+
+```sh
+blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_spaceship_debris.py
+python3 examples/earth-factory/tools/generate_scene.py
+python3 examples/earth-factory/tools/validate_spaceship_debris.py
+cargo test --offline -p bozzard-demo --test earth_factory spaceship_debris
+```
+
+## Foundations and indoor factories
+
+The construction kit includes concrete and wood floors; concrete, brick, metal,
+and wood walls; concrete and wood roofs; an automatic sliding door; and a modern
+wall window. Floors and roofs occupy independent layers, so machines, conveyors,
+and power connections continue to use their normal tiles. Walls, doors, and
+windows occupy tile edges and can connect across region boundaries.
+
+In Survival, the kit unlocks at Tier 2. Creative makes it available immediately.
+Use **Ctrl+6** for floors, walls, doors, and windows; **Ctrl+7** for roofs.
+Select a slot with **1–8**, press **R** to choose the edge, then **Space** to build.
+**X** removes the selected layer or edge without demolishing its machine. Remove
+a roof before removing its floor. Concrete pieces cost two concrete; brick walls
+cost four bricks; metal walls cost two iron sheets. Wooden pieces use four biomass
+as a prototype timber material. Doors use two iron sheets, two glass, and one
+circuit board; windows use one iron sheet and two glass.
+
+A connected floor area becomes indoors when every floor tile has a roof and its
+perimeter is closed by walls, doors, or windows. Outside, the roof and shell conceal
+the room and its machinery. Approaching a window reveals at most two tiles along
+its inward sight line. Sliding doors take approximately **0.65 seconds** to open
+and block entry until fully open. Walls and windows also block keyboard movement,
+mouse selection paths, and machine interaction through them.
+
+Inside a sealed room, its roof and camera-facing walls cut away, the room remains
+clearly lit, and the exterior is darkened. Other sealed rooms stay concealed.
+Removing a roof or opening a gap in the perimeter makes that area outdoors again.
+Production continues during these view changes. Structures survive streaming,
+planet travel, and disk saves; co-op shares construction and collision while each
+player sees their own room view.
+
+Open [`scenes/foundations-showroom.json`](scenes/foundations-showroom.json) and
+press Play for a powered factory using this kit. It starts inside; leave through
+the south sliding door to inspect the roof and the east window. This uses the
+normal game controls and simulation. The main `earth.json` scene includes the
+same building system.
+
+Editable Blender source, a model preview, and the mesh manifest are in
+[`../../assets/foundations/`](../../assets/foundations/). The self-contained GLBs
+are in [`scenes/assets/models/foundations/`](scenes/assets/models/foundations/).
+
+```sh
+blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_foundations.py
+python3 examples/earth-factory/tools/generate_scene.py
+python3 examples/earth-factory/tools/generate_foundation_showroom.py
+python3 examples/earth-factory/tools/validate_foundations.py
+cargo test --offline -p bozzard-demo --test earth_factory foundations
+```
+
+Indoor presentation caches the occupied structure slots and door locations when
+a region changes. Steady door updates visit only existing doors and move their
+reused leaves while opening or closing. Interaction searches discard empty tiles
+before checking walls. Archive change detection compares native blackboard lists
+in place, and view refreshes reuse decoded neighboring room pages.
+
+For a repeatable CPU profile of a sealed factory across a region boundary:
+
+```sh
+cargo run --offline -p bozzard-demo --example benchmark_foundations -- 6
+```
+
+The argument is the factory's side length, from 3 to 18 tiles. The benchmark
+compares ordinary play, individual indoor routines, and forced cutaway refreshes.
+Local debug measurements for a 6 × 6 factory in two loaded regions reduced median
+fixed-tick CPU time from **15.95 to 1.04 ms**, and forced view refreshes from
+**13.02 to 2.96 ms**. A 180-frame native run of that factory on Intel Iris Xe / Vulkan
+recorded a **17.20 ms median presentation interval (about 58 FPS)** and **34.46 ms
+p95**. Startup shader/asset work remains visible in the larger outliers. These are
+local measurements, not a sustained frame-rate guarantee on other hardware.
+
 ## Gameplay source layout
 
 | Module | Responsibility |
@@ -372,6 +506,9 @@ cargo test -p bozzard-editor --test stellar_ix -- --ignored --nocapture
 | `data.rhai` | Item/equipment metadata, recipes, costs, session flags |
 | `grid.rhai` | Coordinates, packing helpers, region cache access |
 | `deposits.rhai` | Seeded Earth and Moon resource placement |
+| `debris.rhai` | Sparse seeded story wreckage, footprint reservation, streamed visuals |
+| `architecture.rhai` | Shared construction layers, edge addressing, placement validation and room enclosure |
+| `interiors.rhai` | Streamed structure models, door animation, collision and local indoor visibility |
 | `world.rhai` | New worlds, region state, planet travel |
 | `dev_world.rhai` | Fixed checkerboard showroom and complete asset catalog |
 | `chunks.rhai` | Discovery, visual loading, bounded residency |
@@ -401,3 +538,42 @@ Cross-module calls use explicit namespaces, such as `power::update_power()`. Imp
 IDs (`import "factory-power" as power;`), so editor Play, player, and exported builds resolve the
 same source. Keep mutable game state in the existing blackboards; module files contain functions.
 See [Rhai import rules and hot reload](../../docs/scripting.md#import-shared-rhai-modules).
+
+## Renewable power
+
+The Power toolbar (**Ctrl+3**) now includes a **solar panel** in slot **4**,
+**solar array** in slot **5**, and **small wind turbine** in slot **6**. They unlock
+at Tier 2, and are immediately available in Creative and Dev World. Place them
+on clear ground and cable each source to a power pole using slot 3.
+
+| Source | Footprint | Output | Build cost |
+| --- | --- | --- | --- |
+| Solar panel | 1 spot | 4 power during Earth's daytime | 4 iron ingots, 2 copper ingots, 2 glass, 2 cables |
+| Solar array | 2 adjacent spots | 8 power during Earth's daytime | 8 iron ingots, 4 copper ingots, 4 glass, 4 cables |
+| Small wind turbine | 1 spot | 6 power continuously | 6 iron ingots, 4 copper ingots, 2 cables |
+
+**R** rotates the array around its first spot; the second spot follows its facing.
+Both spots must be explored, clear of deposits, machines and wreckage, and inside
+the world. Arrays can cross region boundaries. Occupied rotation destinations are
+rejected, and **X** from either spot removes the whole array and its cable. There
+is one saved machine and one circuit terminal per array. The host enforces the
+same footprint and costs in multiplayer.
+
+Solar-only circuits stop at night and restart at dawn, including when Earth is
+simulating in the background. Solar has no output on the permanently dark lunar
+map. Wind is steady in this prototype, without a weather simulation. Dawn/dusk
+refreshes the circuit graph once per transition; unchanged frames reuse the
+existing power state. The turbine rotor is static in these prototype meshes.
+
+Open [`scenes/renewables-showroom.json`](scenes/renewables-showroom.json) in Editor
+Play to inspect a wired solar/wind circuit. Editable meshes, the model manifest,
+and the studio preview are in [`../../assets/renewables/`](../../assets/renewables/).
+The indexed GLBs use 560 / 1,220 / 348 triangles with 5–6 shared material groups.
+
+```sh
+blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_renewables.py
+python3 examples/earth-factory/tools/generate_scene.py
+python3 examples/earth-factory/tools/generate_renewables_showroom.py
+python3 examples/earth-factory/tools/validate_renewables.py
+cargo test --offline -p bozzard-demo --test earth_factory renewables_
+```

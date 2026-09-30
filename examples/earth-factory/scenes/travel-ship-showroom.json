@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "name": "Stellar-IX \u2014 space rocket and launch pad",
+  "views": {
+    "3d": "camera"
+  },
+  "assets": {
+    "landing-station": {
+      "kind": "mesh",
+      "path": "assets/models/travel/landing-station.glb"
+    },
+    "survey-ship-lower": {
+      "kind": "mesh",
+      "path": "assets/models/travel/survey-ship-lower.glb"
+    },
+    "survey-ship-upper": {
+      "kind": "mesh",
+      "path": "assets/models/travel/survey-ship-upper.glb"
+    },
+    "survey-ship-exhaust": {
+      "kind": "mesh",
+      "path": "assets/models/travel/survey-ship-exhaust.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "camera",
+      "name": "Ship showroom camera",
+      "transform": {
+        "translation": [
+          10,
+          10,
+          10
+        ],
+        "rotation_degrees": [
+          -35.264,
+          45,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "camera": {
+        "projection": "orthographic",
+        "vertical_size": 7.4,
+        "near": 0.1,
+        "far": 100
+      }
+    },
+    {
+      "id": "ground",
+      "name": "Planet surface",
+      "transform": {
+        "translation": [
+          0,
+          -0.035,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          30,
+          0.06,
+          30
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.14,
+          0.18,
+          0.19
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "landing-station",
+      "name": "landing-station",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "landing-station"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "survey-ship-lower",
+      "name": "survey-ship-lower",
+      "transform": {
+        "translation": [
+          0,
+          0.1,
+          1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "survey-ship-lower"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "survey-ship-upper",
+      "name": "survey-ship-upper",
+      "transform": {
+        "translation": [
+          0,
+          0.1,
+          1
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "survey-ship-upper"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "environment": {
+    "zenith": [
+      0.2,
+      0.25,
+      0.29
+    ],
+    "horizon": [
+      0.2,
+      0.25,
+      0.29
+    ],
+    "ground": [
+      0.14,
+      0.18,
+      0.19
+    ],
+    "intensity": 0.55,
+    "background": true
+  },
+  "lighting": {
+    "shadows": true,
+    "sun_direction": [
+      0.46,
+      0.81,
+      0.35
+    ],
+    "sun_color": [
+      1,
+      0.96,
+      0.9
+    ],
+    "sun_intensity": 2.6,
+    "ambient_color": [
+      0.86,
+      0.94,
+      1
+    ],
+    "ambient_intensity": 0.24
+  }
+}

@@ -1,5 +1,6 @@
 // Co-op cursors use the same world tiles as the local player. Remote markers and
 // labels are presentation only; their positions never enter factory state.
+import "factory-interiors" as interiors;
 import "factory-data" as data;
 import "factory-grid" as grid;
 
@@ -22,7 +23,7 @@ fn update(dt,obscured) {
             else if member.position.planet==data::session_value(7).to_int() {
                 let at=member.position;
                 let cx=floor((at.x.to_float()+7.0)/15.0).to_int();let cz=floor((at.z.to_float()+7.0)/15.0).to_int();
-                visible=get_object_list_item("resident",grid::chunk_id(cx,cz))>0.0;
+                visible=get_object_list_item("resident",grid::chunk_id(cx,cz))>0.0 && interiors::visible_at(at.x,at.z);
                 for flight in frame.flights {if flight.peer==member.peer{visible=false;}}
                 if visible {
                     let from=get_position(model);let target=[at.x.to_float(),0.14,at.z.to_float()];

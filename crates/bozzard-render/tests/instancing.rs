@@ -121,6 +121,7 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[0].frame_stats().color_draws, 1024);
     assert_eq!(renderers[1].frame_stats().color_draws, 32);
+    assert_eq!(renderers[1].frame_stats().object_uniform_writes, 0);
     assert_eq!(renderers[1].frame_stats().instanced_surfaces, 1024);
     assert_eq!(renderers[0].frame_stats().visible_items, 1024);
     assert_eq!(renderers[1].frame_stats().visible_items, 1024);
@@ -243,13 +244,75 @@ fn stationary_uniforms_are_reused_and_render_edits_match_uncached_output() -> an
 }
 
 #[test]
+fn interleaved_meshes_batch_globally_without_changing_coplanar_or_transparent_pixels()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_global_batching_enabled(false);
+    let mut scene = scene(1024);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        if i % 2 != 0 {
+            item.mesh = MeshKind::Sphere;
+        }
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[0].frame_stats().color_draws, 1024);
+    assert_eq!(renderers[1].frame_stats().color_draws, 32);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().instance_uniform_bytes, 0);
+    // Exercise invalidation, hidden members and a moving camera.
+    for tick in 0..3 {
+        scene.items[1].model *= Mat4::from_translation(Vec3::X * 0.03);
+        scene.items[5].model = Mat4::from_translation(Vec3::new(100., 0., -5.));
+        scene.view_projection *= Mat4::from_translation(Vec3::Y * 0.01);
+        scene.items[2].material.tint[tick] = 0.9;
+        compare(&gpu, &mut renderers, &scene)?;
+    }
+    // Equal-depth surfaces separated by a different mesh/material must preserve
+    // their original winner, even when that prevents combining matching quads.
+    scene.items.truncate(3);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.mesh = MeshKind::Quad;
+        item.model =
+            Mat4::from_translation(Vec3::new(0., 0., -5.)) * Mat4::from_scale(Vec3::splat(16.));
+        item.material.texture = if i == 1 {
+            TextureKind::Checker
+        } else {
+            TextureKind::White
+        };
+        item.material.tint = [i as f32 * 0.3, 0.9 - i as f32 * 0.3, 0.4];
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().color_draws, 3);
+    // Near-plane-crossing bounds cannot safely participate in opaque reordering.
+    scene.items[1].mesh = MeshKind::Cube;
+    scene.items[1].model = Mat4::from_scale(Vec3::splat(4.));
+    scene.view_projection = glam::camera::rh::proj::directx::perspective(1., 1., 0.1, 30.);
+    compare(&gpu, &mut renderers, &scene)?;
+    for renderer in &mut renderers {
+        renderer.upload_image(&gpu, "glass", 1, 1, &[200, 30, 0, 128])?;
+    }
+    scene.items[0].material.texture = TextureKind::Imported("glass".into());
+    scene.items[2].material.texture = TextureKind::Imported("glass".into());
+    compare(&gpu, &mut renderers, &scene)?;
+    Ok(())
+}
+
+#[test]
 #[ignore = "release-mode synchronized CPU/wall benchmark; run explicitly"]
 fn scale_benchmark() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
-    let mut renderers: [SceneRenderer; 2] =
+    let mut renderers: [SceneRenderer; 3] =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
     renderers[0].set_instancing_enabled(false);
+    renderers[1].set_global_batching_enabled(false);
     let mut scene = scene(1024);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        if i % 2 != 0 {
+            item.mesh = MeshKind::Sphere;
+        }
+    }
     let target = gpu
         .device
         .create_texture(&wgpu::TextureDescriptor {
@@ -268,14 +331,15 @@ fn scale_benchmark() -> anyhow::Result<()> {
         })
         .create_view(&Default::default());
     for moving in [false, true] {
-        let mut samples: [Vec<(f64, f64)>; 2] = Default::default();
+        let mut samples: [Vec<(f64, f64)>; 3] = Default::default();
         for frame in 0..110 {
             if moving {
                 for item in &mut scene.items {
                     item.model *= Mat4::from_rotation_y(0.003);
                 }
             }
-            for mode in if frame % 2 == 0 { [0, 1] } else { [1, 0] } {
+            for offset in 0..3 {
+                let mode = (frame + offset) % 3;
                 let start = std::time::Instant::now();
                 renderers[mode].draw(&gpu, &target, [320; 2], &scene)?;
                 gpu.wait()?;
@@ -297,8 +361,8 @@ fn scale_benchmark() -> anyhow::Result<()> {
                 (v[49] + v[50]) * 0.5
             };
             println!(
-                "moving={moving} instancing={} draws={} cpu_ms={:.3} synchronized_ms={:.3}",
-                mode == 1,
+                "moving={moving} mode={} draws={} cpu_ms={:.3} synchronized_ms={:.3}",
+                ["individual", "consecutive", "global"][mode],
                 renderers[mode].frame_stats().color_draws,
                 median(false),
                 median(true)
