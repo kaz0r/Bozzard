@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-struct Temp(PathBuf);
+struct Temp(PathBuf, std::cell::RefCell<Vec<bozzard_project::GamePack>>);
 impl Temp {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -18,19 +18,32 @@ impl Temp {
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
+                Ok(()) => return Self(path, Default::default()),
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 Err(e) => panic!("{e}"),
             }
         }
     }
 }
+impl Temp {
+    fn data(&self, folder: &Path) -> PathBuf {
+        let pack = bozzard_project::GamePack::open(
+            &data_root(folder).join(bozzard_project::GAMEPACK),
+            &Default::default(),
+        )
+        .unwrap();
+        let root = pack.root().to_owned();
+        self.1.borrow_mut().push(pack);
+        root
+    }
+}
+
 impl Drop for Temp {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
-fn data(folder: &Path) -> PathBuf {
+fn data_root(folder: &Path) -> PathBuf {
     if cfg!(target_os = "macos") {
         folder.join("Game.app/Contents/Resources/game")
     } else {
@@ -84,7 +97,7 @@ fn earth_factory_explores_and_opens_its_journal_after_source_independent_export(
     assert_eq!(steam["mode"], "spacewar-development");
     assert!(relocated.join(steam["library"].as_str().unwrap()).is_file());
     assert!(fs::read_to_string(relocated.join("STEAM-README.txt"))?.contains("480"));
-    let (_, scene_path) = Project::load(&data(&relocated).join(bozzard_project::MANIFEST))?;
+    let (_, scene_path) = Project::load(&temp.data(&relocated).join(bozzard_project::MANIFEST))?;
     let scene = load(&scene_path);
     let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&scene_path))?;
     runtime.app.step();

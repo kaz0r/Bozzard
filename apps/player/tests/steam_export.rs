@@ -114,7 +114,7 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
             serde_json::from_slice::<serde_json::Value>(&info.stdout).unwrap(),
             bozzard_project::runtime::description()
         );
-        let snapshot = empty.join("snapshot.json");
+        let snapshot = empty.join(format!("snapshot-{app_id}.json"));
         let saved = run(&["--write-scene", snapshot.to_str().unwrap()]);
         assert!(saved.status.success(), "{saved:?}");
         let relocated = bozzard_demo::load_document(Some(&snapshot)).unwrap();
@@ -134,7 +134,7 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
             assert!(
                 path.canonicalize()
                     .unwrap()
-                    .starts_with(moved.canonicalize().unwrap()),
+                    .starts_with(snapshot.with_extension("game-data").canonicalize().unwrap()),
                 "exported scripts must not point back to authoring sources"
             );
         }

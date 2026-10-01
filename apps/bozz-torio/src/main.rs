@@ -8,6 +8,10 @@ fn bundled_app_id() -> Option<u32> {
 }
 
 fn main() -> anyhow::Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
+        println!("{}", bozz_torio::package::runtime_info());
+        return Ok(());
+    }
     let mut app_id = std::env::var("SteamAppId")
         .ok()
         .and_then(|v| v.parse::<u32>().ok())

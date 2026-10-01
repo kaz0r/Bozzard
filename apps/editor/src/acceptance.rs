@@ -247,8 +247,9 @@ impl App {
                     "Game"
                 });
                 let manifest =
-                    bozzard_project::bundled_project(&binary).context("export has no project")?;
-                let (_, source) = bozzard_project::Project::load(&manifest)?;
+                    bozzard_project::bundled_gamepack(&binary).context("export has no gamepack")?;
+                let packed = bozzard_project::GamePack::open(&manifest, &Default::default())?;
+                let (_, source) = bozzard_project::Project::load(&packed.project_path())?;
                 let scene = bozzard_demo::load_document(Some(&source))?;
                 let expected = self
                     .smoke_expected

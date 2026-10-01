@@ -6,7 +6,18 @@ use bozzard_scene::{Layer, Scene};
 use std::{
     fs,
     path::{Component, Path, PathBuf},
+    process::Command,
 };
+
+pub fn runtime_info() -> serde_json::Value {
+    serde_json::json!({
+        "engine_version": env!("CARGO_PKG_VERSION"), "gamepack_version": 1,
+        "script_api_version": bozzard_project::runtime::SCRIPT_API_VERSION,
+        "build_profile": bozzard_project::runtime::build_profile(),
+        "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
+        "runtime_modules": [NAME]
+    })
+}
 
 fn packaged_asset_path(staging: &Path, relative: &str) -> Result<PathBuf> {
     let mut parts = vec!["scene".to_owned()];
@@ -29,14 +40,32 @@ pub fn companion_factory(editor: &Path) -> Result<PathBuf> {
     let directory = editor
         .parent()
         .context("editor executable has no directory")?;
-    let binary = directory.join(if cfg!(windows) {
+    let name = if cfg!(windows) {
         "bozz-torio.exe"
     } else {
         "bozz-torio"
-    });
+    };
+    let mut binary = directory.join(name);
+    if let Some(release) = bozzard_project::runtime::release_companion(editor, name)
+        && release.is_file()
+        && let Ok(output) = Command::new(&release).arg("--runtime-info").output()
+        && output.status.success()
+        && let Ok(actual) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+        && actual["build_profile"] == "release"
+        && bozzard_project::runtime::compatible(actual, runtime_info())
+    {
+        binary = release;
+    }
     ensure!(
         binary.is_file(),
         "Bozz-torio runtime missing beside the editor. Build bozz-torio in the same Cargo profile before exporting."
+    );
+    let output = Command::new(&binary).arg("--runtime-info").output()?;
+    ensure!(
+        output.status.success()
+            && serde_json::from_slice::<serde_json::Value>(&output.stdout)
+                .is_ok_and(|actual| bozzard_project::runtime::compatible(actual, runtime_info())),
+        "Bozz-torio runtime is incompatible with gamepack exports. Rebuild bozz-torio in the same Cargo profile as the editor."
     );
     Ok(binary)
 }
@@ -108,8 +137,9 @@ pub fn export_scene_with_progress(
         } else {
             fs::write(staging.join("steam_appid.txt"), "480\n")?;
         }
-        let scene_dir = staging.join("scene");
-        fs::create_dir(&scene_dir)?;
+        let content = staging.join(".game-content");
+        let scene_dir = content.join("scene");
+        fs::create_dir_all(&scene_dir)?;
         let source_dir = source.parent().context("scene source has no parent")?;
         for (id, asset) in &scene.assets {
             progress.check()?;
@@ -118,15 +148,15 @@ pub fn export_scene_with_progress(
                 .canonicalize()
                 .with_context(|| format!("missing scene asset '{id}' at {}", asset.path))?;
             ensure!(input.is_file(), "scene asset '{id}' is not a file");
-            let output = packaged_asset_path(&staging, &asset.path)?;
+            let output = packaged_asset_path(&content, &asset.path)?;
             let folder = output.parent().context("asset has no export parent")?;
             fs::create_dir_all(folder)?;
             fs::copy(input, output)?;
         }
         let manifest = source_dir.join("../assets/sprite_manifest.json");
         if manifest.is_file() {
-            fs::create_dir_all(staging.join("assets"))?;
-            fs::copy(manifest, staging.join("assets/sprite_manifest.json"))?;
+            fs::create_dir_all(content.join("assets"))?;
+            fs::copy(manifest, content.join("assets/sprite_manifest.json"))?;
         }
         fs::write(scene_dir.join("bozz-torio.json"), scene.to_json()?)?;
         let project = Project {
@@ -139,8 +169,24 @@ pub fn export_scene_with_progress(
         };
         project.validate_scene(scene)?;
         fs::write(
-            staging.join("bozzard.project.json"),
+            content.join("bozzard.project.json"),
             serde_json::to_vec_pretty(&project)?,
+        )?;
+        bozzard_project::gamepack::write(
+            &content,
+            &staging.join(bozzard_project::GAMEPACK),
+            progress,
+        )?;
+        let packed =
+            bozzard_project::GamePack::open(&staging.join(bozzard_project::GAMEPACK), progress)?;
+        SceneSource::open(packed.root().join("scene/bozz-torio.json"))?;
+        fs::remove_dir_all(content)?;
+        fs::write(
+            staging.join("package.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "version": 1, "name": scene.name, "executable": executable,
+                "gamepack": bozzard_project::GAMEPACK
+            }))?,
         )?;
         progress.check()?;
         fs::rename(&staging, destination)?;
@@ -187,7 +233,16 @@ mod tests {
         assert!(exported.is_err(), "export parent must exist");
         let output = root.join("factory");
         export_scene(&scene, &source, &binary, &output).unwrap();
-        let relocated = SceneSource::open(output.join("scene/bozz-torio.json")).unwrap();
+        assert!(!output.join("scene").exists());
+        assert!(!output.join("assets").exists());
+        let relocated = SceneSource::open(output.join(bozzard_project::GAMEPACK)).unwrap();
+        let reloaded = relocated.reload().unwrap();
+        drop(relocated);
+        assert!(
+            reloaded.path.is_file(),
+            "reloading must retain mounted content"
+        );
+        let relocated = reloaded;
         let relocated_game = relocated.new_game_from_seed(7).unwrap();
         crate::stage::Stage::new(&relocated, &relocated_game).unwrap();
         assert_eq!(
@@ -198,7 +253,12 @@ mod tests {
                 .unwrap()
                 .hub
         );
-        let (project, _) = Project::load(&output.join("bozzard.project.json")).unwrap();
+        let packed = bozzard_project::GamePack::open(
+            &output.join(bozzard_project::GAMEPACK),
+            &Default::default(),
+        )
+        .unwrap();
+        let (project, _) = Project::load(&packed.project_path()).unwrap();
         assert_eq!(project.runtime_modules, [NAME]);
         assert!(project.require_runtime_modules(&[]).is_err());
         assert!(project.require_runtime_modules(&[NAME]).is_ok());

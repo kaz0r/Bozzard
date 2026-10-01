@@ -72,7 +72,23 @@ pub fn resolve(options: &mut Options) -> Result<()> {
         options.content_handle = Some(resolved);
     }
     if options.project.is_none() && options.scene.is_none() {
-        options.project = bozzard_project::bundled_project(&std::env::current_exe()?);
+        let executable = std::env::current_exe()?;
+        if let Some(path) = bozzard_project::bundled_gamepack(&executable) {
+            let pack = bozzard_project::GamePack::open(&path, &Default::default())?;
+            options.project = Some(pack.project_path());
+            options.gamepack = Some(std::sync::Arc::new(pack));
+        } else {
+            options.project = bozzard_project::bundled_project(&executable);
+        }
+    }
+    if let Some(path) = &options.project
+        && path
+            .extension()
+            .is_some_and(|extension| extension == "bpack")
+    {
+        let pack = bozzard_project::GamePack::open(path, &Default::default())?;
+        options.project = Some(pack.project_path());
+        options.gamepack = Some(std::sync::Arc::new(pack));
     }
     if let Some(path) = &options.project {
         let (project, source) = bozzard_project::Project::load(path)?;

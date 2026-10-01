@@ -33,6 +33,7 @@ struct Options {
     content_address: Option<String>,
     content_cache: Option<PathBuf>,
     content_handle: Option<bozzard_project::content::ResolvedContent>,
+    gamepack: Option<std::sync::Arc<bozzard_project::GamePack>>,
     project: Option<PathBuf>,
     game_name: Option<String>,
     export_project: Option<PathBuf>,
@@ -65,6 +66,7 @@ impl Default for Options {
             content_address: None,
             content_cache: None,
             content_handle: None,
+            gamepack: None,
             project: None,
             game_name: None,
             export_project: None,
@@ -120,7 +122,11 @@ fn options() -> Result<Option<Options>> {
                 )
             }
             "--project" => {
-                result.project = Some(args.next().context("--project needs a manifest")?.into())
+                result.project = Some(
+                    args.next()
+                        .context("--project needs a manifest or .bpack file")?
+                        .into(),
+                )
             }
             "--export-project" => {
                 result.export_project = Some(
@@ -195,7 +201,7 @@ fn options() -> Result<Option<Options>> {
                     "--no-interpolation renders exact fixed-tick poses for comparison or lower latency."
                 );
                 println!(
-                    "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
+                    "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game from a manifest or .bpack file. Exported games find gamepack.bpack beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
                     "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\nWithout gameplay logic: 1/2 switch views, Space pauses, arrows pan, F5 saves, R reloads, Escape closes.\nScript and Blueprint scenes own their keys; F5 saves and F6 reloads.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."
@@ -1611,7 +1617,15 @@ fn main() -> Result<()> {
     }
     let document = load_document(options.scene.as_deref())?;
     if let Some(path) = &options.write_scene {
-        save_document_from(&document, path, options.scene.as_deref())?;
+        if let Some(pack) = &options.gamepack {
+            let content = path.with_extension("game-data");
+            pack.copy_to(&content)?;
+            let (_, source) =
+                bozzard_project::Project::load(&content.join(bozzard_project::MANIFEST))?;
+            save_document_from(&document, path, Some(&source))?;
+        } else {
+            save_document_from(&document, path, options.scene.as_deref())?;
+        }
         println!("scene_saved path={}", path.display());
         return Ok(());
     }
@@ -1622,7 +1636,10 @@ fn main() -> Result<()> {
         demo.instance().has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"
     );
-    let assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
+    let mut assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
+    if options.gamepack.is_some() {
+        assets.disable_hot_reload();
+    }
     bozzard_project::streaming::install(
         &mut demo.app.world,
         options.scene.as_deref().unwrap_or(Path::new("scene.json")),

@@ -1,6 +1,7 @@
 """Cheap layout checks before native compilation in CI."""
 import importlib.util
 import json
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +14,21 @@ spec.loader.exec_module(package)
 
 
 class PackageInventoryTests(unittest.TestCase):
+    def test_pack_is_required_and_header_is_checked(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name in ("bozz-torio", "libsteam_api.so", "steam_appid.txt"):
+                (root / name).write_bytes(b"stub")
+            (root / "package.json").write_text('{"gamepack":"gamepack.bpack"}')
+            with self.assertRaisesRegex(FileNotFoundError, "gamepack"):
+                package.validate_inventory(root, "bozz-torio", "libsteam_api.so")
+            pack = root / "gamepack.bpack"
+            pack.write_bytes(b"BOZZGAME" + struct.pack("<II", 1, 128) + bytes(32) + b"payload")
+            package.validate_inventory(root, "bozz-torio", "libsteam_api.so")
+            pack.write_bytes(b"truncated")
+            with self.assertRaisesRegex(ValueError, "header"):
+                package.validate_inventory(root, "bozz-torio", "libsteam_api.so")
+
     def test_scene_catalog_is_checked_after_relocation(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

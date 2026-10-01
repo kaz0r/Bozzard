@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-struct Temp(PathBuf);
+struct Temp(PathBuf, std::cell::RefCell<Vec<bozzard_project::GamePack>>);
 impl Temp {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -17,13 +17,26 @@ impl Temp {
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
+                Ok(()) => return Self(path, Default::default()),
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 Err(e) => panic!("{e}"),
             }
         }
     }
 }
+impl Temp {
+    fn data(&self, folder: &Path) -> PathBuf {
+        let pack = bozzard_project::GamePack::open(
+            &data_root(folder).join(bozzard_project::GAMEPACK),
+            &Default::default(),
+        )
+        .unwrap();
+        let root = pack.root().to_owned();
+        self.1.borrow_mut().push(pack);
+        root
+    }
+}
+
 impl Drop for Temp {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
@@ -104,7 +117,7 @@ fn cooked_textures_export_with_platform_payloads_and_no_source_dependency() -> a
     export(&scene, &scene_path, &temp.0.join("game"));
     fs::remove_dir_all(source)?;
     fs::rename(temp.0.join("game"), temp.0.join("relocated game"))?;
-    let root = data(&temp.0.join("relocated game"));
+    let root = temp.data(&temp.0.join("relocated game"));
     let (_, scene_path) = Project::load(&root.join(bozzard_project::MANIFEST))?;
     let scene = load(&scene_path);
     let mut store = AssetStore::new(scene_path.parent().unwrap(), &scene.assets)?;
@@ -143,13 +156,13 @@ fn starter_projects_play_relocate_export_and_refuse_existing_destinations() -> a
             &project,
             &scene,
             &scene_path,
-            &std::env::current_exe()?,
+            &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
             &exported,
             &Default::default(),
         )?
         .commit()?;
         fs::remove_dir_all(&source)?;
-        let (_, scene_path) = Project::load(&data(&exported).join(bozzard_project::MANIFEST))?;
+        let (_, scene_path) = Project::load(&temp.data(&exported).join(bozzard_project::MANIFEST))?;
         let scene = load(&scene_path);
         let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&scene_path))?;
         runtime.game_action(GameAction::Start)?;
@@ -262,13 +275,13 @@ fn styled_text_exports_primary_and_fallback_fonts_and_loads_without_source_files
         &project(),
         &scene,
         &source.join("scene.json"),
-        &std::env::current_exe()?,
+        &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
         &target,
         &Progress::default(),
     )?
     .commit()?;
     fs::remove_dir_all(source)?;
-    let path = data(&target).join("scene.json");
+    let path = temp.data(&target).join("scene.json");
     let loaded = load(&path);
     let text = loaded
         .objects
@@ -366,13 +379,13 @@ fn automatically_simplified_pbr_lod_exports_without_its_source_project() -> anyh
         &project(),
         &scene,
         &source.join("scene.json"),
-        &std::env::current_exe()?,
+        &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
         &target,
         &Progress::default(),
     )?
     .commit()?;
     fs::remove_dir_all(source)?;
-    let path = data(&target).join("scene.json");
+    let path = temp.data(&target).join("scene.json");
     let exported = load(&path);
     let runtime = bozzard_demo::SceneDemo::new_with_prefabs(&exported, Some(&path))?;
     let frame = runtime
@@ -407,7 +420,7 @@ fn automatically_simplified_pbr_lod_exports_without_its_source_project() -> anyh
     );
     Ok(())
 }
-fn data(folder: &Path) -> PathBuf {
+fn data_root(folder: &Path) -> PathBuf {
     if cfg!(target_os = "macos") {
         folder.join("Game.app/Contents/Resources/game")
     } else {
@@ -434,7 +447,7 @@ fn export(scene: &Scene, source: &Path, destination: &Path) {
         &project(),
         scene,
         source,
-        &std::env::current_exe().unwrap(),
+        &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
         destination,
         &Default::default(),
     )
@@ -464,7 +477,7 @@ fn declared_compute_assets_survive_relocation_and_source_removal() {
     }
     fs::remove_dir_all(source).unwrap();
     for name in ["compute-waves", "compute-numbers"] {
-        let root = data(&temp.0.join(format!("relocated {name}")));
+        let root = temp.data(&temp.0.join(format!("relocated {name}")));
         let (_, path) = Project::load(&root.join(bozzard_project::MANIFEST)).unwrap();
         let cooked = load(&path);
         let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
@@ -507,11 +520,27 @@ fn export_survives_source_removal_and_runs_the_whole_trail() {
     let scene = load(&source.join("scene.json"));
     let folder = temp.0.join("game");
     export(&scene, &source.join("scene.json"), &folder);
+    let packed_data = data_root(&folder);
+    assert!(packed_data.join(bozzard_project::GAMEPACK).is_file());
+    assert!(!packed_data.join("scene.json").exists());
+    assert!(!packed_data.join(bozzard_project::MANIFEST).exists());
+    assert!(!packed_data.join("assets").exists());
+    let inventory: serde_json::Value =
+        serde_json::from_slice(&fs::read(folder.join("package.json")).unwrap()).unwrap();
+    assert!(
+        inventory["files"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .all(|path| !path.ends_with(".rhai")
+                && !path.ends_with(".rs")
+                && !path.contains("assets/"))
+    );
     fs::remove_dir_all(&source).unwrap();
     let relocated = temp.0.join("renamed game with spaces");
     fs::rename(folder, &relocated).unwrap();
     let (manifest, path) =
-        Project::load(&data(&relocated).join(bozzard_project::MANIFEST)).unwrap();
+        Project::load(&temp.data(&relocated).join(bozzard_project::MANIFEST)).unwrap();
     assert_eq!(manifest.name, "Test & Game");
     let cooked = load(&path);
     assert_eq!(scene.objects, cooked.objects);
@@ -549,11 +578,12 @@ fn model_images_buffers_and_spawn_prefabs_are_relocatable_and_deterministic() {
         let scene_path = source.join(format!("{name}.json"));
         let scene = load(&scene_path);
         export(&scene, &scene_path, &temp.0.join(name));
-        let exported = load(&data(&temp.0.join(name)).join("scene.json"));
+        let exported = load(&temp.data(&temp.0.join(name)).join("scene.json"));
         let mut before = bozzard_assets::AssetStore::new(&source, &scene.assets).unwrap();
         before.load_pending().unwrap();
         let mut after =
-            bozzard_assets::AssetStore::new(&data(&temp.0.join(name)), &exported.assets).unwrap();
+            bozzard_assets::AssetStore::new(&temp.data(&temp.0.join(name)), &exported.assets)
+                .unwrap();
         after.load_pending().unwrap();
         for (id, asset) in &scene.assets {
             if asset.kind != bozzard_scene::AssetKind::Prefab {
@@ -575,7 +605,7 @@ fn model_images_buffers_and_spawn_prefabs_are_relocatable_and_deterministic() {
     }
     fs::remove_dir_all(source).unwrap();
     for name in ["model-lab", "bonfire-lab", "gold-yard", "prefab-lab"] {
-        let path = data(&temp.0.join(name)).join("scene.json");
+        let path = temp.data(&temp.0.join(name)).join("scene.json");
         let scene = load(&path);
         let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
         let mut assets = bozzard_assets::AssetStore::new(
@@ -598,8 +628,20 @@ fn errors_cancellation_and_existing_destinations_never_publish_partial_games() {
     let temp = Temp::new();
     let path = fixtures().join("first-trail.json");
     let mut scene = load(&path);
-    let runtime = std::env::current_exe().unwrap();
+    let runtime = PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project"));
     let destination = temp.0.join("game");
+    let incompatible = prepare_export(
+        &project(),
+        &scene,
+        &path,
+        &std::env::current_exe().unwrap(),
+        &destination,
+        &Default::default(),
+    )
+    .err()
+    .expect("solo exports must reject a runtime without gamepack support");
+    assert!(incompatible.to_string().contains("companion player"));
+    assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 0);
     let prepared = prepare_export(
         &project(),
         &scene,
@@ -693,7 +735,7 @@ fn runtime_scene_library_assets_are_relocated_and_load_without_sources() {
     let folder = temp.0.join("export");
     export(&scene, &source.join("scene.json"), &folder);
     fs::remove_dir_all(&source).unwrap();
-    let path = data(&folder).join("scene.json");
+    let path = temp.data(&folder).join("scene.json");
     let cooked = load(&path);
     let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
     runtime
@@ -732,7 +774,7 @@ fn middleware_exports_keep_skin_audio_ui_nav_and_atlas_content_after_relocation(
             &project,
             &scene,
             &source.join("scene.json"),
-            &std::env::current_exe().unwrap(),
+            &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
             &temp.0.join("game"),
             &Default::default(),
         )
@@ -741,7 +783,7 @@ fn middleware_exports_keep_skin_audio_ui_nav_and_atlas_content_after_relocation(
         .unwrap();
         fs::remove_dir_all(&source).unwrap();
         fs::rename(temp.0.join("game"), temp.0.join("relocated game")).unwrap();
-        let root = data(&temp.0.join("relocated game"));
+        let root = temp.data(&temp.0.join("relocated game"));
         let cooked = load(&root.join("scene.json"));
         let mut assets = bozzard_assets::AssetStore::new(&root, &cooked.assets).unwrap();
         assets.load_pending().unwrap();
@@ -918,13 +960,13 @@ fn nested_variant_prefabs_resolve_and_spawn_after_export_and_source_removal() ->
         &project(),
         &scene,
         &source.join("scene.json"),
-        &std::env::current_exe()?,
+        &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
         &output,
         &Progress::default(),
     )?
     .commit()?;
     fs::remove_dir_all(source)?;
-    let path = data(&output).join("scene.json");
+    let path = temp.data(&output).join("scene.json");
     let exported = load(&path);
     let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&exported, Some(&path))?;
     runtime.game_action(bozzard_scene::GameAction::Start)?;

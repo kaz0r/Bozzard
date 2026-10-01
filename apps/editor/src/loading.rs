@@ -147,7 +147,7 @@ impl App {
                     Layer::TwoD
                 },
             };
-            let player = bozzard_project::companion_player(&std::env::current_exe()?)?;
+            let player = bozzard_project::runtime::export_player(&std::env::current_exe()?)?;
             self.loading = Some(Loading::Export(Job::start(
                 "Preparing game export",
                 move |progress| {

@@ -187,15 +187,15 @@ fn exported_executable_finds_its_game_with_no_arguments_or_build_tools() {
     assert!(output.status.success(), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stdout).contains("won=true respawns=0 restart=true"));
     assert_eq!(std::fs::read_dir(&empty).unwrap().count(), 0);
-    let manifest = bozzard_project::bundled_project(&binary).unwrap();
+    let manifest = bozzard_project::bundled_gamepack(&binary).unwrap();
     let output = Command::new(&binary)
-        .args(["--project", "bozzard.project.json", "--verify-first-trail"])
+        .args(["--project", "gamepack.bpack", "--verify-first-trail"])
         .current_dir(manifest.parent().unwrap())
         .output()
         .unwrap();
     assert!(
         output.status.success(),
-        "a bare manifest filename must work: {output:?}"
+        "a bare gamepack filename must work: {output:?}"
     );
     std::fs::write(&manifest, "{}").unwrap();
     let output = Command::new(&binary)

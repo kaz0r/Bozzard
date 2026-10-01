@@ -2,6 +2,7 @@
 pub mod content;
 mod cook;
 mod export;
+pub mod gamepack;
 pub mod runtime;
 pub mod streaming;
 pub use cook::{CookReport, CookTarget};
@@ -9,6 +10,7 @@ mod merge;
 use anyhow::{Context, Result, ensure};
 use bozzard_scene::{Layer, Scene};
 pub use export::{PreparedExport, prepare_export};
+pub use gamepack::{GAMEPACK, GamePack, bundled_gamepack};
 pub use merge::{MergeConflict, SceneMerge, merge_scenes};
 mod templates;
 use serde::{Deserialize, Serialize};

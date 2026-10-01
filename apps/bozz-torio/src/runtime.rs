@@ -504,7 +504,7 @@ impl Factory {
                     self.error = Some("Leave the lobby before loading a new editor scene".into());
                     return Ok(());
                 }
-                let source = SceneSource::open(self.source.path.clone())?;
+                let source = self.source.reload()?;
                 let game = source.new_game()?;
                 self.stage.reload(&source, &game)?;
                 if let Some(view) = &mut self.view {
