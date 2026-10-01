@@ -1,22 +1,12 @@
+#[path = "../src/scene/host.rs"]
+mod host;
 use bozzard_render::*;
 use glam::{Mat4, Vec3};
 
 #[test]
 fn fog_shaders_validate() {
-    let shared = [
-        include_str!("../src/scene/environment_sample.wgsl"),
-        include_str!("../src/scene/shadow_sample.wgsl"),
-        include_str!("../src/scene/local_lights.wgsl"),
-        include_str!("../src/scene/gi.wgsl"),
-        include_str!("../src/scene/effects.wgsl"),
-        include_str!("../src/scene/fog.wgsl"),
-    ]
-    .join("\n");
-    for shader in [
-        include_str!("../src/scene.wgsl"),
-        include_str!("../src/pbr.wgsl"),
-    ] {
-        let source = format!("{shared}\n{shader}");
+    for pbr in [false, true] {
+        let source = host::host_text(pbr);
         let module = wgpu::naga::front::wgsl::parse_str(&source)
             .unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
         wgpu::naga::valid::Validator::new(

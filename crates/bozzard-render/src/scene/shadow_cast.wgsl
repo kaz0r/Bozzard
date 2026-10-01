@@ -1,12 +1,3 @@
-struct ObjectUniform {
-    mvp: mat4x4<f32>, normal: mat4x4<f32>, tint: vec4<f32>, parameters: vec4<f32>,
-    model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
-    sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
-    surface_factors: vec4<f32>,
-    // Match the color pass's full 496-byte stride for shared instance buffers.
-    fog_color: vec4<f32>, fog_density: vec4<f32>, fog_height: vec4<f32>,
-    previous_mvp: mat4x4<f32>, shader_time: vec4<f32>,
-};
 struct ShadowUniform { matrix: mat4x4<f32>, settings: vec4<f32> };
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;
@@ -22,5 +13,5 @@ struct VertexOutput { @builtin(position) position: vec4<f32>, @location(0) uv: v
 @fragment fn fs_main(in: VertexOutput, @builtin(front_facing) front: bool) {
     let alpha = textureSample(color_texture,color_sampler,in.uv).a * object.tint.a;
     if alpha <= 0.00001 || alpha < object.parameters.w { discard; }
-    if object.viewport.w < 0.5 && front != (object.viewport.z > 0.0) { discard; }
+    if object.raster.y < 0.5 && front != (object.raster.x > 0.0) { discard; }
 }

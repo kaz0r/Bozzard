@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Water pump Mk1",
+  "root": "root",
+  "assets": {
+    "water-pump-mk1": {
+      "kind": "mesh",
+      "path": "models/water-pump-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-water-pump",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "water-pump-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

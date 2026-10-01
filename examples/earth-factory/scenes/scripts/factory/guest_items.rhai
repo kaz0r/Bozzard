@@ -24,17 +24,17 @@ fn start() {
             (resident[a/225]==0.0 && resident[b/225]==0.0) {continue;}
         // A later edit in this beat may have removed or replaced an endpoint.
         if value("builds",a)!=item.source.to_float() || value("builds",b)!=item.target.to_float() {continue;}
-        let retained=resident[b/225]>0.0 && [2,7,8].contains(item.target) &&
+        let retained=resident[b/225]>0.0 && (data::belt(item.target.to_float()) || [7,8].contains(item.target)) &&
             value("item_amounts",b)>0.0 && !claimed.contains(b.to_string());
         let target=if retained {item_fx::read_handles([b])[0]}else{""};
         if target=="" {
-            let pos=[grid::global_x(a),visuals::item_height(item.source.to_float()),grid::global_z(a)];
+            let pos=item_fx::position(a,item.source.to_float(),value("facings",a),visuals::item_height(item.source.to_float(),item.kind.to_float()));
             if pool.len()>0 {target=pool.pop();set_position(target,pos);set_visible(target,true);}
             else {target=spawn_prefab("item",pos);}
         }
-        set_color(target,data::item_color(item.kind.to_float()));
+        item_fx::appearance(target,item.kind.to_float());
         if retained {owned.push(b);handles.push(target);claimed[b.to_string()]=true;}
-        motions.push([a,b,target,visuals::item_height(item.source.to_float()),visuals::item_height(item.target.to_float()),!retained]);
+        motions.push([a,b,target,visuals::item_height(item.source.to_float(),item.kind.to_float()),visuals::item_height(item.target.to_float(),item.kind.to_float()),!retained]);
     }
     set_scene_list("item_pool",pool);item_fx::assign(owned,handles);item_fx::write_motions(motions);
 }

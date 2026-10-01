@@ -188,8 +188,7 @@ fn sphere_preview_renders_graph_geometry() {
 }
 
 #[test]
-fn cached_object_uniforms_keep_shader_time_live_but_ignore_unused_stock_time() -> anyhow::Result<()>
-{
+fn shared_frame_clock_keeps_shader_time_live_without_object_uploads() -> anyhow::Result<()> {
     use bozzard_scene::shader_graph::{Socket, Wire};
     let mut graph = ShaderGraph::default();
     graph.nodes.push(Node::new(2, NodeKind::Time, [0.; 2]));
@@ -215,8 +214,11 @@ fn cached_object_uniforms_keep_shader_time_live_but_ignore_unused_stock_time() -
     scene.shader_time = 0.8;
     let advanced = draw(&mut renderer, &scene)?;
     assert!(pixel(&advanced, 16, 12)[0] > pixel(&first, 16, 12)[0] + 100);
-    assert_eq!(renderer.frame_stats().object_uniform_writes, 1);
+    assert_eq!(renderer.frame_stats().frame_uniform_bytes, 320);
+    assert_eq!(renderer.frame_stats().object_uniform_builds, 0);
+    assert_eq!(renderer.frame_stats().object_uniform_writes, 0);
     assert_eq!(draw(&mut renderer, &scene)?.rgba, advanced.rgba);
+    assert_eq!(renderer.frame_stats().frame_uniform_bytes, 0);
     assert_eq!(renderer.frame_stats().object_uniform_writes, 0);
     renderer.set_state_caching_enabled(false);
     assert_eq!(draw(&mut renderer, &scene)?.rgba, advanced.rgba);
@@ -225,6 +227,7 @@ fn cached_object_uniforms_keep_shader_time_live_but_ignore_unused_stock_time() -
     let stock = draw(&mut renderer, &scene)?;
     scene.shader_time = 1.5;
     assert_eq!(draw(&mut renderer, &scene)?.rgba, stock.rgba);
+    assert_eq!(renderer.frame_stats().object_uniform_builds, 0);
     assert_eq!(renderer.frame_stats().object_uniform_writes, 0);
     Ok(())
 }

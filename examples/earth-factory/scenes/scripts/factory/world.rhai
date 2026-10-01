@@ -1,8 +1,10 @@
 // Rhai gameplay: world.
+import "factory-interiors" as interiors;
 import "factory-item_fx" as item_fx;
 import "factory-chunks" as chunks;
 import "factory-data" as data;
 import "factory-deposits" as deposits;
+import "factory-debris" as debris;
 import "factory-environment" as environment;
 import "factory-grid" as grid;
 import "factory-panels" as panels;
@@ -10,10 +12,13 @@ import "factory-power" as power;
 import "factory-visuals" as visuals;
 import "factory-transports" as transports;
 import "factory-dev_world" as dev;
+import "factory-clock" as clock;
 
 fn begin_world(seed) { begin_world(seed,false); }
 
 fn begin_world(seed, developer) {
+    interiors::clear();
+    set_object_list("cache_structures",grid::empty_text(578));
     transports::clear();
     let generation=data::session_value(126)+1.0;
     let authority=data::session_value(122);
@@ -22,10 +27,11 @@ fn begin_world(seed, developer) {
     reset_planet();
     data::session_set(7, 0.0);
     let session = get_object_list("session");
-    for i in 8..128 { session[i] = 0.0; }
+    for i in 8..160 { session[i] = 0.0; }
     session[122]=authority;session[126]=generation;
     session[63]=if developer {1.0}else{0.0};
     set_object_list("session", session);
+    clock::reset_accumulation();
     set_object_list("power_other", grid::empty_text(867));
     set_visible("ground", true);
     set_object_list("recipes", grid::empty_numbers(225));
@@ -158,7 +164,7 @@ fn begin_world(seed, developer) {
     set_scene_list("assembler_iron", grid::empty_numbers(225));
     set_scene_list("assembler_copper", grid::empty_numbers(225));
     set_scene_list("split_state", grid::empty_numbers(225));
-    set_scene_list("counts", grid::empty_numbers(32));
+    set_scene_list("counts", grid::empty_numbers(64));
     set_scene_list("node_visuals", node_visuals);
     set_scene_list("build_visuals", build_visuals);
     set_scene_list("item_visuals", item_visuals);
@@ -193,14 +199,18 @@ fn begin_world(seed, developer) {
         restore_chunk(0,0);
         set_scene_variable("cursor_x",0.0);set_scene_variable("cursor_z",3.0);
         set_position("cursor",[0.0,0.115,3.0]);
-        set_position("camera-rig",[7.5,0.0,7.5]);set_object_variable("camera_pan_progress",1.0);
         set_object_variable("camera_zoom",32.0);set_object_variable("camera_zoom_target",32.0);set_camera_size("camera",32.0);
         set_scene_variable("message","Dev World: deposits, machines and item samples. N resets the showcase.");
     }
+    environment::center_on_player();
     power::update_power();
+    clock::update_view(0.0);
+    environment::update_daylight(clock::daylight(0.0,0));
 }
 
 fn reset_planet() {
+    interiors::clear();
+    debris::clear();
     let active = grid::chunk_id(get_scene_variable("chunk_x").to_int(), get_scene_variable("chunk_z").to_int());
     let visited = get_object_list("visited");
     let grounds = get_object_list("grounds");
@@ -244,7 +254,7 @@ fn archive_chunk() {
     grid::cache_put("cache_recipes", id, grid::pack_cells(get_object_list("recipes"), cells, 1));
     let storage = [];
     let builds = get_scene_list("builds");
-    for entry in cells { if builds[entry.to_int()] == 4.0 { storage.push(entry); } }
+    for entry in cells { if data::has_slots(builds[entry.to_int()]) { storage.push(entry); } }
     for name in ["builds", "facings", "items", "item_amounts", "input_items", "input_amounts", "progress", "assembler_iron", "assembler_copper", "split_state"] {
         grid::cache_put("cache_" + name, id, if cells.len() == 0 { "" } else { grid::pack_cells(get_scene_list(name), cells, 1) });
     }
@@ -300,8 +310,6 @@ fn restore_chunk(cx, cz) {
     set_scene_variable("tooltip_cell", -1.0);
     set_scene_variable("tooltip_alpha", 0.0);
     set_ui_visible("nearby-tooltip", false);
-    set_object_list("camera_pan_from", get_position("camera-rig"));
-    set_object_variable("camera_pan_progress", 0.0);
     set_scene_variable("message", "Region " + cx.to_string() + ", " + cz.to_string() + ". Your factories remain where you built them.");
 }
 
@@ -313,7 +321,7 @@ fn travel_to_other_planet() {
         abs(get_scene_variable("cursor_x")) > 1.0 || abs(get_scene_variable("cursor_z") - 1.0) > 1.0 { return; }
     archive_chunk();
     // Settle pending wiring changes before retaining this planet's circuit state.
-    // With no remote construction or fuel consumption, it stays valid while away.
+    // Keep the wiring; dawn/dusk refreshes solar supply on the departed planet.
     power::update_power();
     let resident = get_object_list("resident");
     for id in 0..289 { if resident[id] > 0.0 { chunks::unload_chunk_visuals(id); } }
@@ -325,8 +333,8 @@ fn travel_to_other_planet() {
     set_object_list("power_data", incoming_power);
     let session = get_object_list("session");
     let counts = get_scene_list("counts");
-    let incoming_counts = session.extract(8, 32);
-    for i in 0..32 { session[8 + i] = counts[i]; }
+    let incoming_counts = session.extract(8,32)+session.extract(128,32);
+    for i in 0..64 { session[if i<32 {8+i}else{96+i}] = counts[i]; }
     session[7] = 1.0 - session[7];
     session[4] = -1.0; session[5] = -2.0;
     set_object_list("session", session);
@@ -350,11 +358,10 @@ fn travel_to_other_planet() {
     set_object_list("ui_views", ["", "", "", "", "", ""]);
     set_scene_variable("cursor_x", 0.0); set_scene_variable("cursor_z", 2.0);
     set_position("cursor", [0.0, 0.115, 2.0]);
-    set_position("camera-rig", [0.0, 0.0, 0.0]);
-    set_object_variable("camera_pan_progress", 1.0);
+    environment::center_on_player();
     set_object_variable("gather_clock", 0.0);
     power::update_power(); visuals::update_projects();
-    environment::update_daylight(if data::on_moon() { -1.0 } else { sin(data::session_value(120) * 0.10) });
+    environment::update_daylight(clock::daylight(data::session_value(120),data::session_value(7).to_int()));
     set_scene_variable("message", "Arrived on " + data::planet_name() + ". Inventory and unlocks carried over. Return by rocket [E].");
 }
 

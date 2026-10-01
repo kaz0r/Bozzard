@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "name": "Glassworks heat",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "Glassworks heat",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "heat-0",
+      "name": "Glass furnace glow",
+      "transform": {
+        "translation": [
+          0.153,
+          0.625,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.02,
+          0.033,
+          0.34
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          1.0,
+          0.23,
+          0.045
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  1.0,
+                  0.23,
+                  0.045
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

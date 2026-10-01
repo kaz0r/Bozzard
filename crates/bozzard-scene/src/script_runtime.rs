@@ -23,6 +23,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod compute_api;
 mod imports;
 mod module;
+mod numeric_archive;
 pub use module::{NetworkFrame, NetworkOutbox, NetworkRequest, ScriptModule};
 
 /// Largest accepted script source, matching the blueprint document limit.
@@ -141,6 +142,7 @@ struct ObjectView {
 
 /// What a script asked the engine to do, applied in order once every script has run.
 enum Command {
+    TileView(tile_view::TileView),
     NetworkRequest(NetworkRequest),
     SetVelocity {
         target: String,
@@ -166,6 +168,10 @@ enum Command {
     Color {
         target: String,
         color: [f32; 3],
+    },
+    Mesh {
+        target: String,
+        asset: String,
     },
     Text {
         target: String,
@@ -686,6 +692,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         .set_max_array_size(1 << 16)
         .set_max_map_size(1 << 16);
     compute_api::register(&mut engine, host.clone());
+    numeric_archive::register(&mut engine);
     macro_rules! borrow {
         ($host:expr) => {
             $host.lock().unwrap_or_else(|error| error.into_inner())
@@ -956,6 +963,14 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     }
     // Explicit object targets let a script keep bounded subsystem state on a
     // separate authored blackboard without expanding the per-board limits.
+    read!("get_object_variable", (target: ImmutableString, variable: ImmutableString), |state| {
+        let owner = state.target_of(&target)?;
+        match state.board(VariableScope::Object, &owner)?.get(variable.as_str()) {
+            Some(B::Scalar(value)) => Ok(dynamic_of(value)),
+            Some(B::List { .. }) => Err(fail(format!("variable '{variable}' is a list"))),
+            None => Err(fail(format!("unknown variable '{variable}'"))),
+        }
+    });
     read!("get_object_list", (target: ImmutableString, variable: ImmutableString), |state| {
         let owner = state.target_of(&target)?;
         match state.board(VariableScope::Object, &owner)?.get(variable.as_str()) {
@@ -963,6 +978,21 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             Some(B::Scalar(_)) => Err(fail(format!("variable '{variable}' is a scalar"))),
             None => Err(fail(format!("unknown variable '{variable}'"))),
         }
+    });
+    // Compare archived lists in place. Copying both lists into Rhai arrays just
+    // to detect a change otherwise allocates and compares hundreds of entries
+    // every fixed tick, even while all of the archived data remains unchanged.
+    read!("object_lists_equal", (left: ImmutableString, left_name: ImmutableString, right: ImmutableString, right_name: ImmutableString), |state| {
+        let left = state.target_of(&left)?;
+        let right = state.target_of(&right)?;
+        let list = |owner: &str, name: &str| {
+            match state.board(VariableScope::Object, owner)?.get(name) {
+                Some(B::List { values, .. }) => Ok(values),
+                Some(B::Scalar(_)) => Err(fail(format!("variable '{name}' is a scalar"))),
+                None => Err(fail(format!("unknown variable '{name}'"))),
+            }
+        };
+        Ok((list(&left, &left_name)? == list(&right, &right_name)?).into())
     });
     // Sparse paged state (such as streamed factories) usually needs one entry,
     // not a fresh Rhai array containing every page in the blackboard list.
@@ -983,6 +1013,18 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             }
         });
     }
+    read!("get_object_list_item", (target: ImmutableString, variable: ImmutableString, index: rhai::INT), |state| {
+        let owner = state.target_of(&target)?;
+        match state.board(VariableScope::Object, &owner)?.get(variable.as_str()) {
+            Some(B::List { values, .. }) => {
+                let value = usize::try_from(index).ok().and_then(|i| values.get(i))
+                    .ok_or_else(|| fail(format!("list '{variable}' index {index} is out of bounds")))?;
+                Ok(dynamic_of(value))
+            }
+            Some(B::Scalar(_)) => Err(fail(format!("variable '{variable}' is a scalar"))),
+            None => Err(fail(format!("unknown variable '{variable}'"))),
+        }
+    });
 
     // Seeded randomness, matching the `Random` node.
     {
@@ -1176,6 +1218,10 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             color,
         }
     });
+    write!("set_mesh", (target: ImmutableString, asset: ImmutableString), |state| {
+        ensure_script(!asset.is_empty() && asset.len() <= 256, || "mesh asset ID must contain 1..256 bytes".into())?;
+        Command::Mesh { target: state.target_of(&target)?, asset: asset.to_string() }
+    });
     write!(
         "set_visible",
         (target: ImmutableString, visible: bool), |state|
@@ -1184,6 +1230,27 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             visible,
         }
     );
+    // Flat triples [tile X, tile Z, visibility/tint] plus per-object exceptions.
+    // Zero removes geometry and lighting; 0..1 dims; an empty view restores normal rendering.
+    write!("set_tile_view", (cells: Array, exterior: f32, objects: Map), |state| {
+        ensure_script(cells.len().is_multiple_of(3) && cells.len() <= 300_000
+            && objects.len() <= 100_000 && exterior.is_finite() && (0.0..=1.0).contains(&exterior),
+            || "invalid tile view".into())?;
+        let mut view = tile_view::TileView { exterior: Some(exterior), ..Default::default() };
+        for row in cells.chunks_exact(3) {
+            let p = vector_of(row.to_vec())?;
+            ensure_script(p[0].fract() == 0.0 && p[1].fract() == 0.0
+                && p[0].abs() <= 65_536.0 && p[1].abs() <= 65_536.0
+                && (0.0..=1.0).contains(&p[2]), || "invalid tile view cell".into())?;
+            view.cells.insert((p[0] as i32, p[1] as i32), p[2]);
+        }
+        for (id, value) in objects {
+            let factor = number_of(value, "tile view factor")?;
+            ensure_script((0.0..=1.0).contains(&factor), || "invalid tile view object".into())?;
+            view.objects.insert(state.target_of(&id)?, factor);
+        }
+        Command::TileView(view)
+    });
     write!(
         "set_text",
         (target: ImmutableString, text: ImmutableString), |state|
@@ -1453,6 +1520,17 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             }
         );
     }
+    write!("set_object_variable", (target: ImmutableString, variable: ImmutableString, value: Dynamic), |state| {
+        let owner = state.target_of(&target)?;
+        let declared = match state.board(VariableScope::Object, &owner)?.get(variable.as_str()) {
+            Some(B::Scalar(value)) => value.kind(),
+            Some(B::List { .. }) => return Err(fail(format!("variable '{variable}' is a list"))),
+            None => return Err(fail(format!("unknown variable '{variable}'"))),
+        };
+        let value = scalar_of(value, declared)?;
+        state.mirror_variable(VariableScope::Object, &owner, variable.to_string(), B::Scalar(value.clone()));
+        Command::Variable { scope: VariableScope::Object, owner, name: variable.to_string(), value }
+    });
     for (name, scope) in [
         ("set_object_list", VariableScope::Object),
         ("set_scene_list", VariableScope::Scene),
@@ -2530,6 +2608,30 @@ impl SceneInstance {
                 Command::Color { target, color } => {
                     self.apply_color(world, &resolve(tokens, &target), color)?
                 }
+                Command::Mesh { target, asset } => {
+                    ensure!(
+                        self.document
+                            .assets
+                            .get(&asset)
+                            .is_some_and(|source| source.kind == AssetKind::Mesh),
+                        "Set Mesh requires a registered mesh asset: {asset}"
+                    );
+                    let target = resolve(tokens, &target);
+                    let entity = *self
+                        .entities
+                        .get(&target)
+                        .context("Set Mesh target does not exist")?;
+                    let previous = world
+                        .get::<Drawable>(entity)
+                        .context("Set Mesh needs a Drawable")?;
+                    let mesh = Mesh::Asset(asset);
+                    if previous.mesh != mesh {
+                        let mut next = previous.clone();
+                        next.mesh = mesh;
+                        next.material_overrides.clear();
+                        world.insert(entity, next)?;
+                    }
+                }
                 Command::Text { target, text } => {
                     let target = resolve(tokens, &target);
                     let entity = *self
@@ -2556,6 +2658,21 @@ impl SceneInstance {
                         .get(&target)
                         .context("Set Visible target does not exist")?;
                     world.insert(entity, BlueprintHidden(!visible))?;
+                }
+                Command::TileView(mut view) => {
+                    let mut objects = BTreeMap::new();
+                    for (target, factor) in view.objects {
+                        let target = resolve(tokens, &target);
+                        if let Some(prefab) = self.document.prefabs.get(&target) {
+                            for member in prefab.members.values() {
+                                objects.insert(member.clone(), factor);
+                            }
+                        } else {
+                            objects.insert(target, factor);
+                        }
+                    }
+                    view.objects = objects;
+                    self.tile_view = view;
                 }
                 Command::LightIntensity { target, intensity } => {
                     let target = resolve(tokens, &target);
@@ -2737,7 +2854,7 @@ impl SceneInstance {
                 }
             }
         }
-        self.destroy_script_prefabs(world, runtime, engine, destroy)?;
+        self.destroy_script_prefabs(world, runtime, engine, destroy, tokens)?;
         Ok(())
     }
     /// Scenery has no lifecycle callbacks, so adjacent removals can share a scene
@@ -2748,6 +2865,7 @@ impl SceneInstance {
         runtime: &mut ScriptRuntime,
         engine: Arc<ScriptEngine>,
         targets: Vec<String>,
+        tokens: &mut BTreeMap<String, String>,
     ) -> Result<()> {
         let mut pending = BTreeSet::new();
         for target in targets {
@@ -2774,7 +2892,7 @@ impl SceneInstance {
             } else {
                 self.destroy_passive_prefabs(world, runtime, &pending)?;
                 pending.clear();
-                self.destroy_script_prefab(world, runtime, engine.clone(), &target)?;
+                self.destroy_script_prefab(world, runtime, engine.clone(), &target, tokens)?;
             }
         }
         self.destroy_passive_prefabs(world, runtime, &pending)
@@ -2804,6 +2922,7 @@ impl SceneInstance {
         runtime: &mut ScriptRuntime,
         engine: Arc<ScriptEngine>,
         target: &str,
+        tokens: &mut BTreeMap<String, String>,
     ) -> Result<()> {
         if !self.entities.contains_key(target) {
             return Ok(());
@@ -2824,6 +2943,10 @@ impl SceneInstance {
         for owner in &members {
             self.run_destroy_hooks(&engine, runtime, owner)?;
         }
+        // Lifecycle actions must publish while the members still exist. In
+        // particular, the next prefab's callback must read this cleanup state.
+        let commands = std::mem::take(&mut engine.lock().commands);
+        self.apply_commands(world, runtime, engine.clone(), commands, tokens)?;
         let mut blueprint_runtime = world
             .remove_resource::<BlueprintRuntime>()
             .unwrap_or_default();
@@ -3318,6 +3441,54 @@ mod tests {
     }
 
     #[test]
+    fn list_comparison_observes_pending_writes_without_requiring_matching_capacities() {
+        let scene=Scene::from_json(r#"{"version":1,"name":"List comparison","views":{},
+            "assets":{"writer":{"kind":"script","path":"writer.rhai"}},
+            "objects":[{"id":"writer","name":"Writer","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                "blackboard":{"rows":{"list":{"element":"text","capacity":4,"values":[{"text":"one"},{"text":"two"}]}},"scalar":{"scalar":{"number":1}}},
+                "script_manager":{"scripts":[{"enabled":true,"script":"writer"}]}},
+            {"id":"buffer","name":"Buffer","transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                "blackboard":{"rows":{"list":{"element":"text","capacity":2,"values":[{"text":"one"},{"text":"two"}]}}}}]}"#).unwrap();
+        let mut world = World::default();
+        let mut instance = scene.spawn(&mut world).unwrap();
+        instance.register_script("writer".into(),r#"fn on_update(me,dt) {
+            if !object_lists_equal(me,"rows","buffer","rows") {throw "equal values with different capacities";}
+            set_object_list("buffer","rows",["two","one"]);
+            if object_lists_equal(me,"rows","buffer","rows") {throw "stale write or incorrect ordering";}
+            set_object_list("rows",["two","one"]);
+            if !object_lists_equal(me,"rows","buffer","rows") {throw "pending writes should match";}
+            set_object_list("buffer","rows",[]);
+            if object_lists_equal(me,"rows","buffer","rows") {throw "different lengths should not match";}
+        }"#.into()).unwrap();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert!(
+            world
+                .resource::<BlueprintRuntime>()
+                .unwrap()
+                .object_blackboard("buffer")
+                .unwrap()["rows"]
+                .values()
+                .is_empty()
+        );
+        for call in [
+            r#"object_lists_equal("missing","rows","buffer","rows")"#,
+            r#"object_lists_equal(me,"missing","buffer","rows")"#,
+            r#"object_lists_equal(me,"scalar","buffer","rows")"#,
+        ] {
+            instance
+                .register_script("writer".into(), format!("fn on_update(me,dt) {{{call};}}"))
+                .unwrap();
+            assert!(
+                instance
+                    .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn targeted_object_lists_validate_and_publish_to_the_target_board() {
         let scene=Scene::from_json(r#"{"version":1,"name":"Targeted lists","views":{},
             "assets":{"writer":{"kind":"script","path":"writer.rhai"}},
@@ -3496,6 +3667,54 @@ mod tests {
             .unwrap();
         assert_eq!(world.get::<Transform>(entity).unwrap().translation[0], 1.);
         assert_eq!(world.changed_tick::<Transform>(entity), Some(tick));
+    }
+
+    /// Swapping a registered mesh preserves the entity and ignores unchanged writes.
+    #[test]
+    fn script_mesh_swaps_reuse_entities_and_validate_assets() {
+        let (mut instance, mut world) = demo(r#"fn on_update(me,dt) { set_mesh(me,"ingot"); }"#);
+        instance.document.assets.insert(
+            "ingot".into(),
+            AssetSource {
+                kind: AssetKind::Mesh,
+                path: "ingot.glb".into(),
+            },
+        );
+        let entity = instance.entity("thing").unwrap();
+        let transform = *world.get::<Transform>(entity).unwrap();
+        let count = instance.document.objects.len();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(
+            world.get::<Drawable>(entity).unwrap().mesh,
+            Mesh::Asset("ingot".into())
+        );
+        assert_eq!(*world.get::<Transform>(entity).unwrap(), transform);
+        assert_eq!(instance.document.objects.len(), count);
+        let tick = world.changed_tick::<Drawable>(entity).unwrap();
+        world.advance_change_tick();
+        instance
+            .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+            .unwrap();
+        assert_eq!(world.changed_tick::<Drawable>(entity), Some(tick));
+        for asset in ["missing", "drift"] {
+            instance
+                .register_script(
+                    "drift".into(),
+                    format!(r#"fn on_update(me,dt) {{ set_mesh(me,"{asset}"); }}"#),
+                )
+                .unwrap();
+            assert!(
+                instance
+                    .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+                    .is_err()
+            );
+            assert_eq!(
+                world.get::<Drawable>(entity).unwrap().mesh,
+                Mesh::Asset("ingot".into())
+            );
+        }
     }
 
     /// A scene with one drawable object that runs one script.
@@ -3684,6 +3903,81 @@ mod tests {
             xs,
             [2., 3.],
             "earlier passive removals flush before hooks; later removals wait"
+        );
+    }
+
+    #[test]
+    fn prefab_destroy_hooks_apply_cleanup_commands_before_the_next_destroy() {
+        let (mut instance, mut world) = scenery_demo(
+            r#"let roots=[];
+            fn on_start(me) {
+                roots.push(spawn_prefab("scenery",[1.0,0.0,0.0]));
+                roots.push(spawn_prefab("scenery",[2.0,0.0,0.0]));
+            }
+            fn on_update(me,dt) {
+                if input_pressed("x") {for root in roots {destroy_prefab(root);}}
+            }"#,
+        );
+        instance.document.assets.insert(
+            "cleanup".into(),
+            AssetSource {
+                kind: AssetKind::Script,
+                path: "cleanup.rhai".into(),
+            },
+        );
+        let mut prefab = instance.templates["scenery"].clone();
+        let root = prefab.objects.iter_mut().find(|o| o.id == "root").unwrap();
+        let mut manager = instance.document.objects[0].script_manager.clone().unwrap();
+        manager.scripts[0].script = "cleanup".into();
+        root.script_manager = Some(manager);
+        prefab.assets.insert(
+            "cleanup".into(),
+            instance.document.assets["cleanup"].clone(),
+        );
+        instance.register_prefab("scenery".into(), prefab).unwrap();
+        instance
+            .register_script(
+                "cleanup".into(),
+                r#"
+            fn on_destroy(me) {
+                let previous=get_position("thing");
+                set_position("thing",[previous[0]+1.0,0.0,0.0]);
+                set_position(me,[0.0,1.0,0.0]);
+                print("cleanup "+get_position("thing")[0].to_string());
+            }"#
+                .into(),
+            )
+            .unwrap();
+        instance
+            .step_scripts(&mut world, 1.0 / 60.0, GameplayInput::default())
+            .unwrap();
+        instance
+            .step_scripts(
+                &mut world,
+                1.0 / 60.0,
+                GameplayInput {
+                    keys: crate::keys::bit("x"),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(instance.document.prefabs.is_empty());
+        assert_eq!(
+            world
+                .get::<Transform>(instance.entity("thing").unwrap())
+                .unwrap()
+                .translation,
+            [2.0, 0.0, 0.0]
+        );
+        assert_eq!(
+            world
+                .resource::<ScriptRuntime>()
+                .unwrap()
+                .messages
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            ["cleanup 1.0", "cleanup 2.0"]
         );
     }
 

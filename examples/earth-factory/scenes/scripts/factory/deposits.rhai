@@ -35,6 +35,8 @@ fn generate_region_nodes(seed,cx,cz,planet) {
     let kinds = if home { [1, 2, 8, 9, 3] } else { [] };
     let count = if home { 5 } else { 2 + state % 3 };
     if !home {
+        if cx==1 && cz==1 {kinds.push(40);}
+        if cx== -1 && cz== -1 {kinds.push(45);}
         for kind in [4, 7, 5, 6, 10] {
             let outpost = resource_outpost(seed, kind);
             if outpost[0] == cx && outpost[1] == cz { kinds.push(kind); }

@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "units": "tile",
+  "up_axis": "Y",
+  "ship": "Stellar-IX survey ship",
+  "station_footprint": [
+    4,
+    4
+  ],
+  "station_bounds_xz": [
+    [
+      -1.55,
+      -1.55
+    ],
+    [
+      2.55,
+      2.55
+    ]
+  ],
+  "ship_position": [
+    0,
+    0.1,
+    1
+  ],
+  "ship_pivot": "shared assembly pivot",
+  "power_socket": [
+    0,
+    1.26,
+    0
+  ],
+  "fuel_input_tile": [
+    2,
+    1
+  ],
+  "navigation_lights": [
+    [
+      -0.56,
+      1.94,
+      1.22
+    ],
+    [
+      0.56,
+      1.94,
+      1.22
+    ]
+  ],
+  "models": [
+    {
+      "id": "landing-station",
+      "name": "Space rocket launch pad",
+      "role": "phase 5 station",
+      "mesh": "models/travel/landing-station.glb",
+      "triangles": 1292,
+      "surfaces": 7,
+      "bounds": [
+        [
+          -1.545,
+          -0.85,
+          -1.545
+        ],
+        [
+          2.545,
+          1.26,
+          2.545
+        ]
+      ]
+    },
+    {
+      "id": "survey-ship-lower",
+      "name": "Space rocket lower stage",
+      "role": "phase 6 engines, fuel tank and fins",
+      "mesh": "models/travel/survey-ship-lower.glb",
+      "triangles": 1452,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.885,
+          0.0,
+          -0.885
+        ],
+        [
+          0.885,
+          1.94,
+          0.885
+        ]
+      ]
+    },
+    {
+      "id": "survey-ship-upper",
+      "name": "Space rocket upper stage",
+      "role": "phase 7 upper hull and pointed nose",
+      "mesh": "models/travel/survey-ship-upper.glb",
+      "triangles": 816,
+      "surfaces": 6,
+      "bounds": [
+        [
+          -0.5905,
+          1.78,
+          -0.543
+        ],
+        [
+          0.5905,
+          3.9,
+          0.544
+        ]
+      ]
+    },
+    {
+      "id": "survey-ship-exhaust",
+      "name": "Rocket engine exhaust",
+      "role": "flight-only effect",
+      "mesh": "models/travel/survey-ship-exhaust.glb",
+      "triangles": 132,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.325,
+          -0.78,
+          -0.335
+        ],
+        [
+          0.325,
+          0.12,
+          0.245
+        ]
+      ]
+    }
+  ]
+}

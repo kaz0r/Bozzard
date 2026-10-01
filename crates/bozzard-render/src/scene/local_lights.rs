@@ -1,5 +1,8 @@
 use super::*;
 
+mod culling;
+pub(super) use culling::LightSelection;
+
 pub const MAX_LOCAL_LIGHTS: usize = 32;
 pub const MAX_SHADOWED_SPOT_LIGHTS: usize = 8;
 pub const MAX_SHADOWED_POINT_LIGHTS: usize = 4;

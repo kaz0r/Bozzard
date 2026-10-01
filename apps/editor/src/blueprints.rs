@@ -359,8 +359,11 @@ impl App {
         if let Some(play) = &mut self.editor.play {
             play.clear_gameplay_input();
         }
-        self.runtime_scene_menu(ui);
-        self.blueprint_object_picker(ui);
+        ui.spacing_mut().item_spacing.y = 3.;
+        ui.horizontal_wrapped(|ui| {
+            self.runtime_scene_menu(ui);
+            self.blueprint_object_picker(ui);
+        });
         let object = if let Some(play) = &self.editor.play {
             let owner = self
                 .blueprint_debug
@@ -445,8 +448,6 @@ impl App {
             .take()
             .unwrap_or_else(|| object.blackboard.clone());
         ui.horizontal_wrapped(|ui| {
-            ui.strong("Blueprint Editor");
-            ui.label(&object.name);
             egui::ComboBox::from_id_salt("active-blueprint")
                 .selected_text(&graph.name)
                 .show_ui(ui, |ui| {
@@ -456,7 +457,11 @@ impl App {
                         }
                     }
                 });
-            if ui.button("Fit graph").clicked() {
+            if ui
+                .button("Fit graph")
+                .on_hover_text(theme::GRAPH_HELP)
+                .clicked()
+            {
                 self.blueprint_pane.fit(&graph);
             }
             ui.add_enabled_ui(editing, |ui| {
@@ -467,11 +472,14 @@ impl App {
                     self.blueprint_dialog(files::Kind::SaveBlueprint);
                 }
             });
+            // Same row: the debug toolbar wraps itself when space runs out.
+            if self.blueprint_pane.index == index {
+                self.blueprint_debug_toolbar(ui, &object.id, &graph);
+            }
         });
         if self.blueprint_pane.index != index {
             return;
         }
-        self.blueprint_debug_toolbar(ui, &object.id, &graph);
         if self.editor.play.is_none() {
             ui.add_enabled_ui(editing, |ui| {
                 ui.horizontal_wrapped(|ui| {
@@ -755,7 +763,6 @@ impl App {
                 }
             });
         }
-        ui.small("Drag headers to move · Output → input to connect · Right-click input to disconnect · Middle-drag / scroll to pan · Ctrl+scroll to zoom");
         if let Some(play) = &self.editor.play {
             if let Err(error) = play.check_simulation() {
                 ui.colored_label(Color32::LIGHT_RED, format!("{error:#}"));
@@ -916,27 +923,16 @@ fn pin(node: &Node, port: usize, output: bool) -> Pos2 {
 }
 fn color(kind: PinType) -> Color32 {
     match kind {
-        PinType::Text => Color32::from_rgb(236, 157, 82),
-        PinType::Exec => Color32::from_rgb(220, 220, 220),
-        PinType::Number => Color32::from_rgb(132, 206, 71),
-        PinType::Bool => Color32::from_rgb(210, 73, 91),
-        PinType::Vector => Color32::from_rgb(88, 183, 225),
-        PinType::Object => Color32::from_rgb(193, 143, 245),
+        PinType::Text => Color32::from_rgb(255, 170, 96),
+        PinType::Exec => Color32::from_rgb(236, 238, 246),
+        PinType::Number => Color32::from_rgb(140, 224, 96),
+        PinType::Bool => Color32::from_rgb(255, 104, 124),
+        PinType::Vector => Color32::from_rgb(104, 200, 255),
+        PinType::Object => Color32::from_rgb(200, 150, 255),
     }
 }
 fn curve(painter: &egui::Painter, from: Pos2, to: Pos2, tint: Color32) {
-    let offset = ((to.x - from.x).abs() * 0.5).max(45.);
-    painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
-        [
-            from,
-            from + Vec2::new(offset, 0.),
-            to - Vec2::new(offset, 0.),
-            to,
-        ],
-        false,
-        Color32::TRANSPARENT,
-        egui::Stroke::new(2., tint),
-    ));
+    theme::wire(painter, from, to, tint);
 }
 impl BlueprintPane {
     fn canvas(
@@ -953,25 +949,7 @@ impl BlueprintPane {
             .drag_pan_buttons(egui::DragPanButtons::MIDDLE | egui::DragPanButtons::SECONDARY)
             .show(ui, &mut view, |ui| {
                 let clip = ui.clip_rect();
-                ui.painter()
-                    .rect_filled(clip, 0., Color32::from_rgb(25, 27, 30));
-                for axis in 0..2 {
-                    let start = (clip.min[axis] / 32.).floor() as i32;
-                    let end = (clip.max[axis] / 32.).ceil() as i32;
-                    for i in start..=end {
-                        let mut a = clip.min;
-                        let mut b = clip.max;
-                        a[axis] = i as f32 * 32.;
-                        b[axis] = a[axis];
-                        ui.painter().line_segment(
-                            [a, b],
-                            egui::Stroke::new(
-                                1.,
-                                Color32::from_gray(if i % 4 == 0 { 43 } else { 33 }),
-                            ),
-                        );
-                    }
-                }
+                theme::graph_background(ui.painter(), clip);
                 for wire in &graph.wires {
                     if let (Ok(from), Ok(to)) =
                         (graph.node(wire.from.node), graph.node(wire.to.node))
@@ -994,42 +972,27 @@ impl BlueprintPane {
                     ui.expand_to_include_rect(rect);
                     let selected =
                         self.selected == Some(node.id) || self.selection.contains(&node.id);
-                    ui.painter()
-                        .rect_filled(rect, 5., Color32::from_rgb(39, 43, 48));
-                    ui.painter().rect_stroke(
+                    let outline = if self.executing == Some(node.id) {
+                        Some((3., Color32::LIGHT_YELLOW))
+                    } else if selected {
+                        Some((2., theme::ACCENT))
+                    } else if self.recent.contains(&node.id) {
+                        Some((2., theme::GREEN))
+                    } else {
+                        None
+                    };
+                    let header = theme::node_card(
+                        ui.painter(),
                         rect,
-                        5.,
-                        egui::Stroke::new(
-                            if self.executing == Some(node.id) {
-                                3.
-                            } else if selected {
-                                2.
-                            } else {
-                                1.
-                            },
-                            if self.executing == Some(node.id) {
-                                Color32::LIGHT_YELLOW
-                            } else if selected {
-                                theme::ACCENT
-                            } else if self.recent.contains(&node.id) {
-                                theme::GREEN
-                            } else {
-                                Color32::from_gray(65)
-                            },
-                        ),
-                        egui::StrokeKind::Inside,
-                    );
-                    let header = Rect::from_min_size(rect.min, Vec2::new(WIDTH, 30.));
-                    ui.painter().rect_filled(
-                        header,
-                        4.,
+                        30.,
                         if node.kind.event() {
-                            Color32::from_rgb(109, 48, 57)
+                            theme::CORAL
                         } else if node.kind.action() {
-                            Color32::from_rgb(103, 96, 41)
+                            theme::AMBER
                         } else {
-                            Color32::from_rgb(38, 76, 100)
+                            theme::SKY
                         },
+                        outline,
                     );
                     if self.breakpoints.contains(&node.id) {
                         ui.painter().circle_filled(
@@ -1038,13 +1001,7 @@ impl BlueprintPane {
                             Color32::LIGHT_RED,
                         );
                     }
-                    ui.painter().text(
-                        header.left_center() + Vec2::new(10., 0.),
-                        egui::Align2::LEFT_CENTER,
-                        node.kind.title(),
-                        egui::FontId::proportional(14.),
-                        Color32::WHITE,
-                    );
+                    theme::node_title(ui.painter(), header, node.kind.title());
                     let response = ui.interact(
                         header,
                         ui.id().with((node.id, "header")),
@@ -1127,23 +1084,8 @@ impl BlueprintPane {
                                     port,
                                 };
                                 let linked = graph.wires.iter().any(|w| w.to == socket);
-                                ui.painter().circle(
-                                    p,
-                                    5.,
-                                    if linked {
-                                        color(*kind)
-                                    } else {
-                                        Color32::from_gray(25)
-                                    },
-                                    egui::Stroke::new(1.5, color(*kind)),
-                                );
-                                ui.painter().text(
-                                    p + Vec2::new(12., 0.),
-                                    egui::Align2::LEFT_CENTER,
-                                    label,
-                                    egui::FontId::proportional(11.),
-                                    Color32::LIGHT_GRAY,
-                                );
+                                theme::pin_dot(ui.painter(), p, color(*kind), linked);
+                                theme::pin_label(ui.painter(), p, label, false);
                                 let hit = ui.interact(
                                     Rect::from_center_size(p, Vec2::splat(18.)),
                                     ui.id().with((port, "in")),
@@ -1220,14 +1162,8 @@ impl BlueprintPane {
                             }
                             for (port, (label, kind)) in node.output_pins().iter().enumerate() {
                                 let p = pin(node, port, true);
-                                ui.painter().circle_filled(p, 5., color(*kind));
-                                ui.painter().text(
-                                    p - Vec2::new(12., 0.),
-                                    egui::Align2::RIGHT_CENTER,
-                                    label,
-                                    egui::FontId::proportional(11.),
-                                    Color32::LIGHT_GRAY,
-                                );
+                                theme::pin_dot(ui.painter(), p, color(*kind), true);
+                                theme::pin_label(ui.painter(), p, label, true);
                                 let hit = ui.interact(
                                     Rect::from_center_size(p, Vec2::splat(18.)),
                                     ui.id().with((port, "out")),

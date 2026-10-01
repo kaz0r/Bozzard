@@ -1,14 +1,27 @@
 // Rhai gameplay: hud.
+import "factory-interiors" as interiors;
+import "factory-renewables" as renewables;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-inventory" as inventory;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
+import "factory-clock" as clock;
 
 fn nearby_label(cell, nodes, builds) {
     let names = ["", "Iron", "Copper", "Limestone", "Coal", "Quartz", "Oil", "Water", "Stone", "Sand", "Silver"];
     let machines = ["", "Miner", "Conveyor", "Smelter", "Storage", "Assembler", "Generator", "Splitter", "Merger", "Power pole Mk1", "Cable", "Constructor"];
     let kind = builds[cell].to_int();
+    if renewables::renewable(builds[cell]) {
+        let time=data::session_value(120);let planet=data::session_value(7).to_int();
+        let windy=renewables::wind_active(get_scene_variable("seed").to_int(),planet,time);
+        let output=renewables::supply(kind,renewables::solar_active(time,planet),windy);
+        return data::build_name(builds[cell])+" / "+output.to_string()+" power"+
+            (if kind==41 {" / 2 spots"}else if kind==42 {if windy {" / Wind gust"}else{" / Calm"}}else{""})+"  Ctrl+3 / cable to a pole";
+    }
+    if data::expansion(builds[cell]) {return data::build_name(builds[cell])+"  [E] Recipe / ingredients / collect";}
+    if data::pipe(builds[cell]) {return data::build_name(builds[cell])+" / "+data::item_name(get_scene_list_item("items",cell))+" "+get_scene_list_item("item_amounts",cell).to_int().to_string()+" / 100  [E] Inspect";}
+    if kind==28 || kind==29 {return data::build_name(builds[cell])+" / 90° turn";}
     let resource = if nodes[cell] >= 24.0 { data::node_name(nodes[cell]) } else { names[nodes[cell].to_int()] };
     if kind == 0 && nodes[cell] == 0.0 { let project = visuals::project_label(cell); if project != "" { project } else { "Landing pod  [J] Journal" } }
     else if kind == 0 { resource + " deposit" }
@@ -49,6 +62,7 @@ fn update_tooltip(dt, x, z, nodes, builds) {
             if x + dx < -7 || x + dx > 7 || z + dz < -7 || z + dz > 7 { continue; }
             let cell = grid::index(x + dx, z + dz);
             if nodes[cell] == 0.0 && builds[cell] == 0.0 && !(home && (cell == grid::index(0, 0) || visuals::project_label(cell) != "")) { continue; }
+            if !interiors::accessible(cell) {continue;}
             let squared = (dx * dx + dz * dz).to_float();
             if squared < best || (squared == best && cell == current) {
                 best = squared;
@@ -80,9 +94,9 @@ fn update_tooltip(dt, x, z, nodes, builds) {
 fn debug_ms(value) { ((value * 10.0).round() / 10.0).to_string() }
 
 fn update_debug_hud(dt) {
-    let clock = get_object_variable("debug_clock") + dt;
-    if clock < 0.25 { set_object_variable("debug_clock", clock); return; }
-    set_object_variable("debug_clock", 0.0);
+    let clock = get_object_variable("factory-transports","debug_clock") + dt;
+    if clock < 0.25 { set_object_variable("factory-transports","debug_clock", clock); return; }
+    set_object_variable("factory-transports","debug_clock", 0.0);
     let explored = 0;
     for visited in get_object_list("visited") { if visited > 0.0 { explored += 1; } }
     let loaded = 0;
@@ -102,6 +116,9 @@ fn update_debug_hud(dt) {
 }
 
 fn update_hud(dt, daylight) {
+    let time=data::session_value(120);
+    clock::update_view(time);
+    let is_day=clock::daytime(time,data::session_value(7).to_int());
     let counts = get_scene_list("counts");
     let completed = counts[20] >= 8.0;
     let target = min(1.0, counts[20] / 8.0);
@@ -124,7 +141,7 @@ fn update_hud(dt, daylight) {
     let message = get_scene_variable("message");
     // React immediately to gameplay changes, but don't rebuild the same labels and
     // eight action-bar slots on every fixed tick. Include animated objective progress.
-    let state = [counts[11], counts[12], counts[20], progress, daylight >= 0.0,
+    let state = [counts[11], counts[12], counts[20], progress, is_day,
         supply, demand, selected, bar, phase, demonstration, cx, cz, kind, facing, data::on_moon(), counts[24], counts[25], counts[26]].to_string() + "|" + message;
     if !data::ui_view_changed(0, state) { return; }
     set_ui_text("objective-title", if completed { "Objective met" } else { "Objective" });
@@ -133,7 +150,7 @@ fn update_hud(dt, daylight) {
     set_ui_text("objective-count", min(8.0, counts[20]).to_int().to_string() + " / 8");
     set_ui_size("objective-fill", max(0.01, 356.0 * progress), 12.0);
     set_ui_visible("objective-fill", progress > 0.001);
-    set_ui_text("world-status", data::planet_name() + if daylight >= 0.0 && !data::on_moon() { " / DAY" } else { " / NIGHT" });
+    set_ui_text("world-status", data::planet_name() + if is_day { " / DAY" } else { " / NIGHT" });
     set_ui_text("stored-iron", "Iron              " + counts[11].to_int().to_string());
     set_ui_text("stored-copper", "Copper        " + counts[12].to_int().to_string());
     set_ui_text("stored-parts", "Parts            " + counts[20].to_int().to_string());
@@ -145,16 +162,16 @@ fn update_hud(dt, daylight) {
     set_ui_text("power-status", (if demand > supply { "OVERLOAD  " } else { "POWER  " })
         + demand.to_string() + " / " + supply.to_string());
     let tools = data::bar_tools(bar);
-    let titles = ["DEMONSTRATION", "I  /  PRODUCTION", "II  /  LOGISTICS", "III  /  POWER"];
+    let titles = ["DEMONSTRATION", "I  /  PRODUCTION", "II  /  LOGISTICS", "III  /  POWER", "IV  /  PROCESSING", "V  /  ADVANCED", "VI  /  FOUNDATIONS", "VII  /  ROOFS"];
     set_ui_text("bar-title", titles[bar]);
     for i in 1..9 {
         let kind = tools[i - 1];
-        set_ui_text("slot-name-" + i.to_string(), if kind == 0.0 { "—" } else { data::build_name(kind) });
+        set_ui_text("slot-name-" + i.to_string(), if kind == 0.0 { "—" } else { data::tool_label(kind) });
         set_ui_text("slot-key-" + i.to_string(), i.to_string() + if kind > 0.0 && !data::tool_unlocked(kind) { "  LOCKED" } else { "" });
         set_ui_opacity("slot-" + i.to_string(), if kind == 0.0 { 0.25 } else if data::tool_unlocked(kind) { 1.0 } else { 0.48 });
         set_ui_background("slot-" + i.to_string(), if kind == selected.to_float() {
-            [0.56, 0.22, 0.09, 0.96]
-        } else { [0.13, 0.19, 0.16, 0.80] });
+            [0.10, 0.17, 0.60, 0.96]
+        } else { [0.11, 0.122, 0.19, 0.80] });
     }
     set_ui_text("chunk-status", "Region " + cx.to_string() + ", " + cz.to_string() + "  /  ±" + data::planet_radius().to_string());
     if !demonstration {
@@ -185,8 +202,8 @@ fn update_hud(dt, daylight) {
         set_ui_text("objective-note","Fixed 2 × 2 chunks. No generated deposits.");
         set_ui_text("chunk-status","Region " + cx.to_string() + ", " + cz.to_string() + "  /  2 × 2");
     } else { set_ui_text("objective-note","Production continues while you build."); }
-    set_ui_text("controls-hint", if selected == 10 { "Space Select / Connect   X Disconnect   R Cancel wire" } else { "WASD Move   Space Build   R Rotate machine   X Remove" });
+    set_ui_text("controls-hint", if selected>=30 && selected<=39 {"WASD Move   Space Build piece   R Choose edge   X Remove piece"} else if selected == 10 { "Space Select / Connect   X Disconnect   R Cancel wire" } else { "WASD Move   Space Build   R Rotate machine   X Remove" });
     let directions = ["East", "South", "West", "North"];
-    set_ui_text("build-status", data::build_name(kind) + "  /  Facing " + directions[facing.to_int()]);
+    set_ui_text("build-status", (if kind==23.0 {"ELECTRONICS"}else{data::build_name(kind)}) + "  /  Facing " + directions[facing.to_int()]);
     set_ui_text("build-message", message);
 }

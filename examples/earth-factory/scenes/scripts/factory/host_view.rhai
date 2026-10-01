@@ -42,7 +42,7 @@ fn synchronize() {
                 let remaining=[]; for entry in get_object_list("rotation_cells") { if entry.to_int()!=cell { remaining.push(entry); } }
                 set_object_list("rotation_cells",remaining);
                 if kind!=4.0 && get_scene_variable("storage_cell").to_int()==cell { panels::close_storage(); }
-                if kind!=3.0 && kind!=5.0 && kind!=11.0 && get_object_variable("assembler_cell").to_int()==cell { panels::set_assembler(-1); }
+                if !data::production(kind) && get_object_variable("assembler_cell").to_int()==cell { panels::set_assembler(-1); }
                 if kind!=1.0 && kind!=7.0 && kind!=8.0 && data::session_value(46).to_int()==cell {
                     data::session_set(46,-1.0);set_ui_visible("machine-inspect-overlay",false);set_ui_enabled("machine-inspect-overlay",false);
                 }
@@ -52,10 +52,10 @@ fn synchronize() {
             let page=grid::unpack_text(get_scene_list_item("factory_visuals",id/75),75);
             let target=if region==grid::current_chunk() { get_scene_list_item("item_visuals",cell) } else { page[id%75] };
             if target!="" { item_fx::cancel_motion([target]); }
-            if value("item_amounts",id)>0.0 {
-                let pos=[grid::global_x(id),visuals::item_height(value("builds",id)),grid::global_z(id)];
+            if value("item_amounts",id)>0.0 && !data::pipe(value("builds",id)) {
+                let pos=item_fx::position(id,value("builds",id),value("facings",id),visuals::item_height(value("builds",id),value("items",id)));
                 if target=="" { target=spawn_prefab("item",pos); } else { set_position(target,pos); }
-                set_color(target,data::item_color(value("items",id)));
+                item_fx::appearance(target,value("items",id));
             } else if target!="" { item_fx::recycle([target]); target=""; }
             page[id%75]=target; let pages=get_scene_list("factory_visuals"); pages[id/75]=grid::pack_text(page); set_scene_list("factory_visuals",pages);
             if region==grid::current_chunk() { let handles=get_scene_list("item_visuals"); handles[cell]=target; set_scene_list("item_visuals",handles); }

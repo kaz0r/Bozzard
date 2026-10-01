@@ -1,3 +1,4 @@
+import "factory-interiors" as interiors;
 import "factory-item_fx" as item_fx;
 import "factory-net_input" as net;
 import "factory-backpack" as backpack;
@@ -5,6 +6,7 @@ import "factory-backpack" as backpack;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-panels" as panels;
+import "factory-buffers" as buffers;
 
 // Sixteen stacks per container, stored in four bounded blackboard pages.
 // Each page contains four slots for each of the 225 build cells.
@@ -69,7 +71,8 @@ fn nearby_interactable() {
             if x + dx < -7 || x + dx > 7 || z + dz < -7 || z + dz > 7 { continue; }
             let cell = grid::index(x + dx, z + dz);
             let kind = builds[cell];
-            if kind != 1.0 && kind != 3.0 && kind != 4.0 && kind != 5.0 && kind != 11.0 { continue; }
+            if kind!=1.0 && !data::production(kind) && kind!=4.0 && !data::pipe(kind) { continue; }
+            if !interiors::accessible(cell) {continue;}
             let distance = (dx * dx + dz * dz).to_float();
             if distance < best { best = distance; result = cell; }
         }
@@ -79,6 +82,7 @@ fn nearby_interactable() {
 
 fn machine_output(cell) {
     let kind = get_scene_list("builds")[cell];
+    if data::expansion(kind) {let slots=storage_read(cell);for i in 8..16 {if slots[i*2+1]>0.0 {return slots[i*2];}}return 0.0;}
     let item = get_scene_list("items")[cell];
     if get_scene_list("item_amounts")[cell] == 0.0 { return 0.0; }
     if kind == 1.0 || kind == 3.0 || kind == 5.0 || kind == 11.0 || kind == 7.0 || kind == 8.0 { item } else { 0.0 }
@@ -89,6 +93,12 @@ fn collect_machine(cell) {
     if get_object_list("rotation_turns")[cell] > 0.0 {
         set_scene_variable("message", "Wait for the machine to finish turning.");
         return;
+    }
+    if data::expansion(get_scene_list("builds")[cell]) {
+        let result=buffers::collect(storage_read(cell),backpack::slots());
+        if result.moved==0.0 {set_scene_variable("message","No finished output or inventory is full.");return;}
+        backpack::commit(result.inventory);storage_write(cell,result.slots);
+        set_scene_variable("message","Collected "+result.moved.to_int().to_string()+" products.");return;
     }
     let item = machine_output(cell);
     if item == 0.0 {
@@ -187,9 +197,11 @@ fn update_storage(dt) {
         if get_scene_variable("storage_open") { panels::close_storage(); }
         else if get_scene_variable("storage_alpha") <= 0.0 {
             cell = nearby_interactable();
-            if cell >= 0 && (get_scene_list("builds")[cell] == 5.0 || get_scene_list("builds")[cell] == 11.0 ||
+            if cell >= 0 && (data::expansion(get_scene_list("builds")[cell]) || get_scene_list("builds")[cell] == 5.0 || get_scene_list("builds")[cell] == 11.0 ||
                 (get_scene_list("builds")[cell] == 3.0 && machine_output(cell) == 0.0)) {
                 panels::set_assembler(cell);
+            } else if cell>=0 && data::pipe(get_scene_list("builds")[cell]) {
+                data::session_set(46,cell.to_float());set_ui_visible("machine-inspect-overlay",true);set_ui_enabled("machine-inspect-overlay",true);
             } else if cell >= 0 && get_scene_list("builds")[cell] != 4.0 {
                 collect_machine(cell);
             } else if cell >= 0 {
@@ -278,8 +290,8 @@ fn update_storage(dt) {
             set_ui_text(name + "-name", if amount > 0 { data::item_name(kind) } else { "Empty" });
             set_ui_text(name + "-count", if amount > 0 { amount.to_string() } else { "" });
             let color = data::item_color(kind);
-            set_ui_background(name + "-icon", if amount > 0 { [color[0], color[1], color[2], 1.0] } else { [0.24, 0.31, 0.26, 1.0] });
-            set_ui_background(name, if slot == menu { [0.27, 0.24, 0.14, 1.0] } else { [0.10, 0.15, 0.12, 1.0] });
+            set_ui_background(name + "-icon", if amount > 0 { [color[0], color[1], color[2], 1.0] } else { [0.18, 0.198, 0.31, 1.0] });
+            set_ui_background(name, if slot == menu { [0.157, 0.173, 0.27, 1.0] } else { [0.087, 0.096, 0.15, 1.0] });
             set_ui_opacity(name, if slot == drag { 0.45 } else { 1.0 });
         }
         set_ui_text("storage-subtitle", used.to_string() + " / 16 slots   •   " + total.to_string() + " items   •   100 per stack");

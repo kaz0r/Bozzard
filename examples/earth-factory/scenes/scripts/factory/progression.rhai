@@ -11,7 +11,7 @@ fn gather(dt, blocked) {
     if !blocked && input_held("F") && clock <= 0.0 {
         let cell = grid::index(get_scene_variable("cursor_x").to_int(), get_scene_variable("cursor_z").to_int());
         let kind = get_scene_list("nodes")[cell].to_int();
-        if (kind >= 1 && kind <= 5) || (kind >= 8 && kind <= 10) || (kind >= 24 && kind <= 26) {
+        if data::solid_node(kind.to_float()) {
             let added = backpack::give(kind.to_float(),1.0);
             set_scene_variable("message",if added > 0.0 { "+1 " + data::item_name(kind.to_float()) + " in your backpack. J opens crafting and deliveries." } else { "Inventory is full. Move, use or destroy a stack first." });
         } else {
@@ -56,7 +56,7 @@ fn craft(item) { craft_batch(item, 1); }
 
 fn craft_batch(item, count) {
     if net::guest() {net::send("craft",#{recipe:item,count:count});return;}
-    if !at_workbench() || !data::recipe_unlocked(item) || item == 18 || item == 22 || item == 23 { return; }
+    if !at_workbench() || !data::recipe_unlocked(item) || !data::workbench_recipe(item) { return; }
     let cost = data::recipe_cost(item);
     if cost.len() == 0 { return; }
     for batch in 0..count {

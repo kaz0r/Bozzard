@@ -96,7 +96,7 @@ pub fn apply(
         }
     }
     let mut session = board["session"].clone();
-    for i in (8..40).chain(64..114).chain([120]) {
+    for i in (8..40).chain(64..114).chain(128..160).chain([120]) {
         session.values_mut()[i] = after.controller["session"].values()[i].clone();
     }
     if session.values()[64..114] != board["session"].values()[64..114] {
@@ -130,11 +130,9 @@ pub fn apply(
     // Archives are authoritative even for the currently occupied region. Hydrate
     // its live arrays now so the next capture cannot overwrite the guest's edit.
     let mut storage_changed = false;
-    for name in after
-        .controller
-        .keys()
-        .filter(|k| k.starts_with("cache_") || k.as_str() == "chunk_nodes")
-    {
+    for name in after.controller.keys().filter(|k| {
+        (k.as_str() != "cache_structures" && k.starts_with("cache_")) || k.as_str() == "chunk_nodes"
+    }) {
         let at = planet * 289 + chunk;
         if before.controller[name].values()[at] == after.controller[name].values()[at] {
             continue;

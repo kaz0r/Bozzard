@@ -1,7 +1,9 @@
 // Rhai gameplay: chunks.
+import "factory-interiors" as interiors;
 import "factory-item_fx" as item_fx;
 import "factory-data" as data;
 import "factory-deposits" as deposits;
+import "factory-debris" as debris;
 import "factory-grid" as grid;
 
 fn discover_chunk(cx, cz) {
@@ -56,12 +58,16 @@ fn load_chunk_visuals(cx, cz) {
     }
     resident[id] = 1.0;
     set_object_list("resident", resident);
+    debris::load_region(id);
+    interiors::load(id);
     data::ui_view_changed(4, "");
 }
 
 fn unload_chunk_visuals(id) {
     let resident = get_object_list("resident");
     if resident[id] == 0.0 { return; }
+    debris::unload_region(id);
+    interiors::unload(id);
     item_fx::unload_region(id);
     for target in grid::unpack_text(get_object_list("chunk_node_visuals")[id], 225) {
         if target != "" { destroy_prefab(target); }

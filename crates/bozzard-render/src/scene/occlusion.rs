@@ -284,7 +284,7 @@ impl Occlusion {
                 f32::NEG_INFINITY,
             ];
             let mut nearest = 1.0_f32;
-            for index in batch.range.clone() {
+            for &index in &batch.indices {
                 let Some(p) = self.projections[index].projection.filter(|_| {
                     !draws[index].transparent
                         && draws[index].deformation == 0
@@ -307,12 +307,12 @@ impl Occlusion {
             self.candidates.extend_from_slice(&nearest.to_le_bytes());
             self.candidates.extend_from_slice(
                 &renderer
-                    .mesh_for(&draws[batch.range.start].object)
+                    .mesh_for(&draws[batch.indices[0]].object)
                     .count
                     .to_le_bytes(),
             );
             self.candidates
-                .extend_from_slice(&(batch.range.len() as u32).to_le_bytes());
+                .extend_from_slice(&(batch.indices.len() as u32).to_le_bytes());
             self.candidates.extend_from_slice(&0u32.to_le_bytes());
         }
         let unchanged = self.snapshot.as_ref().is_some_and(|previous| {

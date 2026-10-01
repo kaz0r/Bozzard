@@ -5,9 +5,9 @@ import "factory-chunks" as chunks;
 import "factory-power" as power;
 import "factory-backpack" as backpack;
 
-fn deposits() { [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,24.0,25.0,26.0] }
-fn machines() { [1.0,3.0,11.0,5.0,4.0,2.0,7.0,8.0,6.0,9.0] }
-fn items() { [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0] }
+fn deposits() { [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,24.0,25.0,26.0,40.0,45.0] }
+fn machines() { [1.0,3.0,11.0,5.0,4.0,2.0,7.0,8.0,6.0,9.0]+[12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0] }
+fn items() { let types=[1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0];for kind in 27..51 {types.push(kind.to_float());} types }
 
 fn local_cell(x,z,cx,cz) {
     let lx=x-cx*15;let lz=z-cz*15;
@@ -31,10 +31,10 @@ fn populate() {
             }
             let types=machines();
             for i in 0..types.len() {
-                let cell=local_cell(-6+i*2,5,cx,cz);
+                let cell=local_cell(if i<10 {-6+i*2}else{-6+(i-10)%13*2},if i<10 {5}else{-1+(i-10)/13*4},cx,cz);
                 if cell>=0 {
                     builds[cell]=types[i];
-                    if types[i]==3.0 || types[i]==5.0 || types[i]==11.0 { recipes[cell]=data::recipe_choices(types[i])[0]; }
+                    if data::production(types[i]) { recipes[cell]=data::recipe_choices(types[i])[0]; }
                 }
             }
             // A second pole displays an actual, editable cable connection.
@@ -44,8 +44,8 @@ fn populate() {
             // keeps the samples in place while ordinary factory simulation runs.
             let types=items();
             for i in 0..types.len() {
-                let cell=local_cell(-6+(i%13)*2,12+(i/13)*4,cx,cz);
-                if cell>=0 { builds[cell]=2.0;held[cell]=types[i];amounts[cell]=1.0; }
+                let cell=local_cell(if i<25 {-6+(i%13)*2}else{-6+(i-25)%12*2},if i<25 {12+(i/13)*4}else{8+(i-25)/12*12},cx,cz);
+                if cell>=0 { builds[cell]=if data::fluid(types[i]) {26.0}else{2.0};held[cell]=types[i];amounts[cell]=1.0; }
             }
             grid::cache_put("chunk_nodes",id,grid::pack_numbers(nodes));
             grid::cache_put("cache_builds",id,grid::pack_numbers(builds));
@@ -62,7 +62,7 @@ fn populate() {
     set_object_list("visited",visited);
     for cz in 0..2 { for cx in 0..2 { chunks::load_chunk_visuals(cx,cz); } }
     power::connect_power(grid::chunk_id(1,0)*225+grid::index(-3,5),grid::chunk_id(1,0)*225+grid::index(1,5));
-    let stock=grid::empty_numbers(32);
-    for item in items() { stock[item.to_int()]=10.0; }
+    let stock=grid::empty_numbers(64);
+    for item in items().extract(0,25) { stock[item.to_int()]=10.0; }
     backpack::set_stock(stock);
 }

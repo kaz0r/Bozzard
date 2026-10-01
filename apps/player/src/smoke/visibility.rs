@@ -63,8 +63,10 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         reduced.pipeline_binds == 1
             && all.pipeline_binds == 4
             && all.color_draws == 4
-            && reduced.color_draws == 2
-            && reduced.shadow_draws == all.shadow_draws,
+            && reduced.color_draws == 1
+            && all.shadow_draws == 4
+            && reduced.shadow_draws == 1
+            && reduced.shadow_triangles == all.shadow_triangles,
         "batching or shadow counters incorrect: {all:?} {reduced:?}"
     );
     let mut shadow_scene = RenderScene {
@@ -104,8 +106,8 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
     let with = capture(gpu, &mut renderer, &shadow_scene, [128, 128])?;
     let stats = renderer.frame_stats();
     ensure!(
-        stats.visible_surfaces == 1 && stats.shadow_draws == 2,
-        "offscreen shadow caster incorrectly culled"
+        stats.visible_surfaces == 1 && stats.shadow_draws == 1 && stats.shadow_triangles == 4,
+        "offscreen shadow caster missing or not batched: {stats:?}"
     );
     shadow_scene.lighting.shadows = false;
     let without = capture(gpu, &mut renderer, &shadow_scene, [128, 128])?;

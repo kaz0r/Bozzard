@@ -1,4 +1,5 @@
 //! Bounded editor docking: five resizable tab groups and detachable tool windows.
+use crate::theme;
 use eframe::egui::{self, Color32};
 use serde::{Deserialize, Serialize};
 
@@ -174,18 +175,22 @@ impl Layout {
                 .min_size(180.)
                 .max_size(600.)
                 .resizable(true)
+                .frame(theme::card())
                 .show(ui, |ui| {
                     if (left && lower) || dragging {
                         egui::Panel::top(egui::Id::new(("dock-left-split", generation)))
                             .default_size(280.)
                             .min_size(100.)
                             .resizable(true)
+                            .frame(egui::Frame::NONE)
                             .show(ui, |ui| {
                                 self.group(ui, Dock::Left, visible, &mut action, &mut draw);
                             });
-                        egui::CentralPanel::default().show(ui, |ui| {
-                            self.group(ui, Dock::LeftLower, visible, &mut action, &mut draw)
-                        });
+                        egui::CentralPanel::default()
+                            .frame(egui::Frame::NONE)
+                            .show(ui, |ui| {
+                                self.group(ui, Dock::LeftLower, visible, &mut action, &mut draw)
+                            });
                     } else {
                         self.group(
                             ui,
@@ -203,6 +208,7 @@ impl Layout {
                 .min_size(120.)
                 .max_size(650.)
                 .resizable(true)
+                .frame(theme::card())
                 .show(ui, |ui| {
                     self.group(ui, Dock::Bottom, visible, &mut action, &mut draw);
                 });
@@ -213,14 +219,15 @@ impl Layout {
                 .min_size(180.)
                 .max_size(600.)
                 .resizable(true)
+                .frame(theme::card())
                 .show(ui, |ui| {
                     self.group(ui, Dock::Right, visible, &mut action, &mut draw);
                 });
         }
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(20, 20, 22))
+                theme::card()
+                    .fill(Color32::from_rgb(10, 11, 17))
                     .inner_margin(4),
             )
             .show(ui, |ui| {
@@ -339,7 +346,9 @@ impl Layout {
                     tab.context_menu(|ui| Self::menu(ui, pane, dock, action));
                 }
                 if let Some(pane) = *active {
-                    ui.menu_button("Dock", |ui| Self::menu(ui, pane, dock, action));
+                    ui.menu_button("…", |ui| Self::menu(ui, pane, dock, action))
+                        .response
+                        .on_hover_text("Move panel");
                 } else {
                     ui.weak(format!("Drop a panel · {}", dock.title()));
                 }
@@ -355,7 +364,7 @@ impl Layout {
             ui.painter().rect_filled(
                 header.rect,
                 2.,
-                Color32::from_rgba_unmultiplied(80, 140, 210, 50),
+                Color32::from_rgba_unmultiplied(132, 158, 255, 60),
             );
             if ui.input(|i| i.pointer.any_released())
                 && let Some(pane) = egui::DragAndDrop::take_payload::<Pane>(ui.ctx())
@@ -365,7 +374,17 @@ impl Layout {
         }
         ui.separator();
         if let Some(pane) = *active {
-            ui.push_id(("pane-content", pane), |ui| draw(pane, ui));
+            ui.push_id(("pane-content", pane), |ui| {
+                if dock == Dock::Center || dock == Dock::Floating {
+                    draw(pane, ui);
+                } else {
+                    // Scrolling stops tall content from propping the panel open,
+                    // so a docked panel can always be dragged smaller.
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| draw(pane, ui));
+                }
+            });
         }
     }
 }

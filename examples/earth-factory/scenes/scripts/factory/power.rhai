@@ -3,8 +3,10 @@ import "factory-net_input" as net;
 // Rhai gameplay: power.
 import "factory-data" as data;
 import "factory-grid" as grid;
+import "factory-model_ports" as model_ports;
+import "factory-renewables" as renewables;
 
-fn electrical(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 9 || kind == 10 || kind == 11 }
+fn electrical(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 9 || kind == 10 || kind == 11 || kind>=12 && kind<=25 || kind>=40 && kind<=42 }
 
 fn power_id(cell) { grid::chunk_id(get_scene_variable("chunk_x").to_int(), get_scene_variable("chunk_z").to_int()) * 225 + cell }
 
@@ -36,6 +38,9 @@ fn power_graph(name) {
 }
 
 fn write_power(graph) {
+    write_power("power_data",graph);
+}
+fn write_power(name,graph) {
     let pages = grid::empty_text(867);
     let decoded = #{};
     for key in graph.keys() {
@@ -48,7 +53,7 @@ fn write_power(graph) {
         decoded[page][id % 75] = text;
     }
     for page in decoded.keys() { pages[parse_int(page)] = grid::pack_text(decoded[page]); }
-    set_object_list("power_data", pages);
+    set_object_list(name, pages);
 }
 
 fn power_register(id, kind) {
@@ -101,6 +106,7 @@ fn connection_error(graph,a,b) {
 fn wire_selected() {
     if !data::tool_unlocked(10.0) { set_scene_variable("message", "Unlock smelting to use poles and cables."); return; }
     let id = power_id(grid::index(get_scene_variable("cursor_x").to_int(), get_scene_variable("cursor_z").to_int()));
+    let owner=renewables::local_owner(id);if renewables::array_kind(owner)==41.0 {id=owner;}
     let graph = power_graph();
     if !graph.contains(id.to_string()) { set_scene_variable("message", "Stand on a pole, powered machine, generator or landing pod."); return; }
     let start = get_object_variable("wire_start").to_int();
@@ -138,6 +144,7 @@ fn disconnect_power(id, peer) {
 
 fn disconnect_selected() {
     let id = power_id(grid::index(get_scene_variable("cursor_x").to_int(), get_scene_variable("cursor_z").to_int()));
+    let owner=renewables::local_owner(id);if renewables::array_kind(owner)==41.0 {id=owner;}
     if net::guest() {net::send("unwire",#{from:net::address(id),to:()});return;}
     let graph = power_graph();
     if !graph.contains(id.to_string()) { return; }
@@ -153,9 +160,15 @@ fn pole_status(id) {
     (entry.len() - 2).to_string() + " / 5 cables  " + if entry[1] > 0 { "Powered" } else { "No power / overload" }
 }
 
-fn power_demand(kind) { if kind == 1 { 1 } else if kind == 3 { 2 } else if kind == 5 { 3 } else if kind == 11 { 2 } else { 0 } }
+fn power_demand(kind) { if kind>=12 && kind<=25 {[2,3,2,3,4,5,4,6,3,3,2,4,6,3][kind-12]}else if kind == 1 { 1 } else if kind == 3 { 2 } else if kind == 5 { 3 } else if kind == 11 { 2 } else { 0 } }
 
 fn resolve_graph(graph) {
+    resolve_graph(graph,true)
+}
+fn resolve_graph(graph,sunny) {
+    resolve_graph(graph,sunny,false)
+}
+fn resolve_graph(graph,sunny,windy) {
     let visited = #{};
     let total_supply = 0;
     let total_demand = 0;
@@ -169,8 +182,7 @@ fn resolve_graph(graph) {
         while at < queue.len() {
             let key = queue[at]; at += 1;
             let entry = graph[key]; members.push(key);
-            if entry[0] == 10 { supply += 8; }
-            if entry[0] == 6 { supply += 10; }
+            supply += renewables::supply(entry[0],sunny,windy);
             demand += power_demand(entry[0]);
             for target in entry.extract(2) {
                 let peer = target.to_string();
@@ -185,7 +197,24 @@ fn resolve_graph(graph) {
 }
 
 fn update_power() {
-    let dirty = get_object_variable("power_dirty");
+    let planet=if data::on_moon(){1}else{0};let time=data::session_value(120);
+    let sunny=renewables::solar_active(time,planet);
+    let seed=get_scene_variable("seed").to_int();
+    let windy=renewables::wind_active(seed,planet,time);
+    let other_windy=renewables::wind_active(seed,1-planet,time);
+    let daylight=if renewables::solar_active(time,0){1.0}else{0.0};
+    let changed=get_object_variable("renewable-view","day")!=daylight || get_object_variable("renewable-view","planet")!=planet.to_float();
+    let wind_key=if planet==0 {"earth_wind"}else{"moon_wind"};
+    let other_key=if planet==0 {"moon_wind"}else{"earth_wind"};
+    let wind_value=if windy {1.0}else{0.0};let other_value=if other_windy {1.0}else{0.0};
+    let dirty = get_object_variable("power_dirty") || changed || get_object_variable("renewable-view",wind_key)!=wind_value;
+    if changed || get_object_variable("renewable-view",other_key)!=other_value {
+        // Weather transitions update off-world circuits as well as the visible one.
+        write_power("power_other",resolve_graph(power_graph("power_other"),renewables::solar_active(time,1-planet),other_windy).graph);
+        set_object_variable("renewable-view","day",daylight);set_object_variable("renewable-view","planet",planet.to_float());
+    }
+    if get_object_variable("renewable-view",wind_key)!=wind_value {set_object_variable("renewable-view",wind_key,wind_value);}
+    if get_object_variable("renewable-view",other_key)!=other_value {set_object_variable("renewable-view",other_key,other_value);}
     let aspect = render_stats().viewport_aspect;
     // Chunk load/unload invalidates this view. Do not format all 289 residency
     // entries every tick just to rediscover that nothing has changed.
@@ -193,7 +222,7 @@ fn update_power() {
     if !dirty && view == get_object_list("ui_views")[4] { return; }
     let graph = power_graph();
     if dirty {
-        let resolved=resolve_graph(graph); graph=resolved.graph;
+        let resolved=resolve_graph(graph,sunny,windy); graph=resolved.graph;
         let total_supply=resolved.supply; let total_demand=resolved.demand;
         write_power(graph);
         let live = grid::empty_numbers(225);
@@ -268,18 +297,18 @@ fn sync_power_visuals(graph) {
         if has_machine_indicator(entry[0]) && resident[id / 225] > 0.0 {
             let on = entry[1] > 0;
             let role = if on { "on" } else { "off" };
-            let prefix = if entry[0] == 1 { "miner" } else if entry[0] == 3 { "smelter" }
+            let prefix = if entry[0]>=12 && entry[0]<=25 {data::expansion_slug(entry[0].to_float())}else if entry[0] == 1 { "miner" } else if entry[0] == 3 { "smelter" }
                 else if entry[0] == 5 { "assembler" } else if entry[0] == 6 { "generator" } else { "constructor" };
             let lamp = if previous.contains(role) { previous[role] }
                 else { spawn_prefab(prefix + "-power-" + role, [pos[0],0.08,pos[2]]) };
             align_machine_effect(lamp,id);
             effects[role] = lamp;
             lamps.push(#{id:id,role:"status",kind:entry[0],on:on});
-            if entry[0] == 3 && on {
+            if [3,16,20,21].contains(entry[0]) && on {
                 let heat = if previous.contains("heat") { previous["heat"] }
-                    else { spawn_prefab("smelter-heat",[pos[0],0.08,pos[2]]) };
+                    else { spawn_prefab(prefix+"-heat",[pos[0],0.08,pos[2]]) };
                 align_machine_effect(heat,id); effects["heat"] = heat;
-                lamps.push(#{id:id,role:"heat",kind:3,on:true});
+                lamps.push(#{id:id,role:"heat",kind:entry[0],on:true});
             }
         }
         for peer in entry.extract(2) {
@@ -315,24 +344,26 @@ fn sync_power_visuals(graph) {
     for group in 0..5 { set_object_list("power_fx_" + group.to_string(), pages[group]); }
     // Fixed light budget shared by poles, faint status LEDs and furnace heat.
     // Emissive lenses remain visible even beyond the nearest illumination slots.
-    let center = [get_scene_variable("chunk_x") * 15.0, 0.0, get_scene_variable("chunk_z") * 15.0];
-    let used = #{};
+    let center_x = get_scene_variable("chunk_x").to_int() * 15;
+    let center_z = get_scene_variable("chunk_z").to_int() * 15;
+    let ranked = [];
+    for i in 0..lamps.len() {
+        let pos = power_position(lamps[i].id);
+        let dx = pos[0].to_int() - center_x; let dz = pos[2].to_int() - center_z;
+        // Grid coordinates have integral squared distances. Include the original
+        // index to preserve the previous selection order for equally near lamps.
+        ranked.push((dx * dx + dz * dz) * lamps.len() + i);
+    }
+    ranked.sort();
     let slots = grid::empty_text(32);
     for light in 0..32 {
         if light == 31 && data::session_value(6) > 0.0 {
             set_light_intensity("pole-light-31", 0.0);
             continue;
         }
-        let best = -1; let distance = 10000000.0;
-        for i in 0..lamps.len() {
-            if used.contains(i.to_string()) { continue; }
-            let pos = power_position(lamps[i].id);
-            let d = pow(pos[0] - center[0], 2.0) + pow(pos[2] - center[2], 2.0);
-            if d < distance { distance = d; best = i; }
-        }
+        let best = if light < ranked.len() { ranked[light] % lamps.len() } else { -1 };
         let target = "pole-light-" + light.to_string();
         if best >= 0 {
-            used[best.to_string()] = true;
             let lamp = lamps[best]; let pos = power_position(lamp.id);
             if lamp.role == "pole" {
                 set_position(target, [pos[0],1.98,pos[2]]);
@@ -351,7 +382,7 @@ fn sync_power_visuals(graph) {
 
 // Resolve only resident presentation handles. No simulated state or saved data
 // is added for cosmetic effects, and remote regions use their own visual cache.
-fn has_machine_indicator(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 11 }
+fn has_machine_indicator(kind) { kind == 1 || kind == 3 || kind == 5 || kind == 6 || kind == 11 || kind>=12 && kind<=25 }
 
 fn machine_handle(id) {
     if id / 225 == grid::current_chunk() { return get_scene_list_item("build_visuals",id % 225); }
@@ -367,7 +398,7 @@ fn align_machine_effect(effect,id) {
 fn position_machine_light(light,id,kind,role) {
     let machine = machine_handle(id); if machine == "" { return; }
     let pos = get_position(machine); let angle = get_rotation(machine)[1] * 0.0174532925;
-    let local = if role == "heat" { [0.51,0.77,0.0] }
+    let local = if kind>=12 && kind<=25 {if role=="heat" {model_ports::heat(kind)}else{model_ports::indicator(kind)}}else if role == "heat" { [0.51,0.77,0.0] }
         else if kind == 1 { [0.39,1.07,0.287] }
         else if kind == 6 { [0.39,1.055,0.285] }
         else if kind == 3 { [0.49,0.56,0.332] } else { [0.50,0.75,0.32] };
@@ -435,6 +466,17 @@ fn wire_demo() {
 }
 
 fn power_anchor(id, kind) {
+    if kind>=12 && kind<=25 || kind>=40 && kind<=42 {
+        let local=if kind==40 {[0.0,0.16,0.405]}else if kind==41 {[0.5,0.23,0.40]}else if kind==42 {[0.0,0.28,0.10]}else{model_ports::socket(kind)};
+        let pos=power_position(id);let angle=0.0;let lift=0.08;
+        let target=machine_handle(id);
+        if target!="" {angle=get_rotation(target)[1]*0.0174532925;lift=get_position(target)[1];}
+        else {
+            let facings=if id/225==grid::current_chunk() {get_scene_list("facings")}else{grid::unpack_numbers(data::region_entry("cache_facings",id/225),225)};
+            angle= -facings[id%225]*1.5707963268;
+        }
+        return [pos[0]+cos(angle)*local[0]+sin(angle)*local[2],lift+local[1],pos[2]-sin(angle)*local[0]+cos(angle)*local[2]];
+    }
     let pos = power_position(id);
     pos[1] = if kind == 9 { 1.47 } else if kind == 10 { 1.26 }
         else if kind == 1 || kind == 6 { 1.35 } else if kind == 3 { 1.15 } else { 1.08 };

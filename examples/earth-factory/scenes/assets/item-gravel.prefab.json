@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "Gravel item",
+  "root": "root",
+  "assets": {
+    "item-model-27": {
+      "kind": "mesh",
+      "path": "models/materials/gravel.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Moving item",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-27"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    }
+  ]
+}

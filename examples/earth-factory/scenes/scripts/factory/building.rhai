@@ -1,6 +1,10 @@
 // Rhai gameplay: building.
+import "factory-interiors" as interiors;
+import "factory-renewables" as renewables;
+import "factory-architecture" as architecture;
 import "factory-item_fx" as item_fx;
 import "factory-data" as data;
+import "factory-debris" as debris;
 import "factory-grid" as grid;
 import "factory-inventory" as inventory;
 import "factory-power" as power;
@@ -15,8 +19,15 @@ fn place_selected() {
     let facings = get_scene_list("facings");
     let visuals = get_scene_list("build_visuals");
     let selected = get_scene_variable("selected");
+    if architecture::structure(selected) {interiors::build(selected,false);return;}
     if selected == 10.0 { power::wire_selected(); return; }
     if net::guest() {net::send("place",#{kind:selected.to_int(),direction:get_scene_variable("direction").to_int()});return;}
+    let footprint=renewables::local_error(power::power_id(cell),selected,get_scene_variable("direction").to_int(),-1);
+    if footprint!="" {set_scene_variable("message",footprint);return;}
+    if debris::blocked(x,z) {
+        set_scene_variable("message", "Keep the spaceship wreckage clear.");
+        return;
+    }
     if !get_scene_variable("demo_mode") && get_scene_variable("chunk_x") == 0.0 && get_scene_variable("chunk_z") == 0.0 && (cell == grid::index(0, 0) || (get_object_variable("phase") >= 5.0 && (cell == grid::index(0, 1) || cell == grid::index(2, 1)))) {
         set_scene_variable("message", "Keep the landing pod, rocket and fuel dock clear.");
         return;
@@ -25,18 +36,8 @@ fn place_selected() {
         set_scene_variable("message", "Remove the existing machine with X first.");
         return;
     }
-    if selected == 1.0 && nodes[cell] == 0.0 {
-        set_scene_variable("message", "A miner must sit on a resource node.");
-        return;
-    }
-    if selected == 6.0 && nodes[cell] != 4.0 {
-        set_scene_variable("message", "A generator needs a coal node.");
-        return;
-    }
-    if selected != 1.0 && selected != 6.0 && nodes[cell] != 0.0 {
-        set_scene_variable("message", "Only a miner or coal generator can cover a node.");
-        return;
-    }
+    let error=data::deposit_error(selected,nodes[cell]);
+    if error!="" {set_scene_variable("message",error);return;}
     if !data::pay_for_build(selected) { return; }
     let facing = get_scene_variable("direction").to_int();
     let machine_cells = get_scene_list("machine_cells");
@@ -48,7 +49,7 @@ fn place_selected() {
     set_scene_list("builds", builds);
     set_scene_list("facings", facings);
     set_scene_list("build_visuals", visuals);
-    if selected == 5.0 || selected == 11.0 || selected == 3.0 {
+    if data::production(selected) {
         let recipes = get_object_list("recipes"); recipes[cell] = data::recipe_choices(selected)[0]; set_object_list("recipes", recipes);
     }
     if power::electrical(selected.to_int()) { power::power_register(power::power_id(cell), selected.to_int()); }
@@ -60,8 +61,14 @@ fn remove_selected() {
     let z = get_scene_variable("cursor_z").to_int();
     let cell = grid::index(x, z);
     let builds = get_scene_list("builds");
+    if architecture::structure(get_scene_variable("selected")) {interiors::build(get_scene_variable("selected"),true);return;}
     if get_scene_variable("selected") == 10.0 { power::disconnect_selected(); return; }
     if net::guest() {net::send("remove",#{});return;}
+    let owner=renewables::local_owner(power::power_id(cell));
+    if renewables::array_kind(owner)==41.0 {
+        power::power_remove(owner);renewables::edit_array(owner,true);
+        set_scene_variable("message","Solar array removed. Both spots are clear.");return;
+    }
     if builds[cell] == 0.0 { return; }
     power::power_remove(power::power_id(cell));
     let recipes = get_object_list("recipes"); recipes[cell] = 0.0; set_object_list("recipes", recipes);
@@ -74,6 +81,7 @@ fn remove_selected() {
         set_scene_list("counts", counts);
         inventory::storage_write(cell, grid::empty_numbers(32));
     }
+    if data::expansion(builds[cell]) {inventory::storage_write(cell,grid::empty_numbers(32));}
     let visuals = get_scene_list("build_visuals");
     destroy_prefab(visuals[cell]);
     visuals[cell] = "";
@@ -112,10 +120,21 @@ fn remove_selected() {
 }
 
 fn rotate_selected() {
+    if architecture::structure(get_scene_variable("selected")) {set_scene_variable("direction",((get_scene_variable("direction").to_int()+1)%4).to_float());return;}
     import "factory-host_view" as host_view;
     let id=grid::current_chunk()*225+grid::index(get_scene_variable("cursor_x").to_int(),get_scene_variable("cursor_z").to_int());
     if host_view::rotating(data::session_value(7).to_int(),id) { set_scene_variable("message","Wait for the machine to finish turning."); return; }
     let cell = grid::index(get_scene_variable("cursor_x").to_int(), get_scene_variable("cursor_z").to_int());
+    let owner=renewables::local_owner(power::power_id(cell));
+    if renewables::array_kind(owner)==41.0 {
+        if net::guest() {net::send("rotate",#{});return;}
+        let facing=(renewables::array_facing(owner).to_int()+1)%4;
+        let error=renewables::local_error(owner,41.0,facing,owner);
+        if error!="" {set_scene_variable("message",error);return;}
+        renewables::edit_array(owner,false);set_object_variable("power_dirty",true);
+        set_scene_variable("direction",facing.to_float());
+        set_scene_variable("message","Solar array turned. Both spots reserved.");return;
+    }
     let builds = get_scene_list("builds");
     let direction = get_scene_variable("direction").to_int();
     if builds[cell] != 0.0 {
@@ -141,16 +160,16 @@ fn action_bar_input() {
     for key in 1..9 {
         if !input_pressed(key.to_string()) { continue; }
         if ctrl {
-            if key <= 3 {
+            if key <= 7 {
                 bar = key;
                 set_object_variable("bar", bar.to_float());
-                set_scene_variable("selected", data::bar_tools(bar)[slots[bar - 1].to_int() - 1]);
+                set_scene_variable("selected", data::bar_tools(bar)[if bar<=3 {slots[bar-1].to_int()-1}else{0}]);
             }
         } else {
             let kind = data::bar_tools(bar)[key - 1];
             if kind != 0.0 {
                 set_scene_variable("selected", kind);
-                if bar > 0 { slots[bar - 1] = key.to_float(); }
+                if bar > 0 && bar<=3 { slots[bar - 1] = key.to_float(); }
                 if !data::tool_unlocked(kind) { set_scene_variable("message", "Locked. Open J to see the next delivery."); }
             }
         }
@@ -162,7 +181,7 @@ fn action_bar_input() {
             let kind=data::bar_tools(bar)[key-1];
             if kind==0.0 { continue; }
             set_scene_variable("selected",kind);
-            if bar>0 { slots[bar-1]=key.to_float(); }
+            if bar>0 && bar<=3 { slots[bar-1]=key.to_float(); }
             data::session_set(40,if data::tool_unlocked(kind) { 1.0 } else { 0.0 });
             clear_ui_focus();
             set_scene_variable("message",if data::tool_unlocked(kind) { "Click a highlighted tile to build. Right-click cancels." } else { "Locked. Open J to see the next delivery." });

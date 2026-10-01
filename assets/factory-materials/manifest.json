@@ -1,0 +1,1136 @@
+{
+  "version": 1,
+  "units": "tile",
+  "up_axis": "Y",
+  "pivot": "bounds center",
+  "belt_width": 0.46,
+  "items": [
+    {
+      "kind": 1,
+      "id": "iron-ore",
+      "name": "Iron ore",
+      "mesh_asset": "item-model-1",
+      "mesh": "models/materials/iron-ore.glb",
+      "prefab": "item-iron-ore.prefab.json",
+      "triangles": 80,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.142076,
+          -0.091076,
+          -0.130596
+        ],
+        [
+          0.142076,
+          0.091076,
+          0.130596
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 2,
+      "id": "copper-ore",
+      "name": "Copper ore",
+      "mesh_asset": "item-model-2",
+      "mesh": "models/materials/copper-ore.glb",
+      "prefab": "item-copper-ore.prefab.json",
+      "triangles": 80,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.137044,
+          -0.100847,
+          -0.129109
+        ],
+        [
+          0.137044,
+          0.100847,
+          0.129109
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 3,
+      "id": "limestone",
+      "name": "Limestone",
+      "mesh_asset": "item-model-3",
+      "mesh": "models/materials/limestone.glb",
+      "prefab": "item-limestone.prefab.json",
+      "triangles": 56,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.144128,
+          -0.085686,
+          -0.119369
+        ],
+        [
+          0.144128,
+          0.085686,
+          0.119369
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 4,
+      "id": "coal",
+      "name": "Coal",
+      "mesh_asset": "item-model-4",
+      "mesh": "models/materials/coal.glb",
+      "prefab": "item-coal.prefab.json",
+      "triangles": 60,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.104428,
+          -0.069227,
+          -0.094507
+        ],
+        [
+          0.104428,
+          0.069227,
+          0.094507
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 5,
+      "id": "quartz",
+      "name": "Quartz",
+      "mesh_asset": "item-model-5",
+      "mesh": "models/materials/quartz.glb",
+      "prefab": "item-quartz.prefab.json",
+      "triangles": 90,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.083775,
+          -0.145,
+          -0.082
+        ],
+        [
+          0.083775,
+          0.145,
+          0.082
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 6,
+      "id": "crude-oil",
+      "name": "Crude oil",
+      "mesh_asset": "item-model-6",
+      "mesh": "models/materials/crude-oil.glb",
+      "prefab": "item-crude-oil.prefab.json",
+      "triangles": 372,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.11,
+          -0.118,
+          -0.11
+        ],
+        [
+          0.11,
+          0.118,
+          0.11
+        ]
+      ],
+      "fluid_sample": true
+    },
+    {
+      "kind": 7,
+      "id": "water",
+      "name": "Water",
+      "mesh_asset": "item-model-7",
+      "mesh": "models/materials/water.glb",
+      "prefab": "item-water.prefab.json",
+      "triangles": 148,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.079,
+          -0.10625,
+          -0.079
+        ],
+        [
+          0.079,
+          0.10625,
+          0.079
+        ]
+      ],
+      "fluid_sample": true
+    },
+    {
+      "kind": 8,
+      "id": "stone",
+      "name": "Stone",
+      "mesh_asset": "item-model-8",
+      "mesh": "models/materials/stone.glb",
+      "prefab": "item-stone.prefab.json",
+      "triangles": 20,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.137208,
+          -0.090613,
+          -0.127047
+        ],
+        [
+          0.137208,
+          0.090613,
+          0.127047
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 9,
+      "id": "sand",
+      "name": "Sand",
+      "mesh_asset": "item-model-9",
+      "mesh": "models/materials/sand.glb",
+      "prefab": "item-sand.prefab.json",
+      "triangles": 184,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.14,
+          -0.044949,
+          -0.12
+        ],
+        [
+          0.14,
+          0.044949,
+          0.12
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 10,
+      "id": "silver-ore",
+      "name": "Silver ore",
+      "mesh_asset": "item-model-10",
+      "mesh": "models/materials/silver-ore.glb",
+      "prefab": "item-silver-ore.prefab.json",
+      "triangles": 80,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.134598,
+          -0.098386,
+          -0.127201
+        ],
+        [
+          0.134598,
+          0.098386,
+          0.127201
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 11,
+      "id": "iron-ingot",
+      "name": "Iron ingot",
+      "mesh_asset": "item-model-11",
+      "mesh": "models/materials/iron-ingot.glb",
+      "prefab": "item-iron-ingot.prefab.json",
+      "triangles": 100,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.148769,
+          -0.066,
+          -0.074341
+        ],
+        [
+          0.148769,
+          0.066,
+          0.074341
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 12,
+      "id": "copper-ingot",
+      "name": "Copper ingot",
+      "mesh_asset": "item-model-12",
+      "mesh": "models/materials/copper-ingot.glb",
+      "prefab": "item-copper-ingot.prefab.json",
+      "triangles": 100,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.148769,
+          -0.066,
+          -0.074341
+        ],
+        [
+          0.148769,
+          0.066,
+          0.074341
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 13,
+      "id": "conductive-alloy",
+      "name": "Conductive alloy",
+      "mesh_asset": "item-model-13",
+      "mesh": "models/materials/conductive-alloy.glb",
+      "prefab": "item-conductive-alloy.prefab.json",
+      "triangles": 112,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.148769,
+          -0.066,
+          -0.074341
+        ],
+        [
+          0.148769,
+          0.066,
+          0.074341
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 14,
+      "id": "glass",
+      "name": "Glass",
+      "mesh_asset": "item-model-14",
+      "mesh": "models/materials/glass.glb",
+      "prefab": "item-glass.prefab.json",
+      "triangles": 168,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.15,
+          -0.03975,
+          -0.095
+        ],
+        [
+          0.15,
+          0.03975,
+          0.095
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 15,
+      "id": "iron-sheet",
+      "name": "Iron sheet",
+      "mesh_asset": "item-model-15",
+      "mesh": "models/materials/iron-sheet.glb",
+      "prefab": "item-iron-sheet.prefab.json",
+      "triangles": 132,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.167,
+          -0.0465,
+          -0.11
+        ],
+        [
+          0.167,
+          0.0465,
+          0.11
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 16,
+      "id": "nuts-bolts",
+      "name": "Nuts and bolts",
+      "mesh_asset": "item-model-16",
+      "mesh": "models/materials/nuts-bolts.glb",
+      "prefab": "item-nuts-bolts.prefab.json",
+      "triangles": 288,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.128,
+          -0.061816,
+          -0.092378
+        ],
+        [
+          0.128,
+          0.061816,
+          0.092378
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 17,
+      "id": "cable",
+      "name": "Cable",
+      "mesh_asset": "item-model-17",
+      "mesh": "models/materials/cable.glb",
+      "prefab": "item-cable.prefab.json",
+      "triangles": 404,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.15275,
+          -0.06325,
+          -0.135
+        ],
+        [
+          0.15275,
+          0.06325,
+          0.135
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 18,
+      "id": "concrete",
+      "name": "Concrete",
+      "mesh_asset": "item-model-18",
+      "mesh": "models/materials/concrete.glb",
+      "prefab": "item-concrete.prefab.json",
+      "triangles": 128,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.14,
+          -0.064,
+          -0.104755
+        ],
+        [
+          0.14,
+          0.064,
+          0.104755
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 20,
+      "id": "machine-part",
+      "name": "Machine part",
+      "mesh_asset": "item-model-20",
+      "mesh": "models/materials/machine-part.glb",
+      "prefab": "item-machine-part.prefab.json",
+      "triangles": 288,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.131,
+          -0.0635,
+          -0.129996
+        ],
+        [
+          0.131,
+          0.0635,
+          0.129996
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 21,
+      "id": "portable-miner",
+      "name": "Portable miner",
+      "mesh_asset": "item-model-21",
+      "mesh": "models/materials/portable-miner.glb",
+      "prefab": "item-portable-miner.prefab.json",
+      "triangles": 224,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.125,
+          -0.13625,
+          -0.11
+        ],
+        [
+          0.125,
+          0.13625,
+          0.11
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 22,
+      "id": "generator-unit",
+      "name": "Generator unit",
+      "mesh_asset": "item-model-22",
+      "mesh": "models/materials/generator-unit.glb",
+      "prefab": "item-generator-unit.prefab.json",
+      "triangles": 220,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.13375,
+          -0.15825,
+          -0.11
+        ],
+        [
+          0.13375,
+          0.15825,
+          0.11
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 23,
+      "id": "pole-bundle",
+      "name": "Pole bundle",
+      "mesh_asset": "item-model-23",
+      "mesh": "models/materials/pole-bundle.glb",
+      "prefab": "item-pole-bundle.prefab.json",
+      "triangles": 300,
+      "surfaces": 4,
+      "bounds": [
+        [
+          -0.065,
+          -0.13,
+          -0.095
+        ],
+        [
+          0.065,
+          0.13,
+          0.095
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 24,
+      "id": "amorium",
+      "name": "Amorium",
+      "mesh_asset": "item-model-24",
+      "mesh": "models/materials/amorium.glb",
+      "prefab": "item-amorium.prefab.json",
+      "triangles": 80,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.157001,
+          -0.099246,
+          -0.118765
+        ],
+        [
+          0.157001,
+          0.099246,
+          0.118765
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 25,
+      "id": "moondust",
+      "name": "Moondust",
+      "mesh_asset": "item-model-25",
+      "mesh": "models/materials/moondust.glb",
+      "prefab": "item-moondust.prefab.json",
+      "triangles": 184,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.14,
+          -0.044949,
+          -0.12
+        ],
+        [
+          0.14,
+          0.044949,
+          0.12
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 26,
+      "id": "techtorium",
+      "name": "Techtorium",
+      "mesh_asset": "item-model-26",
+      "mesh": "models/materials/techtorium.glb",
+      "prefab": "item-techtorium.prefab.json",
+      "triangles": 110,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.121819,
+          -0.14595,
+          -0.115247
+        ],
+        [
+          0.121819,
+          0.14595,
+          0.115247
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 27,
+      "id": "gravel",
+      "name": "Gravel",
+      "mesh_asset": "item-model-27",
+      "mesh": "models/materials/gravel.glb",
+      "prefab": "item-gravel.prefab.json",
+      "triangles": 120,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.118668,
+          -0.072203,
+          -0.104516
+        ],
+        [
+          0.118668,
+          0.072203,
+          0.104516
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 28,
+      "id": "crushed-iron-ore",
+      "name": "Crushed iron ore",
+      "mesh_asset": "item-model-28",
+      "mesh": "models/materials/crushed-iron-ore.glb",
+      "prefab": "item-crushed-iron-ore.prefab.json",
+      "triangles": 120,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.118668,
+          -0.072203,
+          -0.104516
+        ],
+        [
+          0.118668,
+          0.072203,
+          0.104516
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 29,
+      "id": "crushed-copper-ore",
+      "name": "Crushed copper ore",
+      "mesh_asset": "item-model-29",
+      "mesh": "models/materials/crushed-copper-ore.glb",
+      "prefab": "item-crushed-copper-ore.prefab.json",
+      "triangles": 120,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.118668,
+          -0.072203,
+          -0.104516
+        ],
+        [
+          0.118668,
+          0.072203,
+          0.104516
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 30,
+      "id": "purified-iron-ore",
+      "name": "Purified iron ore",
+      "mesh_asset": "item-model-30",
+      "mesh": "models/materials/purified-iron-ore.glb",
+      "prefab": "item-purified-iron-ore.prefab.json",
+      "triangles": 80,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.103673,
+          -0.066983,
+          -0.103657
+        ],
+        [
+          0.103673,
+          0.066983,
+          0.103657
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 31,
+      "id": "purified-copper-ore",
+      "name": "Purified copper ore",
+      "mesh_asset": "item-model-31",
+      "mesh": "models/materials/purified-copper-ore.glb",
+      "prefab": "item-purified-copper-ore.prefab.json",
+      "triangles": 80,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.103673,
+          -0.066983,
+          -0.103657
+        ],
+        [
+          0.103673,
+          0.066983,
+          0.103657
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 32,
+      "id": "steel",
+      "name": "Steel",
+      "mesh_asset": "item-model-32",
+      "mesh": "models/materials/steel.glb",
+      "prefab": "item-steel.prefab.json",
+      "triangles": 132,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.15,
+          -0.0575,
+          -0.07
+        ],
+        [
+          0.15,
+          0.0575,
+          0.07
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 33,
+      "id": "fuel",
+      "name": "Fuel",
+      "mesh_asset": "item-model-33",
+      "mesh": "models/materials/fuel.glb",
+      "prefab": "item-fuel.prefab.json",
+      "triangles": 216,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.095,
+          -0.133,
+          -0.068
+        ],
+        [
+          0.095,
+          0.133,
+          0.068
+        ]
+      ],
+      "fluid_sample": true
+    },
+    {
+      "kind": 34,
+      "id": "heavy-oil",
+      "name": "Heavy oil",
+      "mesh_asset": "item-model-34",
+      "mesh": "models/materials/heavy-oil.glb",
+      "prefab": "item-heavy-oil.prefab.json",
+      "triangles": 372,
+      "surfaces": 4,
+      "bounds": [
+        [
+          -0.11,
+          -0.118,
+          -0.11
+        ],
+        [
+          0.11,
+          0.118,
+          0.11
+        ]
+      ],
+      "fluid_sample": true
+    },
+    {
+      "kind": 35,
+      "id": "plastic",
+      "name": "Plastic",
+      "mesh_asset": "item-model-35",
+      "mesh": "models/materials/plastic.glb",
+      "prefab": "item-plastic.prefab.json",
+      "triangles": 100,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.125,
+          -0.0645,
+          -0.08
+        ],
+        [
+          0.125,
+          0.0645,
+          0.08
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 36,
+      "id": "rubber",
+      "name": "Rubber",
+      "mesh_asset": "item-model-36",
+      "mesh": "models/materials/rubber.glb",
+      "prefab": "item-rubber.prefab.json",
+      "triangles": 288,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.1335,
+          -0.067,
+          -0.1335
+        ],
+        [
+          0.1335,
+          0.067,
+          0.1335
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 37,
+      "id": "fertilizer",
+      "name": "Fertilizer",
+      "mesh_asset": "item-model-37",
+      "mesh": "models/materials/fertilizer.glb",
+      "prefab": "item-fertilizer.prefab.json",
+      "triangles": 100,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.11,
+          -0.0745,
+          -0.09325
+        ],
+        [
+          0.11,
+          0.0745,
+          0.09325
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 38,
+      "id": "hydrogen",
+      "name": "Hydrogen",
+      "mesh_asset": "item-model-38",
+      "mesh": "models/materials/hydrogen.glb",
+      "prefab": "item-hydrogen.prefab.json",
+      "triangles": 224,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.074,
+          -0.1435,
+          -0.074
+        ],
+        [
+          0.074,
+          0.1435,
+          0.074
+        ]
+      ],
+      "fluid_sample": true
+    },
+    {
+      "kind": 39,
+      "id": "oxygen",
+      "name": "Oxygen",
+      "mesh_asset": "item-model-39",
+      "mesh": "models/materials/oxygen.glb",
+      "prefab": "item-oxygen.prefab.json",
+      "triangles": 224,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.074,
+          -0.1435,
+          -0.074
+        ],
+        [
+          0.074,
+          0.1435,
+          0.074
+        ]
+      ],
+      "fluid_sample": true
+    },
+    {
+      "kind": 40,
+      "id": "clay",
+      "name": "Clay",
+      "mesh_asset": "item-model-40",
+      "mesh": "models/materials/clay.glb",
+      "prefab": "item-clay.prefab.json",
+      "triangles": 60,
+      "surfaces": 1,
+      "bounds": [
+        [
+          -0.124326,
+          -0.089102,
+          -0.090923
+        ],
+        [
+          0.124326,
+          0.089102,
+          0.090923
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 41,
+      "id": "bricks",
+      "name": "Bricks",
+      "mesh_asset": "item-model-41",
+      "mesh": "models/materials/bricks.glb",
+      "prefab": "item-bricks.prefab.json",
+      "triangles": 136,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.13,
+          -0.07075,
+          -0.0795
+        ],
+        [
+          0.13,
+          0.07075,
+          0.0795
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 42,
+      "id": "lime",
+      "name": "Lime",
+      "mesh_asset": "item-model-42",
+      "mesh": "models/materials/lime.glb",
+      "prefab": "item-lime.prefab.json",
+      "triangles": 184,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.14,
+          -0.044949,
+          -0.12
+        ],
+        [
+          0.14,
+          0.044949,
+          0.12
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 43,
+      "id": "silicon",
+      "name": "Silicon",
+      "mesh_asset": "item-model-43",
+      "mesh": "models/materials/silicon.glb",
+      "prefab": "item-silicon.prefab.json",
+      "triangles": 132,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.14,
+          -0.01475,
+          -0.14
+        ],
+        [
+          0.14,
+          0.01475,
+          0.14
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 44,
+      "id": "lenses",
+      "name": "Lenses",
+      "mesh_asset": "item-model-44",
+      "mesh": "models/materials/lenses.glb",
+      "prefab": "item-lenses.prefab.json",
+      "triangles": 312,
+      "surfaces": 2,
+      "bounds": [
+        [
+          -0.136,
+          -0.0425,
+          -0.123
+        ],
+        [
+          0.136,
+          0.0425,
+          0.123
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 45,
+      "id": "seeds",
+      "name": "Seeds",
+      "mesh_asset": "item-model-45",
+      "mesh": "models/materials/seeds.glb",
+      "prefab": "item-seeds.prefab.json",
+      "triangles": 180,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.11,
+          -0.0745,
+          -0.104738
+        ],
+        [
+          0.11,
+          0.0745,
+          0.104738
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 46,
+      "id": "biomass",
+      "name": "Biomass",
+      "mesh_asset": "item-model-46",
+      "mesh": "models/materials/biomass.glb",
+      "prefab": "item-biomass.prefab.json",
+      "triangles": 128,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.13,
+          -0.0865,
+          -0.105
+        ],
+        [
+          0.13,
+          0.0865,
+          0.105
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 47,
+      "id": "circuits",
+      "name": "Circuits",
+      "mesh_asset": "item-model-47",
+      "mesh": "models/materials/circuits.glb",
+      "prefab": "item-circuits.prefab.json",
+      "triangles": 304,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -0.14,
+          -0.034,
+          -0.1125
+        ],
+        [
+          0.14,
+          0.034,
+          0.1125
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 48,
+      "id": "motor",
+      "name": "Motor",
+      "mesh_asset": "item-model-48",
+      "mesh": "models/materials/motor.glb",
+      "prefab": "item-motor.prefab.json",
+      "triangles": 652,
+      "surfaces": 4,
+      "bounds": [
+        [
+          -0.14,
+          -0.11725,
+          -0.09
+        ],
+        [
+          0.14,
+          0.11725,
+          0.09
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 49,
+      "id": "machinery",
+      "name": "Machinery",
+      "mesh_asset": "item-model-49",
+      "mesh": "models/materials/machinery.glb",
+      "prefab": "item-machinery.prefab.json",
+      "triangles": 264,
+      "surfaces": 4,
+      "bounds": [
+        [
+          -0.16175,
+          -0.10275,
+          -0.13
+        ],
+        [
+          0.16175,
+          0.10275,
+          0.13
+        ]
+      ],
+      "fluid_sample": false
+    },
+    {
+      "kind": 50,
+      "id": "scrap",
+      "name": "Scrap",
+      "mesh_asset": "item-model-50",
+      "mesh": "models/materials/scrap.glb",
+      "prefab": "item-scrap.prefab.json",
+      "triangles": 132,
+      "surfaces": 3,
+      "bounds": [
+        [
+          -0.129169,
+          -0.071128,
+          -0.09
+        ],
+        [
+          0.129169,
+          0.071128,
+          0.09
+        ]
+      ],
+      "fluid_sample": false
+    }
+  ]
+}

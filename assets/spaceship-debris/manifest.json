@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "ship": "Stellar-IX survey ship",
+  "units": "tile",
+  "up_axis": "Y",
+  "pivot": "ground center",
+  "footprint": [
+    3,
+    3
+  ],
+  "spawn": {
+    "minimum_per_planet": 2,
+    "maximum_per_planet": 6,
+    "optional_slots": 4,
+    "optional_slot_chance_percent": 12,
+    "placement": "seeded distinct non-landing regions; resources kept clear"
+  },
+  "models": [
+    {
+      "id": "debris-cockpit",
+      "name": "Broken cockpit",
+      "description": "Fractured canopy, severed bulkhead and exposed pilot frame.",
+      "mesh": "models/debris/debris-cockpit.glb",
+      "prefab": "debris-cockpit.prefab.json",
+      "triangles": 528,
+      "surfaces": 6,
+      "bounds": [
+        [
+          -1.11964,
+          0.0,
+          -1.0725
+        ],
+        [
+          1.11964,
+          1.056844,
+          1.0725
+        ]
+      ]
+    },
+    {
+      "id": "debris-hull",
+      "name": "Split cargo hull",
+      "description": "Missing roof, peeled armor, cargo cassettes and torn ribs.",
+      "mesh": "models/debris/debris-hull.glb",
+      "prefab": "debris-hull.prefab.json",
+      "triangles": 564,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -1.1125,
+          0.0,
+          -1.025075
+        ],
+        [
+          1.1125,
+          0.934767,
+          1.025075
+        ]
+      ]
+    },
+    {
+      "id": "debris-wing",
+      "name": "Torn survey wing",
+      "description": "Swept wing, snapped root spars and folded tip fin.",
+      "mesh": "models/debris/debris-wing.glb",
+      "prefab": "debris-wing.prefab.json",
+      "triangles": 276,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -1.18297,
+          0.0,
+          -0.9625
+        ],
+        [
+          1.18297,
+          0.605734,
+          0.9625
+        ]
+      ]
+    },
+    {
+      "id": "debris-engine",
+      "name": "Ruptured engine",
+      "description": "Open exhaust, inert turbine, torn casing and broken pylon.",
+      "mesh": "models/debris/debris-engine.glb",
+      "prefab": "debris-engine.prefab.json",
+      "triangles": 780,
+      "surfaces": 5,
+      "bounds": [
+        [
+          -1.11964,
+          0.0,
+          -1.025746
+        ],
+        [
+          1.11964,
+          1.14,
+          1.025746
+        ]
+      ]
+    }
+  ]
+}

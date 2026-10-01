@@ -3,6 +3,7 @@ import "factory-item_fx" as item_fx;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-power" as power;
+import "factory-material_models" as material_models;
 
 fn clear_visuals(name) {
     for target in get_scene_list(name) {
@@ -12,11 +13,27 @@ fn clear_visuals(name) {
 
 fn item_height(kind) {
     // The modeled production machines and junctions share the belt deck.
-    if kind == 1.0 || kind == 2.0 || kind == 3.0 || kind == 4.0 || kind == 5.0 || kind == 7.0 || kind == 8.0 || kind == 11.0 { 0.52 }
+    if kind == 1.0 || data::belt(kind) || data::production(kind) || kind == 4.0 || kind == 7.0 || kind == 8.0 { 0.52 }
     else { 1.10 }
+}
+fn item_height(kind,item) {
+    // Original cubes had a 0.10 half-height; each new silhouette rests on the
+    // same deck (0.34 local + 0.08 machine lift), with a small tread clearance.
+    item_height(kind)-0.10+material_models::half_height(item)+0.004
 }
 
 fn animate_items(fraction) { item_fx::animate(fraction); }
+
+fn reset_rotations() {
+    // Animation state is transient and is not stored in saves. Fresh title-menu
+    // loads and co-op restores need the same full tables as a newly created world.
+    set_object_list("rotation_cells", []);
+    set_object_list("rotation_from", grid::empty_numbers(225));
+    set_object_list("rotation_turns", grid::empty_numbers(225));
+    let times = [];
+    for cell in 0..225 { times.push(1.0); }
+    set_object_list("rotation_time", times);
+}
 
 fn finish_rotations() {
     let facings = get_scene_list("facings");
@@ -32,11 +49,7 @@ fn finish_rotations() {
     }
     set_scene_list("facings", facings);
     power::animate_power_connections(get_object_list("rotation_cells"));
-    set_object_list("rotation_cells", []);
-    set_object_list("rotation_turns", grid::empty_numbers(225));
-    let times = [];
-    for cell in 0..225 { times.push(1.0); }
-    set_object_list("rotation_time", times);
+    reset_rotations();
 }
 
 fn animate_machines(dt) {
@@ -74,7 +87,7 @@ fn animate_machines(dt) {
     power::animate_power_connections(cells);
 }
 
-// The landing site is a four-tile square, one block thick, centered at (0.5,0.5).
+// The service pad retains the four-tile square centered at (0.5,0.5).
 // Buildings can remain on asphalt; only the rocket and dock footprints must be clear.
 fn landing_clear() {
     let builds = if get_scene_variable("chunk_x") == 0.0 && get_scene_variable("chunk_z") == 0.0 { get_scene_list("builds") }
@@ -86,9 +99,11 @@ fn update_projects() {
     let phase = if get_scene_variable("demo_mode") { 0.0 } else { get_object_variable("phase") };
     if data::session_value(4) != phase {
         data::session_set(4,phase);
-        for i in 0..8 { set_visible("site-" + i.to_string(),phase >= 5.0); }
-        for i in 0..8 { set_visible("rocket-lower-" + i.to_string(),phase >= 6.0); }
-        for i in 0..8 { set_visible("rocket-upper-" + i.to_string(),phase >= 7.0); }
+        set_visible("site-0",phase >= 5.0);
+        set_visible("rocket-lower-0",phase >= 6.0);
+        set_visible("rocket-upper-0",phase >= 7.0);
+        // The upgraded pad replaces the starter pod with its own power cabinet.
+        for i in 0..3 {set_visible("pod-"+i.to_string(),phase < 5.0);}
         set_visible("rocket-light-0",false); set_visible("rocket-light-1",false);
     }
     let beat = if phase >= 7.0 && data::session_value(6) > 0.0 { floor(elapsed_time()*2.0) % 2.0 } else { -1.0 };
@@ -96,13 +111,14 @@ fn update_projects() {
         data::session_set(5,beat);
         set_visible("rocket-light-0",beat == 0.0); set_visible("rocket-light-1",beat == 1.0);
         if beat >= 0.0 {
-            set_position("pole-light-31", [(beat * 2.0 - 1.0) * 0.58, 1.05+get_position("rocket-rig")[1], 1.55]);
             set_light_color("pole-light-31", if beat == 0.0 { [0.95, 0.20, 0.10] } else { [0.20, 0.95, 0.58] });
             set_light_intensity("pole-light-31", 2.5);
         }
     }
     if beat>=0.0 {
-        set_position("pole-light-31",[(beat*2.0-1.0)*0.58,1.05+get_position("rocket-rig")[1],1.55]);
+        let pos=get_position("rocket-light-"+beat.to_int().to_string());
+        pos[1]+=0.08+get_position("rocket-rig")[1];
+        set_position("pole-light-31",pos);
     }
 }
 

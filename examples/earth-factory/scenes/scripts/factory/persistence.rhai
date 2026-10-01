@@ -1,6 +1,7 @@
 // Data-only save bridge: native code validates and writes files off the game thread.
 // session: 116 command, 117 slot, 120 world time, 121 autosave time,
 // 122 authority (solo/host/guest), 123 browser mode, 125 I/O busy, 126 world generation.
+import "factory-interiors" as interiors;
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-world" as world;
@@ -11,6 +12,7 @@ import "factory-panels" as panels;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
 import "factory-environment" as environment;
+import "factory-clock" as clock;
 
 fn open(mode) {
     if data::session_value(122)==2.0 {set_scene_variable("message","Only the host can save or load the world."); return;}
@@ -33,6 +35,8 @@ fn prepare_save(slot) {
     true
 }
 fn clear_view() {
+    interiors::clear();
+    visuals::reset_rotations();
     transports::clear();
     item_fx::clear();power::clear_power();
     world::reset_planet();
@@ -43,6 +47,8 @@ fn clear_view() {
     for panel in ["journal-overlay","storage-overlay","machine-inspect-overlay","world-context","stack-menu","stack-drag","nearby-tooltip"] {set_ui_visible(panel,false);}
 }
 fn restore_view() {
+    clock::reset_accumulation();
+    visuals::reset_rotations();
     let session=get_object_list("session");
     session[3]=11.0;session[4]=-1.0;session[5]=-2.0;session[46]=-1.0;session[47]=-1.0;session[48]=-1.0;
     session[116]=0.0;set_object_list("session",session);
@@ -61,14 +67,15 @@ fn restore_view() {
     else { chunks::load_chunk_visuals(cx,cz); }
     world::restore_chunk(cx,cz);
     set_position("cursor",[grid::world_x(get_scene_variable("cursor_x")),0.115,grid::world_z(get_scene_variable("cursor_z"))]);
-    set_position("camera-rig",[(cx*15).to_float(),0.0,(cz*15).to_float()]);
+    environment::center_on_player();
     set_rotation("camera-rig",[0.0,0.0,0.0]);set_scene_variable("camera_heading",0.0);set_scene_variable("camera_pending",0.0);set_scene_variable("camera_progress",1.0);
     set_object_variable("camera_pan_progress",1.0);set_object_variable("camera_zoom",19.0);set_object_variable("camera_zoom_target",19.0);set_camera_size("camera",19.0);
-    set_object_list("rotation_cells",[]);set_object_list("rotation_turns",grid::empty_numbers(225));
     set_visible("ground",!data::on_moon() && !data::dev_world());set_visible("cursor",true);set_visible("rocket-exhaust",false);set_visible("hover-tile",false);
     set_position("rocket-rig",[0.0,0.0,0.0]);
     power::update_power();visuals::update_projects();
-    environment::update_daylight(if data::on_moon(){-1.0}else{sin(data::session_value(120)*0.10)});
+    environment::update_daylight(clock::daylight(data::session_value(120),data::session_value(7).to_int()));
+    clock::update_view(data::session_value(120));
+    interiors::update(0.0);
     set_scene_variable("message","World loaded. Your factories are running.");
 }
 // True means this tick is a consistent snapshot/restore boundary.
@@ -90,7 +97,7 @@ fn update(dt) {
         }
     }
     if !get_object_variable("title_open") {
-        data::session_set(120,data::session_value(120)+dt);
+        clock::advance(dt);
         if data::session_value(122)!=2.0 {
             data::session_set(121,data::session_value(121)+dt);
             if data::session_value(121)>=1200.0 && data::session_value(125)==0.0 && request==0.0 {return prepare_save(0);}

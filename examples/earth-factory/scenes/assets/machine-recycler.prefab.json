@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Recycler Mk1",
+  "root": "root",
+  "assets": {
+    "recycler-mk1": {
+      "kind": "mesh",
+      "path": "models/recycler-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-recycler",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "recycler-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

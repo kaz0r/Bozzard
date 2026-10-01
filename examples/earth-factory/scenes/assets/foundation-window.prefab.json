@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Modern wall window",
+  "root": "root",
+  "assets": {
+    "foundation-window": {
+      "kind": "mesh",
+      "path": "models/foundations/window.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Modern wall window",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-window"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

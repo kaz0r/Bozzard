@@ -10,7 +10,7 @@ pub(super) struct ShadowFrame {
     culling: bool,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 struct ShadowLight {
     position: [f32; 3],
     direction: [f32; 3],
@@ -30,9 +30,83 @@ pub(super) struct ShadowCaster {
     opacity: f32,
     cutoff: f32,
     transparent: bool,
+    lit: bool,
 }
 
+pub(super) struct Comparison {
+    pub whole: bool,
+    pub sun: bool,
+    pub opaque: bool,
+    pub stable_mask: Vec<bool>,
+    pub unchanged: Vec<bool>,
+}
+impl Comparison {
+    pub fn cold(count: usize) -> Self {
+        Self {
+            whole: false,
+            sun: false,
+            opaque: false,
+            stable_mask: vec![false; count],
+            unchanged: vec![false; count],
+        }
+    }
+}
+fn sun_key(scene: &RenderScene) -> (bool, u32, [f32; 3], f32, f32) {
+    let l = scene.lighting;
+    (
+        l.shadows && l.sun_intensity > 0.,
+        l.shadow_resolution,
+        l.sun_direction,
+        l.shadow_bias,
+        l.shadow_normal_bias,
+    )
+}
+fn light_key(l: &LocalLight) -> ShadowLight {
+    let shadow = l.shadows.unwrap();
+    ShadowLight {
+        position: l.position,
+        direction: if l.spot_angles.is_some() {
+            l.direction
+        } else {
+            [0.; 3]
+        },
+        range: l.range,
+        angles: l.spot_angles,
+        bias: shadow.bias,
+        normal_bias: shadow.normal_bias,
+    }
+}
 impl ShadowCaster {
+    fn refresh(&mut self, d: &PreparedDraw) -> usize {
+        let mut clones = 0;
+        if self.mesh != d.object.mesh {
+            self.mesh = d.object.mesh.clone();
+            clones += 1;
+        }
+        if self.texture != d.object.material.texture {
+            self.texture = d.object.material.texture.clone();
+            clones += 1;
+        }
+        self.deformation = d.deformation;
+        self.model = d.object.model;
+        self.uv_scale = d.object.material.uv_scale;
+        self.opacity = d.opacity;
+        self.cutoff = d.cutoff;
+        self.transparent = d.transparent;
+        self.lit = d.object.material.lit;
+        clones
+    }
+    pub fn matches(&self, d: &PreparedDraw) -> bool {
+        self.deformation == d.deformation
+            && self.model == d.object.model
+            && self.mesh == d.object.mesh
+            && self.texture == d.object.material.texture
+            && self.uv_scale == d.object.material.uv_scale
+            && self.opacity == d.opacity
+            && self.cutoff == d.cutoff
+            && self.transparent == d.transparent
+            && self.lit == d.object.material.lit
+    }
     pub fn new(d: &PreparedDraw) -> Self {
         Self {
             deformation: d.deformation,
@@ -43,11 +117,140 @@ impl ShadowCaster {
             opacity: d.opacity,
             cutoff: d.cutoff,
             transparent: d.transparent,
+            lit: d.object.material.lit,
         }
     }
 }
 
 impl ShadowFrame {
+    pub fn compare(
+        &self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        culling: bool,
+    ) -> Comparison {
+        let mut result = Comparison::cold(draws.len());
+        let mut previous = self.casters.iter();
+        let mut opaque = self.casters.iter().filter(|c| !c.transparent);
+        let mut all_same = true;
+        let mut opaque_same = true;
+        let mut opaque_count_same = true;
+        for (index, d) in draws
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.object.material.lit)
+        {
+            let prior = previous.next();
+            let unchanged = prior.is_some_and(|p| p.matches(d));
+            result.unchanged[index] = unchanged;
+            all_same &= unchanged;
+            if !d.transparent {
+                let old = opaque.next();
+                opaque_count_same &= old.is_some();
+                // Opaque and complete iterators usually refer to the same row.
+                // Share the field comparison unless a receiver shifted them.
+                let same = old.is_some_and(|p| {
+                    if prior.is_some_and(|a| std::ptr::eq(a, p)) {
+                        unchanged
+                    } else {
+                        p.matches(d)
+                    }
+                });
+                opaque_same &= same;
+                result.stable_mask[index] = same && d.deformation == 0;
+            }
+        }
+        all_same &= previous.next().is_none();
+        opaque_count_same &= opaque.next().is_none();
+        let same_culling = self.culling == culling;
+        if !opaque_count_same || !same_culling {
+            result.stable_mask.fill(false);
+        }
+        result.opaque = opaque_same && opaque_count_same && same_culling;
+        result.sun = all_same && same_culling && self.sun == sun_key(scene);
+        result.whole = result.sun
+            && self.lights.iter().copied().eq(scene
+                .lights
+                .iter()
+                .filter(|l| l.casts_shadow())
+                .map(light_key));
+        result
+    }
+    pub fn refresh(
+        &mut self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        culling: bool,
+        unchanged: &[bool],
+        stats: &mut FrameStats,
+    ) {
+        self.sun = sun_key(scene);
+        self.culling = culling;
+        self.lights.clear();
+        self.lights.extend(
+            scene
+                .lights
+                .iter()
+                .filter(|l| l.casts_shadow())
+                .map(light_key),
+        );
+        let mut row = 0;
+        for (index, d) in draws
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.object.material.lit)
+        {
+            if row == self.casters.len() {
+                self.casters.push(ShadowCaster::new(d));
+                stats.shadow_metadata_built_casters += 1;
+                stats.shadow_metadata_key_clones += 2;
+            } else if unchanged[index] {
+                stats.shadow_metadata_reused_casters += 1;
+            } else {
+                stats.shadow_metadata_updated_casters += 1;
+                stats.shadow_metadata_key_clones += self.casters[row].refresh(d);
+            }
+            row += 1;
+        }
+        self.casters.truncate(row);
+        if self.casters.capacity() > row.saturating_mul(2).max(64) {
+            self.casters.shrink_to(row);
+        }
+        if self.lights.capacity() > self.lights.len().saturating_mul(2).max(8) {
+            self.lights.shrink_to(self.lights.len());
+        }
+    }
+    pub fn stable_casters(&self, draws: &[PreparedDraw], culling: bool) -> Vec<bool> {
+        let mut mask = vec![false; draws.len()];
+        let opaque = |d: &&PreparedDraw| !d.transparent && d.object.material.lit;
+        if self.culling != culling
+            || self.casters.iter().filter(|c| !c.transparent).count()
+                != draws.iter().filter(opaque).count()
+        {
+            return mask;
+        }
+        for (previous, (index, draw)) in self.casters.iter().filter(|c| !c.transparent).zip(
+            draws
+                .iter()
+                .enumerate()
+                .filter(|(_, d)| !d.transparent && d.object.material.lit),
+        ) {
+            // Skinned meshes stay dynamic, including unchanged poses.
+            mask[index] = draw.deformation == 0 && previous.matches(draw);
+        }
+        mask
+    }
+    pub fn same_local_casters(&self, other: &Self) -> bool {
+        // Transparent lit receivers can move the fitted sun bounds, but never
+        // write local depth. Compare opaque depth state once for all local maps.
+        self.culling == other.culling
+            && self
+                .casters
+                .iter()
+                .filter(|c| !c.transparent)
+                .eq(other.casters.iter().filter(|c| !c.transparent))
+    }
+
     pub fn same_sun(&self, other: &Self) -> bool {
         self.sun == other.sun && self.casters == other.casters && self.culling == other.culling
     }
@@ -109,13 +312,20 @@ pub(super) struct Shadows {
     uniform: wgpu::Buffer,
     sampler: wgpu::Sampler,
     depth: wgpu::TextureView,
-    resolution: u32,
+    pub resolution: u32,
+    pub uniform_row: Vec<u8>,
+    pub sun_cache: sun_cache::Cache,
+    pub sun_fit: sun_fit::Cache,
 }
 
 fn module_text(instanced: bool) -> String {
-    let source = include_str!("shadow_cast.wgsl");
+    let source = format!(
+        "{}\n{}",
+        include_str!("object.wgsl"),
+        include_str!("shadow_cast.wgsl")
+    );
     if !instanced {
-        return source.into();
+        return source;
     }
     source
         .replace("@group(0) @binding(0) var<uniform> object: ObjectUniform;",
@@ -187,7 +397,7 @@ pub(super) fn pipeline(
             cache: None,
         })
 }
-fn target(gpu: &Gpu, resolution: u32) -> wgpu::TextureView {
+pub(super) fn target(gpu: &Gpu, resolution: u32) -> wgpu::TextureView {
     gpu.device
         .create_texture(&wgpu::TextureDescriptor {
             label: Some("sun shadow depth"),
@@ -403,6 +613,9 @@ impl Shadows {
             sampler,
             depth,
             resolution: 1,
+            uniform_row: Vec::new(),
+            sun_cache: sun_cache::Cache::default(),
+            sun_fit: sun_fit::Cache::default(),
         }
     }
     pub fn rebind(&mut self, gpu: &Gpu) {
@@ -494,12 +707,7 @@ fn fit(
     direction: Vec3,
     resolution: u32,
 ) -> Option<(Mat4, f32, f32)> {
-    let up = if direction.dot(Vec3::Y).abs() > 0.99 {
-        Vec3::Z
-    } else {
-        Vec3::Y
-    };
-    let view = glam::camera::rh::view::look_to_mat4(Vec3::ZERO, -direction, up);
+    let view = sun_view(direction);
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = -min;
     for p in points {
@@ -507,6 +715,22 @@ fn fit(
         min = min.min(p);
         max = max.max(p);
     }
+    fit_extents(min, max, view, resolution)
+}
+pub(super) fn sun_view(direction: Vec3) -> Mat4 {
+    let up = if direction.dot(Vec3::Y).abs() > 0.99 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    };
+    glam::camera::rh::view::look_to_mat4(Vec3::ZERO, -direction, up)
+}
+pub(super) fn fit_extents(
+    min: Vec3,
+    max: Vec3,
+    view: Mat4,
+    resolution: u32,
+) -> Option<(Mat4, f32, f32)> {
     if !min.is_finite() || !max.is_finite() {
         return None;
     }
@@ -550,26 +774,55 @@ impl SceneRenderer {
         gpu: &Gpu,
         scene: &RenderScene,
         draws: &[PreparedDraw],
-    ) -> Result<()> {
+        bounds: &[[Vec3; 2]],
+        reuse_depth: bool,
+    ) -> Result<(bool, bool)> {
+        let fit_started = std::time::Instant::now();
         let light = scene.lighting;
-        let fit = fit(
-            draws
-                .iter()
-                .filter(|d| d.object.material.lit)
-                .flat_map(|d| {
-                    corners(self.mesh_for(&d.object).bounds)
-                        .map(|p| d.object.model.transform_point3(p))
-                }),
-            Vec3::from(light.sun_direction).normalize(),
-            light.shadow_resolution,
-        );
+        let direction = Vec3::from(light.sun_direction).normalize();
+        let cached = (self.sun_fit_caching && self.state_caching).then(|| {
+            self.shadows.sun_fit.prepare(
+                sun_view(direction),
+                light.shadow_resolution,
+                draws
+                    .iter()
+                    .zip(bounds)
+                    .map(|(d, b)| (d.object.model, *b, d.object.material.lit)),
+            )
+        });
+        let fit = if let Some(cached) = &cached
+            && !cached.fallback
+        {
+            self.stats.sun_bounds_reused = cached.reused;
+            self.stats.sun_bounds_recomputed = cached.rebuilt;
+            cached.fit
+        } else {
+            self.stats.sun_bounds_fallback = cached.is_some();
+            self.stats.sun_bounds_recomputed =
+                draws.iter().filter(|d| d.object.material.lit).count()
+                    + cached.as_ref().map_or(0, |c| c.rebuilt);
+            fit(
+                draws
+                    .iter()
+                    .filter(|d| d.object.material.lit)
+                    .flat_map(|d| {
+                        corners(self.mesh_for(&d.object).bounds)
+                            .map(|p| d.object.model.transform_point3(p))
+                    }),
+                direction,
+                light.shadow_resolution,
+            )
+        };
+        self.stats.sun_fit_ms = fit_started.elapsed().as_secs_f64() * 1000.;
         let enabled = light.shadows && light.sun_intensity > 0. && fit.is_some();
         let resolution = if enabled { light.shadow_resolution } else { 1 };
         ensure!(
             resolution <= gpu.device.limits().max_texture_dimension_2d,
             "shadow resolution exceeds device limit"
         );
-        if resolution != self.shadows.resolution {
+        let target_changed = resolution != self.shadows.resolution;
+        if target_changed {
+            self.shadows.sun_cache.clear();
             self.shadows.depth = target(gpu, resolution);
             self.shadows.rebind(gpu);
             self.shadows.resolution = resolution;
@@ -581,17 +834,18 @@ impl SceneRenderer {
         // caster (a projectile crossing the scene) stretches the fitted box.
         // ponytail: one whole-texel frame bias for every surface; per-pixel slope bias, or
         // cascades that keep the box small, if the extra softening on large scenes matters.
-        gpu.queue.write_buffer(
-            &self.shadows.uniform,
-            0,
-            &float_bytes(matrix.to_cols_array().into_iter().chain([
-                (light.shadow_bias + texel) / range,
-                light.shadow_normal_bias,
-                if enabled { 1. } else { 0. },
-                1. / resolution as f32,
-            ])),
-        );
-        Ok(())
+        let row = float_bytes(matrix.to_cols_array().into_iter().chain([
+            (light.shadow_bias + texel) / range,
+            light.shadow_normal_bias,
+            if enabled { 1. } else { 0. },
+            1. / resolution as f32,
+        ]));
+        let unchanged = !target_changed && self.shadows.uniform_row == row;
+        if !unchanged || !self.state_caching || !self.shadow_preparation_cache {
+            gpu.queue.write_buffer(&self.shadows.uniform, 0, &row);
+        }
+        self.shadows.uniform_row = row;
+        Ok((unchanged, reuse_depth && unchanged))
     }
     pub(super) fn draw_shadows(
         &self,
@@ -599,12 +853,13 @@ impl SceneRenderer {
         scene: &RenderScene,
         draws: &[PreparedDraw],
         batches: &[instancing::Batch],
+        plan: Option<&sun_cache::Plan>,
     ) -> (usize, u64) {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("sun shadow casters"),
+        let descriptor = |view, label| wgpu::RenderPassDescriptor {
+            label: Some(label),
             color_attachments: &[],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.shadows.depth,
+                view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.),
                     store: wgpu::StoreOp::Store,
@@ -612,12 +867,43 @@ impl SceneRenderer {
                 stencil_ops: None,
             }),
             ..Default::default()
-        });
+        };
+        let mut counts = (0, 0);
+        if let Some(plan) = plan.filter(|p| p.rebuild) {
+            let mut pass = encoder.begin_render_pass(&descriptor(
+                self.shadows.sun_cache.depth(),
+                "sun static shadow casters",
+            ));
+            pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
+            counts = self.draw_shadow_casters(
+                &mut pass,
+                draws,
+                batches,
+                None,
+                false,
+                Some(&plan.static_mask),
+            );
+        }
+        let mut pass =
+            encoder.begin_render_pass(&descriptor(&self.shadows.depth, "sun shadow casters"));
         if !scene.lighting.shadows || self.shadows.resolution == 1 {
-            return (0, 0);
+            return counts;
+        }
+        if plan.is_some() {
+            self.shadows.sun_cache.copy(&mut pass);
+            counts.0 += 1;
+            counts.1 += 1;
         }
         pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
-        self.draw_shadow_casters(&mut pass, draws, batches, None, false)
+        let dynamic = self.draw_shadow_casters(
+            &mut pass,
+            draws,
+            batches,
+            None,
+            false,
+            plan.map(|p| p.dynamic_mask.as_slice()),
+        );
+        (counts.0 + dynamic.0, counts.1 + dynamic.1)
     }
     pub(super) fn draw_shadow_casters(
         &self,
@@ -626,37 +912,26 @@ impl SceneRenderer {
         batches: &[instancing::Batch],
         projection: Option<Mat4>,
         point: bool,
+        mask: Option<&[bool]>,
     ) -> (usize, u64) {
         let mut counts = (0, 0);
-        let casts = |draw: &PreparedDraw| {
-            !draw.transparent
+        let casts = |index: usize| {
+            let draw = &draws[index];
+            mask.is_none_or(|m| m[index])
+                && !draw.transparent
                 && draw.object.material.lit
                 && (!self.culling
                     || projection.is_none_or(|p| {
-                        visibility::visible(
+                        self.frustum_visible(
                             self.mesh_for(&draw.object).bounds,
                             p * draw.object.model,
                         )
                     }))
         };
-        let mut batches = batches.iter().peekable();
-        let mut index = 0;
         let mut was_instanced = None;
-        while index < draws.len() {
-            while batches.peek().is_some_and(|b| b.range.start < index) {
-                batches.next();
-            }
-            // Reuse color-pass instance buffers only when the whole run casts into this map.
-            // Offscreen casters and runs crossing a light frustum retain the exact single-draw path.
-            let batch = batches.peek().filter(|b| {
-                b.range.start == index
-                    && b.slot.is_some()
-                    && draws[b.range.clone()].iter().all(&casts)
-            });
-            let count = batch.map_or(1, |b| b.range.len());
-            let slot = batch.and_then(|b| b.slot);
+        let mut submit = |index: usize, instances: std::ops::Range<u32>, slot: Option<usize>| {
             let draw = &draws[index];
-            if casts(draw) {
+            if casts(index) {
                 let instanced = slot.is_some();
                 if was_instanced != Some(instanced) {
                     pass.set_pipeline(if instanced {
@@ -669,17 +944,56 @@ impl SceneRenderer {
                     was_instanced = Some(instanced);
                 }
                 let binding = slot.map_or(&self.objects[index].binding, |slot| {
-                    &self.instancing.bindings[slot].binding
+                    if self.instancing.shadow_batching() {
+                        &self.instancing.shadow_bindings[slot].binding
+                    } else {
+                        &self.instancing.bindings[slot].binding
+                    }
                 });
                 let mesh = self.mesh_for(&draw.object);
                 pass.set_bind_group(0, binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..mesh.count, 0, 0..count as u32);
+                let count = instances.end - instances.start;
+                pass.draw_indexed(0..mesh.count, 0, instances);
                 counts.0 += 1;
                 counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
-            index += count;
+        };
+        let mut covered = vec![false; draws.len()];
+        for batch in batches {
+            for &index in &batch.indices {
+                covered[index] = true;
+            }
+            // Instance indices address the original packed buffer, including a
+            // nonzero first instance. Skip rejected members without repacking
+            // uniforms or submitting extra triangles.
+            if batch.slot.is_some() && self.instancing.shadow_batches_enabled {
+                let mut start = None;
+                for offset in 0..=batch.indices.len() {
+                    if offset < batch.indices.len() && casts(batch.indices[offset]) {
+                        start.get_or_insert(offset);
+                    } else if let Some(first) = start.take() {
+                        submit(
+                            batch.indices[first],
+                            first as u32..offset as u32,
+                            batch.slot,
+                        );
+                    }
+                }
+            } else if batch.slot.is_some() && batch.indices.iter().all(|&i| casts(i)) {
+                submit(batch.indices[0], 0..batch.indices.len() as u32, batch.slot);
+            } else {
+                for &index in &batch.indices {
+                    submit(index, 0..1, None);
+                }
+            }
+        }
+        // The reference color-batch path also needs camera-culled casters.
+        for (index, &covered) in covered.iter().enumerate() {
+            if !covered {
+                submit(index, 0..1, None);
+            }
         }
         counts
     }
@@ -748,5 +1062,252 @@ mod tests {
             grew,
             "the fitted box never stretched far enough to need the wider bias"
         );
+    }
+}
+
+#[cfg(test)]
+mod fit_cache_tests {
+    use super::*;
+    fn bits(value: Option<(Mat4, f32, f32)>) -> Option<Vec<u32>> {
+        value.map(|(m, r, t)| {
+            m.to_cols_array()
+                .into_iter()
+                .chain([r, t])
+                .map(f32::to_bits)
+                .collect()
+        })
+    }
+    #[test]
+    fn cached_extents_match_original_fit_bytes_through_edits() {
+        let mut cache = sun_fit::Cache::default();
+        let mut seed = 17u64;
+        let mut random = || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            ((seed >> 32) as u32 as f32 / u32::MAX as f32 - 0.5) * 40.
+        };
+        let bounds = [Vec3::splat(-0.5), Vec3::splat(0.5)];
+        let mut inputs: Vec<_> = (0..64)
+            .map(|_| {
+                (
+                    Mat4::from_translation(Vec3::new(random(), random(), random())),
+                    bounds,
+                    true,
+                )
+            })
+            .collect();
+        for tick in 0..5000 {
+            let index = tick % inputs.len();
+            inputs[index].0 = Mat4::from_translation(Vec3::new(random(), random(), random()))
+                * Mat4::from_rotation_y(random())
+                * Mat4::from_scale(Vec3::new(random(), random(), random()));
+            if tick % 17 == 0 {
+                inputs[index].2 = !inputs[index].2;
+            }
+            if tick % 29 == 0 {
+                inputs[index].1[1].x += 0.125;
+            }
+            if tick % 31 == 0 {
+                inputs.swap(1, 7);
+            }
+            let direction = match tick / 100 % 5 {
+                0 => Vec3::Y,
+                1 => -Vec3::Y,
+                2 => Vec3::new(0.01, 1., 0.01).normalize(),
+                3 => Vec3::new(0.4, 0.85, 0.35).normalize(),
+                _ => Vec3::new(-0.3, -0.4, -0.5).normalize(),
+            };
+            let resolution = if tick % 3 == 0 { 512 } else { 2048 };
+            let expected = fit(
+                inputs
+                    .iter()
+                    .filter(|i| i.2)
+                    .flat_map(|(m, b, _)| corners(*b).map(|p| m.transform_point3(p))),
+                direction,
+                resolution,
+            );
+            let result = cache.prepare(sun_view(direction), resolution, inputs.iter().copied());
+            assert!(!result.fallback);
+            assert_eq!(bits(result.fit), bits(expected), "tick {tick}");
+            if tick % 100 != 0 && inputs.iter().filter(|i| i.2).count() > 4 {
+                assert!(result.reused > 0, "tick {tick}");
+            }
+        }
+        for scale in [0., -0., 1e-20, 1e20] {
+            for item in &mut inputs {
+                item.0 = Mat4::from_scale(Vec3::splat(scale));
+                item.2 = true;
+            }
+            let result = cache.prepare(sun_view(Vec3::Z), 256, inputs.iter().copied());
+            let expected = fit(
+                inputs
+                    .iter()
+                    .flat_map(|(m, b, _)| corners(*b).map(|p| m.transform_point3(p))),
+                Vec3::Z,
+                256,
+            );
+            assert_eq!(bits(result.fit), bits(expected));
+        }
+        inputs.clear();
+        assert!(
+            cache
+                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .fit
+                .is_none()
+        );
+        inputs.push((
+            Mat4::from_scale(Vec3::splat(3e38)),
+            [Vec3::splat(-2.), Vec3::splat(2.)],
+            true,
+        ));
+        assert!(
+            cache
+                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .fallback
+        );
+        inputs[0].0 = Mat4::IDENTITY;
+        assert!(
+            !cache
+                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .fallback
+        );
+    }
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+    fn draw(id: u64) -> PreparedDraw {
+        PreparedDraw {
+            source_item: 0,
+            deformation: 0,
+            pbr_override: [-1.; 2],
+            shader: None,
+            pbr: false,
+            opacity: 1.,
+            cutoff: 0.,
+            transparent: false,
+            depth: 0.,
+            object: DrawItem {
+                motion_id: id,
+                model: Mat4::from_translation(Vec3::X * id as f32),
+                mesh: MeshKind::ModelPart(format!("mesh-{id}"), 0),
+                material: Material {
+                    metallic: None,
+                    roughness: None,
+                    surface_overrides: Default::default(),
+                    tint: [1.; 3],
+                    uv_scale: [1.; 2],
+                    texture: TextureKind::Imported(format!("texture-{id}")),
+                    lit: true,
+                    shader: None,
+                },
+            },
+        }
+    }
+    #[test]
+    fn direct_classification_and_retained_metadata_match_original_snapshots() {
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            shader_time: 0.,
+            particles: vec![],
+            fog: Default::default(),
+            gi: None,
+            lights: vec![LocalLight {
+                directional: false,
+                position: [0., 0., 1.],
+                direction: [0., 0., -1.],
+                color: [1.; 3],
+                intensity: 2.,
+                range: 10.,
+                spot_angles: None,
+                shadows: Some(Default::default()),
+            }],
+            environment: EnvironmentSettings::disabled(),
+            display: Default::default(),
+            lighting: Default::default(),
+            view_projection: Mat4::IDENTITY,
+            items: vec![],
+        };
+        let mut spot = scene.lights[0];
+        spot.spot_angles = Some([20., 35.]);
+        scene.lights.push(spot);
+        let mut draws: Vec<_> = (0..67).map(draw).collect();
+        let mut culling = true;
+        let mut retained = ShadowFrame::new(&scene, &draws, culling);
+        let mut seed = 23u64;
+        for tick in 0..5000 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let index = (seed >> 32) as usize % draws.len();
+            match tick % 20 {
+                0 => draws[index].object.model *= Mat4::from_translation(Vec3::X * 0.1),
+                1 => draws[index].transparent = !draws[index].transparent,
+                2 => draws[index].object.material.lit = !draws[index].object.material.lit,
+                3 => draws[index].object.material.uv_scale[0] += 0.1,
+                4 => {
+                    draws[index].object.material.texture =
+                        TextureKind::Imported(format!("updated-{tick}"))
+                }
+                5 => {
+                    draws[index].object.mesh =
+                        MeshKind::ModelPart(format!("updated-{tick}"), tick % 3)
+                }
+                6 => draws[index].deformation = draws[index].deformation.wrapping_add(1),
+                7 => draws[index].opacity = (tick % 100) as f32 / 100.,
+                8 => draws[index].cutoff = (tick % 90) as f32 / 100.,
+                9 => draws.swap(index, 0),
+                10 => draws.push(draw(tick as u64 + 10000)),
+                11 => {
+                    if draws.len() > 1 {
+                        draws.remove(index);
+                    }
+                }
+                12 => scene.lighting.shadow_bias += 0.00001,
+                13 => scene.lighting.sun_direction[0] += 0.01,
+                14 => scene.lights[0].position[0] += 0.1,
+                15 => {
+                    scene.lights[0].intensity = if scene.lights[0].intensity > 0. {
+                        0.
+                    } else {
+                        2.
+                    }
+                }
+                16 => scene.lights.swap(0, 1),
+                17 => culling = !culling,
+                18 => scene.lighting.shadows = !scene.lighting.shadows,
+                _ => {
+                    scene.lights[1].shadows.as_mut().unwrap().normal_bias += 0.001;
+                }
+            }
+            let original = ShadowFrame::new(&scene, &draws, culling);
+            let result = retained.compare(&scene, &draws, culling);
+            assert_eq!(result.whole, retained == original, "whole at {tick}");
+            assert_eq!(result.sun, retained.same_sun(&original), "sun at {tick}");
+            assert_eq!(
+                result.opaque,
+                retained.same_local_casters(&original),
+                "opaque at {tick}"
+            );
+            assert_eq!(
+                result.stable_mask,
+                retained.stable_casters(&draws, culling),
+                "mask at {tick}"
+            );
+            let mut stats = FrameStats::default();
+            retained.refresh(&scene, &draws, culling, &result.unchanged, &mut stats);
+            assert!(retained == original, "refreshed at {tick}");
+            assert_eq!(
+                stats.shadow_metadata_built_casters
+                    + stats.shadow_metadata_updated_casters
+                    + stats.shadow_metadata_reused_casters,
+                draws.iter().filter(|d| d.object.material.lit).count()
+            );
+        }
+        let comparison = retained.compare(&scene, &draws, culling);
+        assert!(comparison.whole);
+        let mut stats = FrameStats::default();
+        retained.refresh(&scene, &draws, culling, &comparison.unchanged, &mut stats);
+        assert_eq!(stats.shadow_metadata_key_clones, 0);
+        assert_eq!(stats.shadow_metadata_built_casters, 0);
+        assert_eq!(stats.shadow_metadata_updated_casters, 0);
     }
 }

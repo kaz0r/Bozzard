@@ -30,7 +30,11 @@ fn night_is_dark_with_stars_behind_terrain_and_readable_hud() -> anyhow::Result<
     ))?;
     let size = [1280, 800];
     let mut day_brightness = 0.;
-    for (label, daylight) in [("day", 1.), ("dusk", 0.), ("night", -1.)] {
+    for (label, elapsed, clock) in [
+        ("day", 3600., "12:00:"),
+        ("dusk", 9000., "18:00:"),
+        ("night", 14400., "00:00:"),
+    ] {
         let mut editor = Editor::open(&path)?;
         let mut scene = editor.scene().clone();
         scene
@@ -49,9 +53,9 @@ fn night_is_dark_with_stars_behind_terrain_and_readable_hud() -> anyhow::Result<
         editor.apply("Reproducible lighting preview", scene)?;
         editor.assets.require_ready()?;
         editor.start_play()?;
-        let script = source.replace(
-            "sin(data::session_value(120) * 0.10)",
-            &format!("{daylight:.1}"),
+        let script = format!(
+            "{}\nfn on_start(me) {{ normal_start(me);data::session_set(120,{elapsed:.1}); }}",
+            source.replace("fn on_start(me)", "fn normal_start(me)")
         );
         let play = editor.play.as_mut().unwrap();
         play.with_instance(|instance, _| instance.register_script("earth-factory".into(), script))?;
@@ -116,12 +120,40 @@ fn night_is_dark_with_stars_behind_terrain_and_readable_hud() -> anyhow::Result<
         let ui = editor.ui_frame(Layer::ThreeD, size.map(|v| v as f32))?;
         assert_eq!(
             ui.element("world-status").unwrap().text,
-            if daylight >= 0. {
-                "EARTH  /  DAY"
+            if label == "day" {
+                "STELLAR-BX / DAY"
             } else {
-                "EARTH  /  NIGHT"
+                "STELLAR-BX / NIGHT"
             }
         );
+        assert!(ui.element("world-clock").unwrap().text.starts_with(clock));
+        for viewport in [[1280., 800.], [1080., 600.], [640., 480.]] {
+            let frame = editor.ui_frame(Layer::ThreeD, viewport)?;
+            let panel = frame.element("world-panel").unwrap().rect;
+            let clock = frame.element("world-clock").unwrap().rect;
+            let resources = frame.element("stored-iron").unwrap().rect;
+            assert!(panel.contains(clock.min));
+            assert!(panel.contains([clock.min[0] + clock.size[0], clock.min[1] + clock.size[1]]));
+            assert!(clock.min[1] + clock.size[1] <= resources.min[1]);
+            let right = [
+                "world-panel",
+                "power-status",
+                "chunk-status",
+                "menu-open",
+                "map-open",
+                "zoom-hint",
+            ];
+            for pair in right.windows(2) {
+                let above = frame.element(pair[0]).unwrap().rect;
+                let below = frame.element(pair[1]).unwrap().rect;
+                assert!(
+                    above.min[1] + above.size[1] <= below.min[1],
+                    "{} overlaps {}",
+                    pair[0],
+                    pair[1]
+                );
+            }
+        }
         render
             .items
             .extend(bozzard_render_assets::widget_items(&ui, &editor.assets)?);

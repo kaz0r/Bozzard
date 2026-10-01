@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Oil extractor Mk1",
+  "root": "root",
+  "assets": {
+    "oil-extractor-mk1": {
+      "kind": "mesh",
+      "path": "models/oil-extractor-mk1.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "machine-oil-extractor",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "oil-extractor-mk1"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

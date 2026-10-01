@@ -1103,6 +1103,404 @@ fn profile_earth_factory_render() -> anyhow::Result<()> {
     Ok(())
 }
 
+// Shared, deterministic six-region fixture for batching measurements. Uses the
+// game's actual multipart machine and resource prefabs, plus its normal updates.
+const BATCHING_FIXTURE: &str = r#"
+    for region in [[-1,0],[1,0],[-1,1],[0,1],[1,1]] {
+        chunks::discover_chunk(region[0],region[1]);
+    }
+    for z in -9..9 { for x in -9..9 {
+        spawn_prefab(data::build_asset(if (x+z)%2==0 {3.0}else{4.0}),
+            [x.to_float(),0.08,z.to_float()]);
+    }}
+    set_object_variable("camera_zoom",32.0);
+    set_object_variable("camera_zoom_target",32.0);
+    environment::update_zoom(0.0,true);
+"#;
+
+#[test]
+#[ignore = "release-mode real-asset batching profile; requires a graphics adapter"]
+fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::SceneBatching)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine lighting profile; requires a graphics adapter"]
+fn profile_earth_factory_local_lighting() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::LocalLighting)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine shadow batching profile; requires a graphics adapter"]
+fn profile_earth_factory_shadow_batching() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::ShadowBatching)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine frustum profile; requires a graphics adapter"]
+fn profile_earth_factory_frustum_acceptance() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::FrustumAcceptance)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine shadow preparation profile; requires a graphics adapter"]
+fn profile_earth_factory_shadow_preparation() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::ShadowPreparation)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine sun-fit profile; requires a graphics adapter"]
+fn profile_earth_factory_sun_fit() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::SunFit)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine shadow metadata profile; requires a graphics adapter"]
+fn profile_earth_factory_shadow_metadata() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::ShadowMetadata)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FactoryProfile {
+    SceneBatching,
+    LocalLighting,
+    ShadowBatching,
+    FrustumAcceptance,
+    ShadowPreparation,
+    SunFit,
+    ShadowMetadata,
+}
+
+struct RendererSample {
+    sun_fit: f64,
+    shadow_state: f64,
+    cpu: f64,
+    synchronized: f64,
+    prepare: f64,
+    encode: f64,
+    submit: f64,
+}
+
+fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
+    use bozzard_render::{Gpu, SceneRenderer, wgpu};
+    use bozzard_scene::blueprint::Value;
+    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/earth.json");
+    let mut editor = Editor::open(&path)?;
+    let mut scene = editor.scene().clone();
+    let controller = scene
+        .objects
+        .iter_mut()
+        .find(|o| o.id == "controller")
+        .unwrap();
+    controller.blackboard.insert(
+        "title_open".into(),
+        BlackboardValue::Scalar(Value::Bool(false)),
+    );
+    controller.blackboard.insert(
+        "creative".into(),
+        BlackboardValue::Scalar(Value::Bool(true)),
+    );
+    scene
+        .blackboard
+        .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
+    editor.apply("Batching profile", scene)?;
+    editor.assets.require_ready()?;
+    editor.start_play()?;
+    let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
+        .replace("fn on_start(me)", "fn normal_start(me)");
+    let source = if profile != FactoryProfile::SceneBatching {
+        format!(
+            "{}\n{}",
+            source.replace("fn on_update(me, dt)", "fn normal_update(me, dt)"),
+            include_str!("fixtures/dense_lighting.rhai")
+        )
+    } else {
+        format!("{source}\nfn on_start(me) {{normal_start(me);{BATCHING_FIXTURE}}}")
+    };
+    editor
+        .play
+        .as_mut()
+        .unwrap()
+        .with_instance(|instance, _| instance.register_script("earth-factory".into(), source))?;
+    for _ in 0..60 {
+        let play = editor.play.as_mut().unwrap();
+        play.app.step();
+        play.check_simulation()?;
+    }
+    let gpu = pollster::block_on(Gpu::request(
+        &bozzard_render::instance(bozzard_render::Backend::native()),
+        None,
+        false,
+    ))?;
+    gpu.require_hardware()?;
+    println!("batching adapter: {:?}", gpu.adapter.get_info());
+    let mut renderers: [SceneRenderer; 2] =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    match profile {
+        FactoryProfile::ShadowBatching => renderers[0].set_shadow_batching_enabled(false),
+        FactoryProfile::LocalLighting => renderers[0].set_local_light_culling_enabled(false),
+        FactoryProfile::SceneBatching => renderers[0].set_global_batching_enabled(false),
+        FactoryProfile::FrustumAcceptance => {
+            renderers[0].set_frustum_early_acceptance_enabled(false)
+        }
+        FactoryProfile::ShadowPreparation => {
+            renderers[0].set_shadow_preparation_caching_enabled(false)
+        }
+        FactoryProfile::SunFit => renderers[0].set_sun_fit_caching_enabled(false),
+        FactoryProfile::ShadowMetadata => renderers[0].set_shadow_metadata_reuse_enabled(false),
+    }
+    for renderer in &mut renderers {
+        renderer.set_profiling_enabled(true);
+        for entry in editor.assets.entries() {
+            if let Some(data) = entry.data() {
+                bozzard_render_assets::upload(&gpu, renderer, &entry.id, data)?;
+            }
+        }
+    }
+    let size = [1280, 800];
+    let target = gpu
+        .device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("scene batching profile"),
+            size: wgpu::Extent3d {
+                width: size[0],
+                height: size[1],
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&Default::default());
+    let mut samples: [Vec<RendererSample>; 2] = Default::default();
+    let mut gpu_samples: [Vec<f64>; 2] = Default::default();
+    for tick in 0..72 {
+        let play = editor.play.as_mut().unwrap();
+        play.app.step();
+        play.check_simulation()?;
+        let scene = editor.render(Layer::ThreeD, 1.6)?;
+        for mode in if tick % 2 == 0 { [0, 1] } else { [1, 0] } {
+            let start = std::time::Instant::now();
+            renderers[mode].draw(&gpu, &target, size, &scene)?;
+            gpu.wait()?;
+            let synchronized_ms = start.elapsed().as_secs_f64() * 1000.;
+            let profiles = renderers[mode].poll_gpu_profiles(&gpu)?;
+            if tick >= 12 {
+                for profile in profiles {
+                    if !profile.failed
+                        && profile.omitted == 0
+                        && let Some(times) = profile
+                            .passes
+                            .iter()
+                            .map(|p| p.milliseconds)
+                            .collect::<Option<Vec<_>>>()
+                    {
+                        gpu_samples[mode].push(times.into_iter().sum());
+                    }
+                }
+                let stats = renderers[mode].frame_stats();
+                samples[mode].push(RendererSample {
+                    sun_fit: stats.sun_fit_ms,
+                    shadow_state: stats.shadow_state_ms,
+                    cpu: stats.cpu_ms,
+                    synchronized: synchronized_ms,
+                    prepare: stats.prepare_ms,
+                    encode: stats.encode_ms,
+                    submit: stats.submit_ms,
+                });
+            }
+        }
+    }
+    let modes = match profile {
+        FactoryProfile::ShadowBatching => ["individual-shadow-fallback", "shadow-instance-ranges"],
+        FactoryProfile::LocalLighting => ["full-light-loop", "light-masks"],
+        FactoryProfile::SceneBatching => ["consecutive", "global"],
+        FactoryProfile::FrustumAcceptance => ["eight-corner-reference", "early-corner-acceptance"],
+        FactoryProfile::ShadowPreparation => {
+            ["full-shadow-preparation", "cached-shadow-preparation"]
+        }
+        FactoryProfile::SunFit => ["original-sun-fit", "cached-sun-extents"],
+        FactoryProfile::ShadowMetadata => ["rebuilt-shadow-snapshot", "retained-shadow-snapshot"],
+    };
+    for (mode, values) in samples.iter().enumerate() {
+        let mut cpu: Vec<_> = values.iter().map(|v| v.cpu).collect();
+        let mut wall: Vec<_> = values.iter().map(|v| v.synchronized).collect();
+        cpu.sort_by(f64::total_cmp);
+        wall.sort_by(f64::total_cmp);
+        let stats = renderers[mode].frame_stats();
+        println!(
+            "mode={} visible={} surfaces={} draws={} shadow_draws={} object_writes={} cpu_median_ms={:.3} cpu_p95_ms={:.3} synchronized_median_ms={:.3}",
+            modes[mode],
+            stats.visible_items,
+            stats.visible_surfaces,
+            stats.color_draws,
+            stats.shadow_draws,
+            stats.object_uniform_writes,
+            cpu[30],
+            cpu[57],
+            wall[30]
+        );
+        gpu_samples[mode].sort_by(f64::total_cmp);
+        println!(
+            "mode={} lights={}/{} gpu_pass_median_ms={:?} samples={}",
+            modes[mode],
+            stats.local_light_candidates,
+            stats.local_light_slots,
+            gpu_samples[mode].get(gpu_samples[mode].len() / 2),
+            gpu_samples[mode].len()
+        );
+        let median = |component: fn(&RendererSample) -> f64| {
+            let mut stage: Vec<_> = values.iter().map(component).collect();
+            stage.sort_by(f64::total_cmp);
+            stage[stage.len() / 2]
+        };
+        println!(
+            "mode={} prepare_median_ms={:.3} encode_median_ms={:.3} submit_median_ms={:.3} shadow_maps={}",
+            modes[mode],
+            median(|v| v.prepare),
+            median(|v| v.encode),
+            median(|v| v.submit),
+            stats.shadow_maps_rendered
+        );
+        println!(
+            "mode={} local_caster_checks={} local_maps_without_scan={}",
+            modes[mode],
+            stats.local_shadow_caster_checks,
+            stats.local_shadow_maps_reused_without_scan
+        );
+        println!(
+            "mode={} sun_fit_median_ms={:.6}",
+            modes[mode],
+            median(|v| v.sun_fit)
+        );
+        println!(
+            "mode={} shadow_state_median_ms={:.6} metadata_built={} metadata_updated={} metadata_reused={} key_clones={}",
+            modes[mode],
+            median(|v| v.shadow_state),
+            stats.shadow_metadata_built_casters,
+            stats.shadow_metadata_updated_casters,
+            stats.shadow_metadata_reused_casters,
+            stats.shadow_metadata_key_clones
+        );
+    }
+    if profile == FactoryProfile::ShadowBatching {
+        assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
+        assert_eq!(
+            renderers[1].frame_stats().color_draws,
+            renderers[0].frame_stats().color_draws
+        );
+        assert_eq!(
+            renderers[1].frame_stats().shadow_triangles,
+            renderers[0].frame_stats().shadow_triangles
+        );
+    } else if profile == FactoryProfile::LocalLighting {
+        assert!(
+            renderers[1].frame_stats().local_light_candidates
+                < renderers[0].frame_stats().local_light_candidates
+        );
+        assert_eq!(
+            renderers[1].frame_stats().color_draws,
+            renderers[0].frame_stats().color_draws
+        );
+    } else if profile == FactoryProfile::SceneBatching {
+        assert!(
+            renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2
+        );
+    } else if matches!(
+        profile,
+        FactoryProfile::FrustumAcceptance | FactoryProfile::SunFit | FactoryProfile::ShadowMetadata
+    ) {
+        assert_eq!(
+            renderers[0].frame_stats().color_draws,
+            renderers[1].frame_stats().color_draws
+        );
+        assert_eq!(
+            renderers[0].frame_stats().shadow_draws,
+            renderers[1].frame_stats().shadow_draws
+        );
+        assert_eq!(
+            renderers[0].frame_stats().shadow_triangles,
+            renderers[1].frame_stats().shadow_triangles
+        );
+    }
+    // Validate this game's real multipart materials, shadows and camera rotation.
+    if profile == FactoryProfile::ShadowPreparation {
+        let reference = renderers[0].frame_stats();
+        let cached = renderers[1].frame_stats();
+        println!(
+            "static_casters={} dynamic_casters={} depth_copies={} static_reused={}",
+            cached.sun_static_casters,
+            cached.sun_dynamic_casters,
+            cached.sun_depth_copies,
+            cached.sun_static_cache_reused
+        );
+        assert_eq!(reference.color_draws, cached.color_draws);
+        assert!(cached.sun_static_cache_reused);
+        assert!(cached.shadow_draws < reference.shadow_draws);
+        assert!(cached.shadow_triangles < reference.shadow_triangles);
+    }
+    if profile == FactoryProfile::SunFit {
+        let a = renderers[0].frame_stats();
+        let b = renderers[1].frame_stats();
+        println!(
+            "sun_bounds original_recomputed={} cached_recomputed={} cached_reused={} fallback={} bytes={}",
+            a.sun_bounds_recomputed,
+            b.sun_bounds_recomputed,
+            b.sun_bounds_reused,
+            b.sun_bounds_fallback,
+            b.sun_bounds_cache_bytes
+        );
+        assert!(b.sun_bounds_recomputed < a.sun_bounds_recomputed);
+        assert!(b.sun_bounds_reused > 0);
+        assert!(!b.sun_bounds_fallback);
+    }
+    if profile == FactoryProfile::ShadowMetadata {
+        let a = renderers[0].frame_stats();
+        let b = renderers[1].frame_stats();
+        assert_eq!(b.shadow_metadata_built_casters, 0);
+        assert!(b.shadow_metadata_reused_casters > b.shadow_metadata_updated_casters);
+        assert!(b.shadow_metadata_key_clones < a.shadow_metadata_key_clones);
+    }
+    for heading in [0., 90., 180., 270.] {
+        let play = editor.play.as_mut().unwrap();
+        let source = format!(
+            "fn on_update(me,dt) {{set_rotation(\"camera-rig\",[0.0,{heading:.1},0.0]);}} "
+        );
+        play.with_instance(|instance, _| instance.register_script("earth-factory".into(), source))?;
+        play.app.step();
+        play.check_simulation()?;
+        let scene = editor.render(Layer::ThreeD, 1.6)?;
+        let captures = renderers
+            .iter_mut()
+            .map(|renderer| {
+                bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
+                    renderer.draw(&gpu, target, size, &scene)
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            captures[0].rgba, captures[1].rgba,
+            "factory pixels at heading {heading}"
+        );
+        assert_eq!(
+            renderers[0].frame_stats().color_triangles,
+            renderers[1].frame_stats().color_triangles
+        );
+        if profile != FactoryProfile::ShadowPreparation {
+            assert_eq!(
+                renderers[0].frame_stats().shadow_triangles,
+                renderers[1].frame_stats().shadow_triangles
+            );
+        }
+    }
+    Ok(())
+}
+
 #[test]
 #[ignore = "manual journal CPU profile; timing varies by host"]
 fn profile_stellar_journal_cpu() -> anyhow::Result<()> {

@@ -47,6 +47,189 @@ Keep device, backend, scene, render size, shadow settings, and build mode fixed 
 
 The benchmark’s reference/culling/cache comparison is a diagnostic for renderer correctness and CPU-side cost. It does not establish image quality, power use, GPU occupancy, or a windowed presentation rate. For Sponza setup and the ignored dataset location, see [the Sponza reproduction](sponza.md).
 
+## Scene-wide opaque batching
+
+The scene renderer groups visible repeated meshes across intervening model parts,
+using the same mesh, texture, lighting eligibility and stock shader flavor. Each indexed draw packs up
+to 64 instances within the portable 16 KiB uniform limit. Shared frame constants
+leave each instance with a 256-byte record; changed records upload independently.
+A cached plan also retains grouping through modest movement and orthographic
+camera changes when conservative ordering checks remain valid. Visibility,
+geometry or grouping changes and uncertain projections rebuild the plan.
+Packed instances reuse their buffers; individual uniform uploads are deferred
+until a color or shadow draw needs them.
+
+Conservative projected bounds and depth intervals retain ordering dependencies
+for potentially coincident samples. Orthographic views also check world bounds,
+expanded by the inverse camera's projection-roundoff footprint, so physically
+separate objects need not retain false projected overlaps. This preserves
+coplanar winners. Transparent objects keep their back-to-front individual draws;
+custom shaders and deformed meshes remain individual. Shadow maps group compatible
+opaque, lit casters independently of camera visibility, including offscreen
+objects. Partial light frusta draw contiguous accepted instance ranges without
+repacking the shared buffer or submitting rejected triangles.
+Occlusion tests enclose every member of a potentially nonconsecutive batch.
+
+Compare the previous consecutive batcher with scene-wide grouping using real game
+assets in six loaded regions, including 324 multipart machine prefabs:
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_scene_batching -- --ignored --exact --nocapture
+```
+
+The benchmark interleaves both modes on the same simulated frames, warms up for
+12 frames, then reports 60 CPU and synchronized wall samples at 1280 × 800. Four
+camera headings must produce exact matching pixels and triangle counts. These
+renderer times exclude simulation and window presentation.
+
+For an interleaved-mesh stress test, including all-moving instances:
+
+```sh
+cargo test --release --offline -p bozzard-render --test instancing \
+  scale_benchmark -- --ignored --exact --nocapture
+```
+
+September 30 local release measurements, before the shared-uniform pass and with
+32-instance batches, on Intel Iris Xe / Vulkan, using the
+six-region fixture above (419 visible items / 1,430 visible surfaces):
+
+| Batching | Color draw commands | Renderer CPU median / p95 | Synchronized wall median |
+| --- | ---: | ---: | ---: |
+| Previous consecutive runs | 1,356 | 9.665 / 13.086 ms | 23.474 ms |
+| Scene-wide grouping | 80 | 3.762 / 6.248 ms | 10.844 ms |
+
+The measurements preserve triangle counts and exact pixels at all four camera
+headings. Four indoor/outdoor/window/door captures also remain pixel-identical to
+the earlier foundation previews. Native 180-frame runs of the same fixture at
+1024 × 640 reduced median whole-frame CPU from **8.201 to 5.459 ms**, and median
+presentation interval from **18.239 to 16.740 ms** (about 55 to 60 FPS). Presentation
+p95 changed from **36.507 to 33.701 ms**; startup outliers remain. GPU-pass medians
+were similar (**8.165 / 8.047 ms**). These are local measurements of this fixture,
+not a frame-rate guarantee for other saves, hardware or resolutions.
+
+For the October 1 shared-uniform, batch-capacity and partial-upload work, including
+incremental ordering checks, conservative local-light masks, and repeatable benchmarks, see
+[batch renderer optimizations](batch-renderer-optimizations.md).
+
+## Independent shadow batching
+
+The October 1 follow-up batches sun, spot, and point shadow casters independently
+of color-pass ordering. Cached shadow maps still skip unchanged work. The
+400-build release fixture exercises updated maps during an active wind gust,
+using the ordinary simulation hook budget and real factory assets. Three paired
+runs at 1280 × 800 on Intel Iris Xe / Vulkan compare the former fallback with the
+new groups; each run uses twelve warm-up frames and sixty interleaved samples.
+Exact pixels and submitted triangle counts match at all four camera headings.
+
+| Shadow mode | Shadow draws | Renderer CPU median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Former individual fallback | 1,702 | 11.110 ms | 26.167 ms | 13.138 ms |
+| Independent batches | 710 | 9.856 ms | 24.083 ms | 13.148 ms |
+
+These are medians of three run medians. Shadow draws fall by 58%, CPU time by 11%,
+and synchronized time by 8%; GPU pass time is essentially unchanged. Both modes
+retain 401 color draws, 780 visible items, and 1,590 visible surfaces. GPU values
+sum render/compute pass timestamps; synchronized values include a device wait.
+Neither measures windowed FPS. Separate shadow instance buffers add 16 KiB per
+active group and retain at most eight spare buffers. See the
+[implementation and validation notes](batch-renderer-optimizations.md#independent-shadow-batches)
+for eligibility, caching, and measurement limits.
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_shadow_batching -- --ignored --exact --nocapture
+```
+
+## Early frustum acceptance
+
+Camera and local-shadow culling now accept a bound after its first corner when
+that corner is accepted by all six homogeneous planes. Other bounds retain the
+original plane-major rejection checks over the remaining corners, with exact
+distances and tolerance. A separate fallback keeps its scratch storage out of
+the small acceptance path. A diagnostic restores the original predicate.
+
+Three paired release runs of the same 400-build, active-gust factory at
+1280 × 800 on Intel Iris Xe / Vulkan report medians of run medians:
+
+| Predicate | Renderer CPU median / p95 | Preparation median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Original eight-corner scan | 9.724 / 12.223 ms | 7.323 ms | 24.219 ms | 13.099 ms |
+| First-corner acceptance | 9.244 / 12.604 ms | 6.571 ms | 23.900 ms | 13.148 ms |
+
+CPU median improves by 5% and preparation by 10%; GPU time is essentially
+unchanged. p95 is slightly higher, so no tail-latency gain is established.
+Both modes retain 401 color draws and 710 shadow draws, and match exact captures
+and triangles at all four camera headings. A 50,000-case regression checks the
+original predicate; the full native renderer suite passes 56 tests. See
+[the frustum methods and measurements](batch-renderer-optimizations.md#early-frustum-acceptance)
+for individual runs, isolated inside/outside/near-plane workloads, and reproduction.
+
+## Cached static sun depth
+
+The factory's moving wind cubes now render over a copied depth layer for unchanged
+geometry. Reuse requires exact static caster state, fitted sun uniform bytes and
+target identity; asset publication and failed frames invalidate affected state.
+Smaller scenes retain full depth rendering. Local maps also avoid repeated scans
+when opaque inputs and their light projection/settings are unchanged.
+
+Three paired release runs of the same 400-build active-gust factory, 1280 × 800,
+2048² sun map, Intel Iris Xe / Vulkan, report medians of run medians:
+
+| Preparation | Sun draws | Renderer CPU median / p95 | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Full sun depth | 710 | 9.738 / 11.858 ms | 24.082 ms | 13.059 ms |
+| Static copy plus moving casters | 2 | 9.372 / 12.653 ms | 21.662 ms | 11.248 ms |
+
+GPU pass time improves by 14%, synchronized time by 10%, and CPU median by 4%.
+Preparation and CPU p95 rise by 9% and 7%, respectively. The extra depth texture
+costs 16 MiB at this resolution (64 MiB at 4096²). Every run matches exact color
+captures at four headings, retains 401 color draws, and includes the depth-copy
+cost in GPU timestamps. The fixture has no active local shadow maps, so this
+factory timing measures the sun cache. The full native suite passes 59 tests.
+See [cache guards, individual runs and reproduction](batch-renderer-optimizations.md#static-sun-depth-and-shadow-preparation).
+
+## Retained sun-fitting bounds
+
+The sun fitter retains per-surface light-space extrema keyed by exact model,
+local-bound and sun-view bits. Changed bounds use the original corner/transform
+order; non-finite corners fall back to the complete reference reduction.
+
+Three paired release runs of the same 400-build factory report median-of-run medians:
+
+| Fitter | Direct fitting CPU | Renderer CPU median / p95 | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Original loop | 0.185437 ms | 9.251 / 12.209 ms | 21.649 ms | 11.284 ms |
+| Cached extrema | 0.056986 ms | 8.251 / 12.705 ms | 21.434 ms | 11.186 ms |
+
+The directly measured fitting stage improves 69%, or about 0.13 ms, recomputing
+8 bounds instead of 2,891. Allocation is about 328 KiB. Submitted geometry and
+exact captures match. Larger total CPU/preparation differences vary between
+runs; GPU time is essentially unchanged, synchronized time improves about 1%,
+and CPU p95 is slightly higher. See [fit guards, exact tests, individual runs,
+and preliminary timing variation](batch-renderer-optimizations.md#retained-sun-fit-bounds).
+
+## Retained shadow metadata
+
+Direct comparison with the successful snapshot now supplies shadow-cache and
+static-membership decisions in one traversal. Unchanged rows keep their keys;
+changed scalar fields refresh after submission. Failure and asset-publication
+guards preserve complete revalidation.
+
+Three paired release runs of the same active-gust factory report medians of run medians:
+
+| State preparation | Direct state CPU | Renderer CPU median / p95 | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Rebuild snapshot | 0.575732 ms | 8.435 / 13.016 ms | 21.286 ms | 11.078 ms |
+| Retain rows and classify directly | 0.193701 ms | 7.728 / 11.547 ms | 20.630 ms | 11.241 ms |
+
+Direct state work improves 66%, total CPU median 8%, and synchronized time 3%.
+Measured frames build no new caster records, refresh eight and reuse 2,883;
+mesh/texture clone calls fall from 5,782 to zero. Submitted geometry and captures
+match. GPU time is about 1.5% higher; no GPU speedup is established. The full
+native suite passes 61 tests. See [classification guards, individual runs and
+reproduction](batch-renderer-optimizations.md#retained-shadow-metadata-and-direct-classification).
+
 ## Recorded Sponza measurements
 
 The editor picking comparison used 200 same-process samples, alternating BVH and linear traversal order for each paired measurement. The reported values use midpoint medians in milliseconds; p95 values, when printed by the example, use nearest-rank selection. The wider 1,681-ray checks were untimed and compared object and surface identities against the linear oracle.

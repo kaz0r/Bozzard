@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Wood wall",
+  "root": "root",
+  "assets": {
+    "foundation-wood-wall": {
+      "kind": "mesh",
+      "path": "models/foundations/wood-wall.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Wood wall",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-wood-wall"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

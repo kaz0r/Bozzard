@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "units": "tile",
+  "up_axis": "Y",
+  "floor_top": 0.107,
+  "roof_height": 3.0,
+  "wall_alignment": "tile edge; default along Z",
+  "models": [
+    {
+      "id": "foundation-concrete-floor",
+      "kind": 30,
+      "name": "Concrete foundation",
+      "triangles": 136,
+      "mesh": "models/foundations/concrete-floor.glb",
+      "prefab": "foundation-concrete-floor.prefab.json"
+    },
+    {
+      "id": "foundation-wood-floor",
+      "kind": 31,
+      "name": "Timber foundation",
+      "triangles": 264,
+      "mesh": "models/foundations/wood-floor.glb",
+      "prefab": "foundation-wood-floor.prefab.json"
+    },
+    {
+      "id": "foundation-concrete-wall",
+      "kind": 32,
+      "name": "Concrete wall",
+      "triangles": 168,
+      "mesh": "models/foundations/concrete-wall.glb",
+      "prefab": "foundation-concrete-wall.prefab.json"
+    },
+    {
+      "id": "foundation-brick-wall",
+      "kind": 33,
+      "name": "Brick wall",
+      "triangles": 3300,
+      "mesh": "models/foundations/brick-wall.glb",
+      "prefab": "foundation-brick-wall.prefab.json"
+    },
+    {
+      "id": "foundation-metal-wall",
+      "kind": 34,
+      "name": "Metal wall",
+      "triangles": 408,
+      "mesh": "models/foundations/metal-wall.glb",
+      "prefab": "foundation-metal-wall.prefab.json"
+    },
+    {
+      "id": "foundation-wood-wall",
+      "kind": 35,
+      "name": "Wood wall",
+      "triangles": 660,
+      "mesh": "models/foundations/wood-wall.glb",
+      "prefab": "foundation-wood-wall.prefab.json"
+    },
+    {
+      "id": "foundation-concrete-roof",
+      "kind": 36,
+      "name": "Concrete roof",
+      "triangles": 176,
+      "mesh": "models/foundations/concrete-roof.glb",
+      "prefab": "foundation-concrete-roof.prefab.json"
+    },
+    {
+      "id": "foundation-wood-roof",
+      "kind": 37,
+      "name": "Wood roof",
+      "triangles": 352,
+      "mesh": "models/foundations/wood-roof.glb",
+      "prefab": "foundation-wood-roof.prefab.json"
+    },
+    {
+      "id": "foundation-sliding-door",
+      "kind": 38,
+      "name": "Modern sliding door",
+      "triangles": 288,
+      "mesh": "models/foundations/sliding-door.glb",
+      "prefab": "foundation-sliding-door.prefab.json"
+    },
+    {
+      "id": "foundation-window",
+      "kind": 39,
+      "name": "Modern wall window",
+      "triangles": 420,
+      "mesh": "models/foundations/window.glb",
+      "prefab": "foundation-window.prefab.json"
+    },
+    {
+      "id": "foundation-door-leaf",
+      "kind": 0,
+      "name": "Sliding door leaf",
+      "triangles": 100,
+      "mesh": "models/foundations/door-leaf.glb",
+      "prefab": "foundation-door-leaf.prefab.json"
+    }
+  ]
+}

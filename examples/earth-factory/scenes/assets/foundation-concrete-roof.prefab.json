@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Concrete roof",
+  "root": "root",
+  "assets": {
+    "foundation-concrete-roof": {
+      "kind": "mesh",
+      "path": "models/foundations/concrete-roof.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Concrete roof",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "foundation-concrete-roof"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

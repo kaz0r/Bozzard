@@ -17,6 +17,8 @@ mod sprites;
 pub use sprites::{SpriteGeometry, SpriteMesh, SpriteQuad};
 mod text;
 pub use text::{ScreenText, TextAlignment, TextMesh, text_bounds};
+mod host;
+pub(crate) use host::host_text;
 mod instancing;
 mod visibility;
 pub use visibility::FrameStats;
@@ -54,6 +56,8 @@ mod local_shadow_maps;
 mod point_shadows;
 mod shadows;
 mod spot_shadows;
+mod sun_cache;
+mod sun_fit;
 mod upload;
 pub use lighting::Lighting;
 pub use upload::{
@@ -61,7 +65,8 @@ pub use upload::{
     UploadSource, upload_memory_bytes,
 };
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
-const OBJECT_UNIFORM_BYTES: usize = 496;
+const OBJECT_UNIFORM_BYTES: usize = 256;
+const FRAME_UNIFORM_BYTES: usize = 320;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshKind {
@@ -222,24 +227,21 @@ struct ObjectBinding {
     texture: TextureKind,
     binding: wgpu::BindGroup,
     uniform: Option<[u8; OBJECT_UNIFORM_BYTES]>,
+    dirty: bool,
     source: Option<ObjectUniformSource>,
+    light_revision: u64,
+    light_bounds: Option<[Vec3; 2]>,
 }
 
-/// All inputs to an object's packed uniform. Comparing these avoids rebuilding matrices
-/// and serializing 124 floats for stationary objects, including while other objects animate.
+/// Object-only inputs stay unchanged when the camera, lighting, fog or graph clock moves.
 #[derive(PartialEq)]
 struct ObjectUniformSource {
     model: Mat4,
     previous_model: Option<Mat4>,
-    view_projection: Mat4,
-    previous_view_projection: Mat4,
-    size: [u32; 2],
-    lighting: [f32; 12],
-    fog: [f32; 12],
     tail: [f32; 8],
     surface: [f32; 4],
     double_sided: bool,
-    shader_time: f32,
+    light_mask: u32,
 }
 struct DepthTarget {
     view: wgpu::TextureView,
@@ -261,8 +263,13 @@ pub struct SceneRenderer {
     text: Option<text::TextRenderer>,
     stats: FrameStats,
     culling: bool,
+    early_frustum_acceptance: bool,
+    shadow_preparation_cache: bool,
+    sun_fit_caching: bool,
+    shadow_metadata_reuse: bool,
     occlusion: occlusion::Occlusion,
     state_caching: bool,
+    light_selection: local_lights::LightSelection,
     instancing: instancing::Instancing,
     environment: environment::Environment,
     display: display::Display,
@@ -271,6 +278,8 @@ pub struct SceneRenderer {
     pipeline: [wgpu::RenderPipeline; 2],
     transparent_pipeline: [wgpu::RenderPipeline; 2],
     layout: wgpu::BindGroupLayout,
+    frame_buffer: wgpu::Buffer,
+    frame_uniform: Option<Vec<u8>>,
     /// Shader graph modules by content hash; compiled on first use per frame.
     graphs: BTreeMap<(u64, bool), std::sync::Arc<GraphPipelines>>,
     idle_graphs: std::collections::VecDeque<(u64, bool)>,
@@ -298,24 +307,6 @@ pub struct SceneRenderer {
 
 pub(crate) fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
     values.into_iter().flat_map(f32::to_le_bytes).collect()
-}
-
-/// Full WGSL for one host flavor: shared lighting includes plus the host fragment shader.
-fn host_text(pbr: bool) -> String {
-    format!(
-        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
-        include_str!("scene/environment_sample.wgsl"),
-        include_str!("scene/shadow_sample.wgsl"),
-        include_str!("scene/local_lights.wgsl"),
-        include_str!("scene/gi.wgsl"),
-        include_str!("scene/effects.wgsl"),
-        include_str!("scene/fog.wgsl"),
-        if pbr {
-            include_str!("pbr.wgsl")
-        } else {
-            include_str!("scene.wgsl")
-        },
-    )
 }
 
 /// Splice a graph's `graph_material_surface` over the host's stock call site.
@@ -669,6 +660,16 @@ impl SceneRenderer {
                 count: None,
             });
         }
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 11,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(FRAME_UNIFORM_BYTES as u64),
+            },
+            count: None,
+        });
         let layout = gpu
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -748,8 +749,13 @@ impl SceneRenderer {
             stats: Default::default(),
             profiler: Default::default(),
             culling: true,
+            early_frustum_acceptance: true,
+            shadow_preparation_cache: true,
+            sun_fit_caching: true,
+            shadow_metadata_reuse: true,
             occlusion: Default::default(),
             state_caching: true,
+            light_selection: Default::default(),
             instancing: instancing::Instancing::new(instance_layout),
             environment,
             display,
@@ -759,6 +765,13 @@ impl SceneRenderer {
             pipeline,
             transparent_pipeline,
             layout,
+            frame_buffer: gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("scene shared frame uniform"),
+                size: FRAME_UNIFORM_BYTES as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            frame_uniform: None,
             graphs: BTreeMap::new(),
             idle_graphs: Default::default(),
             neutral_normal: neutral_texture(gpu),
@@ -874,7 +887,10 @@ impl SceneRenderer {
             texture: key.clone(),
             binding,
             uniform: None,
+            dirty: true,
             source: None,
+            light_revision: 0,
+            light_bounds: None,
         })
     }
 
@@ -923,6 +939,10 @@ impl SceneRenderer {
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
                 });
             }
+            entries.push(wgpu::BindGroupEntry {
+                binding: 11,
+                resource: self.frame_buffer.as_entire_binding(),
+            });
             gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("scene object bindings"),
                 layout,
@@ -969,7 +989,10 @@ impl SceneRenderer {
         }
         self.objects.clear();
         self.instancing.bindings.clear();
+        self.instancing.shadow_bindings.clear();
         self.shadow_frame = None;
+        self.shadows.sun_cache.clear();
+        self.shadows.sun_fit.clear();
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
     }
@@ -1947,7 +1970,12 @@ impl SceneRenderer {
                 );
             }
         }
-        let visible = self.visibility(scene, &draws);
+        let bounds: Vec<_> = draws
+            .iter()
+            .map(|d| self.mesh_for(&d.object).bounds)
+            .collect();
+        let visible = self.visibility(scene, &draws, &bounds);
+        self.light_selection.update(&scene.lights);
         self.stats.scene_items = scene.items.len();
         self.stats.surfaces = draws.len();
         self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
@@ -1960,7 +1988,31 @@ impl SceneRenderer {
         let inverse_view_projection = view_projection.inverse().to_cols_array();
         let lighting_uniform = scene.lighting.uniform();
         let fog_uniform = scene.fog.uniform(raw);
-        for (draw, binding) in draws.iter().zip(&mut self.objects) {
+        let frame_uniform = float_bytes(
+            view_projection
+                .to_cols_array()
+                .into_iter()
+                .chain(temporal_frame.previous_vp.to_cols_array())
+                .chain(inverse_view_projection)
+                .chain([size[0] as f32, size[1] as f32, 0., 0.])
+                .chain(lighting_uniform)
+                .chain(fog_uniform)
+                .chain([scene.shader_time, 0., 0., 0.]),
+        );
+        debug_assert_eq!(frame_uniform.len(), FRAME_UNIFORM_BYTES);
+        let camera_changed = self
+            .frame_uniform
+            .as_ref()
+            .is_none_or(|previous| previous[..64] != frame_uniform[..64]);
+        if !self.state_caching || self.frame_uniform.as_ref() != Some(&frame_uniform) {
+            // Queue writes survive a later draw error. Invalidate before writing
+            // so reverting to the last good camera must upload its constants.
+            self.frame_uniform = None;
+            gpu.queue
+                .write_buffer(&self.frame_buffer, 0, &frame_uniform);
+            self.stats.frame_uniform_bytes = frame_uniform.len();
+        }
+        for (index, (draw, binding)) in draws.iter().zip(&mut self.objects).enumerate() {
             let object = &draw.object;
             let previous_model = self.motion_history.previous_model(object);
             let material = &object.material;
@@ -1996,66 +2048,89 @@ impl SceneRenderer {
                     0.
                 },
             ];
-            let shader_time = if material.shader.is_some() {
-                scene.shader_time
+            let lights_present = !scene.lights.is_empty();
+            let light_cache_hit = lights_present
+                && self.state_caching
+                && binding.light_revision == self.light_selection.revision()
+                && binding.light_bounds == Some(bounds[index])
+                && binding.source.as_ref().is_some_and(|source| {
+                    source.model == object.model && source.tail[6] == tail[6]
+                });
+            let light_mask = if !lights_present {
+                0
+            } else if light_cache_hit {
+                binding.source.as_ref().unwrap().light_mask
             } else {
-                0.
+                self.stats.light_mask_builds += 1;
+                self.light_selection
+                    .mask(object.model, bounds[index], material.lit)
             };
+            if visible[index] && material.lit {
+                self.stats.local_light_slots += scene.lights.len();
+                self.stats.local_light_candidates += light_mask.count_ones() as usize;
+            }
             let source = ObjectUniformSource {
                 model: object.model,
                 previous_model,
-                view_projection,
-                previous_view_projection: temporal_frame.previous_vp,
-                size,
-                lighting: lighting_uniform,
-                fog: fog_uniform,
                 tail,
                 surface,
                 double_sided,
-                shader_time,
+                light_mask,
             };
-            if self.state_caching && binding.source.as_ref() == Some(&source) {
+            let unchanged = self.state_caching && binding.source.as_ref() == Some(&source);
+            // Keep the original combined-matrix validation, including on camera
+            // changes, without revalidating every stationary object each frame.
+            if camera_changed || !unchanged {
+                ensure!(
+                    (view_projection * object.model).is_finite(),
+                    "invalid object matrix"
+                );
+            }
+            if unchanged {
+                if lights_present && !light_cache_hit {
+                    binding.light_revision = self.light_selection.revision();
+                    binding.light_bounds = Some(bounds[index]);
+                }
                 continue;
             }
-            let mvp = view_projection * object.model;
-            let previous_mvp = temporal_frame.previous_vp * previous_model.unwrap_or(object.model);
             let normal = object.model.inverse().transpose();
             ensure!(
-                mvp.is_finite() && normal.is_finite(),
+                object.model.is_finite() && normal.is_finite(),
                 "invalid object matrix"
             );
             self.stats.object_uniform_builds += 1;
-            let values = mvp
+            let values = normal
                 .to_cols_array()
                 .into_iter()
-                .chain(normal.to_cols_array())
                 .chain(tail)
                 .chain(object.model.to_cols_array())
-                .chain(inverse_view_projection)
                 .chain([
-                    size[0] as f32,
-                    size[1] as f32,
                     object.model.determinant().signum(),
                     if double_sided { 1. } else { 0. },
+                    (light_mask & 0xffff) as f32,
+                    (light_mask >> 16) as f32,
                 ])
-                .chain(lighting_uniform)
                 .chain(surface)
-                .chain(fog_uniform)
-                .chain(previous_mvp.to_cols_array())
-                .chain([shader_time, 0., 0., 0.]);
+                .chain(previous_model.unwrap_or(object.model).to_cols_array());
             let mut uniform = [0; OBJECT_UNIFORM_BYTES];
             debug_assert_eq!(values.clone().count() * 4, uniform.len());
             for (slot, value) in uniform.chunks_exact_mut(4).zip(values) {
                 slot.copy_from_slice(&value.to_le_bytes());
             }
             if !self.state_caching || binding.uniform.as_ref() != Some(&uniform) {
-                gpu.queue.write_buffer(&binding.buffer, 0, &uniform);
                 binding.uniform = Some(uniform);
-                self.stats.object_uniform_writes += 1;
+                binding.dirty = true;
             }
             binding.source = Some(source);
+            if lights_present && !light_cache_hit {
+                binding.light_revision = self.light_selection.revision();
+                binding.light_bounds = Some(bounds[index]);
+            }
         }
-        let batches = self.prepare_instances(gpu, &draws, &visible)?;
+        // Publish the stamp only after all objects validate, so an error cannot
+        // make a retry skip validation against a newly changed camera.
+        self.frame_uniform = Some(frame_uniform);
+        let batches = self.prepare_instances(gpu, &draws, &bounds, &visible, view_projection)?;
         let occlusion = self.prepare_occlusion(
             gpu,
             &mut encoder,
@@ -2065,27 +2140,82 @@ impl SceneRenderer {
             &visible,
             &batches,
         );
-        let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
-        self.stats.shadow_cache_hit =
-            self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
-        let sun_changed = !self.state_caching
-            || !self
-                .shadow_frame
-                .as_ref()
-                .is_some_and(|previous| previous.same_sun(&shadow_frame));
+        let state_started = std::time::Instant::now();
+        let reuse_metadata = self.shadow_metadata_reuse && self.state_caching;
+        let mut shadow_frame =
+            (!reuse_metadata).then(|| shadows::ShadowFrame::new(scene, &draws, self.culling));
+        let mut comparison = if reuse_metadata {
+            self.shadow_frame.as_ref().map_or_else(
+                || shadows::Comparison::cold(draws.len()),
+                |p| p.compare(scene, &draws, self.culling),
+            )
+        } else {
+            let frame = shadow_frame.as_ref().unwrap();
+            self.stats.shadow_metadata_built_casters =
+                draws.iter().filter(|d| d.object.material.lit).count();
+            self.stats.shadow_metadata_key_clones = self.stats.shadow_metadata_built_casters * 2;
+            let whole = self.state_caching && self.shadow_frame.as_ref() == Some(frame);
+            shadows::Comparison {
+                whole,
+                sun: self.state_caching
+                    && self
+                        .shadow_frame
+                        .as_ref()
+                        .is_some_and(|p| p.same_sun(frame)),
+                opaque: self.shadow_preparation_cache
+                    && !whole
+                    && self.state_caching
+                    && (scene.lights.iter().any(LocalLight::casts_shadow)
+                        || scene.lighting.shadows && scene.lighting.sun_intensity > 0.)
+                    && self
+                        .shadow_frame
+                        .as_ref()
+                        .is_some_and(|p| p.same_local_casters(frame)),
+                stable_mask: Vec::new(),
+                unchanged: Vec::new(),
+            }
+        };
+        self.stats.shadow_state_ms = state_started.elapsed().as_secs_f64() * 1000.;
+        self.stats.shadow_cache_hit = self.state_caching && comparison.whole;
+        let mut sun_changed = !self.state_caching || !comparison.sun;
+        let same_opaque_casters = self.shadow_preparation_cache
+            && !self.stats.shadow_cache_hit
+            && self.state_caching
+            && (scene.lights.iter().any(LocalLight::casts_shadow)
+                || scene.lighting.shadows && scene.lighting.sun_intensity > 0.)
+            && comparison.opaque;
+        let mut previous_frame = None;
         let mut spot_changes = Vec::new();
         let mut point_changes = Vec::new();
+        let mut shadow_batches = None;
+        let mut sun_plan = None;
         if !self.stats.shadow_cache_hit {
             // Invalidate before queueing writes: a later frame error must not leave a
             // valid-looking stamp paired with partially updated shadow uniforms.
-            self.shadow_frame = None;
+            previous_frame = self.shadow_frame.take();
+            let mut uniform_unchanged = false;
             if sun_changed {
-                self.update_shadows(gpu, scene, &draws)?;
+                let update =
+                    self.update_shadows(gpu, scene, &draws, &bounds, same_opaque_casters)?;
+                uniform_unchanged = update.0;
+                sun_changed = !update.1;
+                self.stats.sun_shadow_fit_reused = update.1;
             }
             self.update_spot_shadows(gpu, scene)?;
             self.update_point_shadows(gpu, scene)?;
-            spot_changes = self.shadows.spots.changes(self, &draws);
-            point_changes = self.shadows.points.changes(self, &draws);
+            let spots = self
+                .shadows
+                .spots
+                .changes(self, &draws, same_opaque_casters);
+            let points = self
+                .shadows
+                .points
+                .changes(self, &draws, same_opaque_casters);
+            self.stats.local_shadow_caster_checks = spots.caster_checks + points.caster_checks;
+            self.stats.local_shadow_maps_reused_without_scan =
+                spots.reused_maps + points.reused_maps;
+            spot_changes = spots.updates;
+            point_changes = points.updates;
             self.shadows.spots.invalidate_changes(&spot_changes);
             self.shadows.points.invalidate_changes(&point_changes);
             self.stats.shadow_maps_rendered = usize::from(sun_changed)
@@ -2094,14 +2224,111 @@ impl SceneRenderer {
                     .chain(&point_changes)
                     .filter(|c| c.is_some())
                     .count();
-            if batches.iter().any(|b| b.slot.is_some())
-                && (sun_changed && scene.lighting.shadows && scene.lighting.sun_intensity > 0.
-                    || spot_changes
-                        .iter()
-                        .chain(&point_changes)
-                        .any(Option::is_some))
+            if sun_changed && scene.lighting.shadows && scene.lighting.sun_intensity > 0.
+                || spot_changes
+                    .iter()
+                    .chain(&point_changes)
+                    .any(Option::is_some)
             {
-                self.prepare_instanced_shadows(gpu);
+                if self.instancing.shadow_batching() {
+                    shadow_batches = Some(self.prepare_shadow_instances(gpu, &draws)?);
+                }
+                if shadow_batches
+                    .as_ref()
+                    .unwrap_or(&batches)
+                    .iter()
+                    .any(|b| b.slot.is_some())
+                {
+                    self.prepare_instanced_shadows(gpu);
+                }
+            } else {
+                self.instancing.shadow_bindings.truncate(8);
+            }
+            if sun_changed
+                && uniform_unchanged
+                && self.shadow_preparation_cache
+                && self.state_caching
+                && let Some(previous) = &previous_frame
+            {
+                let state_started = std::time::Instant::now();
+                let mask = if reuse_metadata {
+                    std::mem::take(&mut comparison.stable_mask)
+                } else {
+                    previous.stable_casters(&draws, self.culling)
+                };
+                self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
+                sun_plan = self.shadows.sun_cache.prepare(
+                    gpu,
+                    &draws,
+                    shadow_batches.as_ref().unwrap_or(&batches),
+                    mask,
+                    &self.shadows.uniform_row,
+                    self.shadows.resolution,
+                );
+                if let Some(plan) = &sun_plan {
+                    self.stats.sun_static_cache_reused = !plan.rebuild;
+                    self.stats.sun_static_casters = plan.static_mask.iter().filter(|m| **m).count();
+                    self.stats.sun_dynamic_casters =
+                        plan.dynamic_mask.iter().filter(|m| **m).count();
+                    self.stats.sun_depth_copies = 1;
+                    self.stats.shadow_maps_rendered += usize::from(plan.rebuild);
+                }
+            }
+            self.stats.shadow_cache_hit = self.stats.shadow_maps_rendered == 0;
+            if !reuse_metadata {
+                let state_started = std::time::Instant::now();
+                drop(previous_frame.take());
+                self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
+            }
+        }
+        self.stats.sun_bounds_cache_bytes = self.shadows.sun_fit.bytes();
+        // Packed color and shadow groups already contain their uniforms.
+        // Upload individual buffers for singletons and ineligible casters.
+        let sun_individuals = !self.stats.shadow_cache_hit
+            && sun_changed
+            && scene.lighting.shadows
+            && scene.lighting.sun_intensity > 0.;
+        let local_individuals = spot_changes
+            .iter()
+            .chain(&point_changes)
+            .any(Option::is_some);
+        let mut individual = vec![false; draws.len()];
+        for batch in &batches {
+            if batch.slot.is_none() {
+                individual[batch.indices[0]] = true;
+            } else if !self.instancing.shadow_batching()
+                && sun_individuals
+                && !batch
+                    .indices
+                    .iter()
+                    .all(|&index| !draws[index].transparent && draws[index].object.material.lit)
+            {
+                for &index in &batch.indices {
+                    individual[index] |=
+                        !draws[index].transparent && draws[index].object.material.lit;
+                }
+            }
+        }
+        if let Some(batches) = &shadow_batches {
+            for batch in batches.iter().filter(|b| b.slot.is_none()) {
+                for &index in &batch.indices {
+                    individual[index] = true;
+                }
+            }
+        }
+        for (index, draw) in draws.iter().enumerate() {
+            individual[index] |= !draw.transparent
+                && draw.object.material.lit
+                && !self.instancing.shadow_batching()
+                && (local_individuals
+                    || sun_individuals && (!visible[index] || sun_plan.is_some()));
+        }
+        for (needed, binding) in individual.into_iter().zip(&mut self.objects) {
+            if needed && binding.dirty {
+                gpu.queue
+                    .write_buffer(&binding.buffer, 0, binding.uniform.as_ref().unwrap());
+                binding.dirty = false;
+                self.stats.object_uniform_writes += 1;
             }
         }
         let has_particles = !raw && !scene.particles.is_empty();
@@ -2149,24 +2376,21 @@ impl SceneRenderer {
             self.particles.as_ref().unwrap().encode(&mut encoder);
         }
         if !self.stats.shadow_cache_hit {
+            let batches = shadow_batches.as_ref().unwrap_or(&batches);
             if sun_changed {
                 (self.stats.shadow_draws, self.stats.shadow_triangles) =
-                    self.draw_shadows(&mut encoder, scene, &draws, &batches);
+                    self.draw_shadows(&mut encoder, scene, &draws, batches, sun_plan.as_ref());
             }
             let (spot_draws, spot_triangles) =
                 self.shadows
                     .spots
-                    .draw(self, &mut encoder, &draws, &batches, false, &spot_changes);
+                    .draw(self, &mut encoder, &draws, batches, false, &spot_changes);
             self.stats.shadow_draws += spot_draws;
             self.stats.shadow_triangles += spot_triangles;
-            let (point_draws, point_triangles) = self.shadows.points.draw(
-                self,
-                &mut encoder,
-                &draws,
-                &batches,
-                true,
-                &point_changes,
-            );
+            let (point_draws, point_triangles) =
+                self.shadows
+                    .points
+                    .draw(self, &mut encoder, &draws, batches, true, &point_changes);
             self.stats.shadow_draws += point_draws;
             self.stats.shadow_triangles += point_triangles;
         }
@@ -2237,16 +2461,16 @@ impl SceneRenderer {
                 {
                     continue;
                 }
-                let draw = &draws[batch.range.start];
+                let draw = &draws[batch.indices[0]];
                 if has_particles && draw.transparent {
                     continue;
                 }
                 let binding = batch
                     .slot
-                    .map_or(&self.objects[batch.range.start].binding, |slot| {
+                    .map_or(&self.objects[batch.indices[0]].binding, |slot| {
                         &self.instancing.bindings[slot].binding
                     });
-                let count = batch.range.len() as u32;
+                let count = batch.indices.len() as u32;
                 let (triangles, binds) = self.draw_prepared(
                     &mut pass,
                     draw,
@@ -2362,7 +2586,33 @@ impl SceneRenderer {
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
         self.shadows.spots.finish(spot_changes);
         self.shadows.points.finish(point_changes);
-        self.shadow_frame = Some(shadow_frame);
+        if let Some(plan) = &sun_plan {
+            self.shadows
+                .sun_cache
+                .finish(plan, &draws, &self.shadows.uniform_row);
+        }
+        let state_started = std::time::Instant::now();
+        if reuse_metadata {
+            if let Some(mut frame) = previous_frame.or_else(|| self.shadow_frame.take()) {
+                frame.refresh(
+                    scene,
+                    &draws,
+                    self.culling,
+                    &comparison.unchanged,
+                    &mut self.stats,
+                );
+                self.shadow_frame = Some(frame);
+            } else {
+                self.stats.shadow_metadata_built_casters =
+                    draws.iter().filter(|d| d.object.material.lit).count();
+                self.stats.shadow_metadata_key_clones =
+                    self.stats.shadow_metadata_built_casters * 2;
+                self.shadow_frame = Some(shadows::ShadowFrame::new(scene, &draws, self.culling));
+            }
+        } else {
+            self.shadow_frame = shadow_frame.take();
+        }
+        self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())

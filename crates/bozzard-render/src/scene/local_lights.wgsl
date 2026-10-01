@@ -79,6 +79,19 @@ fn local_radiance(light: LocalLight, offset: vec3<f32>) -> vec3<f32> {
     }
     return light.color_intensity.rgb * light.color_intensity.w * attenuation;
 }
+fn local_diffuse_masked(world: vec3<f32>, normal: vec3<f32>, selected: u32) -> vec3<f32> {
+    var result = vec3<f32>(0.0);
+    var remaining = selected;
+    while remaining != 0u {
+        let i = firstTrailingBit(remaining);
+        remaining &= remaining - 1u;
+        let light = local_lights.lights[i];
+        let offset = light.position_range.xyz - world;
+        let direction = local_direction(light, offset);
+        result += local_radiance(light, offset) * max(dot(normal, direction), 0.0) / 3.14159265 * local_visibility(light, world, normal);
+    }
+    return result;
+}
 fn local_diffuse(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     var result = vec3<f32>(0.0);
     for (var i = 0u; i < u32(local_lights.count.x); i++) {

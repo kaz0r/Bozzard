@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "name": "Water pump power on",
+  "root": "root",
+  "objects": [
+    {
+      "id": "root",
+      "name": "Water pump indicator",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "lens",
+      "name": "Power on",
+      "transform": {
+        "translation": [
+          0.046,
+          0.65,
+          0.29
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.012,
+          0.105,
+          0.045
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": "cube",
+        "texture": "white",
+        "color": [
+          0.24,
+          0.9,
+          0.29
+        ],
+        "uv_scale": [
+          1,
+          1
+        ]
+      },
+      "parent": "root",
+      "shader_graph": {
+        "version": 1,
+        "name": "Indicator glow",
+        "nodes": [
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "kind": "master",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 0
+              },
+              {
+                "float": 0.8
+              },
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              },
+              {
+                "float": 1
+              },
+              {
+                "vector": [
+                  0,
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "position": [
+              -200,
+              0
+            ],
+            "kind": "vector",
+            "inputs": [
+              {
+                "vector": [
+                  0.24,
+                  0.9,
+                  0.29
+                ]
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "from": {
+              "node": 2,
+              "port": 0
+            },
+            "to": {
+              "node": 1,
+              "port": 3
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

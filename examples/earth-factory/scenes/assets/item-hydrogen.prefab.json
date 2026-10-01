@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "Hydrogen item",
+  "root": "root",
+  "assets": {
+    "item-model-38": {
+      "kind": "mesh",
+      "path": "models/materials/hydrogen.glb"
+    }
+  },
+  "objects": [
+    {
+      "id": "root",
+      "name": "Moving item",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "drawable": {
+        "layer": "3d",
+        "mesh": {
+          "asset": "item-model-38"
+        },
+        "texture": "white",
+        "color": [
+          1,
+          1,
+          1
+        ],
+        "uv_scale": [
+          1,
+          1
+        ],
+        "gi_static": false
+      }
+    }
+  ]
+}

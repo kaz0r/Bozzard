@@ -67,9 +67,9 @@ impl Save {
         let phase = number(&self.state.controller, "phase")? as u32;
         let session = values(&self.state.controller, "session")?;
         let time = numeric(&session[120])?;
-        let cycle = (time as f64 / std::f64::consts::TAU * 0.1).floor() as u64 + 1;
+        let day = super::clock::day_number(time);
         let moon = numeric(&session[7])? == 1.;
-        let night = moon || (time * 0.1).sin() < 0.;
+        let night = !super::clock::daytime(time, moon);
         let age = now().saturating_sub(self.saved_at);
         let ago = if age < 60 {
             "just now".into()
@@ -81,11 +81,12 @@ impl Save {
             format!("{}d ago", age / 86400)
         };
         Ok(format!(
-            "Tier {} / Phase {} · Cycle {} / {}\n{} · {}",
+            "Tier {} / Phase {} · Day {} / {} {}\n{} · {}",
             phase / 4 + 1,
             phase % 4 + 1,
-            cycle,
+            day,
             if night { "Night" } else { "Day" },
+            super::clock::label(time),
             if self.state.dev_world() {
                 "Dev World"
             } else if moon {
@@ -146,8 +147,11 @@ pub fn read(root: &Path, slot: usize) -> Result<Save> {
         bytes.len() as u64 <= MAX_SAVE_BYTES,
         "save exceeds size limit"
     );
-    let save: Save =
+    let mut save: Save =
         serde_json::from_slice(&bytes).context("This save is damaged or incompatible")?;
+    if save.version == 1 {
+        save.state.upgrade_legacy();
+    }
     save.validate()?;
     Ok(save)
 }

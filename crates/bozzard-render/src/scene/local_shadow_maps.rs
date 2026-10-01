@@ -5,6 +5,11 @@ struct Caster {
     binding: wgpu::BindGroup,
     row: Vec<u8>,
 }
+pub(super) struct Changes {
+    pub updates: Vec<Option<Vec<shadows::ShadowCaster>>>,
+    pub caster_checks: usize,
+    pub reused_maps: usize,
+}
 pub(super) struct ShadowMaps {
     pub uniform: wgpu::Buffer,
     pub depth: wgpu::TextureView,
@@ -140,17 +145,28 @@ impl ShadowMaps {
         &self,
         renderer: &SceneRenderer,
         draws: &[PreparedDraw],
-    ) -> Vec<Option<Vec<shadows::ShadowCaster>>> {
-        self.matrices
+        same_casters: bool,
+    ) -> Changes {
+        let mut caster_checks = 0;
+        let mut reused_maps = 0;
+        let updates = self
+            .matrices
             .iter()
             .enumerate()
             .map(|(slot, matrix)| {
+                // Projection/settings edits and resized textures invalidate the
+                // retained map in update(), even when caster state is unchanged.
+                if renderer.state_caching && same_casters && self.retained[slot].is_some() {
+                    reused_maps += 1;
+                    return None;
+                }
                 let casters: Vec<_> = draws
                     .iter()
                     .filter(|d| !d.transparent && d.object.material.lit)
+                    .inspect(|_| caster_checks += 1)
                     .filter(|d| {
                         !renderer.culling
-                            || visibility::visible(
+                            || renderer.frustum_visible(
                                 renderer.mesh_for(&d.object).bounds,
                                 *matrix * d.object.model,
                             )
@@ -160,7 +176,12 @@ impl ShadowMaps {
                 (!renderer.state_caching || self.retained[slot].as_ref() != Some(&casters))
                     .then_some(casters)
             })
-            .collect()
+            .collect();
+        Changes {
+            updates,
+            caster_checks,
+            reused_maps,
+        }
     }
     pub fn invalidate_changes(&mut self, changes: &[Option<Vec<shadows::ShadowCaster>>]) {
         for (slot, change) in changes.iter().enumerate() {
@@ -205,7 +226,7 @@ impl ShadowMaps {
             });
             pass.set_bind_group(1, &self.casters[slot].binding, &[]);
             let (draws, triangles) =
-                renderer.draw_shadow_casters(&mut pass, draws, batches, Some(*matrix), point);
+                renderer.draw_shadow_casters(&mut pass, draws, batches, Some(*matrix), point, None);
             counts.0 += draws;
             counts.1 += triangles;
         }
