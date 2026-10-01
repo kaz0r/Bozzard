@@ -311,6 +311,11 @@ impl SceneInstance {
         let entity = self.entity(owner).context("tween target is missing")?;
         let tween = world.get::<Tween>(entity).context("target has no Tween")?;
         let duration = tween.duration;
+        let resets = if Self::render_interpolation_enabled(world) {
+            interpolation_resets(tween, owner, control)
+        } else {
+            Vec::new()
+        };
         if let Control::Seek(time) = control {
             ensure!(
                 time.is_finite() && (0.0..=duration).contains(&time),
@@ -342,6 +347,11 @@ impl SceneInstance {
             Control::Seek(time) => {
                 state.clock.seek(f64::from(time))?;
                 state.last_position = None;
+            }
+        }
+        for target in resets {
+            if self.entity(&target).is_some() {
+                self.reset_render_interpolation(world, &target)?;
             }
         }
         Ok(())
@@ -498,6 +508,27 @@ impl SceneInstance {
             }
         }
         Ok(())
+    }
+}
+
+pub(super) fn interpolation_resets(tween: &Tween, owner: &str, control: Control) -> Vec<String> {
+    if matches!(
+        control,
+        Control::Seek(_) | Control::Stop | Control::Play { restart: true }
+    ) {
+        tween
+            .tracks
+            .iter()
+            .filter(|t| {
+                matches!(
+                    t.property,
+                    Property::Translation | Property::Rotation | Property::Scale
+                )
+            })
+            .map(|t| t.target(owner).to_owned())
+            .collect()
+    } else {
+        Vec::new()
     }
 }
 /// Read a typed authored clip for editor timeline tools.

@@ -1,0 +1,99 @@
+{
+  "device": "Apple M2 Pro",
+  "backend": "Metal",
+  "clock": "native desktop; default window; startup included",
+  "cases": [
+    {
+      "threaded": false,
+      "interpolated": false,
+      "frames": 240,
+      "player_cpu_frame": {
+        "n": 240,
+        "median_ms": 9.903,
+        "p95_ms": 14.389,
+        "p99_ms": 19.99
+      },
+      "player_presentation_interval": {
+        "n": 239,
+        "median_ms": 10.027,
+        "p95_ms": 14.644,
+        "p99_ms": 19.712
+      },
+      "player_gpu_passes": {
+        "n": 237,
+        "median_ms": 0.97,
+        "p95_ms": 2.279,
+        "p99_ms": 2.517
+      }
+    },
+    {
+      "threaded": false,
+      "interpolated": true,
+      "frames": 240,
+      "player_cpu_frame": {
+        "n": 240,
+        "median_ms": 9.908,
+        "p95_ms": 15.236,
+        "p99_ms": 21.815
+      },
+      "player_presentation_interval": {
+        "n": 239,
+        "median_ms": 10.014,
+        "p95_ms": 15.33,
+        "p99_ms": 20.334
+      },
+      "player_gpu_passes": {
+        "n": 240,
+        "median_ms": 0.98,
+        "p95_ms": 2.429,
+        "p99_ms": 2.56
+      }
+    },
+    {
+      "threaded": true,
+      "interpolated": false,
+      "frames": 240,
+      "player_cpu_frame": {
+        "n": 240,
+        "median_ms": 9.909,
+        "p95_ms": 15.211,
+        "p99_ms": 21.075
+      },
+      "player_presentation_interval": {
+        "n": 239,
+        "median_ms": 10.041,
+        "p95_ms": 15.322,
+        "p99_ms": 20.573
+      },
+      "player_gpu_passes": {
+        "n": 240,
+        "median_ms": 0.962,
+        "p95_ms": 2.384,
+        "p99_ms": 2.624
+      }
+    },
+    {
+      "threaded": true,
+      "interpolated": true,
+      "frames": 240,
+      "player_cpu_frame": {
+        "n": 240,
+        "median_ms": 9.883,
+        "p95_ms": 13.958,
+        "p99_ms": 19.801
+      },
+      "player_presentation_interval": {
+        "n": 239,
+        "median_ms": 10.019,
+        "p95_ms": 14.099,
+        "p99_ms": 17.206
+      },
+      "player_gpu_passes": {
+        "n": 240,
+        "median_ms": 0.983,
+        "p95_ms": 2.397,
+        "p99_ms": 2.536
+      }
+    }
+  ]
+}

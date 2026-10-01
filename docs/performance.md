@@ -4,6 +4,9 @@ For the September 2026 optimization pass, including shadow reuse, idle editor dr
 
 The benchmarks below separate factory simulation, editor CPU work, and synchronized rendering. Their elapsed CPU or synchronized wall times are not windowed FPS measurements.
 
+For local motion smoothness at 60/120/144 Hz, interpolation overhead, and native
+pixel comparisons, see [render interpolation](render-interpolation.md).
+
 ## Factory simulation
 
 Run the real factory scene in an empty creative world with a fixed seed, including its normal HUD and production updates:

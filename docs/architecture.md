@@ -64,6 +64,13 @@ main-thread join wait; it is not a GPU measurement.
 
 Systems execute in registration order. Direct mutations are visible to later systems; deferred commands execute once, in queue order, after the tick's final system. A queued spawn/despawn is therefore visible to systems on the next tick. Queue closures are infallible at the scheduler boundary; callers handle operation errors inside them. No rollback is promised after a panic.
 
+Completed-tick observers run after deferred changes and capture local presentation
+history. Native extraction blends local TRS poses using the retained fixed-step
+fraction, then composes the hierarchy. Live physics/query transforms and saved
+state remain current. Paused/debugger and active network worlds bypass local
+interpolation. See [render interpolation](render-interpolation.md) for reset
+semantics, latency, costs, and reproduction commands.
+
 `App::step` advances exactly one fixed tick. `App::advance` accumulates elapsed wall time, limits catch-up, reports discarded whole ticks as a duration, and preserves the fractional remainder for interpolation. The headless harness uses `step`, so it never drops requested ticks. The headless harness also supports `--realtime`: a bounded 60 Hz pacer, overload diagnostics, and Ctrl-C/SIGTERM shutdown with optional final save. Steam multiplayer uses a player-hosted listen server; its pump runs independently of redraw events.
 
 ### Network determinism contract

@@ -260,10 +260,49 @@ pub struct SceneDemo {
     multiplayer: Option<multiplayer::Multiplayer>,
     factory_multiplayer: Option<factory::network::Multiplayer>,
     simulation_worker: Option<bozzard_app::simulation_worker::SimulationWorker>,
+    render_interpolation: bool,
     steam_overlay_active: bool,
 }
 
 impl SceneDemo {
+    /// Enable presentation history for local native frames. Pause/debugger and
+    /// network presentation use their exact or independently smoothed state.
+    pub fn set_render_interpolation(&mut self, enabled: bool) -> anyhow::Result<()> {
+        self.render_interpolation = enabled;
+        let active = enabled
+            && !self.app.is_paused()
+            && bozzard_scene::game_flow::simulation_running(&self.app.world)
+            && !self.multiplayer_active();
+        let fraction = self.app.interpolation();
+        self.with_instance(|instance, world| {
+            instance.set_render_interpolation(world, active)?;
+            SceneInstance::set_render_interpolation_fraction(world, fraction)
+        })
+    }
+
+    pub fn render_view(
+        &self,
+        layer: bozzard_scene::Layer,
+        aspect: f32,
+        inspection_pose: Option<glam::Mat4>,
+    ) -> anyhow::Result<bozzard_scene::SceneView> {
+        if self.render_interpolation
+            && !self.app.is_paused()
+            && bozzard_scene::game_flow::simulation_running(&self.app.world)
+            && !self.multiplayer_active()
+        {
+            self.instance().view_interpolated_from_camera(
+                &self.app.world,
+                layer,
+                aspect,
+                inspection_pose,
+                self.app.interpolation(),
+            )
+        } else {
+            self.instance()
+                .view_from_camera(&self.app.world, layer, aspect, inspection_pose)
+        }
+    }
     /// Native hosts opt into overlapping local simulation with a prepared frame.
     /// Multiplayer retains its own independently paced worker.
     pub fn set_threaded_simulation(&mut self, enabled: bool) -> anyhow::Result<()> {
@@ -832,11 +871,27 @@ impl SceneDemo {
             world.insert_resource(SimulationStatus { error });
         });
         factory::install(&mut app, document);
+        app.add_tick_observer("Presentation history", |world, _| {
+            if !SceneInstance::render_interpolation_enabled(world) {
+                return;
+            }
+            let instance = world
+                .remove_resource::<SceneInstance>()
+                .expect("scene instance");
+            let result = instance.capture_render_transforms(world);
+            world.insert_resource(instance);
+            if let Err(error) = result {
+                world.insert_resource(SimulationStatus {
+                    error: Some(format!("{error:#}")),
+                });
+            }
+        });
         Ok(Self {
             app,
             multiplayer: None,
             factory_multiplayer: None,
             simulation_worker: None,
+            render_interpolation: false,
             steam_overlay_active: false,
         })
     }

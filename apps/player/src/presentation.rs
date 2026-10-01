@@ -7,6 +7,10 @@ use bozzard_scene::{Layer, Mesh, Texture};
 #[path = "fog_tests.rs"]
 mod fog_tests;
 
+#[cfg(test)]
+#[path = "interpolation_tests.rs"]
+mod interpolation_tests;
+
 fn render_texture(texture: Texture) -> TextureKind {
     match texture {
         Texture::White => TextureKind::White,
@@ -24,7 +28,7 @@ pub fn extract(
     aspect: f32,
 ) -> Result<RenderScene> {
     demo.check_simulation()?;
-    let view = demo.instance().view(&demo.app.world, layer, aspect)?;
+    let view = demo.render_view(layer, aspect, None)?;
     let mut gi = None;
     if layer == Layer::ThreeD
         && demo.instance().document().gi.enabled

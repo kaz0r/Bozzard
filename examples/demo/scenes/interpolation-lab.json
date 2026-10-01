@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "name": "Bozzard — Interpolation Lab",
+  "views": { "3d": "camera" },
+  "assets": { "motion": { "kind": "script", "path": "scripts/interpolation.rhai" } },
+  "objects": [
+    {
+      "id": "camera", "name": "Moving camera",
+      "transform": { "translation": [0, 3, 10], "rotation_degrees": [-12, 0, 0], "scale": [1, 1, 1] },
+      "camera": { "projection": "perspective", "vertical_fov_degrees": 50, "near": 0.1, "far": 100 }
+    },
+    {
+      "id": "floor", "name": "Checker floor",
+      "transform": { "translation": [0, -0.1, 0], "rotation_degrees": [0, 0, 0], "scale": [20, 0.2, 14] },
+      "drawable": { "layer": "3d", "mesh": "cube", "texture": "checker", "color": [0.35, 0.4, 0.5], "uv_scale": [10, 7] }
+    },
+    {
+      "id": "mover", "name": "3 units/second — fixed 60 Hz",
+      "transform": { "translation": [-3, 0.8, 0], "rotation_degrees": [0, 359, 0], "scale": [1, 1, 1] },
+      "drawable": { "layer": "3d", "mesh": "cube", "texture": "white", "color": [0.1, 0.75, 1], "uv_scale": [1, 1] },
+      "spin": [0, 30, 0],
+      "script_manager": { "scripts": [{ "enabled": true, "script": "motion" }] }
+    },
+    {
+      "id": "wing", "name": "Parented orange cube", "parent": "mover",
+      "transform": { "translation": [0, 1.5, 0], "rotation_degrees": [0, 0, 25], "scale": [0.5, 0.5, 0.5] },
+      "drawable": { "layer": "3d", "mesh": "cube", "texture": "white", "color": [1, 0.45, 0.1], "uv_scale": [1, 1] }
+    },
+    {
+      "id": "pillar", "name": "Static parallax reference",
+      "transform": { "translation": [3, 1, -2], "rotation_degrees": [0, 15, 0], "scale": [0.6, 2, 0.6] },
+      "drawable": { "layer": "3d", "mesh": "cube", "texture": "white", "color": [0.55, 0.65, 0.75], "uv_scale": [1, 1] }
+    }
+  ]
+}

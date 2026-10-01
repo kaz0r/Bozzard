@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "name": "Interpolation Lab",
+  "start_scene": "scenes/interpolation-lab.json",
+  "view": "3d"
+}

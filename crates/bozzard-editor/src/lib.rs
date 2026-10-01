@@ -778,10 +778,22 @@ impl Editor {
     /// overlap the next local tick with submission via render_with_simulation.
     /// Headless advance/step and the debugger retain their synchronous semantics.
     pub fn prepare_simulation_frame(&mut self, delta: Duration, threaded: bool) -> Result<()> {
+        self.prepare_simulation_frame_with_interpolation(delta, threaded, true)
+    }
+
+    pub fn prepare_simulation_frame_with_interpolation(
+        &mut self,
+        delta: Duration,
+        threaded: bool,
+        interpolation: bool,
+    ) -> Result<()> {
         ensure!(
             self.pending_simulation.is_none(),
             "previous simulation frame was not finished"
         );
+        if let Some(play) = &mut self.play {
+            play.set_render_interpolation(interpolation)?;
+        }
         if self
             .play
             .as_ref()
@@ -1513,9 +1525,7 @@ fn extract_with_gi(
     inspection_pose: Option<Mat4>,
 ) -> Result<RenderScene> {
     demo.check_simulation()?;
-    let view = demo
-        .instance()
-        .view_from_camera(&demo.app.world, layer, aspect, inspection_pose)?;
+    let view = demo.render_view(layer, aspect, inspection_pose)?;
     let mut gi = None;
     if layer == Layer::ThreeD
         && demo.instance().document().gi.enabled

@@ -17,9 +17,7 @@ bozzard-diagnostics.workspace = true
 bozzard-app.workspace = true
 bozzard-scene.workspace = true
 anyhow.workspace = true
+glam.workspace = true
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-glam.workspace = true
