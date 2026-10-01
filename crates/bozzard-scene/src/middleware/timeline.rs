@@ -202,6 +202,19 @@ impl SceneInstance {
         let timeline = world
             .get::<Timeline>(entity)
             .context("target has no Timeline")?;
+        let mut resets = if Self::render_interpolation_enabled(world) {
+            super::tween::interpolation_resets(&timeline.motion, owner, control)
+        } else {
+            Vec::new()
+        };
+        if Self::render_interpolation_enabled(world)
+            && matches!(
+                control,
+                Control::Seek(_) | Control::Stop | Control::Play { restart: true }
+            )
+        {
+            resets.extend(timeline.cameras.iter().map(|cut| cut.camera.clone()));
+        }
         if let Control::Seek(time) = control {
             ensure!(
                 time.is_finite() && (0.0..=timeline.motion.duration).contains(&time),
@@ -239,6 +252,11 @@ impl SceneInstance {
                 state.last_position = None;
                 state.include_start = false;
                 state.active = true;
+            }
+        }
+        for target in resets {
+            if self.entity(&target).is_some() {
+                self.reset_render_interpolation(world, &target)?;
             }
         }
         Ok(())

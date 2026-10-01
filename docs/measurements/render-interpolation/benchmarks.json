@@ -1,0 +1,1901 @@
+{
+  "date": "2026-10-01",
+  "device": "Apple M2 Pro",
+  "os": "macOS 26.6",
+  "architecture": "aarch64",
+  "rust": "1.95.0",
+  "profile": "release (thin LTO, one codegen unit)",
+  "clock": "synthetic 60/120/144 Hz, 60 Hz simulation",
+  "warmup_seconds": 0.5,
+  "duration_seconds": 2,
+  "comparison": "interpolation flag in the same branch/build",
+  "runs": [
+    {
+      "run": 1,
+      "cases": [
+        {
+          "extraction": {
+            "median_ms": 0.00175,
+            "n": 90,
+            "p95_ms": 0.0024159999999999997,
+            "p99_ms": 0.006375
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007,
+            "n": 90,
+            "p95_ms": 0.013208,
+            "p99_ms": 0.045333
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001958,
+            "n": 90,
+            "p95_ms": 0.002042,
+            "p99_ms": 0.002458
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006958,
+            "n": 90,
+            "p95_ms": 0.010499999999999999,
+            "p99_ms": 0.014
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002,
+            "n": 90,
+            "p95_ms": 0.003333,
+            "p99_ms": 0.006709
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.011542,
+            "n": 90,
+            "p95_ms": 0.022291000000000002,
+            "p99_ms": 0.027167
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007375,
+            "n": 90,
+            "p95_ms": 0.012291,
+            "p99_ms": 0.012959
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002375,
+            "n": 90,
+            "p95_ms": 0.002792,
+            "p99_ms": 0.006
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.011791,
+            "n": 90,
+            "p95_ms": 0.017541,
+            "p99_ms": 0.030334
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007833,
+            "n": 90,
+            "p95_ms": 0.01175,
+            "p99_ms": 0.013042
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001792,
+            "n": 180,
+            "p95_ms": 0.002,
+            "p99_ms": 0.005917
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007041,
+            "n": 90,
+            "p95_ms": 0.0077919999999999994,
+            "p99_ms": 0.013709
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002042,
+            "n": 180,
+            "p95_ms": 0.002167,
+            "p99_ms": 0.006083
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007042,
+            "n": 90,
+            "p95_ms": 0.007209,
+            "p99_ms": 0.019791
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.0018750000000000001,
+            "n": 180,
+            "p95_ms": 0.003083,
+            "p99_ms": 0.010292
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.010166999999999999,
+            "n": 180,
+            "p95_ms": 0.015041,
+            "p99_ms": 0.021291
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007458,
+            "n": 90,
+            "p95_ms": 0.011083,
+            "p99_ms": 0.014792
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002333,
+            "n": 180,
+            "p95_ms": 0.003708,
+            "p99_ms": 0.00725
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.010708,
+            "n": 180,
+            "p95_ms": 0.015583999999999999,
+            "p99_ms": 0.027583999999999997
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007916,
+            "n": 90,
+            "p95_ms": 0.013791000000000001,
+            "p99_ms": 0.022333000000000002
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.00175,
+            "n": 216,
+            "p95_ms": 0.0020829999999999998,
+            "p99_ms": 0.003042
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007,
+            "n": 90,
+            "p95_ms": 0.007916,
+            "p99_ms": 0.01175
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002208,
+            "n": 216,
+            "p95_ms": 0.0025,
+            "p99_ms": 0.003333
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007584,
+            "n": 90,
+            "p95_ms": 0.009000000000000001,
+            "p99_ms": 0.019584
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.0018750000000000001,
+            "n": 216,
+            "p95_ms": 0.003208,
+            "p99_ms": 0.007166
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0047079999999999995,
+            "n": 216,
+            "p95_ms": 0.013625000000000002,
+            "p99_ms": 0.022292
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007458,
+            "n": 90,
+            "p95_ms": 0.013833,
+            "p99_ms": 0.021041999999999998
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002333,
+            "n": 216,
+            "p95_ms": 0.003542,
+            "p99_ms": 0.0037500000000000003
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.00775,
+            "n": 216,
+            "p95_ms": 0.018791,
+            "p99_ms": 0.023292
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.008042,
+            "n": 90,
+            "p95_ms": 0.012291,
+            "p99_ms": 0.013209
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.380291,
+            "n": 90,
+            "p95_ms": 0.414375,
+            "p99_ms": 0.499042
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.332,
+            "n": 90,
+            "p95_ms": 0.367292,
+            "p99_ms": 0.402667
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.3765,
+            "n": 90,
+            "p95_ms": 0.413125,
+            "p99_ms": 0.466042
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.32449999999999996,
+            "n": 90,
+            "p95_ms": 0.36166699999999996,
+            "p99_ms": 0.47350000000000003
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.38804099999999997,
+            "n": 90,
+            "p95_ms": 0.493959,
+            "p99_ms": 0.721834
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.341583,
+            "n": 90,
+            "p95_ms": 0.402167,
+            "p99_ms": 0.490167
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.3365,
+            "n": 90,
+            "p95_ms": 0.39425,
+            "p99_ms": 0.477541
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.39520799999999995,
+            "n": 90,
+            "p95_ms": 0.441833,
+            "p99_ms": 0.48095800000000005
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.34900000000000003,
+            "n": 90,
+            "p95_ms": 0.40066599999999997,
+            "p99_ms": 0.446833
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.344625,
+            "n": 90,
+            "p95_ms": 0.39275,
+            "p99_ms": 0.438
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.38295799999999997,
+            "n": 180,
+            "p95_ms": 0.41475,
+            "p99_ms": 0.482459
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.333208,
+            "n": 90,
+            "p95_ms": 0.373041,
+            "p99_ms": 0.443083
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.386583,
+            "n": 180,
+            "p95_ms": 0.422959,
+            "p99_ms": 0.478584
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.333208,
+            "n": 90,
+            "p95_ms": 0.36424999999999996,
+            "p99_ms": 0.49512500000000004
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.382666,
+            "n": 180,
+            "p95_ms": 0.427958,
+            "p99_ms": 0.548292
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.01,
+            "n": 180,
+            "p95_ms": 0.363958,
+            "p99_ms": 0.53025
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.335167,
+            "n": 90,
+            "p95_ms": 0.38387499999999997,
+            "p99_ms": 0.578083
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.388583,
+            "n": 180,
+            "p95_ms": 0.422,
+            "p99_ms": 0.5272089999999999
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.024167,
+            "n": 180,
+            "p95_ms": 0.358417,
+            "p99_ms": 0.404083
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.337667,
+            "n": 90,
+            "p95_ms": 0.372958,
+            "p99_ms": 0.427958
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.382375,
+            "n": 216,
+            "p95_ms": 0.420041,
+            "p99_ms": 0.455209
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.336084,
+            "n": 90,
+            "p95_ms": 0.36525,
+            "p99_ms": 0.5043340000000001
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.384625,
+            "n": 216,
+            "p95_ms": 0.422375,
+            "p99_ms": 0.4925
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.332833,
+            "n": 90,
+            "p95_ms": 0.36812500000000004,
+            "p99_ms": 0.442875
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.384708,
+            "n": 216,
+            "p95_ms": 0.4295,
+            "p99_ms": 0.484625
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.006625,
+            "n": 216,
+            "p95_ms": 0.37254200000000004,
+            "p99_ms": 0.38666599999999995
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.341459,
+            "n": 90,
+            "p95_ms": 0.374959,
+            "p99_ms": 0.40475
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.392042,
+            "n": 216,
+            "p95_ms": 0.43887499999999996,
+            "p99_ms": 0.459792
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.006459,
+            "n": 216,
+            "p95_ms": 0.373792,
+            "p99_ms": 0.40212499999999995
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.34275,
+            "n": 90,
+            "p95_ms": 0.37708400000000003,
+            "p99_ms": 0.453834
+          },
+          "threaded": true,
+          "ticks": 120
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "cases": [
+        {
+          "extraction": {
+            "median_ms": 0.00175,
+            "n": 90,
+            "p95_ms": 0.0018750000000000001,
+            "p99_ms": 0.003916
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006917,
+            "n": 90,
+            "p95_ms": 0.009125,
+            "p99_ms": 0.021917
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002084,
+            "n": 90,
+            "p95_ms": 0.002417,
+            "p99_ms": 0.004834
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007375,
+            "n": 90,
+            "p95_ms": 0.008375,
+            "p99_ms": 0.036292
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002,
+            "n": 90,
+            "p95_ms": 0.002125,
+            "p99_ms": 0.005958000000000001
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.010291,
+            "n": 90,
+            "p95_ms": 0.01275,
+            "p99_ms": 0.015542000000000002
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006833,
+            "n": 90,
+            "p95_ms": 0.008291999999999999,
+            "p99_ms": 0.009667
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002375,
+            "n": 90,
+            "p95_ms": 0.003375,
+            "p99_ms": 0.069125
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.011959000000000001,
+            "n": 90,
+            "p95_ms": 0.020834000000000002,
+            "p99_ms": 0.04475
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007708,
+            "n": 90,
+            "p95_ms": 0.012584,
+            "p99_ms": 0.034666999999999996
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001708,
+            "n": 180,
+            "p95_ms": 0.001917,
+            "p99_ms": 0.005125
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006792,
+            "n": 90,
+            "p95_ms": 0.010665999999999998,
+            "p99_ms": 0.042834
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002125,
+            "n": 180,
+            "p95_ms": 0.002375,
+            "p99_ms": 0.00675
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007416,
+            "n": 90,
+            "p95_ms": 0.0125,
+            "p99_ms": 0.015209
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001958,
+            "n": 180,
+            "p95_ms": 0.002291,
+            "p99_ms": 0.031459
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.009833,
+            "n": 180,
+            "p95_ms": 0.016249999999999997,
+            "p99_ms": 0.053458000000000006
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007042,
+            "n": 90,
+            "p95_ms": 0.010125,
+            "p99_ms": 0.079167
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002333,
+            "n": 180,
+            "p95_ms": 0.0027089999999999996,
+            "p99_ms": 0.034582999999999996
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.010750000000000001,
+            "n": 180,
+            "p95_ms": 0.016915999999999997,
+            "p99_ms": 0.041584
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007834,
+            "n": 90,
+            "p95_ms": 0.009833999999999999,
+            "p99_ms": 0.012959
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001667,
+            "n": 216,
+            "p95_ms": 0.002041,
+            "p99_ms": 0.007917
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.00675,
+            "n": 90,
+            "p95_ms": 0.010958,
+            "p99_ms": 0.043875000000000004
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002125,
+            "n": 216,
+            "p95_ms": 0.0025830000000000002,
+            "p99_ms": 0.005625000000000001
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007333,
+            "n": 90,
+            "p95_ms": 0.016292,
+            "p99_ms": 0.038125
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.0018750000000000001,
+            "n": 216,
+            "p95_ms": 0.002208,
+            "p99_ms": 0.006
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.005625000000000001,
+            "n": 216,
+            "p95_ms": 0.015333999999999999,
+            "p99_ms": 0.020707999999999997
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007208,
+            "n": 90,
+            "p95_ms": 0.009041,
+            "p99_ms": 0.024791999999999998
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002333,
+            "n": 216,
+            "p95_ms": 0.0026249999999999997,
+            "p99_ms": 0.002875
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0053750000000000004,
+            "n": 216,
+            "p95_ms": 0.016541999999999998,
+            "p99_ms": 0.019375
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.00775,
+            "n": 90,
+            "p95_ms": 0.009042000000000001,
+            "p99_ms": 0.031583
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.380291,
+            "n": 90,
+            "p95_ms": 0.433666,
+            "p99_ms": 0.534416
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.333084,
+            "n": 90,
+            "p95_ms": 0.360792,
+            "p99_ms": 0.510541
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.392375,
+            "n": 90,
+            "p95_ms": 0.42000000000000004,
+            "p99_ms": 0.52375
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.337334,
+            "n": 90,
+            "p95_ms": 0.384,
+            "p99_ms": 0.530958
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.380208,
+            "n": 90,
+            "p95_ms": 0.405542,
+            "p99_ms": 0.41187500000000005
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.342542,
+            "n": 90,
+            "p95_ms": 0.36424999999999996,
+            "p99_ms": 0.46945899999999996
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.33754199999999995,
+            "n": 90,
+            "p95_ms": 0.359792,
+            "p99_ms": 0.464042
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.391542,
+            "n": 90,
+            "p95_ms": 0.41591700000000004,
+            "p99_ms": 0.435583
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.343417,
+            "n": 90,
+            "p95_ms": 0.362833,
+            "p99_ms": 0.436833
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.337917,
+            "n": 90,
+            "p95_ms": 0.357417,
+            "p99_ms": 0.429792
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.38091600000000003,
+            "n": 180,
+            "p95_ms": 0.40858300000000003,
+            "p99_ms": 0.510292
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.333625,
+            "n": 90,
+            "p95_ms": 0.393167,
+            "p99_ms": 0.485375
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.38325000000000004,
+            "n": 180,
+            "p95_ms": 0.442625,
+            "p99_ms": 0.535958
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.335916,
+            "n": 90,
+            "p95_ms": 0.399625,
+            "p99_ms": 0.512333
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.386875,
+            "n": 180,
+            "p95_ms": 0.426834,
+            "p99_ms": 0.48325
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.011125,
+            "n": 180,
+            "p95_ms": 0.383,
+            "p99_ms": 0.44620899999999997
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.34283399999999997,
+            "n": 90,
+            "p95_ms": 0.383708,
+            "p99_ms": 0.44491600000000003
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.395166,
+            "n": 180,
+            "p95_ms": 0.430375,
+            "p99_ms": 0.560417
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.010332999999999998,
+            "n": 180,
+            "p95_ms": 0.365125,
+            "p99_ms": 0.43724999999999997
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.33970799999999995,
+            "n": 90,
+            "p95_ms": 0.38412500000000005,
+            "p99_ms": 0.548959
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.37712500000000004,
+            "n": 216,
+            "p95_ms": 0.435833,
+            "p99_ms": 0.525541
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.331958,
+            "n": 90,
+            "p95_ms": 0.408542,
+            "p99_ms": 0.4947079999999999
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.390958,
+            "n": 216,
+            "p95_ms": 0.41675,
+            "p99_ms": 0.44583300000000003
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.33858299999999997,
+            "n": 90,
+            "p95_ms": 0.368959,
+            "p99_ms": 0.404416
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.388333,
+            "n": 216,
+            "p95_ms": 0.419375,
+            "p99_ms": 0.475041
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0050420000000000005,
+            "n": 216,
+            "p95_ms": 0.359792,
+            "p99_ms": 0.392708
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.339167,
+            "n": 90,
+            "p95_ms": 0.35979099999999997,
+            "p99_ms": 0.43720800000000004
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.39608299999999996,
+            "n": 216,
+            "p95_ms": 0.447375,
+            "p99_ms": 0.543041
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.006542,
+            "n": 216,
+            "p95_ms": 0.380709,
+            "p99_ms": 0.451833
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.34245800000000004,
+            "n": 90,
+            "p95_ms": 0.4,
+            "p99_ms": 0.61575
+          },
+          "threaded": true,
+          "ticks": 120
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "cases": [
+        {
+          "extraction": {
+            "median_ms": 0.001625,
+            "n": 90,
+            "p95_ms": 0.0018750000000000001,
+            "p99_ms": 0.004667
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006541,
+            "n": 90,
+            "p95_ms": 0.007500000000000001,
+            "p99_ms": 0.045125
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002084,
+            "n": 90,
+            "p95_ms": 0.002542,
+            "p99_ms": 0.00275
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007333999999999999,
+            "n": 90,
+            "p95_ms": 0.009167,
+            "p99_ms": 0.009417
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002,
+            "n": 90,
+            "p95_ms": 0.0022500000000000003,
+            "p99_ms": 0.005666
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.011292,
+            "n": 90,
+            "p95_ms": 0.014457999999999999,
+            "p99_ms": 0.029292
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007167,
+            "n": 90,
+            "p95_ms": 0.00825,
+            "p99_ms": 0.019959
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002375,
+            "n": 90,
+            "p95_ms": 0.003167,
+            "p99_ms": 0.005917
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.011209,
+            "n": 90,
+            "p95_ms": 0.018792,
+            "p99_ms": 0.041832999999999995
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007542,
+            "n": 90,
+            "p95_ms": 0.012458,
+            "p99_ms": 0.029249999999999998
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001709,
+            "n": 180,
+            "p95_ms": 0.002125,
+            "p99_ms": 0.002417
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006792,
+            "n": 90,
+            "p95_ms": 0.008791,
+            "p99_ms": 0.046458
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002167,
+            "n": 180,
+            "p95_ms": 0.002541,
+            "p99_ms": 0.003333
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007500000000000001,
+            "n": 90,
+            "p95_ms": 0.009125,
+            "p99_ms": 0.009417
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.001917,
+            "n": 180,
+            "p95_ms": 0.0022919999999999998,
+            "p99_ms": 0.005958000000000001
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.009667,
+            "n": 180,
+            "p95_ms": 0.012667,
+            "p99_ms": 0.016583
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007291,
+            "n": 90,
+            "p95_ms": 0.008,
+            "p99_ms": 0.01
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002333,
+            "n": 180,
+            "p95_ms": 0.002666,
+            "p99_ms": 0.006083
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.008749999999999999,
+            "n": 180,
+            "p95_ms": 0.013625000000000002,
+            "p99_ms": 0.017709
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007542,
+            "n": 90,
+            "p95_ms": 0.009082999999999999,
+            "p99_ms": 0.012459000000000001
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.00175,
+            "n": 216,
+            "p95_ms": 0.002125,
+            "p99_ms": 0.0022919999999999998
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.006958,
+            "n": 90,
+            "p95_ms": 0.008624999999999999,
+            "p99_ms": 0.009375
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002167,
+            "n": 216,
+            "p95_ms": 0.0025840000000000004,
+            "p99_ms": 0.0028339999999999997
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007417,
+            "n": 90,
+            "p95_ms": 0.008959,
+            "p99_ms": 0.009375
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.0018750000000000001,
+            "n": 216,
+            "p95_ms": 0.002209,
+            "p99_ms": 0.00425
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.006042,
+            "n": 216,
+            "p95_ms": 0.017207999999999998,
+            "p99_ms": 0.025958000000000002
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.007417,
+            "n": 90,
+            "p95_ms": 0.010792,
+            "p99_ms": 0.021917
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.002375,
+            "n": 216,
+            "p95_ms": 0.003,
+            "p99_ms": 0.004125
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.007125,
+            "n": 216,
+            "p95_ms": 0.016958,
+            "p99_ms": 0.0365
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 0,
+          "simulation": {
+            "median_ms": 0.0077919999999999994,
+            "n": 90,
+            "p95_ms": 0.010499999999999999,
+            "p99_ms": 0.064458
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.390667,
+            "n": 90,
+            "p95_ms": 0.448791,
+            "p99_ms": 0.5239170000000001
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.338792,
+            "n": 90,
+            "p95_ms": 0.40175,
+            "p99_ms": 0.4595
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.401667,
+            "n": 90,
+            "p95_ms": 0.432125,
+            "p99_ms": 0.490792
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 90,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.34308299999999997,
+            "n": 90,
+            "p95_ms": 0.408,
+            "p99_ms": 0.4465
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.390666,
+            "n": 90,
+            "p95_ms": 0.41970799999999997,
+            "p99_ms": 0.493417
+          },
+          "hz": 60,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.345708,
+            "n": 90,
+            "p95_ms": 0.405792,
+            "p99_ms": 0.503791
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.340708,
+            "n": 90,
+            "p95_ms": 0.398416,
+            "p99_ms": 0.499125
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.399125,
+            "n": 90,
+            "p95_ms": 0.46175,
+            "p99_ms": 0.661
+          },
+          "hz": 60,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.346458,
+            "n": 90,
+            "p95_ms": 0.391,
+            "p99_ms": 0.5337080000000001
+          },
+          "motion_step_rms_percent": 7.311430013788544e-05,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.34066599999999997,
+            "n": 90,
+            "p95_ms": 0.382625,
+            "p99_ms": 0.529291
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.388833,
+            "n": 180,
+            "p95_ms": 0.416708,
+            "p99_ms": 0.450042
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.33841699999999997,
+            "n": 90,
+            "p95_ms": 0.3605,
+            "p99_ms": 0.36154200000000003
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.3975,
+            "n": 180,
+            "p95_ms": 0.424,
+            "p99_ms": 0.43625
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 180,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.33975,
+            "n": 90,
+            "p95_ms": 0.368083,
+            "p99_ms": 0.47516600000000003
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.390417,
+            "n": 180,
+            "p95_ms": 0.435583,
+            "p99_ms": 0.5885830000000001
+          },
+          "hz": 120,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.012167,
+            "n": 180,
+            "p95_ms": 0.37679199999999996,
+            "p99_ms": 0.554084
+          },
+          "motion_step_rms_percent": 99.9999496145253,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.340542,
+            "n": 90,
+            "p95_ms": 0.37616700000000003,
+            "p99_ms": 0.665958
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.407541,
+            "n": 180,
+            "p95_ms": 0.46533399999999997,
+            "p99_ms": 0.518292
+          },
+          "hz": 120,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.015834,
+            "n": 180,
+            "p95_ms": 0.40691700000000003,
+            "p99_ms": 0.444416
+          },
+          "motion_step_rms_percent": 0.0003669856680571177,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.353792,
+            "n": 90,
+            "p95_ms": 0.409709,
+            "p99_ms": 0.461041
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.3875,
+            "n": 216,
+            "p95_ms": 0.454042,
+            "p99_ms": 0.513042
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.344792,
+            "n": 90,
+            "p95_ms": 0.397208,
+            "p99_ms": 0.458209
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.379584,
+            "n": 216,
+            "p95_ms": 0.443125,
+            "p99_ms": 0.47562499999999996
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.0,
+            "n": 216,
+            "p95_ms": 0.0,
+            "p99_ms": 0.0
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.32587499999999997,
+            "n": 90,
+            "p95_ms": 0.407833,
+            "p99_ms": 0.4545
+          },
+          "threaded": false,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.389292,
+            "n": 216,
+            "p95_ms": 0.42925,
+            "p99_ms": 0.557917
+          },
+          "hz": 144,
+          "interpolated": false,
+          "join_wait": {
+            "median_ms": 0.006417,
+            "n": 216,
+            "p95_ms": 0.369583,
+            "p99_ms": 0.388042
+          },
+          "motion_step_rms_percent": 118.32154967572255,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.339167,
+            "n": 90,
+            "p95_ms": 0.376166,
+            "p99_ms": 0.409209
+          },
+          "threaded": true,
+          "ticks": 120
+        },
+        {
+          "extraction": {
+            "median_ms": 0.40075,
+            "n": 216,
+            "p95_ms": 0.425917,
+            "p99_ms": 0.452209
+          },
+          "hz": 144,
+          "interpolated": true,
+          "join_wait": {
+            "median_ms": 0.006416,
+            "n": 216,
+            "p95_ms": 0.364583,
+            "p99_ms": 0.383625
+          },
+          "motion_step_rms_percent": 0.0003828574373462769,
+          "scenery": 1024,
+          "simulation": {
+            "median_ms": 0.33891699999999997,
+            "n": 90,
+            "p95_ms": 0.36779100000000003,
+            "p99_ms": 0.403708
+          },
+          "threaded": true,
+          "ticks": 120
+        }
+      ]
+    }
+  ]
+}

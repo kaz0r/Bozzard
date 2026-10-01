@@ -129,6 +129,8 @@ The headless tool supports `--realtime` for 60 Hz pacing and `--ticks 0` to run 
 
 Native player and editor Play run simulation on a dedicated worker while the main thread renders a prepared frame. Systems within a simulation tick execute serially. Add `--single-threaded` to either application to compare the two modes; headless runs and debugger stepping remain synchronous.
 
+Local [render interpolation](docs/render-interpolation.md) smooths objects and cameras between fixed ticks, including at 120/144 Hz. It adds up to one fixed tick of visual delay; `--no-interpolation` selects exact tick poses. The guide includes a moving-camera fixture and reproducible CPU/pixel comparisons.
+
 Rendering uses cached transforms, frustum and occlusion culling, and instancing. Consecutive scripted prefab spawns and removals without lifecycle callbacks share scene validation work. Earth Factory also streams distant chunk models and budgets surrounding residency changes across ticks.
 
 FPS measures presentation intervals. CPU draw time excludes simulation and GPU execution; the factory HUD reports simulation CPU time and the remaining worker wait separately. Use the [Debug profiler](docs/debugging.md), [performance guide](docs/performance.md), and [architecture notes](docs/architecture.md) when investigating a bottleneck.

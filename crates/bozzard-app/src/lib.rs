@@ -21,6 +21,11 @@ struct NamedSystem {
     name: &'static str,
     run: System,
 }
+type TickObserver = Box<dyn FnMut(&mut World, Tick) + Send>;
+struct NamedObserver {
+    name: &'static str,
+    run: TickObserver,
+}
 
 /// Compiled-in module interface. Dynamic binary loading/unloading is not supported yet.
 pub trait Plugin: Send {
@@ -60,6 +65,7 @@ impl std::error::Error for ModuleError {}
 struct ModuleRecord {
     plugin: Box<dyn Plugin>,
     systems: Range<usize>,
+    observers: Range<usize>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -76,13 +82,14 @@ pub struct Advance {
     pub steps: u32,
     /// Wall time discarded to prevent unbounded catch-up; the fractional tick is retained.
     pub dropped: Duration,
-    /// Fraction of the next simulation tick, for future render interpolation.
+    /// Fraction of the next simulation tick, for render interpolation.
     pub interpolation: f64,
 }
 
 pub struct App {
     pub world: World,
     systems: Vec<NamedSystem>,
+    tick_observers: Vec<NamedObserver>,
     resume_system: Option<usize>,
     plugins: HashSet<&'static str>,
     modules: Vec<ModuleRecord>,
@@ -112,6 +119,7 @@ impl App {
         Self {
             world,
             systems: Vec::new(),
+            tick_observers: Vec::new(),
             resume_system: None,
             plugins: HashSet::new(),
             modules: Vec::new(),
@@ -172,11 +180,13 @@ impl App {
         for module in order {
             let name = module.name();
             let start = self.systems.len();
+            let observer_start = self.tick_observers.len();
             module.build(self);
             self.plugins.insert(name);
             self.modules.push(ModuleRecord {
                 plugin: module,
                 systems: start..self.systems.len(),
+                observers: observer_start..self.tick_observers.len(),
             });
         }
         Ok(())
@@ -184,11 +194,12 @@ impl App {
     pub fn installed_modules(&self) -> impl Iterator<Item = &'static str> + '_ {
         self.modules.iter().map(|record| record.plugin.name())
     }
-    /// Stop only systems registered by compiled modules, in reverse dependency order.
+    /// Stop systems and observers registered by compiled modules, in reverse dependency order.
     pub fn stop_modules(&mut self) {
         while let Some(record) = self.modules.pop() {
             record.plugin.cleanup(self);
             self.systems.drain(record.systems);
+            self.tick_observers.drain(record.observers);
             self.plugins.remove(record.plugin.name());
         }
         self.resume_system = None;
@@ -213,6 +224,27 @@ impl App {
     }
     pub fn timestep(&self) -> Duration {
         self.timestep
+    }
+    /// Observe a completed fixed tick after all systems and deferred commands.
+    /// Observers run serially in registration order and never see a partial debugger tick.
+    pub fn add_tick_observer(
+        &mut self,
+        name: &'static str,
+        observer: impl FnMut(&mut World, Tick) + Send + 'static,
+    ) {
+        self.tick_observers.push(NamedObserver {
+            name,
+            run: Box::new(observer),
+        });
+    }
+    /// Fraction left after the last completed fixed-step batch. Paused worlds show
+    /// their exact state, including a partially executed debugger tick.
+    pub fn interpolation(&self) -> f32 {
+        if self.is_paused() {
+            1.
+        } else {
+            (self.accumulator.as_secs_f64() / self.timestep.as_secs_f64()) as f32
+        }
     }
     pub fn ticks(&self) -> u64 {
         self.ticks
@@ -264,6 +296,11 @@ impl App {
         bozzard_diagnostics::measure(&mut self.world, "Deferred changes", |world| {
             self.commands.apply(world)
         });
+        for observer in &mut self.tick_observers {
+            bozzard_diagnostics::measure(&mut self.world, observer.name, |world| {
+                (observer.run)(world, tick);
+            });
+        }
         if let Some(d) = self
             .world
             .resource_mut::<bozzard_diagnostics::Diagnostics>()
@@ -338,6 +375,11 @@ mod tests {
         use bozzard_diagnostics::ExecutionControl;
         let mut app = App::default();
         app.world.insert_resource(Vec::<u32>::new());
+        app.world.insert_resource(0_u32);
+        app.add_tick_observer("Complete only", |world, _| {
+            assert_eq!(world.resource::<Vec<u32>>().unwrap().last(), Some(&4));
+            *world.resource_mut::<u32>().unwrap() += 1;
+        });
         app.add_system(|world, commands, _| {
             world.resource_mut::<Vec<u32>>().unwrap().push(1);
             commands.queue(|world| world.resource_mut::<Vec<u32>>().unwrap().push(4));
@@ -357,6 +399,7 @@ mod tests {
         let change_tick = app.world.change_tick();
         assert_eq!(app.world.resource::<Vec<u32>>().unwrap(), &[1, 2]);
         assert_eq!(app.ticks, 0);
+        assert_eq!(app.world.resource::<u32>(), Some(&0));
         assert_eq!(app.advance(Duration::from_secs(600)).steps, 0);
         let control = app.world.resource_mut::<ExecutionControl>().unwrap();
         control.paused = false;
@@ -365,6 +408,7 @@ mod tests {
         assert_eq!(app.world.resource::<Vec<u32>>().unwrap(), &[1, 2, 3, 4]);
         assert_eq!(app.world.change_tick(), change_tick);
         assert_eq!(app.ticks, 1);
+        assert_eq!(app.world.resource::<u32>(), Some(&1));
         assert!(app.is_paused());
     }
 
@@ -386,6 +430,9 @@ mod tests {
             );
             assert_eq!(world.query::<bool>().count(), tick.number as usize);
         });
+        app.add_tick_observer("Completed membership", |world, tick| {
+            assert_eq!(world.query::<bool>().count(), tick.number as usize + 1);
+        });
         app.step();
         app.step();
         assert_eq!(app.world.len(), 2);
@@ -402,6 +449,8 @@ mod tests {
         assert_eq!(a.ticks(), b.ticks());
         assert_eq!(result.steps, 3);
         assert!((result.interpolation - 0.5).abs() < 1e-9);
+        assert_eq!(a.interpolation(), 0.5);
+        assert_eq!(b.interpolation(), 0.5);
         assert_eq!(result.dropped, Duration::ZERO);
     }
 
@@ -411,7 +460,9 @@ mod tests {
         let result = app.advance(Duration::from_millis(105));
         assert_eq!(result.steps, 2);
         assert_eq!(result.dropped, Duration::from_millis(80));
+        assert_eq!(app.interpolation(), 0.5);
         assert_eq!(app.advance(Duration::from_millis(5)).steps, 1);
+        assert_eq!(app.interpolation(), 0.);
     }
 
     #[test]
@@ -481,6 +532,12 @@ mod tests {
                         .unwrap()
                         .push(name)
                 });
+                app.add_tick_observer("Module observer", move |world, tick| {
+                    world
+                        .resource_mut::<Vec<(&'static str, u64)>>()
+                        .unwrap()
+                        .push((name, tick.number));
+                });
             }
             fn cleanup(&self, app: &mut App) {
                 app.world
@@ -491,6 +548,13 @@ mod tests {
         }
         let mut app = App::default();
         app.world.insert_resource(Vec::<&'static str>::new());
+        app.world.insert_resource(Vec::<(&'static str, u64)>::new());
+        app.add_tick_observer("Core observer", |world, tick| {
+            world
+                .resource_mut::<Vec<(&'static str, u64)>>()
+                .unwrap()
+                .push(("core", tick.number));
+        });
         app.add_system(|world, _, _| {
             world
                 .resource_mut::<Vec<&'static str>>()
@@ -527,6 +591,10 @@ mod tests {
             app.world.resource::<Vec<&str>>().unwrap(),
             &["core", "a", "b", "c"]
         );
+        assert_eq!(
+            app.world.resource::<Vec<(&str, u64)>>().unwrap(),
+            &[("core", 0), ("a", 0), ("b", 0), ("c", 0)]
+        );
         app.stop_modules();
         assert_eq!(
             app.world.resource::<Vec<&str>>().unwrap().last(),
@@ -537,12 +605,20 @@ mod tests {
             app.world.resource::<Vec<&str>>().unwrap().last(),
             Some(&"core")
         );
+        assert_eq!(
+            app.world.resource::<Vec<(&str, u64)>>().unwrap(),
+            &[("core", 0), ("a", 0), ("b", 0), ("c", 0), ("core", 1)]
+        );
         app.install_modules(vec![Box::new(Module("a", &[]))])
             .unwrap();
         app.step();
         assert_eq!(
             app.world.resource::<Vec<&str>>().unwrap().last(),
             Some(&"a")
+        );
+        assert_eq!(
+            &app.world.resource::<Vec<(&str, u64)>>().unwrap()[5..],
+            &[("core", 2), ("a", 2)]
         );
     }
 }

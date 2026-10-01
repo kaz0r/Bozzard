@@ -1964,6 +1964,7 @@ impl SceneInstance {
                 };
                 transport(self, world, &target, control)?;
             }
+            K::ResetInterpolation => self.reset_render_interpolation(world, &target)?,
             K::Translate | K::Rotate | K::SetPosition | K::SetRotation | K::SetScale => {
                 let mut next = transform;
                 let v = value.vector()?;

@@ -334,6 +334,7 @@ node_kinds! {
     SetPosition => "Set Position" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
     SetRotation => "Set Rotation" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
     SetScale => "Set Scale" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
+    ResetInterpolation => "Reset Interpolation" { "In": Exec, "Target": Object } -> { "Then": Exec },
     SetColor => "Set Color (RGB)" { "In": Exec, "Value": Vector, "Target": Object } -> { "Then": Exec },
     SetVisible => "Set Visible" { "In": Exec, "Visible": Bool, "Target": Object } -> { "Then": Exec },
     SetLightIntensity => "Set Light Intensity" { "In": Exec, "Intensity": Number, "Target": Object } -> { "Then": Exec },

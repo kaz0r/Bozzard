@@ -57,6 +57,7 @@ pub use light::{
     Light, LightKind, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS,
     WorldLight,
 };
+mod interpolation;
 mod lighting;
 mod lod;
 mod transforms;
@@ -1104,6 +1105,7 @@ impl Scene {
             compute_capabilities: Default::default(),
             lod_history: Default::default(),
             transform_cache: Default::default(),
+            hierarchy_revision: 0,
             ui_layout_cache: Default::default(),
         };
         instance.initialize_gameplay(world);
@@ -1141,6 +1143,7 @@ pub struct SceneInstance {
     compute_capabilities: compute::Capabilities,
     lod_history: lod::History,
     transform_cache: transforms::Cache,
+    hierarchy_revision: u64,
     ui_layout_cache: middleware::ui::LayoutCache,
 }
 
@@ -1164,6 +1167,10 @@ impl SceneInstance {
     }
 
     fn rebuild_hierarchy_index(&mut self) {
+        self.hierarchy_revision = self
+            .hierarchy_revision
+            .checked_add(1)
+            .expect("hierarchy revision exhausted");
         self.object_indices = self
             .document
             .objects
@@ -1199,6 +1206,33 @@ impl SceneInstance {
     /// Compose one object's ancestry without calculating unrelated scene transforms.
     /// UI projection only needs the camera, even when a scene contains many machines.
     pub(crate) fn global_transform(&self, world: &World, id: &str) -> Result<Mat4> {
+        self.compose_transform(world, id, None)
+    }
+
+    pub(crate) fn presented_transform(&self, world: &World, id: &str) -> Result<Mat4> {
+        if !game_flow::simulation_running(world)
+            || world
+                .resource::<bozzard_diagnostics::ExecutionControl>()
+                .is_some_and(|control| control.paused)
+        {
+            return self.global_transform(world, id);
+        }
+        let history = world
+            .resource::<interpolation::History>()
+            .filter(|h| h.matches(self) && h.has_motion() && h.fraction < 1.);
+        if history.is_none() {
+            self.global_transform(world, id)
+        } else {
+            self.compose_transform(world, id, history)
+        }
+    }
+
+    fn compose_transform(
+        &self,
+        world: &World,
+        id: &str,
+        history: Option<&interpolation::History>,
+    ) -> Result<Mat4> {
         let mut chain = Vec::new();
         let mut next = Some(id);
         while let Some(id) = next {
@@ -1206,22 +1240,35 @@ impl SceneInstance {
                 chain.len() < self.document.objects.len(),
                 "scene transform hierarchy contains a cycle"
             );
-            let object = self
-                .document
-                .objects
-                .iter()
-                .find(|o| o.id == id)
-                .context("scene object missing")?;
+            let entity = self.entity(id).context("scene object missing")?;
+            let index = self.object_indices[&entity];
+            let object = &self.document.objects[index];
             let local = world
-                .get::<Transform>(self.entities[id])
+                .get::<Transform>(entity)
                 .context("scene object/transform was removed")?;
             local.validate()?;
-            chain.push((id, local.matrix()));
+            chain.push((id, index, entity, *local));
             next = object.parent.as_deref();
         }
         let mut global = Mat4::IDENTITY;
-        for (id, local) in chain.into_iter().rev() {
-            global *= local;
+        let mut snapped = false;
+        for (id, index, entity, local) in chain.into_iter().rev() {
+            let sampled = if let Some(history) = history {
+                let (snap, sample) = history.local_sample(index, entity, local, snapped);
+                if snap && !snapped {
+                    global = self.global_transform(world, id)?;
+                    snapped = true;
+                    continue;
+                }
+                snapped = snap;
+                sample.map(|sample| {
+                    interpolation::matrix(sample.previous, sample.current, history.fraction)
+                })
+            } else {
+                None
+            };
+            let local_matrix = sampled.unwrap_or_else(|| local.matrix());
+            global *= local_matrix;
             ensure!(
                 global.is_finite() && global.inverse().is_finite(),
                 "invalid runtime transform on '{id}'"
@@ -1262,7 +1309,34 @@ impl SceneInstance {
         aspect: f32,
         inspection_pose: Option<Mat4>,
     ) -> Result<SceneView> {
-        let matrices = self.global_transforms(world)?;
+        self.extract_view(world, layer, aspect, inspection_pose, None)
+    }
+
+    /// Extract presentation poses without changing live transforms or serialized state.
+    /// Cameras, lights, world text and sprites share the same composed hierarchy.
+    pub fn view_interpolated_from_camera(
+        &self,
+        world: &World,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+        alpha: f32,
+    ) -> Result<SceneView> {
+        self.extract_view(world, layer, aspect, inspection_pose, Some(alpha))
+    }
+
+    fn extract_view(
+        &self,
+        world: &World,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+        alpha: Option<f32>,
+    ) -> Result<SceneView> {
+        let matrices = match alpha {
+            Some(alpha) => self.interpolated_transforms(world, alpha)?,
+            None => self.global_transforms(world)?,
+        };
         let camera_id = world
             .resource::<middleware::timeline::Runtime>()
             .and_then(|r| r.cameras.get(&layer))

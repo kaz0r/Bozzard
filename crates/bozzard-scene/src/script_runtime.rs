@@ -154,6 +154,9 @@ enum Command {
         target: String,
         speed: f32,
     },
+    ResetInterpolation {
+        target: String,
+    },
     /// Translate, Rotate, SetPosition, SetRotation or SetScale, matching the blueprint node.
     Transform {
         target: String,
@@ -1160,6 +1163,9 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             }
         });
     }
+    write!("reset_interpolation", (target: ImmutableString), |state| {
+        Command::ResetInterpolation { target: state.target_of(&target)? }
+    });
     write!("set_color", (target: ImmutableString, color: Array), |state| {
         let color = vector_of(color)?;
         ensure_script(color.iter().all(|c| (0.0..=1.0).contains(c)), || {
@@ -2518,6 +2524,9 @@ impl SceneInstance {
                     kind,
                     value,
                 } => self.apply_transform(world, &resolve(tokens, &target), kind, value)?,
+                Command::ResetInterpolation { target } => {
+                    self.reset_render_interpolation(world, &resolve(tokens, &target))?;
+                }
                 Command::Color { target, color } => {
                     self.apply_color(world, &resolve(tokens, &target), color)?
                 }

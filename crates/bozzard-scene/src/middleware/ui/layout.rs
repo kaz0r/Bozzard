@@ -262,7 +262,7 @@ impl SceneInstance {
                     })
                     .map(|(id, camera)| -> Result<_> {
                         Ok(camera.projection(size[0] / size[1])?
-                            * self.global_transform(world, id)?.inverse())
+                            * self.presented_transform(world, id)?.inverse())
                     })
                     .transpose()?
             } else {

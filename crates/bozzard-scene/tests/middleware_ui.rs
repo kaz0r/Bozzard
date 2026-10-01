@@ -194,6 +194,65 @@ fn world_labels_project_at_viewport_aspect_and_fade_with_children() {
             .is_none()
     );
 }
+
+#[test]
+fn world_labels_share_interpolated_camera_pose_and_invalidate_layout_cache() {
+    let mut scene = base();
+    canvas(&mut scene);
+    scene.objects.push(Object {
+        id: "camera".into(),
+        name: "Camera".into(),
+        transform: bozzard_scene::Transform {
+            translation: [0., 0., 5.],
+            ..Default::default()
+        },
+        camera: Some(bozzard_scene::Camera::Orthographic {
+            vertical_size: 10.,
+            near: 0.1,
+            far: 100.,
+        }),
+        ..Default::default()
+    });
+    scene.views.insert(Layer::TwoD, "camera".into());
+    widget(
+        &mut scene,
+        "label",
+        "canvas",
+        Widget {
+            anchors: Anchors {
+                pivot: [0.5, 1.],
+                size: [200., 40.],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let mut world = World::new();
+    let instance = scene.spawn(&mut world).unwrap();
+    instance
+        .control_ui(&mut world, "label", Control::WorldPosition([1., 0., 0.]))
+        .unwrap();
+    instance.set_render_interpolation(&mut world, true).unwrap();
+    world.advance_change_tick();
+    world
+        .get_mut::<bozzard_scene::Transform>(instance.entity("camera").unwrap())
+        .unwrap()
+        .translation[0] = 2.;
+    instance.capture_render_transforms(&mut world).unwrap();
+    bozzard_scene::SceneInstance::set_render_interpolation_fraction(&mut world, 0.5).unwrap();
+    let half = instance
+        .ui_frame(&world, Layer::TwoD, [800., 600.])
+        .unwrap();
+    bozzard_scene::SceneInstance::set_render_interpolation_fraction(&mut world, 1.).unwrap();
+    let exact = instance
+        .ui_frame(&world, Layer::TwoD, [800., 600.])
+        .unwrap();
+    let half_x = half.element("label").unwrap().rect.min[0];
+    let exact_x = exact.element("label").unwrap().rect.min[0];
+    assert!((half_x - 300.).abs() < 0.001);
+    assert!((exact_x - 240.).abs() < 0.001);
+    assert_ne!(half_x, exact_x);
+}
 #[test]
 fn pointer_policy_follows_visible_enabled_controls_and_scroll_areas() {
     let mut scene = base();
