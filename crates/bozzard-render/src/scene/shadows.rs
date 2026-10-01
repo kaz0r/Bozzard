@@ -30,6 +30,7 @@ pub(super) struct ShadowCaster {
     opacity: f32,
     cutoff: f32,
     transparent: bool,
+    lit: bool,
 }
 
 impl ShadowCaster {
@@ -43,6 +44,7 @@ impl ShadowCaster {
             opacity: d.opacity,
             cutoff: d.cutoff,
             transparent: d.transparent,
+            lit: d.object.material.lit,
         }
     }
 }
@@ -113,9 +115,13 @@ pub(super) struct Shadows {
 }
 
 fn module_text(instanced: bool) -> String {
-    let source = include_str!("shadow_cast.wgsl");
+    let source = format!(
+        "{}\n{}",
+        include_str!("object.wgsl"),
+        include_str!("shadow_cast.wgsl")
+    );
     if !instanced {
-        return source.into();
+        return source;
     }
     source
         .replace("@group(0) @binding(0) var<uniform> object: ObjectUniform;",

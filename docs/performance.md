@@ -47,9 +47,12 @@ The benchmark’s reference/culling/cache comparison is a diagnostic for rendere
 ## Scene-wide opaque batching
 
 The scene renderer groups visible repeated meshes across intervening model parts,
-using the same mesh, texture and stock shader flavor. Each indexed draw packs up
-to 32 instances within the portable 16 KiB uniform limit. A cached plan avoids
-rebuilding the grouping when geometry, visibility and camera remain unchanged.
+using the same mesh, texture, lighting eligibility and stock shader flavor. Each indexed draw packs up
+to 64 instances within the portable 16 KiB uniform limit. Shared frame constants
+leave each instance with a 256-byte record; changed records upload independently.
+A cached plan also retains grouping through modest movement and orthographic
+camera changes when conservative ordering checks remain valid. Visibility,
+geometry or grouping changes and uncertain projections rebuild the plan.
 Packed instances reuse their buffers; individual uniform uploads are deferred
 until a color or shadow draw needs them.
 
@@ -82,7 +85,8 @@ cargo test --release --offline -p bozzard-render --test instancing \
   scale_benchmark -- --ignored --exact --nocapture
 ```
 
-September 30 local release measurements on Intel Iris Xe / Vulkan, using the
+September 30 local release measurements, before the shared-uniform pass and with
+32-instance batches, on Intel Iris Xe / Vulkan, using the
 six-region fixture above (419 visible items / 1,430 visible surfaces):
 
 | Batching | Color draw commands | Renderer CPU median / p95 | Synchronized wall median |
@@ -98,6 +102,10 @@ presentation interval from **18.239 to 16.740 ms** (about 55 to 60 FPS). Present
 p95 changed from **36.507 to 33.701 ms**; startup outliers remain. GPU-pass medians
 were similar (**8.165 / 8.047 ms**). These are local measurements of this fixture,
 not a frame-rate guarantee for other saves, hardware or resolutions.
+
+For the October 1 shared-uniform, batch-capacity and partial-upload work, including
+incremental ordering checks, conservative local-light masks, and repeatable benchmarks, see
+[batch renderer optimizations](batch-renderer-optimizations.md).
 
 ## Recorded Sponza measurements
 

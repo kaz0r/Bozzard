@@ -36,8 +36,17 @@ pub struct FrameStats {
     pub instanced_draws: usize,
     /// Visible surfaces represented by draws with more than one instance.
     pub instanced_surfaces: usize,
+    pub batch_plan_reused: bool,
+    pub batch_plan_rebuilds: usize,
+    /// World/projected bounds updated while retaining an existing ordering plan.
+    pub batch_bounds_updates: usize,
+    pub batch_order_checks: usize,
     /// Additional packed instance uniform bytes uploaded this frame.
     pub instance_uniform_bytes: usize,
+    /// New instance-buffer allocations; texture rebinding reuses the allocation.
+    pub instance_buffer_allocations: usize,
+    /// Shared camera, lighting, fog and graph-clock bytes uploaded once per frame.
+    pub frame_uniform_bytes: usize,
     pub shadow_draws: usize,
     /// Depth passes encoded this frame, including clears of empty maps.
     pub shadow_maps_rendered: usize,
@@ -50,6 +59,11 @@ pub struct FrameStats {
     pub object_uniform_writes: usize,
     /// Object uniforms recomputed on the CPU, before byte comparison/upload.
     pub object_uniform_builds: usize,
+    /// Conservative object/light pairs retained for visible lit surfaces.
+    pub local_light_candidates: usize,
+    /// Visible lit surfaces multiplied by the scene's local-light count.
+    pub local_light_slots: usize,
+    pub light_mask_builds: usize,
     pub auxiliary_targets: usize,
     /// Logical size of allocated auxiliary textures; excludes other effect/history targets.
     pub geometry_allocated_bytes: u64,
@@ -101,15 +115,21 @@ impl SceneRenderer {
     pub fn set_state_caching_enabled(&mut self, enabled: bool) {
         self.state_caching = enabled;
     }
-    pub(super) fn visibility(&self, scene: &RenderScene, draws: &[PreparedDraw]) -> Vec<bool> {
+    /// Compare conservative surface light masks with the full light loop.
+    pub fn set_local_light_culling_enabled(&mut self, enabled: bool) {
+        self.light_selection.set_enabled(enabled);
+    }
+    pub(super) fn visibility(
+        &self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        bounds: &[[Vec3; 2]],
+    ) -> Vec<bool> {
         draws
             .iter()
-            .map(|d| {
-                !self.culling
-                    || visible(
-                        self.mesh_for(&d.object).bounds,
-                        scene.view_projection * d.object.model,
-                    )
+            .zip(bounds)
+            .map(|(d, &bounds)| {
+                !self.culling || visible(bounds, scene.view_projection * d.object.model)
             })
             .collect()
     }

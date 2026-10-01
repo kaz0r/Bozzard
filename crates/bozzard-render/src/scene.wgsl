@@ -1,14 +1,3 @@
-struct ObjectUniform {
-    mvp: mat4x4<f32>,
-    normal: mat4x4<f32>,
-    tint: vec4<f32>,
-    parameters: vec4<f32>, // UV scale, lighting enabled, alpha cutoff
-    model: mat4x4<f32>, inverse_view_projection: mat4x4<f32>, viewport: vec4<f32>,
-    sun: vec4<f32>, sun_color: vec4<f32>, ambient_color: vec4<f32>,
-    surface_factors: vec4<f32>,
-    fog_color: vec4<f32>, fog_density: vec4<f32>, fog_height: vec4<f32>,
-    previous_mvp: mat4x4<f32>, misc: vec4<f32>, // x = elapsed seconds for shader graphs
-};
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;
 @group(0) @binding(2) var color_sampler: sampler;
@@ -34,8 +23,8 @@ struct VertexOutput {
 @vertex
 fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(8) previous_position: vec3<f32>) -> VertexOutput {
     var out: VertexOutput;
-    out.previous=object.previous_mvp*vec4<f32>(previous_position,1.0);
-    out.position = object.mvp * vec4<f32>(position, 1.0);
+    out.previous=(frame.previous_view_projection * object.previous_model)*vec4<f32>(previous_position,1.0);
+    out.position = (frame.view_projection * object.model) * vec4<f32>(position, 1.0);
     out.normal = (object.normal * vec4<f32>(normal, 0.0)).xyz;
     out.world = (object.model * vec4<f32>(position, 1.0)).xyz;
     out.uv = uv * object.parameters.xy;
@@ -61,10 +50,10 @@ fn default_material_surface(uv: vec2<f32>, normal_uv: vec2<f32>, mr_uv: vec2<f32
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front: bool) -> SurfaceOutput {
-    let ndc = in.position.xy / object.viewport.xy * vec2<f32>(2,-2) + vec2<f32>(-1,1);
-    let near = object.inverse_view_projection * vec4<f32>(ndc, 0, 1);
+    let ndc = in.position.xy / frame.viewport.xy * vec2<f32>(2,-2) + vec2<f32>(-1,1);
+    let near = frame.inverse_view_projection * vec4<f32>(ndc, 0, 1);
     let view = normalize(near.xyz / near.w - in.world);
-    let params = default_material_surface(in.uv, in.uv, in.uv, in.uv, in.uv, normalize(in.normal), vec4<f32>(0.0), in.world, view, front, object.misc.x);
+    let params = default_material_surface(in.uv, in.uv, in.uv, in.uv, in.uv, normalize(in.normal), vec4<f32>(0.0), in.world, view, front, frame.misc.x);
     if params.alpha <= 0.00001 || params.alpha < object.parameters.w { discard; }
     let base = params.base;
     let alpha = params.alpha;
@@ -78,17 +67,19 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front: bool) -> SurfaceOutpu
         let v=view;
         let roughness=params.roughness;let metallic=params.metallic;
         let f0=mix(vec3<f32>(0.04),base,metallic);
-        var color=direct_brdf(base,metallic,roughness,n,v,object.sun.xyz)*object.sun.w*object.sun_color.rgb*sun_visibility(in.world,n);
-        for(var i=0u;i<u32(local_lights.count.x);i++) {
+        var color=direct_brdf(base,metallic,roughness,n,v,frame.sun.xyz)*frame.sun.w*frame.sun_color.rgb*sun_visibility(in.world,n);
+        var remaining=object_light_mask();
+        while remaining!=0u {
+            let i=firstTrailingBit(remaining);remaining&=remaining-1u;
             let light=local_lights.lights[i];let offset=light.position_range.xyz-in.world;
             color+=direct_brdf(base,metallic,roughness,n,v,local_direction(light,offset))*local_radiance(light,offset)*local_visibility(light,in.world,n);
         }
-        color+=base*(1.0-metallic)*(object.sun_color.w*object.ambient_color.rgb+gi_diffuse(in.world,n)*(1.0-f0));
+        color+=base*(1.0-metallic)*(frame.sun_color.w*frame.ambient_color.rgb+gi_diffuse(in.world,n)*(1.0-f0));
         color+=specular_environment(reflect(-v,n),roughness,max(dot(n,v),0.0001),f0);
         return surface_output(vec4<f32>(apply_fog(min(color,vec3<f32>(60000)),in.world,in.position.xy),alpha),in.position,in.previous,n,roughness,f0,1.0,0.0);
     }
-    let diffuse = local_diffuse(in.world, params.normal) + object.sun_color.w * object.ambient_color.rgb + gi_diffuse(in.world,params.normal)
-        + object.sun_color.rgb * object.sun.w * max(dot(params.normal, object.sun.xyz), 0.0) / 3.14159265 * sun_visibility(in.world, params.normal);
+    let diffuse = local_diffuse_masked(in.world, params.normal, object_light_mask()) + frame.sun_color.w * frame.ambient_color.rgb + gi_diffuse(in.world,params.normal)
+        + frame.sun_color.rgb * frame.sun.w * max(dot(params.normal, frame.sun.xyz), 0.0) / 3.14159265 * sun_visibility(in.world, params.normal);
     let light = mix(vec3<f32>(1.0), diffuse, object.parameters.z);
     return surface_output(vec4<f32>(apply_fog(min(base * light + params.emissive, vec3<f32>(60000.0)), in.world, in.position.xy), alpha),in.position,in.previous,params.normal,1.0,vec3<f32>(0),1.0,0.0);
 }
@@ -101,7 +92,7 @@ struct SurfaceOutput {
     @location(3) fresnel_occlusion:vec4<f32>,
 }
 fn surface_output(color:vec4<f32>,position:vec4<f32>,previous:vec4<f32>,normal:vec3<f32>,roughness:f32,f0:vec3<f32>,ao:f32,reactive:f32)->SurfaceOutput {
-    let current_uv=position.xy/object.viewport.xy;
+    let current_uv=position.xy/frame.viewport.xy;
     let previous_ndc=previous.xyz/max(previous.w,0.000001);
     let previous_uv=previous_ndc.xy*vec2<f32>(0.5,-0.5)+0.5;
     let valid=previous.w>0.00001 && previous_ndc.z>=0.0 && previous_ndc.z<=1.0;

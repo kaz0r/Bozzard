@@ -1121,6 +1121,16 @@ const BATCHING_FIXTURE: &str = r#"
 #[test]
 #[ignore = "release-mode real-asset batching profile; requires a graphics adapter"]
 fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
+    profile_factory_renderer(false)
+}
+
+#[test]
+#[ignore = "release-mode 400-machine lighting profile; requires a graphics adapter"]
+fn profile_earth_factory_local_lighting() -> anyhow::Result<()> {
+    profile_factory_renderer(true)
+}
+
+fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
     use bozzard_render::{Gpu, SceneRenderer, wgpu};
     use bozzard_scene::blueprint::Value;
     let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
@@ -1149,12 +1159,20 @@ fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
     editor.start_play()?;
     let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
         .replace("fn on_start(me)", "fn normal_start(me)");
-    editor.play.as_mut().unwrap().with_instance(|instance, _| {
-        instance.register_script(
-            "earth-factory".into(),
-            format!("{source}\nfn on_start(me) {{normal_start(me);{BATCHING_FIXTURE}}}"),
+    let source = if light_selection {
+        format!(
+            "{}\n{}",
+            source.replace("fn on_update(me, dt)", "fn normal_update(me, dt)"),
+            include_str!("fixtures/dense_lighting.rhai")
         )
-    })?;
+    } else {
+        format!("{source}\nfn on_start(me) {{normal_start(me);{BATCHING_FIXTURE}}}")
+    };
+    editor
+        .play
+        .as_mut()
+        .unwrap()
+        .with_instance(|instance, _| instance.register_script("earth-factory".into(), source))?;
     for _ in 0..60 {
         let play = editor.play.as_mut().unwrap();
         play.app.step();
@@ -1169,8 +1187,13 @@ fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
     println!("batching adapter: {:?}", gpu.adapter.get_info());
     let mut renderers: [SceneRenderer; 2] =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
-    renderers[0].set_global_batching_enabled(false);
+    if light_selection {
+        renderers[0].set_local_light_culling_enabled(false);
+    } else {
+        renderers[0].set_global_batching_enabled(false);
+    }
     for renderer in &mut renderers {
+        renderer.set_profiling_enabled(true);
         for entry in editor.assets.entries() {
             if let Some(data) = entry.data() {
                 bozzard_render_assets::upload(&gpu, renderer, &entry.id, data)?;
@@ -1196,6 +1219,7 @@ fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
         })
         .create_view(&Default::default());
     let mut samples: [Vec<(f64, f64)>; 2] = Default::default();
+    let mut gpu_samples: [Vec<f64>; 2] = Default::default();
     for tick in 0..72 {
         let play = editor.play.as_mut().unwrap();
         play.app.step();
@@ -1205,14 +1229,30 @@ fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
             let start = std::time::Instant::now();
             renderers[mode].draw(&gpu, &target, size, &scene)?;
             gpu.wait()?;
+            let synchronized_ms = start.elapsed().as_secs_f64() * 1000.;
+            let profiles = renderers[mode].poll_gpu_profiles(&gpu)?;
             if tick >= 12 {
-                samples[mode].push((
-                    renderers[mode].frame_stats().cpu_ms,
-                    start.elapsed().as_secs_f64() * 1000.,
-                ));
+                for profile in profiles {
+                    if !profile.failed
+                        && profile.omitted == 0
+                        && let Some(times) = profile
+                            .passes
+                            .iter()
+                            .map(|p| p.milliseconds)
+                            .collect::<Option<Vec<_>>>()
+                    {
+                        gpu_samples[mode].push(times.into_iter().sum());
+                    }
+                }
+                samples[mode].push((renderers[mode].frame_stats().cpu_ms, synchronized_ms));
             }
         }
     }
+    let modes = if light_selection {
+        ["full-light-loop", "light-masks"]
+    } else {
+        ["consecutive", "global"]
+    };
     for (mode, values) in samples.iter().enumerate() {
         let mut cpu: Vec<_> = values.iter().map(|v| v.0).collect();
         let mut wall: Vec<_> = values.iter().map(|v| v.1).collect();
@@ -1221,7 +1261,7 @@ fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
         let stats = renderers[mode].frame_stats();
         println!(
             "mode={} visible={} surfaces={} draws={} shadow_draws={} cpu_median_ms={:.3} cpu_p95_ms={:.3} synchronized_median_ms={:.3}",
-            ["consecutive", "global"][mode],
+            modes[mode],
             stats.visible_items,
             stats.visible_surfaces,
             stats.color_draws,
@@ -1230,8 +1270,30 @@ fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
             cpu[57],
             wall[30]
         );
+        gpu_samples[mode].sort_by(f64::total_cmp);
+        println!(
+            "mode={} lights={}/{} gpu_pass_median_ms={:?} samples={}",
+            modes[mode],
+            stats.local_light_candidates,
+            stats.local_light_slots,
+            gpu_samples[mode].get(gpu_samples[mode].len() / 2),
+            gpu_samples[mode].len()
+        );
     }
-    assert!(renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2);
+    if light_selection {
+        assert!(
+            renderers[1].frame_stats().local_light_candidates
+                < renderers[0].frame_stats().local_light_candidates
+        );
+        assert_eq!(
+            renderers[1].frame_stats().color_draws,
+            renderers[0].frame_stats().color_draws
+        );
+    } else {
+        assert!(
+            renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2
+        );
+    }
     // Validate this game's real multipart materials, shadows and camera rotation.
     for heading in [0., 90., 180., 270.] {
         let play = editor.play.as_mut().unwrap();

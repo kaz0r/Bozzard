@@ -1,8 +1,9 @@
 use super::*;
 use std::collections::HashMap;
+mod reuse;
 
 // Fits the downlevel 16 KiB uniform-binding limit without storage-buffer features.
-pub(super) const MAX_INSTANCES: usize = 32;
+pub(super) const MAX_INSTANCES: usize = 64;
 pub(super) const BUFFER_BYTES: usize = OBJECT_UNIFORM_BYTES * MAX_INSTANCES;
 
 pub(super) struct Pipelines {
@@ -17,6 +18,7 @@ pub(super) struct InstanceBinding {
 pub(super) struct Instancing {
     enabled: bool,
     global: bool,
+    incremental: bool,
     plan: Option<Plan>,
     layout: wgpu::BindGroupLayout,
     pub pipelines: Option<Pipelines>,
@@ -33,6 +35,7 @@ impl Instancing {
         Self {
             enabled: true,
             global: true,
+            incremental: true,
             plan: None,
             layout,
             pipelines: None,
@@ -66,6 +69,7 @@ fn compatible(a: &PreparedDraw, b: &PreparedDraw) -> bool {
         && !matches!(a.object.mesh, MeshKind::Text(_) | MeshKind::Sprite(_))
         && a.object.mesh == b.object.mesh
         && a.object.material.texture == b.object.material.texture
+        && a.object.material.lit == b.object.material.lit
         && a.pbr == b.pbr
 }
 
@@ -98,7 +102,9 @@ enum MeshKey {
     Part(String, usize),
 }
 #[derive(PartialEq, Eq, Hash)]
-struct Key(MeshKey, TextureKind, bool);
+// Uniform shadow eligibility prevents one unlit member from forcing a large
+// otherwise reusable color batch back to individual shadow draws.
+struct Key(MeshKey, TextureKind, bool, bool);
 fn key(draw: &PreparedDraw) -> Option<Key> {
     if draw.transparent || draw.shader.is_some() || draw.deformation != 0 {
         return None;
@@ -111,7 +117,12 @@ fn key(draw: &PreparedDraw) -> Option<Key> {
         MeshKind::ModelPart(id, part) => MeshKey::Part(id.clone(), *part),
         _ => return None,
     };
-    Some(Key(mesh, draw.object.material.texture.clone(), draw.pbr))
+    Some(Key(
+        mesh,
+        draw.object.material.texture.clone(),
+        draw.pbr,
+        draw.object.material.lit,
+    ))
 }
 
 struct Input {
@@ -122,19 +133,20 @@ struct Input {
     shader: Option<u64>,
     deformation: u64,
     pbr: bool,
+    lit: bool,
     transparent: bool,
     visible: bool,
 }
 impl Input {
-    fn matches(&self, draw: &PreparedDraw, bounds: [Vec3; 2], visible: bool) -> bool {
+    fn matches_metadata(&self, draw: &PreparedDraw, bounds: [Vec3; 2], visible: bool) -> bool {
         self.visible == visible
-            && self.model == draw.object.model
             && self.bounds == bounds
             && self.mesh == draw.object.mesh
             && self.texture == draw.object.material.texture
             && self.shader == draw.shader
             && self.deformation == draw.deformation
             && self.pbr == draw.pbr
+            && self.lit == draw.object.material.lit
             && self.transparent == draw.transparent
     }
 }
@@ -142,6 +154,7 @@ struct Plan {
     camera: Mat4,
     inputs: Vec<Input>,
     batches: Vec<Batch>,
+    ordering: Option<reuse::Ordering>,
 }
 
 // An opaque reorder can change an equal-depth winner. Retain original order for
@@ -183,7 +196,11 @@ fn enqueue(
     ready.insert((*queues[group].first().unwrap(), group));
 }
 
-fn global_batches(draws: &[PreparedDraw], inputs: &[Input], camera: Mat4) -> Vec<Batch> {
+fn global_batches(
+    draws: &[PreparedDraw],
+    inputs: &[Input],
+    camera: Mat4,
+) -> (Vec<Batch>, Vec<[Vec3; 2]>) {
     let mut groups = HashMap::new();
     let mut group_of = vec![0; draws.len()];
     let mut queues: Vec<BTreeSet<usize>> = Vec::new();
@@ -294,7 +311,7 @@ fn global_batches(draws: &[PreparedDraw], inputs: &[Input], camera: Mat4) -> Vec
             });
         }
     }
-    result
+    (result, boxes)
 }
 
 impl SceneRenderer {
@@ -312,51 +329,77 @@ impl SceneRenderer {
         self.instancing.plan = None;
     }
 
+    /// Compare incremental ordering checks with rebuilding changed batch plans.
+    pub fn set_incremental_batch_planning_enabled(&mut self, enabled: bool) {
+        self.instancing.incremental = enabled;
+        self.instancing.plan = None;
+    }
+
     pub(super) fn prepare_instances(
         &mut self,
         gpu: &Gpu,
         draws: &[PreparedDraw],
+        bounds: &[[Vec3; 2]],
         visible: &[bool],
         camera: Mat4,
     ) -> Result<Vec<Batch>> {
         let mut batches = if self.instancing.enabled && self.instancing.global {
-            let unchanged = self.instancing.plan.as_ref().is_some_and(|plan| {
-                plan.camera == camera
-                    && plan.inputs.len() == draws.len()
-                    && plan.inputs.iter().zip(draws).zip(visible).all(
-                        |((input, draw), &visible)| {
-                            input.matches(draw, self.mesh_for(&draw.object).bounds, visible)
-                        },
-                    )
+            let mut previous = self.instancing.plan.take();
+            let checks = previous.as_mut().and_then(|plan| {
+                reuse::retain(
+                    plan,
+                    draws,
+                    visible,
+                    camera,
+                    self.instancing.incremental,
+                    bounds,
+                )
             });
-            if !unchanged {
+            if let Some(checks) = checks {
+                self.stats.batch_plan_reused = true;
+                self.stats.batch_bounds_updates = checks.bounds;
+                self.stats.batch_order_checks = checks.pairs;
+                self.instancing.plan = previous;
+            } else {
                 let inputs = draws
                     .iter()
                     .zip(visible)
-                    .map(|(draw, &visible)| Input {
+                    .zip(bounds)
+                    .map(|((draw, &visible), &bounds)| Input {
                         mesh: draw.object.mesh.clone(),
                         texture: draw.object.material.texture.clone(),
                         model: draw.object.model,
-                        bounds: self.mesh_for(&draw.object).bounds,
+                        bounds,
                         shader: draw.shader,
                         deformation: draw.deformation,
                         pbr: draw.pbr,
+                        lit: draw.object.material.lit,
                         transparent: draw.transparent,
                         visible,
                     })
                     .collect::<Vec<_>>();
+                let (batches, projected) = global_batches(draws, &inputs, camera);
+                let ordering = self
+                    .instancing
+                    .incremental
+                    .then(|| reuse::Ordering::new(&inputs, &batches, camera, projected))
+                    .flatten();
                 self.instancing.plan = Some(Plan {
                     camera,
-                    batches: global_batches(draws, &inputs, camera),
+                    batches,
                     inputs,
+                    ordering,
                 });
+                self.stats.batch_plan_rebuilds = 1;
             }
             self.instancing.plan.as_ref().unwrap().batches.clone()
         } else {
             batches(draws, visible, self.instancing.enabled)
         };
         let count = batches.iter().filter(|b| b.indices.len() > 1).count();
-        self.instancing.bindings.truncate(count);
+        // Retain a bounded set of spare allocations through temporary culling or
+        // removals. Explicit disable/asset invalidation still releases everything.
+        self.instancing.bindings.truncate(count + 8);
         if count == 0 {
             return Ok(batches);
         }
@@ -400,9 +443,7 @@ impl SceneRenderer {
             .enumerate()
         {
             let texture = &draws[batch.indices[0]].object.material.texture;
-            if slot == self.instancing.bindings.len()
-                || self.instancing.bindings[slot].texture != *texture
-            {
+            if slot == self.instancing.bindings.len() {
                 let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("instanced object uniforms"),
                     size: BUFFER_BYTES as u64,
@@ -417,28 +458,47 @@ impl SceneRenderer {
                     texture: texture.clone(),
                     bytes: Vec::with_capacity(BUFFER_BYTES),
                 };
-                if slot == self.instancing.bindings.len() {
-                    self.instancing.bindings.push(value);
-                } else {
-                    self.instancing.bindings[slot] = value;
-                }
+                self.instancing.bindings.push(value);
+                self.stats.instance_buffer_allocations += 1;
+            } else if self.instancing.bindings[slot].texture != *texture {
+                let binding = self.texture_binding(
+                    gpu,
+                    texture,
+                    &self.instancing.bindings[slot].buffer,
+                    &self.instancing.layout,
+                )?;
+                self.instancing.bindings[slot].binding = binding;
+                self.instancing.bindings[slot].texture = texture.clone();
             }
             let binding = &mut self.instancing.bindings[slot];
-            let uniforms = batch.indices.iter().map(|&index| &self.objects[index]);
-            let unchanged = binding.bytes.len() == batch.indices.len() * OBJECT_UNIFORM_BYTES
-                && uniforms
-                    .clone()
-                    .zip(binding.bytes.chunks_exact(OBJECT_UNIFORM_BYTES))
-                    .all(|(object, bytes)| object.uniform.as_ref().unwrap().as_slice() == bytes);
-            if !self.state_caching || !unchanged {
-                binding.bytes.clear();
-                for object in uniforms {
-                    binding
-                        .bytes
-                        .extend_from_slice(object.uniform.as_ref().unwrap());
+            let old_len = binding.bytes.len();
+            binding
+                .bytes
+                .resize(batch.indices.len() * OBJECT_UNIFORM_BYTES, 0);
+            let mut changed_start = None;
+            // Merge adjacent edits into one write; leave unchanged instance ranges
+            // resident. New/expanded records are always uploaded, even if all zero.
+            for (instance, &index) in batch.indices.iter().enumerate() {
+                let start = instance * OBJECT_UNIFORM_BYTES;
+                let end = start + OBJECT_UNIFORM_BYTES;
+                let uniform = self.objects[index].uniform.as_ref().unwrap();
+                if !self.state_caching || start >= old_len || binding.bytes[start..end] != *uniform
+                {
+                    binding.bytes[start..end].copy_from_slice(uniform);
+                    changed_start.get_or_insert(start);
+                } else if let Some(first) = changed_start.take() {
+                    gpu.queue.write_buffer(
+                        &binding.buffer,
+                        first as u64,
+                        &binding.bytes[first..start],
+                    );
+                    self.stats.instance_uniform_bytes += start - first;
                 }
-                gpu.queue.write_buffer(&binding.buffer, 0, &binding.bytes);
-                self.stats.instance_uniform_bytes += binding.bytes.len();
+            }
+            if let Some(first) = changed_start {
+                gpu.queue
+                    .write_buffer(&binding.buffer, first as u64, &binding.bytes[first..]);
+                self.stats.instance_uniform_bytes += binding.bytes.len() - first;
             }
             batch.slot = Some(slot);
         }
@@ -499,10 +559,10 @@ mod tests {
                 .map(|b| b.indices.len())
                 .collect::<Vec<_>>()
         };
-        assert_eq!(sizes(&draws, &visible, true), [32, 32, 3]);
+        assert_eq!(sizes(&draws, &visible, true), [64, 3]);
         assert_eq!(sizes(&draws, &visible, false), vec![1; 67]);
         visible[32] = false;
-        assert_eq!(sizes(&draws, &visible, true), [32, 32, 2]);
+        assert_eq!(sizes(&draws, &visible, true), [32, 34]);
         for kind in 0..4 {
             let mut b = draw();
             match kind {
@@ -529,6 +589,22 @@ mod tests {
             )
             .validate(&module)
             .unwrap();
+            for (name, expected) in [
+                ("ObjectUniform", OBJECT_UNIFORM_BYTES),
+                ("FrameUniform", FRAME_UNIFORM_BYTES),
+            ] {
+                let ty = &module
+                    .types
+                    .iter()
+                    .find(|(_, ty)| ty.name.as_deref() == Some(name))
+                    .unwrap()
+                    .1;
+                let wgpu::naga::TypeInner::Struct { span, .. } = ty.inner else {
+                    panic!("uniform struct")
+                };
+                assert_eq!(span as usize, expected, "{name} packing");
+            }
+            const { assert!(BUFFER_BYTES <= 16 * 1024) };
         }
     }
 }
