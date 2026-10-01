@@ -1466,6 +1466,10 @@
     "factory-world": {
       "kind": "script",
       "path": "scripts/factory/world.rhai"
+    },
+    "factory-clock": {
+      "kind": "script",
+      "path": "scripts/factory/clock.rhai"
     }
   },
   "objects": [
@@ -5522,7 +5526,7 @@
           ],
           "size": [
             206,
-            142
+            174
           ]
         },
         "text_color": [
@@ -5626,6 +5630,76 @@
       }
     },
     {
+      "id": "world-clock",
+      "name": "World Clock",
+      "parent": "world-panel",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotation_degrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "ui_widget": {
+        "kind": "label",
+        "text": "08:00:00",
+        "font_size": 20,
+        "anchors": {
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            18,
+            43
+          ],
+          "size": [
+            172,
+            26
+          ]
+        },
+        "text_color": [
+          0.95,
+          0.96,
+          1.0,
+          1
+        ],
+        "background": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "auto_text_height": false,
+        "clip_children": false,
+        "order": 0
+      }
+    },
+    {
       "id": "stored-iron",
       "name": "Stored Iron",
       "parent": "world-panel",
@@ -5665,7 +5739,7 @@
           ],
           "offset": [
             18,
-            51
+            83
           ],
           "size": [
             172,
@@ -5735,7 +5809,7 @@
           ],
           "offset": [
             18,
-            74
+            106
           ],
           "size": [
             172,
@@ -5805,7 +5879,7 @@
           ],
           "offset": [
             18,
-            97
+            129
           ],
           "size": [
             172,
@@ -5875,7 +5949,7 @@
           ],
           "offset": [
             -24,
-            175
+            207
           ],
           "size": [
             206,
@@ -8053,7 +8127,7 @@
           ],
           "offset": [
             -24,
-            216
+            248
           ],
           "size": [
             206,
@@ -8130,7 +8204,7 @@
           ],
           "offset": [
             -24,
-            266
+            298
           ],
           "size": [
             206,
@@ -8210,7 +8284,7 @@
           ],
           "offset": [
             -24,
-            308
+            340
           ],
           "size": [
             206,
@@ -8290,7 +8364,7 @@
           ],
           "offset": [
             -24,
-            350
+            382
           ],
           "size": [
             206,
@@ -56729,6 +56803,21 @@
             "element": "text",
             "capacity": 1024,
             "values": []
+          }
+        },
+        "clock_second": {
+          "scalar": {
+            "number": -1
+          }
+        },
+        "clock_observed": {
+          "scalar": {
+            "number": -1
+          }
+        },
+        "clock_correction": {
+          "scalar": {
+            "number": 0
           }
         }
       }

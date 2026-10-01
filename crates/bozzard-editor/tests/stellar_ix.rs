@@ -70,29 +70,29 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
         editor.assets.require_ready()?;
         editor.start_play()?;
         if label != "title" && label != "coop" {
+            let elapsed = if [
+                "half",
+                "site",
+                "ship",
+                "resources",
+                "dev-world",
+                "materials-belts",
+                "expansion-manufacturer",
+                "expansion-refinery",
+            ]
+            .contains(&label)
+                || label.starts_with("foundation-")
+            {
+                3600.
+            } else {
+                14400.
+            };
             let source = source
                 .replace("fn on_start(me)", "fn original_start(me)")
-                .replace(
-                    "sin(data::session_value(120) * 0.10)",
-                    if [
-                        "half",
-                        "site",
-                        "ship",
-                        "resources",
-                        "dev-world",
-                        "materials-belts",
-                        "expansion-manufacturer",
-                        "expansion-refinery",
-                    ]
-                    .contains(&label)
-                        || label.starts_with("foundation-")
-                    {
-                        "1.0"
-                    } else {
-                        "-1.0"
-                    },
-                );
-            let source = format!("{source}\n{showroom}");
+                .replace("fn on_update(me, dt)", "fn normal_update(me, dt)");
+            let source = format!(
+                "{source}\n{showroom}\nfn on_update(me,dt) {{ data::session_set(120,{elapsed:.1});normal_update(me,dt); }}"
+            );
             let script = format!(
                 r#"{source}
             fn on_start(me) {{
@@ -433,8 +433,7 @@ fn logistics_ports_render() -> anyhow::Result<()> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
-        .replace("fn on_start(me)", "fn original_start(me)")
-        .replace("sin(data::session_value(120) * 0.10)", "1.0");
+        .replace("fn on_start(me)", "fn original_start(me)");
     let mut editor = Editor::open(&path)?;
     editor.assets.require_ready()?;
     editor.start_play()?;
@@ -442,7 +441,7 @@ fn logistics_ports_render() -> anyhow::Result<()> {
         r#"{source}
         fn on_start(me) {{
             navigation::show_title(false); set_object_variable("creative",true); world::begin_world(4);
-            set_object_variable("phase",4.0);
+            set_object_variable("phase",4.0);data::session_set(120,3600.0);
             for kind in [7,8] {{
                 for facing in 0..4 {{
                     let x=facing*2-3; let z=if kind==7 {{ -2 }} else {{ 2 }};
@@ -530,10 +529,10 @@ fn renewable_power_models_render_in_the_playable_showroom() -> anyhow::Result<()
     let mut previous_pixels = None;
     for (stage, time, supply) in [
         ("calm-before", 10.0, 20.0),
-        ("gust", 20.0, 26.0),
-        ("gust-moving", 20.1, 26.0),
-        ("calm-after", 40.0, 8.0),
-        ("calm-still", 40.1, 8.0),
+        ("gust", 61.0, 26.0),
+        ("gust-moving", 61.1, 26.0),
+        ("calm-after", 483.0, 20.0),
+        ("calm-still", 483.1, 20.0),
     ] {
         let play = editor.play.as_mut().unwrap();
         let script = format!(

@@ -8,8 +8,8 @@ fn motion() {
     let time=get_object_list_item("controller","session",120);
     // Smooth between host snapshots without extrapolating into a calm period.
     if get_object_list_item("controller","session",122)==2.0 && renewables::wind_active(seed,planet,time) {
-        let cycle=floor(time/48.0).to_int();let window=renewables::wind_window(seed,planet,cycle);
-        time=min(time+min(get_object_list_item("controller","session",124),0.25),cycle.to_float()*48.0+window.start+window.duration);
+        let cycle=renewables::wind_cycle(time);let window=renewables::wind_window(seed,planet,cycle);
+        time=min(time+min(get_object_list_item("controller","session",124),0.25),cycle.to_float()*renewables::wind_cycle_seconds()+window.start+window.duration);
     }
     renewables::wind_motion(seed,planet,time)
 }

@@ -6,6 +6,7 @@ import "factory-grid" as grid;
 import "factory-inventory" as inventory;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
+import "factory-clock" as clock;
 
 fn nearby_label(cell, nodes, builds) {
     let names = ["", "Iron", "Copper", "Limestone", "Coal", "Quartz", "Oil", "Water", "Stone", "Sand", "Silver"];
@@ -115,6 +116,9 @@ fn update_debug_hud(dt) {
 }
 
 fn update_hud(dt, daylight) {
+    let time=data::session_value(120);
+    clock::update_view(time);
+    let is_day=clock::daytime(time,data::session_value(7).to_int());
     let counts = get_scene_list("counts");
     let completed = counts[20] >= 8.0;
     let target = min(1.0, counts[20] / 8.0);
@@ -137,7 +141,7 @@ fn update_hud(dt, daylight) {
     let message = get_scene_variable("message");
     // React immediately to gameplay changes, but don't rebuild the same labels and
     // eight action-bar slots on every fixed tick. Include animated objective progress.
-    let state = [counts[11], counts[12], counts[20], progress, daylight >= 0.0,
+    let state = [counts[11], counts[12], counts[20], progress, is_day,
         supply, demand, selected, bar, phase, demonstration, cx, cz, kind, facing, data::on_moon(), counts[24], counts[25], counts[26]].to_string() + "|" + message;
     if !data::ui_view_changed(0, state) { return; }
     set_ui_text("objective-title", if completed { "Objective met" } else { "Objective" });
@@ -146,7 +150,7 @@ fn update_hud(dt, daylight) {
     set_ui_text("objective-count", min(8.0, counts[20]).to_int().to_string() + " / 8");
     set_ui_size("objective-fill", max(0.01, 356.0 * progress), 12.0);
     set_ui_visible("objective-fill", progress > 0.001);
-    set_ui_text("world-status", data::planet_name() + if daylight >= 0.0 && !data::on_moon() { " / DAY" } else { " / NIGHT" });
+    set_ui_text("world-status", data::planet_name() + if is_day { " / DAY" } else { " / NIGHT" });
     set_ui_text("stored-iron", "Iron              " + counts[11].to_int().to_string());
     set_ui_text("stored-copper", "Copper        " + counts[12].to_int().to_string());
     set_ui_text("stored-parts", "Parts            " + counts[20].to_int().to_string());

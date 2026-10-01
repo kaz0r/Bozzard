@@ -378,7 +378,20 @@ at 1280 × 800. The four camera angles match the former batcher's pixels exactly
 indoor/window/door captures are unchanged. See [the batching reproduction and
 native frame measurements](../../docs/performance.md#scene-wide-opaque-batching).
 
-The roughly 63-second day/night cycle smoothly fades the sun, ambient light, sky colors, and exposure into dark blue moonlight. Stars fade into the sky behind the terrain at night and disappear at dawn; the HUD stays readable and production continues. Stars use the existing sky pass without spawning entities or adding draw calls. Stella-Z2 holds a separate, permanent night sky with stars and neutral moonlight over gray regolith. A moving sun, disk saves, and rocket fuel remain later steps.
+The HUD shows a 24-hour clock with seconds. New worlds begin at **08:00:00**,
+and four in-game seconds pass per real second of active play. A full day takes
+**six real hours**. Sunrise is **06:00** and sunset is **18:00**; the sun,
+ambient light, sky colors, and exposure smoothly follow this clock into dark blue
+moonlight. Solar generation and DAY/NIGHT labels use the same sunrise and sunset.
+Stars fade into the sky behind terrain at night, using the existing sky pass.
+Stella-Z2 keeps its permanent night sky and shares the world clock with Earth.
+
+Time persists through saves, planet travel, and multiplayer host snapshots.
+The title screen and paused simulation do not advance it; ordinary game menus
+continue to allow production and time to pass. The saved timer remains elapsed
+real play time, so production, gusts, and the twenty-minute autosave retain their
+real-time intervals. Compensated accumulation prevents clock drift during long
+sessions. Save descriptions include the day number and clock time.
 
 The source of truth for the scene, tiled ground, UI, and prefabs is [`tools/generate_scene.py`](tools/generate_scene.py). Gameplay starts in [`scenes/scripts/earth_factory.rs`](scenes/scripts/earth_factory.rs), which only coordinates lifecycle hooks and frame order. The implementation lives in [`scenes/scripts/factory/`](scenes/scripts/factory/). The generator registers every `.rhai` module there as a script asset without rewriting it. Rerunning the generator replaces manual edits to its generated files. Machine prefabs use unscaled pivots, so their children retain their intended height during rotation.
 
@@ -576,8 +589,9 @@ same footprint and costs in multiplayer.
 
 Solar-only circuits stop at night and restart at dawn, including when Earth is
 simulating in the background. Solar has no output on the permanently dark lunar
-map. Both planets have occasional seeded wind gusts: 10–16 seconds of wind in
-each 48-second weather window, with varied timing and speed. The turbine blades
+map. Both planets have occasional seeded wind gusts lasting **20 seconds to
+10 minutes of real time**. Each 15-minute weather window has one gust with
+varied timing, duration, and speed, and calm periods on both sides. The turbine blades
 accelerate and decelerate over two seconds, then remain still during the calm.
 They supply 6 power throughout a gust and zero while stopped; a wind-only circuit
 pauses and resumes with the weather. Subtle pooled ground streaks show the gust

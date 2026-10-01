@@ -30,6 +30,7 @@ import "factory-simulation" as simulation;
 import "factory-visuals" as visuals;
 import "factory-world" as world;
 import "factory-wind" as wind;
+import "factory-clock" as clock;
 
 fn on_start(me) {
     set_visible("hover-tile",false); set_visible("rocket-exhaust",false);
@@ -125,7 +126,7 @@ fn on_update(me, dt) {
     set_scene_variable("clock", clock);
     if guest {guest_items::animate();}else{visuals::animate_items(clock / 0.32);}
 
-    let daylight = if data::on_moon() { -1.0 } else { sin(data::session_value(120) * 0.10) };
+    let daylight = clock::daylight(data::session_value(120),data::session_value(7).to_int());
     environment::update_daylight(daylight);
 
     if inventory_active {

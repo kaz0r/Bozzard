@@ -5566,7 +5566,7 @@ fn saves_restore_both_planets_power_storage_inventory_and_clock_in_a_fresh_sessi
         saved
             .description()
             .unwrap()
-            .contains("Tier 2 / Phase 4 · Cycle 2 / Night")
+            .contains("Tier 2 / Phase 4 · Day 1 / Night 08:06:44")
     );
     let serialized = serde_json::to_string(&saved).unwrap();
     assert!(
@@ -9285,6 +9285,92 @@ fn renewables_fixture(setup: &str) -> SceneDemo {
     ))
 }
 
+fn hud_text(demo: &SceneDemo, id: &str) -> String {
+    demo.instance()
+        .ui_frame(&demo.app.world, bozzard_scene::Layer::ThreeD, [1080., 600.])
+        .unwrap()
+        .element(id)
+        .unwrap()
+        .text
+        .clone()
+}
+
+#[test]
+fn game_clock_runs_four_times_faster_preserves_its_rate_after_hours_and_pauses_at_title() {
+    let mut demo = factory_with_mode(Some(4.), false);
+    tick(&mut demo, None);
+    assert_eq!(hud_text(&demo, "world-clock"), "08:00:00");
+    for (elapsed, expected) in [(0., "08:00:04"), (20000., "06:13:24")] {
+        factory_code(
+            &mut demo,
+            &format!("data::session_set(120,{elapsed:.1});"),
+            1,
+        );
+        restore_factory_update(&mut demo);
+        settle(&mut demo, 60);
+        assert!((controller_numbers(&demo, "session")[120] - elapsed - 1.).abs() < 0.001);
+        assert_eq!(hud_text(&demo, "world-clock"), expected);
+    }
+    factory_code(&mut demo, "set_object_variable(\"title_open\",true);", 1);
+    restore_factory_update(&mut demo);
+    let elapsed = controller_numbers(&demo, "session")[120];
+    settle(&mut demo, 60);
+    assert_eq!(controller_numbers(&demo, "session")[120], elapsed);
+    factory_code(&mut demo, "world::begin_world(17);", 1);
+    assert_eq!(controller_numbers(&demo, "session")[120], 0.);
+    assert_eq!(hud_text(&demo, "world-clock"), "08:00:00");
+}
+
+#[test]
+fn game_clock_daylight_solar_and_save_metadata_agree_at_dawn_dusk_and_midnight() {
+    use bozzard_demo::factory::clock;
+    let demo = renewables_fixture("");
+    let time = demo.instance().script_module("factory-clock").unwrap();
+    let weather = demo.instance().script_module("factory-renewables").unwrap();
+    for (elapsed, label, day, sunny) in [
+        (0., "08:00:00", 1, true),
+        (3600., "12:00:00", 1, true),
+        (8999.75, "17:59:59", 1, true),
+        (9000., "18:00:00", 1, false),
+        (14400., "00:00:00", 2, false),
+        (19799.75, "05:59:59", 2, false),
+        (19800., "06:00:00", 2, true),
+        (21600., "08:00:00", 2, true),
+        (216000., "08:00:00", 11, true),
+    ] {
+        assert_eq!(
+            time.call_args::<_, String>("label", (elapsed,)).unwrap(),
+            label
+        );
+        assert_eq!(clock::label(elapsed), label);
+        assert_eq!(clock::day_number(elapsed), day);
+        let seconds: f32 = time.call_args("day_seconds", (elapsed,)).unwrap();
+        assert_eq!(clock::day_seconds(elapsed), seconds);
+        for planet in [0i64, 1] {
+            let expected = sunny && planet == 0;
+            assert_eq!(
+                time.call_args::<_, bool>("daytime", (elapsed, planet))
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(
+                weather
+                    .call_args::<_, bool>("solar_active", (elapsed, planet))
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(clock::daytime(elapsed, planet == 1), expected);
+            let daylight: f32 = time.call_args("daylight", (elapsed, planet)).unwrap();
+            if planet == 1 {
+                assert_eq!(daylight, -1.);
+            } else {
+                let expected = ((seconds - 21600.) / 86400. * std::f32::consts::TAU).sin();
+                assert!((daylight - expected).abs() < 0.00001);
+            }
+        }
+    }
+}
+
 // Populate in separate hooks, as individual placements happen across frames in
 // the player. The measured hook still uses the normal controller and its budget.
 fn dense_factory_fixture(kind: i32) -> SceneDemo {
@@ -9462,11 +9548,11 @@ fn renewables_generate_daylight_solar_and_gust_driven_wind_through_real_cables()
     "#,
     );
     let consumer = ((5 + 7) * 15 + 3 + 7) as usize;
-    assert_eq!(number(&demo, "power_supply"), 26.);
+    assert_eq!(number(&demo, "power_supply"), 20.);
     assert_eq!(controller_numbers(&demo, "power_live")[consumer], 1.);
     factory_code(
         &mut demo,
-        "data::session_set(120,47.1);power::update_power();",
+        "data::session_set(120,9001.0);power::update_power();",
         1,
     );
     assert_eq!(
@@ -9477,7 +9563,7 @@ fn renewables_generate_daylight_solar_and_gust_driven_wind_through_real_cables()
     assert_eq!(controller_numbers(&demo, "power_live")[consumer], 0.);
     factory_code(
         &mut demo,
-        "data::session_set(120,119.0);power::update_power();",
+        "data::session_set(120,10032.0);power::update_power();",
         1,
     );
     assert_eq!(number(&demo, "power_supply"), 14.);
@@ -9685,12 +9771,12 @@ fn renewables_earth_solar_circuits_follow_dawn_and_dusk_while_on_the_other_plane
     "#,
     );
     assert_eq!(controller_numbers(&demo, "session")[7], 1.);
-    for (time, expected) in [(47.1, 0.), (15.7, 1.)] {
+    for (time, expected) in [(9000., 0.), (19800., 1.)] {
         factory_code(
             &mut demo,
             &format!(
                 r#"
-            data::session_set(120,{time});simulation::factory_step();
+            data::session_set(120,{time:.1});simulation::factory_step();
             let graph=power::power_graph("power_other");
             set_scene_variable("power_demand",graph[(144*225+grid::index(3,5)).to_string()][1].to_float());
         "#
@@ -9723,6 +9809,19 @@ fn gust_fixture() -> SceneDemo {
     );
     factory_code(&mut demo, "wind::update();", 2); // Start the rotor's lifetime hook.
     demo
+}
+
+fn gust_times(demo: &SceneDemo, cycle: i64) -> (f32, f32) {
+    let weather = demo.instance().script_module("factory-renewables").unwrap();
+    let length: f32 = weather.call("wind_cycle_seconds", vec![]).unwrap();
+    let window: serde_json::Value = weather
+        .call_args("wind_window", (number(demo, "seed") as i64, 0i64, cycle))
+        .unwrap();
+    let start = cycle as f32 * length + window["start"].as_f64().unwrap() as f32;
+    (
+        start + 4.,
+        start + window["duration"].as_f64().unwrap() as f32 + 1.,
+    )
 }
 
 fn gust_rotor(demo: &SceneDemo) -> bozzard_scene::Transform {
@@ -9759,15 +9858,38 @@ fn gust_rotor_count(demo: &SceneDemo) -> f32 {
 fn wind_gusts_have_calm_intervals_smooth_ramps_and_deterministic_angles() {
     let demo = renewables_fixture("");
     let weather = demo.instance().script_module("factory-renewables").unwrap();
+    let length: f32 = weather.call("wind_cycle_seconds", vec![]).unwrap();
+    assert_eq!(length, 900.);
+    // These worlds exercise both real-time duration limits, independent of the
+    // four-times-faster displayed clock.
+    for (seed, duration) in [(1692i64, 20.), (254i64, 600.)] {
+        let window: serde_json::Value = weather
+            .call_args("wind_window", (seed, 0i64, 0i64))
+            .unwrap();
+        assert_eq!(window["duration"].as_f64().unwrap() as f32, duration);
+        let start = window["start"].as_f64().unwrap() as f32;
+        for (offset, expected) in [
+            (duration / 4. + 1., true),
+            (duration - 0.1, true),
+            (duration, false),
+        ] {
+            assert_eq!(
+                weather
+                    .call_args::<_, bool>("wind_active", (seed, 0i64, start + offset))
+                    .unwrap(),
+                expected
+            );
+        }
+    }
     for seed in [1i64, 4, 2_000_000_000] {
         for planet in [0i64, 1] {
             for cycle in [0i64, 1, 6, 7, 55] {
                 let window: serde_json::Value = weather
                     .call_args("wind_window", (seed, planet, cycle))
                     .unwrap();
-                let start = cycle as f32 * 48. + window["start"].as_f64().unwrap() as f32;
+                let start = cycle as f32 * length + window["start"].as_f64().unwrap() as f32;
                 let duration = window["duration"].as_f64().unwrap() as f32;
-                assert!((10.0..=16.0).contains(&duration));
+                assert!((20.0..=600.0).contains(&duration));
                 let motion = |time: f32| -> (f32, f32) {
                     let result: serde_json::Value = weather
                         .call_args("wind_motion", (seed, planet, time))
@@ -9782,7 +9904,7 @@ fn wind_gusts_have_calm_intervals_smooth_ramps_and_deterministic_angles() {
                     (start + 0.1, true),
                     (start + 4., true),
                     (start + duration, false),
-                    (cycle as f32 * 48. + 47., false),
+                    (cycle as f32 * length + length - 1., false),
                 ] {
                     let running: bool = weather
                         .call_args("wind_active", (seed, planet, time))
@@ -9805,7 +9927,7 @@ fn wind_gusts_have_calm_intervals_smooth_ramps_and_deterministic_angles() {
                 assert!((motion(start + duration - 1.).1 - 0.5).abs() < 0.001);
                 assert_eq!(
                     motion(start + duration).0,
-                    motion(cycle as f32 * 48. + 47.).0
+                    motion(cycle as f32 * length + length - 1.).0
                 );
                 let slow = (motion(start + 0.2).0 - motion(start).0).rem_euclid(360.);
                 let fast = (motion(start + 4.2).0 - motion(start + 4.).0).rem_euclid(360.);
@@ -9819,6 +9941,8 @@ fn wind_gusts_have_calm_intervals_smooth_ramps_and_deterministic_angles() {
 #[test]
 fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
     let mut demo = gust_fixture();
+    let (gust, calm) = gust_times(&demo, 0);
+    let (next_gust, _) = gust_times(&demo, 1);
     let consumer = (11 * 15 + 10) as usize; // World tile (3,4).
     assert_eq!(gust_rotor_count(&demo), 1.);
     let stopped = gust_rotor(&demo);
@@ -9832,7 +9956,7 @@ fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
     assert_eq!(numbers(&demo, "progress")[consumer], 0.);
     factory_code(
         &mut demo,
-        "data::session_set(120,20.0);wind::update();simulation::factory_step();",
+        &format!("data::session_set(120,{gust:.1});wind::update();simulation::factory_step();"),
         1,
     );
     let moving = gust_rotor(&demo);
@@ -9846,7 +9970,11 @@ fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
     assert_eq!(controller_numbers(&demo, "power_live")[consumer], 1.);
     assert_eq!(numbers(&demo, "progress")[consumer], 1.);
     let membership = demo.instance().document().objects.len();
-    factory_code(&mut demo, "data::session_set(120,20.1);wind::update();", 1);
+    factory_code(
+        &mut demo,
+        &format!("data::session_set(120,{:.1});wind::update();", gust + 0.1),
+        1,
+    );
     assert_ne!(
         gust_rotor(&demo).rotation_degrees[2],
         moving.rotation_degrees[2]
@@ -9858,7 +9986,7 @@ fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
     );
     factory_code(
         &mut demo,
-        "data::session_set(120,40.0);wind::update();power::update_power();",
+        &format!("data::session_set(120,{calm:.1});wind::update();power::update_power();"),
         1,
     );
     let calm = gust_rotor(&demo);
@@ -9877,7 +10005,7 @@ fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
     );
     factory_code(
         &mut demo,
-        "data::session_set(120,69.0);wind::update();power::update_power();",
+        &format!("data::session_set(120,{next_gust:.1});wind::update();power::update_power();"),
         1,
     );
     assert_eq!(
@@ -9904,9 +10032,13 @@ fn wind_gusts_spin_the_child_rotor_and_power_production_only_while_spinning() {
 #[test]
 fn wind_gusts_restore_from_saves_and_stream_rotors_without_stale_handles() {
     let mut demo = gust_fixture();
+    let (gust, calm) = gust_times(&demo, 0);
+    let (next_gust, next_calm) = gust_times(&demo, 1);
     factory_code(
         &mut demo,
-        "data::session_set(120,20.0);wind::update();power::update_power();world::archive_chunk();",
+        &format!(
+            "data::session_set(120,{gust:.1});wind::update();power::update_power();world::archive_chunk();"
+        ),
         1,
     );
     let angle = gust_rotor(&demo).rotation_degrees[2];
@@ -9936,7 +10068,11 @@ fn wind_gusts_restore_from_saves_and_stream_rotors_without_stale_handles() {
     finish_save_io(&mut demo);
     factory_code(&mut demo, "wind::update();power::update_power();", 2);
     assert_eq!(number(&demo, "seed"), 4.);
-    assert_eq!(controller_numbers(&demo, "session")[120], 20.);
+    assert_eq!(controller_numbers(&demo, "session")[120], gust);
+    assert_eq!(
+        hud_text(&demo, "world-clock"),
+        bozzard_demo::factory::clock::label(gust)
+    );
     assert_eq!(gust_rotor_count(&demo), 1.);
     assert_eq!(
         gust_rotor(&demo).rotation_degrees[2],
@@ -9954,7 +10090,7 @@ fn wind_gusts_restore_from_saves_and_stream_rotors_without_stale_handles() {
         1,
     );
     assert_eq!(gust_rotor_count(&demo), 0.);
-    for (time, expected) in [(40., 0.), (69., 1.), (95., 0.)] {
+    for (time, expected) in [(calm, 0.), (next_gust, 1.), (next_calm, 0.)] {
         factory_code(
             &mut demo,
             &format!(
@@ -9982,7 +10118,9 @@ fn wind_gusts_native_multiplayer_wiring_uses_the_same_seeded_world_clock() {
     };
     use std::time::Duration;
     let mut demo = gust_fixture();
-    for (time, expected) in [(10., 0), (20., 1), (40., 0), (69., 1)] {
+    let (gust, calm) = gust_times(&demo, 0);
+    let (next_gust, _) = gust_times(&demo, 1);
+    for (time, expected) in [(10., 0), (gust, 1), (calm, 0), (next_gust, 1)] {
         factory_code(
             &mut demo,
             &format!(
@@ -10044,6 +10182,8 @@ fn wind_gusts_native_multiplayer_wiring_uses_the_same_seeded_world_clock() {
 fn wind_gusts_coop_guests_follow_weather_and_reconcile_remote_rotor_lifetimes() {
     use bozzard_demo::factory::{host::HostRuntime, replication::requests::Action};
     let mut host = gust_fixture();
+    let (gust, calm) = gust_times(&host, 0);
+    let (next_gust, _) = gust_times(&host, 1);
     HostRuntime::start(
         &mut host.app.world,
         10,
@@ -10059,7 +10199,7 @@ fn wind_gusts_coop_guests_follow_weather_and_reconcile_remote_rotor_lifetimes() 
     coop_host_tick(&mut host);
     let mut guest = coop_guest(&host);
     assert_eq!(gust_rotor_count(&guest), 1.);
-    for (time, expected) in [(20., 1.), (40., 0.), (69., 1.)] {
+    for (time, expected) in [(gust, 1.), (calm, 0.), (next_gust, 1.)] {
         factory_code(
             &mut host,
             &format!(
@@ -10071,6 +10211,10 @@ fn wind_gusts_coop_guests_follow_weather_and_reconcile_remote_rotor_lifetimes() 
         coop_guest_snapshot(&host, &mut guest);
         settle(&mut guest, 3);
         assert_eq!(controller_numbers(&guest, "session")[120], time);
+        assert_eq!(
+            hud_text(&guest, "world-clock"),
+            bozzard_demo::factory::clock::label(time)
+        );
         assert_eq!(
             controller_numbers(&guest, "power_live")[11 * 15 + 10],
             expected

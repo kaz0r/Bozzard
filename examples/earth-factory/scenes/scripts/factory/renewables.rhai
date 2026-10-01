@@ -3,6 +3,7 @@
 import "factory-data" as data;
 import "factory-grid" as grid;
 import "factory-debris" as debris;
+import "factory-clock" as clock;
 
 fn renewable(kind) { kind>=40.0 && kind<=42.0 }
 fn value(pages,planet,id) {
@@ -92,20 +93,22 @@ fn edit_array(id,remove) {
 }
 
 // Weather uses the saved world clock and seed, so unloaded regions, saves and
-// host-authoritative actions all see the same gust. Seven varied 48-second
-// windows repeat; each contains 10–16 seconds of wind and a long calm interval.
+// host-authoritative actions all see the same gust. Seven varied 15-minute
+// real-time windows repeat, each with a 20–600 second gust and calm on both sides.
+fn wind_cycle_seconds() {900.0}
+fn wind_cycle(time) {floor(max(time,0.0)/wind_cycle_seconds()).to_int()}
 fn wind_window(seed,planet,cycle) {
     let salt=((seed%104729)*48271+planet*15427+(cycle%7)*7919)%104729;
-    #{start:(8+salt%13).to_float(),duration:(10+salt/13%7).to_float(),speed:(300+salt/91%121).to_float()}
+    #{start:(30+salt%181).to_float(),duration:(20+salt/13%581).to_float(),speed:(300+salt/91%121).to_float()}
 }
 fn wind_active(seed,planet,time) {
-    let cycle=floor(max(time,0.0)/48.0).to_int();let window=wind_window(seed,planet,cycle);
-    let elapsed=max(time,0.0)-cycle.to_float()*48.0-window.start;
+    let cycle=wind_cycle(time);let window=wind_window(seed,planet,cycle);
+    let elapsed=max(time,0.0)-cycle.to_float()*wind_cycle_seconds()-window.start;
     elapsed>0.0 && elapsed<window.duration
 }
 fn wind_motion(seed,planet,time) {
-    let cycle=floor(max(time,0.0)/48.0).to_int();let window=wind_window(seed,planet,cycle);
-    let elapsed=max(time,0.0)-cycle.to_float()*48.0-window.start;
+    let cycle=wind_cycle(time);let window=wind_window(seed,planet,cycle);
+    let elapsed=max(time,0.0)-cycle.to_float()*wind_cycle_seconds()-window.start;
     let area=0.0;let remainder=0.0;
     for i in 0..7 {
         let previous=wind_window(seed,planet,i);let turn=previous.speed*(previous.duration-2.0);
@@ -121,7 +124,7 @@ fn wind_motion(seed,planet,time) {
       strength:if elapsed>0.0 && elapsed<window.duration {min(1.0,min(elapsed/2.0,(window.duration-elapsed)/2.0))}else{0.0}}
 }
 
-fn solar_active(time,planet) {planet==0 && sin(time*0.10)>=0.0}
+fn solar_active(time,planet) {clock::daytime(time,planet)}
 fn supply(kind,sunny,windy) {
     if kind==10 {8}else if kind==6 {10}else if kind==40 {if sunny {4}else{0}}
     else if kind==41 {if sunny {8}else{0}}else if kind==42 {if windy {6}else{0}}else{0}

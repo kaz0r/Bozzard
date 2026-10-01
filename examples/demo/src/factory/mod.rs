@@ -1,6 +1,7 @@
 //! Stellar-IX's native session services. Rhai owns gameplay and presentation;
 //! native code owns local files and (separately) authenticated session authority.
 pub mod authority;
+pub mod clock;
 pub mod guest;
 pub mod host;
 pub mod link;

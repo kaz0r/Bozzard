@@ -74,7 +74,7 @@ fn update_daylight(daylight) {
         set_star_intensity(1.9); set_exposure(0.0);
         return;
     }
-    // Smooth dawn/dusk over a few seconds, then hold true daylight or moonlight.
+    // Smooth dawn/dusk around the game clock's sunrise and sunset.
     let light = clamp(daylight * 2.5 + 0.5, 0.0, 1.0);
     light = light * light * (3.0 - 2.0 * light);
     set_sun_light(sky_color([0.36, 0.50, 0.86], [1.0, 0.94, 0.82], light), lerp(0.14, 2.6, light));

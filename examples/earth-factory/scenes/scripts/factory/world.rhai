@@ -12,6 +12,7 @@ import "factory-power" as power;
 import "factory-visuals" as visuals;
 import "factory-transports" as transports;
 import "factory-dev_world" as dev;
+import "factory-clock" as clock;
 
 fn begin_world(seed) { begin_world(seed,false); }
 
@@ -30,6 +31,7 @@ fn begin_world(seed, developer) {
     session[122]=authority;session[126]=generation;
     session[63]=if developer {1.0}else{0.0};
     set_object_list("session", session);
+    clock::reset_accumulation();
     set_object_list("power_other", grid::empty_text(867));
     set_visible("ground", true);
     set_object_list("recipes", grid::empty_numbers(225));
@@ -202,6 +204,8 @@ fn begin_world(seed, developer) {
     }
     environment::center_on_player();
     power::update_power();
+    clock::update_view(0.0);
+    environment::update_daylight(clock::daylight(0.0,0));
 }
 
 fn reset_planet() {
@@ -357,7 +361,7 @@ fn travel_to_other_planet() {
     environment::center_on_player();
     set_object_variable("gather_clock", 0.0);
     power::update_power(); visuals::update_projects();
-    environment::update_daylight(if data::on_moon() { -1.0 } else { sin(data::session_value(120) * 0.10) });
+    environment::update_daylight(clock::daylight(data::session_value(120),data::session_value(7).to_int()));
     set_scene_variable("message", "Arrived on " + data::planet_name() + ". Inventory and unlocks carried over. Return by rocket [E].");
 }
 

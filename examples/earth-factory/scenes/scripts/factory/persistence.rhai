@@ -12,6 +12,7 @@ import "factory-panels" as panels;
 import "factory-power" as power;
 import "factory-visuals" as visuals;
 import "factory-environment" as environment;
+import "factory-clock" as clock;
 
 fn open(mode) {
     if data::session_value(122)==2.0 {set_scene_variable("message","Only the host can save or load the world."); return;}
@@ -46,6 +47,7 @@ fn clear_view() {
     for panel in ["journal-overlay","storage-overlay","machine-inspect-overlay","world-context","stack-menu","stack-drag","nearby-tooltip"] {set_ui_visible(panel,false);}
 }
 fn restore_view() {
+    clock::reset_accumulation();
     visuals::reset_rotations();
     let session=get_object_list("session");
     session[3]=11.0;session[4]=-1.0;session[5]=-2.0;session[46]=-1.0;session[47]=-1.0;session[48]=-1.0;
@@ -71,7 +73,8 @@ fn restore_view() {
     set_visible("ground",!data::on_moon() && !data::dev_world());set_visible("cursor",true);set_visible("rocket-exhaust",false);set_visible("hover-tile",false);
     set_position("rocket-rig",[0.0,0.0,0.0]);
     power::update_power();visuals::update_projects();
-    environment::update_daylight(if data::on_moon(){-1.0}else{sin(data::session_value(120)*0.10)});
+    environment::update_daylight(clock::daylight(data::session_value(120),data::session_value(7).to_int()));
+    clock::update_view(data::session_value(120));
     interiors::update(0.0);
     set_scene_variable("message","World loaded. Your factories are running.");
 }
@@ -94,7 +97,7 @@ fn update(dt) {
         }
     }
     if !get_object_variable("title_open") {
-        data::session_set(120,data::session_value(120)+dt);
+        clock::advance(dt);
         if data::session_value(122)!=2.0 {
             data::session_set(121,data::session_value(121)+dt);
             if data::session_value(121)>=1200.0 && data::session_value(125)==0.0 && request==0.0 {return prepare_save(0);}

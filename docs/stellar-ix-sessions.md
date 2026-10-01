@@ -74,7 +74,7 @@ four-player details remain unreported.
 | --- | --- | --- |
 | Manual saves and loads; host owns multiplayer persistence | Four `saves_` integration tests passed: fresh-runtime Earth/Moon round trip, invalid-file preservation, player records, and guest save/load rejection. `coop_host_load_and_new_world_replace_epoch_and_reject_previous_requests` passed. | Connected save/load with a real Steam guest. |
 | Autosave every twenty minutes | `saves_autosave_after_twenty_minutes_defers_flight_and_rejects_guest_requests` verifies the 1200-second boundary, flight deferral, file creation, and timer reset with a controlled clock. | The checklist includes an elapsed-time live-session check. |
-| Progression and day/night metadata | Round-trip test asserts `Tier 2 / Phase 4 · Cycle 2 / Night`; the native populated save-browser preview was inspected. | Confirm the live test's saved world metadata. |
+| Progression and day/night metadata | Round-trip test asserts `Tier 2 / Phase 4 · Day 1 / Night 08:06:44`; the native populated save-browser preview was inspected. | Confirm the live test's saved world metadata. |
 | Steam sessions | Native host checks passed; the user confirmed a working guest session on two separate computers and a successful movement-fix retest. | Specific invitation paths. |
 | Host plus three guests, maximum four | Steam lobby creation requests four slots; the same bound is enforced when validating membership. The four-peer replication test passes and rejects a fifth member. | Four-account session and lobby capacity check. |
 | Guest discoveries reach the host | Actor movement/discovery and two-instance cross-region tests pass through host validation and replication. | Observe both maps during a real guest session. |

@@ -100,12 +100,13 @@ def factory_ui():
     widget("debug-triangles", "debug-panel", (18, 107), (304, 18), "Triangles --   Simulating --", 13, muted)
     widget("debug-simulation", "debug-panel", (18, 127), (304, 18), "Sim --   CPU -- ms   Wait -- ms", 13, muted)
 
-    widget("world-panel", "factory-ui", (-24, 24), (206, 142), background=panel, anchor=(1, 0), pivot=(1, 0))
+    widget("world-panel", "factory-ui", (-24, 24), (206, 174), background=panel, anchor=(1, 0), pivot=(1, 0))
     widget("world-status", "world-panel", (18, 16), (172, 24), "STELLAR-BX / DAY", 14)
-    widget("stored-iron", "world-panel", (18, 51), (172, 22), "Iron       0", 16, muted)
-    widget("stored-copper", "world-panel", (18, 74), (172, 22), "Copper     0", 16, muted)
-    widget("stored-parts", "world-panel", (18, 97), (172, 22), "Parts      0", 16)
-    widget("power-status", "factory-ui", (-24, 175), (206, 34), "POWER  9 / 18", 14, muted,
+    widget("world-clock", "world-panel", (18, 43), (172, 26), "08:00:00", 20)
+    widget("stored-iron", "world-panel", (18, 83), (172, 22), "Iron       0", 16, muted)
+    widget("stored-copper", "world-panel", (18, 106), (172, 22), "Copper     0", 16, muted)
+    widget("stored-parts", "world-panel", (18, 129), (172, 22), "Parts      0", 16)
+    widget("power-status", "factory-ui", (-24, 207), (206, 34), "POWER  9 / 18", 14, muted,
            panel, anchor=(1, 0), pivot=(1, 0), padding=(18, 9, 8, 0))
 
     widget("build-panel", "factory-ui", (0, -22), (760, 132), background=panel, anchor=(0.5, 1), pivot=(0.5, 1))
@@ -122,15 +123,15 @@ def factory_ui():
     widget("camera-hint", "build-panel", (22, 108), (720, 20), "Ctrl + 1–7 Bars    F Gather   J Journal   I Inventory   M Map   E Interact   Ctrl+R Camera", 13, muted)
     widget("bar-title", "factory-ui", (0, -167), (720, 22), "I  /  PRODUCTION", 14,
            anchor=(0.5, 1), pivot=(0.5, 0))
-    widget("chunk-status", "factory-ui", (-24, 216), (206, 40), "Region 0, 0", 13, muted,
+    widget("chunk-status", "factory-ui", (-24, 248), (206, 40), "Region 0, 0", 13, muted,
            panel, anchor=(1, 0), pivot=(1, 0), padding=(12, 10, 0, 0))
-    widget("menu-open", "factory-ui", (-24, 266), (206, 34), "Menu   Esc", 14, cream,
+    widget("menu-open", "factory-ui", (-24, 298), (206, 34), "Menu   Esc", 14, cream,
            panel, anchor=(1, 0), pivot=(1, 0), padding=(18, 9, 8, 0))
     objects[-1]["ui_widget"].update(kind="button", shortcuts=["Escape"])
-    widget("map-open", "factory-ui", (-24, 308), (206, 34), "Map   M", 14, cream,
+    widget("map-open", "factory-ui", (-24, 340), (206, 34), "Map   M", 14, cream,
            panel, anchor=(1, 0), pivot=(1, 0), padding=(18, 9, 8, 0))
     objects[-1]["ui_widget"].update(kind="button", shortcuts=["M"])
-    widget("zoom-hint", "factory-ui", (-24, 350), (206, 22), "Mouse wheel  /  Zoom", 13, muted,
+    widget("zoom-hint", "factory-ui", (-24, 382), (206, 22), "Mouse wheel  /  Zoom", 13, muted,
            anchor=(1, 0), pivot=(1, 0))
     widget("build-message", "factory-ui", (0, -187), (720, 26), "Start Play to bring this factory to life.", 16,
            anchor=(0.5, 1), pivot=(0.5, 0))
@@ -829,7 +830,8 @@ def scene():
 
     renewable_board = {"day":scalar("number",-1),"planet":scalar("number",-1),
         "earth_wind":scalar("number",-1),"moon_wind":scalar("number",-1),
-        "angle":scalar("number",-1),"rotor_count":scalar("number",0),"gust_visible":scalar("bool",False)}
+        "angle":scalar("number",-1),"rotor_count":scalar("number",0),"gust_visible":scalar("bool",False),
+        "clock_second":scalar("number",-1),"clock_observed":scalar("number",-1),"clock_correction":scalar("number",0)}
     for page in range(3): renewable_board["rotors_"+str(page)] = list_var("text",1024)
     objects.append({"id":"renewable-view","name":"Transient renewable power and wind cache",
         "transform":transform(),"blackboard":renewable_board})
