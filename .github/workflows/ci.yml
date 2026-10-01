@@ -83,6 +83,15 @@ jobs:
           fi
       - name: Non-Steam editor error paths
         run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
+      - name: Interpolated player pixels match an independent midpoint
+        run: cargo test -p bozzard-player interpolated_player_pixels_match_an_independently_authored_midpoint --locked --offline -- --ignored
+      - name: Reclaim Linux test build space before release
+        if: runner.os == 'Linux'
+        # All remaining builds and packaging use release artifacts.
+        run: |
+          df -h .
+          cargo clean --profile dev
+          df -h .
       - name: Build native release executables
         run: |
           cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app

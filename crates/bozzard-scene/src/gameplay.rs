@@ -463,6 +463,8 @@ impl SceneInstance {
             < config.fall_height
         {
             world.get_mut::<Transform>(entity).unwrap().translation = state.respawn;
+            self.reset_render_interpolation(world, &state.player)?;
+            self.reset_render_interpolation(world, &config.camera)?;
             world.insert(entity, GravityState::default())?;
             state.respawns = state.respawns.saturating_add(1);
         }

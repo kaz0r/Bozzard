@@ -246,6 +246,7 @@ struct App {
     error: bool,
     last_frame: Instant,
     threaded_simulation: bool,
+    render_interpolation: bool,
     effects_preview: Option<bozzard_editor::EffectsPreview>,
     preview_running: bool,
     preview_bypass: bool,
@@ -395,6 +396,7 @@ impl App {
             error: false,
             last_frame: Instant::now(),
             threaded_simulation: true,
+            render_interpolation: true,
             effects_preview: None,
             preview_running: true,
             preview_bypass: false,
@@ -1487,9 +1489,10 @@ impl eframe::App for App {
         }
         self.prepare_blueprint_debugger();
         let previous_assets = self.editor.asset_revision();
-        let prepared = self.editor.prepare_simulation_frame(
+        let prepared = self.editor.prepare_simulation_frame_with_interpolation(
             now.duration_since(self.last_frame),
             self.threaded_simulation,
+            self.render_interpolation,
         );
         if let Err(error) = prepared {
             self.result(Err(error));
@@ -1896,10 +1899,12 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     let mut software = false;
     let mut hardware = false;
     let mut threaded_simulation = true;
+    let mut render_interpolation = true;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--single-threaded" => threaded_simulation = false,
+            "--no-interpolation" => render_interpolation = false,
             "--join-lobby" | "+connect_lobby" => {
                 join_lobby = Some(args.next().context("--join-lobby needs an ID")?.parse()?)
             }
@@ -1919,6 +1924,9 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
             "--hardware" => hardware = true,
             "--help" => {
                 println!("--single-threaded disables simulation/render overlap for comparison.");
+                println!(
+                    "--no-interpolation renders exact fixed-tick poses for comparison or lower latency."
+                );
                 println!(
                     "bozzard-editor [--scene FILE] [--backend metal|vulkan|dx12] [--software|--hardware] [--smoke DIRECTORY]\nSteam-enabled builds: --join-lobby ID joins on the next Play; Stop leaves the lobby.\nNative scene editor. --project FILE opens a game project. Import assets, edit, Play/Stop, and File > Export game."
                 );
@@ -2013,6 +2021,7 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
         Box::new(move |cc| {
             let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
             app.threaded_simulation = threaded_simulation;
+            app.render_interpolation = render_interpolation;
             #[cfg(feature = "factory")]
             {
                 app.factory_mode = factory_mode;

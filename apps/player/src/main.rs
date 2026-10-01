@@ -54,6 +54,7 @@ struct Options {
     gpu_memory_mib: usize,
     occlusion_enabled: bool,
     threaded_simulation: bool,
+    render_interpolation: bool,
 }
 
 impl Default for Options {
@@ -85,6 +86,7 @@ impl Default for Options {
             gpu_memory_mib: 512,
             occlusion_enabled: true,
             threaded_simulation: true,
+            render_interpolation: true,
         }
     }
 }
@@ -153,6 +155,7 @@ fn options() -> Result<Option<Options>> {
             "--hardware" => result.hardware = true,
             "--no-occlusion" => result.occlusion_enabled = false,
             "--single-threaded" => result.threaded_simulation = false,
+            "--no-interpolation" => result.render_interpolation = false,
             "--smoke" => result.smoke = true,
             "--benchmark-frames" => {
                 let frames = args
@@ -188,6 +191,9 @@ fn options() -> Result<Option<Options>> {
             "--output" => result.output = args.next().context("--output needs a directory")?.into(),
             "--help" => {
                 println!("--single-threaded disables simulation/render overlap for comparison.");
+                println!(
+                    "--no-interpolation renders exact fixed-tick poses for comparison or lower latency."
+                );
                 println!(
                     "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game. Exported games find their project beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
@@ -1120,6 +1126,13 @@ impl ApplicationHandler for Player {
                 .process_event(&view.window, &event);
         }
         if matches!(event, WindowEvent::RedrawRequested) {
+            if let Err(error) = self
+                .demo
+                .set_render_interpolation(self.options.render_interpolation && !self.paused)
+            {
+                self.fail(event_loop, error);
+                return;
+            }
             if self.options.inject_device_recreation && !self.fault_injected && self.frames >= 1 {
                 self.fault_injected = true;
                 let before = (
