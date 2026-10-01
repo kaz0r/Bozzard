@@ -1,0 +1,4333 @@
+{
+  "adapter": "NVIDIA GeForce RTX 3060",
+  "cpu_median_ms": 6.903188,
+  "cpu_p95_ms": 9.008507,
+  "debug_build": false,
+  "frames": 180,
+  "interval_median_ms": 13.802297,
+  "interval_p95_ms": 21.136946000000002,
+  "play": true,
+  "label": "editor-release-dense-final",
+  "frame_samples": [
+    {
+      "cpu_ms": 6.903188,
+      "interval_ms": 13.920577,
+      "pane_ms": {
+        "Audio": 0.00133,
+        "Compute preparation": 0.00133,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.539803,
+        "Pane Hierarchy": 0.363861,
+        "Pane Inspector": 0.00387,
+        "Pane Scene": 4.6102490000000005,
+        "Pane Settings": 0.07975,
+        "Panels and viewport": 6.885478000000001,
+        "Simulation preparation": 0.01276
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.740297999999999,
+      "interval_ms": 13.888606,
+      "pane_ms": {
+        "Audio": 0.00089,
+        "Compute preparation": 0.00115,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.515512,
+        "Pane Hierarchy": 0.347012,
+        "Pane Inspector": 0.0035099999999999997,
+        "Pane Scene": 4.514808,
+        "Pane Settings": 0.078471,
+        "Panels and viewport": 6.723347,
+        "Simulation preparation": 0.010991
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.610417,
+      "interval_ms": 13.884367,
+      "pane_ms": {
+        "Audio": 0.0012,
+        "Compute preparation": 0.00108,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00023,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.521132,
+        "Pane Hierarchy": 0.347742,
+        "Pane Inspector": 0.00364,
+        "Pane Scene": 4.398537999999999,
+        "Pane Settings": 0.07923999999999999,
+        "Panels and viewport": 6.595047,
+        "Simulation preparation": 0.01112
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.505971000000001,
+      "interval_ms": 14.247098,
+      "pane_ms": {
+        "Audio": 0.0009599999999999999,
+        "Compute preparation": 0.00128,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.520622,
+        "Pane Hierarchy": 0.351002,
+        "Pane Inspector": 0.00358,
+        "Pane Scene": 5.289122,
+        "Pane Settings": 0.07743,
+        "Panels and viewport": 7.490781,
+        "Simulation preparation": 0.01069
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.880667,
+      "interval_ms": 13.713716000000002,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00113,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00023999999999999998,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.520602,
+        "Pane Hierarchy": 0.343152,
+        "Pane Inspector": 0.0036100000000000004,
+        "Pane Scene": 6.684588,
+        "Pane Settings": 0.07592,
+        "Panels and viewport": 8.865257,
+        "Simulation preparation": 0.01127
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.33255,
+      "interval_ms": 13.802297,
+      "pane_ms": {
+        "Audio": 0.0011400000000000002,
+        "Compute preparation": 0.00162,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00033,
+        "Loading and selection": 0.00041,
+        "Pane Assets": 0.554613,
+        "Pane Hierarchy": 0.348101,
+        "Pane Inspector": 0.00352,
+        "Pane Scene": 5.058711,
+        "Pane Settings": 0.08075,
+        "Panels and viewport": 7.31487,
+        "Simulation preparation": 0.01239
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.705458,
+      "interval_ms": 13.843285999999999,
+      "pane_ms": {
+        "Audio": 0.0011200000000000001,
+        "Compute preparation": 0.0012100000000000001,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.548172,
+        "Pane Hierarchy": 0.350282,
+        "Pane Inspector": 0.00367,
+        "Pane Scene": 4.441309,
+        "Pane Settings": 0.07789,
+        "Panels and viewport": 6.690228,
+        "Simulation preparation": 0.01089
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 19.979341,
+      "interval_ms": 13.814886999999999,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.0011200000000000001,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.0003,
+        "Pane Assets": 0.49487200000000003,
+        "Pane Hierarchy": 0.31999099999999997,
+        "Pane Inspector": 0.00347,
+        "Pane Scene": 17.890172999999997,
+        "Pane Settings": 0.07282,
+        "Panels and viewport": 19.965791,
+        "Simulation preparation": 0.00923
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.928398,
+      "interval_ms": 21.346457,
+      "pane_ms": {
+        "Audio": 0.0011200000000000001,
+        "Compute preparation": 0.00189,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00041,
+        "Pane Assets": 0.5639230000000001,
+        "Pane Hierarchy": 0.352671,
+        "Pane Inspector": 0.00359,
+        "Pane Scene": 4.640759,
+        "Pane Settings": 0.08048999999999999,
+        "Panels and viewport": 6.909738,
+        "Simulation preparation": 0.01211
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.190499,
+      "interval_ms": 13.412995,
+      "pane_ms": {
+        "Audio": 0.00088,
+        "Compute preparation": 0.00105,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.514232,
+        "Pane Hierarchy": 0.342601,
+        "Pane Inspector": 0.00415,
+        "Pane Scene": 5.012951,
+        "Pane Settings": 0.0756,
+        "Panels and viewport": 7.1767389999999995,
+        "Simulation preparation": 0.00992
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.347809000000001,
+      "interval_ms": 13.912947,
+      "pane_ms": {
+        "Audio": 0.0014,
+        "Compute preparation": 0.00132,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.5270020000000001,
+        "Pane Hierarchy": 0.347522,
+        "Pane Inspector": 0.0035099999999999997,
+        "Pane Scene": 5.142211,
+        "Pane Settings": 0.07571,
+        "Panels and viewport": 7.330179,
+        "Simulation preparation": 0.01295
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.726248,
+      "interval_ms": 13.848446000000001,
+      "pane_ms": {
+        "Audio": 0.0011,
+        "Compute preparation": 0.00099,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.507622,
+        "Pane Hierarchy": 0.322961,
+        "Pane Inspector": 0.00327,
+        "Pane Scene": 4.598349,
+        "Pane Settings": 0.072141,
+        "Panels and viewport": 6.712268000000001,
+        "Simulation preparation": 0.01
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.684107,
+      "interval_ms": 13.948706999999999,
+      "pane_ms": {
+        "Audio": 0.00148,
+        "Compute preparation": 0.00106,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.5377529999999999,
+        "Pane Hierarchy": 0.34840099999999996,
+        "Pane Inspector": 0.0036,
+        "Pane Scene": 4.496118,
+        "Pane Settings": 0.07663,
+        "Panels and viewport": 6.667127,
+        "Simulation preparation": 0.01204
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.4398859999999996,
+      "interval_ms": 13.858547,
+      "pane_ms": {
+        "Audio": 0.00091,
+        "Compute preparation": 0.001,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.510762,
+        "Pane Hierarchy": 0.328771,
+        "Pane Inspector": 0.00345,
+        "Pane Scene": 4.294598000000001,
+        "Pane Settings": 0.07479,
+        "Panels and viewport": 6.4255960000000005,
+        "Simulation preparation": 0.01035
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.890708,
+      "interval_ms": 13.793326,
+      "pane_ms": {
+        "Audio": 0.00089,
+        "Compute preparation": 0.0009599999999999999,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.47121199999999996,
+        "Pane Hierarchy": 0.31450100000000003,
+        "Pane Inspector": 0.00328,
+        "Pane Scene": 4.7947500000000005,
+        "Pane Settings": 0.07804,
+        "Panels and viewport": 6.868858,
+        "Simulation preparation": 0.01619
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.6335869999999995,
+      "interval_ms": 13.930876999999999,
+      "pane_ms": {
+        "Audio": 0.0011099999999999999,
+        "Compute preparation": 0.00126,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00042,
+        "Pane Assets": 0.5335230000000001,
+        "Pane Hierarchy": 0.34055100000000005,
+        "Pane Inspector": 0.004220000000000001,
+        "Pane Scene": 4.399358,
+        "Pane Settings": 0.07825,
+        "Panels and viewport": 6.617407,
+        "Simulation preparation": 0.01161
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.453657,
+      "interval_ms": 13.829996000000001,
+      "pane_ms": {
+        "Audio": 0.00107,
+        "Compute preparation": 0.001,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.494622,
+        "Pane Hierarchy": 0.33260100000000004,
+        "Pane Inspector": 0.0036,
+        "Pane Scene": 4.3421780000000005,
+        "Pane Settings": 0.07147,
+        "Panels and viewport": 6.439216999999999,
+        "Simulation preparation": 0.0103
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.559967,
+      "interval_ms": 9.024427,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00179,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.509052,
+        "Pane Hierarchy": 0.340362,
+        "Pane Inspector": 0.00342,
+        "Pane Scene": 4.380858,
+        "Pane Settings": 0.07483999999999999,
+        "Panels and viewport": 6.544887,
+        "Simulation preparation": 0.01032
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.086649,
+      "interval_ms": 11.857859,
+      "pane_ms": {
+        "Audio": 0.0011,
+        "Compute preparation": 0.00149,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00026,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.549902,
+        "Pane Hierarchy": 0.380512,
+        "Pane Inspector": 0.0039700000000000004,
+        "Pane Scene": 4.739529999999999,
+        "Pane Settings": 0.07775,
+        "Panels and viewport": 7.069929,
+        "Simulation preparation": 0.01187
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.646258,
+      "interval_ms": 13.897736,
+      "pane_ms": {
+        "Audio": 0.0012300000000000002,
+        "Compute preparation": 0.00101,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.5147619999999999,
+        "Pane Hierarchy": 0.343442,
+        "Pane Inspector": 0.0033699999999999997,
+        "Pane Scene": 4.4440290000000005,
+        "Pane Settings": 0.07506,
+        "Panels and viewport": 6.631108,
+        "Simulation preparation": 0.011
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.772988,
+      "interval_ms": 13.901487000000001,
+      "pane_ms": {
+        "Audio": 0.00105,
+        "Compute preparation": 0.00125,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.533022,
+        "Pane Hierarchy": 0.346482,
+        "Pane Inspector": 0.00373,
+        "Pane Scene": 4.519228999999999,
+        "Pane Settings": 0.07948000000000001,
+        "Panels and viewport": 6.756498,
+        "Simulation preparation": 0.012289999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.642624999999999,
+      "interval_ms": 14.320089,
+      "pane_ms": {
+        "Audio": 0.00166,
+        "Compute preparation": 0.0014,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00033999999999999997,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.656633,
+        "Pane Hierarchy": 0.40160100000000004,
+        "Pane Inspector": 0.00348,
+        "Pane Scene": 6.032934999999999,
+        "Pane Settings": 0.08879,
+        "Panels and viewport": 8.622655,
+        "Simulation preparation": 0.01433
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.952042,
+      "interval_ms": 13.497335,
+      "pane_ms": {
+        "Audio": 0.00126,
+        "Compute preparation": 0.00157,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00051,
+        "Pane Assets": 0.592082,
+        "Pane Hierarchy": 0.363782,
+        "Pane Inspector": 0.00332,
+        "Pane Scene": 5.516862,
+        "Pane Settings": 0.083991,
+        "Panels and viewport": 7.933762000000001,
+        "Simulation preparation": 0.01178
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.599457,
+      "interval_ms": 13.794696,
+      "pane_ms": {
+        "Audio": 0.00102,
+        "Compute preparation": 0.00125,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.541512,
+        "Pane Hierarchy": 0.331142,
+        "Pane Inspector": 0.00309,
+        "Pane Scene": 4.293748,
+        "Pane Settings": 0.07686000000000001,
+        "Panels and viewport": 6.585277,
+        "Simulation preparation": 0.010020000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.644717,
+      "interval_ms": 13.875787,
+      "pane_ms": {
+        "Audio": 0.00104,
+        "Compute preparation": 0.001,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.502262,
+        "Pane Hierarchy": 0.32789100000000004,
+        "Pane Inspector": 0.00319,
+        "Pane Scene": 4.433758,
+        "Pane Settings": 0.075951,
+        "Panels and viewport": 6.630837,
+        "Simulation preparation": 0.0096
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.447026,
+      "interval_ms": 13.914166999999999,
+      "pane_ms": {
+        "Audio": 0.00124,
+        "Compute preparation": 0.00122,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.47382199999999997,
+        "Pane Hierarchy": 0.333021,
+        "Pane Inspector": 0.00329,
+        "Pane Scene": 4.312618,
+        "Pane Settings": 0.07392,
+        "Panels and viewport": 6.431806,
+        "Simulation preparation": 0.01083
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.302506,
+      "interval_ms": 8.686795,
+      "pane_ms": {
+        "Audio": 0.0008500000000000001,
+        "Compute preparation": 0.00108,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.442312,
+        "Pane Hierarchy": 0.342861,
+        "Pane Inspector": 0.00359,
+        "Pane Scene": 4.227717,
+        "Pane Settings": 0.07333,
+        "Panels and viewport": 6.289406,
+        "Simulation preparation": 0.00943
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.301956,
+      "interval_ms": 12.100209000000001,
+      "pane_ms": {
+        "Audio": 0.00091,
+        "Compute preparation": 0.00094,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.398561,
+        "Pane Hierarchy": 0.332262,
+        "Pane Inspector": 0.00342,
+        "Pane Scene": 4.302017,
+        "Pane Settings": 0.071101,
+        "Panels and viewport": 6.289205,
+        "Simulation preparation": 0.008931
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.005788,
+      "interval_ms": 9.362049,
+      "pane_ms": {
+        "Audio": 0.00141,
+        "Compute preparation": 0.0013599999999999999,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.44341200000000003,
+        "Pane Hierarchy": 0.35213099999999997,
+        "Pane Inspector": 0.0039,
+        "Pane Scene": 4.816839,
+        "Pane Settings": 0.085211,
+        "Panels and viewport": 6.982288,
+        "Simulation preparation": 0.01866
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.698367,
+      "interval_ms": 11.588997,
+      "pane_ms": {
+        "Audio": 0.0015799999999999998,
+        "Compute preparation": 0.0015400000000000001,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.481182,
+        "Pane Hierarchy": 0.352892,
+        "Pane Inspector": 0.00356,
+        "Pane Scene": 4.4985479999999995,
+        "Pane Settings": 0.07765,
+        "Panels and viewport": 6.681177,
+        "Simulation preparation": 0.01201
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 20.122803,
+      "interval_ms": 14.023157,
+      "pane_ms": {
+        "Audio": 0.00126,
+        "Compute preparation": 0.00148,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00033999999999999997,
+        "Pane Assets": 0.5031220000000001,
+        "Pane Hierarchy": 0.355372,
+        "Pane Inspector": 0.00353,
+        "Pane Scene": 17.903544,
+        "Pane Settings": 0.07669999999999999,
+        "Panels and viewport": 20.104453000000003,
+        "Simulation preparation": 0.01224
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.510737,
+      "interval_ms": 21.335317999999997,
+      "pane_ms": {
+        "Audio": 0.00104,
+        "Compute preparation": 0.0015799999999999998,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.000261,
+        "Pane Assets": 0.488152,
+        "Pane Hierarchy": 0.32673199999999997,
+        "Pane Inspector": 0.00313,
+        "Pane Scene": 4.360048,
+        "Pane Settings": 0.08357,
+        "Panels and viewport": 6.4957959999999995,
+        "Simulation preparation": 0.01048
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.632217,
+      "interval_ms": 13.194683000000001,
+      "pane_ms": {
+        "Audio": 0.00107,
+        "Compute preparation": 0.0011799999999999998,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.507662,
+        "Pane Hierarchy": 0.33924200000000004,
+        "Pane Inspector": 0.0033699999999999997,
+        "Pane Scene": 4.439068,
+        "Pane Settings": 0.07881,
+        "Panels and viewport": 6.616566,
+        "Simulation preparation": 0.011311
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.3013959999999996,
+      "interval_ms": 13.849257,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00101,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.46834200000000004,
+        "Pane Hierarchy": 0.321921,
+        "Pane Inspector": 0.00409,
+        "Pane Scene": 4.206638000000001,
+        "Pane Settings": 0.09105,
+        "Panels and viewport": 6.287706,
+        "Simulation preparation": 0.01009
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.182825,
+      "interval_ms": 8.518265000000001,
+      "pane_ms": {
+        "Audio": 0.00094,
+        "Compute preparation": 0.00102,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.45952200000000004,
+        "Pane Hierarchy": 0.316662,
+        "Pane Inspector": 0.00415,
+        "Pane Scene": 4.171806999999999,
+        "Pane Settings": 0.07221,
+        "Panels and viewport": 6.169305,
+        "Simulation preparation": 0.00962
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.600027,
+      "interval_ms": 12.726612,
+      "pane_ms": {
+        "Audio": 0.00106,
+        "Compute preparation": 0.00119,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00039000000000000005,
+        "Pane Assets": 0.491522,
+        "Pane Hierarchy": 0.339171,
+        "Pane Inspector": 0.0033699999999999997,
+        "Pane Scene": 4.439878,
+        "Pane Settings": 0.073791,
+        "Panels and viewport": 6.584767,
+        "Simulation preparation": 0.01104
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.388216000000001,
+      "interval_ms": 13.496555,
+      "pane_ms": {
+        "Audio": 0.00098,
+        "Compute preparation": 0.0015,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00032,
+        "Pane Assets": 0.478112,
+        "Pane Hierarchy": 0.33837100000000003,
+        "Pane Inspector": 0.00354,
+        "Pane Scene": 4.3007979999999995,
+        "Pane Settings": 0.07518,
+        "Panels and viewport": 6.373546,
+        "Simulation preparation": 0.01029
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.213785000000001,
+      "interval_ms": 8.617555000000001,
+      "pane_ms": {
+        "Audio": 0.0009299999999999999,
+        "Compute preparation": 0.00097,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.469642,
+        "Pane Hierarchy": 0.314231,
+        "Pane Inspector": 0.0030800000000000003,
+        "Pane Scene": 4.218147,
+        "Pane Settings": 0.07188,
+        "Panels and viewport": 6.200805,
+        "Simulation preparation": 0.00926
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.611218,
+      "interval_ms": 12.605351,
+      "pane_ms": {
+        "Audio": 0.0012699999999999999,
+        "Compute preparation": 0.00132,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.48850200000000005,
+        "Pane Hierarchy": 0.33745200000000003,
+        "Pane Inspector": 0.00349,
+        "Pane Scene": 4.4634990000000005,
+        "Pane Settings": 0.08326,
+        "Panels and viewport": 6.593508,
+        "Simulation preparation": 0.01162
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.272335,
+      "interval_ms": 13.478326000000001,
+      "pane_ms": {
+        "Audio": 0.0009599999999999999,
+        "Compute preparation": 0.00088,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.47971199999999997,
+        "Pane Hierarchy": 0.321692,
+        "Pane Inspector": 0.00328,
+        "Pane Scene": 4.225696999999999,
+        "Pane Settings": 0.07168000000000001,
+        "Panels and viewport": 6.259405,
+        "Simulation preparation": 0.00924
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.19134,
+      "interval_ms": 8.492104000000001,
+      "pane_ms": {
+        "Audio": 0.0011,
+        "Compute preparation": 0.0009599999999999999,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.472352,
+        "Pane Hierarchy": 0.326821,
+        "Pane Inspector": 0.00358,
+        "Pane Scene": 5.122841,
+        "Pane Settings": 0.07501100000000001,
+        "Panels and viewport": 7.17751,
+        "Simulation preparation": 0.009840000000000002
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.114939,
+      "interval_ms": 19.747961,
+      "pane_ms": {
+        "Audio": 0.00162,
+        "Compute preparation": 0.00166,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00038,
+        "Pane Assets": 0.550622,
+        "Pane Hierarchy": 0.36426200000000003,
+        "Pane Inspector": 0.00354,
+        "Pane Scene": 4.79261,
+        "Pane Settings": 0.07965,
+        "Panels and viewport": 7.094279,
+        "Simulation preparation": 0.01508
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.174983000000001,
+      "interval_ms": 13.426745,
+      "pane_ms": {
+        "Audio": 0.0015,
+        "Compute preparation": 0.0011400000000000002,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00046,
+        "Loading and selection": 0.0003,
+        "Pane Assets": 0.520622,
+        "Pane Hierarchy": 0.329811,
+        "Pane Inspector": 0.00352,
+        "Pane Scene": 5.976414,
+        "Pane Settings": 0.075451,
+        "Panels and viewport": 8.159602999999999,
+        "Simulation preparation": 0.01044
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.103829,
+      "interval_ms": 14.035427,
+      "pane_ms": {
+        "Audio": 0.00116,
+        "Compute preparation": 0.00125,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00026,
+        "Loading and selection": 0.00043,
+        "Pane Assets": 0.5825020000000001,
+        "Pane Hierarchy": 0.35952199999999995,
+        "Pane Inspector": 0.0035700000000000003,
+        "Pane Scene": 4.701669000000001,
+        "Pane Settings": 0.08195999999999999,
+        "Panels and viewport": 7.084819,
+        "Simulation preparation": 0.01425
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.550737,
+      "interval_ms": 13.769816,
+      "pane_ms": {
+        "Audio": 0.00089,
+        "Compute preparation": 0.0009599999999999999,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.534972,
+        "Pane Hierarchy": 0.33176100000000003,
+        "Pane Inspector": 0.0034000000000000002,
+        "Pane Scene": 4.2782469999999995,
+        "Pane Settings": 0.0765,
+        "Panels and viewport": 6.5365470000000006,
+        "Simulation preparation": 0.01041
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.949369000000001,
+      "interval_ms": 13.927497,
+      "pane_ms": {
+        "Audio": 0.00108,
+        "Compute preparation": 0.00109,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.555642,
+        "Pane Hierarchy": 0.355441,
+        "Pane Inspector": 0.00331,
+        "Pane Scene": 4.565289,
+        "Pane Settings": 0.07891100000000001,
+        "Panels and viewport": 6.931269,
+        "Simulation preparation": 0.012289999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.446086,
+      "interval_ms": 13.858387,
+      "pane_ms": {
+        "Audio": 0.00089,
+        "Compute preparation": 0.0011,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00033999999999999997,
+        "Pane Assets": 0.499262,
+        "Pane Hierarchy": 0.332381,
+        "Pane Inspector": 0.00345,
+        "Pane Scene": 4.277207,
+        "Pane Settings": 0.07490100000000001,
+        "Panels and viewport": 6.432156,
+        "Simulation preparation": 0.010010000000000002
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.914168,
+      "interval_ms": 9.472779000000001,
+      "pane_ms": {
+        "Audio": 0.00094,
+        "Compute preparation": 0.00102,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00022,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.486172,
+        "Pane Hierarchy": 0.322062,
+        "Pane Inspector": 0.0030800000000000003,
+        "Pane Scene": 4.833419999999999,
+        "Pane Settings": 0.07236000000000001,
+        "Panels and viewport": 6.900388,
+        "Simulation preparation": 0.01
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.520950999999999,
+      "interval_ms": 11.393636,
+      "pane_ms": {
+        "Audio": 0.00095,
+        "Compute preparation": 0.00106,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00037,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.5206419999999999,
+        "Pane Hierarchy": 0.366181,
+        "Pane Inspector": 0.00396,
+        "Pane Scene": 5.2860119999999995,
+        "Pane Settings": 0.07788,
+        "Panels and viewport": 7.505301,
+        "Simulation preparation": 0.0111
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.725577,
+      "interval_ms": 13.859267,
+      "pane_ms": {
+        "Audio": 0.0009299999999999999,
+        "Compute preparation": 0.0014399999999999999,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.48819199999999996,
+        "Pane Hierarchy": 0.325362,
+        "Pane Inspector": 0.00327,
+        "Pane Scene": 4.643379,
+        "Pane Settings": 0.07258,
+        "Panels and viewport": 6.711547,
+        "Simulation preparation": 0.009819999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.352876,
+      "interval_ms": 13.868136,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00092,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.472542,
+        "Pane Hierarchy": 0.319531,
+        "Pane Inspector": 0.0036100000000000004,
+        "Pane Scene": 4.329727999999999,
+        "Pane Settings": 0.07394,
+        "Panels and viewport": 6.339806,
+        "Simulation preparation": 0.009290000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.5159270000000005,
+      "interval_ms": 11.294706,
+      "pane_ms": {
+        "Audio": 0.00115,
+        "Compute preparation": 0.00119,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00035999999999999997,
+        "Pane Assets": 0.501453,
+        "Pane Hierarchy": 0.346721,
+        "Pane Inspector": 0.0036,
+        "Pane Scene": 4.402168,
+        "Pane Settings": 0.07606,
+        "Panels and viewport": 6.500237,
+        "Simulation preparation": 0.01134
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.211746,
+      "interval_ms": 9.549389,
+      "pane_ms": {
+        "Audio": 0.00101,
+        "Compute preparation": 0.00094,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.481772,
+        "Pane Hierarchy": 0.322111,
+        "Pane Inspector": 0.0032600000000000003,
+        "Pane Scene": 4.157247,
+        "Pane Settings": 0.071631,
+        "Panels and viewport": 6.197976,
+        "Simulation preparation": 0.00948
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.519826999999999,
+      "interval_ms": 9.275868,
+      "pane_ms": {
+        "Audio": 0.00104,
+        "Compute preparation": 0.00091,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00019999999999999998,
+        "Pane Assets": 0.47156200000000004,
+        "Pane Hierarchy": 0.322031,
+        "Pane Inspector": 0.00329,
+        "Pane Scene": 4.508268999999999,
+        "Pane Settings": 0.07241,
+        "Panels and viewport": 6.5064470000000005,
+        "Simulation preparation": 0.00952
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.397557,
+      "interval_ms": 11.578857,
+      "pane_ms": {
+        "Audio": 0.001,
+        "Compute preparation": 0.0011099999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00063,
+        "Pane Assets": 0.49217200000000005,
+        "Pane Hierarchy": 0.331142,
+        "Pane Inspector": 0.00341,
+        "Pane Scene": 4.277408,
+        "Pane Settings": 0.08273,
+        "Panels and viewport": 6.380017,
+        "Simulation preparation": 0.01082
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 20.600233999999997,
+      "interval_ms": 9.422709,
+      "pane_ms": {
+        "Audio": 0.00083,
+        "Compute preparation": 0.00109,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00041,
+        "Loading and selection": 0.00022,
+        "Pane Assets": 0.485322,
+        "Pane Hierarchy": 0.327241,
+        "Pane Inspector": 0.00318,
+        "Pane Scene": 18.547176,
+        "Pane Settings": 0.07396,
+        "Panels and viewport": 20.585534,
+        "Simulation preparation": 0.01047
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.870228,
+      "interval_ms": 22.12876,
+      "pane_ms": {
+        "Audio": 0.0011400000000000002,
+        "Compute preparation": 0.00133,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00022,
+        "Loading and selection": 0.00019999999999999998,
+        "Pane Assets": 0.5526220000000001,
+        "Pane Hierarchy": 0.37657199999999996,
+        "Pane Inspector": 0.00362,
+        "Pane Scene": 4.594608,
+        "Pane Settings": 0.078421,
+        "Panels and viewport": 6.853658,
+        "Simulation preparation": 0.01217
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.322866,
+      "interval_ms": 10.067661000000001,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00116,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00022,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.501572,
+        "Pane Hierarchy": 0.336532,
+        "Pane Inspector": 0.0035700000000000003,
+        "Pane Scene": 4.213947,
+        "Pane Settings": 0.07474,
+        "Panels and viewport": 6.308955,
+        "Simulation preparation": 0.010001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.263414999999999,
+      "interval_ms": 9.381349,
+      "pane_ms": {
+        "Audio": 0.0009299999999999999,
+        "Compute preparation": 0.00098,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00019999999999999998,
+        "Pane Assets": 0.466432,
+        "Pane Hierarchy": 0.317162,
+        "Pane Inspector": 0.00311,
+        "Pane Scene": 4.242077,
+        "Pane Settings": 0.07143,
+        "Panels and viewport": 6.249735,
+        "Simulation preparation": 0.01009
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.924828,
+      "interval_ms": 11.538727,
+      "pane_ms": {
+        "Audio": 0.00105,
+        "Compute preparation": 0.0015400000000000001,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00031,
+        "Pane Assets": 0.521442,
+        "Pane Hierarchy": 0.390112,
+        "Pane Inspector": 0.0038,
+        "Pane Scene": 4.615279,
+        "Pane Settings": 0.07838,
+        "Panels and viewport": 6.908118,
+        "Simulation preparation": 0.011420000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.478544,
+      "interval_ms": 13.891847,
+      "pane_ms": {
+        "Audio": 0.0011200000000000001,
+        "Compute preparation": 0.00106,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00039999999999999996,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.594182,
+        "Pane Hierarchy": 0.381462,
+        "Pane Inspector": 0.003940000000000001,
+        "Pane Scene": 6.056134,
+        "Pane Settings": 0.083771,
+        "Panels and viewport": 8.462114,
+        "Simulation preparation": 0.011810000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.764132,
+      "interval_ms": 14.281317999999999,
+      "pane_ms": {
+        "Audio": 0.0011,
+        "Compute preparation": 0.0015600000000000002,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.562192,
+        "Pane Hierarchy": 0.362832,
+        "Pane Inspector": 0.00354,
+        "Pane Scene": 5.421792,
+        "Pane Settings": 0.08105000000000001,
+        "Panels and viewport": 7.747522,
+        "Simulation preparation": 0.01168
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.657367,
+      "interval_ms": 13.450725,
+      "pane_ms": {
+        "Audio": 0.00108,
+        "Compute preparation": 0.00101,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.547402,
+        "Pane Hierarchy": 0.340232,
+        "Pane Inspector": 0.0035,
+        "Pane Scene": 4.389208,
+        "Pane Settings": 0.07946,
+        "Panels and viewport": 6.640307,
+        "Simulation preparation": 0.01172
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.3886259999999995,
+      "interval_ms": 13.858997,
+      "pane_ms": {
+        "Audio": 0.0011400000000000002,
+        "Compute preparation": 0.00102,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.5064219999999999,
+        "Pane Hierarchy": 0.321852,
+        "Pane Inspector": 0.00398,
+        "Pane Scene": 4.223008,
+        "Pane Settings": 0.07616,
+        "Panels and viewport": 6.3685160000000005,
+        "Simulation preparation": 0.016079999999999997
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.643457000000001,
+      "interval_ms": 9.477548,
+      "pane_ms": {
+        "Audio": 0.00091,
+        "Compute preparation": 0.00103,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.0003,
+        "Loading and selection": 0.00019999999999999998,
+        "Pane Assets": 0.484352,
+        "Pane Hierarchy": 0.319931,
+        "Pane Inspector": 0.0033,
+        "Pane Scene": 4.560458,
+        "Pane Settings": 0.07433100000000001,
+        "Panels and viewport": 6.630116999999999,
+        "Simulation preparation": 0.009290000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.415226,
+      "interval_ms": 11.387867,
+      "pane_ms": {
+        "Audio": 0.00099,
+        "Compute preparation": 0.0011099999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00023999999999999998,
+        "Pane Assets": 0.5116120000000001,
+        "Pane Hierarchy": 0.337341,
+        "Pane Inspector": 0.0033900000000000002,
+        "Pane Scene": 4.240557,
+        "Pane Settings": 0.083411,
+        "Panels and viewport": 6.400746,
+        "Simulation preparation": 0.01028
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.229705,
+      "interval_ms": 9.493279000000001,
+      "pane_ms": {
+        "Audio": 0.00082,
+        "Compute preparation": 0.00094,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.475942,
+        "Pane Hierarchy": 0.317882,
+        "Pane Inspector": 0.00328,
+        "Pane Scene": 4.182437,
+        "Pane Settings": 0.07328,
+        "Panels and viewport": 6.215615,
+        "Simulation preparation": 0.010499999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.941918,
+      "interval_ms": 11.332956,
+      "pane_ms": {
+        "Audio": 0.00139,
+        "Compute preparation": 0.0014,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00019999999999999998,
+        "Pane Assets": 0.504042,
+        "Pane Hierarchy": 0.34455199999999997,
+        "Pane Inspector": 0.00325,
+        "Pane Scene": 4.627249,
+        "Pane Settings": 0.0758,
+        "Panels and viewport": 6.924698,
+        "Simulation preparation": 0.012310000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.839678,
+      "interval_ms": 13.922197,
+      "pane_ms": {
+        "Audio": 0.00134,
+        "Compute preparation": 0.00101,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00069,
+        "Pane Assets": 0.526402,
+        "Pane Hierarchy": 0.368021,
+        "Pane Inspector": 0.0038900000000000002,
+        "Pane Scene": 4.602729,
+        "Pane Settings": 0.077101,
+        "Panels and viewport": 6.824228,
+        "Simulation preparation": 0.010669999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.854182,
+      "interval_ms": 13.896555999999999,
+      "pane_ms": {
+        "Audio": 0.00125,
+        "Compute preparation": 0.00135,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.00047,
+        "Pane Assets": 0.591252,
+        "Pane Hierarchy": 0.399272,
+        "Pane Inspector": 0.00366,
+        "Pane Scene": 5.361251,
+        "Pane Settings": 0.083261,
+        "Panels and viewport": 7.837402,
+        "Simulation preparation": 0.011519999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.839978,
+      "interval_ms": 13.925557,
+      "pane_ms": {
+        "Audio": 0.0013599999999999999,
+        "Compute preparation": 0.00117,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00017999999999999998,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.542022,
+        "Pane Hierarchy": 0.360581,
+        "Pane Inspector": 0.003909999999999999,
+        "Pane Scene": 4.537358,
+        "Pane Settings": 0.079561,
+        "Panels and viewport": 6.822378,
+        "Simulation preparation": 0.01161
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.414356000000001,
+      "interval_ms": 13.840247,
+      "pane_ms": {
+        "Audio": 0.00087,
+        "Compute preparation": 0.00134,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.505012,
+        "Pane Hierarchy": 0.321921,
+        "Pane Inspector": 0.0039299999999999995,
+        "Pane Scene": 4.266417,
+        "Pane Settings": 0.075021,
+        "Panels and viewport": 6.401256,
+        "Simulation preparation": 0.00908
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.610917,
+      "interval_ms": 9.510648999999999,
+      "pane_ms": {
+        "Audio": 0.00086,
+        "Compute preparation": 0.00091,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00025,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.473692,
+        "Pane Hierarchy": 0.325602,
+        "Pane Inspector": 0.0036,
+        "Pane Scene": 4.540259,
+        "Pane Settings": 0.07502,
+        "Panels and viewport": 6.598107,
+        "Simulation preparation": 0.00901
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.249778999999999,
+      "interval_ms": 11.303336,
+      "pane_ms": {
+        "Audio": 0.0011799999999999998,
+        "Compute preparation": 0.00147,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00033999999999999997,
+        "Loading and selection": 0.00035999999999999997,
+        "Pane Assets": 0.560183,
+        "Pane Hierarchy": 0.34642100000000003,
+        "Pane Inspector": 0.0035700000000000003,
+        "Pane Scene": 4.96831,
+        "Pane Settings": 0.08124,
+        "Panels and viewport": 7.232989000000001,
+        "Simulation preparation": 0.01182
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.262043,
+      "interval_ms": 14.121308,
+      "pane_ms": {
+        "Audio": 0.00214,
+        "Compute preparation": 0.00209,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00058,
+        "Pane Assets": 0.6984619999999999,
+        "Pane Hierarchy": 0.437312,
+        "Pane Inspector": 0.004390000000000001,
+        "Pane Scene": 5.4233720000000005,
+        "Pane Settings": 0.10481,
+        "Panels and viewport": 8.237962999999999,
+        "Simulation preparation": 0.017240000000000002
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.839041999999999,
+      "interval_ms": 13.886756,
+      "pane_ms": {
+        "Audio": 0.00176,
+        "Compute preparation": 0.0022800000000000003,
+        "Effects preview": 0.00011999999999999999,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00043,
+        "Pane Assets": 0.663583,
+        "Pane Hierarchy": 0.379772,
+        "Pane Inspector": 0.00636,
+        "Pane Scene": 5.123321,
+        "Pane Settings": 0.08642,
+        "Panels and viewport": 7.813142,
+        "Simulation preparation": 0.0193
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.30826,
+      "interval_ms": 13.717186,
+      "pane_ms": {
+        "Audio": 0.00117,
+        "Compute preparation": 0.00161,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00035999999999999997,
+        "Pane Assets": 0.6211720000000001,
+        "Pane Hierarchy": 0.363772,
+        "Pane Inspector": 0.00358,
+        "Pane Scene": 4.783079,
+        "Pane Settings": 0.08225099999999999,
+        "Panels and viewport": 7.291729999999999,
+        "Simulation preparation": 0.011739999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.199994,
+      "interval_ms": 13.919657,
+      "pane_ms": {
+        "Audio": 0.00143,
+        "Compute preparation": 0.00165,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00046,
+        "Pane Assets": 0.5955020000000001,
+        "Pane Hierarchy": 0.428622,
+        "Pane Inspector": 0.00415,
+        "Pane Scene": 5.421093,
+        "Pane Settings": 0.08298,
+        "Panels and viewport": 8.179204,
+        "Simulation preparation": 0.01523
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.528141000000001,
+      "interval_ms": 13.927717,
+      "pane_ms": {
+        "Audio": 0.00198,
+        "Compute preparation": 0.00143,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00065,
+        "Loading and selection": 0.00051,
+        "Pane Assets": 0.6219030000000001,
+        "Pane Hierarchy": 0.364461,
+        "Pane Inspector": 0.0035700000000000003,
+        "Pane Scene": 4.995061000000001,
+        "Pane Settings": 0.08385000000000001,
+        "Panels and viewport": 7.505531,
+        "Simulation preparation": 0.01491
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.460495,
+      "interval_ms": 14.260758000000001,
+      "pane_ms": {
+        "Audio": 0.00146,
+        "Compute preparation": 0.00198,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00039000000000000005,
+        "Loading and selection": 0.00044,
+        "Pane Assets": 0.657462,
+        "Pane Hierarchy": 0.38363200000000003,
+        "Pane Inspector": 0.0037500000000000003,
+        "Pane Scene": 5.870654,
+        "Pane Settings": 0.087761,
+        "Panels and viewport": 8.439365,
+        "Simulation preparation": 0.01491
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.366234,
+      "interval_ms": 13.872686999999999,
+      "pane_ms": {
+        "Audio": 0.00191,
+        "Compute preparation": 0.00181,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00033,
+        "Loading and selection": 0.00053,
+        "Pane Assets": 0.672492,
+        "Pane Hierarchy": 0.38422100000000003,
+        "Pane Inspector": 0.004189999999999999,
+        "Pane Scene": 5.717033,
+        "Pane Settings": 0.087931,
+        "Panels and viewport": 8.345474000000001,
+        "Simulation preparation": 0.01463
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 21.350576999999998,
+      "interval_ms": 13.494674999999999,
+      "pane_ms": {
+        "Audio": 0.00132,
+        "Compute preparation": 0.0011099999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.0007199999999999999,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.614213,
+        "Pane Hierarchy": 0.373751,
+        "Pane Inspector": 0.0038399999999999997,
+        "Pane Scene": 18.827047,
+        "Pane Settings": 0.08244,
+        "Panels and viewport": 21.332746999999998,
+        "Simulation preparation": 0.01239
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.901902000000001,
+      "interval_ms": 23.191005,
+      "pane_ms": {
+        "Audio": 0.0015400000000000001,
+        "Compute preparation": 0.0015600000000000002,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00023,
+        "Loading and selection": 0.00064,
+        "Pane Assets": 0.698113,
+        "Pane Hierarchy": 0.404042,
+        "Pane Inspector": 0.0038299999999999996,
+        "Pane Scene": 5.079291,
+        "Pane Settings": 0.09008000000000001,
+        "Panels and viewport": 7.880062000000001,
+        "Simulation preparation": 0.01518
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.888827999999999,
+      "interval_ms": 11.507557,
+      "pane_ms": {
+        "Audio": 0.0088,
+        "Compute preparation": 0.00116,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00019,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.5952419999999999,
+        "Pane Hierarchy": 0.348502,
+        "Pane Inspector": 0.0037400000000000003,
+        "Pane Scene": 4.488627999999999,
+        "Pane Settings": 0.077411,
+        "Panels and viewport": 6.866738,
+        "Simulation preparation": 0.01027
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.962809,
+      "interval_ms": 13.914325999999999,
+      "pane_ms": {
+        "Audio": 0.0011799999999999998,
+        "Compute preparation": 0.0011099999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.0003,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.582452,
+        "Pane Hierarchy": 0.347461,
+        "Pane Inspector": 0.00341,
+        "Pane Scene": 4.570509,
+        "Pane Settings": 0.07842,
+        "Panels and viewport": 6.945317999999999,
+        "Simulation preparation": 0.011281
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.512195999999999,
+      "interval_ms": 13.823317,
+      "pane_ms": {
+        "Audio": 0.00107,
+        "Compute preparation": 0.00113,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00033999999999999997,
+        "Pane Assets": 0.476012,
+        "Pane Hierarchy": 0.337061,
+        "Pane Inspector": 0.00325,
+        "Pane Scene": 4.318957,
+        "Pane Settings": 0.07584099999999999,
+        "Panels and viewport": 6.497626,
+        "Simulation preparation": 0.00956
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.888328,
+      "interval_ms": 9.73859,
+      "pane_ms": {
+        "Audio": 0.0008500000000000001,
+        "Compute preparation": 0.0012300000000000002,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00022,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.40810199999999996,
+        "Pane Hierarchy": 0.333021,
+        "Pane Inspector": 0.0035099999999999997,
+        "Pane Scene": 4.8216,
+        "Pane Settings": 0.07492,
+        "Panels and viewport": 6.873787999999999,
+        "Simulation preparation": 0.01047
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.432775,
+      "interval_ms": 11.174795,
+      "pane_ms": {
+        "Audio": 0.00115,
+        "Compute preparation": 0.00134,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00033999999999999997,
+        "Loading and selection": 0.00044,
+        "Pane Assets": 0.459222,
+        "Pane Hierarchy": 0.390752,
+        "Pane Inspector": 0.00388,
+        "Pane Scene": 6.266616,
+        "Pane Settings": 0.07993,
+        "Panels and viewport": 8.415944999999999,
+        "Simulation preparation": 0.012069999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.436801,
+      "interval_ms": 13.905816999999999,
+      "pane_ms": {
+        "Audio": 0.00178,
+        "Compute preparation": 0.0018599999999999999,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00038,
+        "Loading and selection": 0.0005899999999999999,
+        "Pane Assets": 0.45961199999999997,
+        "Pane Hierarchy": 0.382731,
+        "Pane Inspector": 0.00395,
+        "Pane Scene": 5.159531,
+        "Pane Settings": 0.08463,
+        "Panels and viewport": 7.417401,
+        "Simulation preparation": 0.01251
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.26117,
+      "interval_ms": 13.894646999999999,
+      "pane_ms": {
+        "Audio": 0.00137,
+        "Compute preparation": 0.00148,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00043,
+        "Loading and selection": 0.00052,
+        "Pane Assets": 0.524072,
+        "Pane Hierarchy": 0.366302,
+        "Pane Inspector": 0.00376,
+        "Pane Scene": 4.9485909999999995,
+        "Pane Settings": 0.08313,
+        "Panels and viewport": 7.242929999999999,
+        "Simulation preparation": 0.01201
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.717811,
+      "interval_ms": 13.930557,
+      "pane_ms": {
+        "Audio": 0.0015600000000000002,
+        "Compute preparation": 0.00203,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.0005700000000000001,
+        "Pane Assets": 0.625223,
+        "Pane Hierarchy": 0.39826199999999995,
+        "Pane Inspector": 0.00395,
+        "Pane Scene": 5.170841,
+        "Pane Settings": 0.08509,
+        "Panels and viewport": 7.694271,
+        "Simulation preparation": 0.01751
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.22516,
+      "interval_ms": 13.799006,
+      "pane_ms": {
+        "Audio": 0.0011,
+        "Compute preparation": 0.00138,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00038,
+        "Loading and selection": 0.0005700000000000001,
+        "Pane Assets": 0.593743,
+        "Pane Hierarchy": 0.349281,
+        "Pane Inspector": 0.00362,
+        "Pane Scene": 4.81269,
+        "Pane Settings": 0.08069,
+        "Panels and viewport": 7.20802,
+        "Simulation preparation": 0.01224
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.536781,
+      "interval_ms": 13.939137,
+      "pane_ms": {
+        "Audio": 0.00173,
+        "Compute preparation": 0.00161,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00038,
+        "Pane Assets": 0.650203,
+        "Pane Hierarchy": 0.371861,
+        "Pane Inspector": 0.004189999999999999,
+        "Pane Scene": 5.004961,
+        "Pane Settings": 0.08771999999999999,
+        "Panels and viewport": 7.514881,
+        "Simulation preparation": 0.01491
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.316319,
+      "interval_ms": 13.829667,
+      "pane_ms": {
+        "Audio": 0.00164,
+        "Compute preparation": 0.00137,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00022,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.625962,
+        "Pane Hierarchy": 0.366972,
+        "Pane Inspector": 0.0035,
+        "Pane Scene": 4.819509,
+        "Pane Settings": 0.082841,
+        "Panels and viewport": 7.299589,
+        "Simulation preparation": 0.01179
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.451280000000001,
+      "interval_ms": 13.964927,
+      "pane_ms": {
+        "Audio": 0.0014399999999999999,
+        "Compute preparation": 0.0018,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00037,
+        "Loading and selection": 0.00042,
+        "Pane Assets": 0.624382,
+        "Pane Hierarchy": 0.368712,
+        "Pane Inspector": 0.0037400000000000003,
+        "Pane Scene": 4.94788,
+        "Pane Settings": 0.084731,
+        "Panels and viewport": 7.43307,
+        "Simulation preparation": 0.012830000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.875578,
+      "interval_ms": 13.850896,
+      "pane_ms": {
+        "Audio": 0.00149,
+        "Compute preparation": 0.00134,
+        "Effects preview": 8.999999999999999e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00033999999999999997,
+        "Pane Assets": 0.564003,
+        "Pane Hierarchy": 0.355011,
+        "Pane Inspector": 0.00354,
+        "Pane Scene": 4.444748,
+        "Pane Settings": 0.07872000000000001,
+        "Panels and viewport": 6.858618000000001,
+        "Simulation preparation": 0.012289999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.837618999999999,
+      "interval_ms": 13.817886,
+      "pane_ms": {
+        "Audio": 0.00103,
+        "Compute preparation": 0.00102,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00033,
+        "Loading and selection": 0.0003,
+        "Pane Assets": 0.534962,
+        "Pane Hierarchy": 0.338411,
+        "Pane Inspector": 0.0033699999999999997,
+        "Pane Scene": 4.512139,
+        "Pane Settings": 0.07765,
+        "Panels and viewport": 6.822598,
+        "Simulation preparation": 0.010971
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.2289390000000004,
+      "interval_ms": 13.955347999999999,
+      "pane_ms": {
+        "Audio": 0.0014,
+        "Compute preparation": 0.0012,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00033,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.5442119999999999,
+        "Pane Hierarchy": 0.350412,
+        "Pane Inspector": 0.00377,
+        "Pane Scene": 4.86184,
+        "Pane Settings": 0.08221,
+        "Panels and viewport": 7.210469,
+        "Simulation preparation": 0.01359
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 9.008507,
+      "interval_ms": 21.330327,
+      "pane_ms": {
+        "Audio": 0.0020700000000000002,
+        "Compute preparation": 0.0022299999999999998,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00043,
+        "Loading and selection": 0.0005899999999999999,
+        "Pane Assets": 0.728333,
+        "Pane Hierarchy": 0.438151,
+        "Pane Inspector": 0.0039,
+        "Pane Scene": 6.249976,
+        "Pane Settings": 0.092821,
+        "Panels and viewport": 8.979877,
+        "Simulation preparation": 0.02157
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.188713,
+      "interval_ms": 13.395725,
+      "pane_ms": {
+        "Audio": 0.00181,
+        "Compute preparation": 0.00179,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00026,
+        "Loading and selection": 0.00039999999999999996,
+        "Pane Assets": 0.644592,
+        "Pane Hierarchy": 0.37951199999999996,
+        "Pane Inspector": 0.00366,
+        "Pane Scene": 5.616153,
+        "Pane Settings": 0.084701,
+        "Panels and viewport": 8.166613,
+        "Simulation preparation": 0.01503
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.746317,
+      "interval_ms": 13.792926000000001,
+      "pane_ms": {
+        "Audio": 0.001,
+        "Compute preparation": 0.0009299999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.5800519999999999,
+        "Pane Hierarchy": 0.33889199999999997,
+        "Pane Inspector": 0.0036100000000000004,
+        "Pane Scene": 4.384418,
+        "Pane Settings": 0.08034000000000001,
+        "Panels and viewport": 6.732127,
+        "Simulation preparation": 0.01042
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.14287,
+      "interval_ms": 13.904346,
+      "pane_ms": {
+        "Audio": 0.00135,
+        "Compute preparation": 0.00132,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00054,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.581712,
+        "Pane Hierarchy": 0.353602,
+        "Pane Inspector": 0.00341,
+        "Pane Scene": 4.71488,
+        "Pane Settings": 0.08024,
+        "Panels and viewport": 7.12756,
+        "Simulation preparation": 0.01038
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.8727279999999995,
+      "interval_ms": 13.908077,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00117,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00029,
+        "Loading and selection": 0.00032,
+        "Pane Assets": 0.5689529999999999,
+        "Pane Hierarchy": 0.346851,
+        "Pane Inspector": 0.00352,
+        "Pane Scene": 4.495968,
+        "Pane Settings": 0.08111,
+        "Panels and viewport": 6.856698,
+        "Simulation preparation": 0.0117
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 19.58083,
+      "interval_ms": 13.885047,
+      "pane_ms": {
+        "Audio": 0.0011400000000000002,
+        "Compute preparation": 0.00124,
+        "Effects preview": 0.00014000000000000001,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.00046,
+        "Pane Assets": 0.593143,
+        "Pane Hierarchy": 0.363961,
+        "Pane Inspector": 0.00362,
+        "Pane Scene": 17.12733,
+        "Pane Settings": 0.08148,
+        "Panels and viewport": 19.56495,
+        "Simulation preparation": 0.01099
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.9253789999999995,
+      "interval_ms": 21.136946000000002,
+      "pane_ms": {
+        "Audio": 0.00143,
+        "Compute preparation": 0.0017000000000000001,
+        "Effects preview": 0.00011999999999999999,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.0005899999999999999,
+        "Pane Assets": 0.567052,
+        "Pane Hierarchy": 0.340801,
+        "Pane Inspector": 0.00333,
+        "Pane Scene": 4.503089,
+        "Pane Settings": 0.08061,
+        "Panels and viewport": 6.906098,
+        "Simulation preparation": 0.013741
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.565251,
+      "interval_ms": 13.598545999999999,
+      "pane_ms": {
+        "Audio": 0.00131,
+        "Compute preparation": 0.0015999999999999999,
+        "Effects preview": 0.00014000000000000001,
+        "Finish simulation": 0.00033999999999999997,
+        "Loading and selection": 0.00041,
+        "Pane Assets": 0.6077629999999999,
+        "Pane Hierarchy": 0.39486099999999996,
+        "Pane Inspector": 0.00388,
+        "Pane Scene": 4.9720509999999996,
+        "Pane Settings": 0.11183,
+        "Panels and viewport": 7.542351,
+        "Simulation preparation": 0.01543
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.2831,
+      "interval_ms": 13.871486,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00155,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.569212,
+        "Pane Hierarchy": 0.368772,
+        "Pane Inspector": 0.00354,
+        "Pane Scene": 4.816529,
+        "Pane Settings": 0.08260100000000001,
+        "Panels and viewport": 7.267869,
+        "Simulation preparation": 0.010651
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.899402,
+      "interval_ms": 13.968258,
+      "pane_ms": {
+        "Audio": 0.0015999999999999999,
+        "Compute preparation": 0.00193,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00051,
+        "Loading and selection": 0.00042,
+        "Pane Assets": 0.608003,
+        "Pane Hierarchy": 0.386602,
+        "Pane Inspector": 0.00381,
+        "Pane Scene": 5.338402,
+        "Pane Settings": 0.08559,
+        "Panels and viewport": 7.875602000000001,
+        "Simulation preparation": 0.01658
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.211082999999999,
+      "interval_ms": 13.959797,
+      "pane_ms": {
+        "Audio": 0.00153,
+        "Compute preparation": 0.00195,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00045,
+        "Loading and selection": 0.00049,
+        "Pane Assets": 0.707533,
+        "Pane Hierarchy": 0.442882,
+        "Pane Inspector": 0.00447,
+        "Pane Scene": 5.372202000000001,
+        "Pane Settings": 0.10674,
+        "Panels and viewport": 8.187543,
+        "Simulation preparation": 0.01748
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.790082,
+      "interval_ms": 13.816286,
+      "pane_ms": {
+        "Audio": 0.0015,
+        "Compute preparation": 0.0015099999999999998,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00087,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.646443,
+        "Pane Hierarchy": 0.36305099999999996,
+        "Pane Inspector": 0.00379,
+        "Pane Scene": 5.201171,
+        "Pane Settings": 0.084081,
+        "Panels and viewport": 7.771142,
+        "Simulation preparation": 0.01315
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.050473,
+      "interval_ms": 13.983367,
+      "pane_ms": {
+        "Audio": 0.00173,
+        "Compute preparation": 0.00173,
+        "Effects preview": 8e-05,
+        "Finish simulation": 0.00042,
+        "Loading and selection": 0.00053,
+        "Pane Assets": 0.673593,
+        "Pane Hierarchy": 0.413302,
+        "Pane Inspector": 0.0043100000000000005,
+        "Pane Scene": 5.258931,
+        "Pane Settings": 0.093841,
+        "Panels and viewport": 8.028423,
+        "Simulation preparation": 0.016220000000000002
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.9964830000000005,
+      "interval_ms": 15.406873,
+      "pane_ms": {
+        "Audio": 0.00166,
+        "Compute preparation": 0.0019,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00032,
+        "Loading and selection": 0.0007,
+        "Pane Assets": 0.702993,
+        "Pane Hierarchy": 0.412782,
+        "Pane Inspector": 0.00418,
+        "Pane Scene": 5.275422,
+        "Pane Settings": 0.09333999999999999,
+        "Panels and viewport": 7.973463,
+        "Simulation preparation": 0.01686
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.920082,
+      "interval_ms": 12.27088,
+      "pane_ms": {
+        "Audio": 0.00166,
+        "Compute preparation": 0.00188,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00051,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.651112,
+        "Pane Hierarchy": 0.370772,
+        "Pane Inspector": 0.00379,
+        "Pane Scene": 5.2824409999999995,
+        "Pane Settings": 0.087551,
+        "Panels and viewport": 7.900361999999999,
+        "Simulation preparation": 0.013730000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.7747720000000005,
+      "interval_ms": 13.960517000000001,
+      "pane_ms": {
+        "Audio": 0.00199,
+        "Compute preparation": 0.00177,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00047,
+        "Pane Assets": 0.6519330000000001,
+        "Pane Hierarchy": 0.381852,
+        "Pane Inspector": 0.0044399999999999995,
+        "Pane Scene": 5.1169910000000005,
+        "Pane Settings": 0.09024,
+        "Panels and viewport": 7.7481219999999995,
+        "Simulation preparation": 0.01925
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.815981,
+      "interval_ms": 13.803897000000001,
+      "pane_ms": {
+        "Audio": 0.0013599999999999999,
+        "Compute preparation": 0.0015400000000000001,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00055,
+        "Loading and selection": 0.00039999999999999996,
+        "Pane Assets": 0.681063,
+        "Pane Hierarchy": 0.39344100000000004,
+        "Pane Inspector": 0.0039299999999999995,
+        "Pane Scene": 5.148651,
+        "Pane Settings": 0.08687,
+        "Panels and viewport": 7.797011,
+        "Simulation preparation": 0.013430000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 9.198758,
+      "interval_ms": 21.227296,
+      "pane_ms": {
+        "Audio": 0.0019,
+        "Compute preparation": 0.00256,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00041,
+        "Loading and selection": 0.0007199999999999999,
+        "Pane Assets": 0.769124,
+        "Pane Hierarchy": 0.449102,
+        "Pane Inspector": 0.0038299999999999996,
+        "Pane Scene": 6.307666,
+        "Pane Settings": 0.09451,
+        "Panels and viewport": 9.167228,
+        "Simulation preparation": 0.02427
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.590086,
+      "interval_ms": 13.499815,
+      "pane_ms": {
+        "Audio": 0.0015999999999999999,
+        "Compute preparation": 0.0011799999999999998,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00046,
+        "Loading and selection": 0.00043,
+        "Pane Assets": 0.6559130000000001,
+        "Pane Hierarchy": 0.39619200000000004,
+        "Pane Inspector": 0.0037,
+        "Pane Scene": 5.942075,
+        "Pane Settings": 0.08707000000000001,
+        "Panels and viewport": 8.571535,
+        "Simulation preparation": 0.013061000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.787312,
+      "interval_ms": 13.949747,
+      "pane_ms": {
+        "Audio": 0.00165,
+        "Compute preparation": 0.00174,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.0005899999999999999,
+        "Pane Assets": 0.702613,
+        "Pane Hierarchy": 0.403682,
+        "Pane Inspector": 0.00432,
+        "Pane Scene": 5.042711,
+        "Pane Settings": 0.08965,
+        "Panels and viewport": 7.7636709999999995,
+        "Simulation preparation": 0.016401000000000002
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.937822000000001,
+      "interval_ms": 13.857047000000001,
+      "pane_ms": {
+        "Audio": 0.0014500000000000001,
+        "Compute preparation": 0.00149,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00041,
+        "Loading and selection": 0.0006,
+        "Pane Assets": 0.6814520000000001,
+        "Pane Hierarchy": 0.382182,
+        "Pane Inspector": 0.0038399999999999997,
+        "Pane Scene": 5.237141,
+        "Pane Settings": 0.08804000000000001,
+        "Panels and viewport": 7.917712000000001,
+        "Simulation preparation": 0.01458
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.127283,
+      "interval_ms": 13.970647,
+      "pane_ms": {
+        "Audio": 0.00184,
+        "Compute preparation": 0.0021100000000000003,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00033999999999999997,
+        "Loading and selection": 0.00066,
+        "Pane Assets": 0.7047629999999999,
+        "Pane Hierarchy": 0.421332,
+        "Pane Inspector": 0.0045000000000000005,
+        "Pane Scene": 5.296841,
+        "Pane Settings": 0.09185,
+        "Panels and viewport": 8.099323,
+        "Simulation preparation": 0.0198
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.32251,
+      "interval_ms": 13.754856,
+      "pane_ms": {
+        "Audio": 0.00131,
+        "Compute preparation": 0.00126,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00035999999999999997,
+        "Pane Assets": 0.6250319999999999,
+        "Pane Hierarchy": 0.36260200000000004,
+        "Pane Inspector": 0.00353,
+        "Pane Scene": 4.780279,
+        "Pane Settings": 0.08228099999999999,
+        "Panels and viewport": 7.30559,
+        "Simulation preparation": 0.01226
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.621865,
+      "interval_ms": 13.924537,
+      "pane_ms": {
+        "Audio": 0.00157,
+        "Compute preparation": 0.00173,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.0005600000000000001,
+        "Loading and selection": 0.00031,
+        "Pane Assets": 0.6571629999999999,
+        "Pane Hierarchy": 0.372731,
+        "Pane Inspector": 0.0037199999999999998,
+        "Pane Scene": 6.041714,
+        "Pane Settings": 0.087061,
+        "Panels and viewport": 8.602855,
+        "Simulation preparation": 0.01299
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.604805,
+      "interval_ms": 13.950607,
+      "pane_ms": {
+        "Audio": 0.00198,
+        "Compute preparation": 0.00168,
+        "Effects preview": 9.999999999999999e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.0005700000000000001,
+        "Pane Assets": 0.6809430000000001,
+        "Pane Hierarchy": 0.392982,
+        "Pane Inspector": 0.0038500000000000006,
+        "Pane Scene": 5.882753999999999,
+        "Pane Settings": 0.08737,
+        "Panels and viewport": 8.579744999999999,
+        "Simulation preparation": 0.01901
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.764822000000001,
+      "interval_ms": 13.810305999999999,
+      "pane_ms": {
+        "Audio": 0.00148,
+        "Compute preparation": 0.00137,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00039999999999999996,
+        "Pane Assets": 0.619352,
+        "Pane Hierarchy": 0.37670200000000004,
+        "Pane Inspector": 0.0040999999999999995,
+        "Pane Scene": 5.159401,
+        "Pane Settings": 0.089961,
+        "Panels and viewport": 7.745522,
+        "Simulation preparation": 0.013380000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.953231999999999,
+      "interval_ms": 13.979978000000001,
+      "pane_ms": {
+        "Audio": 0.00141,
+        "Compute preparation": 0.0015600000000000002,
+        "Effects preview": 8e-05,
+        "Finish simulation": 0.00047,
+        "Loading and selection": 0.00046,
+        "Pane Assets": 0.685403,
+        "Pane Hierarchy": 0.440831,
+        "Pane Inspector": 0.00458,
+        "Pane Scene": 5.186481,
+        "Pane Settings": 0.08893100000000001,
+        "Panels and viewport": 7.9323120000000005,
+        "Simulation preparation": 0.015379999999999998
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 24.33839,
+      "interval_ms": 13.857356,
+      "pane_ms": {
+        "Audio": 0.00149,
+        "Compute preparation": 0.00171,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00043,
+        "Loading and selection": 0.00053,
+        "Pane Assets": 0.651472,
+        "Pane Hierarchy": 0.393281,
+        "Pane Inspector": 0.00364,
+        "Pane Scene": 21.723648,
+        "Pane Settings": 0.086901,
+        "Panels and viewport": 24.31643,
+        "Simulation preparation": 0.01531
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.415075,
+      "interval_ms": 26.493938,
+      "pane_ms": {
+        "Audio": 0.00227,
+        "Compute preparation": 0.0018599999999999999,
+        "Effects preview": 0.00032,
+        "Finish simulation": 0.00022,
+        "Loading and selection": 0.00095,
+        "Pane Assets": 0.678163,
+        "Pane Hierarchy": 0.412232,
+        "Pane Inspector": 0.00453,
+        "Pane Scene": 5.656573,
+        "Pane Settings": 0.097981,
+        "Panels and viewport": 8.386965,
+        "Simulation preparation": 0.018269999999999998
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.038179,
+      "interval_ms": 11.886489000000001,
+      "pane_ms": {
+        "Audio": 0.00142,
+        "Compute preparation": 0.0016300000000000002,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.46858099999999997,
+        "Pane Hierarchy": 0.357141,
+        "Pane Inspector": 0.00366,
+        "Pane Scene": 4.574248000000001,
+        "Pane Settings": 0.084151,
+        "Panels and viewport": 7.020549,
+        "Simulation preparation": 0.012700000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.9566930000000005,
+      "interval_ms": 10.853333999999998,
+      "pane_ms": {
+        "Audio": 0.0026,
+        "Compute preparation": 0.00177,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00033,
+        "Loading and selection": 0.00067,
+        "Pane Assets": 0.608542,
+        "Pane Hierarchy": 0.38508200000000004,
+        "Pane Inspector": 0.0035099999999999997,
+        "Pane Scene": 5.312392,
+        "Pane Settings": 0.097231,
+        "Panels and viewport": 7.931953,
+        "Simulation preparation": 0.01757
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.631877,
+      "interval_ms": 13.166433999999999,
+      "pane_ms": {
+        "Audio": 0.00135,
+        "Compute preparation": 0.00103,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.0003,
+        "Pane Assets": 0.529782,
+        "Pane Hierarchy": 0.357732,
+        "Pane Inspector": 0.00404,
+        "Pane Scene": 4.328648,
+        "Pane Settings": 0.08035,
+        "Panels and viewport": 6.617167,
+        "Simulation preparation": 0.01046
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.415196,
+      "interval_ms": 13.865807,
+      "pane_ms": {
+        "Audio": 0.00117,
+        "Compute preparation": 0.00081,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00023999999999999998,
+        "Pane Assets": 0.422402,
+        "Pane Hierarchy": 0.334831,
+        "Pane Inspector": 0.00346,
+        "Pane Scene": 4.262538,
+        "Pane Settings": 0.07542,
+        "Panels and viewport": 6.401246,
+        "Simulation preparation": 0.010190000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.1369750000000005,
+      "interval_ms": 11.242945,
+      "pane_ms": {
+        "Audio": 0.0013,
+        "Compute preparation": 0.00102,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00022,
+        "Pane Assets": 0.395302,
+        "Pane Hierarchy": 0.325451,
+        "Pane Inspector": 0.00399,
+        "Pane Scene": 4.226387,
+        "Pane Settings": 0.07561,
+        "Panels and viewport": 6.123294,
+        "Simulation preparation": 0.009441
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.333270000000001,
+      "interval_ms": 9.6756,
+      "pane_ms": {
+        "Audio": 0.00155,
+        "Compute preparation": 0.00125,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00032,
+        "Pane Assets": 0.461582,
+        "Pane Hierarchy": 0.378961,
+        "Pane Inspector": 0.00353,
+        "Pane Scene": 5.154751,
+        "Pane Settings": 0.082951,
+        "Panels and viewport": 7.31737,
+        "Simulation preparation": 0.0112
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.052299,
+      "interval_ms": 14.197578,
+      "pane_ms": {
+        "Audio": 0.00122,
+        "Compute preparation": 0.00117,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.414132,
+        "Pane Hierarchy": 0.351151,
+        "Pane Inspector": 0.0035499999999999998,
+        "Pane Scene": 4.997761,
+        "Pane Settings": 0.07719,
+        "Panels and viewport": 7.038089,
+        "Simulation preparation": 0.01004
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.084435,
+      "interval_ms": 13.483995,
+      "pane_ms": {
+        "Audio": 0.0007999999999999999,
+        "Compute preparation": 0.0007999999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.389041,
+        "Pane Hierarchy": 0.318232,
+        "Pane Inspector": 0.00314,
+        "Pane Scene": 4.217157,
+        "Pane Settings": 0.079051,
+        "Panels and viewport": 6.069655,
+        "Simulation preparation": 0.00987
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.024744999999999,
+      "interval_ms": 9.593509000000001,
+      "pane_ms": {
+        "Audio": 0.0008500000000000001,
+        "Compute preparation": 0.00103,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.39026099999999997,
+        "Pane Hierarchy": 0.329282,
+        "Pane Inspector": 0.00331,
+        "Pane Scene": 4.214016999999999,
+        "Pane Settings": 0.072321,
+        "Panels and viewport": 6.011585,
+        "Simulation preparation": 0.009439999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.9353940000000005,
+      "interval_ms": 11.207165999999999,
+      "pane_ms": {
+        "Audio": 0.00089,
+        "Compute preparation": 0.00091,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00025,
+        "Loading and selection": 0.00023,
+        "Pane Assets": 0.384942,
+        "Pane Hierarchy": 0.325831,
+        "Pane Inspector": 0.00327,
+        "Pane Scene": 4.162217,
+        "Pane Settings": 0.07111,
+        "Panels and viewport": 5.922584,
+        "Simulation preparation": 0.00915
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.847843999999999,
+      "interval_ms": 10.863824,
+      "pane_ms": {
+        "Audio": 0.00107,
+        "Compute preparation": 0.0009,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00026,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.380391,
+        "Pane Hierarchy": 0.319371,
+        "Pane Inspector": 0.00345,
+        "Pane Scene": 4.132066999999999,
+        "Pane Settings": 0.07214,
+        "Panels and viewport": 5.833564,
+        "Simulation preparation": 0.009680000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.923984,
+      "interval_ms": 9.962411,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00097,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00031,
+        "Pane Assets": 0.383802,
+        "Pane Hierarchy": 0.326051,
+        "Pane Inspector": 0.0033900000000000002,
+        "Pane Scene": 4.184717,
+        "Pane Settings": 0.0708,
+        "Panels and viewport": 5.909534,
+        "Simulation preparation": 0.010010000000000002
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.9137249999999995,
+      "interval_ms": 9.416468,
+      "pane_ms": {
+        "Audio": 0.00091,
+        "Compute preparation": 0.00125,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.386241,
+        "Pane Hierarchy": 0.32010099999999997,
+        "Pane Inspector": 0.003,
+        "Pane Scene": 4.1770369999999994,
+        "Pane Settings": 0.071701,
+        "Panels and viewport": 5.899455,
+        "Simulation preparation": 0.01037
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.852144,
+      "interval_ms": 11.395726999999999,
+      "pane_ms": {
+        "Audio": 0.00088,
+        "Compute preparation": 0.0009,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00026,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.390572,
+        "Pane Hierarchy": 0.311491,
+        "Pane Inspector": 0.00314,
+        "Pane Scene": 4.157627,
+        "Pane Settings": 0.06881,
+        "Panels and viewport": 5.839254,
+        "Simulation preparation": 0.009290000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.958495,
+      "interval_ms": 9.350478,
+      "pane_ms": {
+        "Audio": 0.00092,
+        "Compute preparation": 0.00095,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.385662,
+        "Pane Hierarchy": 0.323781,
+        "Pane Inspector": 0.00318,
+        "Pane Scene": 4.220637999999999,
+        "Pane Settings": 0.07158,
+        "Panels and viewport": 5.945175,
+        "Simulation preparation": 0.00959
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.048038,
+      "interval_ms": 11.599698,
+      "pane_ms": {
+        "Audio": 0.00148,
+        "Compute preparation": 0.00162,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00035999999999999997,
+        "Loading and selection": 0.00037,
+        "Pane Assets": 0.48587199999999997,
+        "Pane Hierarchy": 0.392661,
+        "Pane Inspector": 0.00366,
+        "Pane Scene": 4.790469000000001,
+        "Pane Settings": 0.086181,
+        "Panels and viewport": 7.0303379999999995,
+        "Simulation preparation": 0.01224
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.6273670000000005,
+      "interval_ms": 13.925726,
+      "pane_ms": {
+        "Audio": 0.0014500000000000001,
+        "Compute preparation": 0.00161,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019,
+        "Loading and selection": 0.00065,
+        "Pane Assets": 0.501552,
+        "Pane Hierarchy": 0.343022,
+        "Pane Inspector": 0.00334,
+        "Pane Scene": 4.422868,
+        "Pane Settings": 0.07847,
+        "Panels and viewport": 6.606166,
+        "Simulation preparation": 0.014061
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.310004999999999,
+      "interval_ms": 13.788357,
+      "pane_ms": {
+        "Audio": 0.0008500000000000001,
+        "Compute preparation": 0.00103,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.478942,
+        "Pane Hierarchy": 0.321112,
+        "Pane Inspector": 0.00329,
+        "Pane Scene": 4.230987000000001,
+        "Pane Settings": 0.07333,
+        "Panels and viewport": 6.296585,
+        "Simulation preparation": 0.00989
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.273835,
+      "interval_ms": 9.77355,
+      "pane_ms": {
+        "Audio": 0.0008500000000000001,
+        "Compute preparation": 0.00102,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00039999999999999996,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.43301100000000003,
+        "Pane Hierarchy": 0.320801,
+        "Pane Inspector": 0.00323,
+        "Pane Scene": 4.293917,
+        "Pane Settings": 0.07885099999999999,
+        "Panels and viewport": 6.2602150000000005,
+        "Simulation preparation": 0.00973
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.451796,
+      "interval_ms": 11.076015,
+      "pane_ms": {
+        "Audio": 0.0014399999999999999,
+        "Compute preparation": 0.00152,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.44139199999999995,
+        "Pane Hierarchy": 0.338581,
+        "Pane Inspector": 0.00334,
+        "Pane Scene": 4.365308,
+        "Pane Settings": 0.0807,
+        "Panels and viewport": 6.434136,
+        "Simulation preparation": 0.01278
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.043655,
+      "interval_ms": 9.95458,
+      "pane_ms": {
+        "Audio": 0.00095,
+        "Compute preparation": 0.001,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.393582,
+        "Pane Hierarchy": 0.318841,
+        "Pane Inspector": 0.0031599999999999996,
+        "Pane Scene": 4.210507,
+        "Pane Settings": 0.06986999999999999,
+        "Panels and viewport": 6.030364,
+        "Simulation preparation": 0.009661
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.046645,
+      "interval_ms": 10.840285,
+      "pane_ms": {
+        "Audio": 0.00088,
+        "Compute preparation": 0.00092,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00035,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.392052,
+        "Pane Hierarchy": 0.323291,
+        "Pane Inspector": 0.00335,
+        "Pane Scene": 4.242118,
+        "Pane Settings": 0.0722,
+        "Panels and viewport": 6.033835000000001,
+        "Simulation preparation": 0.00915
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.661427,
+      "interval_ms": 11.006255,
+      "pane_ms": {
+        "Audio": 0.00109,
+        "Compute preparation": 0.00135,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00033999999999999997,
+        "Pane Assets": 0.436262,
+        "Pane Hierarchy": 0.350352,
+        "Pane Inspector": 0.0035499999999999998,
+        "Pane Scene": 4.616589,
+        "Pane Settings": 0.07877,
+        "Panels and viewport": 6.644037,
+        "Simulation preparation": 0.0132
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.016615000000001,
+      "interval_ms": 10.163671,
+      "pane_ms": {
+        "Audio": 0.00125,
+        "Compute preparation": 0.0011200000000000001,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.407951,
+        "Pane Hierarchy": 0.319541,
+        "Pane Inspector": 0.00323,
+        "Pane Scene": 4.220866999999999,
+        "Pane Settings": 0.07313,
+        "Panels and viewport": 6.002535,
+        "Simulation preparation": 0.009989999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.951834,
+      "interval_ms": 9.462899,
+      "pane_ms": {
+        "Audio": 0.00088,
+        "Compute preparation": 0.00101,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.409432,
+        "Pane Hierarchy": 0.312441,
+        "Pane Inspector": 0.00306,
+        "Pane Scene": 4.182906999999999,
+        "Pane Settings": 0.07083,
+        "Panels and viewport": 5.938414000000001,
+        "Simulation preparation": 0.00976
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 19.949911,
+      "interval_ms": 11.043775,
+      "pane_ms": {
+        "Audio": 0.0009299999999999999,
+        "Compute preparation": 0.0013599999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00031,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.483782,
+        "Pane Hierarchy": 0.341002,
+        "Pane Inspector": 0.00334,
+        "Pane Scene": 17.970833,
+        "Pane Settings": 0.07592,
+        "Panels and viewport": 19.932301,
+        "Simulation preparation": 0.01209
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.429666,
+      "interval_ms": 21.601998000000002,
+      "pane_ms": {
+        "Audio": 0.00097,
+        "Compute preparation": 0.00113,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.477152,
+        "Pane Hierarchy": 0.332051,
+        "Pane Inspector": 0.00373,
+        "Pane Scene": 4.443058,
+        "Pane Settings": 0.07408,
+        "Panels and viewport": 6.413696,
+        "Simulation preparation": 0.0121
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.120449,
+      "interval_ms": 13.159844,
+      "pane_ms": {
+        "Audio": 0.00134,
+        "Compute preparation": 0.00107,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00044,
+        "Pane Assets": 0.5069319999999999,
+        "Pane Hierarchy": 0.340931,
+        "Pane Inspector": 0.0035099999999999997,
+        "Pane Scene": 5.032970000000001,
+        "Pane Settings": 0.07642,
+        "Panels and viewport": 7.104909,
+        "Simulation preparation": 0.0111
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.018439,
+      "interval_ms": 14.241398,
+      "pane_ms": {
+        "Audio": 0.00103,
+        "Compute preparation": 0.0011099999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00022,
+        "Pane Assets": 0.478602,
+        "Pane Hierarchy": 0.331381,
+        "Pane Inspector": 0.00336,
+        "Pane Scene": 5.008020999999999,
+        "Pane Settings": 0.07235,
+        "Panels and viewport": 7.004669,
+        "Simulation preparation": 0.00996
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.662918,
+      "interval_ms": 13.521975000000001,
+      "pane_ms": {
+        "Audio": 0.0011099999999999999,
+        "Compute preparation": 0.0012300000000000002,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00039000000000000005,
+        "Loading and selection": 0.00032,
+        "Pane Assets": 0.522042,
+        "Pane Hierarchy": 0.343282,
+        "Pane Inspector": 0.00324,
+        "Pane Scene": 4.514909,
+        "Pane Settings": 0.07713,
+        "Panels and viewport": 6.647028,
+        "Simulation preparation": 0.01134
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.279285,
+      "interval_ms": 13.851297,
+      "pane_ms": {
+        "Audio": 0.00107,
+        "Compute preparation": 0.001,
+        "Effects preview": 0.00013,
+        "Finish simulation": 0.00023,
+        "Loading and selection": 0.00022,
+        "Pane Assets": 0.46863200000000005,
+        "Pane Hierarchy": 0.327102,
+        "Pane Inspector": 0.00314,
+        "Pane Scene": 4.268037,
+        "Pane Settings": 0.07169,
+        "Panels and viewport": 6.265905,
+        "Simulation preparation": 0.00958
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.088294,
+      "interval_ms": 9.70006,
+      "pane_ms": {
+        "Audio": 0.0007899999999999999,
+        "Compute preparation": 0.00086,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.450602,
+        "Pane Hierarchy": 0.32056100000000004,
+        "Pane Inspector": 0.00319,
+        "Pane Scene": 4.166227,
+        "Pane Settings": 0.07095,
+        "Panels and viewport": 6.073834,
+        "Simulation preparation": 0.01023
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.163449,
+      "interval_ms": 11.149434999999999,
+      "pane_ms": {
+        "Audio": 0.0007800000000000001,
+        "Compute preparation": 0.001,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00044,
+        "Loading and selection": 0.00021,
+        "Pane Assets": 0.492942,
+        "Pane Hierarchy": 0.34926100000000004,
+        "Pane Inspector": 0.00347,
+        "Pane Scene": 5.08813,
+        "Pane Settings": 0.075411,
+        "Panels and viewport": 7.145849,
+        "Simulation preparation": 0.01102
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 8.323053999999999,
+      "interval_ms": 14.522729,
+      "pane_ms": {
+        "Audio": 0.0018,
+        "Compute preparation": 0.00238,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00039999999999999996,
+        "Loading and selection": 0.00066,
+        "Pane Assets": 0.7855730000000001,
+        "Pane Hierarchy": 0.474062,
+        "Pane Inspector": 0.00426,
+        "Pane Scene": 5.3482520000000005,
+        "Pane Settings": 0.14198,
+        "Panels and viewport": 8.292944,
+        "Simulation preparation": 0.02254
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.717002,
+      "interval_ms": 13.422545,
+      "pane_ms": {
+        "Audio": 0.00105,
+        "Compute preparation": 0.00153,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00025,
+        "Loading and selection": 0.00033999999999999997,
+        "Pane Assets": 0.6296029999999999,
+        "Pane Hierarchy": 0.364561,
+        "Pane Inspector": 0.00438,
+        "Pane Scene": 5.2109820000000004,
+        "Pane Settings": 0.08018,
+        "Panels and viewport": 7.699552,
+        "Simulation preparation": 0.01276
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.598461,
+      "interval_ms": 13.752505999999999,
+      "pane_ms": {
+        "Audio": 0.00107,
+        "Compute preparation": 0.00126,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00023999999999999998,
+        "Loading and selection": 0.00039999999999999996,
+        "Pane Assets": 0.583403,
+        "Pane Hierarchy": 0.351801,
+        "Pane Inspector": 0.0034300000000000003,
+        "Pane Scene": 5.203681,
+        "Pane Settings": 0.07848,
+        "Panels and viewport": 7.580771,
+        "Simulation preparation": 0.01243
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.879758,
+      "interval_ms": 13.867917,
+      "pane_ms": {
+        "Audio": 0.00116,
+        "Compute preparation": 0.0009,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00027,
+        "Pane Assets": 0.536102,
+        "Pane Hierarchy": 0.334762,
+        "Pane Inspector": 0.00331,
+        "Pane Scene": 4.596699,
+        "Pane Settings": 0.07611,
+        "Panels and viewport": 6.864878,
+        "Simulation preparation": 0.01089
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.102139,
+      "interval_ms": 13.940507,
+      "pane_ms": {
+        "Audio": 0.00119,
+        "Compute preparation": 0.00107,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.0003,
+        "Loading and selection": 0.00047,
+        "Pane Assets": 0.471732,
+        "Pane Hierarchy": 0.393402,
+        "Pane Inspector": 0.00354,
+        "Pane Scene": 4.75617,
+        "Pane Settings": 0.08388000000000001,
+        "Panels and viewport": 7.085439,
+        "Simulation preparation": 0.01223
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.155115,
+      "interval_ms": 13.852087000000001,
+      "pane_ms": {
+        "Audio": 0.00094,
+        "Compute preparation": 0.00166,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00031,
+        "Pane Assets": 0.419642,
+        "Pane Hierarchy": 0.325741,
+        "Pane Inspector": 0.0031999999999999997,
+        "Pane Scene": 4.196188,
+        "Pane Settings": 0.07232,
+        "Panels and viewport": 6.140425,
+        "Simulation preparation": 0.01025
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.863688,
+      "interval_ms": 9.672749,
+      "pane_ms": {
+        "Audio": 0.00099,
+        "Compute preparation": 0.0009,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00051,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.406192,
+        "Pane Hierarchy": 0.331432,
+        "Pane Inspector": 0.00356,
+        "Pane Scene": 4.90815,
+        "Pane Settings": 0.07179,
+        "Panels and viewport": 6.848838000000001,
+        "Simulation preparation": 0.01003
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.23365,
+      "interval_ms": 11.325096,
+      "pane_ms": {
+        "Audio": 0.00166,
+        "Compute preparation": 0.00215,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00023999999999999998,
+        "Loading and selection": 0.00044,
+        "Pane Assets": 0.501992,
+        "Pane Hierarchy": 0.404001,
+        "Pane Inspector": 0.0037199999999999998,
+        "Pane Scene": 4.79305,
+        "Pane Settings": 0.08947,
+        "Panels and viewport": 7.20135,
+        "Simulation preparation": 0.024450000000000003
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.271655,
+      "interval_ms": 13.786876999999999,
+      "pane_ms": {
+        "Audio": 0.00106,
+        "Compute preparation": 0.0012300000000000002,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00033,
+        "Pane Assets": 0.39401200000000003,
+        "Pane Hierarchy": 0.326261,
+        "Pane Inspector": 0.00341,
+        "Pane Scene": 4.314888,
+        "Pane Settings": 0.0735,
+        "Panels and viewport": 6.255395,
+        "Simulation preparation": 0.012
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 5.930444,
+      "interval_ms": 9.714339,
+      "pane_ms": {
+        "Audio": 0.00094,
+        "Compute preparation": 0.0015,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00019999999999999998,
+        "Loading and selection": 0.00029,
+        "Pane Assets": 0.391372,
+        "Pane Hierarchy": 0.317771,
+        "Pane Inspector": 0.0031,
+        "Pane Scene": 4.147867000000001,
+        "Pane Settings": 0.0707,
+        "Panels and viewport": 5.914143999999999,
+        "Simulation preparation": 0.01201
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.475117,
+      "interval_ms": 10.975644999999998,
+      "pane_ms": {
+        "Audio": 0.00101,
+        "Compute preparation": 0.00104,
+        "Effects preview": 5.9999999999999995e-05,
+        "Finish simulation": 0.00063,
+        "Loading and selection": 0.0003,
+        "Pane Assets": 0.38768199999999997,
+        "Pane Hierarchy": 0.30954099999999996,
+        "Pane Inspector": 0.00334,
+        "Pane Scene": 4.76169,
+        "Pane Settings": 0.06748,
+        "Panels and viewport": 6.459667,
+        "Simulation preparation": 0.01066
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.339476,
+      "interval_ms": 14.047957,
+      "pane_ms": {
+        "Audio": 0.0009,
+        "Compute preparation": 0.00171,
+        "Effects preview": 0.00013,
+        "Finish simulation": 0.00043,
+        "Loading and selection": 0.0003,
+        "Pane Assets": 0.565083,
+        "Pane Hierarchy": 0.40766199999999997,
+        "Pane Inspector": 0.00366,
+        "Pane Scene": 4.4731179999999995,
+        "Pane Settings": 0.08356000000000001,
+        "Panels and viewport": 6.322096,
+        "Simulation preparation": 0.01158
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.723427,
+      "interval_ms": 11.360917,
+      "pane_ms": {
+        "Audio": 0.00147,
+        "Compute preparation": 0.00143,
+        "Effects preview": 8e-05,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.5108820000000001,
+        "Pane Hierarchy": 0.365521,
+        "Pane Inspector": 0.00336,
+        "Pane Scene": 4.465578000000001,
+        "Pane Settings": 0.08308,
+        "Panels and viewport": 6.706937,
+        "Simulation preparation": 0.01154
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.093829,
+      "interval_ms": 10.285292,
+      "pane_ms": {
+        "Audio": 0.0014399999999999999,
+        "Compute preparation": 0.00124,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00021,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.42822200000000005,
+        "Pane Hierarchy": 0.341041,
+        "Pane Inspector": 0.00332,
+        "Pane Scene": 4.976630999999999,
+        "Pane Settings": 0.07577,
+        "Panels and viewport": 7.078569,
+        "Simulation preparation": 0.01064
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.205765,
+      "interval_ms": 12.969933,
+      "pane_ms": {
+        "Audio": 0.00091,
+        "Compute preparation": 0.00083,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00023,
+        "Loading and selection": 0.00028000000000000003,
+        "Pane Assets": 0.402921,
+        "Pane Hierarchy": 0.327402,
+        "Pane Inspector": 0.00349,
+        "Pane Scene": 4.258527,
+        "Pane Settings": 0.071691,
+        "Panels and viewport": 6.192515,
+        "Simulation preparation": 0.00952
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.360781,
+      "interval_ms": 14.396578,
+      "pane_ms": {
+        "Audio": 0.0013,
+        "Compute preparation": 0.00141,
+        "Effects preview": 4e-05,
+        "Finish simulation": 0.00041,
+        "Loading and selection": 0.00026,
+        "Pane Assets": 0.450452,
+        "Pane Hierarchy": 0.38495100000000004,
+        "Pane Inspector": 0.00353,
+        "Pane Scene": 5.166081,
+        "Pane Settings": 0.08212000000000001,
+        "Panels and viewport": 7.34135,
+        "Simulation preparation": 0.011401
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 19.325929,
+      "interval_ms": 13.391135,
+      "pane_ms": {
+        "Audio": 0.00113,
+        "Compute preparation": 0.0012100000000000001,
+        "Effects preview": 7.000000000000001e-05,
+        "Finish simulation": 0.00088,
+        "Loading and selection": 0.0006,
+        "Pane Assets": 0.41543199999999997,
+        "Pane Hierarchy": 0.335061,
+        "Pane Inspector": 0.0033,
+        "Pane Scene": 17.310621,
+        "Pane Settings": 0.07696,
+        "Panels and viewport": 19.308988999999997,
+        "Simulation preparation": 0.00993
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 7.217819,
+      "interval_ms": 21.162637,
+      "pane_ms": {
+        "Audio": 0.00165,
+        "Compute preparation": 0.00166,
+        "Effects preview": 0.00015,
+        "Finish simulation": 0.00028000000000000003,
+        "Loading and selection": 0.0005700000000000001,
+        "Pane Assets": 0.5722820000000001,
+        "Pane Hierarchy": 0.374252,
+        "Pane Inspector": 0.00347,
+        "Pane Scene": 4.81674,
+        "Pane Settings": 0.08234999999999999,
+        "Panels and viewport": 7.196129,
+        "Simulation preparation": 0.014929999999999999
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.617157000000001,
+      "interval_ms": 13.525845,
+      "pane_ms": {
+        "Audio": 0.00113,
+        "Compute preparation": 0.00103,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00026,
+        "Loading and selection": 0.00032,
+        "Pane Assets": 0.523722,
+        "Pane Hierarchy": 0.336472,
+        "Pane Inspector": 0.004,
+        "Pane Scene": 4.342828,
+        "Pane Settings": 0.08516,
+        "Panels and viewport": 6.601627,
+        "Simulation preparation": 0.0104
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    },
+    {
+      "cpu_ms": 6.843869,
+      "interval_ms": 14.352088,
+      "pane_ms": {
+        "Audio": 0.00109,
+        "Compute preparation": 0.0009599999999999999,
+        "Effects preview": 4.9999999999999996e-05,
+        "Finish simulation": 0.00027,
+        "Loading and selection": 0.00035,
+        "Pane Assets": 0.5521229999999999,
+        "Pane Hierarchy": 0.374541,
+        "Pane Inspector": 0.00349,
+        "Pane Scene": 4.514938,
+        "Pane Settings": 0.07823999999999999,
+        "Panels and viewport": 6.827749,
+        "Simulation preparation": 0.010910000000000001
+      },
+      "viewport": [
+        1272,
+        547
+      ],
+      "draws": 264,
+      "triangles": 349752
+    }
+  ]
+}
