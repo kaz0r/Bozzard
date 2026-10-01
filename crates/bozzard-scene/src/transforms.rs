@@ -2,6 +2,10 @@
 use super::*;
 use std::sync::Mutex;
 
+pub(super) fn is_valid_matrix(matrix: Mat4) -> bool {
+    matrix.is_finite() && matrix.inverse().is_finite()
+}
+
 #[derive(Clone, Copy)]
 struct Entry {
     local: Transform,
@@ -25,6 +29,21 @@ impl Clone for Cache {
 }
 
 impl SceneInstance {
+    pub(super) fn validate_render_pose(
+        &self,
+        world: &World,
+        id: &str,
+        global: Mat4,
+    ) -> Result<(Mat4, bool)> {
+        if is_valid_matrix(global) {
+            Ok((global, false))
+        } else {
+            // Finite endpoints need not have a representable f32 blend. Snap to
+            // the valid current world pose and propagate that choice to children.
+            Ok((self.global_transform(world, id)?, true))
+        }
+    }
+
     pub fn global_transforms(&self, world: &World) -> Result<BTreeMap<String, Mat4>> {
         self.compose_transforms(world, None)
     }
@@ -111,12 +130,9 @@ impl SceneInstance {
             let global = if let Some(local_matrix) = interpolated {
                 local.validate()?;
                 cache[index] = None;
-                let global = parent * local_matrix;
-                ensure!(
-                    global.is_finite() && global.inverse().is_finite(),
-                    "invalid interpolated transform on '{}'",
-                    object.id
-                );
+                let (global, fallback) =
+                    self.validate_render_pose(world, &object.id, parent * local_matrix)?;
+                snapped[index] |= fallback;
                 global
             } else {
                 match cache[index] {
@@ -124,16 +140,28 @@ impl SceneInstance {
                     _ => {
                         local.validate()?;
                         let global = parent * local.matrix();
-                        ensure!(
-                            global.is_finite() && global.inverse().is_finite(),
-                            "invalid runtime transform on '{}'",
-                            object.id
-                        );
-                        cache[index] = Some(Entry {
-                            local: *local,
-                            parent,
-                            global,
-                        });
+                        let (global, fallback) = if history.is_some() {
+                            self.validate_render_pose(world, &object.id, global)?
+                        } else {
+                            ensure!(
+                                is_valid_matrix(global),
+                                "invalid runtime transform on '{}'",
+                                object.id
+                            );
+                            (global, false)
+                        };
+                        if fallback {
+                            snapped[index] = true;
+                            // A fallback does not compose from the rendered parent.
+                            // It cannot be reused by the local/parent value cache.
+                            cache[index] = None;
+                        } else {
+                            cache[index] = Some(Entry {
+                                local: *local,
+                                parent,
+                                global,
+                            });
+                        }
                         global
                     }
                 }

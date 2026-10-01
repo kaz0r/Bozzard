@@ -154,6 +154,63 @@ fn interpolation_keeps_large_finite_endpoints_and_positive_scale_invertible() {
 }
 
 #[test]
+fn unrepresentable_scale_blends_snap_only_the_affected_hierarchy() {
+    // The first case overflows the parent's blend. The second keeps the parent
+    // invertible but overflows when a static child's scale is composed with it.
+    for (large_scale, child_scale, parent_snaps) in [(1e30, 1., true), (1e18, 100., false)] {
+        let mut source = scene();
+        source.objects[0].transform.scale = [large_scale, 0.0001, 1.];
+        source.objects[1].transform.scale = [child_scale, child_scale, 1.];
+        let mut sibling = source.objects[1].clone();
+        sibling.id = "sibling".into();
+        sibling.parent = None;
+        sibling.transform = Transform::default();
+        source.objects.push(sibling);
+        let mut world = World::new();
+        let instance = source.spawn(&mut world).unwrap();
+        assert!(instance.global_transforms(&world).is_ok());
+        instance.set_render_interpolation(&mut world, true).unwrap();
+        world.advance_change_tick();
+        world
+            .get_mut::<Transform>(instance.entity("root").unwrap())
+            .unwrap()
+            .scale = [0.0001, large_scale, 1.];
+        world
+            .get_mut::<Transform>(instance.entity("sibling").unwrap())
+            .unwrap()
+            .translation[0] = 10.;
+        instance.capture_render_transforms(&mut world).unwrap();
+        let exact = instance.global_transforms(&world).unwrap();
+        let shown = instance.interpolated_transforms(&world, 0.5).unwrap();
+        for id in ["cube", "lamp"] {
+            assert_eq!(shown[id], exact[id], "{id} must keep a finite current pose");
+        }
+        let root = if parent_snaps {
+            exact["root"]
+        } else {
+            Mat4::from_scale(Vec3::new(large_scale * 0.5, large_scale * 0.5, 1.))
+        };
+        assert_eq!(shown["root"], root);
+        assert_eq!(shown["sibling"].transform_point3(Vec3::ZERO).x, 5.);
+        assert_eq!(
+            instance.interpolated_transforms(&world, 0.5).unwrap(),
+            shown
+        );
+        let camera = world
+            .get::<bozzard_scene::Camera>(instance.entity("camera").unwrap())
+            .unwrap();
+        assert_eq!(
+            instance
+                .view_interpolated_from_camera(&world, Layer::ThreeD, 1., None, 0.5)
+                .unwrap()
+                .view_projection,
+            camera.projection(1.).unwrap()
+                * (root * source.objects[3].transform.matrix()).inverse()
+        );
+    }
+}
+
+#[test]
 fn two_dimensional_sprites_and_world_text_use_the_same_local_pose_as_meshes() {
     use bozzard_scene::{
         TextRendering,

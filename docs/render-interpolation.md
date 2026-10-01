@@ -43,6 +43,10 @@ removed or recycled entities cannot inherit old presentation samples. Scene
 replacement and checkpoint restoration rebuild history. History is never saved
 into authored scenes, checkpoints, or network snapshots.
 
+If valid endpoints produce a non-invertible floating-point blend, that subtree
+uses its current world pose. Projected UI follows the same fallback; unrelated
+objects continue interpolating.
+
 Ordinary position/rotation writes remain continuous. After a teleport in a Rhai
 hook, explicitly reset its presentation history:
 
@@ -100,10 +104,10 @@ history synchronization and scene extraction; GPU work and UI extraction are exc
 
 | Scene objects | Execution | Exact poses | Interpolated | Added time |
 | --- | --- | ---: | ---: | ---: |
-| 5 | Serial | 1.750 µs | 2.167 µs | 0.417 µs |
-| 5 | Worker | 1.875 µs | 2.333 µs | 0.458 µs |
-| 1,029 | Serial | 382.375 µs | 384.625 µs | 2.250 µs |
-| 1,029 | Worker | 388.333 µs | 396.083 µs | 7.750 µs |
+| 5 | Serial | 1.625 µs | 2.166 µs | 0.541 µs |
+| 5 | Worker | 1.916 µs | 2.375 µs | 0.459 µs |
+| 1,029 | Serial | 385.208 µs | 391.542 µs | 6.334 µs |
+| 1,029 | Worker | 398.000 µs | 400.375 µs | 2.375 µs |
 
 The optimization/review pass keeps static samples out of pose copies and quaternion
 interpolation, collapses only moving samples, and preserves the exact extraction
@@ -125,7 +129,7 @@ The montage uses the same crop and scale for every frame. The
 [capture log](measurements/render-interpolation/native-capture.log) are included.
 
 Four real-window runs of 240 frames have median presentation intervals between
-9.992 and 10.012 ms, with interpolation on/off and serial/worker execution. These
+10.014 and 10.041 ms, with interpolation on/off and serial/worker execution. These
 short, startup-inclusive runs establish no FPS improvement; window pacing and
 GPU timing distributions are in
 [windows.json](measurements/render-interpolation/windows.json).

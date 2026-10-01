@@ -252,6 +252,44 @@ fn world_labels_share_interpolated_camera_pose_and_invalidate_layout_cache() {
     assert!((half_x - 300.).abs() < 0.001);
     assert!((exact_x - 240.).abs() < 0.001);
     assert_ne!(half_x, exact_x);
+
+    // Valid camera endpoints can have a blend whose inverse overflows. UI must
+    // fall back to the same current pose as full scene extraction.
+    instance
+        .set_render_interpolation(&mut world, false)
+        .unwrap();
+    let camera = instance.entity("camera").unwrap();
+    world
+        .get_mut::<bozzard_scene::Transform>(camera)
+        .unwrap()
+        .scale = [1e30, 0.0001, 1.];
+    assert!(instance.global_transforms(&world).is_ok());
+    instance
+        .control_ui(
+            &mut world,
+            "label",
+            Control::WorldPosition([2.0001, 0., 0.]),
+        )
+        .unwrap();
+    instance.set_render_interpolation(&mut world, true).unwrap();
+    world.advance_change_tick();
+    world
+        .get_mut::<bozzard_scene::Transform>(camera)
+        .unwrap()
+        .scale = [0.0001, 1e30, 1.];
+    instance.capture_render_transforms(&mut world).unwrap();
+    bozzard_scene::SceneInstance::set_render_interpolation_fraction(&mut world, 0.5).unwrap();
+    let snapped = instance
+        .ui_frame(&world, Layer::TwoD, [800., 600.])
+        .unwrap();
+    bozzard_scene::SceneInstance::set_render_interpolation_fraction(&mut world, 1.).unwrap();
+    let exact = instance
+        .ui_frame(&world, Layer::TwoD, [800., 600.])
+        .unwrap();
+    assert_eq!(
+        snapped.element("label").unwrap().rect,
+        exact.element("label").unwrap().rect
+    );
 }
 #[test]
 fn pointer_policy_follows_visible_enabled_controls_and_scroll_areas() {

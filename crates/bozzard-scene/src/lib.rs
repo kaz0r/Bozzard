@@ -1269,10 +1269,16 @@ impl SceneInstance {
             };
             let local_matrix = sampled.unwrap_or_else(|| local.matrix());
             global *= local_matrix;
-            ensure!(
-                global.is_finite() && global.inverse().is_finite(),
-                "invalid runtime transform on '{id}'"
-            );
+            if history.is_some() {
+                let (pose, fallback) = self.validate_render_pose(world, id, global)?;
+                global = pose;
+                snapped |= fallback;
+            } else {
+                ensure!(
+                    transforms::is_valid_matrix(global),
+                    "invalid runtime transform on '{id}'"
+                );
+            }
         }
         Ok(global)
     }

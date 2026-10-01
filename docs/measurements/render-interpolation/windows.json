@@ -9,21 +9,21 @@
       "frames": 240,
       "player_cpu_frame": {
         "n": 240,
-        "median_ms": 9.938,
-        "p95_ms": 13.471,
-        "p99_ms": 17.459
+        "median_ms": 9.903,
+        "p95_ms": 14.389,
+        "p99_ms": 19.99
       },
       "player_presentation_interval": {
         "n": 239,
-        "median_ms": 10.005,
-        "p95_ms": 13.502,
-        "p99_ms": 17.412
+        "median_ms": 10.027,
+        "p95_ms": 14.644,
+        "p99_ms": 19.712
       },
       "player_gpu_passes": {
-        "n": 240,
-        "median_ms": 0.983,
-        "p95_ms": 1.984,
-        "p99_ms": 2.525
+        "n": 237,
+        "median_ms": 0.97,
+        "p95_ms": 2.279,
+        "p99_ms": 2.517
       }
     },
     {
@@ -32,21 +32,21 @@
       "frames": 240,
       "player_cpu_frame": {
         "n": 240,
-        "median_ms": 9.933,
-        "p95_ms": 13.001,
-        "p99_ms": 15.906
+        "median_ms": 9.908,
+        "p95_ms": 15.236,
+        "p99_ms": 21.815
       },
       "player_presentation_interval": {
         "n": 239,
-        "median_ms": 9.992,
-        "p95_ms": 13.027,
-        "p99_ms": 15.644
+        "median_ms": 10.014,
+        "p95_ms": 15.33,
+        "p99_ms": 20.334
       },
       "player_gpu_passes": {
         "n": 240,
-        "median_ms": 0.989,
-        "p95_ms": 2.122,
-        "p99_ms": 2.435
+        "median_ms": 0.98,
+        "p95_ms": 2.429,
+        "p99_ms": 2.56
       }
     },
     {
@@ -55,21 +55,21 @@
       "frames": 240,
       "player_cpu_frame": {
         "n": 240,
-        "median_ms": 9.93,
-        "p95_ms": 13.201,
-        "p99_ms": 17.94
+        "median_ms": 9.909,
+        "p95_ms": 15.211,
+        "p99_ms": 21.075
       },
       "player_presentation_interval": {
         "n": 239,
-        "median_ms": 9.999,
-        "p95_ms": 13.235,
-        "p99_ms": 17.413
+        "median_ms": 10.041,
+        "p95_ms": 15.322,
+        "p99_ms": 20.573
       },
       "player_gpu_passes": {
-        "n": 237,
-        "median_ms": 0.977,
-        "p95_ms": 1.996,
-        "p99_ms": 2.572
+        "n": 240,
+        "median_ms": 0.962,
+        "p95_ms": 2.384,
+        "p99_ms": 2.624
       }
     },
     {
@@ -78,21 +78,21 @@
       "frames": 240,
       "player_cpu_frame": {
         "n": 240,
-        "median_ms": 9.935,
-        "p95_ms": 13.262,
-        "p99_ms": 15.504
+        "median_ms": 9.883,
+        "p95_ms": 13.958,
+        "p99_ms": 19.801
       },
       "player_presentation_interval": {
         "n": 239,
-        "median_ms": 10.012,
-        "p95_ms": 13.281,
-        "p99_ms": 14.322
+        "median_ms": 10.019,
+        "p95_ms": 14.099,
+        "p99_ms": 17.206
       },
       "player_gpu_passes": {
         "n": 240,
-        "median_ms": 1.008,
-        "p95_ms": 2.457,
-        "p99_ms": 2.717
+        "median_ms": 0.983,
+        "p95_ms": 2.397,
+        "p99_ms": 2.536
       }
     }
   ]
