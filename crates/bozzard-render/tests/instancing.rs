@@ -299,6 +299,176 @@ fn partial_shadow_batches_match_individuals_with_nonzero_ranges_and_offscreen_ca
 }
 
 #[test]
+fn unchanged_local_shadow_casters_skip_scans_and_preserve_invalidation() -> anyhow::Result<()> {
+    fn verify(
+        gpu: &Gpu,
+        renderers: &mut [SceneRenderer; 2],
+        scene: &RenderScene,
+    ) -> anyhow::Result<()> {
+        compare(gpu, renderers, scene)?;
+        let a = renderers[0].frame_stats();
+        let b = renderers[1].frame_stats();
+        assert!(b.shadow_draws <= a.shadow_draws);
+        assert!(b.shadow_triangles <= a.shadow_triangles);
+        assert!(b.shadow_maps_rendered <= a.shadow_maps_rendered);
+        Ok(())
+    }
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_shadow_preparation_caching_enabled(false);
+    for renderer in &mut renderers {
+        upload(&gpu, renderer, 255)?;
+        renderer.upload_image(&gpu, "receiver", 1, 1, &[120, 160, 240, 128])?;
+    }
+    let mut scene = scene(24);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model =
+            Mat4::from_translation(Vec3::new((i % 6) as f32 - 2.5, (i / 6) as f32 - 1.5, -5.))
+                * Mat4::from_scale(Vec3::splat(0.7));
+    }
+    let mut model = scene.items[0].clone();
+    model.motion_id = 1000;
+    model.mesh = MeshKind::Imported("model".into());
+    model.material.texture = TextureKind::White;
+    scene.items.push(model);
+    let receiver = scene.items.len();
+    let mut glass = scene.items[0].clone();
+    glass.motion_id = 1001;
+    glass.mesh = MeshKind::Quad;
+    glass.model = Mat4::from_translation(Vec3::new(1., 0., -4.));
+    glass.material.texture = TextureKind::Imported("receiver".into());
+    scene.items.push(glass);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 256;
+    scene.lights = vec![
+        LocalLight {
+            directional: false,
+            position: [0., 0., 1.],
+            direction: [0., 0., -1.],
+            color: [1., 0.6, 0.3],
+            intensity: 3.,
+            range: 12.,
+            spot_angles: Some([20., 35.]),
+            shadows: Some(Default::default()),
+        },
+        LocalLight {
+            directional: false,
+            position: [1., 0., -3.],
+            direction: [0., 0., -1.],
+            color: [0.3, 0.6, 1.],
+            intensity: 2.,
+            range: 7.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        },
+    ];
+    verify(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[1].frame_stats().local_shadow_caster_checks,
+        25 * 7
+    );
+    verify(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().shadow_cache_hit);
+    // Transparent receiver movement never requires another local caster scan.
+    for _ in 0..3 {
+        scene.items[receiver].model *= Mat4::from_translation(Vec3::X * 0.1);
+        verify(&gpu, &mut renderers, &scene)?;
+        assert_eq!(
+            renderers[0].frame_stats().local_shadow_caster_checks,
+            25 * 7
+        );
+        assert_eq!(renderers[1].frame_stats().local_shadow_caster_checks, 0);
+        assert_eq!(
+            renderers[1]
+                .frame_stats()
+                .local_shadow_maps_reused_without_scan,
+            7
+        );
+    }
+    // Every depth-producing edit retains full membership validation, including
+    // a caster leaving the camera/light and lit eligibility changes.
+    for edit in 0..4 {
+        match edit {
+            0 => scene.items[0].model = Mat4::from_translation(Vec3::new(40., 0., -5.)),
+            1 => scene.items[1].material.uv_scale = [2., 3.],
+            2 => scene.items[2].material.lit = false,
+            _ => scene.items[2].material.lit = true,
+        }
+        verify(&gpu, &mut renderers, &scene)?;
+        assert!(renderers[1].frame_stats().local_shadow_caster_checks > 0);
+        assert_eq!(
+            renderers[1]
+                .frame_stats()
+                .local_shadow_maps_reused_without_scan,
+            0
+        );
+    }
+    // A changed projection invalidates its map independently of caster state.
+    scene.lights[0].position[0] += 0.2;
+    verify(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().local_shadow_caster_checks, 25);
+    assert_eq!(
+        renderers[1]
+            .frame_stats()
+            .local_shadow_maps_reused_without_scan,
+        6
+    );
+    scene.lights[0].shadows.as_mut().unwrap().normal_bias += 0.01;
+    verify(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().local_shadow_caster_checks, 25);
+    // Reordering lights keeps the maps in their own point/spot slot order.
+    scene.lights.swap(0, 1);
+    verify(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().local_shadow_caster_checks, 0);
+    let spot = scene.lights.pop().unwrap();
+    verify(&gpu, &mut renderers, &scene)?;
+    scene.lights.push(spot);
+    verify(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().local_shadow_caster_checks, 25);
+    // Same-ID texture/model publication must invalidate retained depth inputs.
+    for renderer in &mut renderers {
+        upload(&gpu, renderer, 0)?;
+    }
+    verify(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().local_shadow_caster_checks > 0);
+    assert_eq!(
+        renderers[1]
+            .frame_stats()
+            .local_shadow_maps_reused_without_scan,
+        0
+    );
+    // A failure after shadow-frame invalidation cannot leave a valid shortcut.
+    let position = scene.lights[1].position;
+    scene.lights[1].position = [3e38, 0., 0.];
+    for renderer in &mut renderers {
+        assert!(capture(&gpu, renderer, &scene).is_err());
+    }
+    scene.lights[1].position = position;
+    verify(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().local_shadow_caster_checks > 0);
+    for renderer in &mut renderers {
+        renderer.set_culling_enabled(false);
+    }
+    verify(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().local_shadow_caster_checks > 0);
+    renderers[1].set_shadow_preparation_caching_enabled(false);
+    scene.items[receiver].model *= Mat4::from_translation(Vec3::X * 0.1);
+    verify(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().local_shadow_caster_checks > 0);
+    renderers[1].set_shadow_preparation_caching_enabled(true);
+    scene.items[receiver].model *= Mat4::from_translation(Vec3::X * 0.1);
+    verify(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().local_shadow_caster_checks, 0);
+    for renderer in &mut renderers {
+        renderer.set_state_caching_enabled(false);
+    }
+    verify(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().local_shadow_caster_checks > 0);
+    Ok(())
+}
+
+#[test]
 fn stationary_uniforms_are_reused_and_render_edits_match_uncached_output() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
     let mut renderers =
@@ -908,6 +1078,123 @@ fn local_lighting_benchmark() -> anyhow::Result<()> {
         } else {
             std::fs::write(path, &frame.rgba)?;
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_shadow_preparation_caching_enabled(false);
+    for renderer in &mut renderers {
+        for i in 0..32 {
+            renderer.upload_image(&gpu, &format!("pattern-{i}"), 1, 1, &[180, 220, 160, 255])?;
+        }
+    }
+    let mut scene = scene(256);
+    scene.view_projection =
+        glam::camera::rh::proj::directx::orthographic(-9., 9., -9., 9., 0.1, 30.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 256;
+    scene.lighting.sun_direction = [0., 0., 1.];
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model =
+            Mat4::from_translation(Vec3::new((i % 16) as f32 - 7.5, (i / 16) as f32 - 7.5, -5.))
+                * Mat4::from_scale(Vec3::splat(0.55));
+        item.material.texture = TextureKind::Imported(format!("pattern-{}", i % 32));
+        if i >= 248 {
+            item.model = Mat4::from_translation(Vec3::new((i - 248) as f32 - 3.5, 0., -4.))
+                * Mat4::from_scale(Vec3::splat(0.55));
+        }
+    }
+    let mut floor = scene.items[0].clone();
+    floor.motion_id = 10000;
+    floor.mesh = MeshKind::Quad;
+    floor.model =
+        Mat4::from_translation(Vec3::new(0., 0., -6.)) * Mat4::from_scale(Vec3::splat(18.));
+    floor.material.texture = TextureKind::White;
+    scene.items.push(floor);
+    compare(&gpu, &mut renderers, &scene)?;
+    for tick in 0..8 {
+        for item in &mut scene.items[248..256] {
+            item.model *= Mat4::from_translation(Vec3::X * 0.15);
+        }
+        compare(&gpu, &mut renderers, &scene)?;
+        let cached = renderers[1].frame_stats();
+        assert_eq!(cached.sun_depth_copies, 1, "tick {tick}: {cached:?}");
+        assert_eq!(cached.sun_dynamic_casters, 8);
+        assert_eq!(cached.sun_static_casters, 249);
+        if tick > 0 {
+            assert!(cached.sun_static_cache_reused);
+            assert!(cached.shadow_draws < renderers[0].frame_stats().shadow_draws);
+            assert!(cached.shadow_triangles < renderers[0].frame_stats().shadow_triangles);
+        }
+    }
+    // Start/stop a formerly static caster, reorder membership, change material,
+    // move a fitted boundary, resize the target and publish same-ID assets.
+    for edit in 0..10 {
+        for item in &mut scene.items[248..256] {
+            item.model *= Mat4::from_translation(Vec3::X * 0.1);
+        }
+        match edit {
+            0 => scene.items[0].model *= Mat4::from_translation(Vec3::X * 0.2),
+            1 => scene.items[1].material.uv_scale = [2., 3.],
+            2 => scene.items.swap(5, 6),
+            3 => scene.items[2].material.lit = false,
+            4 => scene.items[2].material.lit = true,
+            5 => scene.items[256].model *= Mat4::from_scale(Vec3::splat(1.2)),
+            6 => scene.lighting.shadow_resolution = 512,
+            7 => {
+                for renderer in &mut renderers {
+                    renderer.upload_image(&gpu, "pattern-3", 1, 1, &[40, 200, 150, 255])?;
+                }
+            }
+            8 => {
+                for renderer in &mut renderers {
+                    renderer.set_culling_enabled(false);
+                }
+            }
+            _ => renderers[1].set_shadow_preparation_caching_enabled(false),
+        }
+        compare(&gpu, &mut renderers, &scene)?;
+    }
+    renderers[1].set_shadow_preparation_caching_enabled(true);
+    for tick in 0..3 {
+        for item in &mut scene.items[248..256] {
+            item.model *= Mat4::from_translation(Vec3::X * 0.1);
+        }
+        compare(&gpu, &mut renderers, &scene)?;
+        if tick > 0 {
+            assert!(renderers[1].frame_stats().sun_static_cache_reused);
+        }
+    }
+    // A changed transparent receiver inside the fitted bounds can reuse all sun depth.
+    for renderer in &mut renderers {
+        renderer.upload_image(&gpu, "glass", 1, 1, &[100, 200, 240, 128])?;
+    }
+    let mut glass = scene.items[0].clone();
+    glass.motion_id = 10001;
+    glass.material.texture = TextureKind::Imported("glass".into());
+    glass.mesh = MeshKind::Quad;
+    glass.model = Mat4::from_translation(Vec3::new(0., 0., -3.));
+    scene.items.push(glass);
+    compare(&gpu, &mut renderers, &scene)?;
+    scene.items.last_mut().unwrap().model *= Mat4::from_translation(Vec3::X * 0.2);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().sun_shadow_fit_reused);
+    assert!(renderers[1].frame_stats().shadow_cache_hit);
+    // Disable the old shadow-batch path and force partial-group fallback uniforms.
+    for renderer in &mut renderers {
+        renderer.set_shadow_batching_enabled(false);
+    }
+    for _ in 0..3 {
+        for item in &mut scene.items[248..256] {
+            item.model *= Mat4::from_translation(Vec3::X * 0.1);
+        }
+        compare(&gpu, &mut renderers, &scene)?;
     }
     Ok(())
 }

@@ -1142,12 +1142,19 @@ fn profile_earth_factory_frustum_acceptance() -> anyhow::Result<()> {
     profile_factory_renderer(FactoryProfile::FrustumAcceptance)
 }
 
+#[test]
+#[ignore = "release-mode 400-machine shadow preparation profile; requires a graphics adapter"]
+fn profile_earth_factory_shadow_preparation() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::ShadowPreparation)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FactoryProfile {
     SceneBatching,
     LocalLighting,
     ShadowBatching,
     FrustumAcceptance,
+    ShadowPreparation,
 }
 
 struct RendererSample {
@@ -1222,6 +1229,9 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         FactoryProfile::FrustumAcceptance => {
             renderers[0].set_frustum_early_acceptance_enabled(false)
         }
+        FactoryProfile::ShadowPreparation => {
+            renderers[0].set_shadow_preparation_caching_enabled(false)
+        }
     }
     for renderer in &mut renderers {
         renderer.set_profiling_enabled(true);
@@ -1291,6 +1301,9 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         FactoryProfile::LocalLighting => ["full-light-loop", "light-masks"],
         FactoryProfile::SceneBatching => ["consecutive", "global"],
         FactoryProfile::FrustumAcceptance => ["eight-corner-reference", "early-corner-acceptance"],
+        FactoryProfile::ShadowPreparation => {
+            ["full-shadow-preparation", "cached-shadow-preparation"]
+        }
     };
     for (mode, values) in samples.iter().enumerate() {
         let mut cpu: Vec<_> = values.iter().map(|v| v.cpu).collect();
@@ -1332,6 +1345,12 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
             median(|v| v.submit),
             stats.shadow_maps_rendered
         );
+        println!(
+            "mode={} local_caster_checks={} local_maps_without_scan={}",
+            modes[mode],
+            stats.local_shadow_caster_checks,
+            stats.local_shadow_maps_reused_without_scan
+        );
     }
     if profile == FactoryProfile::ShadowBatching {
         assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
@@ -1356,7 +1375,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         assert!(
             renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2
         );
-    } else {
+    } else if profile == FactoryProfile::FrustumAcceptance {
         assert_eq!(
             renderers[0].frame_stats().color_draws,
             renderers[1].frame_stats().color_draws
@@ -1371,6 +1390,21 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         );
     }
     // Validate this game's real multipart materials, shadows and camera rotation.
+    if profile == FactoryProfile::ShadowPreparation {
+        let reference = renderers[0].frame_stats();
+        let cached = renderers[1].frame_stats();
+        println!(
+            "static_casters={} dynamic_casters={} depth_copies={} static_reused={}",
+            cached.sun_static_casters,
+            cached.sun_dynamic_casters,
+            cached.sun_depth_copies,
+            cached.sun_static_cache_reused
+        );
+        assert_eq!(reference.color_draws, cached.color_draws);
+        assert!(cached.sun_static_cache_reused);
+        assert!(cached.shadow_draws < reference.shadow_draws);
+        assert!(cached.shadow_triangles < reference.shadow_triangles);
+    }
     for heading in [0., 90., 180., 270.] {
         let play = editor.play.as_mut().unwrap();
         let source = format!(
@@ -1396,10 +1430,12 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
             renderers[0].frame_stats().color_triangles,
             renderers[1].frame_stats().color_triangles
         );
-        assert_eq!(
-            renderers[0].frame_stats().shadow_triangles,
-            renderers[1].frame_stats().shadow_triangles
-        );
+        if profile != FactoryProfile::ShadowPreparation {
+            assert_eq!(
+                renderers[0].frame_stats().shadow_triangles,
+                renderers[1].frame_stats().shadow_triangles
+            );
+        }
     }
     Ok(())
 }

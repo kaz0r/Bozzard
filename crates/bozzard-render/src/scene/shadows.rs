@@ -34,6 +34,17 @@ pub(super) struct ShadowCaster {
 }
 
 impl ShadowCaster {
+    pub fn matches(&self, d: &PreparedDraw) -> bool {
+        self.deformation == d.deformation
+            && self.model == d.object.model
+            && self.mesh == d.object.mesh
+            && self.texture == d.object.material.texture
+            && self.uv_scale == d.object.material.uv_scale
+            && self.opacity == d.opacity
+            && self.cutoff == d.cutoff
+            && self.transparent == d.transparent
+            && self.lit == d.object.material.lit
+    }
     pub fn new(d: &PreparedDraw) -> Self {
         Self {
             deformation: d.deformation,
@@ -50,6 +61,37 @@ impl ShadowCaster {
 }
 
 impl ShadowFrame {
+    pub fn stable_casters(&self, draws: &[PreparedDraw], culling: bool) -> Vec<bool> {
+        let mut mask = vec![false; draws.len()];
+        let opaque = |d: &&PreparedDraw| !d.transparent && d.object.material.lit;
+        if self.culling != culling
+            || self.casters.iter().filter(|c| !c.transparent).count()
+                != draws.iter().filter(opaque).count()
+        {
+            return mask;
+        }
+        for (previous, (index, draw)) in self.casters.iter().filter(|c| !c.transparent).zip(
+            draws
+                .iter()
+                .enumerate()
+                .filter(|(_, d)| !d.transparent && d.object.material.lit),
+        ) {
+            // Skinned meshes stay dynamic, including unchanged poses.
+            mask[index] = draw.deformation == 0 && previous.matches(draw);
+        }
+        mask
+    }
+    pub fn same_local_casters(&self, other: &Self) -> bool {
+        // Transparent lit receivers can move the fitted sun bounds, but never
+        // write local depth. Compare opaque depth state once for all local maps.
+        self.culling == other.culling
+            && self
+                .casters
+                .iter()
+                .filter(|c| !c.transparent)
+                .eq(other.casters.iter().filter(|c| !c.transparent))
+    }
+
     pub fn same_sun(&self, other: &Self) -> bool {
         self.sun == other.sun && self.casters == other.casters && self.culling == other.culling
     }
@@ -111,7 +153,9 @@ pub(super) struct Shadows {
     uniform: wgpu::Buffer,
     sampler: wgpu::Sampler,
     depth: wgpu::TextureView,
-    resolution: u32,
+    pub resolution: u32,
+    pub uniform_row: Vec<u8>,
+    pub sun_cache: sun_cache::Cache,
 }
 
 fn module_text(instanced: bool) -> String {
@@ -193,7 +237,7 @@ pub(super) fn pipeline(
             cache: None,
         })
 }
-fn target(gpu: &Gpu, resolution: u32) -> wgpu::TextureView {
+pub(super) fn target(gpu: &Gpu, resolution: u32) -> wgpu::TextureView {
     gpu.device
         .create_texture(&wgpu::TextureDescriptor {
             label: Some("sun shadow depth"),
@@ -409,6 +453,8 @@ impl Shadows {
             sampler,
             depth,
             resolution: 1,
+            uniform_row: Vec::new(),
+            sun_cache: sun_cache::Cache::default(),
         }
     }
     pub fn rebind(&mut self, gpu: &Gpu) {
@@ -556,7 +602,8 @@ impl SceneRenderer {
         gpu: &Gpu,
         scene: &RenderScene,
         draws: &[PreparedDraw],
-    ) -> Result<()> {
+        reuse_depth: bool,
+    ) -> Result<(bool, bool)> {
         let light = scene.lighting;
         let fit = fit(
             draws
@@ -575,7 +622,9 @@ impl SceneRenderer {
             resolution <= gpu.device.limits().max_texture_dimension_2d,
             "shadow resolution exceeds device limit"
         );
-        if resolution != self.shadows.resolution {
+        let target_changed = resolution != self.shadows.resolution;
+        if target_changed {
+            self.shadows.sun_cache.clear();
             self.shadows.depth = target(gpu, resolution);
             self.shadows.rebind(gpu);
             self.shadows.resolution = resolution;
@@ -587,17 +636,18 @@ impl SceneRenderer {
         // caster (a projectile crossing the scene) stretches the fitted box.
         // ponytail: one whole-texel frame bias for every surface; per-pixel slope bias, or
         // cascades that keep the box small, if the extra softening on large scenes matters.
-        gpu.queue.write_buffer(
-            &self.shadows.uniform,
-            0,
-            &float_bytes(matrix.to_cols_array().into_iter().chain([
-                (light.shadow_bias + texel) / range,
-                light.shadow_normal_bias,
-                if enabled { 1. } else { 0. },
-                1. / resolution as f32,
-            ])),
-        );
-        Ok(())
+        let row = float_bytes(matrix.to_cols_array().into_iter().chain([
+            (light.shadow_bias + texel) / range,
+            light.shadow_normal_bias,
+            if enabled { 1. } else { 0. },
+            1. / resolution as f32,
+        ]));
+        let unchanged = !target_changed && self.shadows.uniform_row == row;
+        if !unchanged || !self.state_caching || !self.shadow_preparation_cache {
+            gpu.queue.write_buffer(&self.shadows.uniform, 0, &row);
+        }
+        self.shadows.uniform_row = row;
+        Ok((unchanged, reuse_depth && unchanged))
     }
     pub(super) fn draw_shadows(
         &self,
@@ -605,12 +655,13 @@ impl SceneRenderer {
         scene: &RenderScene,
         draws: &[PreparedDraw],
         batches: &[instancing::Batch],
+        plan: Option<&sun_cache::Plan>,
     ) -> (usize, u64) {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("sun shadow casters"),
+        let descriptor = |view, label| wgpu::RenderPassDescriptor {
+            label: Some(label),
             color_attachments: &[],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.shadows.depth,
+                view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.),
                     store: wgpu::StoreOp::Store,
@@ -618,12 +669,43 @@ impl SceneRenderer {
                 stencil_ops: None,
             }),
             ..Default::default()
-        });
+        };
+        let mut counts = (0, 0);
+        if let Some(plan) = plan.filter(|p| p.rebuild) {
+            let mut pass = encoder.begin_render_pass(&descriptor(
+                self.shadows.sun_cache.depth(),
+                "sun static shadow casters",
+            ));
+            pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
+            counts = self.draw_shadow_casters(
+                &mut pass,
+                draws,
+                batches,
+                None,
+                false,
+                Some(&plan.static_mask),
+            );
+        }
+        let mut pass =
+            encoder.begin_render_pass(&descriptor(&self.shadows.depth, "sun shadow casters"));
         if !scene.lighting.shadows || self.shadows.resolution == 1 {
-            return (0, 0);
+            return counts;
+        }
+        if plan.is_some() {
+            self.shadows.sun_cache.copy(&mut pass);
+            counts.0 += 1;
+            counts.1 += 1;
         }
         pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
-        self.draw_shadow_casters(&mut pass, draws, batches, None, false)
+        let dynamic = self.draw_shadow_casters(
+            &mut pass,
+            draws,
+            batches,
+            None,
+            false,
+            plan.map(|p| p.dynamic_mask.as_slice()),
+        );
+        (counts.0 + dynamic.0, counts.1 + dynamic.1)
     }
     pub(super) fn draw_shadow_casters(
         &self,
@@ -632,10 +714,13 @@ impl SceneRenderer {
         batches: &[instancing::Batch],
         projection: Option<Mat4>,
         point: bool,
+        mask: Option<&[bool]>,
     ) -> (usize, u64) {
         let mut counts = (0, 0);
-        let casts = |draw: &PreparedDraw| {
-            !draw.transparent
+        let casts = |index: usize| {
+            let draw = &draws[index];
+            mask.is_none_or(|m| m[index])
+                && !draw.transparent
                 && draw.object.material.lit
                 && (!self.culling
                     || projection.is_none_or(|p| {
@@ -648,7 +733,7 @@ impl SceneRenderer {
         let mut was_instanced = None;
         let mut submit = |index: usize, instances: std::ops::Range<u32>, slot: Option<usize>| {
             let draw = &draws[index];
-            if casts(draw) {
+            if casts(index) {
                 let instanced = slot.is_some();
                 if was_instanced != Some(instanced) {
                     pass.set_pipeline(if instanced {
@@ -688,7 +773,7 @@ impl SceneRenderer {
             if batch.slot.is_some() && self.instancing.shadow_batches_enabled {
                 let mut start = None;
                 for offset in 0..=batch.indices.len() {
-                    if offset < batch.indices.len() && casts(&draws[batch.indices[offset]]) {
+                    if offset < batch.indices.len() && casts(batch.indices[offset]) {
                         start.get_or_insert(offset);
                     } else if let Some(first) = start.take() {
                         submit(
@@ -698,7 +783,7 @@ impl SceneRenderer {
                         );
                     }
                 }
-            } else if batch.slot.is_some() && batch.indices.iter().all(|&i| casts(&draws[i])) {
+            } else if batch.slot.is_some() && batch.indices.iter().all(|&i| casts(i)) {
                 submit(batch.indices[0], 0..batch.indices.len() as u32, batch.slot);
             } else {
                 for &index in &batch.indices {

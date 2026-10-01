@@ -11,7 +11,8 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 - [x] **Profile local lighting separately.** Point and spot lights whose range cannot reach a surface are rejected before fragment shading. Conservative masks fit in the existing 256-byte record. A repeatable 400-build factory fixture compares full light loops with the masks, including GPU timestamps and reference captures.
 - [x] **Batch shadow casters independently.** Group depth casters independently of camera visibility and color ordering, including offscreen objects. Draw consecutive visible instance ranges within each light's frustum, avoid unused individual uniform uploads, and compare exact pixels, triangle counts, and dense-factory CPU/GPU measurements against the former fallback.
 - [x] **Avoid unnecessary frustum corner transforms.** Accept a surface as soon as its first corner rules out every rejection plane. Retain the efficient plane-major fallback and the exact homogeneous distances and relative tolerance; compare the original predicate, CPU workloads, and factory captures.
-- [ ] **Cache shadow preparation where safe.** Compare opaque local-caster state separately from the sun map's transparent receiver bounds, so receiver-only movement can skip unchanged local-caster scans. Also profile rebuilding caster groups and repeating per-light bounds tests. Retain membership or culling results only when geometry, materials, transforms, and the relevant light frustum remain valid; keep bounded storage and the individual reference path.
+- [x] **Cache shadow preparation where safe.** Unchanged opaque state skips local-caster scans after receiver-only edits. Identical fitted sun uniforms can reuse the complete map; moving casters render over a copied static depth layer when enough static groups justify it. Exact metadata, asset publication, fitted projection, target, and failure guards protect reuse.
+- [ ] **Reduce fitted sun and classification work.** The static-depth cache improves GPU and submission time but adds CPU preparation work. Profile retaining per-caster light-space bounds and stable classification, with exact asset/transform/light-direction invalidation and the original fitted projection as the reference.
 
 ## Baseline and verification
 
@@ -192,3 +193,43 @@ The isolated CPU fixture uses 1,024 transformed bounds per workload, ten warm-up
 | Mixed perspective placements | 26.926 ns/check | 21.441 ns/check |
 
 Inside checks are about 4.4 times faster; outside checks retain similar throughput. Near-plane crossing is about one nanosecond slower in this fixture. The separate fallback avoids the substantial rejected-object slowdown observed in the initial whole-corner-mask experiment. No heap allocation or retained per-surface storage is added.
+
+### Static sun depth and shadow preparation
+
+October 1, 2026: moving wind streaks in the factory are opaque lit cubes. They still need current depth, so freezing the complete map would leave incorrect shadows. The renderer now retains a separate depth map for unchanged opaque geometry, copies that depth into the sampled sun map, then renders the changed casters. The fullscreen copy writes exact texel depth through `textureLoad`; it is inside a timestamped render pass and contributes one draw and one triangle to the shadow counters. Color rendering, sun fitting, resolution, bias, and shadow sampling remain unchanged.
+
+Reuse requires exactly matching fitted sun uniform bytes and an unchanged target. Static membership compares model, mesh, texture, UV scale, opacity, alpha cutoff, lit eligibility, and deformation state against the successful preceding frame. Deformed meshes stay dynamic. Static depth also validates its own retained membership and caster metadata; starting or stopping movement rebuilds it when necessary. Asset publication clears the cache even if IDs are reused. Resizing/disabling the sun target or disabling the diagnostic cache releases it. Cache stamps publish only after successful submission; failed frames cannot publish partially updated state.
+
+The copy path requires at least 64 static surfaces, at least 32 groups containing static surfaces, more static than dynamic surfaces, and at least one dynamic caster. Smaller scenes keep the full depth pass. The cache retains one extra `Depth32Float` texture: **16 MiB at 2048²**, or 64 MiB at 4096², plus metadata proportional to its static surfaces. Only the 2048² factory configuration is timed below; the group threshold is a heuristic, and other scene/resolution/device combinations need measurement. A rebuild adds another depth pass before the copy; steady-state timings do not describe that rebuild cost.
+
+Separately, unchanged opaque state and identical fitted sun bytes can reuse the complete sun map even when transparent receivers changed. Unchanged local casters skip per-map membership scans, while existing projection, bias, resolution, light-slot and asset guards still invalidate affected maps. `SceneRenderer::set_shadow_preparation_caching_enabled(false)` restores full preparation and sun depth rendering for comparison, retaining the earlier whole-frame shadow cache. New `FrameStats` fields report local scans avoided, fitted-sun reuse, static/dynamic caster counts, static cache reuse, and depth-copy count.
+
+The targeted native tests compare exact pixels through moving shadows, static start/stop, membership reorder, UV and lit edits, same-ID texture/model publication, fitted-bound changes, resized maps, point/spot edits, failed-frame retry, mode switches, and the older partial-group fallback. The full native renderer suite passes **59 tests**, with five manual tests skipped, using `--test-threads=1`. Renderer all-target and factory-target Clippy checks pass with warnings denied and `--no-deps`. Edited-file formatting and diff checks pass, and release player/editor executables are rebuilt.
+
+#### Cached-depth release measurements
+
+Same Intel Iris Xe / Vulkan host (Mesa 26.2.3), 1280 × 800, 2048² sun map, 400-build active-gust fixture. Three paired release runs each use twelve warm-up frames and sixty alternating measured frames, with profiling enabled. Both modes retain the same batching, culling, local-light masks, materials and scene. Exact color captures match at all four camera headings in every run, and all sixty GPU timestamp samples per mode are complete. Submitted shadow triangles intentionally fall when cached depth replaces geometry; color triangles remain identical.
+
+| Shadow preparation | Sun depth draws | Renderer CPU median / p95 | Preparation median | Encoding median | Submission median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Full preparation and sun depth | 710 | 9.738 / 11.858 ms | 6.947 ms | 0.324 ms | 1.978 ms | 24.082 ms | 13.059 ms |
+| Static depth copy and dynamic casters | 2 | 9.372 / 12.653 ms | 7.579 ms | 0.188 ms | 1.265 ms | 21.662 ms | 11.248 ms |
+
+Values are medians of three run medians; p95 is the median of the three run p95 values. Sun draw commands fall by **99.7%**, total GPU pass time by **14%**, synchronized time by **10%**, and median renderer CPU time by **4%**. Preparation rises by **9%** and CPU p95 by **7%**, so this establishes neither a preparation nor a tail-latency improvement. Per-stage medians need not sum to total CPU medians. The steady-state cache contains **2,883 static casters** and draws **8 moving wind cubes** after one depth copy. Both modes retain 780 visible items, 1,590 visible surfaces, 401 color draws, and 10,134 of 50,880 object/light pairs. This fixture has **zero active local shadow maps**, so its timing gain comes from the sun cache; no factory speedup is attributed to local-scan reuse.
+
+| Run | Full / cached CPU median | Full / cached CPU p95 | Full / cached synchronized median | Full / cached GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 9.817 / 9.372 ms | 14.019 / 12.351 ms | 24.602 / 21.662 ms | 13.086 / 11.248 ms |
+| 2 | 9.738 / 9.442 ms | 11.858 / 12.653 ms | 24.080 / 21.454 ms | 13.059 / 11.100 ms |
+| 3 | 9.735 / 8.997 ms | 11.660 / 13.017 ms | 24.082 / 21.890 ms | 13.035 / 11.255 ms |
+
+The separate 25-caster point/spot regression verifies **175 local caster checks → 0** after transparent-receiver edits, with all seven maps reused and exact pixels preserved. That is a work-count/correctness result, not a local-map timing claim. Synchronized factory time includes an explicit device wait; GPU values sum measured passes including the depth copy and exclude gaps. These measurements are local renderer comparisons, not windowed FPS.
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_shadow_preparation -- --ignored --exact --nocapture
+cargo test --offline -p bozzard-render --test instancing \
+  static_sun_depth_matches_full_render_through_moving_casters_and_invalidations -- --exact
+cargo test --offline -p bozzard-render --test instancing \
+  unchanged_local_shadow_casters_skip_scans_and_preserve_invalidation -- --exact
+```

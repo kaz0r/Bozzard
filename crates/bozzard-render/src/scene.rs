@@ -56,6 +56,7 @@ mod local_shadow_maps;
 mod point_shadows;
 mod shadows;
 mod spot_shadows;
+mod sun_cache;
 mod upload;
 pub use lighting::Lighting;
 pub use upload::{
@@ -262,6 +263,7 @@ pub struct SceneRenderer {
     stats: FrameStats,
     culling: bool,
     early_frustum_acceptance: bool,
+    shadow_preparation_cache: bool,
     occlusion: occlusion::Occlusion,
     state_caching: bool,
     light_selection: local_lights::LightSelection,
@@ -745,6 +747,7 @@ impl SceneRenderer {
             profiler: Default::default(),
             culling: true,
             early_frustum_acceptance: true,
+            shadow_preparation_cache: true,
             occlusion: Default::default(),
             state_caching: true,
             light_selection: Default::default(),
@@ -983,6 +986,7 @@ impl SceneRenderer {
         self.instancing.bindings.clear();
         self.instancing.shadow_bindings.clear();
         self.shadow_frame = None;
+        self.shadows.sun_cache.clear();
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
     }
@@ -2133,25 +2137,50 @@ impl SceneRenderer {
         let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
         self.stats.shadow_cache_hit =
             self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
-        let sun_changed = !self.state_caching
+        let mut sun_changed = !self.state_caching
             || !self
                 .shadow_frame
                 .as_ref()
                 .is_some_and(|previous| previous.same_sun(&shadow_frame));
+        let same_opaque_casters = self.shadow_preparation_cache
+            && !self.stats.shadow_cache_hit
+            && self.state_caching
+            && (scene.lights.iter().any(LocalLight::casts_shadow)
+                || scene.lighting.shadows && scene.lighting.sun_intensity > 0.)
+            && self
+                .shadow_frame
+                .as_ref()
+                .is_some_and(|previous| previous.same_local_casters(&shadow_frame));
         let mut spot_changes = Vec::new();
         let mut point_changes = Vec::new();
         let mut shadow_batches = None;
+        let mut sun_plan = None;
         if !self.stats.shadow_cache_hit {
             // Invalidate before queueing writes: a later frame error must not leave a
             // valid-looking stamp paired with partially updated shadow uniforms.
-            self.shadow_frame = None;
+            let previous_frame = self.shadow_frame.take();
+            let mut uniform_unchanged = false;
             if sun_changed {
-                self.update_shadows(gpu, scene, &draws)?;
+                let update = self.update_shadows(gpu, scene, &draws, same_opaque_casters)?;
+                uniform_unchanged = update.0;
+                sun_changed = !update.1;
+                self.stats.sun_shadow_fit_reused = update.1;
             }
             self.update_spot_shadows(gpu, scene)?;
             self.update_point_shadows(gpu, scene)?;
-            spot_changes = self.shadows.spots.changes(self, &draws);
-            point_changes = self.shadows.points.changes(self, &draws);
+            let spots = self
+                .shadows
+                .spots
+                .changes(self, &draws, same_opaque_casters);
+            let points = self
+                .shadows
+                .points
+                .changes(self, &draws, same_opaque_casters);
+            self.stats.local_shadow_caster_checks = spots.caster_checks + points.caster_checks;
+            self.stats.local_shadow_maps_reused_without_scan =
+                spots.reused_maps + points.reused_maps;
+            spot_changes = spots.updates;
+            point_changes = points.updates;
             self.shadows.spots.invalidate_changes(&spot_changes);
             self.shadows.points.invalidate_changes(&point_changes);
             self.stats.shadow_maps_rendered = usize::from(sun_changed)
@@ -2180,6 +2209,31 @@ impl SceneRenderer {
             } else {
                 self.instancing.shadow_bindings.truncate(8);
             }
+            if sun_changed
+                && uniform_unchanged
+                && self.shadow_preparation_cache
+                && self.state_caching
+                && let Some(previous) = &previous_frame
+            {
+                let mask = previous.stable_casters(&draws, self.culling);
+                sun_plan = self.shadows.sun_cache.prepare(
+                    gpu,
+                    &draws,
+                    shadow_batches.as_ref().unwrap_or(&batches),
+                    mask,
+                    &self.shadows.uniform_row,
+                    self.shadows.resolution,
+                );
+                if let Some(plan) = &sun_plan {
+                    self.stats.sun_static_cache_reused = !plan.rebuild;
+                    self.stats.sun_static_casters = plan.static_mask.iter().filter(|m| **m).count();
+                    self.stats.sun_dynamic_casters =
+                        plan.dynamic_mask.iter().filter(|m| **m).count();
+                    self.stats.sun_depth_copies = 1;
+                    self.stats.shadow_maps_rendered += usize::from(plan.rebuild);
+                }
+            }
+            self.stats.shadow_cache_hit = self.stats.shadow_maps_rendered == 0;
         }
         // Packed color and shadow groups already contain their uniforms.
         // Upload individual buffers for singletons and ineligible casters.
@@ -2219,7 +2273,8 @@ impl SceneRenderer {
             individual[index] |= !draw.transparent
                 && draw.object.material.lit
                 && !self.instancing.shadow_batching()
-                && (local_individuals || sun_individuals && !visible[index]);
+                && (local_individuals
+                    || sun_individuals && (!visible[index] || sun_plan.is_some()));
         }
         for (needed, binding) in individual.into_iter().zip(&mut self.objects) {
             if needed && binding.dirty {
@@ -2277,7 +2332,7 @@ impl SceneRenderer {
             let batches = shadow_batches.as_ref().unwrap_or(&batches);
             if sun_changed {
                 (self.stats.shadow_draws, self.stats.shadow_triangles) =
-                    self.draw_shadows(&mut encoder, scene, &draws, batches);
+                    self.draw_shadows(&mut encoder, scene, &draws, batches, sun_plan.as_ref());
             }
             let (spot_draws, spot_triangles) =
                 self.shadows
@@ -2484,6 +2539,11 @@ impl SceneRenderer {
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
         self.shadows.spots.finish(spot_changes);
         self.shadows.points.finish(point_changes);
+        if let Some(plan) = &sun_plan {
+            self.shadows
+                .sun_cache
+                .finish(plan, &draws, &self.shadows.uniform_row);
+        }
         self.shadow_frame = Some(shadow_frame);
         self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;

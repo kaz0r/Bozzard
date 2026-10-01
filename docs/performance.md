@@ -162,6 +162,30 @@ original predicate; the full native renderer suite passes 56 tests. See
 [the frustum methods and measurements](batch-renderer-optimizations.md#early-frustum-acceptance)
 for individual runs, isolated inside/outside/near-plane workloads, and reproduction.
 
+## Cached static sun depth
+
+The factory's moving wind cubes now render over a copied depth layer for unchanged
+geometry. Reuse requires exact static caster state, fitted sun uniform bytes and
+target identity; asset publication and failed frames invalidate affected state.
+Smaller scenes retain full depth rendering. Local maps also avoid repeated scans
+when opaque inputs and their light projection/settings are unchanged.
+
+Three paired release runs of the same 400-build active-gust factory, 1280 × 800,
+2048² sun map, Intel Iris Xe / Vulkan, report medians of run medians:
+
+| Preparation | Sun draws | Renderer CPU median / p95 | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Full sun depth | 710 | 9.738 / 11.858 ms | 24.082 ms | 13.059 ms |
+| Static copy plus moving casters | 2 | 9.372 / 12.653 ms | 21.662 ms | 11.248 ms |
+
+GPU pass time improves by 14%, synchronized time by 10%, and CPU median by 4%.
+Preparation and CPU p95 rise by 9% and 7%, respectively. The extra depth texture
+costs 16 MiB at this resolution (64 MiB at 4096²). Every run matches exact color
+captures at four headings, retains 401 color draws, and includes the depth-copy
+cost in GPU timestamps. The fixture has no active local shadow maps, so this
+factory timing measures the sun cache. The full native suite passes 59 tests.
+See [cache guards, individual runs and reproduction](batch-renderer-optimizations.md#static-sun-depth-and-shadow-preparation).
+
 ## Recorded Sponza measurements
 
 The editor picking comparison used 200 same-process samples, alternating BVH and linear traversal order for each paired measurement. The reported values use midpoint medians in milliseconds; p95 values, when printed by the example, use nearest-rank selection. The wider 1,681-ray checks were untimed and compared object and surface identities against the linear oracle.

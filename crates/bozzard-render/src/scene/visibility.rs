@@ -53,6 +53,18 @@ pub struct FrameStats {
     pub shadow_draws: usize,
     /// Depth passes encoded this frame, including clears of empty maps.
     pub shadow_maps_rendered: usize,
+    /// Opaque lit surfaces inspected while validating local shadow map contents.
+    pub local_shadow_caster_checks: usize,
+    /// Local maps reused after frame edits without another per-map caster scan.
+    pub local_shadow_maps_reused_without_scan: usize,
+    /// Exact opaque inputs and fitted sun uniforms reused the whole sun depth map.
+    pub sun_shadow_fit_reused: bool,
+    /// Static depth reused while dynamic casters were rendered over a depth copy.
+    pub sun_static_cache_reused: bool,
+    pub sun_static_casters: usize,
+    pub sun_dynamic_casters: usize,
+    /// Full-map depth copies, included in shadow draw/triangle and GPU pass counts.
+    pub sun_depth_copies: usize,
     pub graph_compilations: usize,
     /// All active graphs plus at most eight recently absent graphs.
     pub resident_graphs: usize,
@@ -169,6 +181,13 @@ impl SceneRenderer {
     /// Compare early corner acceptance with the original eight-corner predicate.
     pub fn set_frustum_early_acceptance_enabled(&mut self, enabled: bool) {
         self.early_frustum_acceptance = enabled;
+    }
+    /// Compare fitted/static sun and local-caster reuse with full shadow preparation.
+    pub fn set_shadow_preparation_caching_enabled(&mut self, enabled: bool) {
+        self.shadow_preparation_cache = enabled;
+        if !enabled {
+            self.shadows.sun_cache.clear();
+        }
     }
     pub(super) fn frustum_visible(&self, bounds: [Vec3; 2], mvp: Mat4) -> bool {
         if self.early_frustum_acceptance {
