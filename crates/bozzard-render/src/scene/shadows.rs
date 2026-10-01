@@ -639,7 +639,7 @@ impl SceneRenderer {
                 && draw.object.material.lit
                 && (!self.culling
                     || projection.is_none_or(|p| {
-                        visibility::visible(
+                        self.frustum_visible(
                             self.mesh_for(&draw.object).bounds,
                             p * draw.object.model,
                         )

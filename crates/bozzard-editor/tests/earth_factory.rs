@@ -1121,22 +1121,44 @@ const BATCHING_FIXTURE: &str = r#"
 #[test]
 #[ignore = "release-mode real-asset batching profile; requires a graphics adapter"]
 fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
-    profile_factory_renderer(false, false)
+    profile_factory_renderer(FactoryProfile::SceneBatching)
 }
 
 #[test]
 #[ignore = "release-mode 400-machine lighting profile; requires a graphics adapter"]
 fn profile_earth_factory_local_lighting() -> anyhow::Result<()> {
-    profile_factory_renderer(true, false)
+    profile_factory_renderer(FactoryProfile::LocalLighting)
 }
 
 #[test]
 #[ignore = "release-mode 400-machine shadow batching profile; requires a graphics adapter"]
 fn profile_earth_factory_shadow_batching() -> anyhow::Result<()> {
-    profile_factory_renderer(false, true)
+    profile_factory_renderer(FactoryProfile::ShadowBatching)
 }
 
-fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> anyhow::Result<()> {
+#[test]
+#[ignore = "release-mode 400-machine frustum profile; requires a graphics adapter"]
+fn profile_earth_factory_frustum_acceptance() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::FrustumAcceptance)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FactoryProfile {
+    SceneBatching,
+    LocalLighting,
+    ShadowBatching,
+    FrustumAcceptance,
+}
+
+struct RendererSample {
+    cpu: f64,
+    synchronized: f64,
+    prepare: f64,
+    encode: f64,
+    submit: f64,
+}
+
+fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
     use bozzard_render::{Gpu, SceneRenderer, wgpu};
     use bozzard_scene::blueprint::Value;
     let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
@@ -1165,7 +1187,7 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
     editor.start_play()?;
     let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
         .replace("fn on_start(me)", "fn normal_start(me)");
-    let source = if light_selection || shadow_batching {
+    let source = if profile != FactoryProfile::SceneBatching {
         format!(
             "{}\n{}",
             source.replace("fn on_update(me, dt)", "fn normal_update(me, dt)"),
@@ -1193,12 +1215,13 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
     println!("batching adapter: {:?}", gpu.adapter.get_info());
     let mut renderers: [SceneRenderer; 2] =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
-    if shadow_batching {
-        renderers[0].set_shadow_batching_enabled(false);
-    } else if light_selection {
-        renderers[0].set_local_light_culling_enabled(false);
-    } else {
-        renderers[0].set_global_batching_enabled(false);
+    match profile {
+        FactoryProfile::ShadowBatching => renderers[0].set_shadow_batching_enabled(false),
+        FactoryProfile::LocalLighting => renderers[0].set_local_light_culling_enabled(false),
+        FactoryProfile::SceneBatching => renderers[0].set_global_batching_enabled(false),
+        FactoryProfile::FrustumAcceptance => {
+            renderers[0].set_frustum_early_acceptance_enabled(false)
+        }
     }
     for renderer in &mut renderers {
         renderer.set_profiling_enabled(true);
@@ -1226,7 +1249,7 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
             view_formats: &[],
         })
         .create_view(&Default::default());
-    let mut samples: [Vec<(f64, f64)>; 2] = Default::default();
+    let mut samples: [Vec<RendererSample>; 2] = Default::default();
     let mut gpu_samples: [Vec<f64>; 2] = Default::default();
     for tick in 0..72 {
         let play = editor.play.as_mut().unwrap();
@@ -1252,20 +1275,26 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
                         gpu_samples[mode].push(times.into_iter().sum());
                     }
                 }
-                samples[mode].push((renderers[mode].frame_stats().cpu_ms, synchronized_ms));
+                let stats = renderers[mode].frame_stats();
+                samples[mode].push(RendererSample {
+                    cpu: stats.cpu_ms,
+                    synchronized: synchronized_ms,
+                    prepare: stats.prepare_ms,
+                    encode: stats.encode_ms,
+                    submit: stats.submit_ms,
+                });
             }
         }
     }
-    let modes = if shadow_batching {
-        ["individual-shadow-fallback", "shadow-instance-ranges"]
-    } else if light_selection {
-        ["full-light-loop", "light-masks"]
-    } else {
-        ["consecutive", "global"]
+    let modes = match profile {
+        FactoryProfile::ShadowBatching => ["individual-shadow-fallback", "shadow-instance-ranges"],
+        FactoryProfile::LocalLighting => ["full-light-loop", "light-masks"],
+        FactoryProfile::SceneBatching => ["consecutive", "global"],
+        FactoryProfile::FrustumAcceptance => ["eight-corner-reference", "early-corner-acceptance"],
     };
     for (mode, values) in samples.iter().enumerate() {
-        let mut cpu: Vec<_> = values.iter().map(|v| v.0).collect();
-        let mut wall: Vec<_> = values.iter().map(|v| v.1).collect();
+        let mut cpu: Vec<_> = values.iter().map(|v| v.cpu).collect();
+        let mut wall: Vec<_> = values.iter().map(|v| v.synchronized).collect();
         cpu.sort_by(f64::total_cmp);
         wall.sort_by(f64::total_cmp);
         let stats = renderers[mode].frame_stats();
@@ -1290,8 +1319,21 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
             gpu_samples[mode].get(gpu_samples[mode].len() / 2),
             gpu_samples[mode].len()
         );
+        let median = |component: fn(&RendererSample) -> f64| {
+            let mut stage: Vec<_> = values.iter().map(component).collect();
+            stage.sort_by(f64::total_cmp);
+            stage[stage.len() / 2]
+        };
+        println!(
+            "mode={} prepare_median_ms={:.3} encode_median_ms={:.3} submit_median_ms={:.3} shadow_maps={}",
+            modes[mode],
+            median(|v| v.prepare),
+            median(|v| v.encode),
+            median(|v| v.submit),
+            stats.shadow_maps_rendered
+        );
     }
-    if shadow_batching {
+    if profile == FactoryProfile::ShadowBatching {
         assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
         assert_eq!(
             renderers[1].frame_stats().color_draws,
@@ -1301,7 +1343,7 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
             renderers[1].frame_stats().shadow_triangles,
             renderers[0].frame_stats().shadow_triangles
         );
-    } else if light_selection {
+    } else if profile == FactoryProfile::LocalLighting {
         assert!(
             renderers[1].frame_stats().local_light_candidates
                 < renderers[0].frame_stats().local_light_candidates
@@ -1310,9 +1352,22 @@ fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> any
             renderers[1].frame_stats().color_draws,
             renderers[0].frame_stats().color_draws
         );
-    } else {
+    } else if profile == FactoryProfile::SceneBatching {
         assert!(
             renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2
+        );
+    } else {
+        assert_eq!(
+            renderers[0].frame_stats().color_draws,
+            renderers[1].frame_stats().color_draws
+        );
+        assert_eq!(
+            renderers[0].frame_stats().shadow_draws,
+            renderers[1].frame_stats().shadow_draws
+        );
+        assert_eq!(
+            renderers[0].frame_stats().shadow_triangles,
+            renderers[1].frame_stats().shadow_triangles
         );
     }
     // Validate this game's real multipart materials, shadows and camera rotation.

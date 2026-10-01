@@ -10,7 +10,8 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 - [x] **Upload changed ranges and reuse buffers.** Adjacent changed records share an upload; untouched records stay resident. Texture changes rebind the existing buffer. Retain at most eight spare buffers (128 KiB) through temporary culling or batch shrinkage.
 - [x] **Profile local lighting separately.** Point and spot lights whose range cannot reach a surface are rejected before fragment shading. Conservative masks fit in the existing 256-byte record. A repeatable 400-build factory fixture compares full light loops with the masks, including GPU timestamps and reference captures.
 - [x] **Batch shadow casters independently.** Group depth casters independently of camera visibility and color ordering, including offscreen objects. Draw consecutive visible instance ranges within each light's frustum, avoid unused individual uniform uploads, and compare exact pixels, triangle counts, and dense-factory CPU/GPU measurements against the former fallback.
-- [ ] **Cache shadow preparation where safe.** Profile rebuilding caster groups and repeating per-light bounds tests. Retain membership or culling results only when geometry, materials, transforms, and the relevant light frustum remain valid; keep bounded storage and the individual reference path.
+- [x] **Avoid unnecessary frustum corner transforms.** Accept a surface as soon as its first corner rules out every rejection plane. Retain the efficient plane-major fallback and the exact homogeneous distances and relative tolerance; compare the original predicate, CPU workloads, and factory captures.
+- [ ] **Cache shadow preparation where safe.** Compare opaque local-caster state separately from the sun map's transparent receiver bounds, so receiver-only movement can skip unchanged local-caster scans. Also profile rebuilding caster groups and repeating per-light bounds tests. Retain membership or culling results only when geometry, materials, transforms, and the relevant light frustum remain valid; keep bounded storage and the individual reference path.
 
 ## Baseline and verification
 
@@ -144,3 +145,50 @@ Shadow draw commands fall by **58%**, renderer CPU time by **11%**, and synchron
 cargo test --release --offline -p bozzard-editor --test earth_factory \
   profile_earth_factory_shadow_batching -- --ignored --exact --nocapture
 ```
+
+### Early frustum acceptance
+
+The camera and local shadow maps share an optimized version of the original homogeneous clip predicate. It transforms the first AABB corner and checks the same six distances with the same relative tolerance. If that corner is accepted by every plane, no plane can reject all eight corners, so the other seven transforms are unnecessary. Otherwise a separate, non-inlined helper transforms those seven corners and retains the reference's plane-major rejection checks. Planes already ruled out by the first corner are skipped. This keeps scratch storage and the longer fallback out of the small acceptance path without changing the conservative visibility decision.
+
+No clip distances, tolerance, shadow settings, draw grouping, or scene contents change. `SceneRenderer::set_frustum_early_acceptance_enabled(false)` selects the original eight-corner predicate for CPU and exact-image comparisons. A deterministic regression compares 50,000 affine/projective cases, including mirrored and scaled transforms, then tangent/near-plane boundaries, very small and large homogeneous coordinates, and non-finite matrices.
+
+The full native renderer suite passes **56 tests**, with five explicitly manual tests skipped, using `--test-threads=1`. Renderer all-target and factory-target Clippy checks pass with warnings denied and `--no-deps`. Formatting and diff checks pass, and release player and editor executables are rebuilt. The factory profile now additionally reports preparation, encoding, and submission medians; those medians need not sum to the median of total CPU time.
+
+Reproduce the paired factory and isolated CPU comparisons with:
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_frustum_acceptance -- --ignored --exact --nocapture
+cargo test --release --offline -p bozzard-render --lib \
+  frustum_predicate_benchmark -- --ignored --nocapture
+```
+
+#### Frustum release measurements
+
+The same Intel Iris Xe / Vulkan host, Mesa 26.2.3, 1280 × 800, 400-build active-gust factory compares only the original and optimized frustum predicates. Both retain independent shadow batching, global color batching, and local-light masks. Three paired runs use twelve warm-up frames and sixty alternating measured frames each. Every run matches exact pixels and submitted color/shadow triangles at all four camera headings, and has sixty complete GPU timestamp samples per mode.
+
+| Frustum predicate | Renderer CPU median / p95 | Preparation median | Encoding median | Submission median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original eight-corner scan | 9.724 / 12.223 ms | 7.323 ms | 0.310 ms | 1.948 ms | 24.219 ms | 13.099 ms |
+| First-corner acceptance with plane fallback | 9.244 / 12.604 ms | 6.571 ms | 0.316 ms | 1.868 ms | 23.900 ms | 13.148 ms |
+
+Values are medians of the three run medians; p95 is the median of the three run p95 values. Median renderer CPU falls by **5%**, preparation by **10%**, and synchronized time by **1%**. GPU time is essentially unchanged. The p95 value is slightly higher, so this does not establish a tail-latency improvement. Both modes retain 780 visible items, 1,590 visible surfaces, 401 color draws, 710 shadow draws, and 10,134 of 50,880 object/light pairs. Synchronized time includes a device wait; GPU values sum measured passes. These are renderer comparisons, not windowed FPS.
+
+The paired CPU medians vary across the runs:
+
+| Run | Original CPU median | Optimized CPU median | Original / optimized CPU p95 |
+| --- | ---: | ---: | ---: |
+| 1 | 9.976 ms | 8.980 ms | 12.094 / 15.246 ms |
+| 2 | 9.724 ms | 9.244 ms | 12.223 / 12.604 ms |
+| 3 | 9.350 ms | 9.335 ms | 12.239 / 11.614 ms |
+
+The isolated CPU fixture uses 1,024 transformed bounds per workload, ten warm-up samples, sixty alternating measured samples, and sixteen repeats per sample. The table gives medians of three run medians on the same host, including the function-call and benchmark-loop overhead. Accepted counts match in every workload; the separate randomized test compares individual decisions.
+
+| CPU workload | Original predicate | Optimized predicate |
+| --- | ---: | ---: |
+| Fully inside | 22.631 ns/check | 5.132 ns/check |
+| Fully outside | 26.435 ns/check | 25.605 ns/check |
+| Crossing the near plane | 24.579 ns/check | 25.612 ns/check |
+| Mixed perspective placements | 26.926 ns/check | 21.441 ns/check |
+
+Inside checks are about 4.4 times faster; outside checks retain similar throughput. Near-plane crossing is about one nanosecond slower in this fixture. The separate fallback avoids the substantial rejected-object slowdown observed in the initial whole-corner-mask experiment. No heap allocation or retained per-surface storage is added.

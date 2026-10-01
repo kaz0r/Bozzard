@@ -150,7 +150,7 @@ impl ShadowMaps {
                     .filter(|d| !d.transparent && d.object.material.lit)
                     .filter(|d| {
                         !renderer.culling
-                            || visibility::visible(
+                            || renderer.frustum_visible(
                                 renderer.mesh_for(&d.object).bounds,
                                 *matrix * d.object.model,
                             )

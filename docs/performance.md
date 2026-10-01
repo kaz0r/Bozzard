@@ -138,6 +138,30 @@ cargo test --release --offline -p bozzard-editor --test earth_factory \
   profile_earth_factory_shadow_batching -- --ignored --exact --nocapture
 ```
 
+## Early frustum acceptance
+
+Camera and local-shadow culling now accept a bound after its first corner when
+that corner is accepted by all six homogeneous planes. Other bounds retain the
+original plane-major rejection checks over the remaining corners, with exact
+distances and tolerance. A separate fallback keeps its scratch storage out of
+the small acceptance path. A diagnostic restores the original predicate.
+
+Three paired release runs of the same 400-build, active-gust factory at
+1280 × 800 on Intel Iris Xe / Vulkan report medians of run medians:
+
+| Predicate | Renderer CPU median / p95 | Preparation median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Original eight-corner scan | 9.724 / 12.223 ms | 7.323 ms | 24.219 ms | 13.099 ms |
+| First-corner acceptance | 9.244 / 12.604 ms | 6.571 ms | 23.900 ms | 13.148 ms |
+
+CPU median improves by 5% and preparation by 10%; GPU time is essentially
+unchanged. p95 is slightly higher, so no tail-latency gain is established.
+Both modes retain 401 color draws and 710 shadow draws, and match exact captures
+and triangles at all four camera headings. A 50,000-case regression checks the
+original predicate; the full native renderer suite passes 56 tests. See
+[the frustum methods and measurements](batch-renderer-optimizations.md#early-frustum-acceptance)
+for individual runs, isolated inside/outside/near-plane workloads, and reproduction.
+
 ## Recorded Sponza measurements
 
 The editor picking comparison used 200 same-process samples, alternating BVH and linear traversal order for each paired measurement. The reported values use midpoint medians in milliseconds; p95 values, when printed by the example, use nearest-rank selection. The wider 1,681-ray checks were untimed and compared object and surface identities against the linear oracle.
