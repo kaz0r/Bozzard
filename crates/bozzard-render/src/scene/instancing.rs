@@ -19,11 +19,13 @@ pub(super) struct Instancing {
     enabled: bool,
     global: bool,
     incremental: bool,
+    pub shadow_batches_enabled: bool,
     plan: Option<Plan>,
     layout: wgpu::BindGroupLayout,
     pub pipelines: Option<Pipelines>,
     pub shadow_pipelines: Option<[wgpu::RenderPipeline; 2]>,
     pub bindings: Vec<InstanceBinding>,
+    pub shadow_bindings: Vec<InstanceBinding>,
 }
 #[derive(Clone)]
 pub(super) struct Batch {
@@ -31,16 +33,21 @@ pub(super) struct Batch {
     pub slot: Option<usize>,
 }
 impl Instancing {
+    pub(super) fn shadow_batching(&self) -> bool {
+        self.enabled && self.shadow_batches_enabled
+    }
     pub fn new(layout: wgpu::BindGroupLayout) -> Self {
         Self {
             enabled: true,
             global: true,
             incremental: true,
+            shadow_batches_enabled: true,
             plan: None,
             layout,
             pipelines: None,
             shadow_pipelines: None,
             bindings: Vec::new(),
+            shadow_bindings: Vec::new(),
         }
     }
 }
@@ -320,6 +327,7 @@ impl SceneRenderer {
         self.instancing.enabled = enabled;
         if !enabled {
             self.instancing.bindings.clear();
+            self.instancing.shadow_bindings.clear();
         }
     }
 
@@ -437,13 +445,70 @@ impl SceneRenderer {
             });
             self.instancing.pipelines = Some(Pipelines { pipelines });
         }
+        let mut bindings = std::mem::take(&mut self.instancing.bindings);
+        let result = self.prepare_instance_bindings(gpu, draws, &mut batches, &mut bindings);
+        self.instancing.bindings = bindings;
+        let (bytes, allocations) = result?;
+        self.stats.instance_uniform_bytes += bytes;
+        self.stats.instance_buffer_allocations += allocations;
+        Ok(batches)
+    }
+
+    pub(super) fn prepare_shadow_instances(
+        &mut self,
+        gpu: &Gpu,
+        draws: &[PreparedDraw],
+    ) -> Result<Vec<Batch>> {
+        // Depth writes commute even at equal depth. These groups cover every
+        // caster, independently of camera visibility and opaque color ordering.
+        let mut batches: Vec<Batch> = Vec::new();
+        let mut groups: HashMap<Key, usize> = HashMap::new();
+        for (index, draw) in draws
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| !d.transparent && d.object.material.lit)
+        {
+            let key = key(draw);
+            if let Some(group) = key.as_ref().and_then(|key| groups.get(key)).copied()
+                && batches[group].indices.len() < MAX_INSTANCES
+            {
+                batches[group].indices.push(index);
+            } else {
+                if let Some(key) = key {
+                    groups.insert(key, batches.len());
+                }
+                batches.push(Batch {
+                    indices: vec![index],
+                    slot: None,
+                });
+            }
+        }
+        let mut bindings = std::mem::take(&mut self.instancing.shadow_bindings);
+        bindings.truncate(batches.iter().filter(|b| b.indices.len() > 1).count() + 8);
+        let result = self.prepare_instance_bindings(gpu, draws, &mut batches, &mut bindings);
+        self.instancing.shadow_bindings = bindings;
+        let (bytes, allocations) = result?;
+        self.stats.shadow_instance_uniform_bytes += bytes;
+        self.stats.shadow_instance_buffer_allocations += allocations;
+        Ok(batches)
+    }
+
+    fn prepare_instance_bindings(
+        &self,
+        gpu: &Gpu,
+        draws: &[PreparedDraw],
+        batches: &mut [Batch],
+        bindings: &mut Vec<InstanceBinding>,
+    ) -> Result<(usize, usize)> {
+        let mut bytes = 0;
+        let mut allocations = 0;
         for (slot, batch) in batches
             .iter_mut()
             .filter(|b| b.indices.len() > 1)
             .enumerate()
         {
             let texture = &draws[batch.indices[0]].object.material.texture;
-            if slot == self.instancing.bindings.len() {
+            if slot == bindings.len() {
                 let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("instanced object uniforms"),
                     size: BUFFER_BYTES as u64,
@@ -458,19 +523,19 @@ impl SceneRenderer {
                     texture: texture.clone(),
                     bytes: Vec::with_capacity(BUFFER_BYTES),
                 };
-                self.instancing.bindings.push(value);
-                self.stats.instance_buffer_allocations += 1;
-            } else if self.instancing.bindings[slot].texture != *texture {
+                bindings.push(value);
+                allocations += 1;
+            } else if bindings[slot].texture != *texture {
                 let binding = self.texture_binding(
                     gpu,
                     texture,
-                    &self.instancing.bindings[slot].buffer,
+                    &bindings[slot].buffer,
                     &self.instancing.layout,
                 )?;
-                self.instancing.bindings[slot].binding = binding;
-                self.instancing.bindings[slot].texture = texture.clone();
+                bindings[slot].binding = binding;
+                bindings[slot].texture = texture.clone();
             }
-            let binding = &mut self.instancing.bindings[slot];
+            let binding = &mut bindings[slot];
             let old_len = binding.bytes.len();
             binding
                 .bytes
@@ -492,17 +557,17 @@ impl SceneRenderer {
                         first as u64,
                         &binding.bytes[first..start],
                     );
-                    self.stats.instance_uniform_bytes += start - first;
+                    bytes += start - first;
                 }
             }
             if let Some(first) = changed_start {
                 gpu.queue
                     .write_buffer(&binding.buffer, first as u64, &binding.bytes[first..]);
-                self.stats.instance_uniform_bytes += binding.bytes.len() - first;
+                bytes += binding.bytes.len() - first;
             }
             batch.slot = Some(slot);
         }
-        Ok(batches)
+        Ok((bytes, allocations))
     }
 
     pub(super) fn prepare_instanced_shadows(&mut self, gpu: &Gpu) {

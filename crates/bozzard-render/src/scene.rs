@@ -979,6 +979,7 @@ impl SceneRenderer {
         }
         self.objects.clear();
         self.instancing.bindings.clear();
+        self.instancing.shadow_bindings.clear();
         self.shadow_frame = None;
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
@@ -2137,6 +2138,7 @@ impl SceneRenderer {
                 .is_some_and(|previous| previous.same_sun(&shadow_frame));
         let mut spot_changes = Vec::new();
         let mut point_changes = Vec::new();
+        let mut shadow_batches = None;
         if !self.stats.shadow_cache_hit {
             // Invalidate before queueing writes: a later frame error must not leave a
             // valid-looking stamp paired with partially updated shadow uniforms.
@@ -2156,19 +2158,29 @@ impl SceneRenderer {
                     .chain(&point_changes)
                     .filter(|c| c.is_some())
                     .count();
-            if batches.iter().any(|b| b.slot.is_some())
-                && (sun_changed && scene.lighting.shadows && scene.lighting.sun_intensity > 0.
-                    || spot_changes
-                        .iter()
-                        .chain(&point_changes)
-                        .any(Option::is_some))
+            if sun_changed && scene.lighting.shadows && scene.lighting.sun_intensity > 0.
+                || spot_changes
+                    .iter()
+                    .chain(&point_changes)
+                    .any(Option::is_some)
             {
-                self.prepare_instanced_shadows(gpu);
+                if self.instancing.shadow_batching() {
+                    shadow_batches = Some(self.prepare_shadow_instances(gpu, &draws)?);
+                }
+                if shadow_batches
+                    .as_ref()
+                    .unwrap_or(&batches)
+                    .iter()
+                    .any(|b| b.slot.is_some())
+                {
+                    self.prepare_instanced_shadows(gpu);
+                }
+            } else {
+                self.instancing.shadow_bindings.truncate(8);
             }
         }
-        // Packed batches already contain their members' uniforms. Upload single
-        // object buffers only for draws that actually use them. Keep offscreen
-        // sun casters and partial/local-light shadow batches on the reference path.
+        // Packed color and shadow groups already contain their uniforms.
+        // Upload individual buffers for singletons and ineligible casters.
         let sun_individuals = !self.stats.shadow_cache_hit
             && sun_changed
             && scene.lighting.shadows
@@ -2181,7 +2193,8 @@ impl SceneRenderer {
         for batch in &batches {
             if batch.slot.is_none() {
                 individual[batch.indices[0]] = true;
-            } else if sun_individuals
+            } else if !self.instancing.shadow_batching()
+                && sun_individuals
                 && !batch
                     .indices
                     .iter()
@@ -2193,9 +2206,17 @@ impl SceneRenderer {
                 }
             }
         }
+        if let Some(batches) = &shadow_batches {
+            for batch in batches.iter().filter(|b| b.slot.is_none()) {
+                for &index in &batch.indices {
+                    individual[index] = true;
+                }
+            }
+        }
         for (index, draw) in draws.iter().enumerate() {
             individual[index] |= !draw.transparent
                 && draw.object.material.lit
+                && !self.instancing.shadow_batching()
                 && (local_individuals || sun_individuals && !visible[index]);
         }
         for (needed, binding) in individual.into_iter().zip(&mut self.objects) {
@@ -2251,24 +2272,21 @@ impl SceneRenderer {
             self.particles.as_ref().unwrap().encode(&mut encoder);
         }
         if !self.stats.shadow_cache_hit {
+            let batches = shadow_batches.as_ref().unwrap_or(&batches);
             if sun_changed {
                 (self.stats.shadow_draws, self.stats.shadow_triangles) =
-                    self.draw_shadows(&mut encoder, scene, &draws, &batches);
+                    self.draw_shadows(&mut encoder, scene, &draws, batches);
             }
             let (spot_draws, spot_triangles) =
                 self.shadows
                     .spots
-                    .draw(self, &mut encoder, &draws, &batches, false, &spot_changes);
+                    .draw(self, &mut encoder, &draws, batches, false, &spot_changes);
             self.stats.shadow_draws += spot_draws;
             self.stats.shadow_triangles += spot_triangles;
-            let (point_draws, point_triangles) = self.shadows.points.draw(
-                self,
-                &mut encoder,
-                &draws,
-                &batches,
-                true,
-                &point_changes,
-            );
+            let (point_draws, point_triangles) =
+                self.shadows
+                    .points
+                    .draw(self, &mut encoder, &draws, batches, true, &point_changes);
             self.stats.shadow_draws += point_draws;
             self.stats.shadow_triangles += point_triangles;
         }

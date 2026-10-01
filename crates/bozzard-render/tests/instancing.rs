@@ -206,6 +206,99 @@ fn opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads() ->
 }
 
 #[test]
+fn partial_shadow_batches_match_individuals_with_nonzero_ranges_and_offscreen_casters()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_shadow_batching_enabled(false);
+    let mut scene = scene(128);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model =
+            Mat4::from_translation(Vec3::new((i % 16) as f32 - 7.5, (i / 16) as f32 - 3.5, -5.))
+                * Mat4::from_scale(Vec3::splat(0.7));
+    }
+    scene.lights = vec![
+        LocalLight {
+            directional: false,
+            position: [3., 0., 1.],
+            direction: [0., 0., -1.],
+            color: [1., 0.6, 0.3],
+            intensity: 3.,
+            range: 12.,
+            spot_angles: Some([20., 35.]),
+            shadows: Some(Default::default()),
+        },
+        LocalLight {
+            directional: false,
+            position: [1., 0., -3.],
+            direction: [0., 0., -1.],
+            color: [0.3, 0.6, 1.],
+            intensity: 2.,
+            range: 7.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        },
+    ];
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[0].frame_stats().shadow_triangles,
+        renderers[1].frame_stats().shadow_triangles
+    );
+    assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws / 2);
+    assert_eq!(renderers[1].frame_stats().object_uniform_writes, 0);
+    assert!(renderers[0].frame_stats().object_uniform_writes >= 128);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().shadow_cache_hit);
+    // New culling holes, mirrored instances and changing light frusta retain
+    // each instance's original material and transform in the shared buffer.
+    scene.items[35].model *= Mat4::from_scale(Vec3::new(-1., 1., 1.));
+    scene.items[37].material.lit = false;
+    scene.items[39].model = Mat4::from_translation(Vec3::new(40., 0., -5.));
+    scene.lights[0].position[0] = -3.;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[0].frame_stats().shadow_triangles,
+        renderers[1].frame_stats().shadow_triangles
+    );
+    // Keep casters outside the camera even when only local shadows are active.
+    scene.view_projection =
+        glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 30.);
+    scene.items[35].model *= Mat4::from_translation(Vec3::new(0., 0., 0.1));
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().culled_surfaces > 0);
+    assert!(renderers[1].frame_stats().shadow_instance_uniform_bytes > 0);
+    assert_eq!(
+        renderers[0].frame_stats().shadow_triangles,
+        renderers[1].frame_stats().shadow_triangles
+    );
+    // Switching the diagnostic after a cached frame must refresh every map.
+    renderers[1].set_shadow_batching_enabled(false);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(!renderers[1].frame_stats().shadow_cache_hit);
+    renderers[1].set_shadow_batching_enabled(true);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(!renderers[1].frame_stats().shadow_cache_hit);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 256;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[0].frame_stats().shadow_triangles,
+        renderers[1].frame_stats().shadow_triangles
+    );
+    scene.view_projection *= Mat4::from_translation(Vec3::new(-200., 0., 0.));
+    scene.lights[0].position[0] += 0.1;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().visible_surfaces, 0);
+    assert!(renderers[1].frame_stats().shadow_triangles > 0);
+    assert_eq!(
+        renderers[0].frame_stats().shadow_triangles,
+        renderers[1].frame_stats().shadow_triangles
+    );
+    Ok(())
+}
+
+#[test]
 fn stationary_uniforms_are_reused_and_render_edits_match_uncached_output() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
     let mut renderers =

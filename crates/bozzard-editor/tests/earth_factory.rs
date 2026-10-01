@@ -1121,16 +1121,22 @@ const BATCHING_FIXTURE: &str = r#"
 #[test]
 #[ignore = "release-mode real-asset batching profile; requires a graphics adapter"]
 fn profile_earth_factory_scene_batching() -> anyhow::Result<()> {
-    profile_factory_renderer(false)
+    profile_factory_renderer(false, false)
 }
 
 #[test]
 #[ignore = "release-mode 400-machine lighting profile; requires a graphics adapter"]
 fn profile_earth_factory_local_lighting() -> anyhow::Result<()> {
-    profile_factory_renderer(true)
+    profile_factory_renderer(true, false)
 }
 
-fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
+#[test]
+#[ignore = "release-mode 400-machine shadow batching profile; requires a graphics adapter"]
+fn profile_earth_factory_shadow_batching() -> anyhow::Result<()> {
+    profile_factory_renderer(false, true)
+}
+
+fn profile_factory_renderer(light_selection: bool, shadow_batching: bool) -> anyhow::Result<()> {
     use bozzard_render::{Gpu, SceneRenderer, wgpu};
     use bozzard_scene::blueprint::Value;
     let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
@@ -1159,7 +1165,7 @@ fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
     editor.start_play()?;
     let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?
         .replace("fn on_start(me)", "fn normal_start(me)");
-    let source = if light_selection {
+    let source = if light_selection || shadow_batching {
         format!(
             "{}\n{}",
             source.replace("fn on_update(me, dt)", "fn normal_update(me, dt)"),
@@ -1187,7 +1193,9 @@ fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
     println!("batching adapter: {:?}", gpu.adapter.get_info());
     let mut renderers: [SceneRenderer; 2] =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
-    if light_selection {
+    if shadow_batching {
+        renderers[0].set_shadow_batching_enabled(false);
+    } else if light_selection {
         renderers[0].set_local_light_culling_enabled(false);
     } else {
         renderers[0].set_global_batching_enabled(false);
@@ -1248,7 +1256,9 @@ fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
             }
         }
     }
-    let modes = if light_selection {
+    let modes = if shadow_batching {
+        ["individual-shadow-fallback", "shadow-instance-ranges"]
+    } else if light_selection {
         ["full-light-loop", "light-masks"]
     } else {
         ["consecutive", "global"]
@@ -1260,12 +1270,13 @@ fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
         wall.sort_by(f64::total_cmp);
         let stats = renderers[mode].frame_stats();
         println!(
-            "mode={} visible={} surfaces={} draws={} shadow_draws={} cpu_median_ms={:.3} cpu_p95_ms={:.3} synchronized_median_ms={:.3}",
+            "mode={} visible={} surfaces={} draws={} shadow_draws={} object_writes={} cpu_median_ms={:.3} cpu_p95_ms={:.3} synchronized_median_ms={:.3}",
             modes[mode],
             stats.visible_items,
             stats.visible_surfaces,
             stats.color_draws,
             stats.shadow_draws,
+            stats.object_uniform_writes,
             cpu[30],
             cpu[57],
             wall[30]
@@ -1280,7 +1291,17 @@ fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
             gpu_samples[mode].len()
         );
     }
-    if light_selection {
+    if shadow_batching {
+        assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
+        assert_eq!(
+            renderers[1].frame_stats().color_draws,
+            renderers[0].frame_stats().color_draws
+        );
+        assert_eq!(
+            renderers[1].frame_stats().shadow_triangles,
+            renderers[0].frame_stats().shadow_triangles
+        );
+    } else if light_selection {
         assert!(
             renderers[1].frame_stats().local_light_candidates
                 < renderers[0].frame_stats().local_light_candidates
@@ -1319,6 +1340,10 @@ fn profile_factory_renderer(light_selection: bool) -> anyhow::Result<()> {
         assert_eq!(
             renderers[0].frame_stats().color_triangles,
             renderers[1].frame_stats().color_triangles
+        );
+        assert_eq!(
+            renderers[0].frame_stats().shadow_triangles,
+            renderers[1].frame_stats().shadow_triangles
         );
     }
     Ok(())

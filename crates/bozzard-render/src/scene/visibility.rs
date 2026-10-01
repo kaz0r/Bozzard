@@ -45,6 +45,9 @@ pub struct FrameStats {
     pub instance_uniform_bytes: usize,
     /// New instance-buffer allocations; texture rebinding reuses the allocation.
     pub instance_buffer_allocations: usize,
+    /// Additional packed shadow-caster bytes, independent of camera batches.
+    pub shadow_instance_uniform_bytes: usize,
+    pub shadow_instance_buffer_allocations: usize,
     /// Shared camera, lighting, fog and graph-clock bytes uploaded once per frame.
     pub frame_uniform_bytes: usize,
     pub shadow_draws: usize,
@@ -118,6 +121,18 @@ impl SceneRenderer {
     /// Compare conservative surface light masks with the full light loop.
     pub fn set_local_light_culling_enabled(&mut self, enabled: bool) {
         self.light_selection.set_enabled(enabled);
+    }
+    /// Compare dedicated shadow batches with the former color-batch fallback.
+    pub fn set_shadow_batching_enabled(&mut self, enabled: bool) {
+        if self.instancing.shadow_batches_enabled != enabled {
+            self.instancing.shadow_batches_enabled = enabled;
+            if !enabled {
+                self.instancing.shadow_bindings.clear();
+            }
+            self.shadow_frame = None;
+            self.shadows.spots.invalidate();
+            self.shadows.points.invalidate();
+        }
     }
     pub(super) fn visibility(
         &self,

@@ -8,7 +8,9 @@ fn on_start(me) {
     let empty = grid::empty_numbers(225);
     set_scene_list("nodes", empty);
     grid::cache_put("chunk_nodes", 144, grid::pack_numbers(empty));
-    data::session_set(120, 15.7);
+    // Seed 4's first gust starts at real time 57s. Keep its ground streaks
+    // moving during the samples so local shadow maps actually need updates.
+    data::session_set(120, 61.0);
 }
 fn on_update(me, dt) {
     if dense_stage < 2 {

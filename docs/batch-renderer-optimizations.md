@@ -6,9 +6,11 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 
 - [x] **Share frame uniforms.** Camera matrices, lighting, fog, viewport, and the graph clock use one 320-byte frame buffer. The 256-byte instance records retain object transforms, material overrides, and previous object transforms. Camera and daylight changes no longer rebuild or upload stationary instances.
 - [x] **Retain more of the batch plan.** Stable draw groups reuse their order through modest object movement and orthographic camera changes. Check only affected ordering dependencies. Geometry, visibility, material eligibility, new overlap constraints, and uncertain projections trigger a rebuild.
-- [x] **Increase batch capacity.** Up to 64 instances fit exactly within the portable 16 KiB uniform-buffer limit. Lit and unlit objects use separate groups so an unlit member does not force otherwise compatible casters into individual shadow draws. Partial light frusta still use the existing individual fallback.
+- [x] **Increase batch capacity.** Up to 64 instances fit exactly within the portable 16 KiB uniform-buffer limit. Lit and unlit objects use separate groups so an unlit member does not force otherwise compatible casters into individual shadow draws. The shadow pass below additionally batches partial light frusta.
 - [x] **Upload changed ranges and reuse buffers.** Adjacent changed records share an upload; untouched records stay resident. Texture changes rebind the existing buffer. Retain at most eight spare buffers (128 KiB) through temporary culling or batch shrinkage.
 - [x] **Profile local lighting separately.** Point and spot lights whose range cannot reach a surface are rejected before fragment shading. Conservative masks fit in the existing 256-byte record. A repeatable 400-build factory fixture compares full light loops with the masks, including GPU timestamps and reference captures.
+- [x] **Batch shadow casters independently.** Group depth casters independently of camera visibility and color ordering, including offscreen objects. Draw consecutive visible instance ranges within each light's frustum, avoid unused individual uniform uploads, and compare exact pixels, triangle counts, and dense-factory CPU/GPU measurements against the former fallback.
+- [ ] **Cache shadow preparation where safe.** Profile rebuilding caster groups and repeating per-light bounds tests. Retain membership or culling results only when geometry, materials, transforms, and the relevant light frustum remain valid; keep bounded storage and the individual reference path.
 
 ## Baseline and verification
 
@@ -114,3 +116,31 @@ The final live factory run at 1280 × 800 keeps **780 visible items, 1,590 visib
 GPU pass time falls by about 50%, and synchronized time by about 28%. CPU time is slightly higher in this lighting comparison. GPU values sum measured render/compute passes and exclude gaps between passes; all sixty timestamp samples are complete. Shadow draw counts stay identical, so shadow rendering and CPU preparation remain substantial costs in this dense fixture.
 
 The final 324-machine global/consecutive comparison also passes all four camera captures. It keeps 419 visible items and 1,430 surfaces: 1,356 versus 55 color draws, CPU medians 7.725 versus 2.833 ms, and synchronized medians 14.655 versus 8.167 ms. These are same-run comparisons in the final renderer, with profiling enabled. Release player/editor builds, the native renderer suite, exact historical captures, both real-asset profiles, formatting checks, and renderer Clippy all completed successfully.
+
+### Independent shadow batches
+
+October 1, 2026: shadow maps now group compatible opaque, lit casters independently of camera visibility and color-pass ordering. This includes offscreen casters, which were a substantial source of individual shadow draws in the dense factory. Depth-only writes can be reordered without changing the stored depth, including equal-depth ties. Color ordering and transparency handling retain their existing rules.
+
+Each group holds at most 64 instances in a separate 16 KiB uniform buffer. Per-light culling submits contiguous accepted ranges using the original instance indices, including nonzero starting indices. Rejected instances contribute neither draws nor triangles. Custom shaders, deformed meshes, and other ineligible surfaces retain individual draws; transparent and unlit surfaces retain their previous shadow exclusions. Sun, spot, and point maps use the same path, and unchanged maps still reuse their cached depth textures.
+
+Shadow buffers use the existing changed-range upload and texture-rebinding logic, retaining at most eight spare buffers beyond the active group count. This adds one 16 KiB allocation per active packed shadow group, plus at most 128 KiB of spares, without additional shadow-map textures. Individual object uniforms upload only when a color or shadow singleton needs them. `FrameStats` reports shadow instance upload bytes and buffer allocations separately. `SceneRenderer::set_shadow_batching_enabled(false)` restores the former color-batch/individual fallback for comparison and invalidates cached maps when toggled.
+
+The native regression compares exact pixels and submitted shadow triangles through partial light frusta, nonzero instance ranges, mirrored and unlit edits, moved casters, cache reuse, mode changes, and frames with no camera-visible surfaces. The full native renderer suite passes **55 tests**, with four explicitly manual tests skipped, using `--test-threads=1`. Renderer all-target Clippy and the edited factory test target's Clippy checks pass with warnings denied and `--no-deps`. Formatting and diff checks pass, and both release player and editor executables are rebuilt.
+
+#### Dense-factory release measurements
+
+Intel Iris Xe / Vulkan (Mesa 26.2.3), 1280 × 800, the same 400-build fixture: 80 generators, 80 poles, and 240 kilns across two chunks. The fixture starts at 61 real seconds, within seed 4's first wind gust, so moving ground effects exercise shadow-map updates under the new game clock. Calm frames can reuse shadow maps and would not measure this work.
+
+Three paired release runs each use twelve warm-up frames and sixty interleaved measured frames, alternating mode order. Both modes retain global color batching and conservative light masks. The values below are medians of the three reported run medians; the p95 column is the median of the three run p95 values. Compilation completed before measurement. Exact pixels and color/shadow triangle counts match at all four camera headings in every run.
+
+| Shadow mode | Color draws | Shadow draws | Renderer CPU median / p95 | Synchronized median | Sum of GPU pass timestamps, median |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Former individual fallback | 401 | 1,702 | 11.110 / 14.661 ms | 26.167 ms | 13.138 ms |
+| Independent batches and visible ranges | 401 | 710 | 9.856 / 13.288 ms | 24.083 ms | 13.148 ms |
+
+Shadow draw commands fall by **58%**, renderer CPU time by **11%**, and synchronized time by **8%**. GPU pass time is essentially unchanged. Both modes retain 780 visible items, 1,590 visible surfaces, and 10,134 of 50,880 object/light pairs. The last measured frame needs zero individual object-uniform writes in both modes, and all sixty GPU timestamp samples per mode are complete. Synchronized time includes an explicit device wait; GPU values sum render/compute passes and exclude gaps. These measurements are local renderer comparisons, not windowed FPS or a guarantee for other hardware and saves.
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_shadow_batching -- --ignored --exact --nocapture
+```

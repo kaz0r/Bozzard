@@ -646,7 +646,7 @@ impl SceneRenderer {
                     }))
         };
         let mut was_instanced = None;
-        let mut submit = |index: usize, count: usize, slot: Option<usize>| {
+        let mut submit = |index: usize, instances: std::ops::Range<u32>, slot: Option<usize>| {
             let draw = &draws[index];
             if casts(draw) {
                 let instanced = slot.is_some();
@@ -661,13 +661,18 @@ impl SceneRenderer {
                     was_instanced = Some(instanced);
                 }
                 let binding = slot.map_or(&self.objects[index].binding, |slot| {
-                    &self.instancing.bindings[slot].binding
+                    if self.instancing.shadow_batching() {
+                        &self.instancing.shadow_bindings[slot].binding
+                    } else {
+                        &self.instancing.bindings[slot].binding
+                    }
                 });
                 let mesh = self.mesh_for(&draw.object);
                 pass.set_bind_group(0, binding, &[]);
                 pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..mesh.count, 0, 0..count as u32);
+                let count = instances.end - instances.start;
+                pass.draw_indexed(0..mesh.count, 0, instances);
                 counts.0 += 1;
                 counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
@@ -677,20 +682,34 @@ impl SceneRenderer {
             for &index in &batch.indices {
                 covered[index] = true;
             }
-            // Reuse the same packed instances only if every member casts into
-            // this light. Partial light frusta and unlit members remain individual.
-            if batch.slot.is_some() && batch.indices.iter().all(|&i| casts(&draws[i])) {
-                submit(batch.indices[0], batch.indices.len(), batch.slot);
+            // Instance indices address the original packed buffer, including a
+            // nonzero first instance. Skip rejected members without repacking
+            // uniforms or submitting extra triangles.
+            if batch.slot.is_some() && self.instancing.shadow_batches_enabled {
+                let mut start = None;
+                for offset in 0..=batch.indices.len() {
+                    if offset < batch.indices.len() && casts(&draws[batch.indices[offset]]) {
+                        start.get_or_insert(offset);
+                    } else if let Some(first) = start.take() {
+                        submit(
+                            batch.indices[first],
+                            first as u32..offset as u32,
+                            batch.slot,
+                        );
+                    }
+                }
+            } else if batch.slot.is_some() && batch.indices.iter().all(|&i| casts(&draws[i])) {
+                submit(batch.indices[0], 0..batch.indices.len() as u32, batch.slot);
             } else {
                 for &index in &batch.indices {
-                    submit(index, 1, None);
+                    submit(index, 0..1, None);
                 }
             }
         }
-        // Camera-culled objects still cast into visible sun/local shadow maps.
+        // The reference color-batch path also needs camera-culled casters.
         for (index, &covered) in covered.iter().enumerate() {
             if !covered {
-                submit(index, 1, None);
+                submit(index, 0..1, None);
             }
         }
         counts

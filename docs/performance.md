@@ -61,8 +61,10 @@ for potentially coincident samples. Orthographic views also check world bounds,
 expanded by the inverse camera's projection-roundoff footprint, so physically
 separate objects need not retain false projected overlaps. This preserves
 coplanar winners. Transparent objects keep their back-to-front individual draws;
-custom shaders and deformed meshes remain individual. Sun shadows reuse complete
-batches, while offscreen casters and partial light frusta retain individual draws.
+custom shaders and deformed meshes remain individual. Shadow maps group compatible
+opaque, lit casters independently of camera visibility, including offscreen
+objects. Partial light frusta draw contiguous accepted instance ranges without
+repacking the shared buffer or submitting rejected triangles.
 Occlusion tests enclose every member of a potentially nonconsecutive batch.
 
 Compare the previous consecutive batcher with scene-wide grouping using real game
@@ -106,6 +108,35 @@ not a frame-rate guarantee for other saves, hardware or resolutions.
 For the October 1 shared-uniform, batch-capacity and partial-upload work, including
 incremental ordering checks, conservative local-light masks, and repeatable benchmarks, see
 [batch renderer optimizations](batch-renderer-optimizations.md).
+
+## Independent shadow batching
+
+The October 1 follow-up batches sun, spot, and point shadow casters independently
+of color-pass ordering. Cached shadow maps still skip unchanged work. The
+400-build release fixture exercises updated maps during an active wind gust,
+using the ordinary simulation hook budget and real factory assets. Three paired
+runs at 1280 × 800 on Intel Iris Xe / Vulkan compare the former fallback with the
+new groups; each run uses twelve warm-up frames and sixty interleaved samples.
+Exact pixels and submitted triangle counts match at all four camera headings.
+
+| Shadow mode | Shadow draws | Renderer CPU median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Former individual fallback | 1,702 | 11.110 ms | 26.167 ms | 13.138 ms |
+| Independent batches | 710 | 9.856 ms | 24.083 ms | 13.148 ms |
+
+These are medians of three run medians. Shadow draws fall by 58%, CPU time by 11%,
+and synchronized time by 8%; GPU pass time is essentially unchanged. Both modes
+retain 401 color draws, 780 visible items, and 1,590 visible surfaces. GPU values
+sum render/compute pass timestamps; synchronized values include a device wait.
+Neither measures windowed FPS. Separate shadow instance buffers add 16 KiB per
+active group and retain at most eight spare buffers. See the
+[implementation and validation notes](batch-renderer-optimizations.md#independent-shadow-batches)
+for eligibility, caching, and measurement limits.
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_shadow_batching -- --ignored --exact --nocapture
+```
 
 ## Recorded Sponza measurements
 
