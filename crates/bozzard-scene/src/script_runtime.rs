@@ -1227,7 +1227,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
     // Flat triples [tile X, tile Z, visibility/tint] plus per-object exceptions.
     // Zero removes geometry and lighting; 0..1 dims; an empty view restores normal rendering.
     write!("set_tile_view", (cells: Array, exterior: f32, objects: Map), |state| {
-        ensure_script(cells.len() % 3 == 0 && cells.len() <= 300_000
+        ensure_script(cells.len().is_multiple_of(3) && cells.len() <= 300_000
             && objects.len() <= 100_000 && exterior.is_finite() && (0.0..=1.0).contains(&exterior),
             || "invalid tile view".into())?;
         let mut view = tile_view::TileView { exterior: Some(exterior), ..Default::default() };

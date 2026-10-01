@@ -8057,7 +8057,8 @@ fn coop_players_show_slot_colors_and_only_nearby_names() {
 fn expansion_every_machine_and_recipe_produces_all_outputs_only_with_power() {
     // Explicit game recipes: the assertions do not derive expected products
     // from the implementation's recipe table.
-    let recipes: &[(u8, u8, &[(u8, u8)], &[(u8, u8)], usize)] = &[
+    type RecipeCase<'a> = (u8, u8, &'a [(u8, u8)], &'a [(u8, u8)], usize);
+    let recipes: &[RecipeCase<'_>] = &[
         (12, 7, &[], &[(7, 1)], 2),
         (13, 6, &[], &[(6, 1)], 2),
         (14, 27, &[(8, 1)], &[(27, 1)], 4),

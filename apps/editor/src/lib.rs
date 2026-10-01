@@ -931,84 +931,91 @@ impl App {
                     });
                 });
             });
-        egui::Panel::top("scene-bar").frame(theme::bar()).show(ui, |ui| {
-            ui.add_enabled_ui(self.loading.is_none(), |ui| {
-                ui.horizontal(|ui| {
-                    let playing = self.editor.play.is_some();
-                    let left_width = (ui.available_width() * 0.5 - 46.0).max(0.0);
-                    ui.allocate_ui_with_layout(
-                        Vec2::new(left_width, 24.0),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.set_min_width(left_width);
-                            ui.colored_label(theme::ACCENT, "◇");
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(format!(
-                                        "{}{}",
-                                        self.editor.scene().name,
-                                        if self.editor.dirty() { " *" } else { "" }
-                                    ))
-                                    .strong(),
+        egui::Panel::top("scene-bar")
+            .frame(theme::bar())
+            .show(ui, |ui| {
+                ui.add_enabled_ui(self.loading.is_none(), |ui| {
+                    ui.horizontal(|ui| {
+                        let playing = self.editor.play.is_some();
+                        let left_width = (ui.available_width() * 0.5 - 46.0).max(0.0);
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(left_width, 24.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.set_min_width(left_width);
+                                ui.colored_label(theme::ACCENT, "◇");
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(format!(
+                                            "{}{}",
+                                            self.editor.scene().name,
+                                            if self.editor.dirty() { " *" } else { "" }
+                                        ))
+                                        .strong(),
+                                    )
+                                    .truncate(),
                                 )
-                                .truncate(),
+                                .on_hover_text(self.editor.path.display().to_string());
+                            },
+                        );
+                        let play_button = ui
+                            .add_enabled(
+                                !playing
+                                    && self.loading.is_none()
+                                    && !self.editor.is_prefab_source(),
+                                egui::Button::new(egui::RichText::new("▶").color(theme::GREEN)),
                             )
-                            .on_hover_text(self.editor.path.display().to_string());
-                        },
-                    );
-                    let play_button = ui
-                        .add_enabled(
-                            !playing && self.loading.is_none() && !self.editor.is_prefab_source(),
-                            egui::Button::new(egui::RichText::new("▶").color(theme::GREEN)),
-                        )
-                        .on_hover_text(
-                            "Play active scene · Other open scenes remain in the editor",
-                        );
-                    if play_button.clicked() {
-                        play_button.surrender_focus();
-                        self.start_play();
-                    }
-                    if ui
-                        .add_enabled(playing, egui::Button::new("■"))
-                        .on_hover_text("Stop · Escape")
-                        .clicked()
-                    {
-                        self.gameplay_controls.reset();
-                        self.stop_play();
-                    }
-                    self.blueprint_run_controls(ui);
-                    if self
-                        .editor
-                        .play
-                        .as_ref()
-                        .is_some_and(|p| p.multiplayer_active())
-                    {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.join_lobby)
-                                .hint_text("Steam lobby ID")
-                                .desired_width(150.),
-                        );
-                        if ui.button("Join lobby").clicked() {
-                            let result = self
-                                .join_lobby
-                                .trim()
-                                .parse::<u64>()
-                                .map_err(anyhow::Error::from)
-                                .and_then(|id| {
-                                    self.editor.play.as_mut().unwrap().join_multiplayer(id)
-                                });
-                            self.result(result);
+                            .on_hover_text(
+                                "Play active scene · Other open scenes remain in the editor",
+                            );
+                        if play_button.clicked() {
+                            play_button.surrender_focus();
+                            self.start_play();
                         }
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.small(if playing { "PLAY MODE" } else { "EDIT MODE" });
-                        ui.colored_label(if playing { theme::GREEN } else { theme::ACCENT }, "●");
+                        if ui
+                            .add_enabled(playing, egui::Button::new("■"))
+                            .on_hover_text("Stop · Escape")
+                            .clicked()
+                        {
+                            self.gameplay_controls.reset();
+                            self.stop_play();
+                        }
+                        self.blueprint_run_controls(ui);
+                        if self
+                            .editor
+                            .play
+                            .as_ref()
+                            .is_some_and(|p| p.multiplayer_active())
+                        {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.join_lobby)
+                                    .hint_text("Steam lobby ID")
+                                    .desired_width(150.),
+                            );
+                            if ui.button("Join lobby").clicked() {
+                                let result = self
+                                    .join_lobby
+                                    .trim()
+                                    .parse::<u64>()
+                                    .map_err(anyhow::Error::from)
+                                    .and_then(|id| {
+                                        self.editor.play.as_mut().unwrap().join_multiplayer(id)
+                                    });
+                                self.result(result);
+                            }
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.small(if playing { "PLAY MODE" } else { "EDIT MODE" });
+                            ui.colored_label(
+                                if playing { theme::GREEN } else { theme::ACCENT },
+                                "●",
+                            );
+                        });
                     });
+                    #[cfg(feature = "factory")]
+                    self.factory_controls(ui);
                 });
-                #[cfg(feature = "factory")]
-                self.factory_controls(ui);
             });
-        });
     }
     #[cfg(feature = "factory")]
     fn factory_controls(&mut self, ui: &mut egui::Ui) {
@@ -1179,29 +1186,29 @@ impl App {
             });
     }
     fn view_tabs(&mut self, ui: &mut egui::Ui) {
-            let scene = ui.selectable_label(
-                !self.workspace.blueprints_visible && !self.workspace.shaders_visible,
-                "Scene",
-            );
-            if scene.clicked() {
-                self.workspace.blueprints_visible = false;
-                self.workspace.shaders_visible = false;
-            }
-            let blueprint = ui.selectable_label(
-                self.workspace.blueprints_visible && !self.workspace.shaders_visible,
-                "Blueprint",
-            );
-            if blueprint.clicked() {
-                self.workspace.blueprints_visible = true;
-                self.dock_focus = Some(docking::Pane::Scene);
-                self.workspace.shaders_visible = false;
-            }
-            let shader = ui.selectable_label(self.workspace.shaders_visible, "Shader");
-            if shader.clicked() {
-                self.workspace.shaders_visible = true;
-                self.dock_focus = Some(docking::Pane::Scene);
-                self.workspace.blueprints_visible = false;
-            }
+        let scene = ui.selectable_label(
+            !self.workspace.blueprints_visible && !self.workspace.shaders_visible,
+            "Scene",
+        );
+        if scene.clicked() {
+            self.workspace.blueprints_visible = false;
+            self.workspace.shaders_visible = false;
+        }
+        let blueprint = ui.selectable_label(
+            self.workspace.blueprints_visible && !self.workspace.shaders_visible,
+            "Blueprint",
+        );
+        if blueprint.clicked() {
+            self.workspace.blueprints_visible = true;
+            self.dock_focus = Some(docking::Pane::Scene);
+            self.workspace.shaders_visible = false;
+        }
+        let shader = ui.selectable_label(self.workspace.shaders_visible, "Shader");
+        if shader.clicked() {
+            self.workspace.shaders_visible = true;
+            self.dock_focus = Some(docking::Pane::Scene);
+            self.workspace.blueprints_visible = false;
+        }
     }
     fn scene_content(&mut self, ui: &mut egui::Ui) {
         if self.loading.is_some() {

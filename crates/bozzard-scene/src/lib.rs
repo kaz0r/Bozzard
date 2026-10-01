@@ -1453,12 +1453,10 @@ impl SceneInstance {
                         LightKind::Directional => {}
                     }
                 }
-                if light.enabled && light.intensity > 0. {
-                    if factor > 0. {
-                        let mut light = light.at(matrices[id])?;
-                        light.light.intensity *= factor;
-                        lights.push(light);
-                    }
+                if light.enabled && light.intensity > 0. && factor > 0. {
+                    let mut light = light.at(matrices[id])?;
+                    light.light.intensity *= factor;
+                    lights.push(light);
                 }
             }
         }
