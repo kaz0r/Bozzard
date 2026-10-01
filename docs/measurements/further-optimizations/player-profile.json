@@ -1,0 +1,38 @@
+{
+  "debug-native": {
+    "hud_samples_after_loading": 99,
+    "hud_medians": {
+      "draw": 8.731574,
+      "sim": 1.6371,
+      "wait": 0.00122,
+      "frame": 17.341887,
+      "triangles": 349680.0,
+      "draws": 263.0
+    },
+    "native_percentiles": [
+      "player_cpu_frame n=600 median=11.094ms p95=44.241ms p99=47.174ms",
+      "player_presentation_interval n=599 median=14.660ms p95=47.946ms p99=54.170ms",
+      "player_gpu_passes n=600 median=2.943ms p95=3.765ms p99=4.246ms",
+      "player_simulation threaded=true steps=0 cpu_ms=0.002 wait_ms=0.001"
+    ]
+  },
+  "release-fixed-view": {
+    "hud_samples_after_loading": 47,
+    "hud_medians": {
+      "draw": 2.433813,
+      "sim": 0.00039,
+      "wait": 0.00027,
+      "frame": 8.000793,
+      "triangles": 349680.0,
+      "draws": 263.0
+    },
+    "native_percentiles": [
+      "player_cpu_frame n=600 median=3.827ms p95=4.709ms p99=38.430ms",
+      "player_presentation_interval n=599 median=6.937ms p95=9.667ms p99=41.491ms",
+      "player_gpu_passes n=600 median=1.659ms p95=2.070ms p99=2.283ms",
+      "player_simulation threaded=true steps=1 cpu_ms=1.417 wait_ms=0.000"
+    ]
+  },
+  "identical_pack": true,
+  "pack_sha256": "daf40c73a187258edace4d9f6bc1cf2a46e28da0f6d2fc84ca43fd6e4f1d47c7"
+}

@@ -1,0 +1,92 @@
+{
+  "project-final-tests.log": {
+    "passed": 55,
+    "failed": 0,
+    "ignored": 0
+  },
+  "factory-final-tests.log": {
+    "passed": 151,
+    "failed": 0,
+    "ignored": 3
+  },
+  "numeric-final-tests.log": {
+    "passed": 8,
+    "failed": 0,
+    "ignored": 0
+  },
+  "apps-final-tests.log": {
+    "passed": 147,
+    "failed": 0,
+    "ignored": 8
+  },
+  "clippy-final": {
+    "tail": [
+      "    Checking bozzard-scene v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-scene)",
+      "    Checking bozzard-network v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-network)",
+      "    Checking bozzard-assets v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-assets)",
+      "    Checking bozzard-audio v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-audio)",
+      "    Checking bozzard-demo v0.1.0 (/home/lord/Documents/Bozzard/examples/demo)",
+      "    Checking bozzard-render-assets v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-render-assets)",
+      "    Checking bozzard-project v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-project)",
+      "    Checking bozzard-editor v0.1.0 (/home/lord/Documents/Bozzard/crates/bozzard-editor)",
+      "    Checking bozz-torio v0.1.0 (/home/lord/Documents/Bozzard/apps/bozz-torio)",
+      "    Checking bozzard-player v0.1.0 (/home/lord/Documents/Bozzard/apps/player)",
+      "    Checking bozzard-editor-app v0.1.0 (/home/lord/Documents/Bozzard/apps/editor)",
+      "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.19s"
+    ]
+  },
+  "native-editor": {
+    "tail": [
+      "adapter=\"NVIDIA GeForce RTX 3060\" backend=Vulkan type=DiscreteGpu driver=\"NVIDIA\" driver_info=\"610.57.04\"",
+      "editor_repaint_smoke_ok idle_frames=6 scene_draws=0 camera_move_and_restore exact_pixels",
+      "editor_gizmo_smoke_ok move_rotate_scale_visible_right_middle_fly no_transform",
+      "editor_light_smoke_ok authored_component shadow_settings extraction inspector guides native_ui_capture",
+      "editor_gi_smoke_ok background_bake source_current extraction guides save native_ui_capture",
+      "editor_prefab_smoke_ok linked_hierarchy asset_panel inspector shared_source native_ui_capture",
+      "editor_blueprint_smoke_ok dedicated_node_pane multiple_graphs runtime_play_isolation portable_save native_ui_capture",
+      "editor_object_reference_smoke_ok typed_graph inspector_bindings independent_doors play_isolation native_ui_capture",
+      "editor_export_smoke_ok unsaved_authored_changes play_isolation background_export executable_project",
+      "editor_viewport_work draws=12 reused=33",
+      "editor_smoke_ok authored_commands play_isolation native_ui_capture export",
+      "editor_export_smoke_ok unsaved_authored_changes play_isolation background_export executable_project",
+      "editor_viewport_work draws=12 reused=33",
+      "editor_smoke_ok authored_commands play_isolation native_ui_capture export"
+    ]
+  },
+  "bozz-torio-route": {
+    "tail": [
+      "factory_route_ok"
+    ]
+  },
+  "python-tests": {
+    "tail": [
+      "...",
+      "----------------------------------------------------------------------",
+      "Ran 3 tests in 0.048s",
+      "",
+      "OK"
+    ]
+  },
+  "development-editor": {
+    "tail": [
+      "adapter=\"NVIDIA GeForce RTX 3060\" backend=Vulkan type=DiscreteGpu driver=\"NVIDIA\" driver_info=\"610.57.04\"",
+      "editor_repaint_smoke_ok idle_frames=6 scene_draws=0 camera_move_and_restore exact_pixels",
+      "editor_gizmo_smoke_ok move_rotate_scale_visible_right_middle_fly no_transform",
+      "editor_light_smoke_ok authored_component shadow_settings extraction inspector guides native_ui_capture",
+      "editor_gi_smoke_ok background_bake source_current extraction guides save native_ui_capture",
+      "editor_prefab_smoke_ok linked_hierarchy asset_panel inspector shared_source native_ui_capture",
+      "editor_blueprint_smoke_ok dedicated_node_pane multiple_graphs runtime_play_isolation portable_save native_ui_capture",
+      "editor_object_reference_smoke_ok typed_graph inspector_bindings independent_doors play_isolation native_ui_capture",
+      "editor_export_smoke_ok unsaved_authored_changes play_isolation background_export executable_project",
+      "editor_viewport_work draws=12 reused=35",
+      "editor_smoke_ok authored_commands play_isolation native_ui_capture export",
+      "editor_export_smoke_ok unsaved_authored_changes play_isolation background_export executable_project",
+      "editor_viewport_work draws=12 reused=35",
+      "editor_smoke_ok authored_commands play_isolation native_ui_capture export"
+    ]
+  },
+  "development_export_uses_release": {
+    "same_binary": true,
+    "sha256": "bfd806eef124dd716a60cf1afdad53995435d26e8ec82b4ddc8c4f039e5afe72"
+  }
+}
