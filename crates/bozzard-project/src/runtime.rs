@@ -9,7 +9,7 @@ use std::{
 
 // Bump when adding/changing native script APIs used by exported game scripts.
 // The engine package version alone stays fixed during development.
-pub const SCRIPT_API_VERSION: u32 = 0;
+pub const SCRIPT_API_VERSION: u32 = 1;
 
 pub fn build_profile() -> &'static str {
     if cfg!(debug_assertions) {
