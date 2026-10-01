@@ -13,7 +13,7 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 - [x] **Avoid unnecessary frustum corner transforms.** Accept a surface as soon as its first corner rules out every rejection plane. Retain the efficient plane-major fallback and the exact homogeneous distances and relative tolerance; compare the original predicate, CPU workloads, and factory captures.
 - [x] **Cache shadow preparation where safe.** Unchanged opaque state skips local-caster scans after receiver-only edits. Identical fitted sun uniforms can reuse the complete map; moving casters render over a copied static depth layer when enough static groups justify it. Exact metadata, asset publication, fitted projection, target, and failure guards protect reuse.
 - [x] **Reuse fitted sun bounds.** Retain per-surface light-space extrema and transform only changed model/local-bound inputs. Compare exact fitted matrix/range/texel bytes with the original loop, and report direct fitting-stage and factory timings.
-- [ ] **Reduce repeated shadow metadata allocation and classification.** Profile reusing successful-frame metadata storage and retained static membership, with exact geometry/material/light guards and failed-frame recovery. Keep direct preparation timing and full reference captures.
+- [x] **Reduce repeated shadow metadata allocation and classification.** Compare successful-frame metadata directly with current draws, share opaque/full field comparisons when they refer to the same row, and supply the static membership mask in that pass. Refresh retained storage only after submission, copying changed keys and preserving failure invalidation. Profile against full snapshot rebuilding with direct CPU timing and exact factory captures.
 
 ## Baseline and verification
 
@@ -274,4 +274,47 @@ cargo test --release --offline -p bozzard-editor --test earth_factory \
   profile_earth_factory_sun_fit -- --ignored --exact --nocapture
 cargo test --offline -p bozzard-render --lib \
   cached_extents_match_original_fit_bytes_through_edits -- --nocapture
+```
+
+### Retained shadow metadata and direct classification
+
+Shadow-state checks now compare the previous successful snapshot directly with current prepared draws. A single ordered traversal supplies full-frame, sun, opaque-caster and static-membership results. The full and opaque iterators share a field comparison when they reference the same stored row; transparent receiver insertion/removal can shift them, so those rows retain separate exact comparisons. A changed opaque count or culling mode clears static membership conservatively, matching the previous classifier.
+
+After successful submission, the existing snapshot retains matching rows and refreshes changed rows. Mesh/texture keys clone only when changed; scalar depth fields update independently. New rows use the original constructor, removed rows drop, and large reductions request shrinking. The feature keeps one retained snapshot rather than building another complete snapshot while the previous one is live. Classification uses two temporary boolean arrays proportional to the draw count, with no additional GPU texture or instance buffer.
+
+The snapshot is still removed before shadow writes. Any later failure drops the unpublished candidate and forces complete revalidation on retry. Asset publication drops the retained snapshot even when IDs match. `set_shadow_metadata_reuse_enabled(false)` restores original construction/comparison/retirement; disabling general state caching also selects that path. `FrameStats` exposes snapshot comparison/classification/construction/retirement CPU time and counts of built, refreshed and retained caster records, plus mesh/texture clone calls. Those calls are work counts, not allocator counts; primitive keys can clone without allocation.
+
+A deterministic 5,000-sequence test compares the direct classifier against original snapshot equality, sun equality, opaque equality and static masks, then compares refreshed storage with a freshly constructed snapshot. It covers model motion, transparency, lit changes, UVs, texture/mesh keys, deformation, opacity/cutoff, reorder, insertion/removal, sun/bias/culling edits and local-light activation/order/settings. The native sun/local regressions compare rebuilding against retained storage through geometry/material edits, publications, failure/retry and mode changes; the moving-caster fixture verifies record/clone counts. The full native renderer suite passes **61 tests**, with five manual tests skipped, serially. Renderer all-target and factory-target Clippy pass with warnings denied and `--no-deps`; formatting/diff checks pass, and release player/editor are rebuilt.
+
+#### Metadata release measurements
+
+Intel Iris Xe / Vulkan (Mesa 26.2.3), 1280 × 800, 2048² sun map, the same 400-build active-gust factory. Three paired release runs use twelve warm-up frames and sixty alternating measured frames each, with both modes retaining fitted-bound and static-depth caches. Compilation and validation are outside measurements. Exact pixels and submitted color/shadow triangles match at four camera headings in every run; all sixty GPU timestamp samples per mode are complete.
+
+| Snapshot/classification | Direct state CPU median | Renderer CPU median / p95 | Preparation median | Encoding median | Submission median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Construct new snapshot and compare | 0.575732 ms | 8.435 / 13.016 ms | 6.822 ms | 0.194 ms | 1.340 ms | 21.286 ms | 11.078 ms |
+| Compare current draws and refresh retained rows | 0.193701 ms | 7.728 / 11.547 ms | 6.106 ms | 0.189 ms | 1.284 ms | 20.630 ms | 11.241 ms |
+
+Values are medians of three run medians; p95 is the median of the three run p95s. **Direct state work falls 66% (about 0.38 ms)**, median renderer CPU time **8%**, preparation **10%**, and synchronized time **3%**. GPU pass time is about 1.5% higher with identical submitted work; this establishes no GPU speedup. Median CPU p95 is 11% lower, but one run has a small rise, so tail improvement is not universal. Stage medians need not sum to total CPU medians; synchronized values include a device wait and GPU values sum measured passes, excluding gaps. These are local renderer comparisons rather than windowed FPS.
+
+| Measured work per frame | Rebuilt snapshot | Retained snapshot |
+| --- | ---: | ---: |
+| New caster records | 2,891 | 0 |
+| Refreshed caster records | 0 | 8 |
+| Reused caster records | 0 | 2,883 |
+| Mesh/texture clone calls | 5,782 | 0 |
+
+Both modes retain 780 visible items, 1,590 visible surfaces, 401 color draws, two shadow draws, one sun depth copy, 10,134 of 50,880 object/light pairs, and zero individual object-uniform writes. Fitting medians remain near 0.053 ms in both modes. Cold/publication frames still build all needed metadata; the table describes warmed steady state.
+
+| Run | Full / retained state CPU | Full / retained CPU median | Full / retained CPU p95 | Full / retained synchronized | Full / retained GPU passes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.575732 / 0.193488 ms | 8.713 / 7.728 ms | 11.785 / 11.884 ms | 21.360 / 20.630 ms | 11.074 / 11.165 ms |
+| 2 | 0.589288 / 0.198170 ms | 8.435 / 7.902 ms | 14.575 / 11.547 ms | 21.079 / 20.568 ms | 11.233 / 11.241 ms |
+| 3 | 0.554153 / 0.193701 ms | 8.203 / 7.659 ms | 13.016 / 11.472 ms | 21.286 / 20.735 ms | 11.078 / 11.303 ms |
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_shadow_metadata -- --ignored --exact --nocapture
+cargo test --offline -p bozzard-render --lib \
+  direct_classification_and_retained_metadata_match_original_snapshots -- --nocapture
 ```

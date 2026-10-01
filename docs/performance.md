@@ -206,6 +206,27 @@ runs; GPU time is essentially unchanged, synchronized time improves about 1%,
 and CPU p95 is slightly higher. See [fit guards, exact tests, individual runs,
 and preliminary timing variation](batch-renderer-optimizations.md#retained-sun-fit-bounds).
 
+## Retained shadow metadata
+
+Direct comparison with the successful snapshot now supplies shadow-cache and
+static-membership decisions in one traversal. Unchanged rows keep their keys;
+changed scalar fields refresh after submission. Failure and asset-publication
+guards preserve complete revalidation.
+
+Three paired release runs of the same active-gust factory report medians of run medians:
+
+| State preparation | Direct state CPU | Renderer CPU median / p95 | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Rebuild snapshot | 0.575732 ms | 8.435 / 13.016 ms | 21.286 ms | 11.078 ms |
+| Retain rows and classify directly | 0.193701 ms | 7.728 / 11.547 ms | 20.630 ms | 11.241 ms |
+
+Direct state work improves 66%, total CPU median 8%, and synchronized time 3%.
+Measured frames build no new caster records, refresh eight and reuse 2,883;
+mesh/texture clone calls fall from 5,782 to zero. Submitted geometry and captures
+match. GPU time is about 1.5% higher; no GPU speedup is established. The full
+native suite passes 61 tests. See [classification guards, individual runs and
+reproduction](batch-renderer-optimizations.md#retained-shadow-metadata-and-direct-classification).
+
 ## Recorded Sponza measurements
 
 The editor picking comparison used 200 same-process samples, alternating BVH and linear traversal order for each paired measurement. The reported values use midpoint medians in milliseconds; p95 values, when printed by the example, use nearest-rank selection. The wider 1,681-ray checks were untimed and compared object and surface identities against the linear oracle.

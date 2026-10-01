@@ -10,7 +10,7 @@ pub(super) struct ShadowFrame {
     culling: bool,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 struct ShadowLight {
     position: [f32; 3],
     direction: [f32; 3],
@@ -33,7 +33,69 @@ pub(super) struct ShadowCaster {
     lit: bool,
 }
 
+pub(super) struct Comparison {
+    pub whole: bool,
+    pub sun: bool,
+    pub opaque: bool,
+    pub stable_mask: Vec<bool>,
+    pub unchanged: Vec<bool>,
+}
+impl Comparison {
+    pub fn cold(count: usize) -> Self {
+        Self {
+            whole: false,
+            sun: false,
+            opaque: false,
+            stable_mask: vec![false; count],
+            unchanged: vec![false; count],
+        }
+    }
+}
+fn sun_key(scene: &RenderScene) -> (bool, u32, [f32; 3], f32, f32) {
+    let l = scene.lighting;
+    (
+        l.shadows && l.sun_intensity > 0.,
+        l.shadow_resolution,
+        l.sun_direction,
+        l.shadow_bias,
+        l.shadow_normal_bias,
+    )
+}
+fn light_key(l: &LocalLight) -> ShadowLight {
+    let shadow = l.shadows.unwrap();
+    ShadowLight {
+        position: l.position,
+        direction: if l.spot_angles.is_some() {
+            l.direction
+        } else {
+            [0.; 3]
+        },
+        range: l.range,
+        angles: l.spot_angles,
+        bias: shadow.bias,
+        normal_bias: shadow.normal_bias,
+    }
+}
 impl ShadowCaster {
+    fn refresh(&mut self, d: &PreparedDraw) -> usize {
+        let mut clones = 0;
+        if self.mesh != d.object.mesh {
+            self.mesh = d.object.mesh.clone();
+            clones += 1;
+        }
+        if self.texture != d.object.material.texture {
+            self.texture = d.object.material.texture.clone();
+            clones += 1;
+        }
+        self.deformation = d.deformation;
+        self.model = d.object.model;
+        self.uv_scale = d.object.material.uv_scale;
+        self.opacity = d.opacity;
+        self.cutoff = d.cutoff;
+        self.transparent = d.transparent;
+        self.lit = d.object.material.lit;
+        clones
+    }
     pub fn matches(&self, d: &PreparedDraw) -> bool {
         self.deformation == d.deformation
             && self.model == d.object.model
@@ -61,6 +123,103 @@ impl ShadowCaster {
 }
 
 impl ShadowFrame {
+    pub fn compare(
+        &self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        culling: bool,
+    ) -> Comparison {
+        let mut result = Comparison::cold(draws.len());
+        let mut previous = self.casters.iter();
+        let mut opaque = self.casters.iter().filter(|c| !c.transparent);
+        let mut all_same = true;
+        let mut opaque_same = true;
+        let mut opaque_count_same = true;
+        for (index, d) in draws
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.object.material.lit)
+        {
+            let prior = previous.next();
+            let unchanged = prior.is_some_and(|p| p.matches(d));
+            result.unchanged[index] = unchanged;
+            all_same &= unchanged;
+            if !d.transparent {
+                let old = opaque.next();
+                opaque_count_same &= old.is_some();
+                // Opaque and complete iterators usually refer to the same row.
+                // Share the field comparison unless a receiver shifted them.
+                let same = old.is_some_and(|p| {
+                    if prior.is_some_and(|a| std::ptr::eq(a, p)) {
+                        unchanged
+                    } else {
+                        p.matches(d)
+                    }
+                });
+                opaque_same &= same;
+                result.stable_mask[index] = same && d.deformation == 0;
+            }
+        }
+        all_same &= previous.next().is_none();
+        opaque_count_same &= opaque.next().is_none();
+        let same_culling = self.culling == culling;
+        if !opaque_count_same || !same_culling {
+            result.stable_mask.fill(false);
+        }
+        result.opaque = opaque_same && opaque_count_same && same_culling;
+        result.sun = all_same && same_culling && self.sun == sun_key(scene);
+        result.whole = result.sun
+            && self.lights.iter().copied().eq(scene
+                .lights
+                .iter()
+                .filter(|l| l.casts_shadow())
+                .map(light_key));
+        result
+    }
+    pub fn refresh(
+        &mut self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        culling: bool,
+        unchanged: &[bool],
+        stats: &mut FrameStats,
+    ) {
+        self.sun = sun_key(scene);
+        self.culling = culling;
+        self.lights.clear();
+        self.lights.extend(
+            scene
+                .lights
+                .iter()
+                .filter(|l| l.casts_shadow())
+                .map(light_key),
+        );
+        let mut row = 0;
+        for (index, d) in draws
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.object.material.lit)
+        {
+            if row == self.casters.len() {
+                self.casters.push(ShadowCaster::new(d));
+                stats.shadow_metadata_built_casters += 1;
+                stats.shadow_metadata_key_clones += 2;
+            } else if unchanged[index] {
+                stats.shadow_metadata_reused_casters += 1;
+            } else {
+                stats.shadow_metadata_updated_casters += 1;
+                stats.shadow_metadata_key_clones += self.casters[row].refresh(d);
+            }
+            row += 1;
+        }
+        self.casters.truncate(row);
+        if self.casters.capacity() > row.saturating_mul(2).max(64) {
+            self.casters.shrink_to(row);
+        }
+        if self.lights.capacity() > self.lights.len().saturating_mul(2).max(8) {
+            self.lights.shrink_to(self.lights.len());
+        }
+    }
     pub fn stable_casters(&self, draws: &[PreparedDraw], culling: bool) -> Vec<bool> {
         let mut mask = vec![false; draws.len()];
         let opaque = |d: &&PreparedDraw| !d.transparent && d.object.material.lit;
@@ -1011,5 +1170,144 @@ mod fit_cache_tests {
                 .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
                 .fallback
         );
+    }
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+    fn draw(id: u64) -> PreparedDraw {
+        PreparedDraw {
+            source_item: 0,
+            deformation: 0,
+            pbr_override: [-1.; 2],
+            shader: None,
+            pbr: false,
+            opacity: 1.,
+            cutoff: 0.,
+            transparent: false,
+            depth: 0.,
+            object: DrawItem {
+                motion_id: id,
+                model: Mat4::from_translation(Vec3::X * id as f32),
+                mesh: MeshKind::ModelPart(format!("mesh-{id}"), 0),
+                material: Material {
+                    metallic: None,
+                    roughness: None,
+                    surface_overrides: Default::default(),
+                    tint: [1.; 3],
+                    uv_scale: [1.; 2],
+                    texture: TextureKind::Imported(format!("texture-{id}")),
+                    lit: true,
+                    shader: None,
+                },
+            },
+        }
+    }
+    #[test]
+    fn direct_classification_and_retained_metadata_match_original_snapshots() {
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            shader_time: 0.,
+            particles: vec![],
+            fog: Default::default(),
+            gi: None,
+            lights: vec![LocalLight {
+                directional: false,
+                position: [0., 0., 1.],
+                direction: [0., 0., -1.],
+                color: [1.; 3],
+                intensity: 2.,
+                range: 10.,
+                spot_angles: None,
+                shadows: Some(Default::default()),
+            }],
+            environment: EnvironmentSettings::disabled(),
+            display: Default::default(),
+            lighting: Default::default(),
+            view_projection: Mat4::IDENTITY,
+            items: vec![],
+        };
+        let mut spot = scene.lights[0];
+        spot.spot_angles = Some([20., 35.]);
+        scene.lights.push(spot);
+        let mut draws: Vec<_> = (0..67).map(draw).collect();
+        let mut culling = true;
+        let mut retained = ShadowFrame::new(&scene, &draws, culling);
+        let mut seed = 23u64;
+        for tick in 0..5000 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let index = (seed >> 32) as usize % draws.len();
+            match tick % 20 {
+                0 => draws[index].object.model *= Mat4::from_translation(Vec3::X * 0.1),
+                1 => draws[index].transparent = !draws[index].transparent,
+                2 => draws[index].object.material.lit = !draws[index].object.material.lit,
+                3 => draws[index].object.material.uv_scale[0] += 0.1,
+                4 => {
+                    draws[index].object.material.texture =
+                        TextureKind::Imported(format!("updated-{tick}"))
+                }
+                5 => {
+                    draws[index].object.mesh =
+                        MeshKind::ModelPart(format!("updated-{tick}"), tick % 3)
+                }
+                6 => draws[index].deformation = draws[index].deformation.wrapping_add(1),
+                7 => draws[index].opacity = (tick % 100) as f32 / 100.,
+                8 => draws[index].cutoff = (tick % 90) as f32 / 100.,
+                9 => draws.swap(index, 0),
+                10 => draws.push(draw(tick as u64 + 10000)),
+                11 => {
+                    if draws.len() > 1 {
+                        draws.remove(index);
+                    }
+                }
+                12 => scene.lighting.shadow_bias += 0.00001,
+                13 => scene.lighting.sun_direction[0] += 0.01,
+                14 => scene.lights[0].position[0] += 0.1,
+                15 => {
+                    scene.lights[0].intensity = if scene.lights[0].intensity > 0. {
+                        0.
+                    } else {
+                        2.
+                    }
+                }
+                16 => scene.lights.swap(0, 1),
+                17 => culling = !culling,
+                18 => scene.lighting.shadows = !scene.lighting.shadows,
+                _ => {
+                    scene.lights[1].shadows.as_mut().unwrap().normal_bias += 0.001;
+                }
+            }
+            let original = ShadowFrame::new(&scene, &draws, culling);
+            let result = retained.compare(&scene, &draws, culling);
+            assert_eq!(result.whole, retained == original, "whole at {tick}");
+            assert_eq!(result.sun, retained.same_sun(&original), "sun at {tick}");
+            assert_eq!(
+                result.opaque,
+                retained.same_local_casters(&original),
+                "opaque at {tick}"
+            );
+            assert_eq!(
+                result.stable_mask,
+                retained.stable_casters(&draws, culling),
+                "mask at {tick}"
+            );
+            let mut stats = FrameStats::default();
+            retained.refresh(&scene, &draws, culling, &result.unchanged, &mut stats);
+            assert!(retained == original, "refreshed at {tick}");
+            assert_eq!(
+                stats.shadow_metadata_built_casters
+                    + stats.shadow_metadata_updated_casters
+                    + stats.shadow_metadata_reused_casters,
+                draws.iter().filter(|d| d.object.material.lit).count()
+            );
+        }
+        let comparison = retained.compare(&scene, &draws, culling);
+        assert!(comparison.whole);
+        let mut stats = FrameStats::default();
+        retained.refresh(&scene, &draws, culling, &comparison.unchanged, &mut stats);
+        assert_eq!(stats.shadow_metadata_key_clones, 0);
+        assert_eq!(stats.shadow_metadata_built_casters, 0);
+        assert_eq!(stats.shadow_metadata_updated_casters, 0);
     }
 }

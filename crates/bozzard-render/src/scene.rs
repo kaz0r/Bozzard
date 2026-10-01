@@ -266,6 +266,7 @@ pub struct SceneRenderer {
     early_frustum_acceptance: bool,
     shadow_preparation_cache: bool,
     sun_fit_caching: bool,
+    shadow_metadata_reuse: bool,
     occlusion: occlusion::Occlusion,
     state_caching: bool,
     light_selection: local_lights::LightSelection,
@@ -751,6 +752,7 @@ impl SceneRenderer {
             early_frustum_acceptance: true,
             shadow_preparation_cache: true,
             sun_fit_caching: true,
+            shadow_metadata_reuse: true,
             occlusion: Default::default(),
             state_caching: true,
             light_selection: Default::default(),
@@ -2138,23 +2140,51 @@ impl SceneRenderer {
             &visible,
             &batches,
         );
-        let shadow_frame = shadows::ShadowFrame::new(scene, &draws, self.culling);
-        self.stats.shadow_cache_hit =
-            self.state_caching && self.shadow_frame.as_ref() == Some(&shadow_frame);
-        let mut sun_changed = !self.state_caching
-            || !self
-                .shadow_frame
-                .as_ref()
-                .is_some_and(|previous| previous.same_sun(&shadow_frame));
+        let state_started = std::time::Instant::now();
+        let reuse_metadata = self.shadow_metadata_reuse && self.state_caching;
+        let mut shadow_frame =
+            (!reuse_metadata).then(|| shadows::ShadowFrame::new(scene, &draws, self.culling));
+        let mut comparison = if reuse_metadata {
+            self.shadow_frame.as_ref().map_or_else(
+                || shadows::Comparison::cold(draws.len()),
+                |p| p.compare(scene, &draws, self.culling),
+            )
+        } else {
+            let frame = shadow_frame.as_ref().unwrap();
+            self.stats.shadow_metadata_built_casters =
+                draws.iter().filter(|d| d.object.material.lit).count();
+            self.stats.shadow_metadata_key_clones = self.stats.shadow_metadata_built_casters * 2;
+            let whole = self.state_caching && self.shadow_frame.as_ref() == Some(frame);
+            shadows::Comparison {
+                whole,
+                sun: self.state_caching
+                    && self
+                        .shadow_frame
+                        .as_ref()
+                        .is_some_and(|p| p.same_sun(frame)),
+                opaque: self.shadow_preparation_cache
+                    && !whole
+                    && self.state_caching
+                    && (scene.lights.iter().any(LocalLight::casts_shadow)
+                        || scene.lighting.shadows && scene.lighting.sun_intensity > 0.)
+                    && self
+                        .shadow_frame
+                        .as_ref()
+                        .is_some_and(|p| p.same_local_casters(frame)),
+                stable_mask: Vec::new(),
+                unchanged: Vec::new(),
+            }
+        };
+        self.stats.shadow_state_ms = state_started.elapsed().as_secs_f64() * 1000.;
+        self.stats.shadow_cache_hit = self.state_caching && comparison.whole;
+        let mut sun_changed = !self.state_caching || !comparison.sun;
         let same_opaque_casters = self.shadow_preparation_cache
             && !self.stats.shadow_cache_hit
             && self.state_caching
             && (scene.lights.iter().any(LocalLight::casts_shadow)
                 || scene.lighting.shadows && scene.lighting.sun_intensity > 0.)
-            && self
-                .shadow_frame
-                .as_ref()
-                .is_some_and(|previous| previous.same_local_casters(&shadow_frame));
+            && comparison.opaque;
+        let mut previous_frame = None;
         let mut spot_changes = Vec::new();
         let mut point_changes = Vec::new();
         let mut shadow_batches = None;
@@ -2162,7 +2192,7 @@ impl SceneRenderer {
         if !self.stats.shadow_cache_hit {
             // Invalidate before queueing writes: a later frame error must not leave a
             // valid-looking stamp paired with partially updated shadow uniforms.
-            let previous_frame = self.shadow_frame.take();
+            previous_frame = self.shadow_frame.take();
             let mut uniform_unchanged = false;
             if sun_changed {
                 let update =
@@ -2220,7 +2250,13 @@ impl SceneRenderer {
                 && self.state_caching
                 && let Some(previous) = &previous_frame
             {
-                let mask = previous.stable_casters(&draws, self.culling);
+                let state_started = std::time::Instant::now();
+                let mask = if reuse_metadata {
+                    std::mem::take(&mut comparison.stable_mask)
+                } else {
+                    previous.stable_casters(&draws, self.culling)
+                };
+                self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
                 sun_plan = self.shadows.sun_cache.prepare(
                     gpu,
                     &draws,
@@ -2239,6 +2275,11 @@ impl SceneRenderer {
                 }
             }
             self.stats.shadow_cache_hit = self.stats.shadow_maps_rendered == 0;
+            if !reuse_metadata {
+                let state_started = std::time::Instant::now();
+                drop(previous_frame.take());
+                self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
+            }
         }
         self.stats.sun_bounds_cache_bytes = self.shadows.sun_fit.bytes();
         // Packed color and shadow groups already contain their uniforms.
@@ -2550,7 +2591,28 @@ impl SceneRenderer {
                 .sun_cache
                 .finish(plan, &draws, &self.shadows.uniform_row);
         }
-        self.shadow_frame = Some(shadow_frame);
+        let state_started = std::time::Instant::now();
+        if reuse_metadata {
+            if let Some(mut frame) = previous_frame.or_else(|| self.shadow_frame.take()) {
+                frame.refresh(
+                    scene,
+                    &draws,
+                    self.culling,
+                    &comparison.unchanged,
+                    &mut self.stats,
+                );
+                self.shadow_frame = Some(frame);
+            } else {
+                self.stats.shadow_metadata_built_casters =
+                    draws.iter().filter(|d| d.object.material.lit).count();
+                self.stats.shadow_metadata_key_clones =
+                    self.stats.shadow_metadata_built_casters * 2;
+                self.shadow_frame = Some(shadows::ShadowFrame::new(scene, &draws, self.culling));
+            }
+        } else {
+            self.shadow_frame = shadow_frame.take();
+        }
+        self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())

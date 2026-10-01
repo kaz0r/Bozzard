@@ -317,6 +317,7 @@ fn unchanged_local_shadow_casters_skip_scans_and_preserve_invalidation() -> anyh
     let mut renderers =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
     renderers[0].set_shadow_preparation_caching_enabled(false);
+    renderers[0].set_shadow_metadata_reuse_enabled(false);
     for renderer in &mut renderers {
         upload(&gpu, renderer, 255)?;
         renderer.upload_image(&gpu, "receiver", 1, 1, &[120, 160, 240, 128])?;
@@ -1089,6 +1090,7 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
     let mut renderers =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
     renderers[0].set_shadow_preparation_caching_enabled(false);
+    renderers[0].set_shadow_metadata_reuse_enabled(false);
     renderers[0].set_sun_fit_caching_enabled(false);
     for renderer in &mut renderers {
         for i in 0..32 {
@@ -1129,6 +1131,14 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
         assert_eq!(cached.sun_dynamic_casters, 8);
         assert_eq!(cached.sun_bounds_recomputed, 8);
         assert_eq!(cached.sun_bounds_reused, 249);
+        assert_eq!(cached.shadow_metadata_built_casters, 0);
+        assert_eq!(cached.shadow_metadata_updated_casters, 8);
+        assert_eq!(cached.shadow_metadata_reused_casters, 249);
+        assert_eq!(cached.shadow_metadata_key_clones, 0);
+        assert_eq!(
+            renderers[0].frame_stats().shadow_metadata_built_casters,
+            257
+        );
         assert_eq!(cached.sun_static_casters, 249);
         if tick > 0 {
             assert!(cached.sun_static_cache_reused);

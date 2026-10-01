@@ -1154,6 +1154,12 @@ fn profile_earth_factory_sun_fit() -> anyhow::Result<()> {
     profile_factory_renderer(FactoryProfile::SunFit)
 }
 
+#[test]
+#[ignore = "release-mode 400-machine shadow metadata profile; requires a graphics adapter"]
+fn profile_earth_factory_shadow_metadata() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::ShadowMetadata)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FactoryProfile {
     SceneBatching,
@@ -1162,10 +1168,12 @@ enum FactoryProfile {
     FrustumAcceptance,
     ShadowPreparation,
     SunFit,
+    ShadowMetadata,
 }
 
 struct RendererSample {
     sun_fit: f64,
+    shadow_state: f64,
     cpu: f64,
     synchronized: f64,
     prepare: f64,
@@ -1241,6 +1249,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
             renderers[0].set_shadow_preparation_caching_enabled(false)
         }
         FactoryProfile::SunFit => renderers[0].set_sun_fit_caching_enabled(false),
+        FactoryProfile::ShadowMetadata => renderers[0].set_shadow_metadata_reuse_enabled(false),
     }
     for renderer in &mut renderers {
         renderer.set_profiling_enabled(true);
@@ -1297,6 +1306,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
                 let stats = renderers[mode].frame_stats();
                 samples[mode].push(RendererSample {
                     sun_fit: stats.sun_fit_ms,
+                    shadow_state: stats.shadow_state_ms,
                     cpu: stats.cpu_ms,
                     synchronized: synchronized_ms,
                     prepare: stats.prepare_ms,
@@ -1315,6 +1325,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
             ["full-shadow-preparation", "cached-shadow-preparation"]
         }
         FactoryProfile::SunFit => ["original-sun-fit", "cached-sun-extents"],
+        FactoryProfile::ShadowMetadata => ["rebuilt-shadow-snapshot", "retained-shadow-snapshot"],
     };
     for (mode, values) in samples.iter().enumerate() {
         let mut cpu: Vec<_> = values.iter().map(|v| v.cpu).collect();
@@ -1367,6 +1378,15 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
             modes[mode],
             median(|v| v.sun_fit)
         );
+        println!(
+            "mode={} shadow_state_median_ms={:.6} metadata_built={} metadata_updated={} metadata_reused={} key_clones={}",
+            modes[mode],
+            median(|v| v.shadow_state),
+            stats.shadow_metadata_built_casters,
+            stats.shadow_metadata_updated_casters,
+            stats.shadow_metadata_reused_casters,
+            stats.shadow_metadata_key_clones
+        );
     }
     if profile == FactoryProfile::ShadowBatching {
         assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
@@ -1393,7 +1413,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         );
     } else if matches!(
         profile,
-        FactoryProfile::FrustumAcceptance | FactoryProfile::SunFit
+        FactoryProfile::FrustumAcceptance | FactoryProfile::SunFit | FactoryProfile::ShadowMetadata
     ) {
         assert_eq!(
             renderers[0].frame_stats().color_draws,
@@ -1438,6 +1458,13 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         assert!(b.sun_bounds_recomputed < a.sun_bounds_recomputed);
         assert!(b.sun_bounds_reused > 0);
         assert!(!b.sun_bounds_fallback);
+    }
+    if profile == FactoryProfile::ShadowMetadata {
+        let a = renderers[0].frame_stats();
+        let b = renderers[1].frame_stats();
+        assert_eq!(b.shadow_metadata_built_casters, 0);
+        assert!(b.shadow_metadata_reused_casters > b.shadow_metadata_updated_casters);
+        assert!(b.shadow_metadata_key_clones < a.shadow_metadata_key_clones);
     }
     for heading in [0., 90., 180., 270.] {
         let play = editor.play.as_mut().unwrap();

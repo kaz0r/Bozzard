@@ -74,6 +74,13 @@ pub struct FrameStats {
     pub sun_bounds_cache_bytes: usize,
     /// CPU time spent computing/validating fitted sun bounds in this frame.
     pub sun_fit_ms: f64,
+    /// CPU snapshot comparison/classification/construction/retirement time.
+    pub shadow_state_ms: f64,
+    pub shadow_metadata_built_casters: usize,
+    pub shadow_metadata_updated_casters: usize,
+    pub shadow_metadata_reused_casters: usize,
+    /// Mesh/texture clone calls; primitive keys may not allocate.
+    pub shadow_metadata_key_clones: usize,
     pub graph_compilations: usize,
     /// All active graphs plus at most eight recently absent graphs.
     pub resident_graphs: usize,
@@ -204,6 +211,10 @@ impl SceneRenderer {
         if !enabled {
             self.shadows.sun_fit.clear();
         }
+    }
+    /// Compare retained snapshot storage/classification with full snapshot rebuilding.
+    pub fn set_shadow_metadata_reuse_enabled(&mut self, enabled: bool) {
+        self.shadow_metadata_reuse = enabled;
     }
     pub(super) fn frustum_visible(&self, bounds: [Vec3; 2], mvp: Mat4) -> bool {
         if self.early_frustum_acceptance {
