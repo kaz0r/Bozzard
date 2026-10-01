@@ -156,6 +156,7 @@ pub(super) struct Shadows {
     pub resolution: u32,
     pub uniform_row: Vec<u8>,
     pub sun_cache: sun_cache::Cache,
+    pub sun_fit: sun_fit::Cache,
 }
 
 fn module_text(instanced: bool) -> String {
@@ -455,6 +456,7 @@ impl Shadows {
             resolution: 1,
             uniform_row: Vec::new(),
             sun_cache: sun_cache::Cache::default(),
+            sun_fit: sun_fit::Cache::default(),
         }
     }
     pub fn rebind(&mut self, gpu: &Gpu) {
@@ -546,12 +548,7 @@ fn fit(
     direction: Vec3,
     resolution: u32,
 ) -> Option<(Mat4, f32, f32)> {
-    let up = if direction.dot(Vec3::Y).abs() > 0.99 {
-        Vec3::Z
-    } else {
-        Vec3::Y
-    };
-    let view = glam::camera::rh::view::look_to_mat4(Vec3::ZERO, -direction, up);
+    let view = sun_view(direction);
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = -min;
     for p in points {
@@ -559,6 +556,22 @@ fn fit(
         min = min.min(p);
         max = max.max(p);
     }
+    fit_extents(min, max, view, resolution)
+}
+pub(super) fn sun_view(direction: Vec3) -> Mat4 {
+    let up = if direction.dot(Vec3::Y).abs() > 0.99 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    };
+    glam::camera::rh::view::look_to_mat4(Vec3::ZERO, -direction, up)
+}
+pub(super) fn fit_extents(
+    min: Vec3,
+    max: Vec3,
+    view: Mat4,
+    resolution: u32,
+) -> Option<(Mat4, f32, f32)> {
     if !min.is_finite() || !max.is_finite() {
         return None;
     }
@@ -602,20 +615,46 @@ impl SceneRenderer {
         gpu: &Gpu,
         scene: &RenderScene,
         draws: &[PreparedDraw],
+        bounds: &[[Vec3; 2]],
         reuse_depth: bool,
     ) -> Result<(bool, bool)> {
+        let fit_started = std::time::Instant::now();
         let light = scene.lighting;
-        let fit = fit(
-            draws
-                .iter()
-                .filter(|d| d.object.material.lit)
-                .flat_map(|d| {
-                    corners(self.mesh_for(&d.object).bounds)
-                        .map(|p| d.object.model.transform_point3(p))
-                }),
-            Vec3::from(light.sun_direction).normalize(),
-            light.shadow_resolution,
-        );
+        let direction = Vec3::from(light.sun_direction).normalize();
+        let cached = (self.sun_fit_caching && self.state_caching).then(|| {
+            self.shadows.sun_fit.prepare(
+                sun_view(direction),
+                light.shadow_resolution,
+                draws
+                    .iter()
+                    .zip(bounds)
+                    .map(|(d, b)| (d.object.model, *b, d.object.material.lit)),
+            )
+        });
+        let fit = if let Some(cached) = &cached
+            && !cached.fallback
+        {
+            self.stats.sun_bounds_reused = cached.reused;
+            self.stats.sun_bounds_recomputed = cached.rebuilt;
+            cached.fit
+        } else {
+            self.stats.sun_bounds_fallback = cached.is_some();
+            self.stats.sun_bounds_recomputed =
+                draws.iter().filter(|d| d.object.material.lit).count()
+                    + cached.as_ref().map_or(0, |c| c.rebuilt);
+            fit(
+                draws
+                    .iter()
+                    .filter(|d| d.object.material.lit)
+                    .flat_map(|d| {
+                        corners(self.mesh_for(&d.object).bounds)
+                            .map(|p| d.object.model.transform_point3(p))
+                    }),
+                direction,
+                light.shadow_resolution,
+            )
+        };
+        self.stats.sun_fit_ms = fit_started.elapsed().as_secs_f64() * 1000.;
         let enabled = light.shadows && light.sun_intensity > 0. && fit.is_some();
         let resolution = if enabled { light.shadow_resolution } else { 1 };
         ensure!(
@@ -863,6 +902,114 @@ mod tests {
         assert!(
             grew,
             "the fitted box never stretched far enough to need the wider bias"
+        );
+    }
+}
+
+#[cfg(test)]
+mod fit_cache_tests {
+    use super::*;
+    fn bits(value: Option<(Mat4, f32, f32)>) -> Option<Vec<u32>> {
+        value.map(|(m, r, t)| {
+            m.to_cols_array()
+                .into_iter()
+                .chain([r, t])
+                .map(f32::to_bits)
+                .collect()
+        })
+    }
+    #[test]
+    fn cached_extents_match_original_fit_bytes_through_edits() {
+        let mut cache = sun_fit::Cache::default();
+        let mut seed = 17u64;
+        let mut random = || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            ((seed >> 32) as u32 as f32 / u32::MAX as f32 - 0.5) * 40.
+        };
+        let bounds = [Vec3::splat(-0.5), Vec3::splat(0.5)];
+        let mut inputs: Vec<_> = (0..64)
+            .map(|_| {
+                (
+                    Mat4::from_translation(Vec3::new(random(), random(), random())),
+                    bounds,
+                    true,
+                )
+            })
+            .collect();
+        for tick in 0..5000 {
+            let index = tick % inputs.len();
+            inputs[index].0 = Mat4::from_translation(Vec3::new(random(), random(), random()))
+                * Mat4::from_rotation_y(random())
+                * Mat4::from_scale(Vec3::new(random(), random(), random()));
+            if tick % 17 == 0 {
+                inputs[index].2 = !inputs[index].2;
+            }
+            if tick % 29 == 0 {
+                inputs[index].1[1].x += 0.125;
+            }
+            if tick % 31 == 0 {
+                inputs.swap(1, 7);
+            }
+            let direction = match tick / 100 % 5 {
+                0 => Vec3::Y,
+                1 => -Vec3::Y,
+                2 => Vec3::new(0.01, 1., 0.01).normalize(),
+                3 => Vec3::new(0.4, 0.85, 0.35).normalize(),
+                _ => Vec3::new(-0.3, -0.4, -0.5).normalize(),
+            };
+            let resolution = if tick % 3 == 0 { 512 } else { 2048 };
+            let expected = fit(
+                inputs
+                    .iter()
+                    .filter(|i| i.2)
+                    .flat_map(|(m, b, _)| corners(*b).map(|p| m.transform_point3(p))),
+                direction,
+                resolution,
+            );
+            let result = cache.prepare(sun_view(direction), resolution, inputs.iter().copied());
+            assert!(!result.fallback);
+            assert_eq!(bits(result.fit), bits(expected), "tick {tick}");
+            if tick % 100 != 0 && inputs.iter().filter(|i| i.2).count() > 4 {
+                assert!(result.reused > 0, "tick {tick}");
+            }
+        }
+        for scale in [0., -0., 1e-20, 1e20] {
+            for item in &mut inputs {
+                item.0 = Mat4::from_scale(Vec3::splat(scale));
+                item.2 = true;
+            }
+            let result = cache.prepare(sun_view(Vec3::Z), 256, inputs.iter().copied());
+            let expected = fit(
+                inputs
+                    .iter()
+                    .flat_map(|(m, b, _)| corners(*b).map(|p| m.transform_point3(p))),
+                Vec3::Z,
+                256,
+            );
+            assert_eq!(bits(result.fit), bits(expected));
+        }
+        inputs.clear();
+        assert!(
+            cache
+                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .fit
+                .is_none()
+        );
+        inputs.push((
+            Mat4::from_scale(Vec3::splat(3e38)),
+            [Vec3::splat(-2.), Vec3::splat(2.)],
+            true,
+        ));
+        assert!(
+            cache
+                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .fallback
+        );
+        inputs[0].0 = Mat4::IDENTITY;
+        assert!(
+            !cache
+                .prepare(sun_view(Vec3::Z), 256, inputs.iter().copied())
+                .fallback
         );
     }
 }

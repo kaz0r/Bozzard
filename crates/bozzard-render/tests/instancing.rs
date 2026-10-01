@@ -1089,6 +1089,7 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
     let mut renderers =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
     renderers[0].set_shadow_preparation_caching_enabled(false);
+    renderers[0].set_sun_fit_caching_enabled(false);
     for renderer in &mut renderers {
         for i in 0..32 {
             renderer.upload_image(&gpu, &format!("pattern-{i}"), 1, 1, &[180, 220, 160, 255])?;
@@ -1126,6 +1127,8 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
         let cached = renderers[1].frame_stats();
         assert_eq!(cached.sun_depth_copies, 1, "tick {tick}: {cached:?}");
         assert_eq!(cached.sun_dynamic_casters, 8);
+        assert_eq!(cached.sun_bounds_recomputed, 8);
+        assert_eq!(cached.sun_bounds_reused, 249);
         assert_eq!(cached.sun_static_casters, 249);
         if tick > 0 {
             assert!(cached.sun_static_cache_reused);

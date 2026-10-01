@@ -186,6 +186,26 @@ cost in GPU timestamps. The fixture has no active local shadow maps, so this
 factory timing measures the sun cache. The full native suite passes 59 tests.
 See [cache guards, individual runs and reproduction](batch-renderer-optimizations.md#static-sun-depth-and-shadow-preparation).
 
+## Retained sun-fitting bounds
+
+The sun fitter retains per-surface light-space extrema keyed by exact model,
+local-bound and sun-view bits. Changed bounds use the original corner/transform
+order; non-finite corners fall back to the complete reference reduction.
+
+Three paired release runs of the same 400-build factory report median-of-run medians:
+
+| Fitter | Direct fitting CPU | Renderer CPU median / p95 | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: |
+| Original loop | 0.185437 ms | 9.251 / 12.209 ms | 21.649 ms | 11.284 ms |
+| Cached extrema | 0.056986 ms | 8.251 / 12.705 ms | 21.434 ms | 11.186 ms |
+
+The directly measured fitting stage improves 69%, or about 0.13 ms, recomputing
+8 bounds instead of 2,891. Allocation is about 328 KiB. Submitted geometry and
+exact captures match. Larger total CPU/preparation differences vary between
+runs; GPU time is essentially unchanged, synchronized time improves about 1%,
+and CPU p95 is slightly higher. See [fit guards, exact tests, individual runs,
+and preliminary timing variation](batch-renderer-optimizations.md#retained-sun-fit-bounds).
+
 ## Recorded Sponza measurements
 
 The editor picking comparison used 200 same-process samples, alternating BVH and linear traversal order for each paired measurement. The reported values use midpoint medians in milliseconds; p95 values, when printed by the example, use nearest-rank selection. The wider 1,681-ray checks were untimed and compared object and surface identities against the linear oracle.

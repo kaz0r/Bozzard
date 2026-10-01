@@ -57,6 +57,7 @@ mod point_shadows;
 mod shadows;
 mod spot_shadows;
 mod sun_cache;
+mod sun_fit;
 mod upload;
 pub use lighting::Lighting;
 pub use upload::{
@@ -264,6 +265,7 @@ pub struct SceneRenderer {
     culling: bool,
     early_frustum_acceptance: bool,
     shadow_preparation_cache: bool,
+    sun_fit_caching: bool,
     occlusion: occlusion::Occlusion,
     state_caching: bool,
     light_selection: local_lights::LightSelection,
@@ -748,6 +750,7 @@ impl SceneRenderer {
             culling: true,
             early_frustum_acceptance: true,
             shadow_preparation_cache: true,
+            sun_fit_caching: true,
             occlusion: Default::default(),
             state_caching: true,
             light_selection: Default::default(),
@@ -987,6 +990,7 @@ impl SceneRenderer {
         self.instancing.shadow_bindings.clear();
         self.shadow_frame = None;
         self.shadows.sun_cache.clear();
+        self.shadows.sun_fit.clear();
         self.shadows.spots.invalidate();
         self.shadows.points.invalidate();
     }
@@ -2161,7 +2165,8 @@ impl SceneRenderer {
             let previous_frame = self.shadow_frame.take();
             let mut uniform_unchanged = false;
             if sun_changed {
-                let update = self.update_shadows(gpu, scene, &draws, same_opaque_casters)?;
+                let update =
+                    self.update_shadows(gpu, scene, &draws, &bounds, same_opaque_casters)?;
                 uniform_unchanged = update.0;
                 sun_changed = !update.1;
                 self.stats.sun_shadow_fit_reused = update.1;
@@ -2235,6 +2240,7 @@ impl SceneRenderer {
             }
             self.stats.shadow_cache_hit = self.stats.shadow_maps_rendered == 0;
         }
+        self.stats.sun_bounds_cache_bytes = self.shadows.sun_fit.bytes();
         // Packed color and shadow groups already contain their uniforms.
         // Upload individual buffers for singletons and ineligible casters.
         let sun_individuals = !self.stats.shadow_cache_hit

@@ -12,7 +12,8 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 - [x] **Batch shadow casters independently.** Group depth casters independently of camera visibility and color ordering, including offscreen objects. Draw consecutive visible instance ranges within each light's frustum, avoid unused individual uniform uploads, and compare exact pixels, triangle counts, and dense-factory CPU/GPU measurements against the former fallback.
 - [x] **Avoid unnecessary frustum corner transforms.** Accept a surface as soon as its first corner rules out every rejection plane. Retain the efficient plane-major fallback and the exact homogeneous distances and relative tolerance; compare the original predicate, CPU workloads, and factory captures.
 - [x] **Cache shadow preparation where safe.** Unchanged opaque state skips local-caster scans after receiver-only edits. Identical fitted sun uniforms can reuse the complete map; moving casters render over a copied static depth layer when enough static groups justify it. Exact metadata, asset publication, fitted projection, target, and failure guards protect reuse.
-- [ ] **Reduce fitted sun and classification work.** The static-depth cache improves GPU and submission time but adds CPU preparation work. Profile retaining per-caster light-space bounds and stable classification, with exact asset/transform/light-direction invalidation and the original fitted projection as the reference.
+- [x] **Reuse fitted sun bounds.** Retain per-surface light-space extrema and transform only changed model/local-bound inputs. Compare exact fitted matrix/range/texel bytes with the original loop, and report direct fitting-stage and factory timings.
+- [ ] **Reduce repeated shadow metadata allocation and classification.** Profile reusing successful-frame metadata storage and retained static membership, with exact geometry/material/light guards and failed-frame recovery. Keep direct preparation timing and full reference captures.
 
 ## Baseline and verification
 
@@ -232,4 +233,45 @@ cargo test --offline -p bozzard-render --test instancing \
   static_sun_depth_matches_full_render_through_moving_casters_and_invalidations -- --exact
 cargo test --offline -p bozzard-render --test instancing \
   unchanged_local_shadow_casters_skip_scans_and_preserve_invalidation -- --exact
+```
+
+### Retained sun-fit bounds
+
+The directional fitter reuses the mesh bounds already collected by the renderer and retains each lit surface's light-space extrema. Model and local-bound keys compare floating-point **bits**, including signed zero; a changed sun-view matrix invalidates every retained extent. Lit eligibility clears an excluded slot, and asset publication clears the cache. Reordering, insertion, and deformation are safe because reuse depends on the actual current local bounds and model at each slot, rather than an asset ID. Resolution changes still recompute the fitted projection using retained extrema.
+
+Changed surfaces retain the original eight-corner loop and its two separate transforms (`model`, then sun view). Combining those transforms first would change rounding. Global extrema reduce in original surface order; projection, texel snapping, range and bias calculations keep their original expressions. Any non-finite transformed corner falls back to the original complete reduction, preserving its NaN/infinity behavior. These are pure CPU values, so a failed frame cannot publish incorrect GPU state through this cache. The earlier depth-map submission guards remain in effect.
+
+The allocation retains one scalar entry per current surface, with no per-entry heap allocation. It requests shrinking after large count reductions; the measured factory allocation is **335,356 bytes (about 328 KiB)**. Disabling `set_sun_fit_caching_enabled` or publishing assets releases it. `FrameStats` reports fitting CPU time, reused/recomputed counts, fallback, and allocated bytes. The diagnostic restores the original whole-scene corner loop, including its original mesh lookup path; both modes retain the static sun depth cache from the preceding pass.
+
+A deterministic test compares exact fitted matrix, range, and texel-size bits through **5,000 edit sequences** over 64 surfaces, including translation, rotation, mirrored/nonuniform scale, local-bound edits, lit changes, reorder, vertical/opposite/nearly vertical sun views, and changing resolution. Separate zero/signed-zero, tiny/large, empty, overflow/fallback and recovery cases pass. Native static-depth captures compare the original fitter with cached fitting while moving eight casters and verify the expected 249 reused and eight recomputed bounds in that fixture. The full native renderer suite passes **60 tests**, with five manual tests skipped, serially. Renderer all-target and factory-target Clippy pass with warnings denied and `--no-deps`; formatting and diff checks pass, and release player/editor executables are rebuilt.
+
+#### Sun-fitting release measurements
+
+Same Intel Iris Xe / Vulkan (Mesa 26.2.3), 1280 × 800, 2048² sun map, 400-build active-gust factory. Three instrumented paired release runs use twelve warm-up frames and sixty alternating measured frames each. Exact captures and color/shadow triangle counts match at four camera headings in every run; all sixty GPU timestamp samples per mode are complete. Compilation and other validation finish before each measured run.
+
+| Fitter | Direct fit CPU median | Renderer CPU median / p95 | Preparation median | Encoding median | Submission median | Synchronized median | GPU pass median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original corner loop and mesh lookup | 0.185437 ms | 9.251 / 12.209 ms | 7.525 ms | 0.190 ms | 1.292 ms | 21.649 ms | 11.284 ms |
+| Retained light-space extrema | 0.056986 ms | 8.251 / 12.705 ms | 6.279 ms | 0.198 ms | 1.302 ms | 21.434 ms | 11.186 ms |
+
+Values are medians of three run medians; p95 is the median of the three run p95s. **Direct fit time falls 69% (about 0.13 ms per updating frame)**. The factory recomputes **8 bounds instead of 2,891**, reusing 2,883. All modes retain 780 visible items, 1,590 visible surfaces, 401 color draws, two shadow draws, one sun depth copy, and 10,134 of 50,880 object/light pairs, with no individual object uniform writes. GPU time is essentially unchanged, as expected for identical submitted work.
+
+The instrumented runs show 11% lower total renderer CPU median and 17% lower preparation median, but these larger changes vary beyond the direct fitting savings and should not all be attributed to the fitter. Synchronized time changes by only 1%, and CPU p95 rises 4%; no tail-latency improvement is established. Two preliminary runs before adding direct-stage timing showed smaller total CPU improvements and one preparation regression, recorded below. The stable result is reduced fitting work and its directly measured cost. Stage medians need not sum to total CPU medians; synchronized time includes a device wait, GPU values sum measured passes, and neither is windowed FPS.
+
+| Instrumented run | Full / cached fit median | Full / cached CPU median | Full / cached CPU p95 | Full / cached preparation | Full / cached synchronized | Full / cached GPU passes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.181062 / 0.057885 ms | 9.400 / 8.568 ms | 12.124 / 13.756 ms | 7.662 / 6.729 ms | 21.649 / 21.618 ms | 11.284 / 11.186 ms |
+| 2 | 0.187258 / 0.056860 ms | 9.222 / 8.251 ms | 14.483 / 11.570 ms | 7.525 / 6.166 ms | 21.744 / 21.434 ms | 11.369 / 11.182 ms |
+| 3 | 0.185437 / 0.056986 ms | 9.251 / 8.120 ms | 12.209 / 12.705 ms | 7.505 / 6.279 ms | 21.524 / 21.327 ms | 11.189 / 11.207 ms |
+
+| Preliminary run, without direct-stage timing | Full / cached CPU median | Full / cached preparation | Full / cached synchronized | Full / cached GPU passes |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 9.054 / 8.368 ms | 6.892 / 6.703 ms | 21.851 / 21.657 ms | 11.350 / 11.333 ms |
+| 2 | 8.859 / 8.717 ms | 6.674 / 7.253 ms | 21.807 / 21.226 ms | 11.111 / 11.169 ms |
+
+```sh
+cargo test --release --offline -p bozzard-editor --test earth_factory \
+  profile_earth_factory_sun_fit -- --ignored --exact --nocapture
+cargo test --offline -p bozzard-render --lib \
+  cached_extents_match_original_fit_bytes_through_edits -- --nocapture
 ```

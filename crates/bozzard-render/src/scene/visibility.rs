@@ -65,6 +65,15 @@ pub struct FrameStats {
     pub sun_dynamic_casters: usize,
     /// Full-map depth copies, included in shadow draw/triangle and GPU pass counts.
     pub sun_depth_copies: usize,
+    /// Per-caster light-space bounds reused/recomputed while fitting the sun map.
+    pub sun_bounds_reused: usize,
+    pub sun_bounds_recomputed: usize,
+    /// A non-finite corner required the original whole-scene reduction.
+    pub sun_bounds_fallback: bool,
+    /// Retained light-space bounds allocation, excluding the inline cache header.
+    pub sun_bounds_cache_bytes: usize,
+    /// CPU time spent computing/validating fitted sun bounds in this frame.
+    pub sun_fit_ms: f64,
     pub graph_compilations: usize,
     /// All active graphs plus at most eight recently absent graphs.
     pub resident_graphs: usize,
@@ -187,6 +196,13 @@ impl SceneRenderer {
         self.shadow_preparation_cache = enabled;
         if !enabled {
             self.shadows.sun_cache.clear();
+        }
+    }
+    /// Compare retained light-space bounds with the original sun-fitting loop.
+    pub fn set_sun_fit_caching_enabled(&mut self, enabled: bool) {
+        self.sun_fit_caching = enabled;
+        if !enabled {
+            self.shadows.sun_fit.clear();
         }
     }
     pub(super) fn frustum_visible(&self, bounds: [Vec3; 2], mvp: Mat4) -> bool {

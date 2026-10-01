@@ -1148,6 +1148,12 @@ fn profile_earth_factory_shadow_preparation() -> anyhow::Result<()> {
     profile_factory_renderer(FactoryProfile::ShadowPreparation)
 }
 
+#[test]
+#[ignore = "release-mode 400-machine sun-fit profile; requires a graphics adapter"]
+fn profile_earth_factory_sun_fit() -> anyhow::Result<()> {
+    profile_factory_renderer(FactoryProfile::SunFit)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FactoryProfile {
     SceneBatching,
@@ -1155,9 +1161,11 @@ enum FactoryProfile {
     ShadowBatching,
     FrustumAcceptance,
     ShadowPreparation,
+    SunFit,
 }
 
 struct RendererSample {
+    sun_fit: f64,
     cpu: f64,
     synchronized: f64,
     prepare: f64,
@@ -1232,6 +1240,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         FactoryProfile::ShadowPreparation => {
             renderers[0].set_shadow_preparation_caching_enabled(false)
         }
+        FactoryProfile::SunFit => renderers[0].set_sun_fit_caching_enabled(false),
     }
     for renderer in &mut renderers {
         renderer.set_profiling_enabled(true);
@@ -1287,6 +1296,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
                 }
                 let stats = renderers[mode].frame_stats();
                 samples[mode].push(RendererSample {
+                    sun_fit: stats.sun_fit_ms,
                     cpu: stats.cpu_ms,
                     synchronized: synchronized_ms,
                     prepare: stats.prepare_ms,
@@ -1304,6 +1314,7 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         FactoryProfile::ShadowPreparation => {
             ["full-shadow-preparation", "cached-shadow-preparation"]
         }
+        FactoryProfile::SunFit => ["original-sun-fit", "cached-sun-extents"],
     };
     for (mode, values) in samples.iter().enumerate() {
         let mut cpu: Vec<_> = values.iter().map(|v| v.cpu).collect();
@@ -1351,6 +1362,11 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
             stats.local_shadow_caster_checks,
             stats.local_shadow_maps_reused_without_scan
         );
+        println!(
+            "mode={} sun_fit_median_ms={:.6}",
+            modes[mode],
+            median(|v| v.sun_fit)
+        );
     }
     if profile == FactoryProfile::ShadowBatching {
         assert!(renderers[1].frame_stats().shadow_draws < renderers[0].frame_stats().shadow_draws);
@@ -1375,7 +1391,10 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         assert!(
             renderers[1].frame_stats().color_draws < renderers[0].frame_stats().color_draws / 2
         );
-    } else if profile == FactoryProfile::FrustumAcceptance {
+    } else if matches!(
+        profile,
+        FactoryProfile::FrustumAcceptance | FactoryProfile::SunFit
+    ) {
         assert_eq!(
             renderers[0].frame_stats().color_draws,
             renderers[1].frame_stats().color_draws
@@ -1404,6 +1423,21 @@ fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
         assert!(cached.sun_static_cache_reused);
         assert!(cached.shadow_draws < reference.shadow_draws);
         assert!(cached.shadow_triangles < reference.shadow_triangles);
+    }
+    if profile == FactoryProfile::SunFit {
+        let a = renderers[0].frame_stats();
+        let b = renderers[1].frame_stats();
+        println!(
+            "sun_bounds original_recomputed={} cached_recomputed={} cached_reused={} fallback={} bytes={}",
+            a.sun_bounds_recomputed,
+            b.sun_bounds_recomputed,
+            b.sun_bounds_reused,
+            b.sun_bounds_fallback,
+            b.sun_bounds_cache_bytes
+        );
+        assert!(b.sun_bounds_recomputed < a.sun_bounds_recomputed);
+        assert!(b.sun_bounds_reused > 0);
+        assert!(!b.sun_bounds_fallback);
     }
     for heading in [0., 90., 180., 270.] {
         let play = editor.play.as_mut().unwrap();
