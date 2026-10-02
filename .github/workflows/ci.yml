@@ -50,6 +50,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bozzard-xdg"
           chmod 700 "$RUNNER_TEMP/bozzard-xdg"
           echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
+          # Feature-specific tests also compile separate dependency graphs. Keep
+          # source-line backtraces without filling the runner with full debug
+          # information and incremental data; test assertions stay enabled.
+          echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_TEST_DEBUG=line-tables-only" >> "$GITHUB_ENV"
       - name: Install pinned toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
       - name: Development package layout tests
