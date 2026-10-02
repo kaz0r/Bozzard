@@ -303,6 +303,30 @@ impl SceneDemo {
                 .view_from_camera(&self.app.world, layer, aspect, inspection_pose)
         }
     }
+    /// A frozen native snapshot shares unchanged drawable and shader payloads.
+    pub fn render_view_shared(
+        &self,
+        layer: bozzard_scene::Layer,
+        aspect: f32,
+        inspection_pose: Option<glam::Mat4>,
+    ) -> anyhow::Result<bozzard_scene::SharedSceneView> {
+        if self.render_interpolation
+            && !self.app.is_paused()
+            && bozzard_scene::game_flow::simulation_running(&self.app.world)
+            && !self.multiplayer_active()
+        {
+            self.instance().view_shared_interpolated_from_camera(
+                &self.app.world,
+                layer,
+                aspect,
+                inspection_pose,
+                self.app.interpolation(),
+            )
+        } else {
+            self.instance()
+                .view_shared_from_camera(&self.app.world, layer, aspect, inspection_pose)
+        }
+    }
     /// Native hosts opt into overlapping local simulation with a prepared frame.
     /// Multiplayer retains its own independently paced worker.
     pub fn set_threaded_simulation(&mut self, enabled: bool) -> anyhow::Result<()> {

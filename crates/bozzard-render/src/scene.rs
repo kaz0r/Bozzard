@@ -20,6 +20,7 @@ pub use text::{ScreenText, TextAlignment, TextMesh, text_bounds};
 mod host;
 pub(crate) use host::host_text;
 mod instancing;
+mod preparation;
 mod visibility;
 pub use visibility::FrameStats;
 mod occlusion;
@@ -194,6 +195,7 @@ struct UploadedPart {
     shading: Option<crate::pbr::UploadedShading>,
 }
 struct PreparedDraw {
+    preparation: preparation::DrawPreparation,
     source_item: usize,
     deformation: u64,
     pbr_override: [f32; 2],
@@ -262,6 +264,8 @@ pub struct SceneRenderer {
     particles: Option<particles::Particles>,
     text: Option<text::TextRenderer>,
     stats: FrameStats,
+    surface_preparation: preparation::SurfacePreparation,
+    surface_preparation_caching: bool,
     culling: bool,
     early_frustum_acceptance: bool,
     shadow_preparation_cache: bool,
@@ -748,6 +752,8 @@ impl SceneRenderer {
             text: None,
             stats: Default::default(),
             profiler: Default::default(),
+            surface_preparation: Default::default(),
+            surface_preparation_caching: true,
             culling: true,
             early_frustum_acceptance: true,
             shadow_preparation_cache: true,
@@ -983,6 +989,7 @@ impl SceneRenderer {
     }
 
     fn invalidate_object_bindings(&mut self) {
+        self.surface_preparation.clear();
         self.occlusion.invalidate();
         if let Some(hud) = &mut self.hud {
             hud.invalidate();
@@ -1560,179 +1567,6 @@ impl SceneRenderer {
         }
         (u64::from(mesh.count / 3) * u64::from(instances), binds)
     }
-    fn prepare(&self, scene: &RenderScene) -> Vec<PreparedDraw> {
-        let mut draws = Vec::new();
-        let mut add = |source_item: usize,
-                       object: DrawItem,
-                       opacity: f32,
-                       cutoff: Option<f32>,
-                       translucent: bool,
-                       center: Vec3,
-                       pbr_override: [f32; 2],
-                       pbr: bool| {
-            let depth = scene
-                .view_projection
-                .project_point3(object.model.transform_point3(center))
-                .z;
-            draws.push(PreparedDraw {
-                source_item,
-                deformation: self.skinning.revision(&object),
-                pbr_override,
-                pbr,
-                shader: object.material.shader.as_ref().map(|s| s.id),
-                object,
-                opacity,
-                cutoff: cutoff.unwrap_or(0.0),
-                transparent: cutoff.is_none() && translucent,
-                depth,
-            });
-        };
-        for (source_item, object) in scene.items.iter().enumerate() {
-            if let MeshKind::Sprite(sprite) = &object.mesh {
-                if sprite.screen.is_none()
-                    && let Some(mesh) = self.sprites.mesh(sprite)
-                {
-                    add(
-                        source_item,
-                        object.clone(),
-                        sprite.opacity,
-                        None,
-                        true,
-                        (mesh.bounds[0] + mesh.bounds[1]) * 0.5,
-                        [-1.; 2],
-                        false,
-                    );
-                }
-                continue;
-            }
-            if let MeshKind::Text(text) = &object.mesh {
-                if text.screen.is_some() {
-                    continue;
-                }
-                if let Some(mesh) = self.text.as_ref().and_then(|t| t.mesh(text)) {
-                    add(
-                        source_item,
-                        object.clone(),
-                        text.opacity,
-                        None,
-                        true,
-                        (mesh.bounds[0] + mesh.bounds[1]) * 0.5,
-                        [-1.; 2],
-                        false,
-                    );
-                }
-                continue;
-            }
-            if let MeshKind::Imported(id) | MeshKind::ModelPart(id, _) = &object.mesh
-                && let Some(parts) = self.models.get(id)
-            {
-                let overrides: BTreeMap<_, _> = object
-                    .material
-                    .surface_overrides
-                    .iter()
-                    .map(|v| (v.surface as usize, v))
-                    .collect();
-                let (start, count) = match &object.mesh {
-                    MeshKind::ModelPart(_, index) => (*index, 1),
-                    _ => (0, parts.len()),
-                };
-                // Expanded surface entities already identify their part. Slice iterators
-                // skip directly to it instead of scanning every sibling for every entity.
-                for (index, part) in parts.iter().enumerate().skip(start).take(count) {
-                    let mut item = object.clone();
-                    if matches!(object.mesh, MeshKind::ModelPart(..)) {
-                        item.model *= Mat4::from_translation(-part.center);
-                    }
-                    item.mesh = MeshKind::ModelPart(id.clone(), index);
-                    for (tint, color) in item.material.tint.iter_mut().zip(part.color) {
-                        *tint *= color;
-                    }
-                    let override_value = overrides
-                        .get(&index)
-                        .filter(|value| value.source == part.source_key);
-                    if let Some(value) = override_value {
-                        item.model *= Mat4::from_translation(part.center)
-                            * value.transform
-                            * Mat4::from_translation(-part.center);
-                        for (uv, scale) in item.material.uv_scale.iter_mut().zip(value.uv_scale) {
-                            *uv *= scale;
-                        }
-                        if let Some(texture) = &value.texture {
-                            item.material.texture = texture.clone();
-                        }
-                    }
-                    let translucent = if item.material.texture == TextureKind::White
-                        && override_value.is_none_or(|v| v.texture.is_none())
-                    {
-                        if part.texture.is_some() {
-                            item.material.texture = TextureKind::ModelPart(id.clone(), index);
-                        }
-                        part.translucent
-                    } else {
-                        part.color[3] < 1.0
-                            || matches!(&item.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
-                            || matches!(&item.material.texture, TextureKind::Generated(_))
-                    };
-                    if let Some(value) = override_value {
-                        for (tint, multiplier) in item.material.tint.iter_mut().zip(value.tint) {
-                            *tint *= multiplier;
-                        }
-                    }
-                    let factors = [
-                        override_value
-                            .and_then(|v| v.metallic)
-                            .or(item.material.metallic)
-                            .unwrap_or(-1.),
-                        override_value
-                            .and_then(|v| v.roughness)
-                            .or(item.material.roughness)
-                            .unwrap_or(-1.),
-                    ];
-                    let center = self
-                        .skinning
-                        .mesh(&item)
-                        .map_or(part.center, |mesh| (mesh.bounds[0] + mesh.bounds[1]) * 0.5);
-                    add(
-                        source_item,
-                        item,
-                        part.color[3],
-                        part.cutoff,
-                        translucent,
-                        center,
-                        factors,
-                        part.shading.is_some(),
-                    );
-                }
-            } else {
-                let transparent = matches!(&object.material.texture, TextureKind::Imported(id) if self.transparent_textures.contains(id))
-                    || matches!(&object.material.texture, TextureKind::Generated(_));
-                add(
-                    source_item,
-                    object.clone(),
-                    1.0,
-                    None,
-                    transparent,
-                    Vec3::ZERO,
-                    [
-                        object.material.metallic.unwrap_or(-1.),
-                        object.material.roughness.unwrap_or(-1.),
-                    ],
-                    false,
-                );
-            }
-        }
-        // Opaque first, grouped by shader pipeline; translucent surfaces back-to-front by projected center.
-        draws.sort_by(|a, b| {
-            a.transparent.cmp(&b.transparent).then_with(|| {
-                if a.transparent {
-                    b.depth.total_cmp(&a.depth)
-                } else {
-                    a.shader.cmp(&b.shader).then_with(|| a.pbr.cmp(&b.pbr))
-                }
-            })
-        });
-        draws
-    }
     /// Logical-to-physical pixel scale for HUD text; world rendering is unchanged.
     pub fn set_hud_scale(&mut self, scale: f32) {
         self.hud_scale = if scale.is_finite() {
@@ -1774,6 +1608,8 @@ impl SceneRenderer {
             // Skin commands now share the frame encoder. A failed frame drops that
             // encoder before submission, so its cached poses must be retried.
             self.skinning.invalidate();
+            self.surface_preparation.clear();
+            self.stats.surface_preparation_bytes = 0;
             self.shadow_frame = None;
         }
         result
@@ -1913,11 +1749,10 @@ impl SceneRenderer {
         self.sprites.prepare(gpu, &scene.items)?;
         let draws = self.prepare(scene);
         // Keep all active pipelines and a bounded set of recently absent previews.
-        let mut graph_sources: BTreeMap<(u64, bool), std::sync::Arc<ShaderSource>> =
-            BTreeMap::new();
+        let mut graph_sources: BTreeMap<(u64, bool), &ShaderSource> = BTreeMap::new();
         for draw in &draws {
             if let Some(shader) = &draw.object.material.shader {
-                graph_sources.insert((shader.id, auxiliary), shader.clone());
+                graph_sources.insert((shader.id, auxiliary), shader.as_ref());
             }
         }
         ensure!(
@@ -1940,7 +1775,7 @@ impl SceneRenderer {
         }
         for (id, source) in graph_sources {
             if !self.graphs.contains_key(&id) {
-                let pipelines = self.compile_graph(gpu, &source, auxiliary)?;
+                let pipelines = self.compile_graph(gpu, source, auxiliary)?;
                 self.graphs.insert(id, std::sync::Arc::new(pipelines));
                 self.stats.graph_compilations += 1;
             }
@@ -2614,6 +2449,9 @@ impl SceneRenderer {
         }
         self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
+        if self.state_caching && self.surface_preparation_caching {
+            self.surface_preparation.draws = draws;
+        }
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())
     }

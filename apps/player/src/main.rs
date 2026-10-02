@@ -237,6 +237,7 @@ struct View {
     gpu: Gpu,
     config: wgpu::SurfaceConfiguration,
     renderer: SceneRenderer,
+    render_cache: bozzard_render_assets::RenderSceneCache,
     compute: bozzard_render_assets::ComputeBridge,
     drawable: bool,
     occluded: bool,
@@ -363,6 +364,7 @@ impl View {
             gpu,
             config,
             renderer,
+            render_cache: Default::default(),
             compute,
             drawable: size.width > 0 && size.height > 0,
             occluded: false,
@@ -543,9 +545,10 @@ impl View {
         self.renderer
             .set_hud_scale(self.window.scale_factor() as f32);
         assets.poll()?;
-        let mut scene = extract(
+        let mut scene = presentation::extract_frame(
             demo,
             assets.store(),
+            &self.render_cache,
             layer,
             self.config.width as f32 / self.config.height as f32,
         )?;
@@ -561,15 +564,13 @@ impl View {
         self.ui_wants_pointer = ui.wants_pointer();
         self.accessibility
             .update(&ui, &demo.instance().document().name, scale);
-        scene
-            .items
-            .extend(bozzard_render_assets::widget_items(&ui, assets.store())?);
+        scene.append_items(bozzard_render_assets::widget_items(&ui, assets.store())?);
         if !assets.prepare_frame(&self.gpu, &mut self.renderer, &scene)? {
             self.surface_status = "streaming graphics resources";
             return Ok(false);
         }
         if !assets.current() {
-            scene.gi = None;
+            scene.clear_gi();
         }
         // Streaming may skip a frame while a new mesh uploads. Do that before
         // acquiring a swapchain image: dropping an acquired, unpresented image

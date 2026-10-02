@@ -158,6 +158,7 @@ impl Editor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bozzard_render::MeshKind;
     #[test]
     fn child_entities_preserve_geometry_and_support_independent_components() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

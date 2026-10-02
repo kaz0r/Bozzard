@@ -7,6 +7,10 @@ The benchmarks below separate factory simulation, editor CPU work, and synchroni
 For local motion smoothness at 60/120/144 Hz, interpolation overhead, and native
 pixel comparisons, see [render interpolation](render-interpolation.md).
 
+For native frame ownership, incremental drawable/material/surface preparation,
+paired full-path profiles and exact factory pixel comparisons, see
+[retained render scenes](retained-render-scenes.md).
+
 ## Factory simulation
 
 Run the real factory scene in an empty creative world with a fixed seed, including its normal HUD and production updates:
