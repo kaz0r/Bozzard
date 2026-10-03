@@ -101,7 +101,8 @@ The benchmark’s reference/culling/cache comparison is a diagnostic for rendere
 ## Scene-wide opaque batching
 
 The scene renderer groups visible repeated meshes across intervening model parts,
-using the same mesh, texture, lighting eligibility and stock shader flavor. Each indexed draw packs up
+using the same mesh, texture, lighting eligibility, host flavor and shader-graph
+content hash (or the stock shader). Each indexed draw packs up
 to 64 instances within the portable 16 KiB uniform limit. Shared frame constants
 leave each instance with a 256-byte record; changed records upload independently.
 A cached plan also retains grouping through modest movement and orthographic
@@ -115,11 +116,16 @@ for potentially coincident samples. Orthographic views also check world bounds,
 expanded by the inverse camera's projection-roundoff footprint, so physically
 separate objects need not retain false projected overlaps. This preserves
 coplanar winners. Transparent objects keep their back-to-front individual draws;
-custom shaders and deformed meshes remain individual. Shadow maps group compatible
+Opaque shader graphs share the same instance-record path; deformed meshes, text
+and sprites remain individual. Shadow maps group compatible
 opaque, lit casters independently of camera visibility, including offscreen
 objects. Partial light frusta draw contiguous accepted instance ranges without
 repacking the shared buffer or submitting rejected triangles.
 Occlusion tests enclose every member of a potentially nonconsecutive batch.
+
+See [shader-graph batching](shader-graph-batching.md) for eligibility counters,
+exact parity tests and three paired 400-build factory measurements. The graph
+optimization reduces that fixture's active color commands from 401 to 63.
 
 Compare the previous consecutive batcher with scene-wide grouping using real game
 assets in six loaded regions, including 324 multipart machine prefabs:

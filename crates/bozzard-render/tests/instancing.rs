@@ -694,10 +694,20 @@ fn incremental_plans_retain_camera_and_rotor_edits_but_rebuild_for_new_conflicts
     scene.view_projection = Mat4::from_rotation_z(0.04) * scene.view_projection;
     compare(&gpu, &mut renderers, &scene)?;
     assert!(renderers[1].frame_stats().batch_plan_reused);
-    // A large relocation escapes the certified bounds and must build a new plan.
-    scene.items[0].model = scene.items[3].model;
+    // Leaving an envelope is not itself a conflict: renew it without regrouping.
+    scene.items[0].model =
+        Mat4::from_translation(Vec3::new(5.5, -10.5, -5.)) * Mat4::from_scale(Vec3::splat(0.7));
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().batch_plan_reused);
+    assert_eq!(renderers[1].frame_stats().batch_plan_recertifications, 1);
+    // An inverted equal-depth overlap still requires a full rebuild.
+    scene.items[2].model = scene.items[1].model;
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().batch_plan_rebuilds, 1);
+    assert_eq!(
+        renderers[1].frame_stats().batch_plan_rebuild_reason,
+        Some(BatchPlanRebuildReason::OrderingConflict)
+    );
 
     scene.items.truncate(3);
     scene.view_projection =
@@ -727,13 +737,95 @@ fn incremental_plans_retain_camera_and_rotor_edits_but_rebuild_for_new_conflicts
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().batch_plan_rebuilds, 1);
     assert_eq!(renderers[1].frame_stats().color_draws, 3);
-    // Metadata and visibility changes keep their full rebuild path.
+    // Material changes rebuild; frustum visibility only filters an orthographic plan.
     scene.items[1].material.texture = TextureKind::Normals;
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().batch_plan_rebuilds, 1);
     scene.items[2].model = Mat4::from_translation(Vec3::new(100., 0., -5.));
     compare(&gpu, &mut renderers, &scene)?;
-    assert_eq!(renderers[1].frame_stats().batch_plan_rebuilds, 1);
+    assert_eq!(
+        renderers[1].frame_stats().batch_plan_rebuild_reason,
+        Some(BatchPlanRebuildReason::Visibility)
+    );
+    // Subsequent visibility changes use that promoted superset, including
+    // recertifying a returning surface without inventing new opaque conflicts.
+    scene.items[2].model = Mat4::from_translation(Vec3::new(10., 0., -5.));
+    compare(&gpu, &mut renderers, &scene)?;
+    assert!(renderers[1].frame_stats().batch_plan_reused);
+    assert_eq!(renderers[1].frame_stats().batch_plan_rebuilds, 0);
+    Ok(())
+}
+
+#[test]
+fn orthographic_camera_churn_filters_hidden_surfaces_without_regrouping() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_instancing_enabled(false);
+    for renderer in &mut renderers {
+        // Compare actual submitted geometry, not asynchronous occlusion decisions.
+        renderer.set_occlusion_enabled(false);
+    }
+    let mut scene = scene(256);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model =
+            Mat4::from_translation(Vec3::new((i % 16) as f32 - 7.5, (i / 16) as f32 - 7.5, -5.))
+                * Mat4::from_scale(Vec3::splat(0.7));
+        if i % 2 != 0 {
+            item.mesh = MeshKind::Sphere;
+        }
+    }
+    let camera = glam::camera::rh::proj::directx::orthographic(-4., 4., -4., 4., 0.1, 30.);
+    for (frame, offset) in [0., 2., 5., 100., -5., -2., 0.].into_iter().enumerate() {
+        scene.view_projection = camera * Mat4::from_translation(Vec3::X * offset);
+        compare(&gpu, &mut renderers, &scene)?;
+        if frame == 1 {
+            // One promotion builds the visibility-independent superset.
+            assert_eq!(
+                renderers[1].frame_stats().batch_plan_rebuild_reason,
+                Some(BatchPlanRebuildReason::Visibility)
+            );
+        }
+        if frame > 1 {
+            assert!(renderers[1].frame_stats().batch_plan_reused);
+            assert_eq!(renderers[1].frame_stats().batch_plan_rebuilds, 0);
+        }
+        if offset == 100. {
+            assert_eq!(renderers[1].frame_stats().color_draws, 0);
+        }
+    }
+    // Removing a source is distinct from merely hiding it.
+    scene.items.pop();
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[1].frame_stats().batch_plan_rebuild_reason,
+        Some(BatchPlanRebuildReason::Membership)
+    );
+    Ok(())
+}
+
+#[test]
+fn a_tiny_view_of_a_large_scene_keeps_visibility_scoped_plans() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_instancing_enabled(false);
+    for renderer in &mut renderers {
+        renderer.set_occlusion_enabled(false);
+    }
+    let mut scene = scene(1024);
+    let camera = glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 30.);
+    for (frame, offset) in [0., 0.6, 1.6].into_iter().enumerate() {
+        scene.view_projection = camera * Mat4::from_translation(Vec3::X * offset);
+        compare(&gpu, &mut renderers, &scene)?;
+        assert!(renderers[1].frame_stats().visible_surfaces < 32);
+        if frame > 0 {
+            assert_eq!(
+                renderers[1].frame_stats().batch_plan_rebuild_reason,
+                Some(BatchPlanRebuildReason::Visibility)
+            );
+        }
+    }
     Ok(())
 }
 
@@ -1209,5 +1301,199 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
         }
         compare(&gpu, &mut renderers, &scene)?;
     }
+    Ok(())
+}
+
+fn graph_source(id: u64, multiplier: f32) -> std::sync::Arc<ShaderSource> {
+    std::sync::Arc::new(ShaderSource {
+        id,
+        surface: format!(
+            "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams {{ var s=default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); s.base*=vec3<f32>({multiplier}+time*0.2,0.8,1.0); s.emissive+=vec3<f32>(0.02,0.01,0.0); return s; }}"
+        ),
+    })
+}
+
+#[test]
+fn opaque_graph_instances_match_individuals_through_edits_shadows_and_host_variants()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_shader_graph_instancing_enabled(false);
+    // Compare actual caster submissions; graph grouping can independently change
+    // whether the static-depth-copy heuristic is profitable.
+    for renderer in &mut renderers {
+        renderer.set_shadow_preparation_caching_enabled(false);
+    }
+    let mut scene = scene(132);
+    let graph = graph_source(91001, 0.7);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model =
+            Mat4::from_translation(Vec3::new((i % 16) as f32 - 7.5, (i / 16) as f32 - 4., -5.))
+                * Mat4::from_scale(Vec3::splat(0.7));
+        item.material.shader = Some(graph.clone());
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[0].frame_stats().batching.singleton_shader, 132);
+    assert_eq!(
+        renderers[1].frame_stats().batching.graph_instanced_surfaces,
+        132
+    );
+    assert_eq!(renderers[0].frame_stats().color_draws, 132);
+    assert_eq!(renderers[1].frame_stats().color_draws, 3);
+    assert_eq!(renderers[1].frame_stats().graph_instanced_compilations, 1);
+    let before_clock = capture(&gpu, &mut renderers[1], &scene)?;
+    scene.shader_time = 0.75;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().instance_uniform_bytes, 0);
+    assert_eq!(renderers[1].frame_stats().graph_instanced_compilations, 0);
+    assert_ne!(
+        before_clock.rgba,
+        capture(&gpu, &mut renderers[1], &scene)?.rgba
+    );
+    scene.items[0].material.tint = [0.9, 0.1, 0.3];
+    scene.items[1].material.uv_scale = [2., 3.];
+    scene.items[2].model *= Mat4::from_scale(Vec3::new(-1., 1.4, 0.7));
+    scene.items[3].material.shader = Some(graph_source(91002, 0.3));
+    scene.items[4].material.shader = None;
+    compare(&gpu, &mut renderers, &scene)?;
+    // A fresh graph hash gets its own lazy variant; no cross-shader instances.
+    scene.items[5].material.shader = scene.items[3].material.shader.clone();
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().graph_instanced_compilations, 1);
+    for renderer in &mut renderers {
+        upload(&gpu, renderer, 255)?;
+    }
+    for item in &mut scene.items {
+        item.mesh = MeshKind::Imported("model".into());
+        item.material.texture = TextureKind::White;
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().graph_instanced_compilations, 2);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 256;
+    scene.lights = vec![LocalLight {
+        directional: false,
+        position: [0., 0., 1.],
+        direction: [0., 0., -1.],
+        color: [1., 0.6, 0.3],
+        intensity: 3.,
+        range: 20.,
+        spot_angles: Some([20., 35.]),
+        shadows: Some(Default::default()),
+    }];
+    for auxiliary in [false, true, true, false] {
+        scene.display.temporal_aa.enabled = auxiliary;
+        scene.display.motion_blur.enabled = auxiliary;
+        scene.items[6].model *= Mat4::from_rotation_y(0.015);
+        compare(&gpu, &mut renderers, &scene)?;
+        let a = renderers[0].frame_stats();
+        let b = renderers[1].frame_stats();
+        // Static-depth copies are utility triangles, not caster geometry.
+        assert_eq!(
+            a.shadow_triangles - a.sun_depth_copies as u64,
+            b.shadow_triangles - b.sun_depth_copies as u64
+        );
+    }
+    // Transparent graph surfaces remain ordered individual draws.
+    for renderer in &mut renderers {
+        renderer.upload_image(&gpu, "graph-glass", 1, 1, &[100, 180, 255, 128])?;
+    }
+    // Use a primitive here; imported test surfaces have an alpha-mask cutoff.
+    scene.items[7].mesh = MeshKind::Cube;
+    scene.items[7].material.texture = TextureKind::Imported("graph-glass".into());
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().batching.singleton_transparent, 1);
+    // Same-ID model publication replaces textures and invalidates packed bindings.
+    for alpha in [0, 255] {
+        for renderer in &mut renderers {
+            upload(&gpu, renderer, alpha)?;
+        }
+        compare(&gpu, &mut renderers, &scene)?;
+    }
+    // Toggle after warm shadow/occlusion state; lazy graph pipelines stay cached.
+    renderers[1].set_shader_graph_instancing_enabled(false);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(
+        renderers[1].frame_stats().batching.graph_instanced_surfaces,
+        0
+    );
+    renderers[1].set_shader_graph_instancing_enabled(true);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().graph_instanced_compilations, 0);
+    assert!(renderers[1].frame_stats().batching.graph_instanced_surfaces > 100);
+    Ok(())
+}
+
+#[test]
+fn coplanar_graph_instances_preserve_winners_and_skinned_graphs_remain_individual()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_instancing_enabled(false);
+    let mut scene = scene(3);
+    let graph = graph_source(91003, 0.7);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.mesh = MeshKind::Quad;
+        item.model =
+            Mat4::from_translation(Vec3::new(0., 0., -5.)) * Mat4::from_scale(Vec3::splat(12.));
+        item.material.shader = Some(graph.clone());
+        item.material.texture = if i == 1 {
+            TextureKind::Checker
+        } else {
+            TextureKind::White
+        };
+        item.material.tint = [0.2 + i as f32 * 0.3, 0.7, 0.4];
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().color_draws, 3);
+    assert_eq!(renderers[1].frame_stats().batching.singleton_split, 2);
+    scene.items[1].material.texture = TextureKind::White;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().color_draws, 1);
+    let vertices = [
+        [-0.5, -0.5, 0., 0., 0., 1., 0., 1.],
+        [0.5, -0.5, 0., 0., 0., 1., 1., 1.],
+        [0., 0.5, 0., 0., 0., 1., 0.5, 0.],
+    ];
+    for renderer in &mut renderers {
+        renderer.upload_skinned_model(
+            &gpu,
+            "graph-skin",
+            &vertices,
+            &[0, 1, 2],
+            &[ModelPart {
+                source_key: "0000000000000000",
+                start: 0,
+                count: 3,
+                color: [1.; 4],
+                alpha_cutoff: None,
+                image: None,
+                shading: None,
+            }],
+            SkinData {
+                signature: 9,
+                bindings: 1,
+                vertices: &[[0, 0, 0, 0, 1f32.to_bits(), 0, 0, 0]; 3],
+            },
+        )?;
+    }
+    for item in &mut scene.items {
+        item.mesh = MeshKind::Imported("graph-skin".into());
+        scene.skin_poses.insert(
+            item.motion_id,
+            SkinPose {
+                signature: 9,
+                matrices: std::sync::Arc::new(vec![Mat4::from_rotation_y(0.15).to_cols_array()]),
+            },
+        );
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().batching.singleton_deformed, 3);
+    assert_eq!(
+        renderers[1].frame_stats().batching.graph_instanced_surfaces,
+        0
+    );
     Ok(())
 }

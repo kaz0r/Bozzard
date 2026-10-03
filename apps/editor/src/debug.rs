@@ -304,6 +304,14 @@ impl DebugWorkspace {
                     ui.label(format!("Prepare {:.3} ms · Encode {:.3} ms · Submit {:.3} ms", render.prepare_ms, render.encode_ms, render.submit_ms));
                     ui.label(format!("{} mesh draw commands · {} frustum-culled surfaces · {} shadow draws · {} particles", render.color_draws, render.culled_surfaces, render.shadow_draws, render.particles));
                     ui.label(format!("{} submitted color triangles · {} shadow triangles · {} particle dispatches", render.color_triangles, render.shadow_triangles, render.particle_compute_dispatches));
+                    ui.collapsing("Batch eligibility · before occlusion", |ui| {
+                        let b = render.batching;
+                        ui.label(format!("{} planned draws · {} singletons · {} / {} graph surfaces instanced", b.planned_draws, b.singleton_draws, b.graph_instanced_surfaces, b.graph_surfaces));
+                        ui.label(format!("Singletons: {} transparent · {} deformed · {} graph batching disabled · {} unsupported mesh", b.singleton_transparent, b.singleton_deformed, b.singleton_shader, b.singleton_unsupported_mesh));
+                        ui.label(format!("{} unique keys · {} split groups/tails · {} instancing disabled", b.singleton_unique_key, b.singleton_split, b.singleton_disabled));
+                        ui.label(format!("Batch sizes 1 / 2–3 / 4–7 / 8–15 / 16–31 / 32–63 / 64: {:?}", b.size_histogram));
+                        ui.weak("Reasons partition planned singletons; culling, ordering and capacity tails share the split category. HUD and particles are excluded.");
+                    });
                     if render.occlusion_candidates > 0 {
                         ui.label(format!("Occlusion: {} candidate batches · {} depth draws · {:.2} MiB", render.occlusion_candidates, render.occlusion_depth_draws, render.occlusion_bytes as f64 / (1024. * 1024.)));
                         if render.occlusion_cache_hit { ui.label("Unchanged view: visibility reused; hidden draw commands omitted."); }

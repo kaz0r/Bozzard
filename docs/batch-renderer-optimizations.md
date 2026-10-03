@@ -15,6 +15,8 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 - [x] **Reuse fitted sun bounds.** Retain per-surface light-space extrema and transform only changed model/local-bound inputs. Compare exact fitted matrix/range/texel bytes with the original loop, and report direct fitting-stage and factory timings.
 - [x] **Reduce repeated shadow metadata allocation and classification.** Compare successful-frame metadata directly with current draws, share opaque/full field comparisons when they refer to the same row, and supply the static membership mask in that pass. Refresh retained storage only after submission, copying changed keys and preserving failure invalidation. Profile against full snapshot rebuilding with direct CPU timing and exact factory captures.
 
+- [x] **Diagnose singleton draws and batch opaque shader graphs.** Report mutually exclusive singleton reasons and batch-size histograms before occlusion. Matching mesh/texture/host/lighting/graph-hash keys share the existing 64-instance path; lazy opaque graph variants retire with the bounded graph cache. Transparent and deformed surfaces remain individual. See [shader-graph batching](shader-graph-batching.md) for exact motion parity and repeated paired factory measurements.
+
 ## Baseline and verification
 
 - Starting instance records: 496 bytes; maximum batch size: 32 instances. This pass reduces records to 256 bytes and raises capacity to 64.
