@@ -248,27 +248,24 @@ fn stage(scene: &mut Scene) {
             color,
         ));
     }
-    // A foot on a raised step, another on the slope. Both surfaces use ordinary colliders.
-    scene.objects.push(cube(
+    // Independently moving supports stay under the feet throughout the captured loop.
+    let mut step = cube(
         "foot-step",
-        [1.36, 0.08, 0.],
+        [1.36, 0.22, 0.],
         [0.24, 0.16, 0.48],
         [0.26, 0.38, 0.19],
-    ));
+    );
+    step.drawable.as_mut().unwrap().gi_static = false;
+    scene.objects.push(step);
     let mut slope = cube(
         "foot-slope",
-        [1.03, 0.055, 0.],
+        [1.03, 0.22, 0.],
         [0.25, 0.10, 0.50],
         [0.24, 0.35, 0.17],
     );
     slope.transform.rotation_degrees[0] = 12.;
+    slope.drawable.as_mut().unwrap().gi_static = false;
     scene.objects.push(slope);
-    scene.objects.push(cube(
-        "moving-support",
-        [1.2, -0.05, -0.9],
-        [1.4, 0.1, 0.7],
-        [0.29, 0.42, 0.19],
-    ));
     let mut platform = object("platform-driver", [0.; 3]);
     platform.script_manager = Some(ScriptManager {
         scripts: vec![ScriptAttachment {

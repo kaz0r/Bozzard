@@ -8,7 +8,7 @@ cargo run --release -p bozzard-editor-app -- --scene examples/demo/scenes/animat
 cargo run --release -p bozzard-player -- --project examples/demo/animation-lab.bozzard.json
 ```
 
-Four original Blender humans demonstrate directional movement with a gesture, motion reused on a taller skeleton, feet on steps/slopes and a moving support, and a reach action aligned to a scene target with hand IK. **WASD** takes control of the first character; **Shift** runs forward, **Space** jumps, **Q** toggles waving, **E** toggles aiming and **R** reaches. The first character stays within its demonstration station. The other three run their demonstrations automatically.
+Four original Blender humans demonstrate directional movement with a gesture, motion reused on a taller skeleton, feet on independently moving step and slope supports, and a reach action aligned to a scene target with hand IK. The green station's supports rise and fall under each foot while the actor stays in place, showing knee bending and foot alignment throughout the six-second capture. **WASD** takes control of the first character; **Shift** runs forward, **Space** jumps, **Q** toggles waving, **E** toggles aiming and **R** reaches. The first character stays within its demonstration station. The other three run their demonstrations automatically.
 
 ![Character animation lab](images/character-animation.png)
 

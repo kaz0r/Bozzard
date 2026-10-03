@@ -25,12 +25,7 @@ fn on_update(me, dt) {
         return;
     }
     if me == "grounded-human" {
-        // Alternate the stair/slope and the moving platform, then let grounded IK do its work.
-        let platform = (t % 12.0) > 6.0;
-        if platform {
-            let support = get_position("moving-support");
-            set_position(me, [1.2, support[1] + 0.14, -0.9]);
-        } else { set_position(me, [1.2, 0.09, 0.0]); }
+        // Keep the actor in place: grounded IK bends each knee as its support moves.
         set_animation_parameter(me, "Forward", 0.0);
         set_animation_parameter(me, "Wave", 0.0);
         return;
