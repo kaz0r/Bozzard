@@ -1428,6 +1428,50 @@ impl Editor {
         *self.edit_demo.borrow_mut() = None;
         self.render_cache.clear();
     }
+    /// Sample the regular animation runtime in the isolated Edit world, without running scripts,
+    /// physics or animation events. Root motion does not advance during a zero-duration seek.
+    pub fn scrub_animation_preview(&self, owner: &str, state: &str, phase: f32) -> Result<()> {
+        use bozzard_scene::middleware::animation::{Control, Runtime};
+        ensure!(self.play.is_none(), "Stop Play before previewing animation");
+        {
+            let _ = self.edit_demo()?;
+        }
+        let mut cached = self.edit_demo.borrow_mut();
+        let demo = &mut cached.as_mut().unwrap().1;
+        demo.with_instance(|instance, world| {
+            if let Some(runtime) = world.resource_mut::<Runtime>() {
+                for player in runtime.players.values_mut() {
+                    player.clock.playing = false;
+                    player.include_start = false;
+                    for layer in &mut player.layers {
+                        layer.clock.playing = false;
+                        layer.include_start = false;
+                    }
+                }
+            }
+            instance.control_animation(
+                world,
+                owner,
+                Control::Play {
+                    state: state.into(),
+                    fade: 0.,
+                },
+            )?;
+            instance.control_animation(world, owner, Control::Seek(phase))?;
+            instance.control_animation(world, owner, Control::Pause)?;
+            if let Some(player) = world
+                .resource_mut::<Runtime>()
+                .and_then(|runtime| runtime.players.get_mut(owner))
+            {
+                for layer in &mut player.layers {
+                    layer.clock.seek(phase as f64)?;
+                    layer.active = true;
+                    layer.include_start = false;
+                }
+            }
+            instance.step_animations(world, 0.)
+        })
+    }
 
     pub fn timeline_preview_transform(&self, id: &str) -> Result<Option<Transform>> {
         let demo = self.edit_demo()?;

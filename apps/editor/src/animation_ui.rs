@@ -3,9 +3,7 @@ use anyhow::{Context, Result};
 use bozzard_scene::{
     Object,
     middleware::{
-        animation::{
-            Animator, BlendSample, Comparison, Motion, RootMotion, StateDefinition, Transition,
-        },
+        animation::{Animator, Comparison, Motion, RootMotion, StateDefinition, Transition},
         curve::Repeat,
         registry,
         timeline::Marker,
@@ -14,34 +12,97 @@ use bozzard_scene::{
 use eframe::egui;
 use std::{collections::BTreeMap, sync::Arc};
 
+mod ik;
+mod layers;
+mod motion;
+mod preview;
+mod retarget;
+mod warp;
+pub use preview::PreviewRequest;
+
 pub fn component(
     ui: &mut egui::Ui,
     object: &mut Object,
     assets: &bozzard_assets::AssetStore,
+    scene: &bozzard_scene::Scene,
+    owner_key: &str,
     graph_layout: &mut BTreeMap<String, [f32; 2]>,
     active_state: Option<usize>,
-) -> Result<()> {
+) -> Result<Option<PreviewRequest>> {
     let Some(mut animator) = registry::get::<Animator>(object)? else {
-        return Ok(());
+        return Ok(None);
     };
     let before = animator.clone();
-    if ui.button(if animator.rig.nodes.is_empty() {"Cook model rig"} else {"Recook rig and reset controller"}).on_hover_text("Imports the selected model's skeleton and clips. Resets this controller's states and events; Undo restores them.").clicked() {
-        let bozzard_assets::AssetData::Mesh(mesh) = assets.handle(&animator.asset).and_then(|h| assets.get(h)).and_then(|e| e.data()).context("Select and load an animated model first")? else {anyhow::bail!("Animator requires a model asset");};
-        let skin = mesh.skin.as_ref().context("This model has no skeleton or animation")?;
-        animator = Animator::from_rig(animator.asset.clone(),skin.rig.clone());
+    ui.small(
+        "Import an animated model, choose how clips blend, then add body layers or foot placement.",
+    );
+    if ui
+        .button(if animator.rig.nodes.is_empty() {
+            "Import skeleton and clips"
+        } else {
+            "Reimport skeleton and clips"
+        })
+        .on_hover_text("Uses the selected model. Reimport resets the controller; Undo restores it.")
+        .clicked()
+    {
+        let bozzard_assets::AssetData::Mesh(mesh) = assets
+            .handle(&animator.asset)
+            .and_then(|h| assets.get(h))
+            .and_then(|e| e.data())
+            .context("Choose a loaded model in the Animator's Model field first")?
+        else {
+            anyhow::bail!("Animator requires a model asset");
+        };
+        let skin = mesh
+            .skin
+            .as_ref()
+            .context("This model has no skeleton or animation")?;
+        animator = Animator::from_rig(animator.asset.clone(), skin.rig.clone());
     }
     ui.small(format!(
-        "{} joints · {} clips · {} states",
+        "{} bones · {} clips · {} states",
         animator.rig.nodes.len(),
         animator.rig.clips.len(),
         animator.states.len()
     ));
+    retarget::editor(ui, &mut animator, assets, scene, owner_key)?;
     if animator.rig.clips.is_empty() {
+        ui.weak("This skeleton has no clips yet. Import animations or export a model with animation from Blender.");
         if animator != before {
             registry::set(object, &animator)?;
         }
-        return Ok(());
+        return Ok(None);
     }
+    movement_preset(ui, &mut animator);
+    parameters(ui, &mut animator);
+    ui.label("Starting state");
+    egui::ComboBox::from_id_salt("initial-state")
+        .selected_text(&animator.initial)
+        .show_ui(ui, |ui| {
+            for state in animator.states.iter() {
+                ui.selectable_value(&mut animator.initial, state.name.clone(), &state.name);
+            }
+        });
+    ui.collapsing("State graph", |ui| {
+        state_graph(ui, &mut animator, graph_layout, active_state);
+    });
+    states(ui, &mut animator);
+    transitions(ui, &mut animator);
+    layers::editor(ui, &mut animator);
+    ik::editor(ui, &mut animator, scene);
+    ui.collapsing("Root motion", |ui| {
+        root_motion(ui, &mut animator);
+    });
+    warp::editor(ui, &mut animator, scene);
+    markers(ui, &mut animator);
+    let request = preview::editor(ui, &animator, animator != before);
+    if animator != before {
+        registry::set(object, &animator)?;
+    }
+    Ok(request)
+}
+
+fn parameters(ui: &mut egui::Ui, animator: &mut Animator) {
     ui.collapsing("Parameters", |ui| {
         let mut remove = None;
         for (name, value) in &mut animator.parameters {
@@ -57,8 +118,21 @@ pub fn component(
             animator.parameters.remove(&name);
             Arc::make_mut(&mut animator.transitions).retain(|t| t.parameter != name);
             for state in Arc::make_mut(&mut animator.states) {
-                if matches!(&state.motion,Motion::Blend1d{parameter,..} if parameter==&name) {
+                if state.motion.uses_parameter(&name) {
                     state.motion = Motion::Clip { clip: 0 };
+                }
+            }
+            for layer in Arc::make_mut(&mut animator.layers) {
+                if layer.motion.uses_parameter(&name) {
+                    layer.motion = Motion::Clip { clip: 0 };
+                }
+                if layer.weight_parameter.as_ref() == Some(&name) {
+                    layer.weight_parameter = None;
+                }
+            }
+            for chain in Arc::make_mut(&mut animator.ik) {
+                if chain.weight_parameter.as_ref() == Some(&name) {
+                    chain.weight_parameter = None;
                 }
             }
         }
@@ -85,16 +159,9 @@ pub fn component(
         ui.data_mut(|d| d.insert_temp(id, name));
         ui.small("Blueprint Set Animation Parameter changes these values at runtime.");
     });
-    egui::ComboBox::from_id_salt("initial-state")
-        .selected_text(&animator.initial)
-        .show_ui(ui, |ui| {
-            for state in animator.states.iter() {
-                ui.selectable_value(&mut animator.initial, state.name.clone(), &state.name);
-            }
-        });
-    ui.collapsing("State graph", |ui| {
-        state_graph(ui, &mut animator, graph_layout, active_state);
-    });
+}
+
+fn states(ui: &mut egui::Ui, animator: &mut Animator) {
     ui.collapsing("States and blend trees", |ui| {
         let mut remove = None;
         for (index, state) in Arc::make_mut(&mut animator.states).iter_mut().enumerate() {
@@ -106,6 +173,11 @@ pub fn component(
                         if animator.initial == name {
                             animator.initial = state.name.clone();
                         }
+                        for window in Arc::make_mut(&mut animator.warps) {
+                            if window.state == name {
+                                window.state = state.name.clone();
+                            }
+                        }
                         for t in Arc::make_mut(&mut animator.transitions) {
                             if t.from == name {
                                 t.from = state.name.clone();
@@ -115,73 +187,17 @@ pub fn component(
                             }
                         }
                     }
-                    repeat(ui, &mut state.repeat);
-                    let mut blend = matches!(state.motion, Motion::Blend1d { .. });
-                    if ui
-                        .add_enabled(
-                            !animator.parameters.is_empty(),
-                            egui::Checkbox::new(&mut blend, "Blend tree"),
-                        )
-                        .changed()
-                    {
-                        state.motion = if blend {
-                            Motion::Blend1d {
-                                parameter: animator.parameters.keys().next().unwrap().clone(),
-                                samples: vec![BlendSample {
-                                    threshold: 0.,
-                                    clip: 0,
-                                }],
-                            }
-                        } else {
-                            Motion::Clip { clip: 0 }
-                        };
+                    let warped = animator.warps.iter().any(|w| w.state == state.name);
+                    ui.add_enabled_ui(!warped, |ui| repeat(ui, &mut state.repeat));
+                    if warped {
+                        ui.small("This state plays once because it has a motion-warp window. Remove its windows to change repetition.");
                     }
-                    match &mut state.motion {
-                        Motion::Clip { clip } => clip_picker(ui, "clip", clip, &animator.rig),
-                        Motion::Blend1d { parameter, samples } => {
-                            egui::ComboBox::from_id_salt("blend-parameter")
-                                .selected_text(parameter.as_str())
-                                .show_ui(ui, |ui| {
-                                    for name in animator.parameters.keys() {
-                                        ui.selectable_value(parameter, name.clone(), name);
-                                    }
-                                });
-                            let mut remove = None;
-                            let count = samples.len();
-                            for (i, sample) in samples.iter_mut().enumerate() {
-                                ui.push_id(i, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.add(
-                                            egui::DragValue::new(&mut sample.threshold).speed(0.05),
-                                        );
-                                        clip_picker(ui, "sample", &mut sample.clip, &animator.rig);
-                                        if ui
-                                            .add_enabled(count > 1, egui::Button::new("×"))
-                                            .clicked()
-                                        {
-                                            remove = Some(i);
-                                        }
-                                    });
-                                });
-                            }
-                            if let Some(i) = remove {
-                                samples.remove(i);
-                            }
-                            if ui
-                                .add_enabled(
-                                    samples.len() < 64,
-                                    egui::Button::new("Add blend sample"),
-                                )
-                                .clicked()
-                            {
-                                samples.push(BlendSample {
-                                    threshold: samples.last().map_or(0., |s| s.threshold + 1.),
-                                    clip: 0,
-                                });
-                            }
-                            samples.sort_by(|a, b| a.threshold.total_cmp(&b.threshold));
-                        }
-                    }
+                    motion::editor(
+                        ui,
+                        &mut state.motion,
+                        &animator.rig,
+                        &mut animator.parameters,
+                    );
                     if ui.small_button("Remove state").clicked() {
                         remove = Some(index);
                     }
@@ -190,6 +206,7 @@ pub fn component(
         }
         if let Some(index) = remove {
             let state = Arc::make_mut(&mut animator.states).remove(index);
+            Arc::make_mut(&mut animator.warps).retain(|window| window.state != state.name);
             Arc::make_mut(&mut animator.transitions)
                 .retain(|t| t.from != state.name && t.to != state.name);
             if animator.initial == state.name {
@@ -217,6 +234,9 @@ pub fn component(
             });
         }
     });
+}
+
+fn transitions(ui: &mut egui::Ui, animator: &mut Animator) {
     ui.collapsing("Transitions (top to bottom priority)", |ui| {
         let mut remove = None;
         for (index, t) in Arc::make_mut(&mut animator.transitions)
@@ -307,6 +327,9 @@ pub fn component(
             });
         }
     });
+}
+
+fn markers(ui: &mut egui::Ui, animator: &mut Animator) {
     ui.collapsing("Clip events → On Animation Event", |ui| {
         for index in 0..animator.rig.clips.len() {
             let clip = &animator.rig.clips[index];
@@ -356,8 +379,17 @@ pub fn component(
             }
         }
     });
+}
+
+fn root_motion(ui: &mut egui::Ui, animator: &mut Animator) {
     let mut root = animator.root_motion.is_some();
-    if ui.checkbox(&mut root, "Extract root motion").changed() {
+    if ui
+        .checkbox(&mut root, "Move the character using the animation")
+        .changed()
+    {
+        if !root {
+            Arc::make_mut(&mut animator.warps).clear();
+        }
         animator.root_motion = root.then_some(RootMotion {
             node: 0,
             translation: [true, false, true],
@@ -379,10 +411,6 @@ pub fn component(
             ui.checkbox(&mut root.yaw, "Yaw");
         });
     }
-    if animator != before {
-        registry::set(object, &animator)?;
-    }
-    Ok(())
 }
 
 fn state_graph(
@@ -392,7 +420,7 @@ fn state_graph(
     active_state: Option<usize>,
 ) {
     ui.small("Click a source state, then a destination to add a transition. Drag states to arrange the graph; the numbered transition priority stays unchanged.");
-    let width = ui.available_width().max(260.);
+    let width = ui.available_width().max(1.);
     let columns = (((width - 100.) / 145.).floor() as usize).max(1);
     let height = (80. + animator.states.len().div_ceil(columns) as f32 * 70.).max(180.);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
@@ -562,6 +590,92 @@ fn state_graph(
                 animator.transitions[index].from,
                 animator.transitions[index].to
             ));
+        }
+    });
+}
+fn movement_preset(ui: &mut egui::Ui, animator: &mut Animator) {
+    let find = |word: &str| {
+        animator
+            .rig
+            .clips
+            .iter()
+            .position(|clip| clip.name.to_lowercase().contains(word))
+    };
+    let (idle, walk, run) = (find("idle"), find("walk"), find("run"));
+    if ui.add_enabled(idle.is_some() && walk.is_some(), egui::Button::new("Create idle / walk / run state"))
+        .on_hover_text("Adds a movement state driven by Speed, keeping your existing states. Clips are matched by name.").clicked() {
+        let name = (1..).map(|i| format!("Movement {i}")).find(|name| !animator.states.iter().any(|s| &s.name == name)).unwrap();
+        let mut samples = vec![
+            bozzard_scene::middleware::animation::BlendSample { threshold: 0., clip: idle.unwrap() },
+            bozzard_scene::middleware::animation::BlendSample { threshold: 1., clip: walk.unwrap() },
+        ];
+        if let Some(clip) = run { samples.push(bozzard_scene::middleware::animation::BlendSample { threshold: 2., clip }); }
+        animator.parameters.entry("Speed".into()).or_insert(0.);
+        Arc::make_mut(&mut animator.states).push(StateDefinition { name: name.clone(), repeat: Repeat::Loop,
+            motion: Motion::Blend1d { parameter: "Speed".into(), samples } });
+        animator.initial = name;
+    }
+}
+fn bone_picker(
+    ui: &mut egui::Ui,
+    id: &str,
+    bone: &mut Option<usize>,
+    rig: &bozzard_scene::middleware::animation::data::Rig,
+) {
+    egui::ComboBox::from_id_salt(id)
+        .selected_text(
+            bone.and_then(|i| rig.nodes.get(i))
+                .map_or("Whole skeleton", |b| b.name.as_str()),
+        )
+        .show_ui(ui, |ui| {
+            ui.selectable_value(bone, None, "Whole skeleton");
+            for (index, joint) in rig.nodes.iter().enumerate() {
+                ui.selectable_value(bone, Some(index), &joint.name);
+            }
+        });
+}
+fn required_bone_picker(
+    ui: &mut egui::Ui,
+    id: &str,
+    bone: &mut usize,
+    rig: &bozzard_scene::middleware::animation::data::Rig,
+) {
+    egui::ComboBox::from_id_salt(id)
+        .selected_text(
+            rig.nodes
+                .get(*bone)
+                .map_or("Choose bone", |b| b.name.as_str()),
+        )
+        .show_ui(ui, |ui| {
+            for (index, joint) in rig.nodes.iter().enumerate() {
+                ui.selectable_value(bone, index, &joint.name);
+            }
+        });
+}
+fn object_picker(ui: &mut egui::Ui, object: &mut String, scene: &bozzard_scene::Scene) {
+    egui::ComboBox::from_id_salt("animation-target-object")
+        .selected_text(
+            scene
+                .objects
+                .iter()
+                .find(|o| &o.id == object)
+                .map_or(object.as_str(), |o| o.name.as_str()),
+        )
+        .show_ui(ui, |ui| {
+            for target in &scene.objects {
+                ui.selectable_value(object, target.id.clone(), &target.name);
+            }
+        });
+}
+fn vector(ui: &mut egui::Ui, label: &str, value: &mut [f32; 3]) {
+    ui.label(label);
+    ui.horizontal_wrapped(|ui| {
+        for (axis, name) in value.iter_mut().zip(["X", "Y", "Z"]) {
+            ui.add(
+                egui::DragValue::new(axis)
+                    .speed(0.01)
+                    .prefix(format!("{name} ")),
+            );
         }
     });
 }
