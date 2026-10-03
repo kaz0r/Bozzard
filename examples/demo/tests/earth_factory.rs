@@ -2488,6 +2488,52 @@ fn buffer_layout(layout: &str, setup: &str) -> SceneDemo {
 }
 
 #[test]
+fn factory_storage_snapshot_preserves_every_slot_in_live_and_archived_regions() {
+    let mut demo = stellar_fixture(
+        r#"
+        set_object_variable("creative",true);set_object_variable("phase",7.0);
+        for region in 0..2 {
+            world::enter_chunk(region,0);
+            for cell in [3,91,219] {
+                test_build(cell,21.0);
+                let slots=[];
+                for slot in 0..16 {
+                    slots.push((slot+1).to_float());
+                    slots.push((region*20+cell%7*2+slot+1).to_float());
+                }
+                inventory::storage_write(cell,slots);
+            }
+        }
+        world::enter_chunk(0,0);
+    "#,
+    );
+    factory_code(
+        &mut demo,
+        r#"
+        import "factory-factory_state" as snapshot;
+        let state=snapshot::read(0);
+        let checked=0;
+        for key in state.storage.keys() {
+            let index=parse_int(key);let global=state.ids[index];
+            let chunk=global/225;let region=chunk%17-8;let cell=global%225;
+            if !(region==0 || region==1) || ![3,91,219].contains(cell) {continue;}
+            let slots=state.storage[key];
+            if slots.len()!=32 {throw "storage snapshot lost a slot";}
+            for slot in 0..16 {
+                if slots[slot*2]!=(slot+1).to_float() ||
+                   slots[slot*2+1]!=(region*20+cell%7*2+slot+1).to_float() {
+                    throw "storage snapshot mixed a page, machine or region";
+                }
+            }
+            checked+=1;
+        }
+        if checked!=6 {throw "storage snapshot omitted a machine";}
+    "#,
+        1,
+    );
+}
+
+#[test]
 fn miner_stops_at_100_collects_the_whole_stack_and_resumes_without_extra_entities() {
     let mut demo = collection_fixture(1, 1, "");
     factory_code(&mut demo, "simulation::factory_step();", 250);

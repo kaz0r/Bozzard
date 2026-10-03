@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import struct
 import subprocess
 import tempfile
 
@@ -20,11 +21,26 @@ ASSETS = (
 
 
 def validate_inventory(directory: Path, binary_name: str, library: str) -> None:
-    """Check the actual scene catalog after relocation, not just a hardcoded copy list."""
-    for relative in (binary_name, library, "steam_appid.txt", "scene/bozz-torio.json"):
+    """Check package layout; the relocated native route verifies pack payloads."""
+    for relative in (binary_name, library, "steam_appid.txt"):
         if not (directory / relative).is_file():
             raise FileNotFoundError(f"Packaged game is missing {relative}")
+    pack = directory / "gamepack.bpack"
+    if pack.exists() or (directory / "package.json").exists():
+        if not pack.is_file():
+            raise FileNotFoundError("Packaged game is missing gamepack.bpack")
+        with pack.open("rb") as source:
+            header = source.read(48)
+            if (len(header) != 48 or header[:8] != b"BOZZGAME"
+                    or struct.unpack_from("<I", header, 8)[0] != 1
+                    or not 0 < struct.unpack_from("<I", header, 12)[0] <= 8 * 1024 * 1024
+                    or not source.read(1)):
+                raise ValueError("Invalid gamepack header")
+        return
+    # Retain verification of previously exported loose projects.
     scene_path = directory / "scene/bozz-torio.json"
+    if not scene_path.is_file():
+        raise FileNotFoundError("Packaged game is missing scene/bozz-torio.json")
     scene = json.loads(scene_path.read_text(encoding="utf-8"))
     for asset_id, asset in scene["assets"].items():
         relative = Path(asset["path"])
@@ -47,15 +63,14 @@ def verify_relocated(directory: Path, binary_name: str, library: str) -> None:
         elsewhere = root / "unrelated-working-directory"
         elsewhere.mkdir()
         save_dir = root / "isolated-save"
-        scene = relocated / "scene/bozz-torio.json"
         binary = relocated / binary_name
-        route = [str(binary), "--offline", "--scene", str(scene),
+        route = [str(binary), "--offline",
                  "--save-dir", str(save_dir), "--verify-factory-route"]
         result = subprocess.run(route, cwd=elsewhere, capture_output=True, text=True, timeout=90)
         if result.returncode or "factory_route_ok" not in result.stdout:
             raise RuntimeError(f"Relocated factory route failed: {result.stdout}\n{result.stderr}")
         screenshot = root / "factory.png"
-        smoke = [str(binary), "--offline", "--play", "--scene", str(scene),
+        smoke = [str(binary), "--offline", "--play",
                  "--save-dir", str(save_dir), "--screenshot", str(screenshot)]
         result = subprocess.run(smoke, cwd=elsewhere, capture_output=True, text=True, timeout=90)
         if result.returncode:
@@ -88,6 +103,8 @@ def main() -> None:
     if args.verify_only:
         verify_relocated(output, binary_name, library)
         return
+    if output.exists():
+        parser.error("--out must be a new directory")
 
     workspace = Path(__file__).resolve().parents[3]
     target = Path(os.environ.get("CARGO_TARGET_DIR", workspace / "target")).resolve()
@@ -99,25 +116,21 @@ def main() -> None:
     subprocess.run(command, cwd=workspace, check=True)
 
     built = target / args.profile
-    output.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
     for name in (binary_name, library):
         source = built / name
         if not source.is_file():
             raise FileNotFoundError(f"Missing build artifact: {source}")
-        shutil.copy2(source, output / name)
-    (output / "scene").mkdir(exist_ok=True)
-    (output / "assets").mkdir(exist_ok=True)
-    shutil.copy2(workspace / "apps/bozz-torio/scene/bozz-torio.json", output / "scene/bozz-torio.json")
-    shutil.copy2(workspace / "apps/bozz-torio/assets/sprites.png", output / "assets/sprites.png")
-    shutil.copy2(workspace / "apps/bozz-torio/assets/conveyor_preview.png", output / "assets/conveyor_preview.png")
-    for name in ("conveyor_animation.png", "furnace_animation.png", "generator_animation.png", "progress_pixel.png"):
-        shutil.copy2(workspace / "apps/bozz-torio/assets" / name, output / "assets" / name)
-    shutil.copy2(workspace / "apps/bozz-torio/assets/sprite_manifest.json", output / "assets/sprite_manifest.json")
+    subprocess.run([
+        str(built / binary_name), "--offline", "--scene",
+        str(workspace / "apps/bozz-torio/scene/bozz-torio.json"),
+        "--export-dir", str(output),
+    ], cwd=workspace, check=True)
     (output / "steam_appid.txt").write_text(f"{args.app_id}\n", encoding="ascii")
     validate_inventory(output, binary_name, library)
     if args.verify:
         verify_relocated(output, binary_name, library)
-    print(f"Packaged {binary_name}, {library}, editable scene, sprites, and app {args.app_id} into {output}")
+    print(f"Packaged {binary_name}, {library}, gamepack.bpack, and app {args.app_id} into {output}")
 
 
 if __name__ == "__main__":

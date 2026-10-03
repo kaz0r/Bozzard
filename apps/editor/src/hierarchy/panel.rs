@@ -592,79 +592,96 @@ impl App {
                 requests.row.reparent_request = Some((id.0.clone(), None));
             }
         }
+        // Build navigation order cheaply, then construct egui widgets only for
+        // the rows intersecting the viewport. Range selection still sees every row.
+        let mut rows = Vec::new();
+        while let Some((object, depth)) = stack.pop() {
+            let object_matches = query.is_empty()
+                || object.name.to_lowercase().contains(query)
+                || object.id.to_lowercase().contains(query);
+            let mesh = object.drawable.as_ref().and_then(|drawable| {
+                let Mesh::Asset(id) = &drawable.mesh else {
+                    return None;
+                };
+                match self
+                    .editor
+                    .assets
+                    .get(self.editor.assets.handle(id)?)?
+                    .data()?
+                {
+                    bozzard_assets::AssetData::Mesh(mesh) => Some(mesh),
+                    _ => None,
+                }
+            });
+            let has_surfaces = mesh.is_some_and(|m| !m.parts.is_empty());
+            let surface_matches = !object_matches
+                && mesh.is_some_and(|m| {
+                    m.parts
+                        .iter()
+                        .enumerate()
+                        .any(|(i, part)| crate::surfaces::surface_matches(i, part, query))
+                });
+            let expandable = has_surfaces || children.contains_key(&Some(object.id.as_str()));
+            if object_matches || surface_matches {
+                requests.matches += 1;
+                requests.visible_ids.push(object.id.clone());
+                rows.push((object, depth, None, expandable));
+            }
+            if !self
+                .hierarchy_state
+                .visit_children(&object.id, !query.is_empty())
+            {
+                continue;
+            }
+            if let Some(mesh) = mesh {
+                for (index, part) in mesh.parts.iter().enumerate() {
+                    if object_matches || crate::surfaces::surface_matches(index, part, query) {
+                        rows.push((object, depth + 1, Some(index), false));
+                    }
+                }
+            }
+            for child in children
+                .get(&Some(object.id.as_str()))
+                .into_iter()
+                .flatten()
+                .rev()
+            {
+                stack.push((child, depth + 1));
+            }
+        }
+        let row_height = ui.spacing().interact_size.y.max(24.0);
         egui::ScrollArea::vertical()
             .id_salt("hierarchy-tree")
             .max_height((ui.available_height() - 24.0).max(1.0))
-            .show(ui, |ui| {
-                while let Some((object, depth)) = stack.pop() {
-                    let object_matches = query.is_empty()
-                        || object.name.to_lowercase().contains(query)
-                        || object.id.to_lowercase().contains(query);
-                    let mesh = object.drawable.as_ref().and_then(|drawable| {
-                        let Mesh::Asset(id) = &drawable.mesh else {
-                            return None;
-                        };
-                        match self
-                            .editor
-                            .assets
-                            .get(self.editor.assets.handle(id)?)?
-                            .data()?
-                        {
-                            bozzard_assets::AssetData::Mesh(mesh) => Some(mesh),
-                            _ => None,
-                        }
-                    });
-                    let has_surfaces = mesh.is_some_and(|m| !m.parts.is_empty());
-                    let surface_matches = mesh.is_some_and(|m| {
-                        m.parts.iter().enumerate().any(|(index, part)| {
-                            crate::surfaces::surface_matches(index, part, query)
-                        })
-                    });
-                    let expandable =
-                        has_surfaces || children.contains_key(&Some(object.id.as_str()));
-                    if object_matches || surface_matches {
-                        requests.matches += 1;
-                        requests.visible_ids.push(object.id.clone());
-                        let row = self.render_hierarchy_object_row(
-                            ui,
-                            HierarchyRowContext {
-                                object,
-                                depth,
-                                show_disclosure: query.is_empty(),
-                                expandable,
-                                hidden_objects,
-                                can_reparent,
-                            },
-                        );
-                        if row.click_request.is_some() {
-                            requests.row.click_request = row.click_request;
-                        }
-                        if row.visibility_request.is_some() {
-                            requests.row.visibility_request = row.visibility_request;
-                        }
-                        if row.reparent_request.is_some() {
-                            requests.row.reparent_request = row.reparent_request;
-                        }
-                    }
-                    if !self
-                        .hierarchy_state
-                        .visit_children(&object.id, !query.is_empty())
-                    {
+            .show_rows(ui, row_height, rows.len(), |ui, visible| {
+                for &(object, depth, surface, expandable) in &rows[visible] {
+                    if let Some(index) = surface {
+                        self.hierarchy_surface(ui, &object.id, index, depth);
                         continue;
                     }
-                    self.hierarchy_surfaces(
-                        ui,
-                        &object.id,
-                        depth + 1,
-                        if object_matches { "" } else { query },
-                    );
-                    for child in children
-                        .get(&Some(object.id.as_str()))
-                        .into_iter()
-                        .flatten()
-                        .rev()
-                    {
-                        stack.push((child, depth + 1));
+                    let row = ui
+                        .push_id(("hierarchy-object", &object.id), |ui| {
+                            self.render_hierarchy_object_row(
+                                ui,
+                                HierarchyRowContext {
+                                    object,
+                                    depth,
+                                    show_disclosure: query.is_empty(),
+                                    expandable,
+                                    hidden_objects,
+                                    can_reparent,
+                                },
+                            )
+                        })
+                        .inner;
+                    if row.click_request.is_some() {
+                        requests.row.click_request = row.click_request;
+                    }
+                    if row.visibility_request.is_some() {
+                        requests.row.visibility_request = row.visibility_request;
+                    }
+                    if row.reparent_request.is_some() {
+                        requests.row.reparent_request = row.reparent_request;
                     }
                 }
             });

@@ -335,11 +335,12 @@ impl AssetBrowser {
                 Vec2::new(grid_width, grid_height),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    egui::ScrollArea::vertical()
+                    let scroll = egui::ScrollArea::vertical()
                         .id_salt("asset-browser-scroll")
                         .auto_shrink([false, false])
-                        .max_height(grid_height)
-                        .show(ui, |ui| {
+                        .max_height(grid_height);
+                    if matches!(self.filter, AssetFilter::Blueprints | AssetFilter::ShaderGraphs) || shown.is_empty() {
+                        scroll.show(ui, |ui| {
                             if self.filter == AssetFilter::Blueprints {
                                 self.blueprints(ui, editor, &mut output);
                                 return;
@@ -355,21 +356,32 @@ impl AssetBrowser {
                                 } else {
                                     "No assets match. Clear the search or choose All."
                                 });
-                                return;
                             }
-                            let columns = (grid_width / 112.0).floor().max(1.0) as usize;
-                            egui::Grid::new("asset-browser-grid")
-                                .num_columns(columns)
-                                .spacing(Vec2::new(8.0, 8.0))
-                                .show(ui, |ui| {
-                                    for (index, asset) in shown.iter().enumerate() {
-                                        self.tile(ui, asset, editor, editing, selected_drawable(asset), &mut command);
-                                        if (index + 1) % columns == 0 {
-                                            ui.end_row();
-                                        }
+                        });
+                    } else {
+                        let columns = (grid_width / 112.0).floor().max(1.0) as usize;
+                        // Tiles have one preview, a single-line name and a type label.
+                        // Reserve the error line uniformly when any entry has failed.
+                        let failed = shown.iter().any(|asset| matches!(asset.state, LoadState::Failed(_)));
+                        let tile_spacing = ui.spacing().item_spacing;
+                        let content_height = 64.0 + ui.spacing().interact_size.y
+                            + ui.text_style_height(&egui::TextStyle::Small)
+                            + 2.0 * ui.spacing().item_spacing.y
+                            + if failed { ui.text_style_height(&egui::TextStyle::Body) + ui.spacing().item_spacing.y } else { 0.0 };
+                        ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
+                        scroll.show_rows(ui, content_height + 10.0, shown.len().div_ceil(columns), |ui, rows| {
+                            for row in rows {
+                                ui.horizontal_top(|ui| {
+                                    for asset in shown.iter().skip(row * columns).take(columns) {
+                                        ui.push_id(("asset-tile", &asset.id), |ui| {
+                                            ui.spacing_mut().item_spacing = tile_spacing;
+                                            self.tile(ui, asset, editor, editing, content_height, &mut command);
+                                        });
                                     }
                                 });
+                            }
                         });
+                    }
                 },
             );
             if side_details && let Some(asset) = selected {
@@ -750,10 +762,14 @@ impl AssetBrowser {
         asset: &AssetSnapshot,
         editor: &Editor,
         editing: bool,
-        selected_drawable: bool,
+        content_height: f32,
         command: &mut Option<AssetCommand>,
     ) {
         const TILE: Vec2 = Vec2::new(96.0, 92.0);
+        let selected_drawable = editor
+            .selected_object()
+            .is_some_and(|object| object.drawable.is_some() || asset.kind == AssetKind::Audio)
+            && (editor.selected_surface().is_none() || asset.kind == AssetKind::Image);
         let selected = self.selected.as_deref() == Some(&asset.id);
         egui::Frame::new()
             .inner_margin(4)
@@ -774,7 +790,7 @@ impl AssetBrowser {
             .show(ui, |ui| {
                 ui.vertical(|ui| {
                     ui.set_width(TILE.x);
-                    ui.set_min_height(TILE.y);
+                    ui.set_min_height(TILE.y.max(content_height));
                     let preview =
                         ui.allocate_exact_size(Vec2::new(TILE.x, 64.0), Sense::click_and_drag());
                     let thumbnail = self.thumbnail(ui.ctx(), editor, asset);
@@ -1606,6 +1622,69 @@ mod tests {
     use super::*;
 
     #[test]
+    fn large_browser_only_builds_visible_thumbnails_and_scrolls_to_last_asset() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/model-lab.json");
+        let mut editor = Editor::open(&path).unwrap();
+        let mut scene = editor.scene().clone();
+        for i in 0..100 {
+            scene.assets.insert(
+                format!("zz-test-{i:04}"),
+                bozzard_scene::AssetSource {
+                    kind: AssetKind::Image,
+                    path: "assets/palette.png".into(),
+                },
+            );
+        }
+        editor.apply("Large catalog", scene).unwrap();
+        let original = editor.scene().clone();
+        let ctx = egui::Context::default();
+        super::super::theme::install(&ctx);
+        let mut browser = AssetBrowser {
+            filter: AssetFilter::Images,
+            show_details: false,
+            ..Default::default()
+        };
+        for frame in 0..8 {
+            let mut events = vec![egui::Event::PointerMoved(Pos2::new(200.0, 180.0))];
+            if frame == 2 {
+                events.push(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: Vec2::new(0.0, -10000.0),
+                    modifiers: egui::Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                });
+            }
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 280.0))),
+                    time: Some(frame as f64),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    browser.ui(ui, &mut editor);
+                },
+            );
+            output.textures_delta.clear();
+            if frame == 1 {
+                assert!(
+                    browser.thumbnails.len() < 15,
+                    "offscreen thumbnails were built: {}",
+                    browser.thumbnails.len()
+                );
+                assert!(!browser.thumbnails.contains_key("zz-test-0099"));
+            }
+        }
+        assert!(
+            browser.thumbnails.contains_key("zz-test-0099"),
+            "scrolling must reach the final virtual row"
+        );
+        assert!(browser.thumbnails.len() < 30);
+        assert_eq!(editor.scene(), &original);
+    }
+
+    #[test]
     fn mesh_preview_samples_the_whole_mesh_not_just_the_first_triangles() {
         // 2000 triangles: the first 500 huddle in one corner, the rest spread
         // across the unit cube. First-N sampling would miss everything else.
@@ -1788,7 +1867,7 @@ mod tests {
                         events,
                         ..Default::default()
                     },
-                    |ui| browser.tile(ui, &asset, &editor, editing, false, &mut command),
+                    |ui| browser.tile(ui, &asset, &editor, editing, 92.0, &mut command),
                 );
                 output.textures_delta.clear();
             }
@@ -1832,7 +1911,7 @@ mod prefab_tests {
                 |ui| {
                     ui.horizontal_top(|ui| {
                         source = ui.cursor().min + Vec2::new(30.0, 30.0);
-                        browser.tile(ui, &asset, &editor, editing, false, &mut None);
+                        browser.tile(ui, &asset, &editor, editing, 92.0, &mut None);
                         let (_, response) =
                             ui.allocate_exact_size(Vec2::splat(180.0), Sense::click_and_drag());
                         target = response.rect.center();

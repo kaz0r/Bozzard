@@ -190,6 +190,7 @@ struct Target {
 }
 struct App {
     debug: debug::DebugWorkspace,
+    benchmark: Option<debug::Benchmark>,
     editor: Editor,
     #[cfg(feature = "factory")]
     factory_mode: bool,
@@ -337,6 +338,7 @@ impl App {
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         Ok(Self {
             debug: Default::default(),
+            benchmark: None,
             editor,
             #[cfg(feature = "factory")]
             factory_mode: false,
@@ -1464,8 +1466,10 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         theme::backdrop(&ctx);
         let debug_started = self.debug_begin_frame();
+        let mut debug_stage = debug_started.map(|s| s.0);
         self.poll_loading();
         self.editor.repair_surface_selection();
+        self.debug_editor_stage("Loading and selection", &mut debug_stage);
         let now = Instant::now();
         let debug_interval_ms = now.duration_since(self.last_frame).as_secs_f64() * 1000.;
         if let Some(play) = &mut self.editor.play {
@@ -1488,6 +1492,7 @@ impl eframe::App for App {
             }
         }
         self.prepare_blueprint_debugger();
+        self.debug_editor_stage("Compute preparation", &mut debug_stage);
         let previous_assets = self.editor.asset_revision();
         let prepared = self.editor.prepare_simulation_frame_with_interpolation(
             now.duration_since(self.last_frame),
@@ -1524,6 +1529,7 @@ impl eframe::App for App {
         }
         self.compute.sync_renderer(&mut self.renderer);
         self.sync_blueprint_pause();
+        self.debug_editor_stage("Simulation preparation", &mut debug_stage);
         if let Some(play) = &self.editor.play {
             let layer = if self.workspace.layer_2d {
                 Layer::TwoD
@@ -1556,6 +1562,7 @@ impl eframe::App for App {
         } else {
             self.audio.stop();
         }
+        self.debug_editor_stage("Audio", &mut debug_stage);
         if self.editor.play.is_none() && self.loading.is_none() {
             let result = (|| -> Result<()> {
                 self.open_scenes.sync_view(&self.editor)?;
@@ -1578,6 +1585,7 @@ impl eframe::App for App {
         } else {
             self.effects_preview = None;
         }
+        self.debug_editor_stage("Effects preview", &mut debug_stage);
 
         if let Some(play) = &self.editor.play
             && let Err(error) = play.check_simulation()
@@ -1791,15 +1799,24 @@ impl eframe::App for App {
             self.workspace.timeline_visible,
         ];
         self.viewport_rect = None;
-        layout.show(ui, visible, |pane, ui| match pane {
-            docking::Pane::Scene => self.scene_content(ui),
-            docking::Pane::Hierarchy => self.hierarchy(ui),
-            docking::Pane::Inspector => self.inspector(ui),
-            docking::Pane::Assets => self.assets_content(ui),
-            docking::Pane::Settings => self.settings_content(ui),
-            docking::Pane::Debug => self.debug_content(ui),
-            docking::Pane::Script => self.script_source_pane(ui),
-            docking::Pane::Timeline => self.timeline_pane(ui),
+        layout.show(ui, visible, |pane, ui| {
+            let start = self.debug.recording.then(Instant::now);
+            match pane {
+                docking::Pane::Scene => self.scene_content(ui),
+                docking::Pane::Hierarchy => self.hierarchy(ui),
+                docking::Pane::Inspector => self.inspector(ui),
+                docking::Pane::Assets => self.assets_content(ui),
+                docking::Pane::Settings => self.settings_content(ui),
+                docking::Pane::Debug => self.debug_content(ui),
+                docking::Pane::Script => self.script_source_pane(ui),
+                docking::Pane::Timeline => self.timeline_pane(ui),
+            }
+            if let Some(start) = start {
+                self.debug.editor_stages.insert(
+                    format!("Pane {pane:?}"),
+                    start.elapsed().as_secs_f64() * 1000.,
+                );
+            }
         });
         self.workspace.docking = layout;
         if let Some(pane) = self.dock_focus.take() {
@@ -1824,10 +1841,12 @@ impl eframe::App for App {
         {
             self.smoke_step(&ctx);
         }
+        self.debug_editor_stage("Panels and viewport", &mut debug_stage);
         let finished = self.editor.finish_simulation_frame();
         if let Err(error) = finished {
             self.result(Err(error));
         }
+        self.debug_editor_stage("Finish simulation", &mut debug_stage);
         let active = self.smoke.is_some()
             || self.compute.executor.has_pending()
             || self.editor.play.is_some()
@@ -1840,7 +1859,10 @@ impl eframe::App for App {
             || self.fly_latched
             || self.mouse_captured;
         self.debug_end_frame(debug_started, debug_interval_ms);
-        if active || self.debug.recording {
+        if let Err(error) = self.benchmark_frame(&ctx) {
+            self.result(Err(error));
+        }
+        if active || self.debug.recording || self.benchmark.is_some() {
             // Let the vsynced presentation backend pace active Play/animation.
             ctx.request_repaint();
         } else {
@@ -1895,6 +1917,8 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     let mut join_lobby: Option<u64> = None;
     let mut project = None;
     let mut smoke = None;
+    let mut benchmark_frames = None;
+    let mut benchmark_play = false;
     let mut backend = Backend::native();
     let mut software = false;
     let mut hardware = false;
@@ -1903,6 +1927,14 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--benchmark-frames" => {
+                benchmark_frames = Some(
+                    args.next()
+                        .context("--benchmark-frames needs a count")?
+                        .parse::<u32>()?,
+                )
+            }
+            "--benchmark-play" => benchmark_play = true,
             "--single-threaded" => threaded_simulation = false,
             "--no-interpolation" => render_interpolation = false,
             "--join-lobby" | "+connect_lobby" => {
@@ -1925,6 +1957,9 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
             "--help" => {
                 println!("--single-threaded disables simulation/render overlap for comparison.");
                 println!(
+                    "--benchmark-frames 1..240 measures native editor frames after warmup, then exits; --benchmark-play starts Play first."
+                );
+                println!(
                     "--no-interpolation renders exact fixed-tick poses for comparison or lower latency."
                 );
                 println!(
@@ -1938,6 +1973,15 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     ensure!(
         !(software && hardware),
         "choose software or hardware, not both"
+    );
+    ensure!(
+        benchmark_frames.is_none_or(|n| (1..=240).contains(&n))
+            && (!benchmark_play || benchmark_frames.is_some()),
+        "benchmark needs 1..240 frames; --benchmark-play requires --benchmark-frames"
+    );
+    ensure!(
+        benchmark_frames.is_none() || smoke.is_none(),
+        "benchmark and smoke are separate commands"
     );
     ensure!(
         source.is_none() || project.is_none(),
@@ -2014,12 +2058,20 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     };
     let passed = Arc::new(AtomicBool::new(false));
     let result = passed.clone();
-    let is_smoke = smoke.is_some();
+    let is_smoke = smoke.is_some() || benchmark_frames.is_some();
     eframe::run_native(
         "Bozzard Editor",
         options,
         Box::new(move |cc| {
             let mut app = App::new(cc, editor, smoke, passed, custom_inspectors)?;
+            if let Some(frames) = benchmark_frames {
+                app.benchmark = Some(debug::Benchmark {
+                    frames,
+                    play: benchmark_play,
+                    completed: 0,
+                });
+                app.debug.recording = true;
+            }
             app.threaded_simulation = threaded_simulation;
             app.render_interpolation = render_interpolation;
             #[cfg(feature = "factory")]

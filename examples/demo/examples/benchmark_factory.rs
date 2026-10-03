@@ -3,12 +3,26 @@ use bozzard_scene::blueprint::{BlackboardValue, Value};
 use std::{path::PathBuf, time::Instant};
 
 fn main() -> anyhow::Result<()> {
-    let path = std::env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../earth-factory/scenes/earth.json")
-        });
+    let mut args = std::env::args().skip(1);
+    let mut path = None;
+    let mut output = None;
+    while let Some(arg) = args.next() {
+        if arg == "--output" {
+            output =
+                Some(PathBuf::from(args.next().ok_or_else(|| {
+                    anyhow::anyhow!("--output needs a JSON path")
+                })?));
+        } else {
+            anyhow::ensure!(
+                path.is_none() && !arg.starts_with('-'),
+                "expected an optional scene path and --output FILE"
+            );
+            path = Some(PathBuf::from(arg));
+        }
+    }
+    let path = path.unwrap_or_else(|| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../earth-factory/scenes/earth.json")
+    });
     let mut scene = bozzard_scene::Scene::from_json(&std::fs::read_to_string(&path)?)?;
     let controller = scene
         .objects
@@ -54,20 +68,41 @@ fn main() -> anyhow::Result<()> {
         }
     }
     demo.check_simulation()?;
+    let raw_samples = samples.clone();
     samples.sort_by(f64::total_cmp);
     println!(
-        "idle creative ticks: median {:.3} ms, p95 {:.3} ms, max {:.3} ms",
+        "factory fixed ticks: median {:.3} ms, p95 {:.3} ms, max {:.3} ms",
         samples[samples.len() / 2],
         samples[samples.len() * 95 / 100],
         samples.last().unwrap()
     );
+    let mut stage_reports = serde_json::Map::new();
     for (name, mut values) in stages {
+        let raw = values.clone();
         values.sort_by(f64::total_cmp);
         println!(
             "  {name}: median {:.3} ms, p95 {:.3} ms",
             values[values.len() / 2],
             values[values.len() * 95 / 100]
         );
+        stage_reports.insert(
+            name.into(),
+            serde_json::json!({
+                "samples_ms": raw, "median_ms": values[values.len()/2],
+                "p95_ms": values[values.len()*95/100]
+            }),
+        );
+    }
+    if let Some(output) = output {
+        std::fs::write(
+            output,
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "warmup_ticks": 60, "sample_ticks": raw_samples.len(),
+                "tick_ms": raw_samples, "median_ms": samples[samples.len()/2],
+                "p95_ms": samples[samples.len()*95/100], "max_ms": samples.last(),
+                "stages": stage_reports
+            }))?,
+        )?;
     }
     Ok(())
 }

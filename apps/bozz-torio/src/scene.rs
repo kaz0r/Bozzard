@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 pub struct SceneSource {
+    gamepack: Option<std::sync::Arc<bozzard_project::GamePack>>,
     pub path: PathBuf,
     pub name: String,
     pub authored: Scene,
@@ -25,6 +26,16 @@ pub struct SceneSource {
 
 impl SceneSource {
     pub fn default_path() -> PathBuf {
+        if let Ok(executable) = std::env::current_exe() {
+            if let Some(pack) = bozzard_project::bundled_gamepack(&executable) {
+                return pack;
+            }
+            if let Some(directory) = executable.parent()
+                && directory.join("package.json").is_file()
+            {
+                return directory.join(bozzard_project::GAMEPACK);
+            }
+        }
         let packaged = std::env::current_exe().ok().and_then(|exe| {
             exe.parent()
                 .map(|parent| parent.join("scene/bozz-torio.json"))
@@ -35,6 +46,17 @@ impl SceneSource {
     }
 
     pub fn open(path: PathBuf) -> Result<Self> {
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "bpack")
+        {
+            let pack = bozzard_project::GamePack::open(&path, &Default::default())?;
+            let (project, source) = bozzard_project::Project::load(&pack.project_path())?;
+            project.require_runtime_modules(&[crate::module::NAME])?;
+            let mut scene = Self::open(source)?;
+            scene.gamepack = Some(std::sync::Arc::new(pack));
+            return Ok(scene);
+        }
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("opening Bozz-torio editor scene {}", path.display()))?;
         Self::parse(path, &text)
@@ -42,6 +64,12 @@ impl SceneSource {
 
     pub fn from_scene(path: PathBuf, scene: &Scene) -> Result<Self> {
         Self::parse(path, &scene.to_json()?)
+    }
+
+    pub fn reload(&self) -> Result<Self> {
+        let mut source = Self::open(self.path.clone())?;
+        source.gamepack = self.gamepack.clone();
+        Ok(source)
     }
 
     fn parse(path: PathBuf, text: &str) -> Result<Self> {
@@ -224,6 +252,7 @@ impl SceneSource {
         )? as u32;
         let world_seed = setting(board, "world_seed", 0, u32::MAX as u64)?;
         let source = Self {
+            gamepack: None,
             path,
             name,
             authored,

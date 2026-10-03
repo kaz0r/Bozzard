@@ -21,39 +21,15 @@ fn power_graph() {
 }
 
 fn power_graph(name) {
-    let graph = #{};
-    let pages = get_object_list(name);
-    for page in 0..pages.len() {
-        if pages[page] == "" { continue; }
-        let cells = pages[page].split("|");
-        for i in 0..cells.len() {
-            if cells[i] != "" {
-                let entry = [];
-                for value in cells[i].split(",") { entry.push(parse_int(value)); }
-                graph[(page * 75 + i).to_string()] = entry;
-            }
-        }
-    }
-    graph
+    // Decode the existing save format in one bounded native operation.
+    unpack_integer_rows(get_object_list(name),75)
 }
 
 fn write_power(graph) {
     write_power("power_data",graph);
 }
 fn write_power(name,graph) {
-    let pages = grid::empty_text(867);
-    let decoded = #{};
-    for key in graph.keys() {
-        let id = parse_int(key);
-        let page = (id / 75).to_string();
-        if !decoded.contains(page) { decoded[page] = grid::empty_text(75); }
-        let values = graph[key];
-        let text = "";
-        for value in values { if text != "" { text += ","; } text += value.to_string(); }
-        decoded[page][id % 75] = text;
-    }
-    for page in decoded.keys() { pages[parse_int(page)] = grid::pack_text(decoded[page]); }
-    set_object_list(name, pages);
+    set_object_list(name,pack_integer_rows(graph,75,867));
 }
 
 fn power_register(id, kind) {

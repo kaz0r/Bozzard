@@ -4,6 +4,11 @@ use bozzard_diagnostics::{Console, CpuSpan, Diagnostics, Level, Location};
 use std::collections::VecDeque;
 
 const HISTORY: usize = 240;
+pub(super) struct Benchmark {
+    pub frames: u32,
+    pub play: bool,
+    pub completed: u32,
+}
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum Page {
     #[default]
@@ -23,6 +28,7 @@ struct Frame {
     scene: String,
     interval_ms: f64,
     editor_cpu_ms: f64,
+    editor_stages: std::collections::BTreeMap<String, f64>,
     spans: Vec<CpuSpan>,
     omitted_spans: u64,
     render: Option<bozzard_render::FrameStats>,
@@ -37,6 +43,7 @@ struct Frame {
 pub(super) struct DebugWorkspace {
     page: Page,
     pub recording: bool,
+    pub(super) editor_stages: std::collections::BTreeMap<String, f64>,
     frames: VecDeque<Frame>,
     selected_frame: Option<u64>,
     next_frame: u64,
@@ -60,6 +67,7 @@ impl Default for DebugWorkspace {
         Self {
             page: Page::Profiler,
             recording: false,
+            editor_stages: Default::default(),
             frames: VecDeque::new(),
             selected_frame: None,
             next_frame: 0,
@@ -267,6 +275,14 @@ impl DebugWorkspace {
             ui.label(format!("{} entities · {} assets", selected.entities, selected.assets));
         });
         egui::ScrollArea::vertical().id_salt("profiler-details").show(ui, |ui| {
+            egui::CollapsingHeader::new("CPU · editor stages").default_open(true).show(ui, |ui| {
+                egui::Grid::new("editor-cpu-stages").striped(true).show(ui, |ui| {
+                    for (name, duration) in &selected.editor_stages {
+                        ui.label(name); ui.monospace(format!("{duration:.3} ms")); ui.end_row();
+                    }
+                });
+                ui.weak("Pane timings are included in Panels and viewport.");
+            });
             egui::CollapsingHeader::new("CPU · simulation stages").default_open(true).show(ui, |ui| {
                 if selected.spans.is_empty() { ui.weak("No simulation tick in this frame. Press Play to profile gameplay."); }
                 let mut depths = [0usize; bozzard_diagnostics::MAX_SPANS];
@@ -483,7 +499,58 @@ impl DebugWorkspace {
     }
 }
 impl App {
+    pub(super) fn benchmark_frame(&mut self, ctx: &egui::Context) -> Result<()> {
+        let Some(benchmark) = &mut self.benchmark else {
+            return Ok(());
+        };
+        if benchmark.completed >= benchmark.frames + 30 {
+            return Ok(());
+        }
+        if self.loading.is_some() || !self.residency.required_current(&self.editor.assets) {
+            self.debug.frames.pop_back();
+            return Ok(());
+        }
+        if benchmark.play && self.editor.play.is_none() {
+            self.editor.start_play()?;
+            self.debug.frames.clear();
+            return Ok(());
+        }
+        benchmark.completed += 1;
+        // Keep warmup and asset upload outside the reported native frame samples.
+        if benchmark.completed <= 30 {
+            self.debug.frames.clear();
+        }
+        if benchmark.completed < benchmark.frames + 30 {
+            return Ok(());
+        }
+        let percentile = |mut values: Vec<f64>, fraction: f64| {
+            values.sort_by(f64::total_cmp);
+            values
+                .get(((values.len().saturating_sub(1)) as f64 * fraction) as usize)
+                .copied()
+                .unwrap_or(0.)
+        };
+        let samples = &self.debug.frames;
+        let cpu = samples.iter().map(|f| f.editor_cpu_ms).collect::<Vec<_>>();
+        let intervals = samples.iter().map(|f| f.interval_ms).collect::<Vec<_>>();
+        println!(
+            "editor_benchmark={}",
+            serde_json::json!({
+                "adapter": self.gpu.adapter.get_info().name,
+                "debug_build": cfg!(debug_assertions), "play": benchmark.play,
+                "frames": samples.len(),
+                "cpu_median_ms": percentile(cpu.clone(), 0.5), "cpu_p95_ms": percentile(cpu, 0.95),
+                "interval_median_ms": percentile(intervals.clone(), 0.5), "interval_p95_ms": percentile(intervals, 0.95),
+                "frames_data": samples
+            })
+        );
+        self.smoke_passed.store(true, Ordering::Relaxed);
+        self.allow_close = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        Ok(())
+    }
     pub(super) fn debug_begin_frame(&mut self) -> Option<(Instant, u64, u64)> {
+        self.debug.editor_stages.clear();
         if let Some(play) = &mut self.editor.play
             && let Some(d) = play.app.world.resource_mut::<Diagnostics>()
         {
@@ -504,6 +571,14 @@ impl App {
                 self.compute.executor.statistics().submissions,
             )
         })
+    }
+    pub(super) fn debug_editor_stage(&mut self, name: &str, started: &mut Option<Instant>) {
+        if let Some(start) = started {
+            self.debug
+                .editor_stages
+                .insert(name.into(), start.elapsed().as_secs_f64() * 1000.);
+            *start = Instant::now();
+        }
     }
     pub(super) fn debug_compute_profiles(&mut self, profiles: Vec<bozzard_render::GpuFrameTiming>) {
         for profile in profiles {
@@ -574,6 +649,7 @@ impl App {
                 scene: self.editor.path.to_string_lossy().into_owned(),
                 interval_ms,
                 editor_cpu_ms: start.elapsed().as_secs_f64() * 1000.,
+                editor_stages: std::mem::take(&mut self.debug.editor_stages),
                 spans: spare,
                 omitted_spans: omitted,
                 render: (self.viewport_draws != draws).then(|| self.renderer.frame_stats()),

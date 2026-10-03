@@ -28,6 +28,10 @@ fn create_file(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 fn main() -> Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
+        println!("{}", bozzard_project::runtime::description());
+        return Ok(());
+    }
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let command = args.first().and_then(|arg| arg.to_str()).unwrap_or("help");
     match command {

@@ -54,3 +54,10 @@ opt-level = 2
 
 [profile.dev.package.bozzard-scene]
 opt-level = 2
+
+# Editor layout and painting are frame-time work too, especially in large projects.
+[profile.dev.package.egui]
+opt-level = 2
+
+[profile.dev.package.epaint]
+opt-level = 2

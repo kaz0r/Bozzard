@@ -13,7 +13,7 @@ fn read(planet) {
     for name in names { columns[name]=[]; }
     let state=#{planet:planet, active:active, current:current, radius:data::planet_radius(planet),
         ids:[], regions:[], storage:#{}, storage_changed:#{}, lookup:#{}, columns:columns,
-        counts:if active { get_scene_list("counts") } else { data::other_counts() }};
+        counts:if active { get_scene_list("counts") } else { data::other_counts() }, original:#{}};
     state.columns.rotating=[]; state.columns.powered=[];
     // An unbuilt destination adds no graph decoding or simulation work.
     if !active {
@@ -47,29 +47,35 @@ fn read(planet) {
         let storage_cells=[];
         for cell in cells { if data::has_slots(builds[cell]) { storage_cells.push(cell); } }
         if storage_cells.len()==0 {continue;}
-        let stored=#{};
+        // Read each page once. Reading map-held pages inside the machine loop
+        // copied all 900 live slots for every machine, even when none changed.
+        let kind_pages=[]; let amount_pages=[];
         for page in 0..4 {
-            for prefix in ["storage_kinds_","storage_amounts_"] {
-                let name=prefix+page.to_string();
-                stored[name]=if id==current { get_scene_list(name) }
-                    else { grid::unpack_cells(data::planet_region_entry("cache_"+name,planet,id),storage_cells,4) };
-            }
+            let suffix=page.to_string();
+            let kinds=if id==current {get_scene_list("storage_kinds_"+suffix)}
+                else {grid::unpack_cells(data::planet_region_entry("cache_storage_kinds_"+suffix,planet,id),storage_cells,4)};
+            let amounts=if id==current {get_scene_list("storage_amounts_"+suffix)}
+                else {grid::unpack_cells(data::planet_region_entry("cache_storage_amounts_"+suffix,planet,id),storage_cells,4)};
+            kind_pages.push(kinds); amount_pages.push(amounts);
         }
+        let selected=if id==current {storage_cells} else {
+            let rows=[]; for row in 0..storage_cells.len() {rows.push(row);} rows
+        };
+        let slots=gather_numeric_pairs(kind_pages,amount_pages,selected,4);
         let storage_index=0;
         for i in 0..cells.len() {
             let cell=cells[i]; if !data::has_slots(builds[cell]) { continue; }
-            let slots=[];
-            for page in 0..4 {
-                let kinds=stored["storage_kinds_"+page.to_string()];let amounts=stored["storage_amounts_"+page.to_string()];
-                let base=(if id==current {cell}else{storage_index})*4;
-                for slot in 0..4 {
-                    slots.push(kinds[base+slot]);slots.push(amounts[base+slot]);
-                }
-            }
-            state.storage[(first+i).to_string()]=slots;
+            state.storage[(first+i).to_string()]=slots[storage_index];
             storage_index+=1;
         }
     }
+    // A snapshot also records the writable columns. Backpressure, empty inputs
+    // and overload often leave them unchanged; those columns need no host write
+    // or archive reconstruction. Storage already has explicit dirty indices.
+    for name in ["items","item_amounts","input_items","input_amounts","progress","assembler_iron","assembler_copper","split_state"] {
+        state.original[name]=state.columns[name];
+    }
+    state.original.counts=state.counts;
     state
 }
 
@@ -78,6 +84,7 @@ fn write(state) {
     let names=["items","item_amounts","input_items","input_amounts","progress","assembler_iron","assembler_copper","split_state"];
     // Batch archive writes per column, not per machine or item transfer.
     for name in names {
+        if state.original.contains(name) && numeric_arrays_equal(state.columns[name],state.original[name]) {continue;}
         let pages=get_object_list("cache_"+name); let changed=false;
         for region in state.regions {
             let id=region[0]; let first=region[1]; let cells=region[2];
@@ -136,6 +143,8 @@ fn write(state) {
     }
     // One write per changed storage column, even when many remote containers fill.
     for name in storage_dirty.keys() { set_object_list(name,storage_pages[name]); }
-    if state.active { set_scene_list("counts",state.counts); }
-    else { data::set_other_counts(state.counts); }
+    if !state.original.contains("counts") || !numeric_arrays_equal(state.counts,state.original.counts) {
+        if state.active { set_scene_list("counts",state.counts); }
+        else { data::set_other_counts(state.counts); }
+    }
 }

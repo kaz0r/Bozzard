@@ -219,6 +219,9 @@ impl App {
                         ui.label("Use the full Bozzard editor bundle, which includes the player.");
                         ui.add_space(6.0);
                     }
+                    if cfg!(debug_assertions) {
+                        ui.weak("Development editor: export uses a compatible release player when available. A development player may run slower.");
+                    }
                     if let Some(error) = &dialog.export_error {
                         ui.colored_label(theme::CORAL, error);
                         ui.add_space(6.0);

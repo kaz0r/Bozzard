@@ -15,6 +15,7 @@ pub struct Assets {
     last_pressure: usize,
     scene_generation: u64,
     reload_generation: u64,
+    hot_reload: bool,
 }
 
 impl Assets {
@@ -41,6 +42,7 @@ impl Assets {
             last_pressure: 0,
             scene_generation: 0,
             reload_generation: 0,
+            hot_reload: true,
         })
     }
 
@@ -118,6 +120,9 @@ impl Assets {
     }
 
     pub fn poll(&mut self) -> Result<()> {
+        if !self.hot_reload {
+            return Ok(());
+        }
         if self.reload.is_none() && self.last_poll.elapsed() >= Duration::from_millis(500) {
             self.reload = Some(self.store.refresh_job()?);
             self.reload_generation = self.scene_generation;
@@ -152,5 +157,8 @@ impl Assets {
             }
         }
         Ok(())
+    }
+    pub fn disable_hot_reload(&mut self) {
+        self.hot_reload = false;
     }
 }

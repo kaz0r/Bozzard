@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "My Game",
+  "start_scene": "scenes/main.json",
+  "view": "3d",
+  "cook": "universal"
+}

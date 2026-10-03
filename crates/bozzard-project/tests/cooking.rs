@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-struct Temp(PathBuf);
+struct Temp(PathBuf, std::cell::RefCell<Vec<bozzard_project::GamePack>>);
 impl Temp {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -17,15 +17,28 @@ impl Temp {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
-        Self(root)
+        Self(root, Default::default())
     }
 }
+impl Temp {
+    fn data(&self, folder: &Path) -> PathBuf {
+        let pack = bozzard_project::GamePack::open(
+            &data_root(folder).join(bozzard_project::GAMEPACK),
+            &Default::default(),
+        )
+        .unwrap();
+        let root = pack.root().to_owned();
+        self.1.borrow_mut().push(pack);
+        root
+    }
+}
+
 impl Drop for Temp {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
-fn data(root: &Path) -> PathBuf {
+fn data_root(root: &Path) -> PathBuf {
     if cfg!(target_os = "macos") {
         root.join("Game.app/Contents/Resources/game")
     } else {
@@ -72,7 +85,7 @@ fn export(
         &project,
         scene,
         path,
-        &std::env::current_exe()?,
+        &PathBuf::from(env!("CARGO_BIN_EXE_bozzard-project")),
         destination,
         &Progress::default(),
     )?;
@@ -105,7 +118,7 @@ fn automatic_cooking_reuses_content_keys_rebuilds_only_dependents_and_recovers_b
         fs::read(temp.0.join("first/package.json"))?,
         fs::read(temp.0.join("second/package.json"))?
     );
-    let (cooked, assets) = load(&data(&temp.0.join("first")).join("scene.json"))?;
+    let (cooked, assets) = load(&temp.data(&temp.0.join("first")).join("scene.json"))?;
     assert_eq!(cooked.objects, scene.objects);
     for (id, asset) in &cooked.assets {
         match (entry(&assets, id), entry(&original, id)) {
@@ -153,7 +166,7 @@ fn automatic_cooking_reuses_content_keys_rebuilds_only_dependents_and_recovers_b
         CookTarget::Universal,
     )?;
     assert_eq!((changed.built, changed.reused), (2, 3));
-    let (_, changed_assets) = load(&data(&temp.0.join("changed")).join("scene.json"))?;
+    let (_, changed_assets) = load(&temp.data(&temp.0.join("changed")).join("scene.json"))?;
     let AssetData::Mesh(before) = entry(&assets, "courier-gltf") else {
         panic!()
     };
@@ -182,14 +195,14 @@ fn automatic_cooking_reuses_content_keys_rebuilds_only_dependents_and_recovers_b
     // Target settings are part of the key. Lossless GPU fallback remains available.
     let rgba = export(&scene, &path, &temp.0.join("rgba"), CookTarget::Rgba)?;
     assert_eq!((rgba.built, rgba.reused), (5, 0));
-    let (_, raw) = load(&data(&temp.0.join("rgba")).join("scene.json"))?;
+    let (_, raw) = load(&temp.data(&temp.0.join("rgba")).join("scene.json"))?;
     let AssetData::Image(image) = entry(&raw, "courier-paint") else {
         panic!()
     };
     assert!(image.compressed.is_none());
     fs::remove_dir_all(moved)?;
     fs::rename(temp.0.join("first"), temp.0.join("relocated game"))?;
-    let root = data(&temp.0.join("relocated game"));
+    let root = temp.data(&temp.0.join("relocated game"));
     let (project, path) = Project::load(&root.join(bozzard_project::MANIFEST))?;
     assert_eq!(project.cook, CookTarget::Source);
     let (scene, _) = load(&path)?;
@@ -226,7 +239,7 @@ fn cooking_preserves_current_bakes_but_never_promotes_stale_bakes() -> anyhow::R
         &temp.0.join("current"),
         CookTarget::Universal,
     )?;
-    let (cooked, cooked_assets) = load(&data(&temp.0.join("current")).join("scene.json"))?;
+    let (cooked, cooked_assets) = load(&temp.data(&temp.0.join("current")).join("scene.json"))?;
     assert!(gi::is_current(&cooked, &cooked_assets)?);
     assert!(gi::is_current(
         &cooked.runtime_scenes["second"],
@@ -240,7 +253,7 @@ fn cooking_preserves_current_bakes_but_never_promotes_stale_bakes() -> anyhow::R
     scene.lighting.sun_intensity += 1.;
     assert!(!gi::is_current(&scene, &assets)?);
     export(&scene, &path, &temp.0.join("stale"), CookTarget::Universal)?;
-    let (stale, assets) = load(&data(&temp.0.join("stale")).join("scene.json"))?;
+    let (stale, assets) = load(&temp.data(&temp.0.join("stale")).join("scene.json"))?;
     assert!(!gi::is_current(&stale, &assets)?);
     assert_eq!(
         stale.gi.baked.as_ref().unwrap().source,
@@ -287,7 +300,7 @@ fn animated_models_and_transitive_prefab_models_are_cooked_and_relocated() -> an
     }
     fs::remove_dir_all(source)?;
     for name in ["middleware-lab", "prefab-lab", "material-gallery"] {
-        let path = data(&temp.0.join(name)).join("scene.json");
+        let path = temp.data(&temp.0.join(name)).join("scene.json");
         let (scene, _) = load(&path)?;
         let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path))?;
         if name == "prefab-lab" {
@@ -390,7 +403,7 @@ fn material_parents_and_maps_export_with_cooking_cache_and_without_authoring_sou
     let third = export(&scene, &path, &temp.0.join("third"), CookTarget::Universal)?;
     assert_eq!((third.built, third.reused), (1, 0));
     fs::remove_dir_all(source)?;
-    let (scene, assets) = load(&data(&temp.0.join("first")).join("scene.json"))?;
+    let (scene, assets) = load(&temp.data(&temp.0.join("first")).join("scene.json"))?;
     assets.validate_scene_resources(&scene)?;
     let material = assets.material("shared")?;
     assert!(material.definition.parent.is_some());

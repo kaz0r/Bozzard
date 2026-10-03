@@ -90,9 +90,11 @@ pub fn prepare_export(
         ("Game", ".")
     };
     let data = prepared.stage.join(data);
-    fs::create_dir_all(data.join("assets"))?;
+    fs::create_dir_all(&data)?;
+    let content = prepared.stage.join(".game-content");
+    fs::create_dir_all(content.join("assets"))?;
     let mut cooker = Cooker::new(
-        &data,
+        &content,
         source
             .parent()
             .unwrap_or(Path::new("."))
@@ -105,10 +107,19 @@ pub fn prepare_export(
     runtime_project.start_scene = "scene.json".into();
     runtime_project.cook = CookTarget::Source;
     fs::write(
-        data.join(MANIFEST),
+        content.join(MANIFEST),
         serde_json::to_vec_pretty(&runtime_project)?,
     )?;
     cooker.scene(scene, source, "scene.json")?;
+    prepared.report = cooker.cache.report;
+    drop(cooker);
+    gamepack::write(&content, &data.join(GAMEPACK), progress)?;
+    progress.stage("Validating compressed gamepack")?;
+    let verified = GamePack::open(&data.join(GAMEPACK), progress)?;
+    let (packed_project, packed_scene) = Project::load(&verified.project_path())?;
+    packed_project.validate_scene(&bozzard_demo::load_document(Some(&packed_scene))?)?;
+    drop(verified);
+    fs::remove_dir_all(content)?;
     progress.stage("Copying native player")?;
     let binary = prepared.stage.join(executable);
     fs::create_dir_all(binary.parent().unwrap())?;
@@ -164,11 +175,11 @@ pub fn prepare_export(
         serde_json::to_vec_pretty(&serde_json::json!({
             "version": 1, "name": project.name, "engine_version": env!("CARGO_PKG_VERSION"),
             "os": std::env::consts::OS, "arch": std::env::consts::ARCH,
-            "executable": executable, "files": files, "cook": project.cook
+            "executable": executable, "files": files, "cook": project.cook,
+            "gamepack": if cfg!(target_os = "macos") { "Game.app/Contents/Resources/game/gamepack.bpack" } else { GAMEPACK }
         }))?,
     )?;
     progress.check()?;
-    prepared.report = cooker.cache.report;
     Ok(prepared)
 }
 

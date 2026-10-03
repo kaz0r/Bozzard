@@ -1,0 +1,62 @@
+{
+  "baseline": {
+    "player_cpu_frame": {
+      "samples": 600,
+      "median_ms": 3.886,
+      "p95_ms": 4.892,
+      "p99_ms": 39.556
+    },
+    "player_presentation_interval": {
+      "samples": 599,
+      "median_ms": 7.136,
+      "p95_ms": 13.187,
+      "p99_ms": 43.645
+    },
+    "player_gpu_passes": {
+      "samples": 600,
+      "median_ms": 2.604,
+      "p95_ms": 3.216,
+      "p99_ms": 3.462
+    },
+    "loaded_hud_medians": {
+      "frame": 8.622001,
+      "draw": 2.41909,
+      "visible": 489.0,
+      "draws": 263.0,
+      "triangles": 349668.0,
+      "sim": 0.0004,
+      "wait": 0.00026
+    },
+    "hud_samples": 51
+  },
+  "final": {
+    "player_cpu_frame": {
+      "samples": 600,
+      "median_ms": 3.908,
+      "p95_ms": 4.839,
+      "p99_ms": 17.988
+    },
+    "player_presentation_interval": {
+      "samples": 599,
+      "median_ms": 7.141,
+      "p95_ms": 12.787,
+      "p99_ms": 21.605
+    },
+    "player_gpu_passes": {
+      "samples": 600,
+      "median_ms": 2.601,
+      "p95_ms": 3.229,
+      "p99_ms": 3.412
+    },
+    "loaded_hud_medians": {
+      "frame": 8.004805,
+      "draw": 2.43157,
+      "visible": 489.0,
+      "draws": 263.0,
+      "triangles": 349668.0,
+      "sim": 0.00038,
+      "wait": 0.00026
+    },
+    "hud_samples": 45
+  }
+}

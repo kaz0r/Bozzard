@@ -1,6 +1,9 @@
 # Export a native game
 
-Bozzard exports a folder containing a native player, a starting scene and its assets.
+Bozzard exports a folder containing a native player and **gamepack.bpack**, a compressed
+container for the project, scenes, scripts, prefabs and assets. Game content is no longer
+distributed as loose editable JSON, script or asset files. macOS stores the pack inside
+**Game.app/Contents/Resources/game**; Windows and Linux keep it beside the executable.
 The recipient opens **Game.app** on macOS, **Game.exe** on Windows, or **Game** on Linux.
 No Rust, Python, source checkout or command-line scene argument is needed to play.
 Keep the folder's contents together; the folder can be moved or renamed.
@@ -28,7 +31,17 @@ supports cancellation before publication. Once complete, **Game exported** offer
 
 The full native development bundle also includes the companion runtime. An editor copied
 by itself shows the missing player in the export dialog and disables export until it is installed.
-The player must be from the same engine build as the editor.
+The player must have compatible engine, native script API, target, pack format and Steam capabilities.
+The exporter checks the companion runtime's gamepack format support before publishing,
+including for solo games, and reports when an older player needs to be rebuilt.
+
+A development editor launched from Cargo's `debug` directory prefers the player in its
+sibling `release` directory when that executable reports a compatible release runtime.
+An absent, unreadable or incompatible release player falls back to the adjacent development
+player, which is still validated before export. Installed editor bundles use their adjacent
+player. The export dialog warns that development players may run slower; build both binaries
+with the release command above for distribution. `--runtime-info` reports `build_profile`.
+The dedicated Bozz-torio runtime uses the same preference and compatibility checks.
 
 ## Steam games
 
@@ -96,6 +109,22 @@ the output folder visible. Failed or cancelled work removes its staging director
 contains the host OS/architecture, engine version, executable path and sorted file byte counts.
 It is an inventory, not a cryptographic integrity or signing manifest. ZIP entries have stable
 timestamps and ordering; identical inputs and folder names produce identical archives.
+
+The gamepack has a versioned header, compressed index and payload, SHA-256 checksums,
+bounded decompression and portable path checks. The player verifies it before use and
+accepts up to 8,192 files, 512 MiB per file and 4 GiB of uncompressed content. It
+disables asset hot reload for packed games. Its filesystem importers currently use a
+private temporary content directory (0700 on Unix), retained while the game runs and
+removed on normal exit. A crash can leave that temporary directory behind. Missing or
+damaged packs fail startup instead of falling back to the embedded demo. Existing loose
+exports remain supported by their matching runtime.
+
+Compression deters casual file editing; it is not encryption, signing or anti-cheat.
+A determined recipient can recover scripts or rebuild a pack and its checksums. Gameplay
+that requires trusted authority must enforce its rules outside the recipient's client.
+`--project gamepack.bpack` can explicitly load a pack. Diagnostic `--write-scene FILE`
+materializes content beside the requested snapshot in `FILE.game-data` (replacing the
+extension), so that the snapshot remains usable after the player exits.
 
 `--verify` extracts and renames the ZIP outside the repository, restores executable permissions,
 checks its inventory and launches the extracted binary from an empty working directory with

@@ -22,21 +22,22 @@ pub(super) fn surface_matches(index: usize, part: &MeshPart, query: &str) -> boo
 
 impl App {
     /// Imported parts are inspection targets, not scene objects or reparent targets.
-    pub fn hierarchy_surfaces(
+    pub fn hierarchy_surface(
         &mut self,
         ui: &mut egui::Ui,
         object: &str,
+        index: usize,
         depth: usize,
-        query: &str,
     ) {
-        let rows: Vec<_> = self
+        let Some(part) = self
             .editor
             .object_mesh(object)
-            .into_iter()
-            .flat_map(|mesh| mesh.parts.iter().enumerate())
-            .filter(|(index, part)| surface_matches(*index, part, query))
-            .map(|(index, part)| (index, surface_label(index, part), part.name.clone()))
-            .collect();
+            .and_then(|mesh| mesh.parts.get(index))
+        else {
+            return;
+        };
+        let label = surface_label(index, part);
+        let full_name = part.name.clone();
         let enabled = self.editor.play.is_none()
             && self.drag.is_none()
             && !self.mouse_captured
@@ -44,32 +45,24 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard;
         ui.add_enabled_ui(enabled, |ui| {
-            for (index, label, full_name) in rows {
-                ui.push_id(("hierarchy-surface", object, index), |ui| {
-                    left_aligned_hierarchy_row(ui, |ui| {
-                        ui.add_space((depth.min(12) * 12 + 18) as f32);
-                        let selected = self.editor.selected.as_deref() == Some(object)
-                            && self.editor.selected_surface().is_some_and(|s| s.index == index);
-                        let row = clipped_selectable_row(ui, selected, label)
-                            .on_hover_text(format!(
-                                "{full_name}\nSelect to make model surfaces independent child entities · Each child supports components · Unpack linked prefabs first"
-                            ));
-                        if row.clicked() || row.double_clicked() {
-                            self.editor.finish_gesture();
-                            let result = self.editor.select_component_pick(Some(bozzard_editor::Pick {
-                                object: object.to_owned(), surface: Some(index),
-                            }));
-                            if result.is_ok() {
-                                self.hierarchy_state.reset_selection(Some(object));
-                            }
-                            self.result(result);
-                        }
-                        if row.double_clicked() {
-                            self.hierarchy_frame_requested = true;
-                        }
-                    });
+            ui.push_id(("hierarchy-surface", object, index), |ui| {
+                left_aligned_hierarchy_row(ui, |ui| {
+                    ui.add_space((depth.min(12) * 12 + 18) as f32);
+                    let selected = self.editor.selected.as_deref() == Some(object)
+                        && self.editor.selected_surface().is_some_and(|s| s.index == index);
+                    let row = clipped_selectable_row(ui, selected, label)
+                        .on_hover_text(format!("{full_name}\nSelect to make model surfaces independent child entities · Each child supports components · Unpack linked prefabs first"));
+                    if row.clicked() || row.double_clicked() {
+                        self.editor.finish_gesture();
+                        let result = self.editor.select_component_pick(Some(bozzard_editor::Pick {
+                            object: object.to_owned(), surface: Some(index),
+                        }));
+                        if result.is_ok() { self.hierarchy_state.reset_selection(Some(object)); }
+                        self.result(result);
+                    }
+                    if row.double_clicked() { self.hierarchy_frame_requested = true; }
                 });
-            }
+            });
         });
     }
 

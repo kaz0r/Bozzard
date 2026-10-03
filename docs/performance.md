@@ -1,5 +1,52 @@
 # Performance measurements
 
+See [the detailed October follow-up](further-optimizations.md) for per-change rationale,
+charts, raw samples, dense-world simulation results, packed exports and validation.
+
+## Large editor panels
+
+Earth Factory's 782 authored objects exposed an editor UI bottleneck on an RTX 3060:
+the hierarchy constructed every expanded object/surface row, and the asset browser
+constructed every tile, including offscreen thumbnails. Native development Play
+measured 127.6 ms median editor CPU and 138.4 ms median frame interval (about 7 FPS).
+The renderer itself took about 2 ms. A second instrumented run attributed 70.8 ms
+to Hierarchy and 31.8 ms to Assets.
+
+Both panels now construct widgets only for visible scroll rows. Hierarchy keeps the
+full object order for range selection, collapse/search, imported surfaces and reparenting;
+asset tiles retain IDs while scrolling, and thumbnails are generated on demand. egui
+and epaint also use optimization level 2 in development, retaining debug information.
+The Debug profiler exposes editor stage and pane timings separately from simulation.
+
+Local native runs on October 1, 2026, RTX 3060 / Vulkan, after thirty ready-frame
+warmups. The original/virtualization-only runs were exploratory and had changing
+viewport sizes; optimized development and release used 336 × 518. These are
+observations across configurations, not an exact same-viewport FPS A/B comparison:
+
+| Build / scene | Median editor CPU | Median frame interval | Approximate FPS |
+| --- | ---: | ---: | ---: |
+| Previous development / title | 127.6 ms | 138.4 ms | 7 |
+| Virtualized panels, original UI optimization / title | 17.4 ms | 27.7 ms | 36 |
+| Virtualized panels, optimized UI dependencies / title | 13.2 ms | 20.8 ms | 48 |
+| Release / title | 2.2 ms | 6.9 ms | 144 |
+| Release / seeded production demo | 3.9 ms | 6.9 ms | 144 |
+
+These runs captured 120–180 frames. The final 180-frame production-demo run used seed 4
+with no concurrent compilation. These are measurements of these fixtures and
+editor layout, not a guarantee for larger viewports, built factories or other
+hardware. Gameplay effects and quality are unchanged.
+
+```sh
+cargo build --release --locked --offline -p bozzard-editor-app -p bozzard-player
+target/release/bozzard-editor --scene examples/earth-factory/scenes/earth.json \
+  --hardware --benchmark-play --benchmark-frames 180
+```
+
+`--benchmark-frames 1..240` records native editor frames, prints JSON with CPU,
+interval, pane, simulation and GPU data, and exits. Omit `--benchmark-play` to measure
+authoring. Use the same layout/profile for comparisons; startup and upload frames
+are excluded. Existing ordinary editor arguments still apply.
+
 For the September 2026 optimization pass, including shadow reuse, idle editor drawing, CPU caches, and before/after results, see [the optimization review](optimization-results.md). For the subsequent live collision, per-light shadow, shader pipeline, render attachment, and editor document work, see [the follow-up review](optimization-followup.md). The recorded measurements below describe an earlier pass.
 
 The benchmarks below separate factory simulation, editor CPU work, and synchronized rendering. Their elapsed CPU or synchronized wall times are not windowed FPS measurements.
