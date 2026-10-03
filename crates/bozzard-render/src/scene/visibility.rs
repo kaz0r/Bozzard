@@ -1,5 +1,22 @@
 use super::*;
 
+/// Why a color batch plan could not be retained. This is CPU preparation, not GPU timing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BatchPlanRebuildReason {
+    Cold,
+    Membership,
+    Visibility,
+    Bounds,
+    Metadata,
+    IncrementalDisabled,
+    UnsupportedProjection,
+    NonAffineModel,
+    UnboundedGeometry,
+    OrderingCapacity,
+    OrderingConflict,
+}
+
 #[derive(Clone, Copy, Debug, Default, serde::Serialize)]
 pub struct FrameStats {
     /// Monotonic identity for matching asynchronous GPU results with their rendered frame.
@@ -36,8 +53,18 @@ pub struct FrameStats {
     pub instanced_draws: usize,
     /// Visible surfaces represented by draws with more than one instance.
     pub instanced_surfaces: usize,
+    pub batching: BatchingStats,
     pub batch_plan_reused: bool,
     pub batch_plan_rebuilds: usize,
+    /// Ordering renewed after an envelope escape, without regrouping surfaces.
+    pub batch_plan_recertifications: usize,
+    pub batch_plan_rebuild_reason: Option<BatchPlanRebuildReason>,
+    /// CPU plan validation/construction, excluding instance-buffer preparation.
+    pub batch_plan_ms: f64,
+    /// CPU camera-frustum checks, excluding occlusion and GPU execution.
+    pub visibility_ms: f64,
+    /// CPU occlusion preparation/encoding; not the depth/compute GPU duration.
+    pub occlusion_prepare_ms: f64,
     /// World/projected bounds updated while retaining an existing ordering plan.
     pub batch_bounds_updates: usize,
     pub batch_order_checks: usize,
@@ -82,6 +109,8 @@ pub struct FrameStats {
     /// Mesh/texture clone calls; primitive keys may not allocate.
     pub shadow_metadata_key_clones: usize,
     pub graph_compilations: usize,
+    /// Lazily compiled opaque instanced graph host variants this frame.
+    pub graph_instanced_compilations: usize,
     /// All active graphs plus at most eight recently absent graphs.
     pub resident_graphs: usize,
     pub shadow_triangles: u64,
