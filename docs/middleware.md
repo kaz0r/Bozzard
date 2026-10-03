@@ -36,9 +36,11 @@ Native output uses Kira/CPAL with short parameter ramps. Device creation is lazy
 
 ## Animation and cinematics
 
-Import a glTF/GLB with skins or animation. Animated models remain whole objects with an **Animator**, preserving joint weights and the imported PBR materials. **Cook model rig** imports its skeleton/clips; **Recook rig and reset controller** intentionally replaces controller states/events and supports Undo.
+Import a glTF/GLB with skins or animation. Animated models remain whole objects with an **Animator**, preserving joint weights and the imported PBR materials. **Import skeleton and clips** imports its skeleton/clips; **Reimport skeleton and clips** intentionally replaces controller states/events and supports Undo.
 
-The Animator inspector authors named states, clip motions or one-dimensional blend trees, float parameters, ordered transitions, threshold/exit-time conditions, fade duration, clip events and root motion. Blend samples interpolate neighboring thresholds; events come from the dominant clip to avoid duplicate markers. Root motion extracts selected translation axes and yaw; a navigation agent and root motion cannot both own the object's movement.
+The Animator inspector authors named states, clip motions, speed and directional blend trees, float parameters, ordered transitions, threshold/exit-time conditions, fade duration, clip events and root motion. Body layers combine gestures with locomotion; analytic IK provides grounded feet and object/point targets. Retargeting bakes a source character's clips onto a mapped skeleton, and motion-warp windows align a root-driven action to an interaction target. See [Character animation](character-animation.md) for the human demo, editor walkthrough and runtime controls.
+
+Blend samples share normalized phase; events come from the dominant clip to avoid duplicate markers. Root motion extracts selected translation axes and yaw; a navigation agent and root motion cannot both own the object's movement. The import/bake boundary removes static rest channels and compacts constant step/linear channels, retaining animated quaternion samples and cubic tangents.
 
 The **State graph** shows states and numbered directed transitions. Click a source and destination
 state (or the wildcard source) to create a connection; click a numbered badge to select it for

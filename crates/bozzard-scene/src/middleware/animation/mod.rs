@@ -1,45 +1,37 @@
-//! Authored animation state machines, one-dimensional blend trees, events and root motion.
+//! Skeletal controllers, blend spaces, layers, IK, and root-motion alignment.
 pub mod data;
+mod evaluation;
+pub mod ik;
+pub mod layers;
+pub mod motion;
+pub mod retarget;
+mod root;
+mod runtime;
+pub mod warp;
+pub use ik::{FootPlacement, IkConstraint, IkTarget};
+pub use layers::{AnimationLayer, BoneMask, LayerBlend};
+pub use motion::{BlendPoint, BlendSample, Motion};
+pub use runtime::{Control, Fade, LayerPlayer, Player, Runtime};
+pub use warp::{MotionWarp, WarpGoal, WarpTarget};
 #[derive(Clone, Debug)]
 pub struct Palette {
     pub signature: u64,
     pub matrices: std::sync::Arc<Vec<[f32; 16]>>,
 }
 use super::{
-    curve::{Playhead, Repeat},
+    curve::Repeat,
     registry::{Authored, PreviewPolicy},
-    signals::{Kind, Signal, Signals},
-    timeline::crossed_markers,
 };
-use crate::{
-    AssetKind, Component, Field, FieldValue, Object, Scene, SceneInstance, Transform, Ui, World,
-};
-use anyhow::{Context, Result, ensure};
-use data::{Pose, Rig};
-use glam::{EulerRot, Quat, Vec3};
+use crate::{AssetKind, Component, Field, FieldValue, Object, Scene, Ui, World};
+use anyhow::{Result, ensure};
+use data::Rig;
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BlendSample {
-    pub threshold: f32,
-    pub clip: usize,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Motion {
-    Clip {
-        clip: usize,
-    },
-    Blend1d {
-        parameter: String,
-        samples: Vec<BlendSample>,
-    },
-}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StateDefinition {
@@ -98,6 +90,10 @@ pub struct Animator {
     pub transitions: Arc<Vec<Transition>>,
     pub parameters: BTreeMap<String, f32>,
     pub root_motion: Option<RootMotion>,
+    pub layers: Arc<Vec<AnimationLayer>>,
+    pub ik: Arc<Vec<IkConstraint>>,
+    pub foot_placement: Option<FootPlacement>,
+    pub warps: Arc<Vec<MotionWarp>>,
 }
 impl Default for Animator {
     fn default() -> Self {
@@ -112,6 +108,10 @@ impl Default for Animator {
             transitions: Arc::default(),
             parameters: BTreeMap::new(),
             root_motion: None,
+            layers: Arc::default(),
+            ik: Arc::default(),
+            foot_placement: None,
+            warps: Arc::default(),
         }
     }
 }
@@ -135,40 +135,8 @@ impl Animator {
             ..Default::default()
         }
     }
-    fn weights(&self, motion: &Motion, parameters: &BTreeMap<String, f32>) -> (usize, usize, f32) {
-        match motion {
-            Motion::Clip { clip } => (*clip, *clip, 0.),
-            Motion::Blend1d { parameter, samples } => {
-                let value = parameters[parameter];
-                let end = samples.partition_point(|s| s.threshold <= value);
-                if end == 0 {
-                    (samples[0].clip, samples[0].clip, 0.)
-                } else if end == samples.len() {
-                    let clip = samples[end - 1].clip;
-                    (clip, clip, 0.)
-                } else {
-                    let (a, b) = (&samples[end - 1], &samples[end]);
-                    (
-                        a.clip,
-                        b.clip,
-                        (value - a.threshold) / (b.threshold - a.threshold),
-                    )
-                }
-            }
-        }
-    }
-    fn sample(&self, weights: (usize, usize, f32), phase: f32) -> Result<Vec<Pose>> {
-        let (a, b, w) = weights;
-        let mut pose = self.rig.sample(a, phase * self.rig.clips[a].duration)?;
-        if a != b {
-            let other = self.rig.sample(b, phase * self.rig.clips[b].duration)?;
-            for (p, q) in pose.iter_mut().zip(other) {
-                *p = p.blend(q, w);
-            }
-        }
-        Ok(pose)
-    }
 }
+
 impl Component for Animator {
     const NAME: &'static str = "animator";
     const LABEL: &'static str = "Animator";
@@ -259,26 +227,7 @@ impl Authored for Animator {
                 valid_name(&state.name) && state.name != "*" && names.insert(state.name.as_str()),
                 "animation state names must be unique"
             );
-            match &state.motion {
-                Motion::Clip { clip } => {
-                    ensure!(*clip < self.rig.clips.len(), "state clip does not exist")
-                }
-                Motion::Blend1d { parameter, samples } => {
-                    ensure!(
-                        self.parameters.contains_key(parameter)
-                            && !samples.is_empty()
-                            && samples.len() <= 64,
-                        "blend tree requires a parameter and 1–64 samples"
-                    );
-                    ensure!(
-                        samples
-                            .iter()
-                            .all(|s| s.threshold.is_finite() && s.clip < self.rig.clips.len())
-                            && samples.windows(2).all(|w| w[0].threshold < w[1].threshold),
-                        "blend thresholds must strictly increase and clips must exist"
-                    );
-                }
-            }
+            state.motion.validate(&self.rig, &self.parameters)?;
         }
         ensure!(
             self.states.is_empty() && self.initial.is_empty()
@@ -307,9 +256,45 @@ impl Authored for Animator {
                 "root motion joint is missing"
             );
         }
+        ensure!(
+            self.layers.len() <= 16 && self.ik.len() <= 16 && self.warps.len() <= 64,
+            "animator supports at most 16 layers, 16 IK chains and 64 motion-warp windows"
+        );
+        let mut layer_names = BTreeSet::new();
+        for layer in self.layers.iter() {
+            layer.validate(&self.rig, &self.parameters)?;
+            ensure!(
+                layer_names.insert(&layer.name),
+                "animation layer names must be unique"
+            );
+        }
+        let mut ik_names = BTreeSet::new();
+        if let Some(settings) = &self.foot_placement {
+            settings.validate(&self.rig)?;
+        }
+        for chain in self.ik.iter() {
+            chain.validate(&self.rig, &self.parameters)?;
+            ensure!(ik_names.insert(&chain.name), "IK names must be unique");
+        }
+        let mut warp_names = BTreeSet::new();
+        for (index, window) in self.warps.iter().enumerate() {
+            window.validate(self)?;
+            ensure!(
+                warp_names.insert(&window.name),
+                "motion-warp names must be unique"
+            );
+            ensure!(
+                !self.warps[..index]
+                    .iter()
+                    .any(|other| other.state == window.state
+                        && other.start < window.end
+                        && window.start < other.end),
+                "motion-warp windows in one state cannot overlap"
+            );
+        }
         Ok(())
     }
-    fn validate_scene(&self, owner: &Object, scene: &Scene, _ids: &BTreeSet<&str>) -> Result<()> {
+    fn validate_scene(&self, owner: &Object, scene: &Scene, ids: &BTreeSet<&str>) -> Result<()> {
         self.validate()?;
         if !self.asset.is_empty() {
             ensure!(
@@ -321,7 +306,29 @@ impl Authored for Animator {
             );
             ensure!(owner.drawable.as_ref().is_some_and(|d| matches!(&d.mesh, crate::Mesh::Asset(id) | crate::Mesh::Surface{asset:id,..} if id == &self.asset)), "Animator must use the object's mesh asset");
         }
+        for target in self.object_targets() {
+            ensure!(
+                ids.contains(target),
+                "animation target '{target}' is missing"
+            );
+        }
         Ok(())
+    }
+    fn remap_objects(&mut self, mapping: &BTreeMap<String, String>) {
+        for chain in Arc::make_mut(&mut self.ik) {
+            if let IkTarget::Object { object, .. } = &mut chain.target
+                && let Some(target) = mapping.get(object)
+            {
+                *object = target.clone();
+            }
+        }
+        for window in Arc::make_mut(&mut self.warps) {
+            if let WarpTarget::Object { object, .. } = &mut window.target
+                && let Some(target) = mapping.get(object)
+            {
+                *object = target.clone();
+            }
+        }
     }
     fn write_targets(&self, owner: &str) -> Vec<String> {
         vec![owner.into()]
@@ -330,367 +337,17 @@ impl Authored for Animator {
 fn valid_name(name: &str) -> bool {
     !name.trim().is_empty() && name.len() <= 128
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Fade {
-    pub from: Vec<Pose>,
-    pub elapsed: f32,
-    pub duration: f32,
-}
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Player {
-    pub dirty: bool,
-    pub signature: u64,
-    pub state: usize,
-    pub initialized: bool,
-    pub include_start: bool,
-    pub clock: Playhead,
-    pub parameters: BTreeMap<String, f32>,
-    pub fade: Option<Fade>,
-    pub pose: Arc<Vec<Pose>>,
-    pub palette: Arc<Vec<[f32; 16]>>,
-}
-impl Player {
-    fn initialize(&mut self, animator: &Animator) {
-        if !self.initialized {
-            self.state = animator
-                .states
-                .iter()
-                .position(|s| s.name == animator.initial)
-                .unwrap_or(0);
-            self.parameters = animator.parameters.clone();
-            self.clock.playing = animator.autoplay;
-            self.include_start = animator.autoplay;
-            self.initialized = true;
-            self.signature = animator.rig.signature();
-            self.dirty = true;
-        }
+impl Animator {
+    fn object_targets(&self) -> impl Iterator<Item = &str> {
+        self.ik
+            .iter()
+            .filter_map(|chain| match &chain.target {
+                IkTarget::Object { object, .. } => Some(object.as_str()),
+                _ => None,
+            })
+            .chain(self.warps.iter().filter_map(|window| match &window.target {
+                WarpTarget::Object { object, .. } => Some(object.as_str()),
+                _ => None,
+            }))
     }
-    fn transition(&mut self, target: usize, duration: f32) {
-        self.fade = (duration > 0. && !self.pose.is_empty()).then(|| Fade {
-            from: self.pose.as_ref().clone(),
-            elapsed: 0.,
-            duration,
-        });
-        self.state = target;
-        self.clock = Playhead::default();
-        self.clock.play(true);
-        self.include_start = true;
-    }
-}
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Runtime {
-    pub players: BTreeMap<String, Player>,
-}
-#[derive(Clone, Debug)]
-pub enum Control {
-    Play { state: String, fade: f32 },
-    Pause,
-    Stop,
-    Seek(f32),
-    Parameter { name: String, value: f32 },
-}
-impl SceneInstance {
-    pub fn control_animation(
-        &self,
-        world: &mut World,
-        owner: &str,
-        control: Control,
-    ) -> Result<()> {
-        let entity = self.entity(owner).context("animation target is missing")?;
-        let animator = world
-            .get::<Animator>(entity)
-            .context("target has no Animator")?
-            .clone();
-        let target = match &control {
-            Control::Play { state, fade } => {
-                ensure!(
-                    fade.is_finite() && (0.0..=60.).contains(fade),
-                    "invalid animation fade"
-                );
-                Some(
-                    animator
-                        .states
-                        .iter()
-                        .position(|s| &s.name == state)
-                        .context("animation state does not exist")?,
-                )
-            }
-            Control::Seek(value) => {
-                ensure!(
-                    value.is_finite() && (0.0..=1.).contains(value),
-                    "animation seek is normalized 0–1"
-                );
-                None
-            }
-            Control::Parameter { name, value } => {
-                ensure!(
-                    animator.parameters.contains_key(name) && value.is_finite(),
-                    "animation parameter is missing or non-finite"
-                );
-                None
-            }
-            _ => None,
-        };
-        if world.resource::<Runtime>().is_none() {
-            world.insert_resource(Runtime::default());
-        }
-        let player = world
-            .resource_mut::<Runtime>()
-            .unwrap()
-            .players
-            .entry(owner.into())
-            .or_default();
-        player.initialize(&animator);
-        player.dirty = true;
-        match control {
-            Control::Play { fade, .. } => player.transition(target.unwrap(), fade),
-            Control::Pause => player.clock.playing = false,
-            Control::Stop => {
-                player.clock = Playhead::default();
-                player.fade = None;
-                player.include_start = false;
-            }
-            Control::Seek(value) => {
-                player.clock.seek(f64::from(value))?;
-                player.fade = None;
-                player.include_start = false;
-            }
-            Control::Parameter { name, value } => {
-                player.parameters.insert(name, value);
-            }
-        }
-        Ok(())
-    }
-    pub fn step_animations(&self, world: &mut World, dt: f32) -> Result<()> {
-        ensure!(dt.is_finite() && dt >= 0., "invalid animation timestep");
-        let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
-        let mut signals = world.remove_resource::<Signals>().unwrap_or_default();
-        signals.begin(Kind::Animation);
-        let result = (|| -> Result<()> {
-            for (owner, &entity) in self.component_entities::<Animator>(world) {
-                let Some(animator) = world.get::<Animator>(entity).cloned() else {
-                    continue;
-                };
-                let player = runtime.players.entry(owner.clone()).or_default();
-                player.initialize(&animator);
-                if animator.states.is_empty() {
-                    if player.palette.is_empty() && !animator.rig.bindings.is_empty() {
-                        player.pose = Arc::new(animator.rig.rest_pose());
-                        player.palette = Arc::new(animator.rig.palette(&player.pose)?);
-                    }
-                    continue;
-                }
-                if !animator.enabled {
-                    continue;
-                }
-                let current = &animator.states[player.state];
-                if player.clock.playing
-                    && let Some(transition) = animator.transitions.iter().find(|t| {
-                        (t.from == "*" || t.from == current.name)
-                            && t.to != current.name
-                            && t.exit_time
-                                .is_none_or(|v| player.clock.position(1., current.repeat) >= v)
-                            && t.comparison
-                                .matches(player.parameters[&t.parameter], t.threshold)
-                    })
-                {
-                    let target = animator
-                        .states
-                        .iter()
-                        .position(|s| s.name == transition.to)
-                        .unwrap();
-                    player.transition(target, transition.fade);
-                }
-                let state = &animator.states[player.state];
-                let weights = animator.weights(&state.motion, &player.parameters);
-                let (a, b, w) = weights;
-                let duration =
-                    animator.rig.clips[a].duration * (1. - w) + animator.rig.clips[b].duration * w;
-                let previous = player.clock;
-                let mut clock = previous;
-                clock.advance(dt, animator.speed / duration, 1., state.repeat)?;
-                if clock.elapsed == previous.elapsed
-                    && !player.dirty
-                    && player.fade.is_none()
-                    && !player.include_start
-                    && !player.pose.is_empty()
-                {
-                    continue;
-                }
-                let dominant = if w < 0.5 { a } else { b };
-                let clip = &animator.rig.clips[dominant];
-                let hits = if previous.playing
-                    && (clock.elapsed > previous.elapsed || player.include_start)
-                {
-                    crossed_markers(
-                        clip.events.iter().map(|e| e.time / clip.duration),
-                        previous.elapsed,
-                        clock.elapsed,
-                        1.,
-                        state.repeat,
-                        player.include_start,
-                    )?
-                } else {
-                    Vec::new()
-                };
-                let mut pose = animator.sample(weights, clock.position(1., state.repeat))?;
-                if let Some(fade) = &mut player.fade {
-                    if previous.playing {
-                        fade.elapsed = (fade.elapsed + dt).min(fade.duration);
-                    }
-                    for (p, from) in pose.iter_mut().zip(&fade.from) {
-                        *p = from.blend(*p, fade.elapsed / fade.duration);
-                    }
-                    if fade.elapsed >= fade.duration {
-                        player.fade = None;
-                    }
-                }
-                if let Some(root) = &animator.root_motion {
-                    if clock.elapsed != previous.elapsed {
-                        let before = root_position(
-                            &animator,
-                            weights,
-                            previous.elapsed,
-                            state.repeat,
-                            root.node,
-                        )?;
-                        let after = root_position(
-                            &animator,
-                            weights,
-                            clock.elapsed,
-                            state.repeat,
-                            root.node,
-                        )?;
-                        let mut delta = after.0 - before.0;
-                        for axis in 0..3 {
-                            if !root.translation[axis] {
-                                delta[axis] = 0.;
-                            }
-                        }
-                        let mut transform = *world
-                            .get::<Transform>(entity)
-                            .context("root motion transform is missing")?;
-                        let rotation = Quat::from_euler(
-                            EulerRot::XYZ,
-                            transform.rotation_degrees[0].to_radians(),
-                            transform.rotation_degrees[1].to_radians(),
-                            transform.rotation_degrees[2].to_radians(),
-                        );
-                        transform.translation = (Vec3::from_array(transform.translation)
-                            + rotation * (delta * Vec3::from_array(transform.scale)))
-                        .to_array();
-                        if root.yaw {
-                            transform.rotation_degrees[1] += (after.1 - before.1).to_degrees();
-                        }
-                        transform.validate()?;
-                        world.insert(entity, transform)?;
-                    }
-                    let joint = &mut pose[root.node];
-                    let rest = animator.rig.nodes[root.node].rest;
-                    for axis in 0..3 {
-                        if root.translation[axis] {
-                            joint.translation[axis] = rest.translation[axis];
-                        }
-                    }
-                    if root.yaw {
-                        let (yaw, _, _) = Quat::from_array(joint.rotation).to_euler(EulerRot::YXZ);
-                        let (rest_yaw, _, _) =
-                            Quat::from_array(rest.rotation).to_euler(EulerRot::YXZ);
-                        joint.rotation = (Quat::from_rotation_y(rest_yaw - yaw)
-                            * Quat::from_array(joint.rotation))
-                        .normalize()
-                        .to_array();
-                    }
-                }
-                let palette = animator.rig.palette(&pose)?;
-                for hit in hits {
-                    let event = &clip.events[hit];
-                    signals.emit(
-                        owner,
-                        Signal {
-                            kind: Kind::Animation,
-                            name: event.name.clone(),
-                            other: None,
-                            value: event.time,
-                        },
-                    )?;
-                }
-                player.clock = clock;
-                player.dirty = false;
-                player.include_start = false;
-                player.pose = Arc::new(pose);
-                player.palette = Arc::new(palette);
-            }
-            runtime.players.retain(|id, _| {
-                self.entity(id)
-                    .is_some_and(|e| world.get::<Animator>(e).is_some())
-            });
-            Ok(())
-        })();
-        world.insert_resource(runtime);
-        world.insert_resource(signals);
-        result
-    }
-}
-fn root_position(
-    animator: &Animator,
-    weights: (usize, usize, f32),
-    elapsed: f64,
-    repeat: Repeat,
-    node: usize,
-) -> Result<(Vec3, f32)> {
-    let clock = Playhead {
-        elapsed,
-        ..Default::default()
-    };
-    let joint = |phase: f32| -> Result<Pose> {
-        let (a, b, w) = weights;
-        let first = animator
-            .rig
-            .sample_joint(a, phase * animator.rig.clips[a].duration, node)?;
-        if a == b {
-            Ok(first)
-        } else {
-            Ok(first.blend(
-                animator
-                    .rig
-                    .sample_joint(b, phase * animator.rig.clips[b].duration, node)?,
-                w,
-            ))
-        }
-    };
-    let yaw_at = |phase: f32| -> Result<f32> {
-        let (a, b, w) = weights;
-        let first = animator
-            .rig
-            .root_yaw(a, phase * animator.rig.clips[a].duration, node)?;
-        if a == b {
-            Ok(first)
-        } else {
-            Ok(first * (1. - w)
-                + animator
-                    .rig
-                    .root_yaw(b, phase * animator.rig.clips[b].duration, node)?
-                    * w)
-        }
-    };
-    let pose = joint(clock.position(1., repeat))?;
-    let mut position = Vec3::from_array(pose.translation);
-    let mut yaw = yaw_at(clock.position(1., repeat))?;
-    if repeat == Repeat::Loop {
-        let start = joint(0.)?;
-        let end = joint(1.)?;
-        let cycles = elapsed.floor() as f32;
-        position +=
-            (Vec3::from_array(end.translation) - Vec3::from_array(start.translation)) * cycles;
-        yaw += (yaw_at(1.)? - yaw_at(0.)?) * cycles;
-    }
-    ensure!(
-        position.is_finite() && yaw.is_finite(),
-        "root motion overflow"
-    );
-    Ok((position, yaw))
 }

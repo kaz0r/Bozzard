@@ -795,7 +795,17 @@ fn check_document(
                 && saved.post_process_volumes == document.post_process_volumes,
             "runtime display overrides leaked into scene saving"
         );
-        let restored = SceneDemo::new(&Scene::from_json(&saved.to_json()?)?)?;
+        let mut restored = SceneDemo::new_with_prefabs(
+            &Scene::from_json(&saved.to_json()?)?,
+            options.scene.as_deref().filter(|_| prefix == "loaded"),
+        )?;
+        // Scene documents keep authored controllers. A game checkpoint additionally retains the
+        // sampled pose, layer clocks and IK contacts required for an animated pixel comparison.
+        if !moved_scene.skin_poses.is_empty() {
+            let checkpoint = demo.instance().save_game_json(&demo.app.world)?;
+            restored
+                .with_instance(|instance, world| instance.load_game_json(world, &checkpoint))?;
+        }
         let mut restored_scene = extract(&restored, assets, layer, aspect)?;
         // Time and Blueprint lens/display overrides are intentionally not serialized.
         // Freeze the same transient look for the geometry/material image comparison;

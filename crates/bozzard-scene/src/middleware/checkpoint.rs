@@ -155,6 +155,53 @@ impl Save {
                         && player.parameters.values().all(|v| v.is_finite()),
                     "saved animation parameters do not match authored parameters"
                 );
+                ensure!(
+                    player.layers.len() == animator.layers.len()
+                        && player
+                            .layers
+                            .iter()
+                            .all(|layer| layer.clock.elapsed.is_finite()
+                                && layer.clock.elapsed >= 0.
+                                && layer.weight.is_finite()
+                                && (0.0..=1.).contains(&layer.weight)),
+                    "saved animation layers do not match the controller"
+                );
+                ensure!(
+                    player.pelvis_offset.is_finite()
+                        && player.pelvis_offset.abs() <= 2.
+                        && player.ik.len() == animator.ik.len()
+                        && player.ik.iter().all(|state| {
+                            state
+                                .target
+                                .iter()
+                                .flatten()
+                                .chain(state.normal.iter())
+                                .chain(state.support_local.iter())
+                                .chain(state.support_normal.iter())
+                                .all(|v| v.is_finite())
+                        }),
+                    "invalid saved IK state"
+                );
+                ensure!(
+                    player.warp_targets.len() <= animator.warps.len(),
+                    "too many saved motion-warp targets"
+                );
+                for (name, goal) in &player.warp_targets {
+                    ensure!(
+                        animator.warps.iter().any(|window| &window.name == name),
+                        "saved motion-warp window is missing"
+                    );
+                    goal.validate()?;
+                }
+                if !player.base_pose.is_empty() {
+                    ensure!(
+                        player.base_pose.len() == animator.rig.nodes.len(),
+                        "saved base pose has the wrong bone count"
+                    );
+                    for joint in player.base_pose.iter() {
+                        joint.validate()?;
+                    }
+                }
                 if !player.pose.is_empty() {
                     let palette = animator.rig.palette(&player.pose)?;
                     ensure!(

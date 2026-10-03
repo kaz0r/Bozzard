@@ -170,6 +170,7 @@ impl Import {
                     curves,
                 });
             }
+            clip.compact(&rig.nodes)?;
             rig.clips.push(clip);
         }
         rig.validate()?;

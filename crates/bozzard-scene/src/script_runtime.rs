@@ -20,6 +20,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
+mod animation_api;
 mod compute_api;
 mod imports;
 mod module;
@@ -138,6 +139,7 @@ struct ObjectView {
     rigidbody: bool,
     grounded: bool,
     overlaps: usize,
+    animation: Option<animation_api::View>,
 }
 
 /// What a script asked the engine to do, applied in order once every script has run.
@@ -180,6 +182,10 @@ enum Command {
     Ui {
         target: String,
         control: middleware::ui::Control,
+    },
+    Animation {
+        target: String,
+        control: middleware::animation::Control,
     },
     Visible {
         target: String,
@@ -692,6 +698,7 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
         .set_max_array_size(1 << 16)
         .set_max_map_size(1 << 16);
     compute_api::register(&mut engine, host.clone());
+    animation_api::register(&mut engine, host.clone());
     numeric_archive::register(&mut engine);
     macro_rules! borrow {
         ($host:expr) => {
@@ -2353,6 +2360,18 @@ impl SceneInstance {
                                 .is_some_and(|state| state.grounded)
                     }),
                     overlaps: overlaps.get(id.as_str()).copied().unwrap_or(0),
+                    animation: world
+                        .resource::<middleware::animation::Runtime>()
+                        .and_then(|r| r.players.get(id))
+                        .zip(world.get::<middleware::animation::Animator>(*entity))
+                        .map(|(player, animator)| {
+                            let state = animator.states.get(player.state);
+                            animation_api::View {
+                                state: state.map_or_else(String::new, |s| s.name.clone()),
+                                progress: state.map_or(0., |s| player.clock.position(1., s.repeat)),
+                                playing: player.clock.playing,
+                            }
+                        }),
                 },
             );
         }
@@ -2650,6 +2669,9 @@ impl SceneInstance {
                 }
                 Command::Ui { target, control } => {
                     self.control_ui(world, &resolve(tokens, &target), control)?;
+                }
+                Command::Animation { target, control } => {
+                    self.control_animation(world, &resolve(tokens, &target), control)?;
                 }
                 Command::Visible { target, visible } => {
                     let target = resolve(tokens, &target);
