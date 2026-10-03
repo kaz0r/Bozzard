@@ -1178,6 +1178,7 @@ mod metadata_tests {
     use super::*;
     fn draw(id: u64) -> PreparedDraw {
         PreparedDraw {
+            preparation: Default::default(),
             source_item: 0,
             deformation: 0,
             pbr_override: [-1.; 2],

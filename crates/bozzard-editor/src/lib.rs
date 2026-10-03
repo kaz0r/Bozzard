@@ -2,7 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use bozzard_assets::{AssetData, AssetStore};
 use bozzard_demo::{SceneDemo, prepare_document_from, save_document};
-use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
+use bozzard_render::RenderScene;
 use bozzard_scene::{
     AssetKind, AssetSource, Drawable, Layer, Mesh, Object, Scene, Texture, Transform,
 };
@@ -57,6 +57,7 @@ struct Change {
 }
 
 pub struct Editor {
+    render_cache: bozzard_render_assets::RenderSceneCache,
     prefab_source: Option<prefabs::PrefabSource>,
     scene: Scene,
     saved: Scene,
@@ -107,6 +108,7 @@ impl Editor {
     }
     fn from_loaded(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
         Self {
+            render_cache: Default::default(),
             prefab_source: None,
             saved: scene.clone(),
             scene,
@@ -648,6 +650,7 @@ impl Editor {
             self.runtime_asset_generation = 0;
             self.edit_assets = Some(std::mem::replace(&mut self.assets, assets));
             self.asset_revision += 1;
+            self.render_cache.clear();
             self.play = Some(play);
         }
         Ok(())
@@ -707,6 +710,7 @@ impl Editor {
         }
     }
     pub fn stop_play(&mut self) {
+        self.render_cache.clear();
         self.pending_simulation = None;
         self.script_reload_jobs.clear();
         self.script_reload_feedback.clear();
@@ -1344,6 +1348,44 @@ impl Editor {
             inspection_pose,
         )
     }
+    /// A frozen native frame recycles immutable mesh/material payloads after drawing.
+    pub fn render_frame(
+        &self,
+        layer: Layer,
+        aspect: f32,
+    ) -> Result<bozzard_render_assets::RenderFrame> {
+        self.render_frame_from_camera(layer, aspect, None)
+    }
+    /// The optional pose is the same inspection camera used by render_from_camera.
+    pub fn render_frame_from_camera(
+        &self,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+    ) -> Result<bozzard_render_assets::RenderFrame> {
+        let edit;
+        let demo = if let Some(play) = &self.play {
+            play
+        } else {
+            edit = self.edit_demo()?;
+            &edit
+        };
+        extract_frame_with_gi(
+            demo,
+            &self.assets,
+            &self.render_cache,
+            layer,
+            aspect,
+            self.play.is_none().then(|| self.gi_current()),
+            inspection_pose,
+        )
+    }
+    pub fn set_render_scene_caching_enabled(&mut self, enabled: bool) {
+        self.render_cache.set_enabled(enabled);
+    }
+    pub fn render_scene_stats(&self) -> bozzard_render_assets::RenderSceneStats {
+        self.render_cache.stats()
+    }
     /// Authoring queries share one immutable world until a document transaction changes
     /// its revision. Play owns a separate world and never mutates this snapshot.
     fn edit_demo(&self) -> Result<std::cell::Ref<'_, SceneDemo>> {
@@ -1384,6 +1426,7 @@ impl Editor {
 
     pub fn clear_timeline_preview(&self) {
         *self.edit_demo.borrow_mut() = None;
+        self.render_cache.clear();
     }
 
     pub fn timeline_preview_transform(&self, id: &str) -> Result<Option<Transform>> {
@@ -1497,16 +1540,6 @@ fn subtrees<'a>(scene: &'a Scene, roots: impl IntoIterator<Item = &'a str>) -> B
     }
     ids
 }
-fn render_texture(texture: Texture) -> TextureKind {
-    match texture {
-        Texture::White => TextureKind::White,
-        Texture::Checker => TextureKind::Checker,
-        Texture::Normals => TextureKind::Normals,
-        Texture::ProceduralChecker => TextureKind::ProceduralChecker,
-        Texture::Toon => TextureKind::Toon,
-        Texture::Asset(id) => TextureKind::Imported(id),
-    }
-}
 pub fn extract(
     demo: &SceneDemo,
     assets: &bozzard_assets::AssetStore,
@@ -1515,7 +1548,6 @@ pub fn extract(
 ) -> Result<RenderScene> {
     extract_with_gi(demo, assets, layer, aspect, None, None)
 }
-
 fn extract_with_gi(
     demo: &SceneDemo,
     assets: &bozzard_assets::AssetStore,
@@ -1526,161 +1558,46 @@ fn extract_with_gi(
 ) -> Result<RenderScene> {
     demo.check_simulation()?;
     let view = demo.render_view(layer, aspect, inspection_pose)?;
-    let mut gi = None;
-    if layer == Layer::ThreeD
-        && demo.instance().document().gi.enabled
-        && demo.instance().document().gi.baked.is_some()
-    {
-        let current = match authored_gi {
-            Some(current) => current,
-            None => {
-                let scene = demo.instance().capture(&demo.app.world)?;
-                bozzard_assets::gi::is_current(&scene, assets).unwrap_or(false)
-            }
-        };
-        if current {
-            let scene = demo.instance().document();
-            let baked = scene.gi.baked.as_ref().unwrap();
-            gi = Some(bozzard_render::IrradianceVolume {
-                min: baked.volume.min,
-                max: baked.volume.max,
-                resolution: baked.volume.resolution,
-                intensity: scene.gi.intensity,
-                normal_bias: scene.gi.normal_bias,
-                probes: baked.probes.clone(),
-            });
-        }
+    let gi = bozzard_render_assets::irradiance_volume(
+        demo.instance(),
+        &demo.app.world,
+        assets,
+        layer,
+        authored_gi,
+    )?;
+    bozzard_render_assets::render_scene(view, assets, layer, gi)
+}
+fn extract_frame_with_gi(
+    demo: &SceneDemo,
+    assets: &bozzard_assets::AssetStore,
+    cache: &bozzard_render_assets::RenderSceneCache,
+    layer: Layer,
+    aspect: f32,
+    authored_gi: Option<bool>,
+    inspection_pose: Option<Mat4>,
+) -> Result<bozzard_render_assets::RenderFrame> {
+    demo.check_simulation()?;
+    if cache.enabled() {
+        let view = demo.render_view_shared(layer, aspect, inspection_pose)?;
+        let gi = bozzard_render_assets::irradiance_volume(
+            demo.instance(),
+            &demo.app.world,
+            assets,
+            layer,
+            authored_gi,
+        )?;
+        cache.extract(view, assets, layer, gi)
+    } else {
+        let view = demo.render_view(layer, aspect, inspection_pose)?;
+        let gi = bozzard_render_assets::irradiance_volume(
+            demo.instance(),
+            &demo.app.world,
+            assets,
+            layer,
+            authored_gi,
+        )?;
+        cache.reference(view, assets, layer, gi)
     }
-
-    Ok(RenderScene {
-        skin_poses: bozzard_render_assets::skin_poses(&view.skin_poses),
-        shader_time: view.display_time,
-        particles: bozzard_render_assets::particle_frame(&view.particles),
-        fog: bozzard_render::FogSettings {
-            enabled: layer == Layer::ThreeD && view.fog.enabled,
-            color: view.fog.color,
-            distance_density: view.fog.distance_density,
-            start_distance: view.fog.start_distance,
-            height_density: view.fog.height_density,
-            base_height: view.fog.base_height,
-            height_falloff: view.fog.height_falloff,
-        },
-        gi,
-        lights: view
-            .lights
-            .iter()
-            .map(|world| bozzard_render::LocalLight {
-                directional: world.light.kind == bozzard_scene::LightKind::Directional,
-                shadows: world.light.requests_shadow_map().then_some(
-                    bozzard_render::LocalShadowSettings {
-                        bias: world.light.shadow_bias,
-                        normal_bias: world.light.shadow_normal_bias,
-                    },
-                ),
-                position: world.position,
-                direction: world.direction,
-                color: world.light.color,
-                intensity: world.light.intensity,
-                range: world.light.range,
-                spot_angles: (world.light.kind == bozzard_scene::LightKind::Spot).then_some([
-                    world.light.inner_angle_degrees,
-                    world.light.outer_angle_degrees,
-                ]),
-            })
-            .collect(),
-        environment: bozzard_render::EnvironmentSettings {
-            zenith: view.environment.zenith,
-            horizon: view.environment.horizon,
-            ground: view.environment.ground,
-            star_intensity: view.environment.star_intensity,
-            intensity: if layer == Layer::ThreeD {
-                view.environment.intensity
-            } else {
-                0.
-            },
-            background: layer == Layer::ThreeD && view.environment.background,
-        },
-        display: bozzard_render_assets::display_settings(view.display, layer, view.display_time),
-        lighting: bozzard_render::Lighting {
-            shadows: view.lighting.shadows,
-            shadow_resolution: view.lighting.shadow_resolution,
-            shadow_bias: view.lighting.shadow_bias,
-            shadow_normal_bias: view.lighting.shadow_normal_bias,
-            sun_direction: view.lighting.sun_direction,
-            sun_color: view.lighting.sun_color,
-            sun_intensity: view.lighting.sun_intensity,
-            ambient_color: view.lighting.ambient_color,
-            ambient_intensity: view.lighting.ambient_intensity,
-        },
-        view_projection: view.view_projection,
-        items: view
-            .objects
-            .into_iter()
-            .zip(view.object_ids)
-            .zip(view.shader_graphs)
-            .zip(view.material_instances)
-            .filter(|((((_, d), _), _), _)| {
-                !matches!(d.mesh, Mesh::Surface { .. }) || assets.mesh_surface(&d.mesh).is_some()
-            })
-            .map(
-                |((((model, mut d), motion_id), shader), binding)| -> Result<DrawItem> {
-                    let shader = bozzard_render_assets::material_binding(
-                        &mut d,
-                        binding.as_deref(),
-                        shader.as_deref(),
-                        assets,
-                    )?;
-                    Ok(DrawItem {
-                        motion_id,
-                        model,
-                        mesh: match d.mesh {
-                            Mesh::Quad => MeshKind::Quad,
-                            Mesh::Cube => MeshKind::Cube,
-                            Mesh::Asset(id) => MeshKind::Imported(id),
-                            Mesh::Surface { asset, index, .. } => {
-                                MeshKind::ModelPart(asset, index as usize)
-                            }
-                        },
-                        material: Material {
-                            metallic: d.metallic,
-                            roughness: d.roughness,
-                            surface_overrides: d
-                                .material_overrides
-                                .into_iter()
-                                .map(|value| bozzard_render::SurfaceMaterialOverride {
-                                    surface: value.surface,
-                                    source: value.source,
-                                    transform: value.transform.matrix(),
-                                    texture: value.texture.map(render_texture),
-                                    uv_scale: value.uv_scale,
-                                    tint: value.tint,
-                                    metallic: value.metallic,
-                                    roughness: value.roughness,
-                                })
-                                .collect(),
-                            tint: d.color,
-                            uv_scale: d.uv_scale,
-                            lit: layer == Layer::ThreeD,
-                            texture: view.compute_textures.get(&motion_id).map_or_else(
-                                || render_texture(d.texture),
-                                |handle| TextureKind::Generated(*handle),
-                            ),
-                            shader,
-                        },
-                    })
-                },
-            )
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .chain(bozzard_render_assets::sprite_items(&view.sprites)?)
-            .chain(
-                view.texts
-                    .into_iter()
-                    .map(|(model, text)| bozzard_render_assets::text_item(model, &text, assets))
-                    .collect::<Result<Vec<_>>>()?,
-            )
-            .collect(),
-    })
 }
 
 impl Editor {

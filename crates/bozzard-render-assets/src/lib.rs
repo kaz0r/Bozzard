@@ -393,6 +393,8 @@ pub fn shader_variant_source(
 mod shaders;
 mod shared_materials;
 pub use shared_materials::material_binding;
+mod frame;
+pub use frame::{RenderFrame, RenderSceneCache, RenderSceneStats, irradiance_volume, render_scene};
 
 /// Shared atlas geometry uses content-cached GPU meshes, including an entire tilemap in one draw.
 pub fn sprite_items(

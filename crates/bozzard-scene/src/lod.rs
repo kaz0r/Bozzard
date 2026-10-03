@@ -21,16 +21,21 @@ impl History {
     }
 }
 
-pub(super) fn select(
+pub(super) fn select<'a>(
     selections: &mut Selections,
     entity: Entity,
-    lod: &Lod,
+    lod: &'a Lod,
     distance: f32,
-) -> Option<Option<Mesh>> {
+) -> Option<Option<&'a Mesh>> {
     // Exact thresholds remain stateless and need no per-object allocation.
     if lod.hysteresis == 0. {
         selections.remove(&entity);
-        return lod.level(distance);
+        return lod
+            .levels
+            .iter()
+            .rev()
+            .find(|level| distance >= level.switch)
+            .map(|level| level.mesh.as_ref());
     }
     let exact = || lod.levels.partition_point(|level| distance >= level.switch);
     let (previous, index) = selections
@@ -49,5 +54,5 @@ pub(super) fn select(
             *index -= 1;
         }
     }
-    index.checked_sub(1).map(|i| lod.levels[i].mesh.clone())
+    index.checked_sub(1).map(|i| lod.levels[i].mesh.as_ref())
 }

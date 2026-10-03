@@ -106,6 +106,19 @@ pub struct FrameStats {
     /// CPU work only, including command submission. Not GPU execution or FPS.
     pub cpu_ms: f64,
     pub prepare_ms: f64,
+    /// CPU comparison, retained-surface refresh, expansion and ordering, before GPU encoding.
+    pub surface_prepare_ms: f64,
+    pub surface_source_checks: usize,
+    pub surface_items_rebuilt: usize,
+    pub surface_items_reused: usize,
+    pub surface_records_built: usize,
+    pub surface_records_reused: usize,
+    pub surface_model_updates: usize,
+    pub surface_depth_updates: usize,
+    /// Existing ordering retained without sorting; source-order ties remain stable.
+    pub surface_order_reused: bool,
+    /// Retained vector capacities, excluding shared Arc storage, owned key strings and GPU data.
+    pub surface_preparation_bytes: usize,
     pub encode_ms: f64,
     pub submit_ms: f64,
 }
@@ -223,8 +236,12 @@ impl SceneRenderer {
             visible_reference(bounds, mvp)
         }
     }
+    /// Disabling releases retained preparation; stats continue to describe the last draw.
     pub fn set_state_caching_enabled(&mut self, enabled: bool) {
         self.state_caching = enabled;
+        if !enabled {
+            self.surface_preparation.clear();
+        }
     }
     /// Compare conservative surface light masks with the full light loop.
     pub fn set_local_light_culling_enabled(&mut self, enabled: bool) {

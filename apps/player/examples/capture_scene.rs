@@ -7,6 +7,7 @@ use bozzard_scene::{Layer, Scene};
 use std::path::PathBuf;
 
 #[path = "../src/presentation.rs"]
+#[allow(dead_code)] // The windowed frame adapter is not used by this capture utility.
 mod presentation;
 
 fn main() -> Result<()> {

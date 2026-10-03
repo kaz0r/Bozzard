@@ -731,6 +731,14 @@ impl SceneInstance {
         layer: Layer,
         matrices: &BTreeMap<String, Mat4>,
     ) -> Result<Vec<Visual>> {
+        self.sprite_frame_with_lookup(world, layer, |owner| matrices[owner])
+    }
+    pub(crate) fn sprite_frame_with_lookup(
+        &self,
+        world: &World,
+        layer: Layer,
+        matrix: impl Fn(&str) -> Mat4,
+    ) -> Result<Vec<Visual>> {
         let runtime = world.resource::<Runtime>();
         let mut visuals = Vec::new();
         let sources: BTreeMap<_, _> = self
@@ -761,7 +769,7 @@ impl SceneInstance {
                 (entity, "sprite").hash(&mut identity);
                 visuals.push(Visual {
                     motion_id: identity.finish().max(1),
-                    model: matrices[owner],
+                    model: matrix(owner),
                     image: source.image.clone(),
                     color: source.color,
                     quads,
@@ -779,7 +787,7 @@ impl SceneInstance {
                 (entity, "tilemap").hash(&mut identity);
                 visuals.push(Visual {
                     motion_id: identity.finish().max(1),
-                    model: matrices[owner],
+                    model: matrix(owner),
                     image: source.image.clone(),
                     color: source.color,
                     quads,
