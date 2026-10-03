@@ -197,13 +197,33 @@ impl SceneInstance {
         if owners.is_empty() {
             return Ok(());
         }
-        let spatial = owners.iter().any(|(_, entity)| {
-            world
-                .get::<Animator>(**entity)
-                .is_some_and(|a| a.enabled && (!a.ik.is_empty() || !a.warps.is_empty()))
-        });
-        let (collisions, objects) = if spatial {
+        let (needs_ground, needs_objects) = owners
+            .iter()
+            .filter_map(|(_, entity)| world.get::<Animator>(**entity).filter(|a| a.enabled))
+            .fold((false, false), |(ground, objects), animator| {
+                (
+                    ground
+                        || animator
+                            .ik
+                            .iter()
+                            .any(|c| matches!(c.target, ik::IkTarget::Ground { .. })),
+                    objects
+                        || animator
+                            .ik
+                            .iter()
+                            .any(|c| matches!(c.target, ik::IkTarget::Object { .. }))
+                        || animator
+                            .warps
+                            .iter()
+                            .any(|w| matches!(w.target, super::warp::WarpTarget::Object { .. })),
+                )
+            });
+        // World-point goals need only their actor matrix. Object goals need transforms;
+        // ground probes additionally need collision geometry and support transforms.
+        let (collisions, objects) = if needs_ground {
             self.collision_geometry(world)?
+        } else if needs_objects {
+            (Default::default(), self.global_transforms(world)?)
         } else {
             (Default::default(), BTreeMap::new())
         };

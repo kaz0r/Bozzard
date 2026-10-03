@@ -18,8 +18,13 @@ fn animation_preview_changes_only_the_isolated_pose_and_can_be_cleared() -> Resu
     let mut editor = Editor::open(&scene())?;
     let authored = editor.scene().clone();
     let before = editor.render(Layer::ThreeD, 1.6)?.skin_poses;
+    let frozen = editor.render_frame(Layer::ThreeD, 1.6)?;
+    assert_eq!(frozen.skin_poses, before);
     editor.scrub_animation_preview("movement-human", "Jump", 0.5)?;
-    assert_ne!(editor.render(Layer::ThreeD, 1.6)?.skin_poses, before);
+    let sampled = editor.render(Layer::ThreeD, 1.6)?.skin_poses;
+    assert_ne!(sampled, before);
+    assert_eq!(editor.render_frame(Layer::ThreeD, 1.6)?.skin_poses, sampled);
+    assert_eq!(frozen.skin_poses, before);
     assert_eq!(editor.scene(), &authored);
     assert!(!editor.dirty());
     assert_eq!(
@@ -31,6 +36,7 @@ fn animation_preview_changes_only_the_isolated_pose_and_can_be_cleared() -> Resu
     );
     editor.clear_timeline_preview();
     let cleared = editor.render(Layer::ThreeD, 1.6)?.skin_poses;
+    assert_eq!(editor.render_frame(Layer::ThreeD, 1.6)?.skin_poses, cleared);
     assert_eq!(cleared.len(), before.len());
     // A new isolated world receives new render IDs; compare the multiset of actual poses.
     for expected in before.values() {
