@@ -60,9 +60,11 @@ pub use light::{
 mod interpolation;
 mod lighting;
 mod lod;
+mod render_extraction;
 mod tile_view;
 mod transforms;
 pub use lighting::Lighting;
+pub use render_extraction::RenderExtractionStats;
 
 use anyhow::{Context, Result, ensure};
 use bozzard_ecs::{Entity, World};
@@ -1107,6 +1109,7 @@ impl Scene {
             compute_capabilities: Default::default(),
             lod_history: Default::default(),
             transform_cache: Default::default(),
+            render_cache: Default::default(),
             hierarchy_revision: 0,
             ui_layout_cache: Default::default(),
         };
@@ -1146,6 +1149,7 @@ pub struct SceneInstance {
     compute_capabilities: compute::Capabilities,
     lod_history: lod::History,
     transform_cache: transforms::Cache,
+    render_cache: render_extraction::Cache,
     hierarchy_revision: u64,
     ui_layout_cache: middleware::ui::LayoutCache,
 }
@@ -1334,244 +1338,278 @@ impl SceneInstance {
         self.extract_view(world, layer, aspect, inspection_pose, Some(alpha))
     }
 
-    fn extract_view(
+    /// Retain immutable mesh/material payloads while returning an independently
+    /// owned frame snapshot, safe to use while a worker advances the world.
+    pub fn view_shared_from_camera(
+        &self,
+        world: &World,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+    ) -> Result<SharedSceneView> {
+        self.extract_view(world, layer, aspect, inspection_pose, None)
+    }
+
+    pub fn view_shared_interpolated_from_camera(
+        &self,
+        world: &World,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+        alpha: f32,
+    ) -> Result<SharedSceneView> {
+        self.extract_view(world, layer, aspect, inspection_pose, Some(alpha))
+    }
+
+    fn extract_view<D: render_extraction::Payload>(
         &self,
         world: &World,
         layer: Layer,
         aspect: f32,
         inspection_pose: Option<Mat4>,
         alpha: Option<f32>,
-    ) -> Result<SceneView> {
-        let matrices = match alpha {
-            Some(alpha) => self.interpolated_transforms(world, alpha)?,
-            None => self.global_transforms(world)?,
-        };
-        let camera_id = world
-            .resource::<middleware::timeline::Runtime>()
-            .and_then(|r| r.cameras.get(&layer))
-            .filter(|id| {
-                self.entities
-                    .get(*id)
-                    .is_some_and(|e| world.get::<Camera>(*e).is_some())
-            })
-            .or_else(|| self.document.views.get(&layer))
-            .context("scene does not provide this view")?;
-        let camera = *self
-            .entities
-            .get(camera_id)
-            .context("view camera was removed")?;
-        let projection = world
-            .get::<Camera>(camera)
-            .context("view camera component was removed")?
-            .projection(aspect)?;
-        let camera_pose = inspection_pose.unwrap_or(matrices[camera_id]);
-        ensure!(
-            camera_pose.is_finite() && camera_pose.inverse().is_finite(),
-            "invalid inspection camera pose"
-        );
-        let view_projection = projection * camera_pose.inverse();
-        let camera_position = camera_pose.transform_point3(Vec3::ZERO);
-        let mut lod_history = self.lod_history.lock()?;
-        let (lod_camera, lod_view) = lod_history
-            .entry((layer, inspection_pose.is_some()))
-            .or_insert_with(|| (camera, Default::default()));
-        if *lod_camera != camera {
-            *lod_camera = camera;
-            lod_view.clear();
-        }
-        lod_view.retain(|entity, _| world.get::<Lod>(*entity).is_some());
-        let mut objects = Vec::new();
-        let mut object_ids = Vec::new();
-        let mut compute_textures = BTreeMap::new();
-        let compute_state = self.compute_if_initialized();
-        let mut skin_poses = BTreeMap::new();
-        let mut shader_graphs = Vec::new();
-        let mut material_instances = Vec::new();
-        let mut texts = Vec::new();
-        // HUD widgets and logic objects cannot contribute a mesh or world text.
-        // Query the relevant component stores once instead of probing every
-        // entity for both components (large hidden interfaces dominate that path).
-        let render_entities: BTreeMap<_, _> = world
-            .query::<Drawable>()
-            .map(|(entity, _)| entity)
-            .chain(world.query::<TextRendering>().map(|(entity, _)| entity))
-            .filter_map(|entity| {
-                self.object_indices
-                    .get(&entity)
-                    .map(|&index| (&self.document.objects[index].id, entity))
-            })
-            .collect();
-        for (id, entity) in &render_entities {
-            let id = *id;
-            let view_factor = if layer == Layer::ThreeD {
-                self.tile_view
-                    .factor(id, matrices[id].transform_point3(Vec3::ZERO))
-            } else {
-                1.
-            };
-            if view_factor == 0. {
-                continue;
-            }
-            if let Some(text) = world.get::<TextRendering>(*entity)
-                && text.enabled
-                && text.layer == layer
-                && !world.get::<BlueprintHidden>(*entity).is_some_and(|h| h.0)
-                && !world
-                    .resource::<GameplayState>()
-                    .is_some_and(|s| s.collected.contains(id))
-            {
-                text.validate()?;
-                let mut text = text.clone();
-                for channel in &mut text.color[..3] {
-                    *channel *= view_factor;
-                }
-                texts.push((matrices[id], text));
-            }
-            if let Some(drawable) = world.get::<Drawable>(*entity)
-                && drawable.layer == layer
-                && !world.get::<BlueprintHidden>(*entity).is_some_and(|h| h.0)
-                && !world
-                    .resource::<GameplayState>()
-                    .is_some_and(|s| s.collected.contains(id))
-            {
-                let mut drawable = drawable.clone();
-                if let Some(lod) = world.get::<Lod>(*entity)
-                    && world
-                        .get::<middleware::animation::Animator>(*entity)
-                        .is_none_or(|animator| animator.rig.bindings.is_empty())
-                {
-                    lod.validate()?;
-                    let distance = matrices[id]
-                        .transform_point3(Vec3::ZERO)
-                        .distance(camera_position);
-                    match lod::select(lod_view, *entity, lod, distance) {
-                        Some(Some(mesh)) if drawable.mesh != mesh => {
-                            // Surface overrides belong to the original mesh, not the replacement.
-                            drawable.material_overrides.clear();
-                            drawable.mesh = mesh;
-                        }
-                        Some(None) => continue,
-                        _ => {}
-                    }
-                }
-                if let Some(material) = world.get::<Material>(*entity) {
-                    material.apply(&mut drawable);
-                }
-                for channel in &mut drawable.color {
-                    *channel *= view_factor;
-                }
-                use std::hash::{Hash, Hasher};
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                entity.hash(&mut hasher);
-                let motion_id = hasher.finish().max(1);
-                object_ids.push(motion_id);
-                if let Some(handle) = compute_state
-                    .as_ref()
-                    .and_then(|state| state.material_texture(id))
-                {
-                    compute_textures.insert(motion_id, handle);
-                }
-                if let Some(animator) = world.get::<middleware::animation::Animator>(*entity)
-                    && !animator.rig.bindings.is_empty()
-                {
-                    let (signature, matrices) = match world
-                        .resource::<middleware::animation::Runtime>()
-                        .and_then(|r| r.players.get(id))
-                        .filter(|p| !p.palette.is_empty())
-                    {
-                        Some(player) => (player.signature, player.palette.clone()),
-                        None => (
-                            animator.rig.signature(),
-                            std::sync::Arc::new(animator.rig.palette(&animator.rig.rest_pose())?),
-                        ),
-                    };
-                    skin_poses.insert(
-                        motion_id,
-                        middleware::animation::Palette {
-                            signature,
-                            matrices,
-                        },
-                    );
-                }
-                shader_graphs.push(
-                    world
-                        .get::<shader_graph::ShaderGraph>(*entity)
-                        .map(|g| std::sync::Arc::new(g.clone())),
-                );
-                material_instances.push(
-                    world
-                        .get::<Material>(*entity)
-                        .and_then(|material| material.shared.clone()),
-                );
-                objects.push((matrices[id], drawable));
-            }
-        }
-        let mut lights = Vec::new();
-        let mut shadowed_spots = 0;
-        let mut shadowed_points = 0;
-        if layer == Layer::ThreeD {
-            let light_entities: BTreeMap<_, _> = world
-                .query::<Light>()
-                .filter_map(|(entity, light)| {
-                    self.object_indices
-                        .get(&entity)
-                        .map(|&index| (&self.document.objects[index].id, light))
+    ) -> Result<RenderView<D>> {
+        self.with_render_transforms(world, alpha, |matrices| {
+            let camera_id = world
+                .resource::<middleware::timeline::Runtime>()
+                .and_then(|r| r.cameras.get(&layer))
+                .filter(|id| {
+                    self.entities
+                        .get(*id)
+                        .is_some_and(|e| world.get::<Camera>(*e).is_some())
                 })
-                .collect();
-            for (id, light) in light_entities {
-                light.validate()?;
-                let factor = self
-                    .tile_view
-                    .factor(id, matrices[id].transform_point3(Vec3::ZERO));
-                if factor == 0. {
+                .or_else(|| self.document.views.get(&layer))
+                .context("scene does not provide this view")?;
+            let camera = *self
+                .entities
+                .get(camera_id)
+                .context("view camera was removed")?;
+            let projection = world
+                .get::<Camera>(camera)
+                .context("view camera component was removed")?
+                .projection(aspect)?;
+            let camera_pose = inspection_pose.unwrap_or(matrices[self.object_indices[&camera]]);
+            ensure!(
+                camera_pose.is_finite() && camera_pose.inverse().is_finite(),
+                "invalid inspection camera pose"
+            );
+            let view_projection = projection * camera_pose.inverse();
+            let camera_position = camera_pose.transform_point3(Vec3::ZERO);
+            let mut lod_history = self.lod_history.lock()?;
+            let (lod_camera, lod_view) = lod_history
+                .entry((layer, inspection_pose.is_some()))
+                .or_insert_with(|| (camera, Default::default()));
+            if *lod_camera != camera {
+                *lod_camera = camera;
+                lod_view.clear();
+            }
+            lod_view.retain(|entity, _| world.get::<Lod>(*entity).is_some());
+            let mut objects = Vec::new();
+            let mut object_ids = Vec::new();
+            let mut compute_textures = BTreeMap::new();
+            let compute_state = self.compute_if_initialized();
+            let mut skin_poses = BTreeMap::new();
+            let mut shader_graphs = Vec::new();
+            let mut material_instances = Vec::new();
+            let mut texts = Vec::new();
+            let mut owned_cache = render_extraction::CachedPayloads::default();
+            let mut retained = if D::SHARED {
+                Some(self.render_cache.lock()?)
+            } else {
+                None
+            };
+            let cache = retained.as_deref_mut().unwrap_or(&mut owned_cache);
+            if D::SHARED {
+                cache.prepare(self, world);
+            }
+            // HUD widgets and logic objects cannot contribute a mesh or world text.
+            // Query the relevant component stores once instead of probing every
+            // entity for both components (large hidden interfaces dominate that path).
+            cache.refresh_membership(self, world, layer);
+            let capacity = cache.drawable_count;
+            objects.reserve(capacity);
+            object_ids.reserve(capacity);
+            shader_graphs.reserve(capacity);
+            material_instances.reserve(capacity);
+            for source_index in 0..cache.render_entities.len() {
+                let index = cache.render_entities[source_index];
+                let id = &self.document.objects[index].id;
+                let entity = self.entities[id];
+                let matrix = matrices[index];
+                let view_factor = if layer == Layer::ThreeD {
+                    self.tile_view
+                        .factor(id, matrix.transform_point3(Vec3::ZERO))
+                } else {
+                    1.
+                };
+                if view_factor == 0. {
                     continue;
                 }
-                if light.requests_shadow_map() {
-                    match light.kind {
-                        LightKind::Spot => shadowed_spots += 1,
-                        LightKind::Point => shadowed_points += 1,
-                        LightKind::Directional => {}
+                if let Some(text) = world.get::<TextRendering>(entity)
+                    && text.enabled
+                    && text.layer == layer
+                    && !world.get::<BlueprintHidden>(entity).is_some_and(|h| h.0)
+                    && !world
+                        .resource::<GameplayState>()
+                        .is_some_and(|s| s.collected.contains(id))
+                {
+                    text.validate()?;
+                    let mut text = text.clone();
+                    for channel in &mut text.color[..3] {
+                        *channel *= view_factor;
                     }
+                    texts.push((matrix, text));
                 }
-                if light.enabled && light.intensity > 0. && factor > 0. {
-                    let mut light = light.at(matrices[id])?;
-                    light.light.intensity *= factor;
-                    lights.push(light);
+                if let Some(drawable) = world.get::<Drawable>(entity)
+                    && drawable.layer == layer
+                    && !world.get::<BlueprintHidden>(entity).is_some_and(|h| h.0)
+                    && !world
+                        .resource::<GameplayState>()
+                        .is_some_and(|s| s.collected.contains(id))
+                {
+                    let mut selected_mesh = None;
+                    if let Some(lod) = world.get::<Lod>(entity)
+                        && world
+                            .get::<middleware::animation::Animator>(entity)
+                            .is_none_or(|animator| animator.rig.bindings.is_empty())
+                    {
+                        lod.validate()?;
+                        let distance = matrix
+                            .transform_point3(Vec3::ZERO)
+                            .distance(camera_position);
+                        match lod::select(lod_view, entity, lod, distance) {
+                            Some(Some(mesh)) if &drawable.mesh != mesh => {
+                                selected_mesh = Some(mesh);
+                            }
+                            Some(None) => continue,
+                            _ => {}
+                        }
+                    }
+                    let drawable = D::resolve(
+                        cache,
+                        render_extraction::DrawableInput {
+                            entity,
+                            source: drawable,
+                            material: world.get::<Material>(entity),
+                            mesh: selected_mesh,
+                            factor: view_factor,
+                        },
+                    );
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    entity.hash(&mut hasher);
+                    let motion_id = hasher.finish().max(1);
+                    object_ids.push(motion_id);
+                    if let Some(handle) = compute_state
+                        .as_ref()
+                        .and_then(|state| state.material_texture(id))
+                    {
+                        compute_textures.insert(motion_id, handle);
+                    }
+                    if let Some(animator) = world.get::<middleware::animation::Animator>(entity)
+                        && !animator.rig.bindings.is_empty()
+                    {
+                        let (signature, matrices) = match world
+                            .resource::<middleware::animation::Runtime>()
+                            .and_then(|r| r.players.get(id))
+                            .filter(|p| !p.palette.is_empty())
+                        {
+                            Some(player) => (player.signature, player.palette.clone()),
+                            None => (
+                                animator.rig.signature(),
+                                std::sync::Arc::new(
+                                    animator.rig.palette(&animator.rig.rest_pose())?,
+                                ),
+                            ),
+                        };
+                        skin_poses.insert(
+                            motion_id,
+                            middleware::animation::Palette {
+                                signature,
+                                matrices,
+                            },
+                        );
+                    }
+                    let graph = world.get::<shader_graph::ShaderGraph>(entity);
+                    shader_graphs.push(if D::SHARED {
+                        cache.graph(entity, graph)
+                    } else {
+                        graph.map(|g| std::sync::Arc::new(g.clone()))
+                    });
+                    material_instances.push(
+                        world
+                            .get::<Material>(entity)
+                            .and_then(|material| material.shared.clone()),
+                    );
+                    objects.push((matrix, drawable));
                 }
             }
-        }
-        ensure!(lights.len() <= MAX_LOCAL_LIGHTS, "too many runtime lights");
-        ensure!(
-            shadowed_spots <= MAX_SHADOWED_SPOT_LIGHTS,
-            "too many runtime shadowed spotlights"
-        );
-        ensure!(
-            shadowed_points <= MAX_SHADOWED_POINT_LIGHTS,
-            "too many runtime shadowed point lights"
-        );
-        Ok(SceneView {
-            sprites: self.sprite_frame_with_matrices(world, layer, &matrices)?,
-            skin_poses,
-            particles: if layer == Layer::ThreeD {
-                self.particle_state.frame()
-            } else {
-                Vec::new()
-            },
-            fog: self.document.fog,
-            lights,
-            environment: self
-                .environment_override
-                .unwrap_or(self.document.environment),
-            display: self.display_at(camera_position, layer),
-            display_time: self.display_time,
-            lighting: self.lighting_override.unwrap_or(self.document.lighting),
-            view_projection,
-            objects,
-            object_ids,
-            compute_textures,
-            shader_graphs,
-            material_instances,
-            texts,
+            let mut lights = Vec::new();
+            let mut shadowed_spots = 0;
+            let mut shadowed_points = 0;
+            if layer == Layer::ThreeD {
+                lights.reserve(cache.light_entities.len());
+                for &index in &cache.light_entities {
+                    let id = &self.document.objects[index].id;
+                    let light = world
+                        .get::<Light>(self.entities[id])
+                        .expect("queried light");
+                    light.validate()?;
+                    let factor = self
+                        .tile_view
+                        .factor(id, matrices[index].transform_point3(Vec3::ZERO));
+                    if factor == 0. {
+                        continue;
+                    }
+                    if light.requests_shadow_map() {
+                        match light.kind {
+                            LightKind::Spot => shadowed_spots += 1,
+                            LightKind::Point => shadowed_points += 1,
+                            LightKind::Directional => {}
+                        }
+                    }
+                    if light.enabled && light.intensity > 0. && factor > 0. {
+                        let mut light = light.at(matrices[index])?;
+                        light.light.intensity *= factor;
+                        lights.push(light);
+                    }
+                }
+            }
+            ensure!(lights.len() <= MAX_LOCAL_LIGHTS, "too many runtime lights");
+            ensure!(
+                shadowed_spots <= MAX_SHADOWED_SPOT_LIGHTS,
+                "too many runtime shadowed spotlights"
+            );
+            ensure!(
+                shadowed_points <= MAX_SHADOWED_POINT_LIGHTS,
+                "too many runtime shadowed point lights"
+            );
+            Ok(RenderView {
+                sprites: self.sprite_frame_with_lookup(world, layer, |id| {
+                    matrices[self.object_indices[&self.entities[id]]]
+                })?,
+                skin_poses,
+                particles: if layer == Layer::ThreeD {
+                    self.particle_state.frame()
+                } else {
+                    Vec::new()
+                },
+                fog: self.document.fog,
+                lights,
+                environment: self
+                    .environment_override
+                    .unwrap_or(self.document.environment),
+                display: self.display_at(camera_position, layer),
+                display_time: self.display_time,
+                lighting: self.lighting_override.unwrap_or(self.document.lighting),
+                view_projection,
+                objects,
+                object_ids,
+                compute_textures,
+                shader_graphs,
+                material_instances,
+                texts,
+            })
         })
     }
 
@@ -1606,7 +1644,12 @@ impl SceneInstance {
     }
 }
 
-pub struct SceneView {
+/// Owned extraction payload, preserving the established scene-view API.
+pub type SceneView = RenderView<Drawable>;
+/// An independently owned snapshot sharing immutable drawable payloads.
+pub type SharedSceneView = RenderView<std::sync::Arc<Drawable>>;
+
+pub struct RenderView<D> {
     pub sprites: Vec<middleware::sprite::Visual>,
     pub skin_poses: BTreeMap<u64, middleware::animation::Palette>,
     /// Runtime identities in the same order as objects; never serialized.
@@ -1625,7 +1668,7 @@ pub struct SceneView {
     pub display: DisplaySettings,
     pub lighting: Lighting,
     pub view_projection: Mat4,
-    pub objects: Vec<(Mat4, Drawable)>,
+    pub objects: Vec<(Mat4, D)>,
 }
 
 impl Object {

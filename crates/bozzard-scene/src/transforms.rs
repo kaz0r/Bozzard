@@ -15,9 +15,21 @@ struct Entry {
 
 #[derive(Default)]
 struct CachedTransforms {
+    revision: Option<u64>,
+    ids: Vec<String>,
+    entities: Vec<Entity>,
+    parents: Vec<Option<usize>>,
+    matrices: Vec<Mat4>,
     live: Vec<Option<Entry>>,
     rendered: Vec<Option<Entry>>,
     snapped: Vec<bool>,
+}
+
+fn compact<T>(items: &mut Vec<T>, active: usize) {
+    let retained = active.max(64);
+    if items.capacity() > retained.saturating_mul(4) {
+        items.shrink_to(retained);
+    }
 }
 #[derive(Default)]
 pub(super) struct Cache(Mutex<CachedTransforms>);
@@ -25,6 +37,22 @@ impl Clone for Cache {
     fn clone(&self) -> Self {
         // Editor previews and cloned instances own independent runtime state.
         Self::default()
+    }
+}
+#[cfg(test)]
+impl Cache {
+    pub(super) fn retained_capacities(&self) -> [usize; 8] {
+        let cached = self.0.lock().unwrap();
+        [
+            cached.entities.capacity(),
+            cached.parents.capacity(),
+            cached.matrices.capacity(),
+            cached.live.capacity(),
+            cached.rendered.capacity(),
+            cached.snapped.capacity(),
+            cached.ids.capacity(),
+            cached.matrices.len(),
+        ]
     }
 }
 
@@ -45,7 +73,15 @@ impl SceneInstance {
     }
 
     pub fn global_transforms(&self, world: &World) -> Result<BTreeMap<String, Mat4>> {
-        self.compose_transforms(world, None)
+        self.with_render_transforms(world, None, |matrices| {
+            Ok(self
+                .document
+                .objects
+                .iter()
+                .zip(matrices)
+                .map(|(object, &matrix)| (object.id.clone(), matrix))
+                .collect())
+        })
     }
 
     /// Compose local presentation poses before applying parents, preserving shear and
@@ -55,63 +91,119 @@ impl SceneInstance {
         world: &World,
         alpha: f32,
     ) -> Result<BTreeMap<String, Mat4>> {
-        ensure!(
-            alpha.is_finite() && (0. ..=1.).contains(&alpha),
-            "interpolation fraction must be finite and within 0..1"
-        );
-        let history = world
-            .resource::<interpolation::History>()
-            .filter(|h| h.matches(self));
-        if alpha == 1. || history.is_none_or(|h| !h.has_motion()) {
-            return self.global_transforms(world);
-        }
-        self.compose_transforms(world, Some(alpha))
+        self.with_render_transforms(world, Some(alpha), |matrices| {
+            Ok(self
+                .document
+                .objects
+                .iter()
+                .zip(matrices)
+                .map(|(object, &matrix)| (object.id.clone(), matrix))
+                .collect())
+        })
     }
 
-    fn compose_transforms(
+    /// Keep dense, document-indexed matrices inside the cache while extracting a
+    /// snapshot. The public ID map is only materialized for callers that need it.
+    pub(super) fn with_render_transforms<T>(
         &self,
         world: &World,
         alpha: Option<f32>,
-    ) -> Result<BTreeMap<String, Mat4>> {
+        extract: impl FnOnce(&[Mat4]) -> Result<T>,
+    ) -> Result<T> {
+        if let Some(alpha) = alpha {
+            ensure!(
+                alpha.is_finite() && (0. ..=1.).contains(&alpha),
+                "interpolation fraction must be finite and within 0..1"
+            );
+        }
+        let history = alpha.and_then(|fraction| {
+            world
+                .resource::<interpolation::History>()
+                .filter(|history| history.matches(self) && history.has_motion() && fraction < 1.)
+                .map(|history| (history, fraction))
+        });
         let mut cached = self
             .transform_cache
             .0
             .lock()
             .map_err(|_| anyhow::anyhow!("transform cache lock poisoned"))?;
+        // Internal document edits can precede an index rebuild. Compare the
+        // topology itself as well as its revision, without allocating per frame.
+        let topology_changed = cached.ids.len() != self.document.objects.len()
+            || self
+                .document
+                .objects
+                .iter()
+                .enumerate()
+                .any(|(index, object)| {
+                    cached.ids[index] != object.id
+                        || cached.parents[index].map(|parent| cached.ids[parent].as_str())
+                            != object.parent.as_deref()
+                });
+        if cached.revision != Some(self.hierarchy_revision) || topology_changed {
+            cached.ids = self
+                .document
+                .objects
+                .iter()
+                .map(|object| object.id.clone())
+                .collect();
+            cached.entities = self
+                .document
+                .objects
+                .iter()
+                .map(|object| self.entities[&object.id])
+                .collect();
+            let indices: std::collections::HashMap<_, _> = self
+                .document
+                .objects
+                .iter()
+                .enumerate()
+                .map(|(index, object)| (object.id.as_str(), index))
+                .collect();
+            cached.parents = self
+                .document
+                .objects
+                .iter()
+                .map(|object| object.parent.as_ref().map(|id| indices[id.as_str()]))
+                .collect();
+            cached.live.clear();
+            cached.rendered.clear();
+            let active = self.document.objects.len();
+            cached.matrices.resize(active, Mat4::IDENTITY);
+            cached.snapped.resize(active, false);
+            compact(&mut cached.live, active);
+            compact(&mut cached.rendered, active);
+            compact(&mut cached.snapped, active);
+            compact(&mut cached.matrices, active);
+            cached.revision = Some(self.hierarchy_revision);
+        }
         let CachedTransforms {
+            entities,
+            parents,
+            matrices,
             live,
             rendered,
             snapped,
+            ..
         } = &mut *cached;
-        let cache = if alpha.is_some() { rendered } else { live };
+        let cache = if history.is_some() { rendered } else { live };
         cache.resize(self.document.objects.len(), None);
-        let history = alpha.and_then(|fraction| {
-            world
-                .resource::<interpolation::History>()
-                .map(|history| (history, fraction))
-        });
         if history.is_some() {
             snapped.resize(self.document.objects.len(), false);
         }
-        let mut matrices = BTreeMap::new();
         // Parents precede children. Comparing values rather than ECS ticks also handles
         // multiple writes within a tick, reparenting, and runtime prefab index reuse.
         for &index in &self.order {
             let object = &self.document.objects[index];
-            let entity = self.entities[&object.id];
+            let entity = entities[index];
             let local = world
                 .get::<Transform>(entity)
                 .context("scene object/transform was removed")?;
-            let mut parent = object
-                .parent
-                .as_ref()
-                .map(|p| matrices[p])
+            let mut parent = parents[index]
+                .map(|parent| matrices[parent])
                 .unwrap_or(Mat4::IDENTITY);
             let interpolated = if let Some((history, fraction)) = history {
-                let parent_snapped = object
-                    .parent
-                    .as_ref()
-                    .is_some_and(|id| snapped[self.object_indices[&self.entities[id]]]);
+                let parent_snapped = parents[index].is_some_and(|parent| snapped[parent]);
                 let (snap, sample) = history.local_sample(index, entity, *local, parent_snapped);
                 snapped[index] = snap;
                 if snap
@@ -136,7 +228,15 @@ impl SceneInstance {
                 global
             } else {
                 match cache[index] {
-                    Some(entry) if entry.local == *local && entry.parent == parent => entry.global,
+                    Some(entry)
+                        if super::render_extraction::transform_equal(entry.local, *local)
+                            && super::render_extraction::floats_equal(
+                                &entry.parent.to_cols_array(),
+                                &parent.to_cols_array(),
+                            ) =>
+                    {
+                        entry.global
+                    }
                     _ => {
                         local.validate()?;
                         let global = parent * local.matrix();
@@ -166,8 +266,8 @@ impl SceneInstance {
                     }
                 }
             };
-            matrices.insert(object.id.clone(), global);
+            matrices[index] = global;
         }
-        Ok(matrices)
+        extract(matrices)
     }
 }

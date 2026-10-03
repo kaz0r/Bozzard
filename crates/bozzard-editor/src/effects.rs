@@ -6,6 +6,7 @@ pub struct EffectsPreview {
     // Revisions are local to an Editor. A filtered workspace view can have the
     // same revision as its source while containing different visible objects.
     source: Arc<Scene>,
+    render_cache: bozzard_render_assets::RenderSceneCache,
     demo: SceneDemo,
 }
 impl EffectsPreview {
@@ -31,12 +32,22 @@ impl EffectsPreview {
                 })?;
             }
         }
-        Ok(Self { source, demo })
+        Ok(Self {
+            source,
+            demo,
+            render_cache: Default::default(),
+        })
     }
-    pub fn advance(&mut self, editor: &Editor, delta: Duration, running: bool) -> Result<()> {
+    fn adopt_source(&mut self, editor: &Editor) -> Result<()> {
+        // Panel edits can land after advance; refresh before either render path
+        // so the viewport revision always describes the pixels it actually drew.
         if !Arc::ptr_eq(&self.source, &editor.scene_snapshot()) {
             *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
         }
+        Ok(())
+    }
+    pub fn advance(&mut self, editor: &Editor, delta: Duration, running: bool) -> Result<()> {
+        self.adopt_source(editor)?;
         if running {
             let dt = delta.as_secs_f32().min(0.1);
             self.demo.with_instance(|instance, world| {
@@ -57,14 +68,7 @@ impl EffectsPreview {
         aspect: f32,
         inspection_pose: Option<Mat4>,
     ) -> Result<RenderScene> {
-        // A frame's `advance` runs before any panel, and every panel edit lands after it, so the
-        // document can change between that rebuild and this call. Adopt it here as well: the
-        // viewport stamps the pixels it drew with the revision it drew them from, and a preview that
-        // lagged a frame would move the stamp ahead of the pixels and leave the next frame with
-        // nothing to redraw.
-        if !Arc::ptr_eq(&self.source, &editor.scene_snapshot()) {
-            *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
-        }
+        self.adopt_source(editor)?;
         let mut scene = extract_with_gi(
             &self.demo,
             &editor.assets,
@@ -77,6 +81,26 @@ impl EffectsPreview {
         // shader graph Time only advances in Play.
         scene.shader_time = 0.;
         Ok(scene)
+    }
+    pub fn render_frame_from_camera(
+        &mut self,
+        editor: &Editor,
+        layer: Layer,
+        aspect: f32,
+        inspection_pose: Option<Mat4>,
+    ) -> Result<bozzard_render_assets::RenderFrame> {
+        self.adopt_source(editor)?;
+        let mut frame = extract_frame_with_gi(
+            &self.demo,
+            &editor.assets,
+            &self.render_cache,
+            layer,
+            aspect,
+            Some(editor.gi_current()),
+            inspection_pose,
+        )?;
+        frame.set_shader_time(0.);
+        Ok(frame)
     }
 }
 impl Editor {

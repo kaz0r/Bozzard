@@ -50,6 +50,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bozzard-xdg"
           chmod 700 "$RUNNER_TEMP/bozzard-xdg"
           echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
+          # Feature-specific tests also compile separate dependency graphs. Keep
+          # source-line backtraces without filling the runner with full debug
+          # information and incremental data; test assertions stay enabled.
+          echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_TEST_DEBUG=line-tables-only" >> "$GITHUB_ENV"
       - name: Install pinned toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
       - name: Development package layout tests
@@ -85,6 +91,8 @@ jobs:
         run: cargo test -p bozzard-editor --test multiplayer --no-default-features --locked --offline
       - name: Interpolated player pixels match an independent midpoint
         run: cargo test -p bozzard-player interpolated_player_pixels_match_an_independently_authored_midpoint --locked --offline -- --ignored
+      - name: Retained factory frames preserve pixels and checkpoints
+        run: cargo test -p bozzard-editor --test retained_render retained_factory_pixels_and_checkpoints_match_reference --locked --offline -- --ignored --exact
       - name: Reclaim Linux test build space before release
         if: runner.os == 'Linux'
         # All remaining builds and packaging use release artifacts.

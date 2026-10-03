@@ -1081,12 +1081,12 @@ impl App {
             .flatten();
         let mut scene = if self.editor.play.is_none() {
             if let Some(preview) = &mut self.effects_preview {
-                preview.render_from_camera(view_editor, layer, aspect, inspection_pose)?
+                preview.render_frame_from_camera(view_editor, layer, aspect, inspection_pose)?
             } else {
-                view_editor.render_from_camera(layer, aspect, inspection_pose)?
+                view_editor.render_frame_from_camera(layer, aspect, inspection_pose)?
             }
         } else {
-            self.editor.render(layer, aspect)?
+            self.editor.render_frame(layer, aspect)?
         };
         let logical = if self.workspace.layer_2d
             && self.editor.play.is_none()
@@ -1105,7 +1105,7 @@ impl App {
         } else {
             view_editor.ui_frame(self.layer(), logical)?
         };
-        scene.items.extend(bozzard_render_assets::widget_items(
+        scene.append_items(bozzard_render_assets::widget_items(
             &widgets,
             &view_editor.assets,
         )?);
@@ -1156,13 +1156,14 @@ impl App {
                 }
                 self.workspace.zoom =
                     (self.workspace.zoom * (scroll * 0.002).exp()).clamp(0.0001, 10000.0);
-                scene.view_projection =
+                scene.set_view_projection(
                     Mat4::from_translation(Vec3::new(
                         self.workspace.pan[0],
                         self.workspace.pan[1],
                         0.0,
                     )) * Mat4::from_scale(Vec3::new(self.workspace.zoom, self.workspace.zoom, 1.0))
-                        * scene.view_projection;
+                        * scene.view_projection,
+                );
             } else {
                 let doc = view_editor.scene();
                 let camera_id = doc
@@ -1262,27 +1263,27 @@ impl App {
                     && doc.objects.iter().any(|o| o.lod.is_some())
                 {
                     scene = if let Some(preview) = &mut self.effects_preview {
-                        preview.render_from_camera(
+                        preview.render_frame_from_camera(
                             view_editor,
                             layer,
                             aspect,
                             Some(camera.pose()),
                         )?
                     } else {
-                        view_editor.render_from_camera(layer, aspect, Some(camera.pose()))?
+                        view_editor.render_frame_from_camera(layer, aspect, Some(camera.pose()))?
                     };
-                    scene.items.extend(bozzard_render_assets::widget_items(
+                    scene.append_items(bozzard_render_assets::widget_items(
                         &widgets,
                         &view_editor.assets,
                     )?);
                 }
-                scene.view_projection = lens * camera.pose().inverse();
+                scene.set_view_projection(lens * camera.pose().inverse());
                 let position = camera.pose().transform_point3(Vec3::ZERO);
-                scene.display = bozzard_render_assets::display_settings(
+                scene.set_display(bozzard_render_assets::display_settings(
                     doc.display_at(position),
                     bozzard_scene::Layer::ThreeD,
                     scene.display.time_seconds,
-                );
+                ));
             }
         }
         if self
@@ -1292,9 +1293,7 @@ impl App {
             self.navigation_button = None;
         }
         if self.preview_bypass {
-            scene.display = bozzard_render::DisplaySettings::default();
-            scene.particles.clear();
-            scene.fog.enabled = false;
+            scene.bypass_effects();
         }
         self.residency
             .set_budget(Some(self.workspace.gpu_memory_mib as usize * 1024 * 1024));
@@ -1328,7 +1327,7 @@ impl App {
             .residency
             .required_current(&self.open_scenes.view(&self.editor).assets)
         {
-            scene.gi = None;
+            scene.clear_gi();
         }
         let projection = scene.view_projection;
         let target = self.target.as_ref().unwrap();
