@@ -390,6 +390,7 @@ mod tests {
             all_surfaces: true,
             inputs,
             batches,
+            diagnostics: Default::default(),
             ordering,
         }
     }

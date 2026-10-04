@@ -304,6 +304,27 @@ impl DebugWorkspace {
                     ui.label(format!("Prepare {:.3} ms · Encode {:.3} ms · Submit {:.3} ms", render.prepare_ms, render.encode_ms, render.submit_ms));
                     ui.label(format!("{} mesh draw commands · {} frustum-culled surfaces · {} shadow draws · {} particles", render.color_draws, render.culled_surfaces, render.shadow_draws, render.particles));
                     ui.label(format!("{} submitted color triangles · {} shadow triangles · {} particle dispatches", render.color_triangles, render.shadow_triangles, render.particle_compute_dispatches));
+                    ui.collapsing("Preparation scan · CPU", |ui| {
+                        egui::Grid::new("renderer-preparation-stages").striped(true).show(ui, |ui| {
+                            for (name, ms) in render.preparation_stages() {
+                                ui.label(name.replace('_', " "));
+                                ui.monospace(format!("{ms:.3} ms"));
+                                ui.end_row();
+                            }
+                        });
+                        ui.label(format!("{} object source checks · {} matrix checks · {} light-mask hits / {} checks", render.object_uniform_source_checks, render.object_matrix_checks, render.light_mask_cache_hits, render.light_mask_checks));
+                        ui.label(format!("{} mesh validations · {} object bindings allocated · {} individual candidates", render.mesh_validation_checks, render.object_binding_allocations, render.individual_uniform_candidates));
+                        ui.label(format!("Resource metadata: {} hits · {} builds · {} bypasses · {} bounds lookups · {:.1} KiB populated (included in surfaces)", render.resource_metadata_hits, render.resource_metadata_builds, render.resource_metadata_bypasses, render.resource_bounds_lookups, render.resource_metadata_bytes as f64 / 1024.));
+                        ui.label(format!("Observed temporary vector capacities: {:.1} KiB", render.preparation_scratch_bytes() as f64 / 1024.));
+                        ui.weak("Rows are disjoint parts of Prepare, not GPU execution. Batch and shadow rows include their child timers below. Object source/mask checks use one loop timer, not per-object clock reads. Scratch bytes are capacities, not allocation traffic or peak memory.");
+                    });
+                    ui.collapsing("Batch preparation · CPU", |ui| {
+                        ui.label(format!("Color plan {:.3} ms · Diagnostics {:.3} ms{}", render.batch_plan_ms, render.batch_diagnostics_ms, if render.batch_diagnostics_reused { " (reused)" } else { "" }));
+                        ui.label(format!("Color buffers {:.3} ms · Shadow groups {:.3} ms{} · Shadow buffers {:.3} ms", render.instance_prepare_ms, render.shadow_batch_plan_ms, if render.shadow_batch_plan_reused { " (reused)" } else { "" }, render.shadow_instance_prepare_ms));
+                        ui.label(format!("Packed buffer uploads: {} color bytes · {} shadow bytes", render.instance_uniform_bytes, render.shadow_instance_uniform_bytes));
+                        ui.label(format!("Resident packed buffers: {:.2} MiB color · {:.2} MiB shadow", render.instance_buffer_bytes as f64 / (1024. * 1024.), render.shadow_instance_buffer_bytes as f64 / (1024. * 1024.)));
+                        ui.weak("All times are included in Prepare; diagnostics are also included in Color plan. Buffer times exclude pipeline compilation and GPU execution. Pools retain at most eight inactive buffers.");
+                    });
                     ui.collapsing("Batch eligibility · before occlusion", |ui| {
                         let b = render.batching;
                         ui.label(format!("{} planned draws · {} singletons · {} / {} graph surfaces instanced", b.planned_draws, b.singleton_draws, b.graph_instanced_surfaces, b.graph_surfaces));

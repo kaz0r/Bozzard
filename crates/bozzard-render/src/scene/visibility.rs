@@ -61,6 +61,20 @@ pub struct FrameStats {
     pub batch_plan_rebuild_reason: Option<BatchPlanRebuildReason>,
     /// CPU plan validation/construction, excluding instance-buffer preparation.
     pub batch_plan_ms: f64,
+    /// CPU singleton classification/histogram collection; included in batch_plan_ms.
+    pub batch_diagnostics_ms: f64,
+    pub batch_diagnostics_reused: bool,
+    /// CPU packed color-buffer comparison, binding creation/rebinding and writes.
+    /// Excludes shader pipeline compilation and GPU execution.
+    pub instance_prepare_ms: f64,
+    /// CPU independent shadow membership validation/grouping, excluding buffer preparation.
+    pub shadow_batch_plan_ms: f64,
+    pub shadow_batch_plan_reused: bool,
+    pub shadow_batch_plan_rebuilds: usize,
+    pub shadow_instance_prepare_ms: f64,
+    /// Logical packed color-buffer bytes, including at most eight inactive buffers.
+    pub instance_buffer_bytes: usize,
+    pub shadow_instance_buffer_bytes: usize,
     /// CPU camera-frustum checks, excluding occlusion and GPU execution.
     pub visibility_ms: f64,
     /// CPU occlusion preparation/encoding; not the depth/compute GPU duration.
@@ -134,7 +148,69 @@ pub struct FrameStats {
     pub pipeline_binds: usize,
     /// CPU work only, including command submission. Not GPU execution or FPS.
     pub cpu_ms: f64,
+    /// Total CPU preparation before encoding. See preparation_stages for disjoint children.
     pub prepare_ms: f64,
+    /// Render dimensions, camera and initial material/override/fog/display validation.
+    pub scene_validation_ms: f64,
+    /// Frame targets, environment/display/GI/lights/text/skinning/sprites and encoder setup.
+    pub renderer_setup_ms: f64,
+    /// Active graph discovery, cache retirement and missing basic/PBR pipeline compilation.
+    pub graph_prepare_ms: f64,
+    pub graph_source_checks: usize,
+    /// Per-surface object binding creation/rebinding and uploaded-mesh validation.
+    pub object_binding_prepare_ms: f64,
+    pub object_binding_allocations: usize,
+    pub mesh_validation_checks: usize,
+    /// Per-frame static surface certificates reused/built, or rows resolved without retention.
+    pub resource_metadata_hits: usize,
+    pub resource_metadata_builds: usize,
+    pub resource_metadata_bypasses: usize,
+    /// Actual mesh_for calls for local bounds during CPU preparation (not encode lookups).
+    pub resource_bounds_lookups: usize,
+    /// Logical populated inline metadata bytes, already included in surface_preparation_bytes.
+    /// Not additional allocated memory or vector capacity; zero after a failed frame.
+    pub resource_metadata_bytes: usize,
+    /// Local mesh-bounds lookup and temporary bounds-vector allocation/fill.
+    pub bounds_collect_ms: f64,
+    /// Revision comparison/refresh for local-light selection, excluding per-object masks.
+    pub light_selection_ms: f64,
+    /// Visible item/surface counting and temporary item-mask allocation/fill.
+    pub visibility_bookkeeping_ms: f64,
+    /// Shared frame constants, byte comparison and optional queue write.
+    pub frame_uniform_prepare_ms: f64,
+    /// One coarse timer around the object source/mask/validation/build loop.
+    /// Includes light-cache checks; never reads the clock per object.
+    pub object_uniform_prepare_ms: f64,
+    pub object_uniform_source_checks: usize,
+    /// Conditional combined view/model finite checks, including changed-camera frames.
+    pub object_matrix_checks: usize,
+    pub light_mask_checks: usize,
+    pub light_mask_cache_hits: usize,
+    /// Complete color batch preparation, including nested plan/buffer timers and cold pipelines.
+    pub batch_prepare_ms: f64,
+    /// Instanced graph discovery/cache checks and missing variant compilation.
+    pub graph_instanced_prepare_ms: f64,
+    pub graph_instance_checks: usize,
+    /// Complete shadow preparation before encoding. Includes nested fitting/group/buffer timers,
+    /// but excludes the successful-frame metadata refresh/retirement after submission.
+    pub shadow_prepare_ms: f64,
+    /// Temporary individual-upload mask allocation and required-object marking.
+    pub individual_prepare_ms: f64,
+    /// Scan of that mask and conditional dirty individual-object queue writes.
+    pub individual_upload_ms: f64,
+    pub individual_uniform_candidates: usize,
+    /// Optional particle-transparent index-vector allocation/filtering; not particle preparation.
+    pub transparent_prepare_ms: f64,
+    pub particle_prepare_ms: f64,
+    /// Total prepare_ms less the disjoint measured stages (clock/bookkeeping gaps).
+    pub prepare_unaccounted_ms: f64,
+    /// Logical temporary vector capacities in bytes, not allocator traffic or peak memory.
+    /// These include allocation/fill work already timed in the corresponding stage.
+    pub scratch_bounds_bytes: usize,
+    pub scratch_visibility_bytes: usize,
+    pub scratch_visible_items_bytes: usize,
+    pub scratch_individual_bytes: usize,
+    pub scratch_transparent_bytes: usize,
     /// CPU comparison, retained-surface refresh, expansion and ordering, before GPU encoding.
     pub surface_prepare_ms: f64,
     pub surface_source_checks: usize,
@@ -151,6 +227,47 @@ pub struct FrameStats {
     pub encode_ms: f64,
     pub submit_ms: f64,
 }
+impl FrameStats {
+    /// Disjoint CPU stages included in prepare_ms on successful frames, in execution order.
+    /// Failed frames can have partial stage/counter results without a completed total. Do not add
+    /// batch_plan_ms/instance_prepare_ms or shadow fit/state/group/buffer children
+    /// again. Cold graph/pipeline creation is included, GPU execution is not.
+    pub fn preparation_stages(&self) -> [(&'static str, f64); 20] {
+        [
+            ("scene_validation", self.scene_validation_ms),
+            ("renderer_setup", self.renderer_setup_ms),
+            ("surface_prepare", self.surface_prepare_ms),
+            ("graph_prepare", self.graph_prepare_ms),
+            ("object_binding_prepare", self.object_binding_prepare_ms),
+            ("bounds_collect", self.bounds_collect_ms),
+            ("visibility", self.visibility_ms),
+            ("light_selection", self.light_selection_ms),
+            ("visibility_bookkeeping", self.visibility_bookkeeping_ms),
+            ("frame_uniform_prepare", self.frame_uniform_prepare_ms),
+            ("object_uniform_prepare", self.object_uniform_prepare_ms),
+            ("batch_prepare", self.batch_prepare_ms),
+            ("graph_instanced_prepare", self.graph_instanced_prepare_ms),
+            ("occlusion_prepare", self.occlusion_prepare_ms),
+            ("shadow_prepare", self.shadow_prepare_ms),
+            ("individual_prepare", self.individual_prepare_ms),
+            ("individual_upload", self.individual_upload_ms),
+            ("transparent_prepare", self.transparent_prepare_ms),
+            ("particle_prepare", self.particle_prepare_ms),
+            ("unaccounted", self.prepare_unaccounted_ms),
+        ]
+    }
+
+    /// Sum of five observed temporary vector capacities, not simultaneous peak
+    /// memory, retained cache storage, allocator instrumentation or upload bytes.
+    pub fn preparation_scratch_bytes(&self) -> usize {
+        self.scratch_bounds_bytes
+            + self.scratch_visibility_bytes
+            + self.scratch_visible_items_bytes
+            + self.scratch_individual_bytes
+            + self.scratch_transparent_bytes
+    }
+}
+
 /// Reject only when every transformed AABB corner is outside the same homogeneous
 /// clip plane. No perspective divide: handles near-plane crossings and negative w.
 pub(super) fn visible(bounds: [Vec3; 2], mvp: Mat4) -> bool {
@@ -269,6 +386,7 @@ impl SceneRenderer {
     pub fn set_state_caching_enabled(&mut self, enabled: bool) {
         self.state_caching = enabled;
         if !enabled {
+            self.instancing.invalidate_preparation();
             self.surface_preparation.clear();
         }
     }
@@ -280,6 +398,7 @@ impl SceneRenderer {
     pub fn set_shadow_batching_enabled(&mut self, enabled: bool) {
         if self.instancing.shadow_batches_enabled != enabled {
             self.instancing.shadow_batches_enabled = enabled;
+            self.instancing.shadow_plan = None;
             if !enabled {
                 self.instancing.shadow_bindings.clear();
             }

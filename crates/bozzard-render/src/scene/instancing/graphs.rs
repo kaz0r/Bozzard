@@ -6,7 +6,7 @@ impl SceneRenderer {
     pub fn set_shader_graph_instancing_enabled(&mut self, enabled: bool) {
         if self.instancing.graph_enabled != enabled {
             self.instancing.graph_enabled = enabled;
-            self.instancing.plan = None;
+            self.instancing.invalidate_preparation();
             self.occlusion.invalidate();
             self.shadow_frame = None;
             self.shadows.sun_cache.clear();
@@ -23,6 +23,7 @@ impl SceneRenderer {
         auxiliary: bool,
     ) {
         for batch in batches.iter().filter(|batch| batch.indices.len() > 1) {
+            self.stats.graph_instance_checks += 1;
             let draw = &draws[batch.indices[0]];
             let Some(source) = &draw.object.material.shader else {
                 continue;

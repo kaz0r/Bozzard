@@ -129,6 +129,18 @@ fn compare(
     );
     let reference = renderers[0].frame_stats();
     let retained = renderers[1].frame_stats();
+    for stats in [reference, retained] {
+        assert_eq!(
+            stats.resource_metadata_hits
+                + stats.resource_metadata_builds
+                + stats.resource_metadata_bypasses,
+            stats.surfaces
+        );
+        assert_eq!(
+            stats.resource_bounds_lookups,
+            stats.resource_metadata_builds + stats.resource_metadata_bypasses
+        );
+    }
     assert_eq!(reference.surfaces, retained.surfaces);
     assert_eq!(reference.visible_surfaces, retained.visible_surfaces);
     assert_eq!(reference.color_triangles, retained.color_triangles);
@@ -282,6 +294,290 @@ fn retained_surfaces_match_reference_through_edits_reuploads_skinning_and_failed
         .collect::<anyhow::Result<_>>()?;
     assert_eq!(frames[0].rgba, frames[1].rgba);
     assert_eq!(renderers[1].frame_stats().surfaces, 0);
+    Ok(())
+}
+
+#[test]
+fn resource_certificates_reuse_static_surfaces_bypass_dynamic_geometry_and_respect_switches()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_resource_metadata_caching_enabled(false);
+    for renderer in &mut renderers {
+        upload(&gpu, renderer, 0.45, false)?;
+    }
+    let mut scene = scene()?;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 4);
+    compare(&gpu, &mut renderers, &scene)?;
+    let warm = renderers[1].frame_stats();
+    assert_eq!(warm.resource_metadata_hits, 4);
+    assert_eq!(warm.resource_metadata_builds, 0);
+    assert_eq!(warm.resource_metadata_bypasses, 2); // Text and sprite.
+    assert_eq!(warm.resource_bounds_lookups, 2);
+    assert_eq!(warm.mesh_validation_checks, 0);
+    assert_eq!(renderers[0].frame_stats().mesh_validation_checks, 3);
+    assert_eq!(renderers[0].frame_stats().resource_bounds_lookups, 6);
+    assert!(warm.resource_metadata_bytes > 0);
+    assert!(warm.resource_metadata_bytes < warm.surface_preparation_bytes);
+
+    scene.view_projection *= Mat4::from_translation(Vec3::new(0.17, 0.11, 0.));
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 4);
+    assert_eq!(renderers[1].frame_stats().object_matrix_checks, 6);
+    assert_eq!(renderers[1].frame_stats().object_uniform_builds, 0);
+    scene.items[0].model *= Mat4::from_rotation_y(0.3);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 4);
+    scene.items[0].material.tint[0] = 0.4;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 2);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 2);
+    scene.items.swap(0, 1);
+    compare(&gpu, &mut renderers, &scene)?;
+
+    renderers[1].set_resource_metadata_caching_enabled(false);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().surface_records_built, 0);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 0);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_bytes, 0);
+    assert_eq!(renderers[1].frame_stats().resource_bounds_lookups, 6);
+    renderers[1].set_resource_metadata_caching_enabled(true);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 4);
+    renderers[1].set_surface_preparation_caching_enabled(false);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 0);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_bypasses, 6);
+    renderers[1].set_surface_preparation_caching_enabled(true);
+    renderers[1].set_state_caching_enabled(false);
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_bypasses, 6);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_bytes, 0);
+    renderers[1].set_state_caching_enabled(true);
+
+    for renderer in &mut renderers {
+        upload(&gpu, renderer, 0.45, true)?;
+    }
+    for id in [1, 2] {
+        scene.skin_poses.insert(
+            id,
+            SkinPose {
+                signature: 7,
+                matrices: Arc::new(vec![Mat4::IDENTITY.to_cols_array()]),
+            },
+        );
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    for x in [0.2, 8., 0.] {
+        scene.skin_poses.get_mut(&1).unwrap().matrices = Arc::new(vec![
+            Mat4::from_translation(Vec3::new(x, 0., 0.4)).to_cols_array(),
+        ]);
+        compare(&gpu, &mut renderers, &scene)?;
+        let dynamic = renderers[1].frame_stats();
+        assert_eq!(dynamic.resource_metadata_hits, 1); // Only the cube is static.
+        assert_eq!(dynamic.resource_metadata_builds, 0);
+        assert_eq!(dynamic.resource_metadata_bypasses, 5);
+        assert_eq!(dynamic.resource_bounds_lookups, 5);
+        assert_eq!(dynamic.mesh_validation_checks, 3);
+    }
+    scene.items.clear();
+    let frames: Vec<_> = renderers
+        .iter_mut()
+        .map(|renderer| {
+            capture_offscreen(&gpu, 256, 192, |target| {
+                renderer.draw(&gpu, target, [256, 192], &scene)
+            })
+        })
+        .collect::<anyhow::Result<_>>()?;
+    assert_eq!(frames[0].rgba, frames[1].rgba);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_bytes, 0);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 0);
+    Ok(())
+}
+
+#[test]
+fn resource_certificates_invalidate_on_mesh_publication_removal_alias_and_failed_retry()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_resource_metadata_caching_enabled(false);
+    let mut scene = scene()?;
+    scene.items = vec![
+        item(1, 0., MeshKind::Imported("raw".into())),
+        item(2, 2., MeshKind::Cube),
+    ];
+    for renderer in &mut renderers {
+        renderer.upload_mesh(&gpu, "raw", &VERTICES, &[0, 1, 2, 3, 4, 5])?;
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 2);
+    let before = renderers[1].frame_stats().visible_surfaces;
+    let mut shifted = VERTICES;
+    for vertex in &mut shifted {
+        vertex[0] += 50.;
+    }
+    for renderer in &mut renderers {
+        renderer.upload_mesh(&gpu, "raw", &shifted, &[0, 1, 2, 3, 4, 5])?;
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 2);
+    assert_eq!(renderers[1].frame_stats().visible_surfaces, before - 1);
+    for renderer in &mut renderers {
+        assert!(
+            renderer
+                .upload_mesh(&gpu, "raw", &VERTICES, &[0, 1, 99])
+                .is_err()
+        );
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 2); // Failed upload preserves publication.
+
+    for renderer in &mut renderers {
+        renderer.remove_asset("raw");
+    }
+    for _ in 0..2 {
+        let errors: Vec<_> = renderers
+            .iter_mut()
+            .map(|renderer| {
+                let error = capture_offscreen(&gpu, 256, 192, |target| {
+                    renderer.draw(&gpu, target, [256, 192], &scene)
+                })
+                .err()
+                .expect("removed mesh must still fail validation");
+                assert_eq!(renderer.frame_stats().resource_metadata_bytes, 0);
+                error.to_string()
+            })
+            .collect();
+        assert_eq!(errors[0], errors[1]);
+        assert!(errors[0].contains("mesh 'raw' is not uploaded"));
+    }
+    for renderer in &mut renderers {
+        renderer.upload_mesh(&gpu, "raw", &VERTICES, &[0, 1, 2, 3, 4, 5])?;
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 2);
+    compare(&gpu, &mut renderers, &scene)?;
+    scene.items[1].material.texture = TextureKind::Imported("missing".into());
+    for renderer in &mut renderers {
+        assert!(
+            capture_offscreen(&gpu, 256, 192, |target| renderer.draw(
+                &gpu,
+                target,
+                [256, 192],
+                &scene
+            ))
+            .is_err()
+        );
+        assert_eq!(renderer.frame_stats().resource_metadata_bytes, 0);
+        renderer.upload_image(&gpu, "image", 1, 1, &[80, 210, 160, 255])?;
+        renderer.alias_image("image", "missing")?;
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 0);
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 2);
+    Ok(())
+}
+
+#[test]
+fn resource_certificates_refresh_sidedness_and_model_expansion_on_same_id_publication()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    let mut renderers =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_resource_metadata_caching_enabled(false);
+    let mut scene = scene()?;
+    scene.items = vec![item(1, 0., MeshKind::Imported("sided".into()))];
+    scene.items[0].model *= Mat4::from_rotation_y(std::f32::consts::PI);
+    let attrs = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 6];
+    let mut pixels = Vec::new();
+    for double_sided in [false, true, false] {
+        for renderer in &mut renderers {
+            renderer.upload_model(
+                &gpu,
+                "sided",
+                &VERTICES,
+                &[0, 1, 2],
+                &[ModelPart {
+                    source_key: "0000000000000000",
+                    start: 0,
+                    count: 3,
+                    color: [1.; 4],
+                    alpha_cutoff: None,
+                    image: None,
+                    shading: Some(ModelShading {
+                        vertex_start: 0,
+                        vertices: &attrs,
+                        metallic: 0.,
+                        roughness: 0.6,
+                        normal_scale: 1.,
+                        occlusion_strength: 1.,
+                        emissive_factor: [0.; 3],
+                        double_sided,
+                        base_color_sampler: Default::default(),
+                        normal: None,
+                        metallic_roughness: None,
+                        occlusion: None,
+                        emissive: None,
+                    }),
+                }],
+            )?;
+        }
+        let mut frames = Vec::new();
+        for renderer in &mut renderers {
+            frames.push(capture_offscreen(&gpu, 256, 192, |target| {
+                renderer.draw(&gpu, target, [256, 192], &scene)
+            })?);
+        }
+        assert_eq!(frames[0].rgba, frames[1].rgba);
+        assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 1);
+        assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 0);
+        pixels.push(frames.remove(0).rgba);
+        for renderer in &mut renderers {
+            capture_offscreen(&gpu, 256, 192, |target| {
+                renderer.draw(&gpu, target, [256, 192], &scene)
+            })?;
+        }
+        assert_eq!(renderers[1].frame_stats().resource_metadata_hits, 1);
+        assert_eq!(renderers[1].frame_stats().mesh_validation_checks, 0);
+    }
+    assert_ne!(pixels[0], pixels[1], "fixture must exercise sidedness");
+    assert_eq!(pixels[0], pixels[2]);
+    // The same catalog ID can change from expanded PBR model to ordinary imported mesh.
+    for renderer in &mut renderers {
+        renderer.upload_mesh(&gpu, "sided", &VERTICES, &[0, 1, 2, 3, 4, 5])?;
+    }
+    compare(&gpu, &mut renderers, &scene)?;
+    assert_eq!(renderers[1].frame_stats().resource_metadata_builds, 1);
+    assert_eq!(renderers[1].frame_stats().mesh_validation_checks, 1);
+    // A raw mesh cannot satisfy a model-surface reference, even after a warm certificate.
+    scene.items[0].mesh = MeshKind::ModelPart("sided".into(), 0);
+    for renderer in &mut renderers {
+        let error = capture_offscreen(&gpu, 256, 192, |target| {
+            renderer.draw(&gpu, target, [256, 192], &scene)
+        })
+        .err()
+        .expect("missing model surface must fail");
+        assert_eq!(error.to_string(), "model surface is not uploaded");
+        assert_eq!(renderer.frame_stats().resource_metadata_bytes, 0);
+    }
+    scene.items[0].mesh = MeshKind::Imported("sided".into());
+    compare(&gpu, &mut renderers, &scene)?;
+    for renderer in &mut renderers {
+        renderer.clear_imported();
+    }
+    for renderer in &mut renderers {
+        assert!(
+            capture_offscreen(&gpu, 256, 192, |target| {
+                renderer.draw(&gpu, target, [256, 192], &scene)
+            })
+            .is_err()
+        );
+        assert_eq!(renderer.frame_stats().resource_metadata_bytes, 0);
+    }
     Ok(())
 }
 

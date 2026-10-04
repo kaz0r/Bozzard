@@ -17,6 +17,12 @@ The renderer already uses indexed meshes and batches compatible opaque surfaces 
 
 - [x] **Diagnose singleton draws and batch opaque shader graphs.** Report mutually exclusive singleton reasons and batch-size histograms before occlusion. Matching mesh/texture/host/lighting/graph-hash keys share the existing 64-instance path; lazy opaque graph variants retire with the bounded graph cache. Transparent and deformed surfaces remain individual. See [shader-graph batching](shader-graph-batching.md) for exact motion parity and repeated paired factory measurements.
 
+- [x] **Reduce CPU batch preparation and stabilize residency through culling.** Retain certified diagnostic peer IDs/count scratch and successful shadow membership/index vectors. Associate color buffers with certified group identities rather than visible output positions, preserving surviving allocations with at most eight inactive spares. Exact parity, bounded-storage/failure regressions, and three paired release profiles are recorded in [batch preparation and residency](batch-preparation-residency.md). Members culled within a group still require compact packing; this pass does not introduce shader indirection.
+
+- [x] **Profile the remaining preparation scans separately.** Add disjoint CPU stage timings, source/mask/resource work counts and temporary-vector capacity metrics without changing rendering or cache behavior. Three release profiles identify whole-scene source/mask checks and resource/bounds lookup as larger costs than graph bookkeeping or scratch masks. See [CPU preparation scan profiling](preparation-scan-profile.md) for measurements, accounting boundaries, instrumentation caveats and exact comparison with the saved uninstrumented executable.
+
+- [x] **Retain validated static resource metadata.** Store local mesh bounds and sidedness with certified prepared surfaces, invalidating on publication, source replacement and failed frames; skinned/text/sprite geometry bypasses the cache. Repeated paired release profiles show lower renderer CPU with exact rendering parity. See [resource metadata caching](resource-metadata-caching.md) for results, storage costs and reference-mode reproduction.
+
 ## Baseline and verification
 
 - Starting instance records: 496 bytes; maximum batch size: 32 instances. This pass reduces records to 256 bytes and raises capacity to 64.

@@ -2,7 +2,9 @@ use super::*;
 use std::collections::HashMap;
 mod diagnostics;
 mod graphs;
+mod residency;
 mod reuse;
+mod shadow_plan;
 pub use diagnostics::BatchingStats;
 
 // Fits the downlevel 16 KiB uniform-binding limit without storage-buffer features.
@@ -23,8 +25,11 @@ pub(super) struct Instancing {
     global: bool,
     incremental: bool,
     graph_enabled: bool,
+    preparation_caching: bool,
     pub shadow_batches_enabled: bool,
     plan: Option<Plan>,
+    residency: residency::Residency,
+    pub shadow_plan: Option<shadow_plan::Plan>,
     pub frame_batches: Vec<Batch>,
     layout: wgpu::BindGroupLayout,
     pub pipelines: Option<Pipelines>,
@@ -35,20 +40,32 @@ pub(super) struct Instancing {
 #[derive(Clone)]
 pub(super) struct Batch {
     pub indices: Vec<usize>,
+    /// Identity in the certified color plan; independent of the visible output position.
+    plan_index: Option<usize>,
     pub slot: Option<usize>,
 }
 impl Instancing {
     pub(super) fn shadow_batching(&self) -> bool {
         self.enabled && self.shadow_batches_enabled
     }
+    pub(super) fn invalidate_preparation(&mut self) {
+        self.plan = None;
+        self.shadow_plan = None;
+        self.frame_batches.clear();
+        self.residency = Default::default();
+    }
+
     pub fn new(layout: wgpu::BindGroupLayout) -> Self {
         Self {
             enabled: true,
             global: true,
             incremental: true,
             graph_enabled: true,
+            preparation_caching: true,
             shadow_batches_enabled: true,
             plan: None,
+            residency: Default::default(),
+            shadow_plan: None,
             frame_batches: Vec::new(),
             layout,
             pipelines: None,
@@ -105,6 +122,7 @@ fn batches(draws: &[PreparedDraw], visible: &[bool], enabled: bool, graphs: bool
         } else {
             result.push(Batch {
                 indices: vec![index],
+                plan_index: None,
                 slot: None,
             });
         }
@@ -177,6 +195,7 @@ struct Plan {
     all_surfaces: bool,
     inputs: Vec<Input>,
     batches: Vec<Batch>,
+    diagnostics: diagnostics::Cache,
     ordering: std::result::Result<reuse::Ordering, BatchPlanRebuildReason>,
 }
 
@@ -323,6 +342,7 @@ fn global_batches(
         }
         result.push(Batch {
             indices,
+            plan_index: None,
             slot: None,
         });
     }
@@ -331,6 +351,7 @@ fn global_batches(
         if inputs[index].visible && draw.transparent {
             result.push(Batch {
                 indices: vec![index],
+                plan_index: None,
                 slot: None,
             });
         }
@@ -342,14 +363,16 @@ fn global_batches(
 // Reuse the index allocations rather than deep-cloning every cached batch.
 fn visible_batches(plan: &Plan, visible: &[bool], mut output: Vec<Batch>) -> Vec<Batch> {
     let mut count = 0;
-    for batch in &plan.batches {
+    for (plan_index, batch) in plan.batches.iter().enumerate() {
         if count == output.len() {
             output.push(Batch {
                 indices: Vec::new(),
+                plan_index: None,
                 slot: None,
             });
         }
         let current = &mut output[count];
+        current.plan_index = Some(plan_index);
         current.slot = None;
         current.indices.clear();
         current.indices.extend(
@@ -369,12 +392,24 @@ fn visible_batches(plan: &Plan, visible: &[bool], mut output: Vec<Batch>) -> Vec
 }
 
 impl SceneRenderer {
+    /// Compare retained batching preparation/residency with per-frame preparation.
+    /// Does not change color ordering, visibility, batch capacity or shadow caching.
+    pub fn set_batch_preparation_caching_enabled(&mut self, enabled: bool) {
+        if self.instancing.preparation_caching != enabled {
+            self.instancing.preparation_caching = enabled;
+            self.instancing.residency = Default::default();
+            self.instancing.shadow_plan = None;
+            if let Some(plan) = &mut self.instancing.plan {
+                plan.diagnostics = Default::default();
+            }
+        }
+    }
+
     /// Compare the same ordered surfaces against the single-object reference path.
     pub fn set_instancing_enabled(&mut self, enabled: bool) {
         self.instancing.enabled = enabled;
         if !enabled {
-            self.instancing.plan = None;
-            self.instancing.frame_batches.clear();
+            self.instancing.invalidate_preparation();
             self.instancing.bindings.clear();
             self.instancing.shadow_bindings.clear();
         }
@@ -475,8 +510,10 @@ impl SceneRenderer {
                     all_surfaces,
                     batches,
                     inputs,
+                    diagnostics: Default::default(),
                     ordering,
                 });
+                self.instancing.residency.reset();
                 self.stats.batch_plan_rebuilds = 1;
                 self.stats.batch_plan_rebuild_reason = checks.err();
             }
@@ -490,20 +527,54 @@ impl SceneRenderer {
                 self.instancing.graph_enabled,
             )
         };
-        self.stats.batching = diagnostics::collect(
-            draws,
-            &batches,
-            self.instancing.enabled,
-            self.instancing.graph_enabled,
-        );
+        let diagnostics_started = std::time::Instant::now();
+        let retained = self.instancing.preparation_caching && self.state_caching;
+        self.stats.batching = if retained && self.instancing.enabled && self.instancing.global {
+            let (stats, reused) = self.instancing.plan.as_mut().unwrap().diagnostics.collect(
+                draws,
+                &batches,
+                visible,
+                self.instancing.graph_enabled,
+            );
+            self.stats.batch_diagnostics_reused = reused;
+            stats
+        } else {
+            diagnostics::collect(
+                draws,
+                &batches,
+                self.instancing.enabled,
+                self.instancing.graph_enabled,
+            )
+        };
+        self.stats.batch_diagnostics_ms = diagnostics_started.elapsed().as_secs_f64() * 1000.;
         self.stats.batch_plan_ms = planning_started.elapsed().as_secs_f64() * 1000.;
+        let resident = retained && self.instancing.enabled && self.instancing.global;
+        let residency_started = std::time::Instant::now();
+        if resident {
+            self.instancing.residency.assign(
+                &mut batches,
+                self.instancing.plan.as_ref().unwrap().batches.len(),
+                self.instancing.bindings.len(),
+            );
+        } else {
+            self.instancing.residency.reset();
+        }
         let count = batches.iter().filter(|b| b.indices.len() > 1).count();
-        // Retain a bounded set of spare allocations through temporary culling or
-        // removals. Explicit disable/asset invalidation still releases everything.
-        self.instancing.bindings.truncate(count + 8);
+        if !resident {
+            self.instancing.bindings.truncate(count + 8);
+        }
+        self.stats.instance_buffer_bytes = self.instancing.bindings.len() * BUFFER_BYTES;
         if count == 0 {
+            if resident {
+                self.instancing
+                    .residency
+                    .retire(&mut batches, &mut self.instancing.bindings);
+                self.stats.instance_buffer_bytes = self.instancing.bindings.len() * BUFFER_BYTES;
+            }
+            self.stats.instance_prepare_ms = residency_started.elapsed().as_secs_f64() * 1000.;
             return Ok(batches);
         }
+        let residency_ms = residency_started.elapsed().as_secs_f64() * 1000.;
         if self.instancing.pipelines.is_none()
             && batches
                 .iter()
@@ -542,10 +613,20 @@ impl SceneRenderer {
             });
             self.instancing.pipelines = Some(Pipelines { pipelines });
         }
+        let instance_started = std::time::Instant::now();
         let mut bindings = std::mem::take(&mut self.instancing.bindings);
-        let result = self.prepare_instance_bindings(gpu, draws, &mut batches, &mut bindings);
+        let result =
+            self.prepare_instance_bindings(gpu, draws, &mut batches, &mut bindings, resident);
         self.instancing.bindings = bindings;
         let (bytes, allocations) = result?;
+        if resident {
+            self.instancing
+                .residency
+                .retire(&mut batches, &mut self.instancing.bindings);
+        }
+        self.stats.instance_prepare_ms =
+            residency_ms + instance_started.elapsed().as_secs_f64() * 1000.;
+        self.stats.instance_buffer_bytes = self.instancing.bindings.len() * BUFFER_BYTES;
         self.stats.instance_uniform_bytes += bytes;
         self.stats.instance_buffer_allocations += allocations;
         Ok(batches)
@@ -556,38 +637,33 @@ impl SceneRenderer {
         gpu: &Gpu,
         draws: &[PreparedDraw],
     ) -> Result<Vec<Batch>> {
-        // Depth writes commute even at equal depth. These groups cover every
-        // caster, independently of camera visibility and opaque color ordering.
-        let mut batches: Vec<Batch> = Vec::new();
-        let mut groups: HashMap<Key, usize> = HashMap::new();
-        let graphs = self.instancing.graph_enabled;
-        for (index, draw) in draws
-            .iter()
-            .enumerate()
-            .filter(|(_, d)| !d.transparent && d.object.material.lit)
-        {
-            let key = key(draw, graphs);
-            if let Some(group) = key.as_ref().and_then(|key| groups.get(key)).copied()
-                && batches[group].indices.len() < MAX_INSTANCES
-            {
-                batches[group].indices.push(index);
-            } else {
-                if let Some(key) = key {
-                    groups.insert(key, batches.len());
-                }
-                batches.push(Batch {
-                    indices: vec![index],
-                    slot: None,
-                });
-            }
-        }
+        let planning_started = std::time::Instant::now();
+        let retained = self.instancing.preparation_caching && self.state_caching;
+        let previous = self.instancing.shadow_plan.take();
+        let mut plan = if retained && previous.as_ref().is_some_and(|p| p.matches(draws)) {
+            self.stats.shadow_batch_plan_reused = true;
+            previous.unwrap()
+        } else {
+            self.stats.shadow_batch_plan_rebuilds = 1;
+            shadow_plan::Plan::new(draws, self.instancing.graph_enabled, retained)
+        };
+        let mut batches = std::mem::take(&mut plan.batches);
+        self.stats.shadow_batch_plan_ms = planning_started.elapsed().as_secs_f64() * 1000.;
+        let instance_started = std::time::Instant::now();
         let mut bindings = std::mem::take(&mut self.instancing.shadow_bindings);
         bindings.truncate(batches.iter().filter(|b| b.indices.len() > 1).count() + 8);
-        let result = self.prepare_instance_bindings(gpu, draws, &mut batches, &mut bindings);
+        let result = self.prepare_instance_bindings(gpu, draws, &mut batches, &mut bindings, false);
         self.instancing.shadow_bindings = bindings;
+        self.stats.shadow_instance_prepare_ms = instance_started.elapsed().as_secs_f64() * 1000.;
+        self.stats.shadow_instance_buffer_bytes =
+            self.instancing.shadow_bindings.len() * BUFFER_BYTES;
         let (bytes, allocations) = result?;
         self.stats.shadow_instance_uniform_bytes += bytes;
         self.stats.shadow_instance_buffer_allocations += allocations;
+        if retained {
+            // The batch vector returns here only after successful submission.
+            self.instancing.shadow_plan = Some(plan);
+        }
         Ok(batches)
     }
 
@@ -597,6 +673,7 @@ impl SceneRenderer {
         draws: &[PreparedDraw],
         batches: &mut [Batch],
         bindings: &mut Vec<InstanceBinding>,
+        resident: bool,
     ) -> Result<(usize, usize)> {
         let mut bytes = 0;
         let mut allocations = 0;
@@ -605,6 +682,7 @@ impl SceneRenderer {
             .filter(|b| b.indices.len() > 1)
             .enumerate()
         {
+            let slot = if resident { batch.slot.unwrap() } else { slot };
             let texture = &draws[batch.indices[0]].object.material.texture;
             if slot == bindings.len() {
                 let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {

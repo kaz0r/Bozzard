@@ -700,12 +700,121 @@ fn profile(workload: Workload, batch_planning: bool) -> Result<()> {
 #[ignore = "release-mode graph-instancing profile; requires a hardware graphics adapter"]
 fn profile_earth_factory_graph_instancing() -> Result<()> {
     for workload in [Workload::Active, Workload::Frozen, Workload::Camera] {
-        profile_graph_instancing(workload)?;
+        profile_batching(workload, BatchingComparison::GraphInstancing)?;
     }
     Ok(())
 }
 
-fn profile_graph_instancing(workload: Workload) -> Result<()> {
+/// Both sides retain the same color plan, graph eligibility and shadow caches.
+#[test]
+#[ignore = "release-mode batch-preparation profile; requires a hardware graphics adapter"]
+fn profile_earth_factory_batch_preparation() -> Result<()> {
+    for workload in [Workload::Active, Workload::Frozen, Workload::Camera] {
+        profile_batching(workload, BatchingComparison::BatchPreparation)?;
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BatchingComparison {
+    GraphInstancing,
+    BatchPreparation,
+    ResourceMetadata,
+}
+impl BatchingComparison {
+    fn configure(self, renderer: &mut SceneRenderer) {
+        match self {
+            Self::GraphInstancing => renderer.set_shader_graph_instancing_enabled(false),
+            Self::BatchPreparation => renderer.set_batch_preparation_caching_enabled(false),
+            Self::ResourceMetadata => renderer.set_resource_metadata_caching_enabled(false),
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Self::GraphInstancing => "shader_graph_instancing",
+            Self::BatchPreparation => "batch_preparation",
+            Self::ResourceMetadata => "resource_metadata",
+        }
+    }
+    fn modes(self) -> [&'static str; 2] {
+        match self {
+            Self::GraphInstancing => ["individual_graphs", "instanced_graphs"],
+            Self::BatchPreparation => ["per_frame_preparation", "retained_preparation"],
+            Self::ResourceMetadata => ["per_frame_resources", "retained_resources"],
+        }
+    }
+    fn output_env(self) -> &'static str {
+        match self {
+            Self::GraphInstancing => "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+            Self::BatchPreparation => "BOZZARD_BATCH_PREPARATION_OUTPUT",
+            Self::ResourceMetadata => "BOZZARD_RESOURCE_METADATA_OUTPUT",
+        }
+    }
+}
+
+#[test]
+#[ignore = "release-mode resource-metadata profile; requires a hardware graphics adapter"]
+fn profile_earth_factory_resource_metadata() -> Result<()> {
+    for workload in [Workload::Active, Workload::Frozen, Workload::Camera] {
+        profile_batching(workload, BatchingComparison::ResourceMetadata)?;
+    }
+    Ok(())
+}
+
+fn preparation_work(stats: &FrameStats) -> serde_json::Value {
+    json!({
+        "surfaces": stats.surfaces,
+        "mesh_validation_checks": stats.mesh_validation_checks,
+        "resource_metadata_hits": stats.resource_metadata_hits,
+        "resource_metadata_builds": stats.resource_metadata_builds,
+        "resource_metadata_bypasses": stats.resource_metadata_bypasses,
+        "resource_bounds_lookups": stats.resource_bounds_lookups,
+        "resource_metadata_bytes": stats.resource_metadata_bytes,
+        "object_binding_allocations": stats.object_binding_allocations,
+        "graph_source_checks": stats.graph_source_checks,
+        "graph_instance_checks": stats.graph_instance_checks,
+        "object_uniform_source_checks": stats.object_uniform_source_checks,
+        "object_matrix_checks": stats.object_matrix_checks,
+        "object_uniform_builds": stats.object_uniform_builds,
+        "light_mask_checks": stats.light_mask_checks,
+        "light_mask_cache_hits": stats.light_mask_cache_hits,
+        "light_mask_builds": stats.light_mask_builds,
+        "individual_uniform_candidates": stats.individual_uniform_candidates,
+        "object_uniform_writes": stats.object_uniform_writes,
+        "scratch_bounds_bytes": stats.scratch_bounds_bytes,
+        "scratch_visibility_bytes": stats.scratch_visibility_bytes,
+        "scratch_visible_items_bytes": stats.scratch_visible_items_bytes,
+        "scratch_individual_bytes": stats.scratch_individual_bytes,
+        "scratch_transparent_bytes": stats.scratch_transparent_bytes,
+        "scratch_capacity_bytes": stats.preparation_scratch_bytes(),
+    })
+}
+
+fn batch_frame_sample(stats: &FrameStats, wall: f64) -> serde_json::Value {
+    json!({
+        "renderer_cpu_ms": stats.cpu_ms, "synchronized_ms": wall,
+        "renderer_prepare_ms": stats.prepare_ms,
+        "preparation_stages_ms": stats.preparation_stages().into_iter().collect::<std::collections::BTreeMap<_, _>>(),
+        "preparation_work": preparation_work(stats),
+        "color_draws": stats.color_draws, "color_triangles": stats.color_triangles,
+        "shadow_draws": stats.shadow_draws, "shadow_triangles": stats.shadow_triangles,
+        "sun_depth_copies": stats.sun_depth_copies, "batching": stats.batching,
+        "graph_instanced_compilations": stats.graph_instanced_compilations,
+        "batch_diagnostics_ms": stats.batch_diagnostics_ms,
+        "instance_prepare_ms": stats.instance_prepare_ms,
+        "shadow_batch_plan_ms": stats.shadow_batch_plan_ms,
+        "shadow_instance_prepare_ms": stats.shadow_instance_prepare_ms,
+        "batch_diagnostics_reused": stats.batch_diagnostics_reused,
+        "shadow_batch_plan_reused": stats.shadow_batch_plan_reused,
+        "instance_uniform_bytes": stats.instance_uniform_bytes,
+        "shadow_instance_uniform_bytes": stats.shadow_instance_uniform_bytes,
+        "instance_buffer_bytes": stats.instance_buffer_bytes,
+        "shadow_instance_buffer_bytes": stats.shadow_instance_buffer_bytes,
+    })
+}
+
+fn profile_batching(workload: Workload, comparison: BatchingComparison) -> Result<()> {
+    let preparation = comparison != BatchingComparison::GraphInstancing;
     let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let play = editor.play.as_ref().unwrap();
@@ -721,7 +830,7 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
     let info = gpu.adapter.get_info();
     let mut renderers: [SceneRenderer; 2] =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
-    renderers[0].set_shader_graph_instancing_enabled(false);
+    comparison.configure(&mut renderers[0]);
     for renderer in &mut renderers {
         renderer.set_profiling_enabled(true);
     }
@@ -782,6 +891,32 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
         }
         let a = renderers[0].frame_stats();
         let b = renderers[1].frame_stats();
+        for stats in [a, b] {
+            let stages = stats.preparation_stages();
+            ensure!(
+                stages.iter().all(|(_, ms)| ms.is_finite() && *ms >= 0.),
+                "invalid CPU stage sample"
+            );
+            let sum: f64 = stages.iter().map(|(_, ms)| ms).sum();
+            ensure!(
+                (sum - stats.prepare_ms).abs() <= stats.prepare_ms.max(1.) * 1e-9,
+                "preparation stage overlap/gap: {sum} vs {}",
+                stats.prepare_ms
+            );
+            ensure!(
+                stats.resource_metadata_hits
+                    + stats.resource_metadata_builds
+                    + stats.resource_metadata_bypasses
+                    == stats.surfaces
+                    && stats.resource_bounds_lookups
+                        == stats.resource_metadata_builds + stats.resource_metadata_bypasses,
+                "resource work counters do not partition surfaces"
+            );
+            ensure!(
+                stats.light_mask_checks == stats.light_mask_cache_hits + stats.light_mask_builds,
+                "light-mask work counters do not partition checks"
+            );
+        }
         assert_eq!(
             (
                 a.scene_items,
@@ -798,6 +933,13 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
                 b.color_triangles
             )
         );
+        if preparation {
+            counts_equal(a, b);
+            assert_eq!(
+                serde_json::to_value(a.batching)?,
+                serde_json::to_value(b.batching)?
+            );
+        }
         // Static-depth caching can submit fewer casters or a depth-copy triangle.
         // Keep normal caches enabled and report this difference, not a false claim
         // that both renderers necessarily submit identical shadow geometry.
@@ -812,7 +954,7 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
             "frozen rendering advanced gameplay"
         );
     }
-    let output = std::env::var_os("BOZZARD_GRAPH_INSTANCING_OUTPUT").map(PathBuf::from);
+    let output = std::env::var_os(comparison.output_env()).map(PathBuf::from);
     if let Some(path) = &output {
         std::fs::create_dir_all(path)?;
     }
@@ -854,25 +996,33 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
     }
     let results: Vec<_> = samples.iter().enumerate().map(|(mode, samples)| {
         let stage = |value: fn(&FrameStats) -> f64| distribution(samples.iter().map(|(stats, _)| value(stats)).collect());
+        let preparation_stages: std::collections::BTreeMap<_, _> = samples[0].0.preparation_stages()
+            .into_iter().enumerate().map(|(index, (name, _))| {
+                (name, distribution(samples.iter().map(|(stats, _)| stats.preparation_stages()[index].1).collect()))
+            }).collect();
         json!({
-            "mode": if mode == 0 { "individual_graphs" } else { "instanced_graphs" },
+            "preparation_stages": preparation_stages,
+            "mode": comparison.modes()[mode],
             "renderer_cpu": stage(|s| s.cpu_ms), "renderer_prepare": stage(|s| s.prepare_ms),
             "renderer_encode": stage(|s| s.encode_ms), "renderer_submit": stage(|s| s.submit_ms),
             "batch_planning": stage(|s| s.batch_plan_ms),
+            "batch_diagnostics": stage(|s| s.batch_diagnostics_ms),
+            "instance_prepare": stage(|s| s.instance_prepare_ms),
+            "shadow_batch_plan": stage(|s| s.shadow_batch_plan_ms),
+            "shadow_instance_prepare": stage(|s| s.shadow_instance_prepare_ms),
+            "instance_upload_bytes": samples.iter().map(|(s, _)| s.instance_uniform_bytes).sum::<usize>(),
+            "shadow_instance_upload_bytes": samples.iter().map(|(s, _)| s.shadow_instance_uniform_bytes).sum::<usize>(),
+            "instance_buffer_allocations": samples.iter().map(|(s, _)| s.instance_buffer_allocations).sum::<usize>(),
+            "diagnostics_reused_frames": samples.iter().filter(|(s, _)| s.batch_diagnostics_reused).count(),
+            "shadow_plan_reused_frames": samples.iter().filter(|(s, _)| s.shadow_batch_plan_reused).count(),
             "synchronized": distribution(samples.iter().map(|(_, wall)| *wall).collect()),
             "gpu_pass_sum": distribution(std::mem::take(&mut gpu_samples[mode])),
             "last_measured_frame": samples.last().unwrap().0,
-            "frame_samples": samples.iter().map(|(stats, wall)| json!({
-                "renderer_cpu_ms": stats.cpu_ms, "synchronized_ms": wall,
-                "color_draws": stats.color_draws, "color_triangles": stats.color_triangles,
-                "shadow_draws": stats.shadow_draws, "shadow_triangles": stats.shadow_triangles,
-                "sun_depth_copies": stats.sun_depth_copies, "batching": stats.batching,
-                "graph_instanced_compilations": stats.graph_instanced_compilations,
-            })).collect::<Vec<_>>(),
+            "frame_samples": samples.iter().map(|(stats, wall)| batch_frame_sample(stats, *wall)).collect::<Vec<_>>(),
         })
     }).collect();
     let report = json!({
-        "comparison": "shader_graph_instancing", "workload": workload.name(),
+        "comparison": comparison.name(), "workload": workload.name(),
         "adapter": info.name, "backend": info.backend.to_str(),
         "build": if cfg!(debug_assertions) { "debug" } else { "release" },
         "viewport": size, "warmup_frames": 12, "measured_frames": 60,
@@ -894,6 +1044,23 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
 #[test]
 #[ignore = "native graph-instancing motion parity; accepts software graphics adapters"]
 fn graph_instancing_factory_pixels_and_checkpoints_match_during_motion() -> Result<()> {
+    factory_batching_motion_parity(BatchingComparison::GraphInstancing)
+}
+
+#[test]
+#[ignore = "native batch-preparation motion parity; accepts software graphics adapters"]
+fn batch_preparation_factory_pixels_and_checkpoints_match_during_motion() -> Result<()> {
+    factory_batching_motion_parity(BatchingComparison::BatchPreparation)
+}
+
+#[test]
+#[ignore = "native resource-metadata motion parity; accepts software graphics adapters"]
+fn resource_metadata_factory_pixels_and_checkpoints_match_during_motion() -> Result<()> {
+    factory_batching_motion_parity(BatchingComparison::ResourceMetadata)
+}
+
+fn factory_batching_motion_parity(comparison: BatchingComparison) -> Result<()> {
+    let preparation = comparison != BatchingComparison::GraphInstancing;
     let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let gpu = pollster::block_on(Gpu::request_prefer_software(&bozzard_render::instance(
@@ -901,7 +1068,7 @@ fn graph_instancing_factory_pixels_and_checkpoints_match_during_motion() -> Resu
     )))?;
     let mut renderers: [SceneRenderer; 2] =
         std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
-    renderers[0].set_shader_graph_instancing_enabled(false);
+    comparison.configure(&mut renderers[0]);
     for renderer in &mut renderers {
         renderer.set_occlusion_enabled(false);
         // Verify identical caster submissions independently of cache heuristics.
@@ -949,8 +1116,14 @@ fn graph_instancing_factory_pixels_and_checkpoints_match_during_motion() -> Resu
                 b.shadow_triangles
             )
         );
-        batched_frames +=
-            usize::from(b.batching.graph_instanced_surfaces > 0 && b.color_draws < a.color_draws);
+        if preparation {
+            counts_equal(a, b);
+            assert_eq!(a.batching, b.batching);
+        }
+        batched_frames += usize::from(
+            b.batching.graph_instanced_surfaces > 0
+                && (preparation || b.color_draws < a.color_draws),
+        );
         ensure!(
             state(&editor)? == checkpoint,
             "rendering changed gameplay at frame {frame}"
@@ -961,7 +1134,12 @@ fn graph_instancing_factory_pixels_and_checkpoints_match_during_motion() -> Resu
         "motion parity must actually exercise graph instances"
     );
     println!(
-        "graph_instancing_factory_parity_ok: 20 moving frames, exact pixels, geometry and checkpoints"
+        "{}_factory_parity_ok: 20 moving frames, exact pixels, geometry and checkpoints",
+        if comparison == BatchingComparison::GraphInstancing {
+            "graph_instancing"
+        } else {
+            comparison.name()
+        }
     );
     Ok(())
 }

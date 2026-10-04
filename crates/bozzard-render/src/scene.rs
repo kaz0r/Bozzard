@@ -269,6 +269,7 @@ pub struct SceneRenderer {
     stats: FrameStats,
     surface_preparation: preparation::SurfacePreparation,
     surface_preparation_caching: bool,
+    resource_metadata_caching: bool,
     culling: bool,
     early_frustum_acceptance: bool,
     shadow_preparation_cache: bool,
@@ -757,6 +758,7 @@ impl SceneRenderer {
             profiler: Default::default(),
             surface_preparation: Default::default(),
             surface_preparation_caching: true,
+            resource_metadata_caching: true,
             culling: true,
             early_frustum_acceptance: true,
             shadow_preparation_cache: true,
@@ -999,6 +1001,7 @@ impl SceneRenderer {
             hud.invalidate();
         }
         self.objects.clear();
+        self.instancing.invalidate_preparation();
         self.instancing.bindings.clear();
         self.instancing.shadow_bindings.clear();
         self.shadow_frame = None;
@@ -1618,8 +1621,10 @@ impl SceneRenderer {
             // Skin commands now share the frame encoder. A failed frame drops that
             // encoder before submission, so its cached poses must be retried.
             self.skinning.invalidate();
+            self.instancing.invalidate_preparation();
             self.surface_preparation.clear();
             self.stats.surface_preparation_bytes = 0;
+            self.stats.resource_metadata_bytes = 0;
             self.shadow_frame = None;
         }
         result
@@ -1692,6 +1697,8 @@ impl SceneRenderer {
         }
         scene.fog.validate()?;
         scene.display.validate()?;
+        self.stats.scene_validation_ms = started.elapsed().as_secs_f64() * 1000.;
+        let setup_started = std::time::Instant::now();
         let stores = geometry::stores(scene, raw, self.state_caching);
         let auxiliary = stores.iter().any(|store| *store);
         let (view_projection, temporal_frame) = self.motion_history.begin(scene, size, raw);
@@ -1757,8 +1764,21 @@ impl SceneRenderer {
         self.skinning
             .prepare(gpu, scene, &self.models, &mut encoder)?;
         self.sprites.prepare(gpu, &scene.items)?;
-        let draws = self.prepare(scene);
+        self.stats.renderer_setup_ms = setup_started.elapsed().as_secs_f64() * 1000.;
+        let mut draws = self.prepare(scene);
+        // No shadow update may be needed (for example with shadows disabled),
+        // so do not retain grouping storage from a different scene size.
+        if self
+            .instancing
+            .shadow_plan
+            .as_ref()
+            .is_some_and(|p| p.len() != draws.len())
+        {
+            self.instancing.shadow_plan = None;
+        }
         // Keep all active pipelines and a bounded set of recently absent previews.
+        let graph_started = std::time::Instant::now();
+        self.stats.graph_source_checks = draws.len();
         let mut graph_sources: BTreeMap<(u64, bool), &ShaderSource> = BTreeMap::new();
         for draw in &draws {
             if let Some(shader) = &draw.object.material.shader {
@@ -1791,16 +1811,26 @@ impl SceneRenderer {
             }
         }
         self.stats.resident_graphs = self.graphs.len();
+        self.stats.graph_prepare_ms = graph_started.elapsed().as_secs_f64() * 1000.;
+        let binding_started = std::time::Instant::now();
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {
             let object = &draw.object;
             if index == self.objects.len() {
                 self.objects
                     .push(self.object_binding(gpu, &object.material.texture)?);
+                self.stats.object_binding_allocations += 1;
             } else if self.objects[index].texture != object.material.texture {
                 self.objects[index] = self.object_binding(gpu, &object.material.texture)?;
+                self.stats.object_binding_allocations += 1;
+            }
+            // A certificate is attached to this immutable prepared mesh identity,
+            // not the positional object binding. Publication and failed frames clear it.
+            if draw.preparation.resources.is_some() {
+                continue;
             }
             if let MeshKind::ModelPart(id, index) = &object.mesh {
+                self.stats.mesh_validation_checks += 1;
                 ensure!(
                     self.models
                         .get(id)
@@ -1809,20 +1839,26 @@ impl SceneRenderer {
                 );
             }
             if let MeshKind::Imported(id) = &object.mesh {
+                self.stats.mesh_validation_checks += 1;
                 ensure!(
                     self.imported_meshes.contains_key(id),
                     "mesh '{id}' is not uploaded"
                 );
             }
         }
-        let bounds: Vec<_> = draws
-            .iter()
-            .map(|d| self.mesh_for(&d.object).bounds)
-            .collect();
+        self.stats.object_binding_prepare_ms = binding_started.elapsed().as_secs_f64() * 1000.;
+        let bounds_started = std::time::Instant::now();
+        let bounds = self.prepare_bounds(&mut draws);
+        self.stats.scratch_bounds_bytes = bounds.capacity() * std::mem::size_of::<[Vec3; 2]>();
+        self.stats.bounds_collect_ms = bounds_started.elapsed().as_secs_f64() * 1000.;
         let visibility_started = std::time::Instant::now();
         let visible = self.visibility(scene, &draws, &bounds);
+        self.stats.scratch_visibility_bytes = visible.capacity() * std::mem::size_of::<bool>();
         self.stats.visibility_ms = visibility_started.elapsed().as_secs_f64() * 1000.;
+        let selection_started = std::time::Instant::now();
         self.light_selection.update(&scene.lights);
+        self.stats.light_selection_ms = selection_started.elapsed().as_secs_f64() * 1000.;
+        let visibility_bookkeeping_started = std::time::Instant::now();
         self.stats.scene_items = scene.items.len();
         self.stats.surfaces = draws.len();
         self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
@@ -1832,6 +1868,11 @@ impl SceneRenderer {
         }
         self.stats.visible_items = visible_items.iter().filter(|v| **v).count();
         self.stats.culled_surfaces = draws.len() - self.stats.visible_surfaces;
+        self.stats.scratch_visible_items_bytes =
+            visible_items.capacity() * std::mem::size_of::<bool>();
+        self.stats.visibility_bookkeeping_ms =
+            visibility_bookkeeping_started.elapsed().as_secs_f64() * 1000.;
+        let frame_uniform_started = std::time::Instant::now();
         let inverse_view_projection = view_projection.inverse().to_cols_array();
         let lighting_uniform = scene.lighting.uniform();
         let fog_uniform = scene.fog.uniform(raw);
@@ -1859,6 +1900,9 @@ impl SceneRenderer {
                 .write_buffer(&self.frame_buffer, 0, &frame_uniform);
             self.stats.frame_uniform_bytes = frame_uniform.len();
         }
+        self.stats.frame_uniform_prepare_ms = frame_uniform_started.elapsed().as_secs_f64() * 1000.;
+        let object_uniform_started = std::time::Instant::now();
+        self.stats.object_uniform_source_checks = draws.len();
         for (index, (draw, binding)) in draws.iter().zip(&mut self.objects).enumerate() {
             let object = &draw.object;
             let previous_model = self.motion_history.previous_model(object);
@@ -1873,13 +1917,10 @@ impl SceneRenderer {
                 if material.lit { 1.0 } else { 0.0 },
                 draw.cutoff,
             ];
-            let double_sided = match &object.mesh {
-                MeshKind::ModelPart(id, index) => self.models[id][*index]
-                    .shading
-                    .as_ref()
-                    .is_none_or(|s| s.double_sided),
-                _ => true,
-            };
+            let double_sided = draw.preparation.resources.as_ref().map_or_else(
+                || preparation::double_sided(&self.models, &object.mesh),
+                |resources| resources.double_sided,
+            );
             let surface = [
                 draw.pbr_override[0],
                 draw.pbr_override[1],
@@ -1903,6 +1944,8 @@ impl SceneRenderer {
                 && binding.source.as_ref().is_some_and(|source| {
                     source.model == object.model && source.tail[6] == tail[6]
                 });
+            self.stats.light_mask_checks += usize::from(lights_present);
+            self.stats.light_mask_cache_hits += usize::from(light_cache_hit);
             let light_mask = if !lights_present {
                 0
             } else if light_cache_hit {
@@ -1928,6 +1971,7 @@ impl SceneRenderer {
             // Keep the original combined-matrix validation, including on camera
             // changes, without revalidating every stationary object each frame.
             if camera_changed || !unchanged {
+                self.stats.object_matrix_checks += 1;
                 ensure!(
                     (view_projection * object.model).is_finite(),
                     "invalid object matrix"
@@ -1974,11 +2018,18 @@ impl SceneRenderer {
                 binding.light_bounds = Some(bounds[index]);
             }
         }
+        self.stats.object_uniform_prepare_ms =
+            object_uniform_started.elapsed().as_secs_f64() * 1000.;
         // Publish the stamp only after all objects validate, so an error cannot
         // make a retry skip validation against a newly changed camera.
         self.frame_uniform = Some(frame_uniform);
+        let batch_started = std::time::Instant::now();
         let batches = self.prepare_instances(gpu, &draws, &bounds, &visible, view_projection)?;
+        self.stats.batch_prepare_ms = batch_started.elapsed().as_secs_f64() * 1000.;
+        let instanced_graph_started = std::time::Instant::now();
         self.prepare_instanced_graphs(gpu, &draws, &batches, auxiliary);
+        self.stats.graph_instanced_prepare_ms =
+            instanced_graph_started.elapsed().as_secs_f64() * 1000.;
         let occlusion_started = std::time::Instant::now();
         let occlusion = self.prepare_occlusion(
             gpu,
@@ -1990,6 +2041,7 @@ impl SceneRenderer {
             &batches,
         );
         self.stats.occlusion_prepare_ms = occlusion_started.elapsed().as_secs_f64() * 1000.;
+        let shadow_prepare_started = std::time::Instant::now();
         let state_started = std::time::Instant::now();
         let reuse_metadata = self.shadow_metadata_reuse && self.state_caching;
         let mut shadow_frame =
@@ -2132,8 +2184,10 @@ impl SceneRenderer {
             }
         }
         self.stats.sun_bounds_cache_bytes = self.shadows.sun_fit.bytes();
+        self.stats.shadow_prepare_ms = shadow_prepare_started.elapsed().as_secs_f64() * 1000.;
         // Packed color and shadow groups already contain their uniforms.
         // Upload individual buffers for singletons and ineligible casters.
+        let individual_started = std::time::Instant::now();
         let sun_individuals = !self.stats.shadow_cache_hit
             && sun_changed
             && scene.lighting.shadows
@@ -2173,7 +2227,11 @@ impl SceneRenderer {
                 && (local_individuals
                     || sun_individuals && (!visible[index] || sun_plan.is_some()));
         }
+        self.stats.scratch_individual_bytes = individual.capacity() * std::mem::size_of::<bool>();
+        self.stats.individual_prepare_ms = individual_started.elapsed().as_secs_f64() * 1000.;
+        let individual_upload_started = std::time::Instant::now();
         for (needed, binding) in individual.into_iter().zip(&mut self.objects) {
+            self.stats.individual_uniform_candidates += usize::from(needed);
             if needed && binding.dirty {
                 gpu.queue
                     .write_buffer(&binding.buffer, 0, binding.uniform.as_ref().unwrap());
@@ -2181,6 +2239,8 @@ impl SceneRenderer {
                 self.stats.object_uniform_writes += 1;
             }
         }
+        self.stats.individual_upload_ms = individual_upload_started.elapsed().as_secs_f64() * 1000.;
+        let transparent_started = std::time::Instant::now();
         let has_particles = !raw && !scene.particles.is_empty();
         let transparent: Vec<usize> = if has_particles {
             draws
@@ -2193,7 +2253,11 @@ impl SceneRenderer {
         } else {
             Vec::new()
         };
+        self.stats.scratch_transparent_bytes =
+            transparent.capacity() * std::mem::size_of::<usize>();
+        self.stats.transparent_prepare_ms = transparent_started.elapsed().as_secs_f64() * 1000.;
         if has_particles {
+            let particle_started = std::time::Instant::now();
             self.stats.particles = scene.particles.len();
             self.stats.particle_triangles = scene.particles.len() as u64 * 2;
             let particles = self.particles.get_or_insert_with(|| {
@@ -2219,8 +2283,17 @@ impl SceneRenderer {
                 self.stats.particle_compute_dispatches,
                 self.stats.particle_descriptor_bytes,
             ) = particles.work();
+            self.stats.particle_prepare_ms = particle_started.elapsed().as_secs_f64() * 1000.;
         }
         self.stats.prepare_ms = started.elapsed().as_secs_f64() * 1000.;
+        self.stats.prepare_unaccounted_ms = (self.stats.prepare_ms
+            - self
+                .stats
+                .preparation_stages()
+                .iter()
+                .map(|(_, ms)| ms)
+                .sum::<f64>())
+        .max(0.);
         let encode_started = std::time::Instant::now();
         if has_particles {
             self.particles.as_ref().unwrap().encode(&mut encoder);
@@ -2465,6 +2538,13 @@ impl SceneRenderer {
         self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
         self.instancing.frame_batches = batches;
+        if let Some(batches) = shadow_batches
+            && let Some(plan) = &mut self.instancing.shadow_plan
+        {
+            plan.batches = batches;
+        }
+        self.stats.shadow_instance_buffer_bytes =
+            self.instancing.shadow_bindings.len() * instancing::BUFFER_BYTES;
         if self.state_caching && self.surface_preparation_caching {
             self.surface_preparation.draws = draws;
         }

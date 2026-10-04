@@ -1,7 +1,7 @@
 use super::*;
 
 /// Frustum-visible batch plan before GPU/cached occlusion. Excludes HUD and particles.
-#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub struct BatchingStats {
     pub planned_draws: usize,
     pub singleton_draws: usize,
@@ -23,34 +23,102 @@ pub struct BatchingStats {
     pub size_histogram: [usize; 7],
 }
 
+/// Lives with a certified color plan: its exact metadata checks guard peer IDs.
+/// Hidden peers are counted only if they actually occur in this frame's output.
+#[derive(Default)]
+pub(super) struct Cache {
+    groups: Vec<Option<usize>>,
+    counts: Vec<usize>,
+    visible: Vec<bool>,
+    stats: Option<BatchingStats>,
+}
+impl Cache {
+    pub fn collect(
+        &mut self,
+        draws: &[PreparedDraw],
+        batches: &[Batch],
+        visible: &[bool],
+        graphs: bool,
+    ) -> (BatchingStats, bool) {
+        if self.visible == visible
+            && let Some(stats) = self.stats
+        {
+            return (stats, true);
+        }
+        if self.groups.is_empty() {
+            let mut groups = HashMap::new();
+            self.groups.extend(draws.iter().map(|draw| {
+                key(draw, graphs).map(|key| {
+                    let next = groups.len();
+                    *groups.entry(key).or_insert(next)
+                })
+            }));
+            self.counts.resize(groups.len(), 0);
+        }
+        self.counts.fill(0);
+        let stats = tally(draws, batches, |index| {
+            if let Some(group) = self.groups[index] {
+                self.counts[group] += 1;
+            }
+        });
+        let stats = classify(draws, batches, true, graphs, stats, |index| {
+            self.groups[index].map_or(0, |group| self.counts[group])
+        });
+        self.visible.clear();
+        self.visible.extend_from_slice(visible);
+        self.stats = Some(stats);
+        (stats, false)
+    }
+}
+
 pub(super) fn collect(
     draws: &[PreparedDraw],
     batches: &[Batch],
     enabled: bool,
     graphs: bool,
 ) -> BatchingStats {
+    // Reference path intentionally rebuilds the borrowed-key table each frame.
+    let mut peers = HashMap::new();
+    let stats = tally(draws, batches, |index| {
+        if enabled && let Some(key) = key(&draws[index], graphs) {
+            *peers.entry(key).or_insert(0usize) += 1;
+        }
+    });
+    classify(draws, batches, enabled, graphs, stats, |index| {
+        key(&draws[index], graphs).map_or(0, |key| peers[&key])
+    })
+}
+
+fn tally(draws: &[PreparedDraw], batches: &[Batch], mut peer: impl FnMut(usize)) -> BatchingStats {
     let mut stats = BatchingStats {
         planned_draws: batches.len(),
         ..Default::default()
     };
-    // Borrow asset keys: diagnostics must not clone per-surface strings every frame.
-    let mut peers = HashMap::new();
     for batch in batches {
         stats.size_histogram[batch.indices.len().ilog2() as usize] += 1;
         for &index in &batch.indices {
-            let draw = &draws[index];
-            if draw.shader.is_some() {
+            peer(index);
+            if draws[index].shader.is_some() {
                 stats.graph_surfaces += 1;
                 stats.graph_instanced_surfaces += usize::from(batch.indices.len() > 1);
             }
-            if enabled && let Some(key) = key(draw, graphs) {
-                *peers.entry(key).or_insert(0usize) += 1;
-            }
         }
     }
+    stats
+}
+
+fn classify(
+    draws: &[PreparedDraw],
+    batches: &[Batch],
+    enabled: bool,
+    graphs: bool,
+    mut stats: BatchingStats,
+    peers: impl Fn(usize) -> usize,
+) -> BatchingStats {
     for batch in batches.iter().filter(|batch| batch.indices.len() == 1) {
         stats.singleton_draws += 1;
-        let draw = &draws[batch.indices[0]];
+        let index = batch.indices[0];
+        let draw = &draws[index];
         if !enabled {
             stats.singleton_disabled += 1;
         } else if draw.transparent {
@@ -59,14 +127,12 @@ pub(super) fn collect(
             stats.singleton_deformed += 1;
         } else if !graphs && draw.shader.is_some() {
             stats.singleton_shader += 1;
-        } else if let Some(key) = key(draw, graphs) {
-            if peers[&key] == 1 {
-                stats.singleton_unique_key += 1;
-            } else {
-                stats.singleton_split += 1;
-            }
         } else {
-            stats.singleton_unsupported_mesh += 1;
+            match peers(index) {
+                0 => stats.singleton_unsupported_mesh += 1,
+                1 => stats.singleton_unique_key += 1,
+                _ => stats.singleton_split += 1,
+            }
         }
     }
     stats
@@ -129,6 +195,7 @@ mod tests {
         let batches: Vec<_> = (0..7)
             .map(|index| Batch {
                 indices: vec![index],
+                plan_index: None,
                 slot: None,
             })
             .collect();
@@ -153,6 +220,53 @@ mod tests {
     }
 
     #[test]
+    fn retained_peer_ids_and_histograms_match_rebuilt_diagnostics_through_visibility_churn() {
+        let mut draws: Vec<_> = (0..131).map(|_| draw()).collect();
+        for (index, draw) in draws.iter_mut().enumerate() {
+            draw.object.material.texture = if index % 7 == 0 {
+                TextureKind::Checker
+            } else {
+                TextureKind::White
+            };
+            if index % 11 == 0 {
+                draw.shader = Some(index as u64 % 3);
+            }
+            if index % 13 == 0 {
+                draw.transparent = true;
+            }
+            if index % 17 == 0 {
+                draw.deformation = 1;
+            }
+            if index % 19 == 0 {
+                draw.object.mesh = MeshKind::Text(Default::default());
+            }
+        }
+        for graphs in [false, true] {
+            let mut cache = Cache::default();
+            let mut random = 17_u64;
+            for frame in 0..200 {
+                let visible: Vec<_> = draws
+                    .iter()
+                    .map(|_| {
+                        random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                        frame != 50 && (frame == 0 || random >> 61 != 0)
+                    })
+                    .collect();
+                let batches = super::super::batches(&draws, &visible, true, graphs);
+                let expected = collect(&draws, &batches, true, graphs);
+                assert_eq!(
+                    cache.collect(&draws, &batches, &visible, graphs).0,
+                    expected
+                );
+                assert_eq!(
+                    cache.collect(&draws, &batches, &visible, graphs),
+                    (expected, true)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn histogram_and_graph_counts_include_capacity_tails() {
         let mut draws: Vec<_> = (0..65).map(|_| draw()).collect();
         for draw in &mut draws {
@@ -161,10 +275,12 @@ mod tests {
         let batches = vec![
             Batch {
                 indices: (0..64).collect(),
+                plan_index: None,
                 slot: None,
             },
             Batch {
                 indices: vec![64],
+                plan_index: None,
                 slot: None,
             },
         ];

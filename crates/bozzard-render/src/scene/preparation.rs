@@ -38,10 +38,33 @@ pub(super) struct DrawPreparation {
     skinned: bool,
     base_center: Vec3,
     center: Vec3,
+    // Resource publication clears the entire retained surface set. Static source edits
+    // rebuild a draw, so this certificate belongs to its immutable resolved mesh identity.
+    pub(super) resources: Option<ResourceMetadata>,
     // Keep these separate: regrouping matrix products changes rounding and signed zero.
     origin: Option<Mat4>,
     override_transform: Option<Mat4>,
 }
+pub(super) struct ResourceMetadata {
+    pub bounds: [Vec3; 2],
+    pub double_sided: bool,
+}
+impl DrawPreparation {
+    fn cacheable_resources(&self, mesh: &MeshKind) -> bool {
+        !self.skinned && !matches!(mesh, MeshKind::Text(_) | MeshKind::Sprite(_))
+    }
+}
+
+pub(super) fn double_sided(models: &BTreeMap<String, Vec<UploadedPart>>, mesh: &MeshKind) -> bool {
+    match mesh {
+        MeshKind::ModelPart(id, index) => models[id][*index]
+            .shading
+            .as_ref()
+            .is_none_or(|s| s.double_sided),
+        _ => true,
+    }
+}
+
 fn bits_eq<const N: usize>(a: [f32; N], b: [f32; N]) -> bool {
     a.map(f32::to_bits) == b.map(f32::to_bits)
 }
@@ -187,6 +210,51 @@ fn refresh_draw(
 }
 
 impl SceneRenderer {
+    /// Retain validated static mesh bounds and sidedness with prepared surfaces.
+    /// Requires state and surface preparation caching; dynamic geometry always bypasses it.
+    /// Disabling clears certificates but preserves other preparation/batching caches.
+    /// Existing FrameStats remain the last completed frame snapshot until the next draw.
+    pub fn set_resource_metadata_caching_enabled(&mut self, enabled: bool) {
+        self.resource_metadata_caching = enabled;
+        if !enabled {
+            for draw in &mut self.surface_preparation.draws {
+                draw.preparation.resources = None;
+            }
+        }
+    }
+
+    pub(super) fn prepare_bounds(&mut self, draws: &mut [PreparedDraw]) -> Vec<[Vec3; 2]> {
+        let retain = self.resource_metadata_caching
+            && self.state_caching
+            && self.surface_preparation_caching;
+        let bounds = draws
+            .iter_mut()
+            .map(|draw| {
+                if let Some(resources) = &draw.preparation.resources {
+                    self.stats.resource_metadata_hits += 1;
+                    return resources.bounds;
+                }
+                self.stats.resource_bounds_lookups += 1;
+                // Called only after the original ordered binding/resource validation pass.
+                let bounds = self.mesh_for(&draw.object).bounds;
+                if retain && draw.preparation.cacheable_resources(&draw.object.mesh) {
+                    draw.preparation.resources = Some(ResourceMetadata {
+                        bounds,
+                        double_sided: double_sided(&self.models, &draw.object.mesh),
+                    });
+                    self.stats.resource_metadata_builds += 1;
+                } else {
+                    self.stats.resource_metadata_bypasses += 1;
+                }
+                bounds
+            })
+            .collect();
+        self.stats.resource_metadata_bytes = (self.stats.resource_metadata_hits
+            + self.stats.resource_metadata_builds)
+            * mem::size_of::<ResourceMetadata>();
+        bounds
+    }
+
     /// Retain surface expansion between frames. Disable for the original per-frame reference.
     /// Global state caching must also be enabled; disabling either releases retained records.
     /// Existing FrameStats remain the last frame snapshot until the next draw.
