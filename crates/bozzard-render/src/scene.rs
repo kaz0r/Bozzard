@@ -22,7 +22,8 @@ pub(crate) use host::host_text;
 mod instancing;
 mod preparation;
 mod visibility;
-pub use visibility::FrameStats;
+pub use instancing::BatchingStats;
+pub use visibility::{BatchPlanRebuildReason, FrameStats};
 mod occlusion;
 pub use occlusion::OcclusionResult;
 mod fog;
@@ -213,9 +214,11 @@ struct DrawCall<'a> {
 }
 
 /// One shader graph's two host flavors, opaque and transparent each.
+#[derive(Clone)]
 struct GraphPipelines {
     basic: [wgpu::RenderPipeline; 2],
     pbr: [wgpu::RenderPipeline; 2],
+    instanced: [Option<wgpu::RenderPipeline>; 2],
 }
 struct MeshBuffers {
     bounds: [Vec3; 2],
@@ -877,6 +880,7 @@ impl SceneRenderer {
         Ok(GraphPipelines {
             basic: flavor(false),
             pbr: flavor(true),
+            instanced: [None, None],
         })
     }
 
@@ -1506,7 +1510,13 @@ impl SceneRenderer {
             draw.transparent,
             instances > 1,
         );
-        let pipeline = if instances > 1 {
+        let pipeline = if instances > 1
+            && let Some(id) = draw.shader
+        {
+            self.graphs[&(id, auxiliary)].instanced[usize::from(shading.is_some())]
+                .as_ref()
+                .unwrap()
+        } else if instances > 1 {
             &self.instancing.pipelines.as_ref().unwrap().pipelines[usize::from(auxiliary)]
                 [usize::from(shading.is_some())]
         } else {
@@ -1809,7 +1819,9 @@ impl SceneRenderer {
             .iter()
             .map(|d| self.mesh_for(&d.object).bounds)
             .collect();
+        let visibility_started = std::time::Instant::now();
         let visible = self.visibility(scene, &draws, &bounds);
+        self.stats.visibility_ms = visibility_started.elapsed().as_secs_f64() * 1000.;
         self.light_selection.update(&scene.lights);
         self.stats.scene_items = scene.items.len();
         self.stats.surfaces = draws.len();
@@ -1966,6 +1978,8 @@ impl SceneRenderer {
         // make a retry skip validation against a newly changed camera.
         self.frame_uniform = Some(frame_uniform);
         let batches = self.prepare_instances(gpu, &draws, &bounds, &visible, view_projection)?;
+        self.prepare_instanced_graphs(gpu, &draws, &batches, auxiliary);
+        let occlusion_started = std::time::Instant::now();
         let occlusion = self.prepare_occlusion(
             gpu,
             &mut encoder,
@@ -1975,6 +1989,7 @@ impl SceneRenderer {
             &visible,
             &batches,
         );
+        self.stats.occlusion_prepare_ms = occlusion_started.elapsed().as_secs_f64() * 1000.;
         let state_started = std::time::Instant::now();
         let reuse_metadata = self.shadow_metadata_reuse && self.state_caching;
         let mut shadow_frame =
@@ -2449,6 +2464,7 @@ impl SceneRenderer {
         }
         self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
+        self.instancing.frame_batches = batches;
         if self.state_caching && self.surface_preparation_caching {
             self.surface_preparation.draws = draws;
         }

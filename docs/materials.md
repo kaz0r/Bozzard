@@ -42,6 +42,13 @@ identical specialized WGSL shares pipeline identity even when masks differ.
 Per-instance keyword layers resolve without allocating a combined map. GPU graph
 pipelines are bounded to 256 active programs plus the existing small idle cache.
 
+Opaque graph surfaces can instance together when their mesh, textures, lighting
+eligibility, host flavor and specialized WGSL content hash match. Uniform material
+overrides and the shared graph clock keep their existing semantics. Transparent,
+skinned, text and sprite surfaces remain individual. Opaque instanced host variants
+compile only when needed and retire with the existing bounded graph pipeline cache.
+See [shader-graph batching](shader-graph-batching.md) for diagnostics and parity checks.
+
 Import and export preserve the whole source hierarchy in a portable asset folder.
 Material images use the same BC/ASTC/lossless cooking cache as other images; cache
 keys use immutable source bytes, target and cooker version. Packaged sources point

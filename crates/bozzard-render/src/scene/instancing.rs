@@ -1,6 +1,9 @@
 use super::*;
 use std::collections::HashMap;
+mod diagnostics;
+mod graphs;
 mod reuse;
+pub use diagnostics::BatchingStats;
 
 // Fits the downlevel 16 KiB uniform-binding limit without storage-buffer features.
 pub(super) const MAX_INSTANCES: usize = 64;
@@ -19,8 +22,10 @@ pub(super) struct Instancing {
     enabled: bool,
     global: bool,
     incremental: bool,
+    graph_enabled: bool,
     pub shadow_batches_enabled: bool,
     plan: Option<Plan>,
+    pub frame_batches: Vec<Batch>,
     layout: wgpu::BindGroupLayout,
     pub pipelines: Option<Pipelines>,
     pub shadow_pipelines: Option<[wgpu::RenderPipeline; 2]>,
@@ -41,8 +46,10 @@ impl Instancing {
             enabled: true,
             global: true,
             incremental: true,
+            graph_enabled: true,
             shadow_batches_enabled: true,
             plan: None,
+            frame_batches: Vec::new(),
             layout,
             pipelines: None,
             shadow_pipelines: None,
@@ -55,22 +62,27 @@ impl Instancing {
 /// Use the stock shader unchanged apart from selecting its per-invocation object.
 /// Private variables are invocation-local in both vertex and fragment stages.
 fn module_text(pbr: bool) -> String {
-    host_text(pbr)
-        .replace(
-            "@group(0) @binding(0) var<uniform> object: ObjectUniform;",
-            &format!("@group(0) @binding(0) var<uniform> objects: array<ObjectUniform, {MAX_INSTANCES}>;\nvar<private> object: ObjectUniform;"),
-        )
-        .replace("struct VertexOutput {", "struct VertexOutput {\n    @location(9) @interpolate(flat) instance: u32,")
-        .replace("fn vs_main(", "fn vs_main(@builtin(instance_index) instance: u32, ")
-        .replace("    var out: VertexOutput;", "    object = objects[instance];\n    var out: VertexOutput;\n    out.instance = instance;")
-        .replace("-> SurfaceOutput {", "-> SurfaceOutput {\n    object = objects[in.instance];")
+    instance_module_text(host_text(pbr))
 }
 
-fn compatible(a: &PreparedDraw, b: &PreparedDraw) -> bool {
+pub(super) fn instance_module_text(source: String) -> String {
+    source
+        .replacen(
+            "@group(0) @binding(0) var<uniform> object: ObjectUniform;",
+            &format!("@group(0) @binding(0) var<uniform> objects: array<ObjectUniform, {MAX_INSTANCES}>;\nvar<private> object: ObjectUniform;"),
+            1,
+        )
+        .replacen("struct VertexOutput {", "struct VertexOutput {\n    @location(9) @interpolate(flat) instance: u32,", 1)
+        .replacen("fn vs_main(", "fn vs_main(@builtin(instance_index) instance: u32, ", 1)
+        .replacen("    var out: VertexOutput;", "    object = objects[instance];\n    var out: VertexOutput;\n    out.instance = instance;", 1)
+        .replacen("-> SurfaceOutput {", "-> SurfaceOutput {\n    object = objects[in.instance];", 1)
+}
+
+fn compatible(a: &PreparedDraw, b: &PreparedDraw, graphs: bool) -> bool {
     !a.transparent
         && !b.transparent
-        && a.shader.is_none()
-        && b.shader.is_none()
+        && a.shader == b.shader
+        && (graphs || a.shader.is_none())
         && a.deformation == 0
         && b.deformation == 0
         && !matches!(a.object.mesh, MeshKind::Text(_) | MeshKind::Sprite(_))
@@ -80,14 +92,14 @@ fn compatible(a: &PreparedDraw, b: &PreparedDraw) -> bool {
         && a.pbr == b.pbr
 }
 
-fn batches(draws: &[PreparedDraw], visible: &[bool], enabled: bool) -> Vec<Batch> {
+fn batches(draws: &[PreparedDraw], visible: &[bool], enabled: bool, graphs: bool) -> Vec<Batch> {
     let mut result: Vec<Batch> = Vec::new();
     for (index, draw) in draws.iter().enumerate().filter(|(i, _)| visible[*i]) {
         if enabled
             && let Some(last) = result.last_mut()
             && last.indices.last() == index.checked_sub(1).as_ref()
             && last.indices.len() < MAX_INSTANCES
-            && compatible(&draws[last.indices[0]], draw)
+            && compatible(&draws[last.indices[0]], draw, graphs)
         {
             last.indices.push(index);
         } else {
@@ -101,34 +113,35 @@ fn batches(draws: &[PreparedDraw], visible: &[bool], enabled: bool) -> Vec<Batch
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-enum MeshKey {
+enum MeshKey<'a> {
     Quad,
     Cube,
     Sphere,
-    Imported(String),
-    Part(String, usize),
+    Imported(&'a str),
+    Part(&'a str, usize),
 }
 #[derive(PartialEq, Eq, Hash)]
 // Uniform shadow eligibility prevents one unlit member from forcing a large
 // otherwise reusable color batch back to individual shadow draws.
-struct Key(MeshKey, TextureKind, bool, bool);
-fn key(draw: &PreparedDraw) -> Option<Key> {
-    if draw.transparent || draw.shader.is_some() || draw.deformation != 0 {
+struct Key<'a>(MeshKey<'a>, &'a TextureKind, bool, bool, Option<u64>);
+fn key(draw: &PreparedDraw, graphs: bool) -> Option<Key<'_>> {
+    if draw.transparent || (!graphs && draw.shader.is_some()) || draw.deformation != 0 {
         return None;
     }
     let mesh = match &draw.object.mesh {
         MeshKind::Quad => MeshKey::Quad,
         MeshKind::Cube => MeshKey::Cube,
         MeshKind::Sphere => MeshKey::Sphere,
-        MeshKind::Imported(id) => MeshKey::Imported(id.clone()),
-        MeshKind::ModelPart(id, part) => MeshKey::Part(id.clone(), *part),
+        MeshKind::Imported(id) => MeshKey::Imported(id),
+        MeshKind::ModelPart(id, part) => MeshKey::Part(id, *part),
         _ => return None,
     };
     Some(Key(
         mesh,
-        draw.object.material.texture.clone(),
+        &draw.object.material.texture,
         draw.pbr,
         draw.object.material.lit,
+        draw.shader,
     ))
 }
 
@@ -159,9 +172,12 @@ impl Input {
 }
 struct Plan {
     camera: Mat4,
+    // Orthographic plans include hidden surfaces so camera-frustum churn only
+    // filters the output. Their ordering certificate covers that full superset.
+    all_surfaces: bool,
     inputs: Vec<Input>,
     batches: Vec<Batch>,
-    ordering: Option<reuse::Ordering>,
+    ordering: std::result::Result<reuse::Ordering, BatchPlanRebuildReason>,
 }
 
 // An opaque reorder can change an equal-depth winner. Retain original order for
@@ -207,6 +223,7 @@ fn global_batches(
     draws: &[PreparedDraw],
     inputs: &[Input],
     camera: Mat4,
+    graphs: bool,
 ) -> (Vec<Batch>, Vec<[Vec3; 2]>) {
     let mut groups = HashMap::new();
     let mut group_of = vec![0; draws.len()];
@@ -234,11 +251,11 @@ fn global_batches(
         if !input.visible || draw.transparent {
             continue;
         }
-        let group = key(draw).and_then(|key| groups.get(&key).copied());
+        let group = key(draw, graphs).and_then(|key| groups.get(&key).copied());
         group_of[index] = group.unwrap_or_else(|| {
             let group = queues.len();
             queues.push(BTreeSet::new());
-            if let Some(key) = key(draw) {
+            if let Some(key) = key(draw, graphs) {
                 groups.insert(key, group);
             }
             group
@@ -321,11 +338,43 @@ fn global_batches(
     (result, boxes)
 }
 
+// Keep each frame's mutable buffer slots separate from the certified ordering.
+// Reuse the index allocations rather than deep-cloning every cached batch.
+fn visible_batches(plan: &Plan, visible: &[bool], mut output: Vec<Batch>) -> Vec<Batch> {
+    let mut count = 0;
+    for batch in &plan.batches {
+        if count == output.len() {
+            output.push(Batch {
+                indices: Vec::new(),
+                slot: None,
+            });
+        }
+        let current = &mut output[count];
+        current.slot = None;
+        current.indices.clear();
+        current.indices.extend(
+            batch
+                .indices
+                .iter()
+                .copied()
+                .filter(|&index| visible[index]),
+        );
+        count += usize::from(!current.indices.is_empty());
+    }
+    output.truncate(count);
+    if output.capacity() > 256 && output.capacity() > plan.batches.len().saturating_mul(4) {
+        output.shrink_to(plan.batches.len().max(64));
+    }
+    output
+}
+
 impl SceneRenderer {
     /// Compare the same ordered surfaces against the single-object reference path.
     pub fn set_instancing_enabled(&mut self, enabled: bool) {
         self.instancing.enabled = enabled;
         if !enabled {
+            self.instancing.plan = None;
+            self.instancing.frame_batches.clear();
             self.instancing.bindings.clear();
             self.instancing.shadow_bindings.clear();
         }
@@ -351,25 +400,41 @@ impl SceneRenderer {
         visible: &[bool],
         camera: Mat4,
     ) -> Result<Vec<Batch>> {
+        let planning_started = std::time::Instant::now();
         let mut batches = if self.instancing.enabled && self.instancing.global {
             let mut previous = self.instancing.plan.take();
-            let checks = previous.as_mut().and_then(|plan| {
-                reuse::retain(
-                    plan,
-                    draws,
-                    visible,
-                    camera,
-                    self.instancing.incremental,
-                    bounds,
-                )
-            });
-            if let Some(checks) = checks {
+            let checks = previous
+                .as_mut()
+                .ok_or(BatchPlanRebuildReason::Cold)
+                .and_then(|plan| {
+                    reuse::retain(
+                        plan,
+                        draws,
+                        visible,
+                        camera,
+                        self.instancing.incremental,
+                        bounds,
+                    )
+                });
+            if let Ok(checks) = checks {
                 self.stats.batch_plan_reused = true;
                 self.stats.batch_bounds_updates = checks.bounds;
                 self.stats.batch_order_checks = checks.pairs;
+                self.stats.batch_plan_recertifications = usize::from(checks.recertified);
                 self.instancing.plan = previous;
             } else {
-                let inputs = draws
+                // Promote after actual frustum churn, not on a cold/static
+                // frame: frozen views keep their tighter original grouping.
+                let wants_superset = previous.as_ref().is_some_and(|plan| plan.all_surfaces)
+                    || checks.as_ref().err() == Some(&BatchPlanRebuildReason::Visibility);
+                // Do not build a huge hidden-scene graph for a tiny viewport.
+                // Once certified, a superset can still survive an empty frame.
+                let visible_count = visible.iter().filter(|v| **v).count();
+                let mut all_surfaces = wants_superset
+                    && self.instancing.incremental
+                    && reuse::orthographic(camera)
+                    && draws.len() <= visible_count.saturating_mul(4).max(256);
+                let mut inputs = draws
                     .iter()
                     .zip(visible)
                     .zip(bounds)
@@ -383,27 +448,55 @@ impl SceneRenderer {
                         pbr: draw.pbr,
                         lit: draw.object.material.lit,
                         transparent: draw.transparent,
-                        visible,
+                        visible: all_surfaces || visible,
                     })
                     .collect::<Vec<_>>();
-                let (batches, projected) = global_batches(draws, &inputs, camera);
-                let ordering = self
-                    .instancing
-                    .incremental
-                    .then(|| reuse::Ordering::new(&inputs, &batches, camera, projected))
-                    .flatten();
+                let (mut batches, projected) =
+                    global_batches(draws, &inputs, camera, self.instancing.graph_enabled);
+                let mut ordering = if self.instancing.incremental {
+                    reuse::Ordering::new(&inputs, &batches, camera, projected)
+                } else {
+                    Err(BatchPlanRebuildReason::IncrementalDisabled)
+                };
+                // An uncertain hidden surface must not prevent a useful
+                // certificate for the visible scene, or degrade its grouping.
+                if all_surfaces && ordering.is_err() {
+                    all_surfaces = false;
+                    for (input, &visible) in inputs.iter_mut().zip(visible) {
+                        input.visible = visible;
+                    }
+                    let (visible_batches, projected) =
+                        global_batches(draws, &inputs, camera, self.instancing.graph_enabled);
+                    batches = visible_batches;
+                    ordering = reuse::Ordering::new(&inputs, &batches, camera, projected);
+                }
                 self.instancing.plan = Some(Plan {
                     camera,
+                    all_surfaces,
                     batches,
                     inputs,
                     ordering,
                 });
                 self.stats.batch_plan_rebuilds = 1;
+                self.stats.batch_plan_rebuild_reason = checks.err();
             }
-            self.instancing.plan.as_ref().unwrap().batches.clone()
+            let output = std::mem::take(&mut self.instancing.frame_batches);
+            visible_batches(self.instancing.plan.as_ref().unwrap(), visible, output)
         } else {
-            batches(draws, visible, self.instancing.enabled)
+            batches(
+                draws,
+                visible,
+                self.instancing.enabled,
+                self.instancing.graph_enabled,
+            )
         };
+        self.stats.batching = diagnostics::collect(
+            draws,
+            &batches,
+            self.instancing.enabled,
+            self.instancing.graph_enabled,
+        );
+        self.stats.batch_plan_ms = planning_started.elapsed().as_secs_f64() * 1000.;
         let count = batches.iter().filter(|b| b.indices.len() > 1).count();
         // Retain a bounded set of spare allocations through temporary culling or
         // removals. Explicit disable/asset invalidation still releases everything.
@@ -411,7 +504,11 @@ impl SceneRenderer {
         if count == 0 {
             return Ok(batches);
         }
-        if self.instancing.pipelines.is_none() {
+        if self.instancing.pipelines.is_none()
+            && batches
+                .iter()
+                .any(|batch| batch.indices.len() > 1 && draws[batch.indices[0]].shader.is_none())
+        {
             let pipelines = std::array::from_fn(|auxiliary| {
                 std::array::from_fn(|pbr| {
                     let layout =
@@ -463,12 +560,13 @@ impl SceneRenderer {
         // caster, independently of camera visibility and opaque color ordering.
         let mut batches: Vec<Batch> = Vec::new();
         let mut groups: HashMap<Key, usize> = HashMap::new();
+        let graphs = self.instancing.graph_enabled;
         for (index, draw) in draws
             .iter()
             .enumerate()
             .filter(|(_, d)| !d.transparent && d.object.material.lit)
         {
-            let key = key(draw);
+            let key = key(draw, graphs);
             if let Some(group) = key.as_ref().and_then(|key| groups.get(key)).copied()
                 && batches[group].indices.len() < MAX_INSTANCES
             {
@@ -620,7 +718,7 @@ mod tests {
         let mut draws: Vec<_> = (0..67).map(|_| draw()).collect();
         let mut visible = vec![true; draws.len()];
         let sizes = |draws: &[PreparedDraw], visible: &[bool], enabled| {
-            batches(draws, visible, enabled)
+            batches(draws, visible, enabled, true)
                 .iter()
                 .map(|b| b.indices.len())
                 .collect::<Vec<_>>()
@@ -637,8 +735,8 @@ mod tests {
                 2 => b.transparent = true,
                 _ => b.object.material.texture = TextureKind::Checker,
             }
-            assert!(!compatible(&draws[0], &b));
-            assert!(!compatible(&b, &draws[0]));
+            assert!(!compatible(&draws[0], &b, true));
+            assert!(!compatible(&b, &draws[0], true));
         }
         draws[1].deformation = 1;
         assert_eq!(&sizes(&draws, &visible, true)[..3], &[1, 1, 30]);

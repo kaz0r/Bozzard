@@ -42,6 +42,15 @@ particles and UI in one capture, open `examples/demo/scenes/middleware-lab.json`
 | Draws / triangles | Visible mesh and shadow draws/triangles. Excludes fullscreen effects, text and particle draw batches. Particle population/dispatch counts are separate. |
 | Graphics memory | Live backend buffer/texture allocations, sampled once a second. Includes editor graphics. Not total process RAM or total VRAM. Not historical per-frame memory. |
 
+Expand **Viewport rendering → Batch eligibility · before occlusion** to inspect
+planned singletons, instanced graph surfaces and the batch-size histogram. Singleton
+reasons are mutually exclusive: diagnostic disabling, transparency, deformation,
+disabled graph instancing, unsupported mesh, a unique compatible key, or a split
+group/capacity tail. The split category does not assert one specific cause. These
+counts describe the frustum-visible plan before GPU or cached occlusion, so they
+can exceed submitted color draws. JSON exports include the same `render.batching`
+record. HUD and particles are not included.
+
 A cached viewport is labelled **Viewport reused or not drawn**. New GPU samples carry their
 renderer frame ID and only attach to that frame, even when they arrive after capture pauses.
 Some adapters do not support timestamp queries. Some drivers advertise support but return zero

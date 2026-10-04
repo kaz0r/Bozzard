@@ -70,13 +70,21 @@ Transparent surfaces are sorted by their centers and blended without writing dep
 
 The renderer performs a conservative per-surface homogeneous AABB clip test in the main color pass. Offscreen shadow casters remain retained so shadow bounds stay stable. Compatible consecutive draws reuse cached pipelines and shared shadow/environment bindings without changing draw or alpha order.
 
-Consecutive visible opaque surfaces with the same mesh and texture draw as one instanced call of up to 32 objects, bounded by the 16 KiB downlevel uniform-binding limit. The stock shaders are unchanged apart from selecting the per-invocation object uniform, so batching never reorders or rewrites depth results. Skinned geometry, shader graphs, text and sprites stay single-draw, and batching only merges runs the comparator already put adjacent in the existing depth-safe order. Repeated frames skip unchanged instance uniform uploads. `set_instancing_enabled(false)` restores the single-object reference path for comparison.
+Compatible visible opaque surfaces batch across the scene with the same mesh,
+texture, lighting eligibility, host flavor and shader-graph content hash (or stock
+shader). Each call holds up to 64 objects in the portable 16 KiB uniform limit.
+Conservative projected and world-bound dependencies preserve coplanar winners.
+Skinned geometry, transparency, text and sprites remain individual. Repeated frames
+skip unchanged instance records; camera, lighting and graph-clock changes use shared
+frame constants. `set_instancing_enabled(false)` restores the single-object path;
+`set_shader_graph_instancing_enabled(false)` keeps stock batching and compares only
+graph eligibility. See [shader-graph batching](shader-graph-batching.md).
 
-Sun, spot, and point shadow passes reuse those instance buffers when every object in a run
-casts into the shadow map. Offscreen casters and runs containing unlit objects or crossing a
-light frustum use the individual caster path, preserving the same triangles and depth output.
-Shadow instance pipelines compile only when a shadow pass needs them. This is shared by editor
-viewports and the standalone player.
+Sun, spot and point maps batch opaque lit casters independently of camera visibility,
+including offscreen objects. Partial light frusta draw contiguous accepted instance
+ranges without repacking or submitting rejected caster triangles. Shadow instance
+pipelines compile only when needed. This is shared by editor viewports and the
+standalone player.
 
 Unchanged object uniforms also skip CPU matrix calculation and packing, as well as GPU uploads.
 The reuse key includes current and previous transforms/cameras, viewport size, lighting, fog,
