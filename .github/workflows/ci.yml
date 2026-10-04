@@ -94,8 +94,8 @@ jobs:
         run: cargo test -p bozzard-player interpolated_player_pixels_match_an_independently_authored_midpoint --locked --offline -- --ignored
       - name: Retained factory frames preserve pixels and checkpoints
         run: cargo test -p bozzard-editor --test retained_render retained_factory_pixels_and_checkpoints_match_reference --locked --offline -- --ignored --exact
-  native:
-    name: Native / ${{ matrix.os }} / ${{ matrix.backend }}
+  packages:
+    name: Package / ${{ matrix.os }} / ${{ matrix.backend }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -227,3 +227,33 @@ jobs:
           name: bozzard-${{ matrix.os }}
           path: dist/*.zip
           if-no-files-found: error
+
+  # The protected branch requires these original Native check names. Always run
+  # the gates so a failed/cancelled prerequisite cannot become a successful skip.
+  native:
+    name: Native / ${{ matrix.os }} / ${{ matrix.backend }}
+    needs: [checks, packages]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            backend: vulkan
+          - os: windows-2025
+            backend: dx12
+          - os: macos-15
+            backend: metal
+    steps:
+      - name: Require every check and package verification to succeed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          PACKAGES_RESULT: ${{ needs.packages.result }}
+        shell: bash
+        run: |
+          if [[ "$CHECKS_RESULT" != "success" || "$PACKAGES_RESULT" != "success" ]]; then
+            printf '::error::Checks: %s; packages: %s. Both must succeed.\n' "$CHECKS_RESULT" "$PACKAGES_RESULT"
+            exit 1
+          fi
