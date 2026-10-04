@@ -194,7 +194,7 @@ cargo run --release -p bozzard-editor-app -- --smoke work/editor-smoke
 
 The player smoke checks rendered output, scene round-trips, and asset behavior. The editor smoke exercises the native UI, editing, Play, and save/load, and captures diagnostics in `work/editor-smoke/`. These are correctness checks; use release profiling for performance comparisons.
 
-[CI](.github/workflows/ci.yml) covers Ubuntu/Vulkan, Windows/DX12, and macOS/Metal, including lints, tests, headless dependency checks, release builds, and packaged rendering. Hosted Linux and Windows checks use software adapters. The manual [hardware workflow](.github/workflows/hardware.yml) checks real GPUs and desktop presentation on provisioned runners. Consult the workflow runs for current results.
+[CI](.github/workflows/ci.yml) covers Ubuntu/Vulkan, Windows/DX12, and macOS/Metal, including lints, tests, headless dependency checks, release builds, and packaged rendering. Debug checks and release packaging run in parallel jobs with separate time budgets; both must pass. Hosted Linux and Windows checks use software adapters. The manual [hardware workflow](.github/workflows/hardware.yml) checks real GPUs and desktop presentation on provisioned runners. Consult the workflow runs for current results.
 
 ## Exporting
 
