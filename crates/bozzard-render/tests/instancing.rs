@@ -801,10 +801,14 @@ fn orthographic_camera_churn_filters_hidden_surfaces_without_regrouping() -> any
         // Compare actual submitted geometry, not asynchronous occlusion decisions.
         renderer.set_occlusion_enabled(false);
     }
-    let mut scene = scene(256);
+    // Each compatibility key fits one portable 64-instance group. A filtered
+    // hidden-scene plan can therefore match the visible-only schedule through
+    // every camera pan; a larger population could touch extra capacity chunks
+    // and is correctly rejected by the planner's quality admission.
+    let mut scene = scene(128);
     for (i, item) in scene.items.iter_mut().enumerate() {
         item.model =
-            Mat4::from_translation(Vec3::new((i % 16) as f32 - 7.5, (i / 16) as f32 - 7.5, -5.))
+            Mat4::from_translation(Vec3::new((i % 16) as f32 - 7.5, (i / 16) as f32 - 3.5, -5.))
                 * Mat4::from_scale(Vec3::splat(0.7));
         if i % 2 != 0 {
             item.mesh = MeshKind::Sphere;
@@ -827,6 +831,8 @@ fn orthographic_camera_churn_filters_hidden_surfaces_without_regrouping() -> any
         }
         if offset == 100. {
             assert_eq!(renderers[1].frame_stats().color_draws, 0);
+        } else {
+            assert_eq!(renderers[1].frame_stats().color_draws, 2);
         }
     }
     // Removing a source is distinct from merely hiding it.
