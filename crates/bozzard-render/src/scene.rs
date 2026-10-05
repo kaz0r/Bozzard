@@ -2157,11 +2157,6 @@ impl SceneRenderer {
                 .shader
                 .as_ref()
                 .map(|s| &s.numeric_parameters);
-            ensure!(
-                parameters.is_none_or(|p| p.len() <= GRAPH_PARAMETER_SLOTS
-                    && p.iter().flatten().all(|v| v.is_finite())),
-                "invalid graph numeric parameters"
-            );
             let parameters_equal = parameters.map_or_else(
                 || binding.numeric_parameters.is_empty(),
                 |parameters| {
@@ -2175,6 +2170,15 @@ impl SceneRenderer {
                 },
             );
             if !parameters_equal || !self.state_caching {
+                // The retained immutable record was validated before publication.
+                // Exact Arc/bit equality lets unchanged frames skip another scan.
+                ensure!(
+                    parameters.is_none_or(|p| p.len() <= GRAPH_PARAMETER_SLOTS
+                        && p.iter().flatten().all(|v| v.is_finite())),
+                    "invalid graph numeric parameters"
+                );
+                self.stats.graph_parameter_validation_objects +=
+                    usize::from(parameters.is_some_and(|p| !p.is_empty()));
                 binding.numeric_parameters = parameters
                     .cloned()
                     .unwrap_or_else(|| std::sync::Arc::from([]));

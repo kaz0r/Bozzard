@@ -138,6 +138,8 @@ pub struct FrameStats {
     pub graph_variant_compilations: usize,
     /// Numeric graph input bytes uploaded without changing shader topology.
     pub graph_parameter_bytes: usize,
+    /// Nonempty graph records scanned for validity; unchanged validated records skip it.
+    pub graph_parameter_validation_objects: usize,
     /// Lazily compiled opaque instanced graph host variants this frame.
     pub graph_instanced_compilations: usize,
     /// All active graphs plus at most eight recently absent graphs.

@@ -116,35 +116,57 @@ impl Ordering {
             result.envelopes[index] = expanded(bounds, margin + slack);
             ranks[index] = rank;
         }
-        result.spatial = spatial::Index::new(&result.envelopes, &ranks);
-        let mut candidates = 0usize;
-        let candidate_budget = inputs.len().saturating_mul(64).min(MAX_PLAN_CANDIDATES);
+        // Original/emitted rank ranges prune source-order neighbors before
+        // enumeration. Coincident but non-inverted envelopes need no stored
+        // dependency and must not force a sparse useful plan to rebuild forever.
+        let mut discovery = spatial::InversionIndex::new(&result.envelopes, &ranks);
+        let hierarchy_nodes = discovery.len();
+        let mut work = 0usize;
+        let work_budget = inputs.len().saturating_mul(64).min(MAX_PLAN_CANDIDATES);
+        let diagnostic = |work: usize, pairs: usize, reason: &str| {
+            if std::env::var_os("BOZZARD_BATCH_PLAN_DIAGNOSTICS").is_some() {
+                eprintln!(
+                    "batch_ordering population={} hierarchy_nodes={} node_visits={} work_budget={} pairs={} pair_budget={} result={reason}",
+                    inputs.len(),
+                    hierarchy_nodes,
+                    work,
+                    work_budget,
+                    pairs,
+                    (inputs.len() * 8).min(32_768),
+                );
+            }
+        };
         for index in order {
-            let bounds = result.envelopes[index];
-            result.spatial.query(bounds, &mut result.candidates);
-            for &other in &result.candidates {
-                candidates += 1;
-                if candidates > candidate_budget {
-                    return Err(BatchPlanRebuildReason::OrderingCapacity);
-                }
-                if other >= index {
-                    continue;
-                }
-                let (before, after) = (other, index);
-                if ranks[before] < ranks[after] || !overlaps(bounds, result.envelopes[other]) {
-                    continue;
-                }
-                // Bound retained memory for scenes with many coincident surfaces.
+            if !discovery.query(
+                index,
+                ranks[index],
+                result.envelopes[index],
+                &mut result.candidates,
+                &mut work,
+                work_budget,
+            ) {
+                diagnostic(work, result.pairs.len(), "candidate_work_capacity");
+                return Err(BatchPlanRebuildReason::OrderingCapacity);
+            }
+            for &before in &result.candidates {
+                // The hierarchy returns only complete envelope overlaps with
+                // an earlier original index and a later emitted rank.
                 if result.pairs.len() >= (inputs.len() * 8).min(32_768) {
+                    diagnostic(work, result.pairs.len(), "retained_pair_capacity");
                     return Err(BatchPlanRebuildReason::OrderingCapacity);
                 }
                 let pair = result.pairs.len();
-                result.pairs.push((before, after));
-                result.pair_set.insert((before, after));
+                result.pairs.push((before, index));
+                result.pair_set.insert((before, index));
                 result.neighbors[before].push(pair);
-                result.neighbors[after].push(pair);
+                result.neighbors[index].push(pair);
             }
         }
+        diagnostic(work, result.pairs.len(), "certified");
+        // Keep only the existing bounded mutable grid for envelope renewal;
+        // initial discovery needs at most 2N-1 temporary hierarchy nodes.
+        drop(discovery);
+        result.spatial = spatial::Index::new(&result.envelopes, &ranks);
         result.checked.resize(result.pairs.len(), false);
         result.ranks = ranks;
         result.seen.resize(inputs.len(), false);
@@ -674,6 +696,109 @@ mod tests {
                 policy.rejected = true;
             }
         }
+    }
+
+    #[test]
+    fn original_order_cliques_do_not_exhaust_inversion_discovery_work() {
+        const COUNT: usize = 4096;
+        let mut draws = draws(COUNT);
+        for draw in &mut draws {
+            draw.object.model = Mat4::from_translation(Vec3::new(0., 0., -5.));
+            draw.object.material.texture = TextureKind::White;
+        }
+        draws[COUNT - 2].object.model = Mat4::from_translation(Vec3::new(-1000., 0., -5.));
+        draws[COUNT - 1].object.model = Mat4::from_translation(Vec3::new(1000., 0., -5.));
+        let bounds = vec![[Vec3::splat(-100.), Vec3::splat(100.)]; COUNT];
+        let inputs = plan(&draws, camera(), &bounds).inputs;
+        let mut indices: Vec<_> = (0..COUNT).collect();
+        indices.swap(COUNT - 2, COUNT - 1);
+        let batches: Vec<_> = indices
+            .chunks(MAX_INSTANCES)
+            .map(|indices| Batch {
+                indices: indices.to_vec(),
+                slot: None,
+                first_instance: 0,
+            })
+            .collect();
+        let projected = inputs
+            .iter()
+            .map(|input| projected_bounds(input.bounds, camera() * input.model))
+            .collect();
+        let ordering = Ordering::new(&inputs, &batches, camera(), projected).unwrap();
+        assert!(!ordering.original);
+        assert!(ordering.pairs.is_empty());
+        let mut grid = spatial::Index::new(&ordering.envelopes, &ordering.ranks);
+        let mut neighbors = Vec::new();
+        grid.query(ordering.envelopes[0], &mut neighbors);
+        assert!(neighbors.len() >= COUNT - 2);
+        // The old all-neighbor enumeration exceeds the work budget even though
+        // this dense clique preserves every winner and needs no inversion pair.
+        assert!(inputs.len() * neighbors.len() > inputs.len() * 64);
+        let mut discovery = spatial::InversionIndex::new(&ordering.envelopes, &ordering.ranks);
+        let mut work = 0;
+        for index in indices {
+            assert!(discovery.query(
+                index,
+                ordering.ranks[index],
+                ordering.envelopes[index],
+                &mut neighbors,
+                &mut work,
+                COUNT * 64
+            ));
+            assert!(neighbors.is_empty());
+        }
+        let mut retained = Plan {
+            camera: camera(),
+            all_surfaces: true,
+            inputs,
+            batch_of: batch_membership(COUNT, &batches),
+            batches,
+            ordering: Ok(ordering),
+            changed: Vec::new(),
+        };
+        let visible = vec![true; COUNT];
+        let view = camera() * Mat4::from_rotation_z(0.01);
+        let checks = retain(&mut retained, &draws, &visible, view, true, &bounds).unwrap();
+        assert_eq!(checks.bounds, 0);
+        assert_eq!(checks.pairs, 0);
+        let mut sample = vec![false; COUNT];
+        for index in (0..COUNT).step_by(128).chain([COUNT - 2, COUNT - 1]) {
+            sample[index] = true;
+        }
+        assert_safe(&retained, &draws, view, &sample);
+        println!(
+            "ordering_rank_prune_proof population={COUNT} node_visits={work} budget={} retained_pairs=0 dense_source_order_winners_preserved=true disjoint_tail_reorder_camera_reused=true",
+            COUNT * 64
+        );
+    }
+
+    #[test]
+    fn initial_dense_inversions_reach_pair_capacity_before_work_capacity() {
+        let mut draws = draws(128);
+        for draw in &mut draws {
+            draw.object.model = Mat4::from_translation(Vec3::new(0., 0., -5.));
+            draw.object.material.texture = TextureKind::White;
+        }
+        let bounds = vec![[Vec3::splat(-0.4), Vec3::splat(0.4)]; draws.len()];
+        let inputs = plan(&draws, camera(), &bounds).inputs;
+        let count = inputs.len();
+        // Nine reverse-order queries already find more than 8N pair candidates;
+        // even visiting every hierarchy node per query cannot reach 64N work.
+        assert!((0..9).map(|offset| count - 1 - offset).sum::<usize>() > count * 8);
+        assert!(9 * (2 * count - 1) < count * 64);
+        let batches = [Batch {
+            indices: (0..count).rev().collect(),
+            slot: None,
+            first_instance: 0,
+        }];
+        let projected = inputs
+            .iter()
+            .map(|input| projected_bounds(input.bounds, camera() * input.model))
+            .collect();
+        assert_eq!(
+            Ordering::new(&inputs, &batches, camera(), projected).err(),
+            Some(BatchPlanRebuildReason::OrderingCapacity)
+        );
     }
 
     #[test]

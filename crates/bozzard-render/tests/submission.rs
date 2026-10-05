@@ -204,12 +204,54 @@ fn per_instance_numeric_graph_values_match_portable_arrays_through_parameter_edi
         item.material.shader = Some(if i % 2 == 0 { a.clone() } else { b.clone() });
     }
     compare(&gpu, &mut renderers, &scene)?;
+    for renderer in &renderers {
+        assert_eq!(
+            renderer.frame_stats().graph_parameter_validation_objects,
+            132
+        );
+    }
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().graph_parameter_bytes, 0);
+    for renderer in &renderers {
+        assert_eq!(renderer.frame_stats().graph_parameter_validation_objects, 0);
+    }
     scene.items[90].material.shader = Some(source(0.5));
     compare(&gpu, &mut renderers, &scene)?;
+    for renderer in &renderers {
+        assert_eq!(renderer.frame_stats().graph_parameter_validation_objects, 1);
+    }
     assert_eq!(renderers[1].frame_stats().graph_parameter_bytes, 256);
     assert_eq!(renderers[1].frame_stats().instance_uniform_bytes, 0);
+    // Equal values in a different Arc are also previously validated values.
+    scene.items[90].material.shader = Some(source(0.5));
+    compare(&gpu, &mut renderers, &scene)?;
+    for renderer in &renderers {
+        assert_eq!(renderer.frame_stats().graph_parameter_validation_objects, 0);
+    }
+    for invalid in [
+        source(f32::NAN),
+        std::sync::Arc::new(ShaderSource {
+            id: 991234,
+            opaque_sort_id: 991234,
+            surface: surface.into(),
+            numeric_parameters: std::sync::Arc::from([[0.; 4]; 17]),
+        }),
+    ] {
+        scene.items[90].material.shader = Some(invalid);
+        for renderer in &mut renderers {
+            let error = capture(&gpu, renderer, &scene).err().unwrap();
+            assert!(
+                error
+                    .to_string()
+                    .contains("invalid graph numeric parameters")
+            );
+        }
+        scene.items[90].material.shader = Some(source(0.5));
+        compare(&gpu, &mut renderers, &scene)?;
+    }
+    println!(
+        "graph_validation_proof cold_scans=132 warm_scans=0 edited_scans=1 edited_bytes=256 equal_arc_scans=0 invalid_and_reverted_exact=true"
+    );
     Ok(())
 }
 #[test]
