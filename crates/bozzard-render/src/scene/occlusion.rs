@@ -612,7 +612,10 @@ impl Occlusion {
             || !renderer.culling
             || visible.iter().filter(|v| **v).count() < MIN_SURFACES
             || batches.len() > MAX_BATCHES
-            || batches.len() < 4
+            // A few large instance batches can still hide many individual
+            // surfaces. Keep this whole-batch efficiency threshold only when
+            // there are no eligible per-instance queries to submit.
+            || (batches.len() < 4 && !self.instance_queries_ready)
         {
             return Mode::Disabled;
         }
@@ -1132,6 +1135,125 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn compact_native_batches_submit_instance_queries_and_retain_exact_visibility() -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let material = Material {
+            metallic: None,
+            roughness: None,
+            surface_overrides: Default::default(),
+            tint: [0.3, 0.65, 0.8],
+            uv_scale: [1.; 2],
+            texture: TextureKind::White,
+            lit: false,
+            shader: None,
+        };
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            shader_time: 0.,
+            particles: vec![],
+            fog: Default::default(),
+            gi: None,
+            lights: vec![],
+            environment: EnvironmentSettings::disabled(),
+            display: DisplaySettings {
+                tone_mapping: false,
+                ..Default::default()
+            },
+            lighting: Lighting {
+                shadows: false,
+                ..Default::default()
+            },
+            view_projection: glam::camera::rh::proj::directx::orthographic(
+                -2., 2., -2., 2., 0.1, 20.,
+            ),
+            items: vec![DrawItem {
+                motion_id: 1,
+                model: Mat4::from_translation(Vec3::new(0., 0., -2.))
+                    * Mat4::from_scale(Vec3::new(3.2, 3.2, 1.)),
+                mesh: MeshKind::Quad,
+                material: material.clone(),
+            }],
+        };
+        for index in 0..128 {
+            scene.items.push(DrawItem {
+                motion_id: index + 2,
+                model: Mat4::from_translation(Vec3::new(
+                    (index % 16) as f32 * 0.12 - 0.9,
+                    (index / 16) as f32 * 0.12 - 0.42,
+                    -4.,
+                )) * Mat4::from_scale(Vec3::splat(0.08)),
+                mesh: MeshKind::Cube,
+                material: material.clone(),
+            });
+        }
+        let capture = |renderer: &mut SceneRenderer| {
+            crate::capture_offscreen(&gpu, 128, 128, |target| {
+                renderer.draw_linear(&gpu, target, [128; 2], &scene)
+            })
+        };
+        // The native arena makes two batches; the portable 64-record path
+        // makes three. Both must admit the 129 individual visibility queries.
+        for native in [true, false] {
+            let mut reference = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+            reference.set_native_instance_arena_enabled(native);
+            reference.set_occlusion_enabled(false);
+            let expected = capture(&mut reference)?;
+            let expected_draws = if reference.stats.native_instance_arena {
+                2
+            } else {
+                3
+            };
+            assert_eq!(reference.stats.color_draws, expected_draws);
+            let mut optimized = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+            optimized.set_native_instance_arena_enabled(native);
+            assert_eq!(capture(&mut optimized)?.rgba, expected.rgba);
+            assert_eq!(optimized.instancing.frame_batches.len(), expected_draws);
+            assert_eq!(optimized.stats.occlusion_depth_draws, 1);
+            assert!(optimized.occlusion.instance_resources.is_some());
+            for _ in 0..4 {
+                gpu.wait()?;
+                assert_eq!(capture(&mut optimized)?.rgba, expected.rgba);
+            }
+            let result = optimized
+                .occlusion
+                .instance_resources
+                .as_ref()
+                .unwrap()
+                .result
+                .unwrap();
+            assert_eq!(result.culled_surfaces, 128);
+            assert_eq!(
+                result.skipped_triangles,
+                reference.stats.color_triangles - 2
+            );
+            assert!(optimized.stats.occlusion_cache_hit);
+            assert!(optimized.occlusion.instance_input_reused);
+            assert!(optimized.occlusion.instance_applied);
+            assert_eq!(optimized.stats.color_draws, 1);
+            assert_eq!(optimized.stats.color_triangles, 2);
+            assert_eq!(optimized.stats.occlusion_depth_draws, 0);
+            // The reference switch still skips depth/query work for fewer
+            // than four whole batches; it restores every color command.
+            optimized.set_instance_occlusion_enabled(false);
+            for _ in 0..2 {
+                assert_eq!(capture(&mut optimized)?.rgba, expected.rgba);
+                assert!(!optimized.stats.occlusion_cache_hit);
+                assert!(!optimized.occlusion.instance_queries_ready);
+                assert_eq!(optimized.stats.occlusion_depth_draws, 0);
+                assert_eq!(optimized.stats.color_draws, expected_draws);
+                assert_eq!(
+                    optimized.stats.color_triangles,
+                    reference.stats.color_triangles
+                );
+            }
+        }
+        Ok(())
+    }
+    #[test]
     fn cached_instance_queries_compact_mixed_batches_and_invalidate_exactly() -> Result<()> {
         let gpu = pollster::block_on(Gpu::request(
             &crate::instance(crate::Backend::native()),
@@ -1268,11 +1390,66 @@ mod tests {
         assert!(optimized.occlusion.instance_input_reused);
         // Changed camera and bounds reject old masks before packing; strict
         // current-frame GPU queries still produce exact reference pixels.
+        // These bounds also put neighboring queries on different mip levels;
+        // identical right-hand bounds must keep the same background coverage.
         scene.items[9].model =
             Mat4::from_translation(Vec3::new(-1.4, 0.8, -4.)) * Mat4::from_scale(Vec3::splat(0.2));
         scene.view_projection *= Mat4::from_translation(Vec3::new(0.02, 0., 0.));
         let expected = capture(&mut reference, &scene)?;
-        assert_eq!(capture(&mut optimized, &scene)?.rgba, expected.rgba);
+        let actual = capture(&mut optimized, &scene)?;
+        if actual.rgba != expected.rgba {
+            // Full byte arrays can truncate the CI log before any useful
+            // evidence. Keep this an exact oracle and report bounded details.
+            let changed_pixels = actual
+                .rgba
+                .chunks_exact(4)
+                .zip(expected.rgba.chunks_exact(4))
+                .filter(|(a, b)| a != b)
+                .count();
+            let differences: Vec<_> = actual
+                .rgba
+                .iter()
+                .zip(&expected.rgba)
+                .enumerate()
+                .filter(|(_, (a, b))| a != b)
+                .collect();
+            let max_delta = differences
+                .iter()
+                .map(|(_, (a, b))| a.abs_diff(**b))
+                .max()
+                .unwrap();
+            let first: Vec<_> = differences
+                .iter()
+                .take(16)
+                .map(|(index, (a, b))| {
+                    (
+                        index / 4 % actual.width as usize,
+                        index / 4 / actual.width as usize,
+                        index % 4,
+                        **a,
+                        **b,
+                    )
+                })
+                .collect();
+            let batches = |renderer: &SceneRenderer| {
+                renderer
+                    .instancing
+                    .frame_batches
+                    .iter()
+                    .map(|batch| (batch.indices.clone(), batch.slot, batch.first_instance))
+                    .collect::<Vec<_>>()
+            };
+            panic!(
+                "changed-camera exact RGBA mismatch: {changed_pixels} pixels, {} channels, \
+                 max delta {max_delta}; first (x,y,channel,actual,expected)={first:?}; \
+                 optimized stats={}; reference stats={}; optimized batches={:?}; reference batches={:?}",
+                differences.len(),
+                serde_json::to_string(&optimized.stats).unwrap(),
+                serde_json::to_string(&reference.stats).unwrap(),
+                batches(&optimized),
+                batches(&reference),
+            );
+        }
         assert!(!optimized.occlusion.instance_applied);
         assert!(!optimized.occlusion.instance_input_reused);
         for _ in 0..3 {

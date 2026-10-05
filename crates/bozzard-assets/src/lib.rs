@@ -2670,55 +2670,64 @@ mod tests {
     }
     #[test]
     fn canonical_file_aliases_share_exact_snapshots_and_keep_content_keys_distinct() {
-        let dir = Temp::new();
-        std::fs::write(dir.0.join("palette.png"), PNG).unwrap();
-        std::fs::write(dir.0.join("palette?variant=other.png"), NEXT_PNG).unwrap();
-        let sources = [
-            ("a", "palette.png"),
-            ("b", "./palette.png"),
-            ("c", "palette?variant=other.png"),
-        ]
-        .into_iter()
-        .map(|(id, path)| {
-            (
-                id.into(),
-                AssetSource {
-                    kind: AssetKind::Image,
-                    path: path.into(),
-                },
-            )
-        })
-        .collect();
-        let mut store = AssetStore::new(&dir.0, &sources).unwrap();
-        store.load_pending().unwrap();
-        let data = |id| {
-            store
-                .get(store.handle(id).unwrap())
+        // These are literal filename characters, not URI suffixes. Windows
+        // reserves '?', so exercise that spelling only where it is valid.
+        let variant_paths = [
+            "palette#variant=other.png",
+            #[cfg(unix)]
+            "palette?variant=other.png",
+        ];
+        for variant_path in variant_paths {
+            let dir = Temp::new();
+            std::fs::write(dir.0.join("palette.png"), PNG).unwrap();
+            std::fs::write(dir.0.join(variant_path), NEXT_PNG).unwrap();
+            let sources = [
+                ("a", "palette.png"),
+                ("b", "./palette.png"),
+                ("c", variant_path),
+            ]
+            .into_iter()
+            .map(|(id, path)| {
+                (
+                    id.into(),
+                    AssetSource {
+                        kind: AssetKind::Image,
+                        path: path.into(),
+                    },
+                )
+            })
+            .collect();
+            let mut store = AssetStore::new(&dir.0, &sources).unwrap();
+            store.load_pending().unwrap();
+            let data = |id| {
+                store
+                    .get(store.handle(id).unwrap())
+                    .unwrap()
+                    .shared_data()
+                    .unwrap()
+            };
+            assert!(Arc::ptr_eq(&data("a"), &data("b")));
+            assert!(!Arc::ptr_eq(&data("a"), &data("c")));
+            assert_eq!(store.canonical_asset_id("b"), "a");
+            assert_eq!(store.canonical_asset_id("c"), "c");
+            let frozen = data("a");
+            let old_publication = store.publication_identity().clone();
+            std::fs::write(dir.0.join("palette.png"), NEXT_PNG).unwrap();
+            assert_eq!(store.refresh().len(), 2);
+            let a = store
+                .get(store.handle("a").unwrap())
                 .unwrap()
                 .shared_data()
+                .unwrap();
+            let b = store
+                .get(store.handle("b").unwrap())
                 .unwrap()
-        };
-        assert!(Arc::ptr_eq(&data("a"), &data("b")));
-        assert!(!Arc::ptr_eq(&data("a"), &data("c")));
-        assert_eq!(store.canonical_asset_id("b"), "a");
-        assert_eq!(store.canonical_asset_id("c"), "c");
-        let frozen = data("a");
-        let old_publication = store.publication_identity().clone();
-        std::fs::write(dir.0.join("palette.png"), NEXT_PNG).unwrap();
-        assert_eq!(store.refresh().len(), 2);
-        let a = store
-            .get(store.handle("a").unwrap())
-            .unwrap()
-            .shared_data()
-            .unwrap();
-        let b = store
-            .get(store.handle("b").unwrap())
-            .unwrap()
-            .shared_data()
-            .unwrap();
-        assert!(Arc::ptr_eq(&a, &b));
-        assert!(!Arc::ptr_eq(&a, &frozen));
-        assert!(!Arc::ptr_eq(&old_publication, store.publication_identity()));
+                .shared_data()
+                .unwrap();
+            assert!(Arc::ptr_eq(&a, &b));
+            assert!(!Arc::ptr_eq(&a, &frozen));
+            assert!(!Arc::ptr_eq(&old_publication, store.publication_identity()));
+        }
     }
 
     #[cfg(unix)]

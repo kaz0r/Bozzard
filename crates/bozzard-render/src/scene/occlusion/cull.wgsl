@@ -31,7 +31,10 @@ struct Indirect {
         // include unrelated background and lose useful wall occlusion.
         while (4u << level) < extent { level++; }
         level = min(level, textureNumLevels(pyramid) - 1u);
-        let size = textureDimensions(pyramid, level);
+        // Keep the texture query uniform: divergent mip queries can incorrectly
+        // cull adjacent queries on Mesa. Derive each invocation's exact mip
+        // extent as max(1, base >> level), preserving background coverage.
+        let size = max(textureDimensions(pyramid) >> vec2<u32>(level), vec2<u32>(1u));
         let lo = min(candidate.rectangle.xy >> vec2<u32>(level), size - 1u);
         let hi = min(candidate.rectangle.zw >> vec2<u32>(level), size - 1u);
         var farthest = 0.0;

@@ -4,12 +4,8 @@ use bozzard_render::*;
 use bozzard_scene::shader_graph::{Node, NodeKind, ShaderGraph, Value};
 use glam::{Mat4, Vec3};
 
-#[test]
-fn static_keywords_render_distinct_variants_and_reuse_pipelines() -> anyhow::Result<()> {
+fn keyword_graph(distinct_topology: bool) -> anyhow::Result<ShaderGraph> {
     use bozzard_scene::shader_graph::{Socket, Wire};
-    use std::collections::BTreeMap;
-    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
-    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
     let mut graph = ShaderGraph::default();
     graph.keywords.insert("BLUE".into(), false);
     let mut switch = Node::new(2, NodeKind::StaticSwitchVector, [0.; 2]);
@@ -19,10 +15,38 @@ fn static_keywords_render_distinct_variants_and_reuse_pipelines() -> anyhow::Res
         Value::Vector([0.1, 0.1, 0.9]),
     ];
     graph.nodes.push(switch);
+    if distinct_topology {
+        let mut blue = Node::new(3, NodeKind::Color, [0.; 2]);
+        blue.inputs[0] = Value::Vector([0.1, 0.1, 0.9]);
+        graph.nodes.push(blue);
+        graph.connect(Wire {
+            from: Socket { node: 3, port: 0 },
+            to: Socket { node: 2, port: 1 },
+        })?;
+    }
     graph.connect(Wire {
         from: Socket { node: 2, port: 0 },
         to: Socket { node: 1, port: 0 },
     })?;
+    Ok(graph)
+}
+
+#[test]
+fn static_keywords_render_distinct_variants_and_reuse_pipelines() -> anyhow::Result<()> {
+    use std::collections::BTreeMap;
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    // A connected node on only one branch makes this a topology switch. Switching
+    // between two constant values alone correctly shares the numeric pipeline.
+    let mut graph = keyword_graph(true)?;
+    let sources = [false, true].map(|enabled| {
+        bozzard_render_assets::shader_variant_source(
+            &graph,
+            &BTreeMap::from([("BLUE".into(), enabled)]),
+        )
+        .unwrap()
+    });
+    assert_ne!(sources[0].id, sources[1].id);
     for (enabled, compilations) in [(false, 1), (true, 1), (false, 0), (true, 0)] {
         let shader = bozzard_render_assets::shader_variant_source(
             &graph,
@@ -40,10 +64,56 @@ fn static_keywords_render_distinct_variants_and_reuse_pipelines() -> anyhow::Res
             "{enabled}: {color:?}"
         );
         assert_eq!(renderer.frame_stats().graph_compilations, compilations);
+        assert_eq!(
+            renderer.frame_stats().surface_variant_compilations,
+            compilations
+        );
         graph.name.push('x');
         graph.nodes[0].position[0] += 1.;
     }
     assert_eq!(renderer.frame_stats().resident_graphs, 2);
+    Ok(())
+}
+
+#[test]
+fn numeric_keyword_values_share_a_pipeline_without_losing_color_changes() -> anyhow::Result<()> {
+    use std::collections::BTreeMap;
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let graph = keyword_graph(false)?;
+    let sources = [false, true].map(|enabled| {
+        bozzard_render_assets::shader_variant_source(
+            &graph,
+            &BTreeMap::from([("BLUE".into(), enabled)]),
+        )
+        .unwrap()
+    });
+    assert_eq!(sources[0].id, sources[1].id);
+    assert_eq!(sources[0].surface, sources[1].surface);
+    assert_ne!(sources[0].numeric_parameters, sources[1].numeric_parameters);
+    let mut pixels = [None, None];
+    for (index, compilations) in [(0, 1), (1, 0), (0, 0), (1, 0)] {
+        let rendered = scene(vec![item(Some(sources[index].clone()))]);
+        let frame = capture_offscreen(&gpu, 32, 24, |target| {
+            renderer.draw_linear(&gpu, target, [32, 24], &rendered)
+        })?;
+        let color = pixel(&frame, 16, 12);
+        let bright = if index == 1 { 2 } else { 0 };
+        assert!((226..=232).contains(&color[bright]), "{index}: {color:?}");
+        assert!((22..=28).contains(&color[2 - bright]), "{index}: {color:?}");
+        if let Some(previous) = &pixels[index] {
+            assert_eq!(
+                &frame.rgba, previous,
+                "returning to a keyword changed pixels"
+            );
+        } else {
+            pixels[index] = Some(frame.rgba);
+        }
+        let stats = renderer.frame_stats();
+        assert_eq!(stats.graph_compilations, compilations);
+        assert_eq!(stats.surface_variant_compilations, compilations);
+        assert_eq!(stats.resident_graphs, 1);
+    }
     Ok(())
 }
 
@@ -241,15 +311,48 @@ fn recently_used_graph_pipelines_survive_switches_with_bounded_retention() -> an
             let mut graph = ShaderGraph::default();
             graph.nodes.push(Node::new(2, NodeKind::Color, [0.; 2]));
             graph.nodes[1].inputs[0] = Value::Vector([0.1 + i as f32 * 0.05, 0.2, 0.3]);
+            // Numeric color edits share a pipeline. Add a different number of
+            // identity operations so cache retention sees twelve real topologies.
+            let mut output = 2;
+            for node_id in 3..3 + i {
+                let mut scale = Node::new(node_id, NodeKind::ScaleVector, [0.; 2]);
+                scale.inputs[1] = Value::Float(1.);
+                graph.nodes.push(scale);
+                graph
+                    .connect(bozzard_scene::shader_graph::Wire {
+                        from: bozzard_scene::shader_graph::Socket {
+                            node: output,
+                            port: 0,
+                        },
+                        to: bozzard_scene::shader_graph::Socket {
+                            node: node_id,
+                            port: 0,
+                        },
+                    })
+                    .unwrap();
+                output = node_id;
+            }
             graph
                 .connect(bozzard_scene::shader_graph::Wire {
-                    from: bozzard_scene::shader_graph::Socket { node: 2, port: 0 },
+                    from: bozzard_scene::shader_graph::Socket {
+                        node: output,
+                        port: 0,
+                    },
                     to: bozzard_scene::shader_graph::Socket { node: 1, port: 0 },
                 })
                 .unwrap();
             graph_surface(graph)
         })
         .collect();
+    assert_eq!(
+        graphs
+            .iter()
+            .map(|graph| graph.id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        12,
+        "retention fixture must use distinct pipeline identities"
+    );
     let mut pixels = Vec::new();
     for i in (0..12).chain([11, 10, 9, 4, 0]) {
         let frame = capture_offscreen(&gpu, 32, 24, |target| {
@@ -267,6 +370,16 @@ fn recently_used_graph_pipelines_survive_switches_with_bounded_retention() -> an
         );
         if pixels.len() < 12 {
             assert_eq!(stats.graph_compilations, 1);
+            assert_eq!(stats.surface_variant_compilations, 1);
+            let color = pixel(&frame, 16, 12);
+            let expected = [((0.1 + i as f32 * 0.05) * 255.) as u8, 51, 76];
+            assert!(
+                color
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| actual.abs_diff(expected) <= 3),
+                "identity graph {i} changed color: {color:?} versus {expected:?}"
+            );
             pixels.push(frame.rgba);
         } else {
             assert_eq!(
@@ -274,6 +387,9 @@ fn recently_used_graph_pipelines_survive_switches_with_bounded_retention() -> an
                 usize::from(i == 0),
                 "unexpected eviction at {i}"
             );
+            // Surface variants retain sixteen absent flavors, independently of
+            // the eight-entry graph-record cache exercised by the assertion above.
+            assert_eq!(stats.surface_variant_compilations, 0);
             assert_eq!(frame.rgba, pixels[i], "switching graph changed pixels");
         }
     }
@@ -285,13 +401,18 @@ fn recently_used_graph_pipelines_survive_switches_with_bounded_retention() -> an
             .map(|graph| item(Some(graph)))
             .collect(),
     );
+    let mut first = None;
     for pass in 0..2 {
-        capture_offscreen(&gpu, 32, 24, |target| {
+        let frame = capture_offscreen(&gpu, 32, 24, |target| {
             renderer.draw_linear(&gpu, target, [32, 24], &all)
         })?;
         assert_eq!(renderer.frame_stats().resident_graphs, 12);
         if pass == 1 {
             assert_eq!(renderer.frame_stats().graph_compilations, 0);
+            assert_eq!(renderer.frame_stats().surface_variant_compilations, 0);
+            assert_eq!(Some(frame.rgba), first);
+        } else {
+            first = Some(frame.rgba);
         }
     }
     Ok(())
