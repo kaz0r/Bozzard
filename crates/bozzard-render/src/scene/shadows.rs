@@ -348,7 +348,14 @@ fn proven_opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
     match &draw.object.material.texture {
         TextureKind::Generated(_) | TextureKind::Text => false,
         TextureKind::Imported(id) => !renderer.transparent_textures.contains(id),
-        TextureKind::ModelPart(id, part) => !renderer.models[id][*part].translucent,
+        TextureKind::ModelPart(id, part) => {
+            let part = &renderer.models[id][*part];
+            !part.translucent
+                && part
+                    .shading
+                    .as_ref()
+                    .is_none_or(|shading| shading.base_color_opaque_addressing)
+        }
         TextureKind::White
         | TextureKind::Checker
         | TextureKind::Normals
@@ -1255,6 +1262,253 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn opaque_shadow_alpha_proof_preserves_custom_sampler_borders() -> Result<()> {
+        let instance = crate::instance(crate::Backend::native());
+        let adapter = pollster::block_on(async {
+            match instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    force_fallback_adapter: !cfg!(target_os = "macos"),
+                    ..Default::default()
+                })
+                .await
+            {
+                Ok(adapter) => Ok(adapter),
+                Err(error) if cfg!(target_os = "macos") => Err(error),
+                Err(_) => {
+                    instance
+                        .request_adapter(&wgpu::RequestAdapterOptions::default())
+                        .await
+                }
+            }
+        })?;
+        let available = adapter.features();
+        let info = adapter.get_info();
+        let border_features = available
+            & (wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER
+                | wgpu::Features::ADDRESS_MODE_CLAMP_TO_ZERO);
+        if !border_features.contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
+            println!(
+                "shadow_border_proof unsupported adapter={:?} backend={:?} features={border_features:?}",
+                info.name, info.backend,
+            );
+            return Ok(());
+        }
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+                label: Some("custom sampler border proof"),
+                required_features: border_features
+                    | (available & wgpu::Features::INDIRECT_FIRST_INSTANCE),
+                required_limits:
+                    wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+                ..Default::default()
+            }))?;
+        let gpu = Gpu::from_device(adapter, device, queue);
+        let mut renderers = std::array::from_fn::<_, 2, _>(|_| {
+            let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+            renderer.set_occlusion_enabled(false);
+            renderer.set_shadow_preparation_caching_enabled(false);
+            renderer
+        });
+        renderers[0].set_opaque_shadow_specialization_enabled(false);
+        let mut borders = Vec::new();
+        if border_features.contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
+            borders.extend([
+                wgpu::SamplerBorderColor::TransparentBlack,
+                wgpu::SamplerBorderColor::OpaqueBlack,
+                wgpu::SamplerBorderColor::OpaqueWhite,
+            ]);
+        }
+        if border_features.contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_ZERO) {
+            borders.push(wgpu::SamplerBorderColor::Zero);
+        }
+        let attributes = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 4];
+        let material = Material {
+            metallic: None,
+            roughness: None,
+            surface_overrides: Default::default(),
+            tint: [1.; 3],
+            uv_scale: [1.; 2],
+            texture: TextureKind::White,
+            lit: true,
+            shader: None,
+        };
+        let caster = DrawItem {
+            motion_id: 2,
+            model: Mat4::from_translation(Vec3::new(0., 0., -4.)),
+            mesh: MeshKind::ModelPart("border-proof".into(), 0),
+            material: Material {
+                texture: TextureKind::ModelPart("border-proof".into(), 0),
+                ..material.clone()
+            },
+        };
+        let scene = RenderScene {
+            items: vec![
+                DrawItem {
+                    motion_id: 1,
+                    model: Mat4::from_translation(Vec3::new(0., 0., -6.))
+                        * Mat4::from_scale(Vec3::new(4., 4., 1.)),
+                    mesh: MeshKind::Quad,
+                    material,
+                },
+                caster.clone(),
+            ],
+            view_projection: glam::camera::rh::proj::directx::orthographic(
+                -2.5, 2.5, -2.5, 2.5, 0.1, 20.,
+            ),
+            lighting: Lighting {
+                shadows: true,
+                shadow_resolution: 256,
+                sun_direction: [0., 0., 1.],
+                ..Default::default()
+            },
+            lights: vec![
+                LocalLight {
+                    directional: false,
+                    position: [0., 0., -2.],
+                    direction: [0., 0., -1.],
+                    color: [1.; 3],
+                    intensity: 2.,
+                    range: 15.,
+                    spot_angles: Some([40., 55.]),
+                    shadows: Some(Default::default()),
+                },
+                LocalLight {
+                    directional: false,
+                    position: [-1.2, 0.4, -2.],
+                    direction: [0., 0., -1.],
+                    color: [1.; 3],
+                    intensity: 2.,
+                    range: 15.,
+                    spot_angles: None,
+                    shadows: Some(Default::default()),
+                },
+            ],
+            environment: EnvironmentSettings::disabled(),
+            display: DisplaySettings {
+                tone_mapping: false,
+                ..Default::default()
+            },
+            fog: Default::default(),
+            gi: None,
+            particles: vec![],
+            shader_time: 0.,
+            skin_poses: Default::default(),
+        };
+        let mut prepared = PreparedDraw {
+            preparation: Default::default(),
+            source_item: 1,
+            deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
+            pbr_override: [-1.; 2],
+            shader: None,
+            pbr: true,
+            raster: 1,
+            object: caster,
+            opacity: 1.,
+            cutoff: 0.75,
+            transparent: false,
+            depth: 0.,
+        };
+        let mut comparisons = 0;
+        for border in borders {
+            // Outside UVs and edge filtering both sample the border, although
+            // every uploaded texel remains fully opaque.
+            for u in [2., 0.] {
+                let vertices = [
+                    [-0.7, -0.7, 0., 0., 0., 1., u, 0.5],
+                    [0.7, -0.7, 0., 0., 0., 1., u, 0.5],
+                    [0.7, 0.7, 0., 0., 0., 1., u, 0.5],
+                    [-0.7, 0.7, 0., 0., 0., 1., u, 0.5],
+                ];
+                for renderer in &mut renderers {
+                    renderer.upload_model(
+                        &gpu,
+                        "border-proof",
+                        &vertices,
+                        &[0, 1, 2, 0, 2, 3],
+                        &[ModelPart {
+                            source_key: "0000000000000000",
+                            start: 0,
+                            count: 6,
+                            color: [1.; 4],
+                            alpha_cutoff: Some(0.75),
+                            image: Some(ModelImage {
+                                width: 1,
+                                height: 1,
+                                rgba: &[255; 4],
+                            }),
+                            shading: Some(ModelShading {
+                                vertex_start: 0,
+                                vertices: &attributes,
+                                metallic: 0.,
+                                roughness: 0.7,
+                                normal_scale: 1.,
+                                occlusion_strength: 1.,
+                                emissive_factor: [0.; 3],
+                                double_sided: false,
+                                base_color_sampler: wgpu::SamplerDescriptor {
+                                    address_mode_u: wgpu::AddressMode::ClampToBorder,
+                                    border_color: Some(border),
+                                    mag_filter: wgpu::FilterMode::Linear,
+                                    min_filter: wgpu::FilterMode::Linear,
+                                    ..Default::default()
+                                },
+                                normal: None,
+                                metallic_roughness: None,
+                                occlusion: None,
+                                emissive: None,
+                            }),
+                        }],
+                    )?;
+                    assert!(!renderer.models["border-proof"][0].translucent);
+                    assert_eq!(
+                        proven_opaque(renderer, &prepared),
+                        matches!(
+                            border,
+                            wgpu::SamplerBorderColor::OpaqueBlack
+                                | wgpu::SamplerBorderColor::OpaqueWhite
+                        ),
+                        "opaque texture with {border:?} sampler"
+                    );
+                    // Zero cutoff still discards fully transparent samples in
+                    // the color pass, so such borders cannot become occluders.
+                    let shadow_cutoff = prepared.cutoff;
+                    prepared.cutoff = 0.;
+                    assert_eq!(
+                        crate::scene::occlusion::opaque(renderer, &prepared),
+                        matches!(
+                            border,
+                            wgpu::SamplerBorderColor::OpaqueBlack
+                                | wgpu::SamplerBorderColor::OpaqueWhite
+                        ),
+                        "zero-cutoff occluder with {border:?} sampler"
+                    );
+                    prepared.cutoff = shadow_cutoff;
+                }
+                let mut reference = None;
+                for renderer in &mut renderers {
+                    let capture = crate::capture_offscreen(&gpu, 128, 128, |target| {
+                        renderer.draw_linear(&gpu, target, [128; 2], &scene)
+                    })?;
+                    if let Some(reference) = &reference {
+                        assert_eq!(&capture.rgba, reference, "border={border:?}, u={u}");
+                    } else {
+                        reference = Some(capture.rgba);
+                    }
+                }
+                comparisons += 1;
+            }
+        }
+        println!(
+            "shadow_border_proof executed adapter={:?} backend={:?} features={border_features:?} comparisons={comparisons} exact_pixels=true outside_uv_and_filtered_edge=true",
+            info.name, info.backend,
+        );
+        Ok(())
+    }
+
     #[test]
     fn opaque_shadow_specialization_matches_masked_reference_for_winding_and_alpha() -> Result<()> {
         let gpu = pollster::block_on(Gpu::request(

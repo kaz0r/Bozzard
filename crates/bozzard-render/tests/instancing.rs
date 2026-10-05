@@ -660,6 +660,7 @@ fn graph_clock_is_shared_without_rebuilding_individual_objects() -> anyhow::Resu
     scene.items[0].material.shader = Some(std::sync::Arc::new(ShaderSource {
         numeric_parameters: std::sync::Arc::from([]),
         id: 987654321,
+        opaque_sort_id: 987654321,
         surface: "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { return SurfaceParams(vec3<f32>(time,0.2,0.1),0.0,1.0,vec3<f32>(0),1.0,world_normal,1.0); }".into(),
     }));
     let a = capture(&gpu, &mut renderer, &scene)?;
@@ -1347,6 +1348,7 @@ fn graph_source(id: u64, multiplier: f32) -> std::sync::Arc<ShaderSource> {
     std::sync::Arc::new(ShaderSource {
         numeric_parameters: std::sync::Arc::from([]),
         id,
+        opaque_sort_id: id,
         surface: format!(
             "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams {{ var s=default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); s.base*=vec3<f32>({multiplier}+time*0.2,0.8,1.0); s.emissive+=vec3<f32>(0.02,0.01,0.0); return s; }}"
         ),

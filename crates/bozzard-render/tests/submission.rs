@@ -177,6 +177,7 @@ fn per_instance_numeric_graph_values_match_portable_arrays_through_parameter_edi
     let source = |red| {
         std::sync::Arc::new(ShaderSource {
             id: 991234,
+            opaque_sort_id: 991234,
             surface: surface.into(),
             numeric_parameters: std::sync::Arc::from([[red, 0.8, 1., 0.]]),
         })
@@ -409,7 +410,8 @@ fn native_lit_object_rows_and_numeric_graphs_match_portable_through_multilight_c
     }
     let graph = |value: f32| {
         std::sync::Arc::new(ShaderSource {
-        id: 779931,
+            id: 779931,
+            opaque_sort_id: 779931,
         surface: "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { var s=default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); s.emissive+=graph_numeric(0u).xyz; return s; }".into(),
         numeric_parameters: std::sync::Arc::from([[value, 0.025, 0.01, 0.]]),
     })

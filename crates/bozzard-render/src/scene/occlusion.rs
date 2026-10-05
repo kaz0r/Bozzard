@@ -136,7 +136,7 @@ fn project(bounds: [Vec3; 2], mvp: Mat4, size: [u32; 2]) -> Option<Projection> {
         nearest: min.z,
     })
 }
-fn opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
+pub(super) fn opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
     if draw.transparent
         || draw.shader.is_some()
         || draw.opacity < 1.
@@ -156,7 +156,14 @@ fn opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
     match &draw.object.material.texture {
         TextureKind::Generated(_) | TextureKind::Text => false,
         TextureKind::Imported(id) => !renderer.transparent_textures.contains(id),
-        TextureKind::ModelPart(id, index) => !renderer.models[id][*index].translucent,
+        TextureKind::ModelPart(id, index) => {
+            let part = &renderer.models[id][*index];
+            !part.translucent
+                && part
+                    .shading
+                    .as_ref()
+                    .is_none_or(|shading| shading.base_color_opaque_addressing)
+        }
         _ => true,
     }
 }
@@ -733,7 +740,7 @@ mod tests {
                 material: material(TextureKind::White),
             }],
         };
-        let graph=std::sync::Arc::new(ShaderSource {id:99887,numeric_parameters:std::sync::Arc::from([]),surface:"fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { return default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); }".into()});
+        let graph=std::sync::Arc::new(ShaderSource {id:99887,opaque_sort_id:99887,numeric_parameters:std::sync::Arc::from([]),surface:"fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { return default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); }".into()});
         for group in 0..4 {
             for index in 0..24 {
                 let mut item = DrawItem {

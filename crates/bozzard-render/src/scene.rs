@@ -132,6 +132,9 @@ pub struct Material {
 pub struct ShaderSource {
     /// Content hash of `surface`; keys the renderer's pipeline cache.
     pub id: u64,
+    /// Legacy literal-program hash preserves opaque equal-depth draw ordering
+    /// while `id` can share a pipeline across numeric parameter values.
+    pub opaque_sort_id: u64,
     pub surface: String,
     /// Numeric graph inputs do not change topology or pipeline identity.
     pub numeric_parameters: std::sync::Arc<[[f32; 4]]>,

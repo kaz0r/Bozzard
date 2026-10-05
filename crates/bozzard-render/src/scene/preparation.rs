@@ -190,6 +190,7 @@ fn material_eq(a: &Material, b: &Material) -> bool {
             (Some(a), Some(b)) => {
                 Arc::ptr_eq(a, b)
                     || (a.id == b.id
+                        && a.opaque_sort_id == b.opaque_sort_id
                         && a.surface == b.surface
                         && a.numeric_parameters.len() == b.numeric_parameters.len()
                         && a.numeric_parameters
@@ -208,7 +209,17 @@ fn order(a: &PreparedDraw, b: &PreparedDraw) -> Ordering {
         if a.transparent {
             b.depth.total_cmp(&a.depth)
         } else {
-            a.shader.cmp(&b.shader).then_with(|| a.pbr.cmp(&b.pbr))
+            let shader_order = |draw: &PreparedDraw| {
+                draw.object
+                    .material
+                    .shader
+                    .as_ref()
+                    .map(|s| s.opaque_sort_id)
+                    .or(draw.shader)
+            };
+            shader_order(a)
+                .cmp(&shader_order(b))
+                .then_with(|| a.pbr.cmp(&b.pbr))
         }
     })
 }
@@ -634,6 +645,79 @@ mod tests {
         }
     }
     #[test]
+    fn numeric_graph_topology_keeps_literal_opaque_order_and_order_only_edits() {
+        fn graph(draw: &mut PreparedDraw, pipeline: u64, legacy: u64) {
+            draw.shader = Some(pipeline);
+            draw.object.material.shader = Some(Arc::new(ShaderSource {
+                id: pipeline,
+                opaque_sort_id: legacy,
+                surface: "shared numeric program".into(),
+                numeric_parameters: Arc::from([[legacy as f32, 0., 0., 0.]]),
+            }));
+        }
+        fn sorted(mut draws: Vec<PreparedDraw>, literal: bool) -> Vec<usize> {
+            if literal {
+                for draw in &mut draws {
+                    let source = Arc::make_mut(draw.object.material.shader.as_mut().unwrap());
+                    source.id = source.opaque_sort_id;
+                    draw.shader = Some(source.id);
+                }
+            }
+            draws.sort_unstable_by(retained_order);
+            draws.into_iter().map(|d| d.source_item).collect()
+        }
+        fn copies(draws: &[PreparedDraw]) -> Vec<PreparedDraw> {
+            draws
+                .iter()
+                .map(|original| {
+                    let mut copy = draw(original.source_item, original.transparent, original.depth);
+                    copy.object = original.object.clone();
+                    copy.shader = original.shader;
+                    copy.pbr = original.pbr;
+                    copy
+                })
+                .collect()
+        }
+        let mut a = draw(0, false, 0.);
+        let mut b = draw(1, false, 0.);
+        graph(&mut a, 7, 200);
+        graph(&mut b, 7, 100);
+        // Same pipeline, coincident depth: the legacy order must still be [B,A].
+        let original = vec![a, b];
+        assert_eq!(sorted(copies(&original), false), [1, 0]);
+        assert_eq!(
+            sorted(copies(&original), false),
+            sorted(copies(&original), true)
+        );
+
+        let mut inserted = copies(&original);
+        let mut c = draw(2, false, 0.);
+        graph(&mut c, 7, 150);
+        inserted.insert(0, c);
+        assert_eq!(sorted(copies(&inserted), false), [1, 2, 0]);
+        assert_eq!(sorted(copies(&inserted), false), sorted(inserted, true));
+
+        // Sort metadata itself is an observable source input, even when all
+        // consumed uniform/parameter bytes and the shared program stay equal.
+        let mut edited = original;
+        let before = edited[1].object.clone();
+        Arc::make_mut(edited[1].object.material.shader.as_mut().unwrap()).opaque_sort_id = 300;
+        assert!(!static_eq(&before, &edited[1].object));
+        assert_eq!(sorted(copies(&edited), false), [0, 1]);
+        assert_eq!(
+            sorted(copies(&edited), false),
+            sorted(copies(&edited), true)
+        );
+
+        // Alpha ties retain source order rather than acquiring opaque hash order.
+        for draw in &mut edited {
+            draw.transparent = true;
+            draw.depth = 0.5;
+        }
+        edited.reverse();
+        assert_eq!(sorted(edited, false), [0, 1]);
+    }
+    #[test]
     fn static_keys_ignore_runtime_matrices_but_preserve_float_bits_and_graph_content() {
         let original = source();
         let mut edited = original.clone();
@@ -646,12 +730,14 @@ mod tests {
         assert!(!static_eq(&positive, &edited));
         positive.material.shader = Some(Arc::new(ShaderSource {
             id: 7,
+            opaque_sort_id: 7,
             numeric_parameters: Arc::from([]),
             surface: "first".into(),
         }));
         edited = positive.clone();
         edited.material.shader = Some(Arc::new(ShaderSource {
             id: 7,
+            opaque_sort_id: 7,
             numeric_parameters: Arc::from([]),
             surface: "second".into(),
         }));

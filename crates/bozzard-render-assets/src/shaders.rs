@@ -9,6 +9,11 @@ use std::{
 };
 
 const CAPACITY: usize = 256;
+fn source_id(surface: &str) -> u64 {
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    surface.hash(&mut hash);
+    hash.finish()
+}
 struct Entry {
     graph: ShaderGraph,
     source: Arc<ShaderSource>,
@@ -49,6 +54,14 @@ impl SourceCache {
         } else {
             (graph.surface_function_mask(mask)?, Vec::new())
         };
+        // Main ordered opaque surfaces by the hash of their literal program.
+        // Keep that ordering identity separate from the shared GPU topology.
+        // This work belongs only to a cold source-cache miss; hits reuse it.
+        let opaque_sort_id = if numeric_parameters.is_empty() {
+            source_id(&surface)
+        } else {
+            source_id(&graph.surface_function_mask(mask)?)
+        };
         // Unused keywords/branches may specialize to the same program. Share the
         // exact source as well as its GPU pipeline identity in that case.
         let source = self
@@ -57,6 +70,7 @@ impl SourceCache {
             .flatten()
             .find(|entry| {
                 entry.source.surface == surface
+                    && entry.source.opaque_sort_id == opaque_sort_id
                     && entry.source.numeric_parameters.len() == numeric_parameters.len()
                     && entry
                         .source
@@ -67,10 +81,9 @@ impl SourceCache {
             })
             .map(|entry| entry.source.clone())
             .unwrap_or_else(|| {
-                let mut hash = std::collections::hash_map::DefaultHasher::new();
-                surface.hash(&mut hash);
                 Arc::new(ShaderSource {
-                    id: hash.finish(),
+                    id: source_id(&surface),
+                    opaque_sort_id,
                     surface,
                     numeric_parameters: numeric_parameters.into(),
                 })
@@ -178,6 +191,10 @@ mod tests {
             .unwrap();
         let mut cache = SourceCache::default();
         let first = cache.get(&graph).unwrap();
+        assert_eq!(
+            first.opaque_sort_id,
+            source_id(&graph.surface_function().unwrap())
+        );
         assert_eq!(first.surface, graph.surface_function().unwrap());
         assert!(Arc::ptr_eq(&first, &cache.get(&graph.clone()).unwrap()));
 
@@ -249,6 +266,10 @@ mod tests {
             ..Default::default()
         };
         let first = cache.get(&graph).unwrap();
+        assert_eq!(
+            first.opaque_sort_id,
+            source_id(&graph.surface_function().unwrap())
+        );
         assert_eq!(first.numeric_parameters.len(), 2);
         assert!(first.surface.contains("graph_numeric(0u).xyz"));
         assert!(first.surface.contains("graph_numeric(1u).x"));
@@ -256,6 +277,11 @@ mod tests {
         graph.nodes[2].inputs[0] = Value::Float(0.7);
         let edited = cache.get(&graph).unwrap();
         assert_eq!(first.id, edited.id);
+        assert_eq!(
+            edited.opaque_sort_id,
+            source_id(&graph.surface_function().unwrap())
+        );
+        assert_ne!(first.opaque_sort_id, edited.opaque_sort_id);
         assert_eq!(first.surface, edited.surface);
         assert!(!Arc::ptr_eq(&first, &edited));
         assert_ne!(first.numeric_parameters, edited.numeric_parameters);

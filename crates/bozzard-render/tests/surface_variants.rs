@@ -288,6 +288,7 @@ fn cached_object_sources_preserve_signed_zero_for_custom_graphs() -> anyhow::Res
     scene.items[0].material.lit = false;
     scene.items[0].material.shader = Some(std::sync::Arc::new(ShaderSource {
         id: 543219,
+        opaque_sort_id: 543219,
         numeric_parameters: std::sync::Arc::from([]),
         surface: "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { var s=default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); s.base=select(vec3<f32>(1.,0.,0.),vec3<f32>(0.,1.,0.),(bitcast<u32>(object.parameters.x)&0x80000000u)!=0u); return s; }".into(),
     }));
@@ -295,6 +296,7 @@ fn cached_object_sources_preserve_signed_zero_for_custom_graphs() -> anyhow::Res
     for renderer in &mut pair {
         let bad_shader = ShaderSource {
             id: 9876123,
+            opaque_sort_id: 9876123,
             surface: "invalid wgsl".into(),
             numeric_parameters: std::sync::Arc::from([]),
         };

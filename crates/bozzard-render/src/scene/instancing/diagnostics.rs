@@ -210,6 +210,7 @@ mod tests {
     fn graph_instanced_hosts_validate_on_baseline_capabilities() {
         let source = ShaderSource {
             id: 1,
+            opaque_sort_id: 1,
             numeric_parameters: std::sync::Arc::from([]),
             surface: "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { return default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); }".into(),
         };
