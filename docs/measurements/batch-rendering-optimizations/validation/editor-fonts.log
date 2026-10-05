@@ -1,0 +1,8 @@
+     Running tests/fonts.rs (target/debug/deps/fonts-7dbfb013cd7d4c3c)
+
+running 2 tests
+test custom_font_renders_bounds_and_fails_closed_on_missing_or_invalid_assets ... ok
+test variable_fonts_and_fallbacks_round_trip_history_prefabs_and_native_pixels ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 77.01s

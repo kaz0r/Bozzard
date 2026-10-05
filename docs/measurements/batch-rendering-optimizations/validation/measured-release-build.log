@@ -1,0 +1,5 @@
+   Compiling bozzard-render v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/crates/bozzard-render)
+   Compiling bozzard-render-assets v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/crates/bozzard-render-assets)
+   Compiling bozzard-editor v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/crates/bozzard-editor)
+    Finished `release` profile [optimized] target(s) in 1m 31s
+  Executable tests/retained_render.rs (target/release/deps/retained_render-ecb0e524cddd1983)

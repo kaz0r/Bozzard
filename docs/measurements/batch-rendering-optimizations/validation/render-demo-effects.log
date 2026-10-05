@@ -1,0 +1,6 @@
+     Running tests/demo_effects.rs (target/debug/deps/demo_effects-183a48b6268a1bc0)
+
+running 1 test
+test demo_effects_validate_in_basic_and_pbr_pipelines ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s

@@ -1,0 +1,9 @@
+     Running tests/preparation.rs (target/debug/deps/preparation-cd9b8b34c19923a9)
+
+running 2 tests
+test retained_surfaces_match_reference_through_edits_reuploads_skinning_and_failed_frames ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test skin_deformation_resorts_overlapping_translucent_surfaces_and_restores_stable_ties ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 98.32s

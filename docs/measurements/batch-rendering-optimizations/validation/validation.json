@@ -1,0 +1,1342 @@
+{
+  "schema_version": 1,
+  "scope": "Mixed validation snapshot for measured production source 3fff7d91e4d1a972ba8f3d90af885e496fd21671. Two affected renderer test targets (library and instancing), strict workspace Clippy, format and measured release build were rerun after the private source-order active spatial sweep began sharing its work cap across query visits and activation updates. Every other output is explicitly labelled retained prior scope with its recorded source/session provenance; those scopes were not rerun at this snapshot, and shared renderer dependencies changed. The 354 unique Rust passes and 7 ignored tests aggregate these selected mixed-snapshot target results; 127 passes in the two rerun renderer targets belong to the current snapshot. The supporting 25-test CPU active-sweep filter and standalone policy run repeat names in the final native library and add no unique passes. Preparation/submission/surface_variants and Steam/factory Clippy retain their recorded preceding source, including the exact numeric graph validation proof. Only the committed worst Factory input fixture is exported; its work counts do not represent release timings. Earlier successful compute/demo-effects/fog sections remain selected from an aggregate command that exited 101 in its old instancing fixture; their original aggregate-failure and repair provenance is preserved. The current complete instancing target passed. The retained empty renderer doc-test target adds zero passes. Python evidence is also retained prior scope. No tests or builds were run while curating, and no failed target output or surrounding session/chat data is exported.",
+  "counting": "Unique Rust totals count each selected crate/target result once. The supporting 25-test CPU active-sweep filter and four standalone policy tests are excluded because every selected name also passed in the final native renderer library. Python tests and non-test gates are reported separately. Ignored tests are not passes.",
+  "summary": {
+    "rust_target_outputs": 29,
+    "unique_rust_target_suites": 27,
+    "unique_rust_tests_passed": 354,
+    "unique_rust_tests_ignored": 7,
+    "supporting_duplicate_rust_tests_passed": 29,
+    "python_tests_passed": 6,
+    "non_test_checks_passed": 6,
+    "failed_tests_in_selected_targets": 0,
+    "empty_doc_test_targets_completed": 1,
+    "selected_renderer_tests_passed": 158,
+    "current_snapshot_rust_tests_passed": 127
+  },
+  "validation": [
+    {
+      "id": "render-lib",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "lib",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --lib --test instancing -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-sweep-final.log 2>&1",
+      "result": {
+        "passed": 112,
+        "failed": 0,
+        "ignored": 2,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-sweep-final.log",
+        "sha256": "124af5147c8770403480bf1a9429db99d5043703355a19a220d3dcc76917d5f8",
+        "original_command_session_id": "30389",
+        "original_command_exit_code": 0,
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671",
+        "extracted_lines": {
+          "first": 3,
+          "last": 152
+        }
+      },
+      "log_path": "render-lib.log",
+      "log_bytes": 15570,
+      "sha256": "4916c5789bc720c140111a25b2a07f49c21d3eb6011db352153801e2e599f3da",
+      "scope_status": "rerun_at_final_active_sweep_snapshot"
+    },
+    {
+      "id": "render-instancing",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "instancing",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --lib --test instancing -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-sweep-final.log 2>&1",
+      "result": {
+        "passed": 15,
+        "failed": 0,
+        "ignored": 3,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-sweep-final.log",
+        "sha256": "124af5147c8770403480bf1a9429db99d5043703355a19a220d3dcc76917d5f8",
+        "original_command_session_id": "30389",
+        "original_command_exit_code": 0,
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671",
+        "extracted_lines": {
+          "first": 154,
+          "last": 191
+        }
+      },
+      "log_path": "render-instancing.log",
+      "log_bytes": 2953,
+      "sha256": "8894d2e1baea7c17eab12212371a5f982912b88caf5208cc9dd3b8dddf3db9a6",
+      "scope_status": "rerun_at_final_active_sweep_snapshot"
+    },
+    {
+      "id": "render-compute",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "compute",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-acceptance.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-acceptance.log",
+        "sha256": "10e3456feedae2cfccd5167bb2e1a574c9074a1389a3bea1980a1f99bf5ef344",
+        "original_command_session_id": "32782",
+        "original_command_exit_code": 101,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "extracted_lines": {
+          "first": 142,
+          "last": 150
+        }
+      },
+      "log_path": "render-compute.log",
+      "log_bytes": 517,
+      "sha256": "b33ae45b0d0aacd6e188cc8e50787f225970a82c3d624dff05f0ad79997dbf96",
+      "scope_status": "retained_prior_scope",
+      "aggregate_failure_provenance": {
+        "aggregate_exit_code": 101,
+        "selected_target_result": "passed",
+        "failed_target": "instancing",
+        "failed_test": "orthographic_camera_churn_filters_hidden_surfaces_without_regrouping",
+        "failure": "Fixture expected retained planning for a population whose superset was no longer profitable under the corrected production policy. The fixture was revised to retain a useful population; production was unchanged.",
+        "replacement_target_id": "render-instancing",
+        "failed_target_output_included": false
+      },
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-demo-effects",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "demo_effects",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-acceptance.log 2>&1",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-acceptance.log",
+        "sha256": "10e3456feedae2cfccd5167bb2e1a574c9074a1389a3bea1980a1f99bf5ef344",
+        "original_command_session_id": "32782",
+        "original_command_exit_code": 101,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "extracted_lines": {
+          "first": 152,
+          "last": 157
+        }
+      },
+      "log_path": "render-demo-effects.log",
+      "log_bytes": 257,
+      "sha256": "db6ecad21d0b88be66c91ae57027b05ed26e3f68358b38c48256711f37952198",
+      "scope_status": "retained_prior_scope",
+      "aggregate_failure_provenance": {
+        "aggregate_exit_code": 101,
+        "selected_target_result": "passed",
+        "failed_target": "instancing",
+        "failed_test": "orthographic_camera_churn_filters_hidden_surfaces_without_regrouping",
+        "failure": "Fixture expected retained planning for a population whose superset was no longer profitable under the corrected production policy. The fixture was revised to retain a useful population; production was unchanged.",
+        "replacement_target_id": "render-instancing",
+        "failed_target_output_included": false
+      },
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-fog",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "fog",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-acceptance.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-acceptance.log",
+        "sha256": "10e3456feedae2cfccd5167bb2e1a574c9074a1389a3bea1980a1f99bf5ef344",
+        "original_command_session_id": "32782",
+        "original_command_exit_code": 101,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "extracted_lines": {
+          "first": 159,
+          "last": 166
+        }
+      },
+      "log_path": "render-fog.log",
+      "log_bytes": 357,
+      "sha256": "ec694b8a7b06c5b2cdbf7400dd4a4315012e1a3ea4e3899ca676bbdcfdbbd110",
+      "scope_status": "retained_prior_scope",
+      "aggregate_failure_provenance": {
+        "aggregate_exit_code": 101,
+        "selected_target_result": "passed",
+        "failed_target": "instancing",
+        "failed_test": "orthographic_camera_churn_filters_hidden_surfaces_without_regrouping",
+        "failure": "Fixture expected retained planning for a population whose superset was no longer profitable under the corrected production policy. The fixture was revised to retain a useful population; production was unchanged.",
+        "replacement_target_id": "render-instancing",
+        "failed_target_output_included": false
+      },
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-optics",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "optics",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --test optics --test particles --test post_processing --test preparation --test sprites --test submission --test surface_variants --test temporal --test volumetric -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-remaining.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-remaining.log",
+        "sha256": "65c9a8c0677b9596bbdda96896672099e6ec067fd154ce0f44c1c487ff5dd830",
+        "original_command_session_id": "55361",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "test_fixture_commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+        "extracted_lines": {
+          "first": 2,
+          "last": 10
+        }
+      },
+      "log_path": "render-optics.log",
+      "log_bytes": 491,
+      "sha256": "e1f73282e50165c4fb98d41cb41f2573cf04d5e9c92296c15a872e5573510590",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-particles",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "particles",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --test optics --test particles --test post_processing --test preparation --test sprites --test submission --test surface_variants --test temporal --test volumetric -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-remaining.log 2>&1",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-remaining.log",
+        "sha256": "65c9a8c0677b9596bbdda96896672099e6ec067fd154ce0f44c1c487ff5dd830",
+        "original_command_session_id": "55361",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "test_fixture_commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+        "extracted_lines": {
+          "first": 12,
+          "last": 18
+        }
+      },
+      "log_path": "render-particles.log",
+      "log_bytes": 343,
+      "sha256": "81f68e6107a0288c7142bec1a3d616a60eff19ea25c76c3e14a9182fc22f4823",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-post-processing",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "post_processing",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --test optics --test particles --test post_processing --test preparation --test sprites --test submission --test surface_variants --test temporal --test volumetric -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-remaining.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-remaining.log",
+        "sha256": "65c9a8c0677b9596bbdda96896672099e6ec067fd154ce0f44c1c487ff5dd830",
+        "original_command_session_id": "55361",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "test_fixture_commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+        "extracted_lines": {
+          "first": 20,
+          "last": 28
+        }
+      },
+      "log_path": "render-post-processing.log",
+      "log_bytes": 509,
+      "sha256": "caf13a63157dd718b774ff85d2c8494a57760cdae57eb6624c49b77bbee50ad4",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-preparation",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "preparation",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --lib --test instancing --test preparation --test submission --test surface_variants -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-hierarchy-final.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-hierarchy-final.log",
+        "sha256": "ca450404fbecf806b852496b711a069040c25213aa9b97957b7d8700d228d6f0",
+        "original_command_session_id": "6133",
+        "original_command_exit_code": 0,
+        "production_source_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6",
+        "extracted_lines": {
+          "first": 190,
+          "last": 198
+        }
+      },
+      "log_path": "render-preparation.log",
+      "log_bytes": 550,
+      "sha256": "c2416c525fecc4c38f0337a28a06b7f13ee5a1ed7573cce97ec0a58aa9652d2b",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+    },
+    {
+      "id": "render-sprites",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "sprites",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --test optics --test particles --test post_processing --test preparation --test sprites --test submission --test surface_variants --test temporal --test volumetric -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-remaining.log 2>&1",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-remaining.log",
+        "sha256": "65c9a8c0677b9596bbdda96896672099e6ec067fd154ce0f44c1c487ff5dd830",
+        "original_command_session_id": "55361",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "test_fixture_commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+        "extracted_lines": {
+          "first": 40,
+          "last": 46
+        }
+      },
+      "log_path": "render-sprites.log",
+      "log_bytes": 360,
+      "sha256": "41e5d548a62ca2e0be8871f108557533f12aa414bfbdae4d078a7f75235fec15",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-submission",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "submission",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --lib --test instancing --test preparation --test submission --test surface_variants -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-hierarchy-final.log 2>&1",
+      "result": {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-hierarchy-final.log",
+        "sha256": "ca450404fbecf806b852496b711a069040c25213aa9b97957b7d8700d228d6f0",
+        "original_command_session_id": "6133",
+        "original_command_exit_code": 0,
+        "production_source_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6",
+        "extracted_lines": {
+          "first": 200,
+          "last": 224
+        }
+      },
+      "log_path": "render-submission.log",
+      "log_bytes": 2123,
+      "sha256": "2852665c6fed9559a2f00757458bef046e4a2af3cbec037a0289b45600065889",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+    },
+    {
+      "id": "render-surface-variants",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "surface_variants",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --lib --test instancing --test preparation --test submission --test surface_variants -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-hierarchy-final.log 2>&1",
+      "result": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-hierarchy-final.log",
+        "sha256": "ca450404fbecf806b852496b711a069040c25213aa9b97957b7d8700d228d6f0",
+        "original_command_session_id": "6133",
+        "original_command_exit_code": 0,
+        "production_source_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6",
+        "extracted_lines": {
+          "first": 226,
+          "last": 242
+        }
+      },
+      "log_path": "render-surface-variants.log",
+      "log_bytes": 1320,
+      "sha256": "a2d6842d47f0e4b86a95fd778bd2ee9fbd337ad7592fe439723a841b94bbecb9",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+    },
+    {
+      "id": "render-temporal",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "temporal",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --test optics --test particles --test post_processing --test preparation --test sprites --test submission --test surface_variants --test temporal --test volumetric -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-remaining.log 2>&1",
+      "result": {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-remaining.log",
+        "sha256": "65c9a8c0677b9596bbdda96896672099e6ec067fd154ce0f44c1c487ff5dd830",
+        "original_command_session_id": "55361",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "test_fixture_commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+        "extracted_lines": {
+          "first": 90,
+          "last": 104
+        }
+      },
+      "log_path": "render-temporal.log",
+      "log_bytes": 961,
+      "sha256": "51a97cbe3053b2ab961edb5c210b8bb6d707c571a9b8baa7a90a5971ae07d1b3",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-volumetric",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "volumetric",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render --test optics --test particles --test post_processing --test preparation --test sprites --test submission --test surface_variants --test temporal --test volumetric -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-remaining.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-remaining.log",
+        "sha256": "65c9a8c0677b9596bbdda96896672099e6ec067fd154ce0f44c1c487ff5dd830",
+        "original_command_session_id": "55361",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae",
+        "test_fixture_commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+        "extracted_lines": {
+          "first": 106,
+          "last": 114
+        }
+      },
+      "log_path": "render-volumetric.log",
+      "log_bytes": 502,
+      "sha256": "865a5e7975b50bd947fc721b4db51da45c18212cf288191b9eb7199809c8a711",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "editor-fonts",
+      "kind": "rust_test_target",
+      "crate": "bozzard-editor",
+      "target": "fonts",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-editor --test fonts --test text_rendering -- --nocapture --test-threads=1 > /tmp/bozzard-batch-editor-text-final.log 2>&1",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-editor-text-final.log",
+        "sha256": "f8de25d669b2ee533ebe4feea954f7091b05824aa8e3739a0f99da729409da02",
+        "extracted_lines": {
+          "first": 12,
+          "last": 19
+        },
+        "original_command_session_id": "43125",
+        "original_command_exit_code": 0
+      },
+      "log_path": "editor-fonts.log",
+      "log_bytes": 436,
+      "sha256": "cb59c1fc881ef0a3b04e00a70732da885d99c6effde80292ceb6e5b141d23792",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "editor-text-rendering",
+      "kind": "rust_test_target",
+      "crate": "bozzard-editor",
+      "target": "text_rendering",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-editor --test fonts --test text_rendering -- --nocapture --test-threads=1 > /tmp/bozzard-batch-editor-text-final.log 2>&1",
+      "result": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-editor-text-final.log",
+        "sha256": "f8de25d669b2ee533ebe4feea954f7091b05824aa8e3739a0f99da729409da02",
+        "extracted_lines": {
+          "first": 21,
+          "last": 28
+        },
+        "original_command_session_id": "43125",
+        "original_command_exit_code": 0
+      },
+      "log_path": "editor-text-rendering.log",
+      "log_bytes": 433,
+      "sha256": "b7bb573f353668d0648034bcaad8905af4c46d819dc70cc6f11e54682202b053",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-ecs-lib",
+      "kind": "rust_test_target",
+      "crate": "bozzard-ecs",
+      "target": "lib",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-ecs --lib --no-fail-fast",
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-ecs-lib.log",
+        "sha256": "183b7b4295a2f0e703284963f90176a1cd5b29241376714216e5c5391a773a69",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "44156",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-ecs-lib.log",
+      "log_bytes": 858,
+      "sha256": "183b7b4295a2f0e703284963f90176a1cd5b29241376714216e5c5391a773a69",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-scene-lib",
+      "kind": "rust_test_target",
+      "crate": "bozzard-scene",
+      "target": "lib",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-scene --lib --test shared_render_views --test interpolation --no-fail-fast",
+      "result": {
+        "passed": 80,
+        "failed": 0,
+        "ignored": 1,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-scene-lib.log",
+        "sha256": "0797334dbc3eef20d935b4122e8df5b83e4dafb2299f244b8f18a96707ee6850",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "26606",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-scene-lib.log",
+      "log_bytes": 7835,
+      "sha256": "0797334dbc3eef20d935b4122e8df5b83e4dafb2299f244b8f18a96707ee6850",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-scene-interpolation",
+      "kind": "rust_test_target",
+      "crate": "bozzard-scene",
+      "target": "interpolation",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-scene --lib --test shared_render_views --test interpolation --no-fail-fast",
+      "result": {
+        "passed": 13,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-scene-interpolation.log",
+        "sha256": "0dbcd57567ebefd5018f858deb22ce520a3a5a485160dd4499163d1fff7ed144",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "26606",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-scene-interpolation.log",
+      "log_bytes": 1269,
+      "sha256": "0dbcd57567ebefd5018f858deb22ce520a3a5a485160dd4499163d1fff7ed144",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-scene-shared_render_views",
+      "kind": "rust_test_target",
+      "crate": "bozzard-scene",
+      "target": "shared_render_views",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-scene --lib --test shared_render_views --test interpolation --no-fail-fast",
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-scene-shared-render-views.log",
+        "sha256": "8bc8ae24a78bde8bf084e47ee7ed05cac6ba7dcd314033e4b4e364d89c66fed0",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "26606",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-scene-shared-render-views.log",
+      "log_bytes": 956,
+      "sha256": "8bc8ae24a78bde8bf084e47ee7ed05cac6ba7dcd314033e4b4e364d89c66fed0",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-assets-lib",
+      "kind": "rust_test_target",
+      "crate": "bozzard-assets",
+      "target": "lib",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-assets --lib -- --nocapture --test-threads=1 > /tmp/bozzard-batch-assets-certified.log 2>&1 && cargo clippy --workspace --all-targets --locked --offline -- -D warnings > /tmp/bozzard-batch-clippy-certified.log 2>&1 && cargo fmt --all -- --check > /tmp/bozzard-batch-format-certified.log 2>&1",
+      "result": {
+        "passed": 51,
+        "failed": 0,
+        "ignored": 1,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-assets-certified.log",
+        "sha256": "e9d5a7538bb084daebf6d818374e31939f831270c3b7005023a91c1d4113c945",
+        "extracted_lines": {
+          "first": 5,
+          "last": 61
+        },
+        "original_command_session_id": "11726",
+        "original_command_exit_code": 0,
+        "production_source_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+      },
+      "log_path": "upstream-assets-lib.log",
+      "log_bytes": 4803,
+      "sha256": "bcfd21529f855abcea6a06f436edb917ec2a648434784a53ada3a0251120c2e3",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-assets-procedural_meshes",
+      "kind": "rust_test_target",
+      "crate": "bozzard-assets",
+      "target": "procedural_meshes",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-assets --lib --test procedural_meshes --no-fail-fast",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-assets-procedural-meshes.log",
+        "sha256": "cbc25d44a88f4ff6c394806f598f9279d313aa04345d1e3c05b2f1b43a1577d0",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "25918",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-assets-procedural-meshes.log",
+      "log_bytes": 290,
+      "sha256": "cbc25d44a88f4ff6c394806f598f9279d313aa04345d1e3c05b2f1b43a1577d0",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-render-assets-lib",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render-assets",
+      "target": "lib",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test graph_ordering --test retained_frames -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-assets-guards-fixed.log 2>&1",
+      "result": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-assets-guards-fixed.log",
+        "sha256": "8ab34c8f6e0ef9291e976a8c2404a576abc27fd671a421494ae09fc1ef7ae018",
+        "original_command_session_id": "53318",
+        "original_command_exit_code": 0,
+        "production_source_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+        "extracted_lines": {
+          "first": 4,
+          "last": 14
+        }
+      },
+      "log_path": "upstream-render-assets-lib.log",
+      "log_bytes": 754,
+      "sha256": "33d6c0156495298fc70d7d2a234dc13cf02e368d8b530e85b3b702e3a38cebeb",
+      "scope_status": "retained_prior_scope",
+      "repair_provenance": {
+        "supersedes_failed_compile_log_name": "bozzard-batch-render-assets-guards.log",
+        "note": "The new graph regression fixture was corrected to read public frame_stats(). The earlier command with private stats access failed compilation and is excluded from successful outputs."
+      },
+      "retained_from_validation_snapshot_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-render-assets-cooked_models",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render-assets",
+      "target": "cooked_models",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test retained_frames --test cooked_models --test residency --no-fail-fast",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-render-assets-cooked-models.log",
+        "sha256": "478408e92caf9e45210abb3440c07e48e495fc262b3a15c8892cd48d49c2f201",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "93837",
+        "original_command_exit_code": 101
+      },
+      "log_path": "upstream-render-assets-cooked-models.log",
+      "log_bytes": 390,
+      "sha256": "478408e92caf9e45210abb3440c07e48e495fc262b3a15c8892cd48d49c2f201",
+      "aggregate_failure_provenance": {
+        "failed_target": "residency",
+        "successful_repair": "upstream-render-assets-residency",
+        "note": "This target passed in an aggregate command that later exited 101 for the legacy residency fixture. Only this completed successful target section is exported. The corrected residency target separately passed all 6 tests in session 74963."
+      },
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-render-assets-retained_frames",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render-assets",
+      "target": "retained_frames",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test graph_ordering --test retained_frames -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-assets-guards-fixed.log 2>&1",
+      "result": {
+        "passed": 13,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-assets-guards-fixed.log",
+        "sha256": "8ab34c8f6e0ef9291e976a8c2404a576abc27fd671a421494ae09fc1ef7ae018",
+        "original_command_session_id": "53318",
+        "original_command_exit_code": 0,
+        "production_source_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+        "extracted_lines": {
+          "first": 25,
+          "last": 42
+        }
+      },
+      "log_path": "upstream-render-assets-retained-frames.log",
+      "log_bytes": 1265,
+      "sha256": "4b98d7fb2170305d5f95eaa0c3524454562b50012a908adec68ef1b9041d89ee",
+      "scope_status": "retained_prior_scope",
+      "repair_provenance": {
+        "supersedes_failed_compile_log_name": "bozzard-batch-render-assets-guards.log",
+        "note": "The new graph regression fixture was corrected to read public frame_stats(). The earlier command with private stats access failed compilation and is excluded from successful outputs."
+      },
+      "retained_from_validation_snapshot_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-render-assets-residency",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render-assets",
+      "target": "residency",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --test residency",
+      "result": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-upstream-pass-render-assets-residency.log",
+        "sha256": "9aa4e217897350bdbaac333c8fbef39de7477a80ca1613f661f1ca4c878dd12b",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "74963",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-render-assets-residency.log",
+      "log_bytes": 1324,
+      "sha256": "9aa4e217897350bdbaac333c8fbef39de7477a80ca1613f661f1ca4c878dd12b",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "upstream-render-sun_cache-policy",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "sun_cache::policy",
+      "status": "passed",
+      "command": "/tmp/bozzard-depth-policy-tests --nocapture",
+      "result": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": false,
+      "source": {
+        "log_name": "bozzard-upstream-pass-depth-policy.log",
+        "sha256": "011788c24d946e3bd283f6fbb12bb706a1eb6392b33d5be0a65db8346252c99c",
+        "output_origin": "Existing successful completed command-event target text",
+        "original_command_session_id": "25117",
+        "original_command_exit_code": 0
+      },
+      "log_path": "upstream-depth-policy.log",
+      "log_bytes": 453,
+      "sha256": "011788c24d946e3bd283f6fbb12bb706a1eb6392b33d5be0a65db8346252c99c",
+      "duplicate_of": "render-lib",
+      "note": "Supporting standalone policy run. All four test names also passed in the final renderer lib output and are counted only there.",
+      "compile_command": "rustc --edition 2024 --test /tmp/bozzard-depth-policy-tests.rs -o /tmp/bozzard-depth-policy-tests",
+      "compile_exit_code": 0,
+      "production_source": "crates/bozzard-render/src/scene/sun_cache/policy.rs",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "workspace-default-clippy",
+      "kind": "clippy",
+      "status": "passed",
+      "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings > /tmp/bozzard-batch-clippy-sweep-final.log 2>&1",
+      "result": {
+        "exit_code": 0
+      },
+      "source": {
+        "log_name": "bozzard-batch-clippy-sweep-final.log",
+        "sha256": "ee48d2e6275c6b786e1e6efb48438661fba4cf197e4515d0b89cbab2fbcf42de",
+        "original_command_session_id": "10131",
+        "original_command_exit_code": 0,
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671"
+      },
+      "log_path": "workspace-default-clippy.log",
+      "log_bytes": 751,
+      "sha256": "ee48d2e6275c6b786e1e6efb48438661fba4cf197e4515d0b89cbab2fbcf42de",
+      "scope_status": "rerun_at_final_active_sweep_snapshot"
+    },
+    {
+      "id": "steam-clippy",
+      "kind": "clippy",
+      "status": "passed",
+      "command": "cargo clippy -p bozzard-network -p bozzard-player -p bozzard-editor-app --all-targets --features bozzard-player/steam,bozzard-editor-app/steam --locked --offline -- -D warnings > /tmp/bozzard-batch-steam-features-hierarchy-final.log 2>&1",
+      "result": {
+        "exit_code": 0
+      },
+      "source": {
+        "log_name": "bozzard-batch-steam-features-hierarchy-final.log",
+        "sha256": "b1c81946f4ead808859fce5194c592a8e02106d918415b25c9952b85a38ae866",
+        "original_command_session_id": "84761",
+        "original_command_exit_code": 0,
+        "production_source_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+      },
+      "log_path": "steam-clippy.log",
+      "log_bytes": 324,
+      "sha256": "b1c81946f4ead808859fce5194c592a8e02106d918415b25c9952b85a38ae866",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+    },
+    {
+      "id": "factory-clippy",
+      "kind": "clippy",
+      "status": "passed",
+      "command": "cargo clippy -p bozzard-editor-app --all-targets --features factory --locked --offline -- -D warnings > /tmp/bozzard-batch-factory-hierarchy-final.log 2>&1",
+      "result": {
+        "exit_code": 0
+      },
+      "source": {
+        "log_name": "bozzard-batch-factory-hierarchy-final.log",
+        "sha256": "f3d6a5c477a72a4081ee98ef28dc982b00783fcd094c5172eb09c1946d270d58",
+        "original_command_session_id": "81370",
+        "original_command_exit_code": 0,
+        "production_source_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+      },
+      "log_path": "factory-clippy.log",
+      "log_bytes": 656,
+      "sha256": "f3d6a5c477a72a4081ee98ef28dc982b00783fcd094c5172eb09c1946d270d58",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+    },
+    {
+      "id": "format",
+      "kind": "format",
+      "status": "passed",
+      "command": "cargo fmt --all -- --check > /tmp/bozzard-batch-format-sweep-final.log 2>&1",
+      "result": {
+        "exit_code": 0
+      },
+      "source": {
+        "log_name": "bozzard-batch-format-sweep-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "original_command_session_id": "69891",
+        "original_command_exit_code": 0,
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671"
+      },
+      "log_path": "format.log",
+      "log_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope_status": "rerun_at_final_active_sweep_snapshot"
+    },
+    {
+      "id": "headless-dependencies",
+      "kind": "dependency_check",
+      "status": "passed",
+      "command": "python3 tools/check_headless.py > /tmp/bozzard-batch-headless.log 2>&1",
+      "result": {
+        "exit_code": 0
+      },
+      "source": {
+        "log_name": "bozzard-batch-headless.log",
+        "sha256": "1c54088202cc41932f5dd306675d3ccbdfa4a498f1017c0ae0b9831bd3e34040",
+        "original_command_session_id": "69285",
+        "original_command_exit_code": 0
+      },
+      "log_path": "headless-dependencies.log",
+      "log_bytes": 122,
+      "sha256": "1c54088202cc41932f5dd306675d3ccbdfa4a498f1017c0ae0b9831bd3e34040",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "python-tools",
+      "kind": "python_tests",
+      "status": "passed",
+      "command": "python3 -m unittest discover -s tools -p 'test_*.py' -v > /tmp/bozzard-batch-python-acceptance.log 2>&1",
+      "result": {
+        "exit_code": 0,
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0
+      },
+      "source": {
+        "log_name": "bozzard-batch-python-acceptance.log",
+        "sha256": "db6d78577dcfe0e614a7fd9d1845dd50dcec056df7af93b44ab477a3460b81dd",
+        "original_command_session_id": "53846",
+        "original_command_exit_code": 0,
+        "production_source_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+      },
+      "counts_toward_unique_totals": true,
+      "log_path": "python-tools.log",
+      "log_bytes": 990,
+      "sha256": "db6d78577dcfe0e614a7fd9d1845dd50dcec056df7af93b44ab477a3460b81dd",
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies.",
+      "retained_from_validation_snapshot_commit": "ace70a3f2e5ffe136f26555acf210bf89e50a0ae"
+    },
+    {
+      "id": "render-doctests",
+      "kind": "rust_doc_tests",
+      "crate": "bozzard-render",
+      "target": "doctests",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-certified.log 2>&1",
+      "result": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": false,
+      "note": "Completed empty doc-test target; no tests were executed.",
+      "source": {
+        "log_name": "bozzard-batch-render-certified.log",
+        "sha256": "be3ffba86b5278aa7556ea87d71d131e93d61b4be242d3b87b9fa7b2e6f5262c",
+        "extracted_lines": {
+          "first": 305,
+          "last": 309
+        },
+        "original_command_session_id": "43043",
+        "original_command_exit_code": 0,
+        "production_source_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+      },
+      "log_path": "render-doctests.log",
+      "log_bytes": 140,
+      "sha256": "de4a366044c4cf0d02957c91bb1db3c70e959ee3ecc7a53e9ebabac41777ba46",
+      "scope_status": "retained_prior_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "render-assets-graph-ordering",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render-assets",
+      "target": "graph_ordering",
+      "status": "passed",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test graph_ordering --test retained_frames -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-assets-guards-fixed.log 2>&1",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_prior_scope",
+      "source": {
+        "log_name": "bozzard-batch-render-assets-guards-fixed.log",
+        "sha256": "8ab34c8f6e0ef9291e976a8c2404a576abc27fd671a421494ae09fc1ef7ae018",
+        "original_command_session_id": "53318",
+        "original_command_exit_code": 0,
+        "production_source_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+        "extracted_lines": {
+          "first": 16,
+          "last": 23
+        }
+      },
+      "log_path": "render-assets-graph-ordering.log",
+      "log_bytes": 548,
+      "sha256": "42f2691214621edba31413724b39c9ef9b66eac16e89ddd8478c8af8b4d125bd",
+      "repair_provenance": {
+        "supersedes_failed_compile_log_name": "bozzard-batch-render-assets-guards.log",
+        "note": "Successful corrected fixture uses public frame_stats(); the failed compile command is excluded."
+      },
+      "retained_from_validation_snapshot_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    },
+    {
+      "id": "measured-release-build",
+      "kind": "release_build",
+      "status": "passed",
+      "command": "cargo test --release --locked --offline -p bozzard-editor --test retained_render --no-run > /tmp/bozzard-batch-release-sweep-final.log 2>&1",
+      "result": {
+        "exit_code": 0,
+        "test_harness_built": true,
+        "test_harness_run": false
+      },
+      "scope_status": "rerun_at_final_active_sweep_snapshot",
+      "source": {
+        "log_name": "bozzard-batch-release-sweep-final.log",
+        "sha256": "4a6ba1d51e7a300559cd6c22bcf156194e97d9807395b632660be10d469f96c5",
+        "original_command_session_id": "12248",
+        "original_command_exit_code": 0,
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671"
+      },
+      "log_path": "measured-release-build.log",
+      "log_bytes": 488,
+      "sha256": "4a6ba1d51e7a300559cd6c22bcf156194e97d9807395b632660be10d469f96c5"
+    },
+    {
+      "id": "render-planner-hierarchy-cpu",
+      "kind": "rust_test_target",
+      "crate": "bozzard-render",
+      "target": "scene::instancing CPU active-sweep filter",
+      "status": "passed",
+      "command": "BOZZARD_BATCH_PLAN_DIAGNOSTICS=1 cargo test --locked --offline -p bozzard-render --lib scene::instancing::reuse:: -- --nocapture --test-threads=1 --skip animated_groups_require_exact_current_previous_and_tangent_streams > /tmp/bozzard-batch-planner-active-sweep.log 2>&1",
+      "result": {
+        "passed": 25,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 89
+      },
+      "counts_toward_unique_totals": false,
+      "source": {
+        "log_name": "bozzard-batch-planner-active-sweep.log",
+        "sha256": "80e955554c2a0c85ff04f74055fa804d068a23743d242594acd3117e2ff8067c",
+        "original_command_session_id": "82878",
+        "original_command_exit_code": 0,
+        "extracted_lines": {
+          "first": 4,
+          "last": 190
+        },
+        "source_snapshot_note": "Earlier pre-final-commit working tree; no exact commit was recorded for this supporting command. Final native render-lib independently reran all 25 names at the manifest current source commit."
+      },
+      "log_path": "render-planner-hierarchy-cpu.log",
+      "log_bytes": 28260,
+      "sha256": "2164f4f49576612ab9de0bb8ee9d9a47674535a05ed90acfc30603d5cbb2159e",
+      "note": "Supporting CPU-only filtered library run from the pre-final-commit working tree. All 25 selected names also passed in the final native renderer library target; these are duplicates excluded from unique totals.",
+      "retained_from_validation_snapshot_commit": null,
+      "scope_status": "retained_prior_scope",
+      "scope_label": "retained prior scope",
+      "retained_scope_note": "This selected output was not rerun at the current runtime snapshot. Recorded command, source-log hash and original source/session provenance are retained. This is earlier evidence, not a claim of execution with the current shared dependencies."
+    }
+  ],
+  "supporting_manifests": [
+    {
+      "path": "upstream-validation.json",
+      "sha256": "e1d455515f0165d4b264e4d66053fb358bb127c4b45b5972eca0b6f619f47d21",
+      "bytes": 12112
+    }
+  ],
+  "validation_snapshot_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671",
+  "snapshot_status": "completed_mixed_validation_snapshot",
+  "measured_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671",
+  "scope_refresh": {
+    "rerun_at_final_active_sweep_snapshot": [
+      "format",
+      "measured-release-build",
+      "render-instancing",
+      "render-lib",
+      "workspace-default-clippy"
+    ],
+    "retained_prior_scopes": [
+      "editor-fonts",
+      "editor-text-rendering",
+      "factory-clippy",
+      "headless-dependencies",
+      "python-tools",
+      "render-assets-graph-ordering",
+      "render-compute",
+      "render-demo-effects",
+      "render-doctests",
+      "render-fog",
+      "render-optics",
+      "render-particles",
+      "render-planner-hierarchy-cpu",
+      "render-post-processing",
+      "render-preparation",
+      "render-sprites",
+      "render-submission",
+      "render-surface-variants",
+      "render-temporal",
+      "render-volumetric",
+      "steam-clippy",
+      "upstream-assets-lib",
+      "upstream-assets-procedural_meshes",
+      "upstream-ecs-lib",
+      "upstream-render-assets-cooked_models",
+      "upstream-render-assets-lib",
+      "upstream-render-assets-residency",
+      "upstream-render-assets-retained_frames",
+      "upstream-render-sun_cache-policy",
+      "upstream-scene-interpolation",
+      "upstream-scene-lib",
+      "upstream-scene-shared_render_views"
+    ],
+    "retained_successful_targets_with_original_failed_aggregate_provenance": [
+      "render-compute",
+      "render-demo-effects",
+      "render-fog",
+      "upstream-render-assets-cooked_models"
+    ],
+    "prior_collected_validation_snapshot_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+  },
+  "measured_release_test_harness": {
+    "path": "work/batch-rendering-optimizations/optimized/retained_render",
+    "sha256": "2519767a449e67b34bf30102d61b74a3d8ad98c04f72cb389b42e10e42fd7f55",
+    "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671",
+    "hash_provenance": "Recorded by root for the saved optimized harness after the final active-sweep release build and before controlled timing."
+  },
+  "supporting_artifacts": [
+    {
+      "path": "sun-occlusion-proofs.log",
+      "kind": "selected_duplicate_proof_output",
+      "sha256": "bacf6aecf723105649ac170052f31eda56c6d5c3c08d3784493101c7bef4bcba",
+      "bytes": 661,
+      "counts_toward_unique_totals": false,
+      "source": {
+        "log_name": "bozzard-batch-render-sweep-final.log",
+        "sha256": "124af5147c8770403480bf1a9429db99d5043703355a19a220d3dcc76917d5f8",
+        "original_command_session_id": "30389",
+        "original_command_exit_code": 0,
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671"
+      },
+      "extracted_source_lines": [
+        81,
+        93,
+        97
+      ],
+      "note": "Exact Sun and occlusion warm-reuse proof lines from the completed current renderer lib target; these repeat render-lib.log and add no tests or performance samples."
+    },
+    {
+      "path": "graph-validation-proof.log",
+      "kind": "selected_duplicate_proof_output",
+      "sha256": "badcf5fc82f86da3483ca9fe7a8fce719c6e66c1d51c4ac5954ea8498c204dd8",
+      "bytes": 133,
+      "counts_toward_unique_totals": false,
+      "source": {
+        "log_name": "bozzard-batch-render-hierarchy-final.log",
+        "sha256": "ca450404fbecf806b852496b711a069040c25213aa9b97957b7d8700d228d6f0",
+        "original_command_session_id": "6133",
+        "original_command_exit_code": 0,
+        "production_source_commit": "356b3abfdf31807c5ef2bea85a7a707a0323c5f6"
+      },
+      "extracted_source_lines": [
+        219
+      ],
+      "note": "Exact numeric graph validation-scan reuse proof retained from the successful submission target at its recorded prior source; this repeats retained render-submission.log and adds no tests or performance samples.",
+      "scope_label": "retained prior scope"
+    },
+    {
+      "path": "factory-ordering-envelopes.bin",
+      "kind": "committed_cpu_fixture",
+      "sha256": "846a209a49842f345f3b58a2a28366348f8769dcceb1370fe48c406b6d310f2c",
+      "bytes": 80976,
+      "counts_toward_unique_totals": false,
+      "source": {
+        "repository_path": "crates/bozzard-render/tests/data/factory_ordering_envelopes.bin",
+        "format_reference": "crates/bozzard-render/tests/data/README.md",
+        "production_source_commit": "3fff7d91e4d1a972ba8f3d90af885e496fd21671"
+      },
+      "note": "Byte-exact copy of the committed worst Factory CPU ordering fixture; other temporary captures are not exported. Fixture content and work-count oracles are evidence, not release timing samples."
+    }
+  ],
+  "fixture_source": {
+    "path": "crates/bozzard-render/tests/instancing.rs",
+    "commit": "dd14ec70315b81cbe3c3e36af715fe51363a1f00",
+    "sha256": "cc4c4d1662503aaf1a8279604381013dd4894b6fc687d1c59d62c35eae0b8d05",
+    "note": "Test-only population/capacity correction; measured production runtime remains ace70a3f2e5ffe136f26555acf210bf89e50a0ae.",
+    "scope_label": "retained prior fixture provenance"
+  },
+  "python_tooling_validation_note": "The six pre-existing tools unit tests passed at the earlier recorded acceptance snapshot and are retained prior scope. They are not new dedicated benchmark-helper coverage or a current-snapshot rerun."
+}

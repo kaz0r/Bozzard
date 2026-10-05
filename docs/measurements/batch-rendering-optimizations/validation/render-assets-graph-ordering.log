@@ -1,0 +1,8 @@
+     Running tests/graph_ordering.rs (target/debug/deps/graph_ordering-c6ce3c7f61493000)
+
+running 1 test
+test numeric_graphs_preserve_literal_coplanar_winners_through_edits_and_membership ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+numeric_graph_order_proof comparisons=12 literal_opaque_winners=true shared_topology=true numeric_edits_insert_remove_reorder=true ordinary_and_instanced_exact=true draws=2->1
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 73.55s

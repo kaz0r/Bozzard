@@ -1,0 +1,4 @@
+    Blocking waiting for file lock on build directory
+    Checking bozzard-player v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/apps/player)
+    Checking bozzard-editor-app v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/apps/editor)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17m 17s

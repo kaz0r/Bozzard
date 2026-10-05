@@ -1,0 +1,8 @@
+    Blocking waiting for file lock on build directory
+    Checking bozzard-render v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/crates/bozzard-render)
+    Checking bozzard-render-assets v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/crates/bozzard-render-assets)
+    Checking bozzard-editor v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/crates/bozzard-editor)
+    Checking bozz-torio v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/apps/bozz-torio)
+    Checking bozzard-player v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/apps/player)
+    Checking bozzard-editor-app v0.1.0 (/Users/andre/Documents/projects/github/Bozzard/apps/editor)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4m 42s

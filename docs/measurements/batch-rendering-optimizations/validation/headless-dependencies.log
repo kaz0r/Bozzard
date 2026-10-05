@@ -1,0 +1,1 @@
+headless_dependencies_ok: simulation, CPU physics/text metrics, math, serialization; no device, window or importer crates

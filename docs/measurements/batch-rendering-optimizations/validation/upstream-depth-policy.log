@@ -1,0 +1,9 @@
+
+running 4 tests
+test policy::tests::intermittent_movers_keep_a_bounded_idle_grace ... ok
+test policy::tests::depth_admission_bounds_bytes_dimensions_and_checked_arithmetic ... ok
+test policy::tests::static_key_admission_bounds_counts_names_and_overflow ... ok
+test policy::tests::local_depth_budget_preserves_default_faces_and_rejects_larger_layers ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

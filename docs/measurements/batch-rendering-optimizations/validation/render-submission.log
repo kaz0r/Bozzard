@@ -1,0 +1,25 @@
+     Running tests/submission.rs (target/debug/deps/submission-52705b815de48e79)
+
+running 7 tests
+test exact_resource_state_caching_reduces_binds_without_changing_draws ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+resource_state_proof unchanged_draws=80 pipeline_binds=80->1 vertex_binds=160->2 index_binds=80->1 group_binds=240->82 exact_pixels=true
+ok
+test native_arena_reduces_10000_copies_from_157_draws_to_10_and_retains_uploads ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+arena_proof native=true reference_draws=157 candidate_draws=10 object_allocations=0 instance_id_bytes=40000
+arena_membership_proof 10000_warm_hash_insertions=0 exact_pixels=true edits_reuse=true insertion_removal_remap=true
+ok
+test native_geometry_arena_combines_distinct_meshes_with_exact_rebased_indices ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test native_lit_object_rows_and_numeric_graphs_match_portable_through_multilight_churn ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+native_lit_arena_proof native=true 300_objects 32_local_lights stock_PBR_graph nonzero_group_ranges 72_frames exact_pixels=true
+ok
+test native_multi_draw_retains_nonzero_first_instance_and_dirty_arguments ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+multi_draw_proof native_arena=true native_multi_draw=false logical_draws=8 indirect_runs=0 indirect_commands=0 argument_bytes=0
+ok
+test per_instance_numeric_graph_values_match_portable_arrays_through_parameter_edits ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+graph_validation_proof cold_scans=132 warm_scans=0 edited_scans=1 edited_bytes=256 equal_arc_scans=0 invalid_and_reverted_exact=true
+ok
+test retained_bundles_replay_exact_pixels_and_rebuild_when_resources_or_ranges_change ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 111.22s

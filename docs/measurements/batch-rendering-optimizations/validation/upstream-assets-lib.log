@@ -1,0 +1,57 @@
+     Running unittests src/lib.rs (target/debug/deps/bozzard_assets-51b35ff1282ab7ae)
+
+running 52 tests
+test audio::tests::compressed_catalogs_keep_only_checked_metadata_and_detect_content_changes ... ok
+test blockout::tests::closed_brushes_have_outward_faces_expected_volume_and_bounded_geometry ... ok
+test cook_source::tests::source_edits_cannot_change_the_payload_of_an_existing_snapshot ... ok
+test cooked_model::tests::compression_cooks_shared_model_images_once_with_required_color_spaces ... ok
+test cooked_model::tests::corrupt_counts_references_geometry_rigs_and_trailing_data_are_rejected ... ok
+test cooked_model::tests::native_models_preserve_geometry_materials_shared_maps_and_animated_poses ... ok
+test gi::sampling::tests::spherical_samples_and_octahedral_mapping_cover_both_hemispheres ... ok
+test gi::tests::asset_byte_replacement_invalidates_but_failed_reload_and_rebase_preserve_source ... ok
+test gi::tests::bake_constant_environment_preserves_diffuse_energy_and_is_deterministic ... ok
+test gi::tests::blueprint_external_targets_and_descendants_are_not_baked_as_static ... ok
+test gi::tests::diffuse_second_bounce_adds_energy_and_closed_solid_probes_are_rejected ... ok
+test gi::tests::dynamic_exclusion_handles_reverse_order_deep_hierarchies ... ok
+test gi::tests::fingerprint_excludes_display_and_camera_but_tracks_static_transport ... ok
+test gi::tests::malformed_bakes_and_volume_settings_are_rejected ... ok
+test gi::tests::realtime_local_shadows_do_not_expire_baked_transport ... ok
+test gi::tests::sunlight_bounces_wall_color_and_occlusion_removes_it ... ok
+test gi::tests::surface_edits_move_gi_geometry_and_replace_only_its_texture ... ok
+test gi::trace::tests::cpu_transport_uses_srgb_tints_cutouts_and_explicit_texture_override ... ok
+test gi::trace::tests::directional_bounce_ignores_position_and_range_but_respects_direction ... ok
+test gi::trace::tests::metallic_map_removes_diffuse_emission_uses_its_uv_and_double_sided_flips_normal ... ok
+test materials::tests::inherited_maps_and_keywords_resolve_from_immutable_sources ... ok
+test optimize::tests::cross_surface_sharing_never_expands_buffers ... ok
+test optimize::tests::lossless_welding_preserves_all_stream_bits_and_triangle_picking_order ... ok
+test optimize::tests::noncanonical_part_spans_preserve_source_indices_ranges_and_picking_ids ... ok
+test optimize::tests::upload_optimizer_keeps_source_and_rejects_invalid_unused_skin_data ... ok
+test picking::tests::bvh_matches_linear_hits_misses_edges_and_nonunit_rays ... ok
+test picking::tests::cancelled_build_is_not_published ... ok
+test picking::tests::coincident_degenerate_scaled_geometry_and_invalid_rays ... ok
+test simplify::tests::simplification_scale_benchmark ... ignored, release-mode offline mesh-generation benchmark; run explicitly
+test simplify::tests::simplifies_real_geometry_and_preserves_all_locked_boundary_vertices ... ok
+test simplify::tests::surfaces_and_attributes_are_kept_independent_and_malformed_ranges_fail ... ok
+test terrain::tests::brushes_are_bounded_and_smoothing_is_symmetric ... ok
+test terrain::tests::sloped_mesh_sampling_normals_and_roundtrip_agree ... ok
+test tests::background_refresh_keeps_live_data_until_published_and_recovers ... ok
+test tests::canonical_file_aliases_share_exact_snapshots_and_keep_content_keys_distinct ... ok
+test tests::canonical_primary_aliases_keep_authored_relative_dependencies_distinct ... ok
+test tests::gltf_data_uri_bakes_transforms_materials_textures_and_winding ... ok
+test tests::gltf_emission_strength_survives_portable_and_cooked_roundtrips ... ok
+test tests::gltf_external_dependencies_reload_and_portabilize ... ok
+test tests::gltf_pbr_maps_share_images_preserve_uvs_samplers_and_tangents ... ok
+test tests::gltf_surfaces_share_decoded_images_without_merging_alpha_variants ... ok
+test tests::gltf_uses_requested_uv_set_and_accepts_small_nonzero_scale ... ok
+test tests::imported_surface_labels_preserve_names_and_distinguish_primitives ... ok
+test tests::jpeg_import_and_image_limits_are_enforced ... ok
+test tests::model_texture_reload_preserves_last_good_and_recovers ... ok
+test tests::obj_import_generates_normals_and_flips_uv_origin ... ok
+test tests::picking_index_follows_shared_geometry_across_reload_and_catalog_snapshots ... ok
+test tests::reload_keeps_handles_and_last_good_data_through_corruption_deletion_and_recovery ... ok
+test tests::surface_signatures_allow_material_edits_but_reject_geometry_or_slot_changes ... ok
+test texture::tests::codecs_preserve_quality_mips_and_lossless_fallback ... ok
+test texture::tests::malformed_truncated_stale_and_cancelled_cooks_fail ... ok
+test texture::tests::mip_filtering_respects_gamma_alpha_and_independent_data_channels ... ok
+
+test result: ok. 51 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.63s

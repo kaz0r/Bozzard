@@ -1,0 +1,14 @@
+     Running tests/shared_render_views.rs (target/debug/deps/shared_render_views-6f86f707843fbce0)
+
+running 9 tests
+test signed_zero_changes_are_preserved_in_drawable_material_and_graph_payloads ... ok
+test removed_payloads_are_released_and_clones_have_independent_caches ... ok
+test same_tick_and_bypassed_edits_refresh_only_affected_payloads ... ok
+test hidden_graph_and_drawable_removal_release_warm_cache_payloads ... ok
+test inspection_lod_culling_and_material_surface_changes_match_owned_extraction ... ok
+test sparse_transform_closure_reads_only_changed_subtrees_and_matches_full_scan_oracle ... ok
+test interpolation_resets_text_light_and_sprite_views_remain_consistent ... ok
+test prefab_despawn_generation_reuse_and_additive_loads_never_replay_cached_payloads ... ok
+test shared_snapshots_match_owned_views_and_reuse_payloads_when_poses_change ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

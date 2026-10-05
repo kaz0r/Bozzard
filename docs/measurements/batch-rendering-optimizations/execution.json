@@ -1,0 +1,290 @@
+{
+  "completed_at_utc": "2026-10-05T09:49:39.265950+00:00",
+  "command": [
+    "python3",
+    "tools/profile_batch_rendering.py",
+    "--baseline",
+    "work/batch-rendering-optimizations/baseline/retained_render",
+    "--optimized",
+    "work/batch-rendering-optimizations/optimized/retained_render",
+    "--baseline-commit",
+    "2b4351083dfb6dbb25221c75e8e3c1dabc72c835",
+    "--optimized-commit",
+    "3fff7d91e4d1a972ba8f3d90af885e496fd21671",
+    "--output",
+    "work/batch-rendering-optimizations/comparison-proof-final",
+    "--runs",
+    "3",
+    "--profile",
+    "both",
+    "--max-channel-delta",
+    "1",
+    "--max-differing-pixels",
+    "1",
+    "--max-differing-channels",
+    "1"
+  ],
+  "command_session_id": 78154,
+  "exit_code": 0,
+  "profile_helper_sha256": "1ea35b220689ed3d1d3cbb6a8d7e6f6f106892a95741c351ccba20caa1c1934a",
+  "binary_sha256": {
+    "baseline": "d5d26b8f117392aef10eff2a6ac03132db128efb95700e416a1c4081d8327e35",
+    "optimized": "2519767a449e67b34bf30102d61b74a3d8ad98c04f72cb389b42e10e42fd7f55"
+  },
+  "processes": [
+    {
+      "run": 1,
+      "profile": "graph",
+      "version": "baseline",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/baseline/retained_render",
+        "profile_earth_factory_graph_instancing",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-1/graph/baseline",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 46.80s",
+      "original_log_sha256": "1fdc51eb12871cc901f19c4fffc2fb0fc6b4ab28b1bfd52b2b2a73d6e875e0ad",
+      "original_log_bytes": 204591
+    },
+    {
+      "run": 1,
+      "profile": "graph",
+      "version": "optimized",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/optimized/retained_render",
+        "profile_earth_factory_graph_instancing",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-1/graph/optimized",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.46s",
+      "original_log_sha256": "4d06e411bf43a70955ef88afa9e76449116f5c7c62183c1adea363482ed36101",
+      "original_log_bytes": 213428
+    },
+    {
+      "run": 1,
+      "profile": "full",
+      "version": "baseline",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/baseline/retained_render",
+        "profile_earth_factory_batch_planning",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_RETAINED_RENDER_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-1/full/baseline",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.92s",
+      "original_log_sha256": "029a77cbb463e3e58e2dd9e189c892810e624972210ff8775915e9a12af6e525",
+      "original_log_bytes": 127686
+    },
+    {
+      "run": 1,
+      "profile": "full",
+      "version": "optimized",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/optimized/retained_render",
+        "profile_earth_factory_batch_planning",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_RETAINED_RENDER_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-1/full/optimized",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.58s",
+      "original_log_sha256": "37622265da366c457ceed42ce443f472604667d917bbc4e6dd35a3e11cce2559",
+      "original_log_bytes": 134125
+    },
+    {
+      "run": 2,
+      "profile": "graph",
+      "version": "baseline",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/baseline/retained_render",
+        "profile_earth_factory_graph_instancing",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-2/graph/baseline",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.70s",
+      "original_log_sha256": "3c99bac53a27f675ba0a4c656c348bfdf0a6d31ece5416eec74152a5ac21dadd",
+      "original_log_bytes": 204595
+    },
+    {
+      "run": 2,
+      "profile": "graph",
+      "version": "optimized",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/optimized/retained_render",
+        "profile_earth_factory_graph_instancing",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-2/graph/optimized",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 48.02s",
+      "original_log_sha256": "39afd4d1201b039ea6dd8d762afb39d3ec3c53f59a8ef2a904b6ccf42ae11c13",
+      "original_log_bytes": 213850
+    },
+    {
+      "run": 2,
+      "profile": "full",
+      "version": "baseline",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/baseline/retained_render",
+        "profile_earth_factory_batch_planning",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_RETAINED_RENDER_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-2/full/baseline",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.88s",
+      "original_log_sha256": "e549d78cee8c0c71c9428e94f773e6a50dd303e4c5ef9ba13bf468aa2803b042",
+      "original_log_bytes": 128245
+    },
+    {
+      "run": 2,
+      "profile": "full",
+      "version": "optimized",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/optimized/retained_render",
+        "profile_earth_factory_batch_planning",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_RETAINED_RENDER_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-2/full/optimized",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 49.72s",
+      "original_log_sha256": "8e075224741b6df30bf102afb9c8ba8453e26edc871f4fb00b41ae95248ef064",
+      "original_log_bytes": 134700
+    },
+    {
+      "run": 3,
+      "profile": "graph",
+      "version": "baseline",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/baseline/retained_render",
+        "profile_earth_factory_graph_instancing",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-3/graph/baseline",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.16s",
+      "original_log_sha256": "1e1f2ca13169f3e34fcdf45ee558fc6a166ebd5b60218e58fc5399cb81f36ba9",
+      "original_log_bytes": 204706
+    },
+    {
+      "run": 3,
+      "profile": "graph",
+      "version": "optimized",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/optimized/retained_render",
+        "profile_earth_factory_graph_instancing",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_GRAPH_INSTANCING_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-3/graph/optimized",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 48.03s",
+      "original_log_sha256": "490838f7e0a4637a43584c3b05568d9b4ff6f3651ab6f1202788afc096cb5353",
+      "original_log_bytes": 213772
+    },
+    {
+      "run": 3,
+      "profile": "full",
+      "version": "baseline",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/baseline/retained_render",
+        "profile_earth_factory_batch_planning",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_RETAINED_RENDER_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-3/full/baseline",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.62s",
+      "original_log_sha256": "b99c759e371bf9f9a9f945dd5025e24325ce657bdfa463d40aa4d362808c1324",
+      "original_log_bytes": 128150
+    },
+    {
+      "run": 3,
+      "profile": "full",
+      "version": "optimized",
+      "command": [
+        "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/optimized/retained_render",
+        "profile_earth_factory_batch_planning",
+        "--ignored",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "output_variable": "BOZZARD_RETAINED_RENDER_OUTPUT",
+      "output_directory": "/Users/andre/Documents/projects/github/Bozzard/work/batch-rendering-optimizations/comparison-proof-final/run-3/full/optimized",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 47.64s",
+      "original_log_sha256": "de271f856081fdcc4be79c9c78112abef82c11dedfd5b7e911981fda6fb87e33",
+      "original_log_bytes": 134292
+    }
+  ],
+  "internal_exact_rgba_pairs": 144,
+  "cross_version_rgb_pairs": 144,
+  "exact_cross_version_rgb_pairs": 96,
+  "bounded_cross_version_rgb_pairs": 48,
+  "image_gate": {
+    "max_channel_delta_8bit": 1,
+    "max_differing_pixels_per_capture": 1,
+    "max_differing_channels_per_capture": 1
+  },
+  "output_sha256": {
+    "summary.json": "e6dc80655a5c72e297a0736f766b59ef3778d8acbe20c829a076d70cb223d09e",
+    "execution.log": "a75c319c0c8222bfc406caea2fc086c15350e1b51c1225adea47eba15384bbdd",
+    "profile-results.log": "9d081650e096106368209cd500f1d2cd97b25e8a74fe8828821079d366027215"
+  },
+  "notes": [
+    "12 independent release processes; 3 alternating pairs per profile.",
+    "Every process asserts 12 exact internal RGBA pairs and unchanged scene/checkpoint state.",
+    "The unabridged raw reports are in summary.json; profile-results.log preserves only adapter/result lines, with original log hashes recorded here.",
+    "Original PPMs and saved binaries remain in ignored work output; all cross-version capture hashes and differences are preserved in summary.json.",
+    "No builds or other native GPU tests ran during timing. GPU samples do not establish GPU speedup or FPS."
+  ],
+  "validation_manifest_sha256": "7712c97ad47c87db87fc28ca89b3ba24869989d6f99661d0a34c6ad18252d976",
+  "chart": {
+    "generator": "tools/chart_batch_rendering.py",
+    "generator_sha256": "c92a91e192b168be175d01156ac983cc5c2354ea6ce98f2664222c962b9d1d88",
+    "source_summary_sha256": "e6dc80655a5c72e297a0736f766b59ef3778d8acbe20c829a076d70cb223d09e",
+    "command": [
+      "/tmp/bozzard-batch-chart-venv/bin/python",
+      "tools/chart_batch_rendering.py"
+    ],
+    "exit_code": 0,
+    "artifacts": {
+      "cpu-comparison.png": "09a7249268c52ff524c1d7a9a65abba96867e21f1bbecced4c1093dd2287bcbd",
+      "cpu-comparison.svg": "db671d90c70e80f68c390114596e5171c3c1dfce362f2d84d6469fdf32f02805"
+    },
+    "description": "Bars show the median of three run medians; whiskers show the min/max of those medians, not confidence intervals. Both axes start at zero. CPU metrics exclude GPU waiting; no FPS claim.",
+    "command_tool_chunk_id": "87d4de"
+  }
+}

@@ -1,0 +1,7 @@
+     Running tests/particles.rs (target/debug/deps/particles-c26c177e41658b81)
+
+running 1 test
+test lit_particles_soft_depth_trails_ordering_and_resize_budget ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 44.82s
