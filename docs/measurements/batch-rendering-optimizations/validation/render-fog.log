@@ -1,0 +1,8 @@
+     Running tests/fog.rs (target/debug/deps/fog-a7bca3f2ae6d6c51)
+
+running 2 tests
+test fog_gpu_basic_pbr_distance_height_alpha_and_bypass ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test fog_shaders_validate ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 42.41s

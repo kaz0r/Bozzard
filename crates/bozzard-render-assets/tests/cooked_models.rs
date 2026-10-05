@@ -70,7 +70,15 @@ fn render(
     scene: &RenderScene,
     features: wgpu::Features,
 ) -> anyhow::Result<Frame> {
-    let source = bozzard_render_assets::upload_source_with_features(data, features)?;
+    let source = bozzard_render_assets::upload_source_reference_with_features(data, features)?;
+    render_source(gpu, renderer, source, scene)
+}
+fn render_source(
+    gpu: &Gpu,
+    renderer: &mut SceneRenderer,
+    source: Arc<dyn UploadSource>,
+    scene: &RenderScene,
+) -> anyhow::Result<Frame> {
     let expected = upload_memory_bytes(source.as_ref())?;
     let mut upload = renderer.begin_upload(gpu, source)?;
     assert_eq!(upload.memory_bytes(), expected);
@@ -173,5 +181,101 @@ fn cooked_static_and_skinned_models_match_native_reference_and_reduce_texture_st
             }
         }
     }
+    Ok(())
+}
+
+#[test]
+fn lossless_full_resolution_cooking_reduces_uploaded_vertices_with_exact_alpha_output()
+-> anyhow::Result<()> {
+    use bozzard_assets::{MeshData, MeshPart};
+    let a = [-1., 0., 0., 0., 0., 1., 0., 0.];
+    let b = [1., 0., 0., 0., 0., 1., 1., 0.];
+    let c = [0., 2., 0., 0., 0., 1., 0., 1.];
+    let mesh = MeshData {
+        vertices: vec![a, b, c, a, b, c],
+        indices: vec![3, 4, 5, 0, 1, 2],
+        parts: vec![MeshPart {
+            source_key: "original-alpha-triangles".into(),
+            name: "overlapping alpha".into(),
+            material_name: None,
+            start: 0,
+            count: 6,
+            color: [1., 0.2, 0.3, 0.5],
+            image: None,
+            alpha_cutoff: None,
+            shading: None,
+        }],
+        skin: None,
+        warnings: Vec::new(),
+    };
+    let cooked = cooked_model::decode(&cooked_model::encode(&mesh, &[], &Progress::default())?)?;
+    assert_eq!(mesh.vertices.len(), 6);
+    assert_eq!(cooked.vertices.len(), 3);
+    assert_eq!(cooked.indices, [0, 1, 2, 0, 1, 2]);
+    assert_eq!(cooked.parts[0].source_key, mesh.parts[0].source_key);
+    let original = Arc::new(AssetData::Mesh(mesh.clone()));
+    let cooked = Arc::new(AssetData::Mesh(cooked));
+    let features = wgpu::Features::empty();
+    let mut sizes = Vec::new();
+    for (data, expected_vertices) in [(original.clone(), 6), (cooked.clone(), 3)] {
+        let source = bozzard_render_assets::upload_source_reference_with_features(data, features)?;
+        let UploadData::Model {
+            vertices, indices, ..
+        } = source.data()
+        else {
+            panic!("mesh did not produce a model upload")
+        };
+        assert_eq!(vertices.len(), expected_vertices);
+        assert_eq!(indices.len(), 6);
+        sizes.push(upload_memory_bytes(source.as_ref())?);
+    }
+    assert_eq!(sizes[0] - sizes[1], 3 * std::mem::size_of::<[f32; 8]>());
+    let optimized_raw =
+        bozzard_render_assets::upload_source_with_features(original.clone(), features)?;
+    let UploadData::Model {
+        vertices, indices, ..
+    } = optimized_raw.data()
+    else {
+        panic!()
+    };
+    assert_eq!(
+        vertices.len(),
+        3,
+        "ordinary raw uploads use optimized GPU buffers"
+    );
+    assert_eq!(indices, [0, 1, 2, 0, 1, 2]);
+    assert_eq!(upload_memory_bytes(optimized_raw.as_ref())?, sizes[1]);
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&wgpu::Instance::default()))?;
+    let mut reference_renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let mut optimized_renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let frame_scene = scene(&mesh, 0.)?;
+    let before = render(
+        &gpu,
+        &mut reference_renderer,
+        original,
+        &frame_scene,
+        features,
+    )?;
+    let after = render(
+        &gpu,
+        &mut optimized_renderer,
+        cooked,
+        &frame_scene,
+        features,
+    )?;
+    assert!(
+        before
+            .rgba
+            .chunks_exact(4)
+            .any(|p| p[..3] != before.rgba[..3])
+    );
+    assert_eq!(before.rgba, after.rgba);
+    let mut raw_renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let raw = render_source(&gpu, &mut raw_renderer, optimized_raw, &frame_scene)?;
+    assert_eq!(before.rgba, raw.rgba);
+    println!(
+        "lossless_geometry vertices=6 -> 3 upload_bytes={} -> {} exact_rgba=true",
+        sizes[0], sizes[1]
+    );
     Ok(())
 }

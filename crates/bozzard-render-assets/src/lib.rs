@@ -175,7 +175,15 @@ pub fn needs_gpu(data: &AssetData) -> bool {
         || matches!(data, AssetData::Material(material) if material.image.is_some())
 }
 
-struct SharedSource(Arc<AssetData>, wgpu::Features);
+struct SharedSource(Arc<AssetData>, wgpu::Features, Option<Box<MeshData>>);
+impl SharedSource {
+    fn mesh(&self) -> Option<&MeshData> {
+        match self.0.as_ref() {
+            AssetData::Mesh(original) => Some(self.2.as_deref().unwrap_or(original)),
+            _ => None,
+        }
+    }
+}
 impl bozzard_render::UploadSource for SharedSource {
     fn validate(&self) -> anyhow::Result<()> {
         let mut seen = std::collections::BTreeSet::new();
@@ -280,9 +288,7 @@ impl bozzard_render::UploadSource for SharedSource {
         })
     }
     fn skin(&self) -> Option<bozzard_render::SkinData<'_>> {
-        let AssetData::Mesh(mesh) = self.0.as_ref() else {
-            return None;
-        };
+        let mesh = self.mesh()?;
         let skin = mesh.skin.as_ref()?;
         Some(bozzard_render::SkinData {
             signature: skin.rig.signature(),
@@ -306,11 +312,14 @@ impl bozzard_render::UploadSource for SharedSource {
                 unreachable!("non-rendered assets are excluded by upload_source")
             }
             AssetData::Image(data) => bozzard_render::UploadData::Image(image(data)),
-            AssetData::Mesh(mesh) => bozzard_render::UploadData::Model {
-                vertices: &mesh.vertices,
-                indices: &mesh.indices,
-                parts: model_parts(mesh),
-            },
+            AssetData::Mesh(_) => {
+                let mesh = self.mesh().expect("model upload");
+                bozzard_render::UploadData::Model {
+                    vertices: &mesh.vertices,
+                    indices: &mesh.indices,
+                    parts: model_parts(mesh),
+                }
+            }
         }
     }
 }
@@ -320,13 +329,33 @@ pub fn upload_source(
     upload_source_with_features(data, wgpu::Features::empty())
 }
 /// Select only enabled device formats; an unsupported or unaligned texture uses
-/// original pixels. The default upload_source remains an exact RGBA reference path.
+/// original pixels. Full-resolution geometry uses a lossless GPU sibling while
+/// source assets remain immutable; CPU preparation belongs on a loading worker.
 pub fn upload_source_with_features(
     data: Arc<AssetData>,
     features: wgpu::Features,
 ) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
+    upload_source_with_progress(data, features, &bozzard_assets::job::Progress::default())
+}
+pub(crate) fn upload_source_with_progress(
+    data: Arc<AssetData>,
+    features: wgpu::Features,
+    progress: &bozzard_assets::job::Progress,
+) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
     anyhow::ensure!(needs_gpu(&data), "this asset has no GPU resources");
-    Ok(Arc::new(SharedSource(data, features)))
+    let mesh = match data.as_ref() {
+        AssetData::Mesh(mesh) => Some(Box::new(mesh.optimized_for_upload(progress)?)),
+        _ => None,
+    };
+    Ok(Arc::new(SharedSource(data, features, mesh)))
+}
+/// Exact original geometry reference and conservative pre-worker footprint.
+pub fn upload_source_reference_with_features(
+    data: Arc<AssetData>,
+    features: wgpu::Features,
+) -> anyhow::Result<Arc<dyn bozzard_render::UploadSource>> {
+    anyhow::ensure!(needs_gpu(&data), "this asset has no GPU resources");
+    Ok(Arc::new(SharedSource(data, features, None)))
 }
 pub fn upload(
     gpu: &Gpu,
@@ -351,6 +380,8 @@ pub fn upload(
             renderer.upload_image(gpu, id, image.width, image.height, &image.rgba)
         }
         AssetData::Mesh(mesh) => {
+            let optimized = mesh.optimized_for_upload(&bozzard_assets::job::Progress::default())?;
+            let mesh = &optimized;
             if let Some(skin) = &mesh.skin {
                 renderer.upload_skinned_model(
                     gpu,
@@ -391,14 +422,24 @@ pub fn shader_variant_source(
 }
 
 mod shaders;
+pub use shaders::set_graph_parameterization_enabled;
 mod shared_materials;
 pub use shared_materials::material_binding;
 mod frame;
-pub use frame::{RenderFrame, RenderSceneCache, RenderSceneStats, irradiance_volume, render_scene};
+pub use frame::{
+    GiFreshnessStats, RenderFrame, RenderSceneCache, RenderSceneStats, gi_freshness_stats,
+    irradiance_volume, render_scene,
+};
 
 /// Shared atlas geometry uses content-cached GPU meshes, including an entire tilemap in one draw.
 pub fn sprite_items(
     sprites: &[bozzard_scene::middleware::sprite::Visual],
+) -> anyhow::Result<Vec<bozzard_render::DrawItem>> {
+    sprite_items_resolved(sprites, str::to_owned)
+}
+pub(crate) fn sprite_items_resolved(
+    sprites: &[bozzard_scene::middleware::sprite::Visual],
+    resolve: impl Fn(&str) -> String,
 ) -> anyhow::Result<Vec<bozzard_render::DrawItem>> {
     sprites
         .iter()
@@ -418,7 +459,7 @@ pub fn sprite_items(
                     surface_overrides: Default::default(),
                     tint: [sprite.color[0], sprite.color[1], sprite.color[2]],
                     uv_scale: [1.; 2],
-                    texture: bozzard_render::TextureKind::Imported(sprite.image.clone()),
+                    texture: bozzard_render::TextureKind::Imported(resolve(&sprite.image)),
                     lit: false,
                     shader: None,
                 },

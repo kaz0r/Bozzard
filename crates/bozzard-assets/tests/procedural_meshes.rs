@@ -79,8 +79,26 @@ fn terrain_and_brushes_use_mesh_picking_raw_packages_and_immutable_cooking() -> 
             let AssetData::Mesh(mesh) = entry.data().unwrap() else {
                 panic!()
             };
-            assert_eq!(mesh.indices, original.indices);
-            assert_eq!(mesh.vertices, original.vertices);
+            assert_eq!(mesh.indices.len(), original.indices.len());
+            let attributes = |mesh: &bozzard_assets::MeshData| {
+                mesh.indices
+                    .iter()
+                    .map(|&index| mesh.vertices[index as usize].map(f32::to_bits))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(attributes(mesh), attributes(&original));
+            assert!(mesh.vertices.len() <= original.vertices.len());
+            assert_eq!(
+                mesh.parts
+                    .iter()
+                    .map(|part| &part.source_key)
+                    .collect::<Vec<_>>(),
+                original
+                    .parts
+                    .iter()
+                    .map(|part| &part.source_key)
+                    .collect::<Vec<_>>()
+            );
             let hit = entry.raycast(Vec3::new(0., 10., 0.), Vec3::NEG_Y).unwrap();
             assert!((hit.distance - (10. - expected_height)).abs() < 1e-5);
         }

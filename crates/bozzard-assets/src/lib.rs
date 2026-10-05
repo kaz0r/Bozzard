@@ -9,6 +9,7 @@ mod fonts;
 pub mod gi;
 pub mod job;
 mod mesh_export;
+mod optimize;
 mod package;
 mod pbr;
 mod picking;
@@ -97,6 +98,40 @@ pub struct MeshPart {
 }
 
 impl MeshData {
+    /// Immutable GPU sibling preserving indexed attribute bits and primitive order.
+    /// Authoring, source signatures and picking retain the original CPU geometry.
+    pub fn optimized_for_upload(&self, progress: &job::Progress) -> Result<Self> {
+        simplify::validate_geometry(self)?;
+        if let Some(skin) = &self.skin {
+            anyhow::ensure!(
+                skin.vertices.len() == self.vertices.len()
+                    && !skin.rig.bindings.is_empty()
+                    && skin.rig.bindings.len() <= 4096,
+                "invalid uploaded skin size"
+            );
+            for (index, influence) in skin.vertices.iter().enumerate() {
+                if index.is_multiple_of(4096) {
+                    progress.check()?;
+                }
+                let mut sum = 0.;
+                for axis in 0..4 {
+                    let weight = f32::from_bits(influence[axis + 4]);
+                    anyhow::ensure!(
+                        (influence[axis] as usize) < skin.rig.bindings.len()
+                            && weight.is_finite()
+                            && weight >= 0.,
+                        "invalid uploaded skin influence"
+                    );
+                    sum += weight;
+                }
+                anyhow::ensure!(
+                    (sum - 1.).abs() < 0.001,
+                    "uploaded skin weights must sum to one"
+                );
+            }
+        }
+        optimize::mesh(self, progress)
+    }
     pub fn part_bounds(&self, index: usize) -> Option<[Vec3; 2]> {
         let part = self.parts.get(index)?;
         let indices = self
@@ -267,6 +302,10 @@ impl Entry {
     pub fn mesh_bounds(&self) -> Option<[Vec3; 2]> {
         self.mesh_index.as_ref()?.bounds()
     }
+    /// Immutable source-surface bounds published with the matching picking index.
+    pub fn mesh_part_bounds(&self, index: usize) -> Option<[Vec3; 2]> {
+        self.mesh_index.as_ref()?.part_bounds(index)
+    }
     pub fn mesh_pick_stats(&self) -> Option<MeshPickStats> {
         self.mesh_index.as_ref().map(|index| index.stats())
     }
@@ -278,11 +317,24 @@ pub struct AssetStore {
     root: PathBuf,
     entries: Vec<Entry>,
     handles: BTreeMap<String, Handle>,
+    publication: Arc<()>,
+    canonical_ids: Arc<std::sync::OnceLock<std::collections::HashMap<usize, String>>>,
 }
 
 impl AssetStore {
     /// Resolve a stable surface binding. Changed source geometry must be rebound explicitly.
     pub fn mesh_surface(&self, mesh: &bozzard_scene::Mesh) -> Option<(&MeshPart, [Vec3; 2])> {
+        let part = self.mesh_surface_binding(mesh)?;
+        let bozzard_scene::Mesh::Surface { asset, index, .. } = mesh else {
+            return None;
+        };
+        let bounds = self
+            .get(self.handle(asset)?)?
+            .mesh_part_bounds(*index as usize)?;
+        Some((part, bounds))
+    }
+    /// Validate a source binding without scanning geometry or calculating bounds.
+    pub fn mesh_surface_binding(&self, mesh: &bozzard_scene::Mesh) -> Option<&MeshPart> {
         let bozzard_scene::Mesh::Surface {
             asset,
             index,
@@ -295,7 +347,7 @@ impl AssetStore {
             return None;
         };
         let part = mesh.parts.get(*index as usize)?;
-        (part.source_key == *source).then_some((part, mesh.part_bounds(*index as usize)?))
+        (part.source_key == *source && part.count != 0).then_some(part)
     }
     pub fn new(root: &Path, sources: &BTreeMap<String, AssetSource>) -> Result<Self> {
         let id = NEXT_STORE
@@ -325,6 +377,8 @@ impl AssetStore {
             root: root.to_path_buf(),
             entries,
             handles,
+            publication: Arc::new(()),
+            canonical_ids: Default::default(),
         })
     }
 
@@ -348,6 +402,8 @@ impl AssetStore {
         entry.data = Some(Arc::new(AssetData::Prefab(data)));
         entry.state = LoadState::Ready;
         entry.revision += 1;
+        self.publication = Arc::new(());
+        self.canonical_ids = Default::default();
         Ok(())
     }
 
@@ -362,6 +418,38 @@ impl AssetStore {
     }
     pub fn entries(&self) -> impl Iterator<Item = &Entry> {
         self.entries.iter()
+    }
+    /// Successful data publications and catalog replacement receive a fresh token.
+    /// Clones share a token until they diverge; equal numeric revisions are insufficient.
+    pub fn publication_identity(&self) -> &Arc<()> {
+        &self.publication
+    }
+
+    /// Stable catalog ID of this exact immutable resource. Canonical file aliases
+    /// share decoded storage; independently edited aliases retain distinct keys.
+    /// Source mesh surface indices and authored source signatures are untouched.
+    pub fn canonical_asset_id<'a>(&'a self, id: &'a str) -> &'a str {
+        let Some(data) = self
+            .handle(id)
+            .and_then(|h| self.get(h))
+            .and_then(|entry| entry.data())
+        else {
+            return id;
+        };
+        let identities = self.canonical_ids.get_or_init(|| {
+            let mut identities = std::collections::HashMap::with_capacity(self.entries.len());
+            for entry in &self.entries {
+                if let Some(data) = entry.data() {
+                    identities
+                        .entry(data as *const AssetData as usize)
+                        .or_insert_with(|| entry.id.clone());
+                }
+            }
+            identities
+        });
+        identities
+            .get(&(data as *const AssetData as usize))
+            .map_or(id, String::as_str)
     }
 
     /// Compose an editor-only catalog from decoded entries. No files are read and
@@ -402,7 +490,13 @@ impl AssetStore {
             if let Some(old) = self.handle(&entry.id).and_then(|h| self.get(h)) {
                 let old_path = self.root.join(&old.source.path);
                 let same_path = old_path == new_path
-                    || std::fs::canonicalize(&old_path)
+                    // Relative resources follow the authored location. Canonical
+                    // primary aliases can bypass decoding only when there are no
+                    // external dependencies and the format selector is unchanged.
+                    || old.observed.as_ref().is_some_and(|snapshot| snapshot.dependencies.is_empty())
+                        && old_path.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase)
+                            == new_path.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase)
+                        && std::fs::canonicalize(&old_path)
                         .ok()
                         .zip(std::fs::canonicalize(&new_path).ok())
                         .is_some_and(|(a, b)| a == b);
@@ -460,6 +554,8 @@ impl AssetStore {
         for entry in &mut self.entries {
             if let Some(loaded) = pending.handle(&entry.id).and_then(|h| pending.get(h)) {
                 *entry = loaded.clone();
+                self.publication = Arc::new(());
+                self.canonical_ids = Default::default();
             }
         }
         Ok(())
@@ -475,9 +571,27 @@ impl AssetStore {
     pub fn refresh_with(&mut self, progress: &job::Progress) -> Result<Vec<Handle>> {
         let mut changed = Vec::new();
         let total = self.entries.len();
+        // Canonical local file identities retain their complete path, including
+        // literal query/fragment characters. Decode aliases only once, and share
+        // only an exact observed snapshot of the same kind and resolved file.
+        let mut decoded = BTreeMap::<PathBuf, Vec<Entry>>::new();
+        for entry in &self.entries {
+            if entry.data.is_some()
+                && entry.observed.is_some()
+                && matches!(entry.state, LoadState::Ready)
+            {
+                let path = self.root.join(&entry.source.path);
+                let path = std::fs::canonicalize(&path).unwrap_or(path);
+                decoded.entry(path).or_default().push(entry.clone());
+            }
+        }
         for (index, entry) in self.entries.iter_mut().enumerate() {
             progress.stage(format!("Checking {} ({}/{total})", entry.id, index + 1))?;
             let path = self.root.join(&entry.source.path);
+            // Relative buffers/images are resolved against the authored document
+            // location. A symlink in another directory can have different URI
+            // dependencies, even though its primary file canonicalizes alike.
+            let canonical_path = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
             let audio_stamp = (entry.source.kind == AssetKind::Audio)
                 .then(|| audio::stamp(&path).ok())
                 .flatten();
@@ -510,18 +624,32 @@ impl AssetStore {
                 continue;
             }
             progress.stage(format!("Decoding {} ({}/{total})", entry.id, index + 1))?;
+            let alias = decoded.get(&canonical_path).and_then(|entries| {
+                entries.iter().find(|candidate| {
+                    candidate.source.kind == entry.source.kind
+                        && candidate.observed.as_deref() == Some(&snapshot)
+                })
+            });
             let loaded = match &snapshot.primary {
-                Ok(bytes) => import(entry.source.kind, &path, bytes, &snapshot),
+                Ok(_) if alias.is_some() => Ok(None),
+                Ok(bytes) => import(entry.source.kind, &path, bytes, &snapshot).map(Some),
                 Err(error) => Err(anyhow::anyhow!(error.clone())),
             };
             let loaded = loaded.and_then(|data| {
+                let Some(data) = data else {
+                    let alias = alias.expect("exact decoded alias");
+                    return Ok((
+                        alias.data.clone().expect("decoded data"),
+                        alias.mesh_index.clone(),
+                    ));
+                };
                 let mesh_index = if let AssetData::Mesh(mesh) = &data {
                     progress.stage(format!("Indexing {} ({}/{total})", entry.id, index + 1))?;
                     Some(Arc::new(picking::MeshIndex::build(mesh, progress)?))
                 } else {
                     None
                 };
-                Ok((data, mesh_index))
+                Ok((Arc::new(data), mesh_index))
             });
             progress.check()?;
             let fingerprint = fingerprint_snapshot(&snapshot);
@@ -529,10 +657,16 @@ impl AssetStore {
             match loaded {
                 Ok((data, mesh_index)) => {
                     entry.content_fingerprint = Some(fingerprint);
-                    entry.data = Some(Arc::new(data));
+                    entry.data = Some(data);
                     entry.mesh_index = mesh_index;
                     entry.revision += 1;
                     entry.state = LoadState::Ready;
+                    self.publication = Arc::new(());
+                    self.canonical_ids = Default::default();
+                    decoded
+                        .entry(canonical_path)
+                        .or_default()
+                        .push(entry.clone());
                 }
                 Err(error) => {
                     entry.state = LoadState::Failed(format!("asset '{}': {error:#}", entry.id))
@@ -2533,5 +2667,161 @@ mod tests {
         assert_eq!(store.refresh(), vec![handle]);
         store.require_ready().unwrap();
         assert_eq!(store.get(handle).unwrap().revision(), 2);
+    }
+    #[test]
+    fn canonical_file_aliases_share_exact_snapshots_and_keep_content_keys_distinct() {
+        // These are literal filename characters, not URI suffixes. Windows
+        // reserves '?', so exercise that spelling only where it is valid.
+        let variant_paths = [
+            "palette#variant=other.png",
+            #[cfg(unix)]
+            "palette?variant=other.png",
+        ];
+        for variant_path in variant_paths {
+            let dir = Temp::new();
+            std::fs::write(dir.0.join("palette.png"), PNG).unwrap();
+            std::fs::write(dir.0.join(variant_path), NEXT_PNG).unwrap();
+            let sources = [
+                ("a", "palette.png"),
+                ("b", "./palette.png"),
+                ("c", variant_path),
+            ]
+            .into_iter()
+            .map(|(id, path)| {
+                (
+                    id.into(),
+                    AssetSource {
+                        kind: AssetKind::Image,
+                        path: path.into(),
+                    },
+                )
+            })
+            .collect();
+            let mut store = AssetStore::new(&dir.0, &sources).unwrap();
+            store.load_pending().unwrap();
+            let data = |id| {
+                store
+                    .get(store.handle(id).unwrap())
+                    .unwrap()
+                    .shared_data()
+                    .unwrap()
+            };
+            assert!(Arc::ptr_eq(&data("a"), &data("b")));
+            assert!(!Arc::ptr_eq(&data("a"), &data("c")));
+            assert_eq!(store.canonical_asset_id("b"), "a");
+            assert_eq!(store.canonical_asset_id("c"), "c");
+            let frozen = data("a");
+            let old_publication = store.publication_identity().clone();
+            std::fs::write(dir.0.join("palette.png"), NEXT_PNG).unwrap();
+            assert_eq!(store.refresh().len(), 2);
+            let a = store
+                .get(store.handle("a").unwrap())
+                .unwrap()
+                .shared_data()
+                .unwrap();
+            let b = store
+                .get(store.handle("b").unwrap())
+                .unwrap()
+                .shared_data()
+                .unwrap();
+            assert!(Arc::ptr_eq(&a, &b));
+            assert!(!Arc::ptr_eq(&a, &frozen));
+            assert!(!Arc::ptr_eq(&old_publication, store.publication_identity()));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_primary_aliases_keep_authored_relative_dependencies_distinct() {
+        let dir = Temp::new();
+        for name in ["target", "alias"] {
+            std::fs::create_dir(dir.0.join(name)).unwrap();
+            std::fs::write(dir.0.join(name).join("mesh.bin"), triangle_bytes()).unwrap();
+        }
+        std::fs::write(
+            dir.0.join("target/mesh.gltf"),
+            gltf_document("mesh.bin", Some("paint.png")),
+        )
+        .unwrap();
+        std::fs::write(dir.0.join("target/paint.png"), PNG).unwrap();
+        std::fs::write(dir.0.join("alias/paint.png"), NEXT_PNG).unwrap();
+        std::os::unix::fs::symlink("../target/mesh.gltf", dir.0.join("alias/mesh.gltf")).unwrap();
+        let sources = [("a", "target/mesh.gltf"), ("b", "alias/mesh.gltf")]
+            .into_iter()
+            .map(|(id, path)| {
+                (
+                    id.into(),
+                    AssetSource {
+                        kind: AssetKind::Mesh,
+                        path: path.into(),
+                    },
+                )
+            })
+            .collect();
+        let mut store = AssetStore::new(&dir.0, &sources).unwrap();
+        store.load_pending().unwrap();
+        let data = |id| {
+            store
+                .get(store.handle(id).unwrap())
+                .unwrap()
+                .shared_data()
+                .unwrap()
+        };
+        let a = data("a");
+        let b = data("b");
+        assert!(!Arc::ptr_eq(&a, &b));
+        assert_eq!(store.canonical_asset_id("a"), "a");
+        assert_eq!(store.canonical_asset_id("b"), "b");
+        let image = |data: &AssetData| {
+            let AssetData::Mesh(mesh) = data else {
+                panic!()
+            };
+            mesh.parts[0].image.as_ref().unwrap().rgba.clone()
+        };
+        assert_ne!(image(&a), image(&b));
+        let mut relocated = store
+            .for_catalog(
+                &dir.0,
+                &BTreeMap::from([(
+                    "a".into(),
+                    AssetSource {
+                        kind: AssetKind::Mesh,
+                        path: "alias/mesh.gltf".into(),
+                    },
+                )]),
+            )
+            .unwrap();
+        relocated.load_pending().unwrap();
+        assert_eq!(
+            image(&b),
+            image(
+                &relocated
+                    .get(relocated.handle("a").unwrap())
+                    .unwrap()
+                    .shared_data()
+                    .unwrap()
+            )
+        );
+        std::fs::write(dir.0.join("alias/paint.png"), PNG).unwrap();
+        assert_eq!(store.refresh(), vec![store.handle("b").unwrap()]);
+        assert!(Arc::ptr_eq(
+            &a,
+            &store
+                .get(store.handle("a").unwrap())
+                .unwrap()
+                .shared_data()
+                .unwrap()
+        ));
+        assert_eq!(
+            image(&a),
+            image(
+                &store
+                    .get(store.handle("b").unwrap())
+                    .unwrap()
+                    .shared_data()
+                    .unwrap()
+            )
+        );
+        assert_ne!(image(&a), image(&b), "frozen alias snapshot changed");
     }
 }

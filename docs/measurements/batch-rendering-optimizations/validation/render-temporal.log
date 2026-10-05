@@ -1,0 +1,15 @@
+     Running tests/temporal.rs (target/debug/deps/temporal-059fce37351694a8)
+
+running 5 tests
+test camera_object_motion_blur_pause_reset_and_identity_rejection ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test material_reflections_trace_hits_preserve_misses_and_fade_rough_surfaces ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test moving_silhouettes_spread_and_static_foreground_stays_sharp ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test paused_text_edits_refresh_temporal_history ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test taa_accumulates_subpixel_geometry_rejects_departed_objects_and_resets ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 41.60s

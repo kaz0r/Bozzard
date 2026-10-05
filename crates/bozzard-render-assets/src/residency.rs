@@ -23,6 +23,8 @@ pub struct ResidencyStats {
     /// through eviction/reload forever when the working set exceeds the soft budget.
     pub over_budget_bytes: usize,
     pub evictions: u64,
+    pub catalog_scans: u64,
+    pub settled_reuses: u64,
 }
 struct Resident {
     data: Arc<AssetData>,
@@ -30,8 +32,9 @@ struct Resident {
     last_used: u64,
 }
 
-fn same_material_image(a: &AssetData, b: &AssetData) -> bool {
+fn same_image(a: &AssetData, b: &AssetData) -> bool {
     match (a, b) {
+        (AssetData::Image(a), AssetData::Image(b)) => std::ptr::eq(a, b),
         (AssetData::Material(a), AssetData::Material(b)) => match (&a.image, &b.image) {
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
@@ -40,7 +43,7 @@ fn same_material_image(a: &AssetData, b: &AssetData) -> bool {
     }
 }
 fn same_gpu(a: &AssetData, b: &AssetData) -> bool {
-    std::ptr::eq(a, b) || same_material_image(a, b)
+    std::ptr::eq(a, b) || same_image(a, b)
 }
 
 /// Tracks immutable asset snapshots associated with one renderer. A new renderer
@@ -63,16 +66,28 @@ pub struct Residency {
     clock: u64,
     evictions: u64,
     resident_bytes: usize,
+    settled: Option<(Arc<()>, bool)>,
+    catalog_scans: u64,
+    settled_reuses: u64,
 }
 impl Residency {
     pub fn set_budget(&mut self, bytes: Option<usize>) {
+        if self.budget_bytes != bytes {
+            self.settled = None;
+        }
         self.budget_bytes = bytes;
     }
     pub fn set_required(&mut self, assets: BTreeSet<String>) {
-        self.required = Some(assets);
+        if self.required.as_ref() != Some(&assets) {
+            self.settled = None;
+            self.required = Some(assets);
+        }
     }
     pub fn require_catalog(&mut self) {
-        self.required = None;
+        if self.required.is_some() {
+            self.settled = None;
+            self.required = None;
+        }
     }
     fn needs(&self, id: &str) -> bool {
         self.required.as_ref().is_none_or(|ids| ids.contains(id))
@@ -95,13 +110,21 @@ impl Residency {
                     .saturating_sub(limit)
             }),
             evictions: self.evictions,
+            catalog_scans: self.catalog_scans,
+            settled_reuses: self.settled_reuses,
         }
     }
     /// Imported assets used by the extracted frame, including every material override.
     /// The same list covers offscreen shadow casters; CPU frustum culling must not
     /// evict their resources before the renderer's shadow passes can use them.
     pub fn require_scene(&mut self, scene: &bozzard_render::RenderScene) {
-        self.set_required(required_assets(scene));
+        let borrowed = required_asset_names(scene);
+        if self.required.as_ref().is_some_and(|current| {
+            current.len() == borrowed.len() && borrowed.iter().all(|id| current.contains(*id))
+        }) {
+            return;
+        }
+        self.set_required(borrowed.into_iter().map(str::to_owned).collect());
     }
     pub fn sync(
         &mut self,
@@ -162,6 +185,11 @@ impl Residency {
         })
     }
     pub fn has_required(&self, store: &AssetStore) -> bool {
+        if let Some((publication, available)) = &self.settled
+            && Arc::ptr_eq(publication, store.publication_identity())
+        {
+            return *available;
+        }
         self.required.as_ref().map_or_else(
             || self.has_all(store),
             |ids| {
@@ -248,6 +276,27 @@ impl Residency {
         budget: usize,
     ) -> Result<ResidencyReport> {
         self.clock = self.clock.saturating_add(1);
+        if self.pending.is_none()
+            && self.preparing.is_none()
+            && self.settled.as_ref().is_some_and(|(publication, _)| {
+                Arc::ptr_eq(publication, store.publication_identity())
+            })
+        {
+            if let Some(required) = &self.required {
+                for id in required {
+                    if let Some(resident) = self.current.get_mut(id) {
+                        resident.last_used = self.clock;
+                    }
+                }
+            } else {
+                for resident in self.current.values_mut() {
+                    resident.last_used = self.clock;
+                }
+            }
+            self.settled_reuses = self.settled_reuses.saturating_add(1);
+            return Ok(ResidencyReport::default());
+        }
+        self.settled = None;
         // Compare borrowed payload identities against our retained Arcs. Avoid
         // cloning every catalog ID and incrementing every snapshot refcount per frame.
         let desired = |id: &str| {
@@ -272,8 +321,8 @@ impl Residency {
             if !job.cancelled() {
                 match result.and_then(|upload| {
                     ensure!(
-                        upload.memory_bytes() == estimate,
-                        "GPU upload footprint changed during preparation"
+                        upload.memory_bytes() <= estimate,
+                        "optimized GPU upload exceeded its conservative footprint"
                     );
                     Ok(upload)
                 }) {
@@ -321,7 +370,10 @@ impl Residency {
             }
         }
         self.trim(renderer, self.stats().staged_bytes, &mut report);
+        let mut searched_to_end = false;
         if self.pending.is_none() && self.preparing.is_none() {
+            searched_to_end = true;
+            self.catalog_scans = self.catalog_scans.saturating_add(1);
             for entry in store.entries() {
                 let id = &entry.id;
                 if !self.needs(id) {
@@ -345,7 +397,7 @@ impl Residency {
                 if let Some((source, allocation)) = self
                     .current
                     .iter()
-                    .find(|(_, resident)| same_material_image(&resident.data, &data))
+                    .find(|(_, resident)| same_image(&resident.data, &data))
                     .map(|(source, resident)| (source.clone(), resident.allocation.clone()))
                 {
                     renderer.alias_image(&source, id)?;
@@ -362,8 +414,10 @@ impl Residency {
                     }
                     continue;
                 }
-                let source =
-                    crate::upload_source_with_features(data.clone(), gpu.device.features())?;
+                let source = crate::upload_source_reference_with_features(
+                    data.clone(),
+                    gpu.device.features(),
+                )?;
                 let bytes = match bozzard_render::upload_memory_bytes(source.as_ref()) {
                     Ok(bytes) => bytes,
                     Err(error) => {
@@ -374,8 +428,14 @@ impl Residency {
                 self.trim(renderer, bytes, &mut report);
                 let context = renderer.upload_context();
                 let gpu = gpu.clone();
+                let prepared_data = data.clone();
                 match bozzard_assets::job::Job::start("Preparing GPU resources", move |progress| {
                     progress.check()?;
+                    let source = crate::upload_source_with_progress(
+                        prepared_data,
+                        gpu.device.features(),
+                        &progress,
+                    )?;
                     let upload = context.begin_upload(&gpu, source)?;
                     progress.check()?;
                     Ok(upload)
@@ -388,6 +448,7 @@ impl Residency {
                         )));
                     }
                 }
+                searched_to_end = false;
                 break;
             }
         }
@@ -420,15 +481,26 @@ impl Residency {
                 }
             }
         }
+        if searched_to_end && self.pending.is_none() && self.preparing.is_none() {
+            let available = self.has_required(store);
+            self.settled = Some((store.publication_identity().clone(), available));
+        }
         Ok(report)
     }
     /// A failed revision is retried only after an explicit retry or source change.
     pub fn retry_failed(&mut self) {
         self.failed.clear();
+        self.settled = None;
     }
 }
 
 pub fn required_assets(scene: &bozzard_render::RenderScene) -> BTreeSet<String> {
+    required_asset_names(scene)
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+fn required_asset_names(scene: &bozzard_render::RenderScene) -> BTreeSet<&str> {
     use bozzard_render::{MeshKind, TextureKind};
     let mut ids = BTreeSet::new();
     for item in &scene.items {
@@ -447,5 +519,5 @@ pub fn required_assets(scene: &bozzard_render::RenderScene) -> BTreeSet<String> 
         }
     }
     // Repeated instances share IDs: allocate each name once per frame.
-    ids.into_iter().map(str::to_owned).collect()
+    ids
 }

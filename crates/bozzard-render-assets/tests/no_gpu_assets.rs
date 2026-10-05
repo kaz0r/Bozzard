@@ -66,6 +66,37 @@ fn drawable_assets_still_need_one() {
     );
 }
 
+#[test]
+fn invalid_mesh_indices_are_rejected_before_gpu_staging_without_mutating_source() {
+    let vertices = vec![
+        [0., 0., 0., 0., 0., 1., 0., 0.],
+        [1., 0., 0., 0., 0., 1., 1., 0.],
+        [0., 1., 0., 0., 0., 1., 0., 1.],
+    ];
+    let source = Arc::new(AssetData::Mesh(MeshData {
+        vertices: vertices.clone(),
+        indices: vec![0, 1, 99],
+        parts: Vec::new(),
+        warnings: Vec::new(),
+        skin: None,
+    }));
+    let error = bozzard_render_assets::upload_source(source.clone())
+        .err()
+        .expect("an out-of-range index must fail CPU upload preparation");
+    assert!(
+        format!("{error:#}").contains("invalid mesh vertex or index"),
+        "{error:#}"
+    );
+    let AssetData::Mesh(mesh) = source.as_ref() else {
+        unreachable!()
+    };
+    assert_eq!(mesh.vertices, vertices);
+    assert_eq!(mesh.indices, [0, 1, 99]);
+    let mut corrected = mesh.clone();
+    corrected.indices[2] = 2;
+    assert!(bozzard_render_assets::upload_source(Arc::new(AssetData::Mesh(corrected))).is_ok());
+}
+
 /// The gate a viewer uses before it draws anything asks the residency pass whether every entry is
 /// ready. A scene with a script must not sit on that gate forever, and the editor's prefab panel
 /// asks the same question of a prefab.

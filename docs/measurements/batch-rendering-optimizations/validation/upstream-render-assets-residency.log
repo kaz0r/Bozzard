@@ -1,0 +1,16 @@
+     Running tests/residency.rs (target/debug/deps/residency-1ae7c3885a7a345d)
+
+running 6 tests
+test requirements_include_model_surfaces_overrides_and_offscreen_shadow_casters ... ok
+test budget_evicts_lru_unused_assets_restores_them_and_pins_an_oversized_working_set has been running for over 60 seconds
+test canonical_image_aliases_share_gpu_storage_and_settled_frames_skip_catalog_scans has been running for over 60 seconds
+test cooked_bc_astc_upload_mip_tails_memory_fallback_and_restoration has been running for over 60 seconds
+test inherited_material_images_share_storage_and_survive_alias_eviction_and_source_edits has been running for over 60 seconds
+test replacement_identity_cancellation_corruption_and_removal_keep_last_good_pixels has been running for over 60 seconds
+test canonical_image_aliases_share_gpu_storage_and_settled_frames_skip_catalog_scans ... ok
+test replacement_identity_cancellation_corruption_and_removal_keep_last_good_pixels ... ok
+test inherited_material_images_share_storage_and_survive_alias_eviction_and_source_edits ... ok
+test budget_evicts_lru_unused_assets_restores_them_and_pins_an_oversized_working_set ... ok
+test cooked_bc_astc_upload_mip_tails_memory_fallback_and_restoration ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 102.98s

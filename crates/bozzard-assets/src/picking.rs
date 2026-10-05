@@ -26,6 +26,7 @@ use bozzard_scene::bvh::{BvhNode, TriangleBvh};
 
 pub(super) struct MeshIndex {
     tree: TriangleBvh,
+    part_bounds: Vec<Option<[Vec3; 2]>>,
     build_ms: f64,
 }
 impl MeshIndex {
@@ -54,18 +55,28 @@ impl MeshIndex {
         }
         Ok(Self {
             tree: TriangleBvh::build(triangles, &|| progress.check())?,
+            part_bounds: mesh
+                .parts
+                .iter()
+                .enumerate()
+                .map(|(index, _)| mesh.part_bounds(index))
+                .collect(),
             build_ms: started.elapsed().as_secs_f64() * 1000.0,
         })
     }
     pub(super) fn bounds(&self) -> Option<[Vec3; 2]> {
         self.tree.nodes.first().map(|node| node.bounds)
     }
+    pub(super) fn part_bounds(&self, index: usize) -> Option<[Vec3; 2]> {
+        self.part_bounds.get(index).copied().flatten()
+    }
     pub(super) fn stats(&self) -> MeshPickStats {
         MeshPickStats {
             triangles: self.tree.triangle_order.len(),
             nodes: self.tree.nodes.len(),
             bytes: self.tree.nodes.capacity() * std::mem::size_of::<BvhNode>()
-                + self.tree.triangle_order.capacity() * std::mem::size_of::<u32>(),
+                + self.tree.triangle_order.capacity() * std::mem::size_of::<u32>()
+                + self.part_bounds.capacity() * std::mem::size_of::<Option<[Vec3; 2]>>(),
             build_ms: self.build_ms,
         }
     }

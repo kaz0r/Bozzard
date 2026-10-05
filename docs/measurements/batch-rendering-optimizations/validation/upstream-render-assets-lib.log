@@ -1,0 +1,11 @@
+     Running unittests src/lib.rs (target/debug/deps/bozzard_render_assets-f023f6536c85bc6f)
+
+running 6 tests
+test display::tests::temporal_effects_share_adapter_and_stay_out_of_2d ... ok
+test shaders::tests::active_constants_above_portable_parameter_limit_keep_literal_compiler ... ok
+test shaders::tests::numeric_values_share_pipeline_identity_but_keep_immutable_parameters ... ok
+test shaders::tests::reuse_edits_errors_and_eviction_preserve_the_compiler_result ... ok
+test shaders::tests::variants_share_exact_programs_but_reject_unknown_names_and_bad_layouts ... ok
+test ui::tests::nine_slice_preserves_corners_and_shrinks_borders_in_tiny_targets ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

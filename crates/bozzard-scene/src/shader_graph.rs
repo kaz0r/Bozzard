@@ -521,7 +521,11 @@ impl ShaderGraph {
         hash.finish()
     }
     /// Topologically ordered evaluation plan: (node, per-input resolved expressions).
-    fn plan(&self, mask: u8) -> Result<Vec<(&Node, Vec<String>)>> {
+    fn plan_with_parameters(
+        &self,
+        mask: u8,
+        parameters: &mut Option<Vec<[f32; 4]>>,
+    ) -> Result<Vec<(&Node, Vec<String>)>> {
         let selected_port = |node: &Node| {
             matches!(
                 node.kind,
@@ -602,6 +606,19 @@ impl ShaderGraph {
                             .unwrap()
                             .kind
                             .output_expr(*source, *source_port),
+                        None if node.kind != NodeKind::Master
+                            && selected_port(node).is_none_or(|selected| selected == port)
+                            && parameters.is_some() =>
+                        {
+                            let values = parameters.as_mut().expect("parameterized plan");
+                            let slot = values.len();
+                            let (value, component) = match node.inputs[port] {
+                                Value::Float(value) => ([value, 0., 0., 0.], "x"),
+                                Value::Vector(value) => ([value[0], value[1], value[2], 0.], "xyz"),
+                            };
+                            values.push(value);
+                            format!("graph_numeric({slot}u).{component}")
+                        }
                         None => match &node.inputs[port] {
                             Value::Float(v) => wgsl_float(*v),
                             Value::Vector(v) => format!(
@@ -684,6 +701,24 @@ impl ShaderGraph {
         self.surface_function_mask(self.keyword_mask(overrides)?)
     }
     pub fn surface_function_mask(&self, mask: u8) -> Result<String> {
+        self.surface_function_with_parameters(mask, &mut None)
+    }
+    /// Share graph topology across numeric edits while retaining literal compilation
+    /// for graphs exceeding the portable 16-slot parameter layout.
+    pub fn surface_function_parameters_mask(&self, mask: u8) -> Result<(String, Vec<[f32; 4]>)> {
+        let mut parameters = Some(Vec::new());
+        let surface = self.surface_function_with_parameters(mask, &mut parameters)?;
+        let parameters = parameters.expect("parameterized compilation");
+        if parameters.len() > 16 {
+            return Ok((self.surface_function_mask(mask)?, Vec::new()));
+        }
+        Ok((surface, parameters))
+    }
+    fn surface_function_with_parameters(
+        &self,
+        mask: u8,
+        parameters: &mut Option<Vec<[f32; 4]>>,
+    ) -> Result<String> {
         self.validate()?;
         ensure!(
             (mask as u16) < (1u16 << self.keywords.len()),
@@ -693,7 +728,7 @@ impl ShaderGraph {
         let mut code = String::from(
             "fn graph_material_surface(uv: vec2<f32>, normal_uv: vec2<f32>, mr_uv: vec2<f32>, ao_uv: vec2<f32>, emissive_uv: vec2<f32>, world_normal: vec3<f32>, tangent: vec4<f32>, world: vec3<f32>, view: vec3<f32>, front: bool, time: f32) -> SurfaceParams {\n    var params = default_material_surface(uv, normal_uv, mr_uv, ao_uv, emissive_uv, world_normal, tangent, world, view, front, time);\n",
         );
-        let plan = self.plan(mask)?;
+        let plan = self.plan_with_parameters(mask, parameters)?;
         for (node, inputs) in &plan {
             if node.kind != NodeKind::Master {
                 let enabled = self

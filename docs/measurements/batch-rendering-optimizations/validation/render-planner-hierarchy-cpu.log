@@ -1,0 +1,187 @@
+     Running unittests src/lib.rs (target/debug/deps/bozzard_render-8f8f5e5143f706bf)
+
+running 25 tests
+test scene::instancing::reuse::spatial::tests::activation_failure_discards_the_sweep_and_fresh_queries_reset_scratch ... ok
+test scene::instancing::reuse::spatial::tests::factory_source_order_sweep_certifies_exact_pairs_within_shared_work_cap ... factory_ordering_sweep_proof population=2891 main_x_candidate_neighbors=238232 query_node_visits=151769 activation_updates=19787 total_work=171556 work_cap=185024 exact_inversion_pairs=3111 retained_pair_cap=23128
+ok
+test scene::instancing::reuse::spatial::tests::hierarchy_queries_match_exact_inversions_and_bound_every_node_visit ... ok
+test scene::instancing::reuse::spatial::tests::queries_keep_every_overlap_after_updates_and_bound_sparse_work ... ok
+test scene::instancing::reuse::tests::certified_hidden_bridge_cannot_degrade_visible_grouping ... batch_superset total=3 visible=2 capacity=64 construction_limited=false ordering=None filtered_draws=2 visible_draws=1
+batch_superset total=3 visible=2 capacity=1024 construction_limited=false ordering=None filtered_draws=2 visible_draws=1
+ok
+test scene::instancing::reuse::tests::dense_multi_key_construction_falls_back_before_quadratic_storage ... ok
+test scene::instancing::reuse::tests::filtering_reuses_index_storage_without_mutating_the_certificate ... batch_ordering population=9 hierarchy_nodes=17 node_visits=9 activation_updates=38 total_work=47 work_budget=576 pairs=0 pair_budget=72 result=certified
+ok
+test scene::instancing::reuse::tests::heterogeneous_text_requires_native_ordered_runs_and_preserves_state_boundaries ... ok
+test scene::instancing::reuse::tests::hidden_construction_fallback_is_rejected_through_camera_and_visibility_churn ... batch_ordering population=640 hierarchy_nodes=319 node_visits=694 activation_updates=1186 total_work=1880 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_superset total=640 visible=160 capacity=64 construction_limited=true ordering=None filtered_draws=160 visible_draws=4
+batch_ordering population=640 hierarchy_nodes=317 node_visits=711 activation_updates=1175 total_work=1886 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=769 activation_updates=1136 total_work=1905 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=711 activation_updates=1174 total_work=1885 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=753 activation_updates=1131 total_work=1884 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=687 activation_updates=1170 total_work=1857 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=757 activation_updates=1129 total_work=1886 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=697 activation_updates=1172 total_work=1869 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=755 activation_updates=1134 total_work=1889 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=691 activation_updates=1162 total_work=1853 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=763 activation_updates=1131 total_work=1894 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=689 activation_updates=1163 total_work=1852 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=769 activation_updates=1127 total_work=1896 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=685 activation_updates=1161 total_work=1846 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=773 activation_updates=1126 total_work=1899 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=683 activation_updates=1163 total_work=1846 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=757 activation_updates=1136 total_work=1893 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=691 activation_updates=1175 total_work=1866 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=757 activation_updates=1141 total_work=1898 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=711 activation_updates=1174 total_work=1885 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=747 activation_updates=1133 total_work=1880 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=687 activation_updates=1170 total_work=1857 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=747 activation_updates=1133 total_work=1880 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=691 activation_updates=1168 total_work=1859 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=759 activation_updates=1132 total_work=1891 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=319 node_visits=694 activation_updates=1186 total_work=1880 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_superset total=640 visible=160 capacity=1024 construction_limited=true ordering=None filtered_draws=160 visible_draws=2
+batch_ordering population=640 hierarchy_nodes=317 node_visits=713 activation_updates=1176 total_work=1889 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1035 activation_updates=1015 total_work=2050 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=713 activation_updates=1175 total_work=1888 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1051 activation_updates=1016 total_work=2067 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=689 activation_updates=1171 total_work=1860 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1053 activation_updates=1018 total_work=2071 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=699 activation_updates=1173 total_work=1872 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1089 activation_updates=1021 total_work=2110 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=693 activation_updates=1163 total_work=1856 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1089 activation_updates=1024 total_work=2113 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=691 activation_updates=1164 total_work=1855 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1087 activation_updates=1024 total_work=2111 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=687 activation_updates=1162 total_work=1849 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1087 activation_updates=1026 total_work=2113 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=685 activation_updates=1164 total_work=1849 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1045 activation_updates=1016 total_work=2061 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=693 activation_updates=1176 total_work=1869 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1033 activation_updates=1016 total_work=2049 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=713 activation_updates=1175 total_work=1888 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1043 activation_updates=1019 total_work=2062 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=689 activation_updates=1171 total_work=1860 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1049 activation_updates=1019 total_work=2068 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=693 activation_updates=1169 total_work=1862 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+batch_ordering population=640 hierarchy_nodes=317 node_visits=1069 activation_updates=1025 total_work=2094 work_budget=40960 pairs=0 pair_budget=5120 result=certified
+ok
+test scene::instancing::reuse::tests::initial_dense_inversions_reach_pair_capacity_before_work_capacity ... batch_ordering population=128 hierarchy_nodes=255 node_visits=2426 activation_updates=137 total_work=2563 work_budget=8192 pairs=1024 pair_budget=1024 result=retained_pair_capacity
+ok
+test scene::instancing::reuse::tests::long_thin_bounds_select_separating_axis_and_avoid_capacity_fallback ... batch_ordering population=4096 hierarchy_nodes=8191 node_visits=4096 activation_updates=53248 total_work=57344 work_budget=262144 pairs=0 pair_budget=32768 result=certified
+ok
+test scene::instancing::reuse::tests::lookahead_unlocks_a_compatible_ready_peer_without_relaxing_edges ... batch_ordering population=3 hierarchy_nodes=5 node_visits=3 activation_updates=8 total_work=11 work_budget=192 pairs=0 pair_budget=24 result=certified
+ok
+test scene::instancing::reuse::tests::native_capacity_reduces_homogeneous_submission_without_graph_construction ... ok
+test scene::instancing::reuse::tests::optimal_original_order_skips_every_projection_and_overlap_edge ... ok
+test scene::instancing::reuse::tests::original_order_accepts_changing_deformation_bounds ... ok
+test scene::instancing::reuse::tests::original_order_cliques_do_not_exhaust_inversion_discovery_work ... batch_ordering population=4096 hierarchy_nodes=8191 node_visits=4096 activation_updates=53248 total_work=57344 work_budget=262144 pairs=0 pair_budget=32768 result=certified
+ordering_rank_prune_proof population=4096 total_query_activation_work=57344 budget=262144 retained_pairs=0 dense_source_order_winners_preserved=true disjoint_tail_reorder_camera_reused=true
+ok
+test scene::instancing::reuse::tests::perspective_motion_reuses_a_safe_order_and_rejects_new_overlap ... batch_ordering population=9 hierarchy_nodes=17 node_visits=15 activation_updates=38 total_work=53 work_budget=576 pairs=1 pair_budget=72 result=certified
+ok
+test scene::instancing::reuse::tests::randomized_motion_camera_and_visibility_reuse_preserves_every_dependency ... batch_ordering population=48 hierarchy_nodes=95 node_visits=196 activation_updates=273 total_work=469 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=254 activation_updates=271 total_work=525 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=220 activation_updates=278 total_work=498 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=240 activation_updates=271 total_work=511 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=234 activation_updates=282 total_work=516 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=242 activation_updates=279 total_work=521 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=254 activation_updates=285 total_work=539 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=212 activation_updates=282 total_work=494 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=274 activation_updates=273 total_work=547 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=232 activation_updates=279 total_work=511 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=280 activation_updates=270 total_work=550 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=258 activation_updates=280 total_work=538 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=230 activation_updates=288 total_work=518 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=258 activation_updates=281 total_work=539 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=226 activation_updates=290 total_work=516 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=264 activation_updates=283 total_work=547 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=262 activation_updates=276 total_work=538 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=264 activation_updates=286 total_work=550 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=266 activation_updates=284 total_work=550 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=236 activation_updates=285 total_work=521 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=280 activation_updates=284 total_work=564 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=218 activation_updates=288 total_work=506 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=216 activation_updates=284 total_work=500 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=234 activation_updates=282 total_work=516 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=222 activation_updates=281 total_work=503 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=314 activation_updates=275 total_work=589 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=306 activation_updates=280 total_work=586 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=288 activation_updates=277 total_work=565 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=242 activation_updates=289 total_work=531 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=272 activation_updates=288 total_work=560 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=264 activation_updates=287 total_work=551 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=280 activation_updates=279 total_work=559 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=246 activation_updates=285 total_work=531 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=268 activation_updates=277 total_work=545 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=278 activation_updates=272 total_work=550 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=276 activation_updates=279 total_work=555 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=252 activation_updates=281 total_work=533 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=248 activation_updates=277 total_work=525 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=288 activation_updates=271 total_work=559 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=286 activation_updates=283 total_work=569 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=278 activation_updates=282 total_work=560 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=268 activation_updates=292 total_work=560 work_budget=3072 pairs=6 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=250 activation_updates=283 total_work=533 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=278 activation_updates=280 total_work=558 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=286 activation_updates=280 total_work=566 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=312 activation_updates=270 total_work=582 work_budget=3072 pairs=7 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=286 activation_updates=280 total_work=566 work_budget=3072 pairs=7 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=252 activation_updates=280 total_work=532 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=294 activation_updates=287 total_work=581 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=284 activation_updates=288 total_work=572 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=278 activation_updates=285 total_work=563 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=248 activation_updates=285 total_work=533 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=274 activation_updates=282 total_work=556 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=232 activation_updates=290 total_work=522 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=300 activation_updates=276 total_work=576 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=254 activation_updates=279 total_work=533 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=290 activation_updates=275 total_work=565 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=262 activation_updates=276 total_work=538 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=290 activation_updates=266 total_work=556 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=276 activation_updates=274 total_work=550 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=264 activation_updates=279 total_work=543 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=228 activation_updates=277 total_work=505 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=274 activation_updates=265 total_work=539 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=312 activation_updates=267 total_work=579 work_budget=3072 pairs=1 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=288 activation_updates=270 total_work=558 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=262 activation_updates=273 total_work=535 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=268 activation_updates=269 total_work=537 work_budget=3072 pairs=0 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=270 activation_updates=278 total_work=548 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=282 activation_updates=273 total_work=555 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=260 activation_updates=283 total_work=543 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=262 activation_updates=283 total_work=545 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=256 activation_updates=283 total_work=539 work_budget=3072 pairs=4 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=278 activation_updates=277 total_work=555 work_budget=3072 pairs=5 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=270 activation_updates=278 total_work=548 work_budget=3072 pairs=3 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=280 activation_updates=269 total_work=549 work_budget=3072 pairs=2 pair_budget=384 result=certified
+batch_ordering population=48 hierarchy_nodes=95 node_visits=292 activation_updates=281 total_work=573 work_budget=3072 pairs=2 pair_budget=384 result=certified
+ok
+test scene::instancing::reuse::tests::renewal_pair_storage_is_bounded ... batch_ordering population=128 hierarchy_nodes=255 node_visits=712 activation_updates=802 total_work=1514 work_budget=8192 pairs=0 pair_budget=1024 result=certified
+ok
+test scene::instancing::reuse::tests::safe_envelope_escape_renews_without_regrouping ... batch_ordering population=9 hierarchy_nodes=17 node_visits=9 activation_updates=38 total_work=47 work_budget=576 pairs=0 pair_budget=72 result=certified
+ok
+test scene::instancing::reuse::tests::simultaneous_escapes_discover_conflicts_at_both_new_positions ... batch_ordering population=4 hierarchy_nodes=7 node_visits=4 activation_updates=12 total_work=16 work_budget=256 pairs=0 pair_budget=32 result=certified
+ok
+test scene::instancing::reuse::tests::sparse_plane_admits_a_quality_superset_and_retains_camera_visibility_churn ... batch_ordering population=16384 hierarchy_nodes=32767 node_visits=256822 activation_updates=141258 total_work=398080 work_budget=524288 pairs=0 pair_budget=32768 result=certified
+batch_ordering population=16384 hierarchy_nodes=8191 node_visits=52598 activation_updates=32810 total_work=85408 work_budget=524288 pairs=0 pair_budget=32768 result=certified
+batch_superset total=16384 visible=4096 capacity=64 construction_limited=false ordering=None filtered_draws=128 visible_draws=128
+batch_ordering population=16384 hierarchy_nodes=32767 node_visits=256822 activation_updates=141258 total_work=398080 work_budget=524288 pairs=0 pair_budget=32768 result=certified
+batch_ordering population=16384 hierarchy_nodes=8191 node_visits=52598 activation_updates=32810 total_work=85408 work_budget=524288 pairs=0 pair_budget=32768 result=certified
+batch_superset total=16384 visible=4096 capacity=1024 construction_limited=false ordering=None filtered_draws=128 visible_draws=128
+ok
+test scene::instancing::reuse::tests::uncertain_projection_models_and_changed_mesh_bounds_keep_the_fallback ... batch_ordering population=4 hierarchy_nodes=7 node_visits=4 activation_updates=12 total_work=16 work_budget=256 pairs=0 pair_budget=32 result=certified
+batch_ordering population=4 hierarchy_nodes=7 node_visits=4 activation_updates=12 total_work=16 work_budget=256 pairs=0 pair_budget=32 result=certified
+batch_ordering population=4 hierarchy_nodes=7 node_visits=4 activation_updates=12 total_work=16 work_budget=256 pairs=0 pair_budget=32 result=certified
+ok
+test scene::instancing::reuse::tests::useful_hidden_plan_is_admitted_and_reuses_visibility_changes ... batch_ordering population=128 hierarchy_nodes=255 node_visits=430 activation_updates=922 total_work=1352 work_budget=8192 pairs=0 pair_budget=1024 result=certified
+batch_ordering population=128 hierarchy_nodes=127 node_visits=166 activation_updates=418 total_work=584 work_budget=8192 pairs=0 pair_budget=1024 result=certified
+batch_superset total=128 visible=64 capacity=64 construction_limited=false ordering=None filtered_draws=2 visible_draws=2
+batch_ordering population=128 hierarchy_nodes=255 node_visits=430 activation_updates=922 total_work=1352 work_budget=8192 pairs=0 pair_budget=1024 result=certified
+batch_ordering population=128 hierarchy_nodes=127 node_visits=166 activation_updates=418 total_work=584 work_budget=8192 pairs=0 pair_budget=1024 result=certified
+batch_superset total=128 visible=64 capacity=1024 construction_limited=false ordering=None filtered_draws=2 visible_draws=2
+ok
+test scene::instancing::reuse::tests::visibility_churn_preserves_later_group_buffer_slots ... batch_ordering population=9 hierarchy_nodes=17 node_visits=9 activation_updates=38 total_work=47 work_budget=576 pairs=0 pair_budget=72 result=certified
+ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 89 filtered out; finished in 0.37s

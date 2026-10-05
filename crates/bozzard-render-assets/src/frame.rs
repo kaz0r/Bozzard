@@ -23,14 +23,21 @@ pub struct RenderSceneStats {
     pub material_rebuilds: usize,
     pub pooled_items: usize,
     pub assets_changed: usize,
+    pub asset_catalog_reads: usize,
     pub retained_frames: usize,
+    pub text_descriptor_reuses: usize,
+    pub text_descriptor_rebuilds: usize,
 }
 
 struct Input {
+    motion_id: u64,
     drawable: Arc<Drawable>,
     shader: Option<Arc<ShaderGraph>>,
     binding: Option<Arc<MaterialInstance>>,
     generated: Option<bozzard_scene::compute::Handle>,
+    // The host/catalog owns snapshots. Frozen draw frames keep only guards:
+    // their metadata must not extend asset lifetime after the host closes.
+    dependencies: Vec<(String, Option<Weak<AssetData>>)>,
 }
 impl Input {
     fn matches(
@@ -45,6 +52,68 @@ impl Input {
             && same_arc(&self.binding, binding)
             && self.generated == generated
     }
+    fn assets_match(&self, assets: &AssetStore) -> bool {
+        self.dependencies.iter().all(|(id, previous)| {
+            let next = assets
+                .handle(id)
+                .and_then(|handle| assets.get(handle))
+                .and_then(|entry| entry.data());
+            match previous {
+                None => next.is_none(),
+                Some(previous) => next.is_some_and(|next| {
+                    previous
+                        .upgrade()
+                        .is_some_and(|previous| std::ptr::eq(previous.as_ref(), next))
+                }),
+            }
+        })
+    }
+}
+
+fn dependencies(
+    drawable: &Drawable,
+    binding: Option<&MaterialInstance>,
+    item: &DrawItem,
+    assets: &AssetStore,
+) -> Vec<(String, Option<Weak<AssetData>>)> {
+    let mut names = std::collections::BTreeSet::new();
+    if let Mesh::Asset(id) | Mesh::Surface { asset: id, .. } = &drawable.mesh {
+        names.insert(id.as_str());
+    }
+    if let Texture::Asset(id) = &drawable.texture {
+        names.insert(id.as_str());
+    }
+    for item in &drawable.material_overrides {
+        if let Some(Texture::Asset(id)) = &item.texture {
+            names.insert(id.as_str());
+        }
+    }
+    if let Some(binding) = binding {
+        names.insert(binding.asset.as_str());
+    }
+    for texture in std::iter::once(&item.material.texture).chain(
+        item.material
+            .surface_overrides
+            .iter()
+            .filter_map(|item| item.texture.as_ref()),
+    ) {
+        if let TextureKind::Imported(id) | TextureKind::ModelPart(id, _) = texture {
+            names.insert(id.as_str());
+        }
+    }
+    names
+        .into_iter()
+        .map(|id| {
+            (
+                id.to_owned(),
+                assets
+                    .handle(id)
+                    .and_then(|handle| assets.get(handle))
+                    .and_then(|entry| entry.shared_data())
+                    .map(|data| Arc::downgrade(&data)),
+            )
+        })
+        .collect()
 }
 fn same_arc<T>(a: &Option<Arc<T>>, b: &Option<Arc<T>>) -> bool {
     match (a, b) {
@@ -68,17 +137,114 @@ struct Buffer {
     inputs: Vec<Input>,
     assets: Option<Arc<()>>,
 }
+struct TextPayload {
+    source: Arc<bozzard_scene::TextRendering>,
+    dependencies: Vec<(String, Option<Arc<AssetData>>)>,
+    mesh: Arc<bozzard_render::TextMesh>,
+    used: u64,
+}
+
 #[derive(Default)]
 struct State {
     disabled: bool,
     assets: Vec<(String, Option<Arc<AssetData>>)>,
     asset_epoch: Arc<()>,
+    publication: Option<Arc<()>>,
     buffers: [Vec<Buffer>; 2],
     item_limits: [usize; 2],
     stats: RenderSceneStats,
+    numeric_mode: Option<bool>,
+    text_payloads: std::collections::HashMap<usize, TextPayload>,
+    text_generation: u64,
+    text_reuses: usize,
+    text_rebuilds: usize,
 }
 impl State {
-    fn update_assets(&mut self, assets: &AssetStore) -> usize {
+    fn shared_text(
+        &mut self,
+        model: Mat4,
+        source: Arc<bozzard_scene::TextRendering>,
+        assets: &AssetStore,
+    ) -> Result<DrawItem> {
+        let key = Arc::as_ptr(&source) as usize;
+        let mesh = self
+            .text_payloads
+            .get_mut(&key)
+            .filter(|entry| {
+                Arc::ptr_eq(&entry.source, &source)
+                    && entry.dependencies.iter().all(|(id, previous)| {
+                        let current = assets
+                            .handle(id)
+                            .and_then(|h| assets.get(h))
+                            .and_then(|e| e.data());
+                        same_asset_data(previous.as_deref(), current)
+                    })
+            })
+            .map(|entry| {
+                entry.used = self.text_generation;
+                entry.mesh.clone()
+            });
+        let mesh = match mesh {
+            Some(mesh) => {
+                self.text_reuses += 1;
+                mesh
+            }
+            None => {
+                self.text_rebuilds += 1;
+                let mesh = Arc::new(crate::text_mesh(&source, assets)?);
+                let mut ids = std::collections::BTreeSet::new();
+                if let bozzard_scene::TextFont::Custom(id) = &source.font {
+                    ids.insert(id.as_str());
+                }
+                ids.extend(source.font_fallbacks.iter().map(String::as_str));
+                let dependencies = ids
+                    .into_iter()
+                    .map(|id| {
+                        (
+                            id.to_owned(),
+                            assets
+                                .handle(id)
+                                .and_then(|h| assets.get(h))
+                                .and_then(|e| e.shared_data()),
+                        )
+                    })
+                    .collect();
+                self.text_payloads.insert(
+                    key,
+                    TextPayload {
+                        source: source.clone(),
+                        dependencies,
+                        mesh: mesh.clone(),
+                        used: self.text_generation,
+                    },
+                );
+                mesh
+            }
+        };
+        Ok(DrawItem {
+            motion_id: 0,
+            model,
+            mesh: MeshKind::SharedText(mesh),
+            material: Material {
+                metallic: None,
+                roughness: None,
+                surface_overrides: Default::default(),
+                tint: [source.color[0], source.color[1], source.color[2]],
+                uv_scale: [1.; 2],
+                texture: TextureKind::Text,
+                lit: false,
+                shader: None,
+            },
+        })
+    }
+    fn update_assets(&mut self, assets: &AssetStore) -> (usize, usize) {
+        if self
+            .publication
+            .as_ref()
+            .is_some_and(|previous| Arc::ptr_eq(previous, assets.publication_identity()))
+        {
+            return (0, 0);
+        }
         let mut changed = 0;
         let mut count = 0;
         for (index, entry) in assets.entries().enumerate() {
@@ -102,12 +268,12 @@ impl State {
             // Holding the previous token prevents pointer reuse while old frames live.
             // Cloned asset stores may diverge with identical numeric revisions.
             self.asset_epoch = Arc::new(());
-            self.buffers = Default::default();
         }
+        self.publication = Some(assets.publication_identity().clone());
         if self.assets.capacity() > count.saturating_mul(4).max(64) {
             self.assets.shrink_to_fit();
         }
-        changed
+        (changed, count)
     }
 }
 
@@ -119,7 +285,9 @@ impl RenderSceneCache {
     pub fn clear(&self) {
         let mut state = self.0.lock().unwrap_or_else(|error| error.into_inner());
         state.buffers = Default::default();
+        state.text_payloads.clear();
         state.assets = Vec::new();
+        state.publication = None;
         state.asset_epoch = Arc::new(());
         state.stats = Default::default();
     }
@@ -128,7 +296,9 @@ impl RenderSceneCache {
         state.disabled = !enabled;
         if !enabled {
             state.buffers = Default::default();
+            state.text_payloads.clear();
             state.assets = Vec::new();
+            state.publication = None;
             state.asset_epoch = Arc::new(());
         }
     }
@@ -156,13 +326,27 @@ impl RenderSceneCache {
         let slot = layer_index(layer);
         let mut state = self.0.lock().unwrap_or_else(|error| error.into_inner());
         let reuse = !state.disabled;
+        state.text_generation = state
+            .text_generation
+            .checked_add(1)
+            .expect("text frame generation exhausted");
+        state.text_reuses = 0;
+        state.text_rebuilds = 0;
+        let numeric_mode = crate::shaders::parameterization_enabled();
+        if state.numeric_mode != Some(numeric_mode) {
+            state.buffers = Default::default();
+            state.asset_epoch = Arc::new(());
+            state.numeric_mode = Some(numeric_mode);
+        }
         let scan = Instant::now();
+        let (assets_changed, asset_catalog_reads) = if reuse {
+            state.update_assets(assets)
+        } else {
+            (0, 0)
+        };
         let mut stats = RenderSceneStats {
-            assets_changed: if reuse {
-                state.update_assets(assets)
-            } else {
-                0
-            },
+            assets_changed,
+            asset_catalog_reads,
             ..Default::default()
         };
         stats.asset_scan_ms = scan.elapsed().as_secs_f64() * 1000.;
@@ -177,6 +361,10 @@ impl RenderSceneCache {
             .is_some_and(|epoch| Arc::ptr_eq(epoch, &state.asset_epoch));
         let materials = Instant::now();
         let mut count = 0;
+        // Allocate remapping only after an actual immutable-source mismatch.
+        // Moving/inserted rows keep existing material payloads rather than
+        // cascading every later positional cache entry into a rebuild.
+        let mut remap: Option<Option<std::collections::HashMap<u64, usize>>> = None;
         for ((((model, drawable), motion_id), shader), binding) in view
             .objects
             .iter()
@@ -185,20 +373,56 @@ impl RenderSceneCache {
             .zip(&view.material_instances)
         {
             if matches!(drawable.mesh, Mesh::Surface { .. })
-                && assets.mesh_surface(&drawable.mesh).is_none()
+                && assets.mesh_surface_binding(&drawable.mesh).is_none()
             {
                 continue;
             }
             let generated = view.compute_textures.get(motion_id).copied();
-            if valid_assets
-                && buffer
-                    .inputs
-                    .get(count)
-                    .is_some_and(|previous| previous.matches(drawable, shader, binding, generated))
+            let prefix_matches = buffer.inputs.get(count).is_some_and(|previous| {
+                previous.matches(drawable, shader, binding, generated)
+                    && (valid_assets || previous.assets_match(assets))
+            });
+            if reuse && !prefix_matches && !buffer.inputs.is_empty() {
+                let mapping = remap.get_or_insert_with(|| {
+                    let mut mapping = std::collections::HashMap::with_capacity(buffer.inputs.len());
+                    for (index, input) in buffer.inputs.iter().enumerate() {
+                        if input.motion_id == 0 || mapping.insert(input.motion_id, index).is_some()
+                        {
+                            return None;
+                        }
+                    }
+                    let mut ids = std::collections::HashSet::with_capacity(view.object_ids.len());
+                    if view
+                        .object_ids
+                        .iter()
+                        .any(|id| *id == 0 || !ids.insert(*id))
+                    {
+                        return None;
+                    }
+                    Some(mapping)
+                });
+                if let Some(mapping) = mapping
+                    && let Some(&previous_index) = mapping.get(motion_id)
+                    && previous_index > count
+                    && buffer.inputs[previous_index].matches(drawable, shader, binding, generated)
+                    && (valid_assets || buffer.inputs[previous_index].assets_match(assets))
+                {
+                    buffer.inputs.swap(count, previous_index);
+                    buffer.items.swap(count, previous_index);
+                    mapping.insert(buffer.inputs[count].motion_id, count);
+                    mapping.insert(buffer.inputs[previous_index].motion_id, previous_index);
+                }
+            }
+            if prefix_matches
+                || buffer.inputs.get(count).is_some_and(|previous| {
+                    previous.matches(drawable, shader, binding, generated)
+                        && (valid_assets || previous.assets_match(assets))
+                })
             {
                 let item = &mut buffer.items[count];
                 item.model = *model;
                 item.motion_id = *motion_id;
+                buffer.inputs[count].motion_id = *motion_id;
                 stats.material_reuses += 1;
             } else {
                 let item = drawable_item(
@@ -222,19 +446,37 @@ impl RenderSceneCache {
                         buffer.inputs.reserve(view.objects.len());
                     }
                 }
-                if count < buffer.items.len() {
+                let displaced = remap.as_ref().is_some_and(|mapping| mapping.is_some())
+                    && count < buffer.inputs.len();
+                if displaced {
+                    buffer.items.push(item);
+                    let last = buffer.items.len() - 1;
+                    buffer.items.swap(count, last);
+                } else if count < buffer.items.len() {
                     buffer.items[count] = item;
                 } else {
                     buffer.items.push(item);
                 }
                 if reuse {
+                    let dependencies =
+                        dependencies(drawable, binding.as_deref(), &buffer.items[count], assets);
                     let input = Input {
+                        motion_id: *motion_id,
                         drawable: drawable.clone(),
                         shader: shader.clone(),
                         binding: binding.clone(),
                         generated,
+                        dependencies,
                     };
-                    if count < buffer.inputs.len() {
+                    if displaced {
+                        buffer.inputs.push(input);
+                        let last = buffer.inputs.len() - 1;
+                        buffer.inputs.swap(count, last);
+                        if let Some(Some(mapping)) = &mut remap {
+                            mapping.insert(buffer.inputs[last].motion_id, last);
+                            mapping.insert(*motion_id, count);
+                        }
+                    } else if count < buffer.inputs.len() {
                         buffer.inputs[count] = input;
                     } else {
                         buffer.inputs.push(input);
@@ -252,7 +494,24 @@ impl RenderSceneCache {
         stats.material_prepare_ms = materials.elapsed().as_secs_f64() * 1000.;
         stats.pooled_items = stats.material_reuses;
         buffer.assets = reuse.then(|| state.asset_epoch.clone());
-        let scene = frame_settings(view, layer, gi, std::mem::take(&mut buffer.items), assets)?;
+        let scene = frame_settings(
+            view,
+            layer,
+            gi,
+            std::mem::take(&mut buffer.items),
+            assets,
+            reuse.then_some(&mut *state),
+        )?;
+        stats.text_descriptor_reuses = state.text_reuses;
+        stats.text_descriptor_rebuilds = state.text_rebuilds;
+        let generation = state.text_generation;
+        state
+            .text_payloads
+            .retain(|_, entry| entry.used >= generation.saturating_sub(1));
+        let text_limit = state.text_payloads.len().max(64);
+        if state.text_payloads.capacity() > text_limit.saturating_mul(4) {
+            state.text_payloads.shrink_to(text_limit.saturating_mul(2));
+        }
         stats.adapter_ms = started.elapsed().as_secs_f64() * 1000.;
         stats.retained_frames = state.buffers.iter().map(Vec::len).sum();
         state.stats = stats;
@@ -411,14 +670,20 @@ fn drawable_item(
     layer: Layer,
 ) -> Result<DrawItem> {
     let shader = crate::material_binding(&mut drawable, inputs.binding, inputs.shader, assets)?;
+    let canonical_texture = |value: Texture| match value {
+        Texture::Asset(id) => TextureKind::Imported(assets.canonical_asset_id(&id).to_owned()),
+        other => texture(other),
+    };
     Ok(DrawItem {
         motion_id,
         model,
         mesh: match drawable.mesh {
             Mesh::Quad => MeshKind::Quad,
             Mesh::Cube => MeshKind::Cube,
-            Mesh::Asset(id) => MeshKind::Imported(id),
-            Mesh::Surface { asset, index, .. } => MeshKind::ModelPart(asset, index as usize),
+            Mesh::Asset(id) => MeshKind::Imported(assets.canonical_asset_id(&id).to_owned()),
+            Mesh::Surface { asset, index, .. } => {
+                MeshKind::ModelPart(assets.canonical_asset_id(&asset).to_owned(), index as usize)
+            }
         },
         material: Material {
             metallic: drawable.metallic,
@@ -430,7 +695,7 @@ fn drawable_item(
                     surface: value.surface,
                     source: value.source,
                     transform: value.transform.matrix(),
-                    texture: value.texture.map(texture),
+                    texture: value.texture.map(canonical_texture),
                     uv_scale: value.uv_scale,
                     tint: value.tint,
                     metallic: value.metallic,
@@ -439,9 +704,10 @@ fn drawable_item(
                 .collect(),
             tint: drawable.color,
             uv_scale: drawable.uv_scale,
-            texture: inputs
-                .generated
-                .map_or_else(|| texture(drawable.texture), TextureKind::Generated),
+            texture: inputs.generated.map_or_else(
+                || canonical_texture(drawable.texture),
+                TextureKind::Generated,
+            ),
             lit: layer == Layer::ThreeD,
             shader,
         },
@@ -463,7 +729,7 @@ pub fn render_scene(
         .zip(std::mem::take(&mut view.material_instances))
     {
         if matches!(drawable.mesh, Mesh::Surface { .. })
-            && assets.mesh_surface(&drawable.mesh).is_none()
+            && assets.mesh_surface_binding(&drawable.mesh).is_none()
         {
             continue;
         }
@@ -480,7 +746,7 @@ pub fn render_scene(
             layer,
         )?);
     }
-    frame_settings(view, layer, gi, items, assets)
+    frame_settings(view, layer, gi, items, assets, None)
 }
 
 fn frame_settings<D>(
@@ -489,11 +755,20 @@ fn frame_settings<D>(
     gi: Option<IrradianceVolume>,
     items: Vec<DrawItem>,
     assets: &AssetStore,
+    mut cache: Option<&mut State>,
 ) -> Result<RenderScene> {
     let mut items = items;
-    items.extend(crate::sprite_items(&view.sprites)?);
+    items.extend(crate::sprite_items_resolved(&view.sprites, |id| {
+        assets.canonical_asset_id(id).to_owned()
+    })?);
     for (model, text) in view.texts {
         items.push(crate::text_item(model, &text, assets)?);
+    }
+    for (model, text) in view.shared_texts {
+        items.push(match cache.as_deref_mut() {
+            Some(cache) => cache.shared_text(model, text, assets)?,
+            None => crate::text_item(model, &text, assets)?,
+        });
     }
     Ok(RenderScene {
         skin_poses: crate::skin_poses(&view.skin_poses),
@@ -559,6 +834,63 @@ fn frame_settings<D>(
         shader_time: view.display_time,
     })
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GiFreshnessStats {
+    pub reuses: usize,
+    pub rebuilds: usize,
+}
+pub fn gi_freshness_stats() -> GiFreshnessStats {
+    GI_STATS.with(|stats| *stats.borrow())
+}
+struct GiFreshnessEntry {
+    identity: Arc<()>,
+    world: (u64, u64),
+    publication: Arc<()>,
+    authored_revision: u64,
+    current: bool,
+}
+thread_local! {
+    static GI_STATS: std::cell::RefCell<GiFreshnessStats> = const { std::cell::RefCell::new(GiFreshnessStats { reuses: 0, rebuilds: 0 }) };
+    static GI_FRESHNESS: std::cell::RefCell<Vec<GiFreshnessEntry>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+fn live_gi_current(
+    instance: &bozzard_scene::SceneInstance,
+    world: &bozzard_ecs::World,
+    assets: &AssetStore,
+) -> Result<bool> {
+    GI_FRESHNESS.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let identity = instance.render_cache_identity();
+        let revision = world.component_mutation_revision();
+        if let Some(entry) = cache.iter().find(|entry| {
+            Arc::ptr_eq(&entry.identity, identity)
+                && entry.world == revision
+                && Arc::ptr_eq(&entry.publication, assets.publication_identity())
+                && entry.authored_revision == instance.authored_revision()
+        }) {
+            GI_STATS.with(|stats| stats.borrow_mut().reuses += 1);
+            return Ok(entry.current);
+        }
+        // Capture remains the independent oracle, including validation. Errors
+        // never replace a last-good bookmark or conceal a later repair.
+        let current =
+            bozzard_assets::gi::is_current(&instance.capture(world)?, assets).unwrap_or(false);
+        GI_STATS.with(|stats| stats.borrow_mut().rebuilds += 1);
+        cache.retain(|entry| !Arc::ptr_eq(&entry.identity, identity));
+        if cache.len() == 8 {
+            cache.remove(0);
+        }
+        cache.push(GiFreshnessEntry {
+            identity: identity.clone(),
+            world: revision,
+            publication: assets.publication_identity().clone(),
+            authored_revision: instance.authored_revision(),
+            current,
+        });
+        Ok(current)
+    })
+}
+
 /// Preserve authored/Edit and live/Play GI freshness rules before preparing a frame.
 pub fn irradiance_volume(
     instance: &bozzard_scene::SceneInstance,
@@ -573,7 +905,7 @@ pub fn irradiance_volume(
     }
     let current = match authored_current {
         Some(current) => current,
-        None => bozzard_assets::gi::is_current(&instance.capture(world)?, assets).unwrap_or(false),
+        None => live_gi_current(instance, world, assets)?,
     };
     if !current {
         return Ok(None);

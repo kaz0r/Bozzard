@@ -1,4 +1,10 @@
 struct MaterialUniform { factors: vec4<f32>, emissive: vec4<f32> };
+override stock_surface: bool = true;
+override fast_unlit: bool = true;
+override map_normal: bool = true;
+override map_mr: bool = true;
+override map_ao: bool = true;
+override map_emissive: bool = true;
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;
 @group(0) @binding(2) var color_sampler: sampler;
@@ -45,10 +51,19 @@ struct SurfaceParams {
 
 fn default_material_surface(uv: vec2<f32>, normal_uv: vec2<f32>, mr_uv: vec2<f32>, ao_uv: vec2<f32>, emissive_uv: vec2<f32>, world_normal: vec3<f32>, tangent: vec4<f32>, world: vec3<f32>, view: vec3<f32>, front: bool, time: f32) -> SurfaceParams {
     let texel = textureSample(color_texture,color_sampler,uv);
-    let mr = textureSample(mr_texture,mr_sampler,mr_uv);
-    let sampled_normal = textureSample(normal_texture,normal_sampler,normal_uv).xyz * 2.0 - 1.0;
-    let ao = mix(1.0,textureSample(ao_texture,ao_sampler,ao_uv).r,material.factors.w);
-    let emissive = textureSample(emissive_texture,emissive_sampler,emissive_uv).rgb * material.emissive.xyz;
+    if stock_surface && fast_unlit && object.parameters.z < 0.5 {
+        return SurfaceParams(texel.rgb * object.tint.rgb,0.0,1.0,vec3<f32>(0.0),texel.a * object.tint.a,world_normal,1.0);
+    }
+    var mr = vec4<f32>(1.0);
+    if map_mr { mr = textureSample(mr_texture,mr_sampler,mr_uv); }
+    var sampled_normal = vec3<f32>(128.0 / 255.0,128.0 / 255.0,1.0) * 2.0 - 1.0;
+    if map_normal { sampled_normal = textureSample(normal_texture,normal_sampler,normal_uv).xyz * 2.0 - 1.0; }
+    var ao_sample = 1.0;
+    if map_ao { ao_sample = textureSample(ao_texture,ao_sampler,ao_uv).r; }
+    let ao = mix(1.0,ao_sample,material.factors.w);
+    var emissive_sample = vec3<f32>(1.0);
+    if map_emissive { emissive_sample = textureSample(emissive_texture,emissive_sampler,emissive_uv).rgb; }
+    let emissive = emissive_sample * material.emissive.xyz;
     let base = texel.rgb * object.tint.rgb;
     let n = world_normal;
     let t = normalize(tangent.xyz - n * dot(n,tangent.xyz));
@@ -98,7 +113,13 @@ fn default_material_surface(uv: vec2<f32>, normal_uv: vec2<f32>, mr_uv: vec2<f32
         let light = local_lights.lights[i];
         let offset = light.position_range.xyz - in.world;
         let l = local_direction(light, offset);
-        direct += direct_brdf(base, metallic, roughness, n, v, l) * local_radiance(light, offset) * local_visibility(light, in.world, shadow_normal);
+        let radiance = local_radiance(light, offset);
+        // Stock parameters bound the BRDF. Arbitrary graph parameters retain its
+        // original evaluation, including observable nonfinite intermediates.
+        if stock_surface && all(abs(base) <= vec3<f32>(1.001))
+            && all(abs(v) <= vec3<f32>(1.001)) && local_zero_contribution(radiance, n, l)
+            && local_brdf_pow_valid(v, l) { continue; }
+        direct += direct_brdf(base, metallic, roughness, n, v, l) * radiance * local_visibility(light, in.world, shadow_normal);
     }
     let ibl_diffuse = gi_diffuse(in.world,n)*base*(1.0-f0)*(1.0-metallic);
     let ibl_specular = specular_environment(reflect(-v,n),roughness,nv,f0);

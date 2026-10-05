@@ -1,0 +1,14 @@
+     Running unittests src/lib.rs (target/debug/deps/bozzard_ecs-a169bcbfa973cd50)
+
+running 9 tests
+test tests::stale_and_foreign_handles_cannot_touch_recycled_entities ... ok
+test tests::a_bookmark_reports_only_what_was_written_after_it ... ok
+test tests::deferred_despawn_and_resources ... ok
+test tests::a_write_records_a_tick_and_a_read_does_not ... ok
+test tests::joins_survive_swap_removal_and_component_replacement ... ok
+test tests::exhausted_generation_is_retired ... ok
+test tests::prepared_entities_move_without_cloning_values_or_replacing_live_state ... ok
+test tests::conservative_revisions_cover_same_tick_bypass_membership_queries_and_worlds ... ok
+test tests::revision_journal_matches_full_snapshot_for_commands_joins_and_imported_entities ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

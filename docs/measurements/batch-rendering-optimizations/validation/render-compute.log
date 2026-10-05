@@ -1,0 +1,9 @@
+     Running tests/compute.rs (target/debug/deps/compute-2be56a61ed0c229d)
+
+running 2 tests
+test offscreen_compute_matches_cpu_ordering_readback_texture_reload_and_reuse ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test readback_saturation_cancellation_and_world_replacement_remain_bounded ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 80.10s

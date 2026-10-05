@@ -1,3 +1,5 @@
+// Surface hosts enable this; particle/volume hosts preserve their original path.
+override skip_zero_local: bool = false;
 struct LocalLight {
     position_range: vec4<f32>, color_intensity: vec4<f32>,
     direction_outer: vec4<f32>, cone: vec4<f32>,
@@ -79,6 +81,21 @@ fn local_radiance(light: LocalLight, offset: vec3<f32>) -> vec3<f32> {
     }
     return light.color_intensity.rgb * light.color_intensity.w * attenuation;
 }
+fn local_zero_contribution(radiance: vec3<f32>, normal: vec3<f32>, direction: vec3<f32>) -> bool {
+    // Finite unit vectors and bounded radiance certify a finite diffuse result.
+    // Uncertain graph normals and nonfinite intermediates keep the original work.
+    return skip_zero_local && all(abs(normal) <= vec3<f32>(1.001))
+        && all(abs(direction) <= vec3<f32>(1.001))
+        && all(abs(radiance) <= vec3<f32>(1e30))
+        && (all(radiance == vec3<f32>(0.0)) || dot(normal, direction) <= 0.0);
+}
+fn local_brdf_pow_valid(view: vec3<f32>, direction: vec3<f32>) -> bool {
+    let h = (view + direction) / max(length(view + direction), 0.000001);
+    // The original Fresnel pow(1-vh,5) has no defined negative-base result.
+    // Rounding can put normalized dot products above one; preserve that original
+    // evaluation near the boundary instead of assuming its final zero is finite.
+    return max(dot(view, h), 0.0) < 0.99999;
+}
 fn local_diffuse_masked(world: vec3<f32>, normal: vec3<f32>, selected: u32) -> vec3<f32> {
     var result = vec3<f32>(0.0);
     var remaining = selected;
@@ -88,7 +105,9 @@ fn local_diffuse_masked(world: vec3<f32>, normal: vec3<f32>, selected: u32) -> v
         let light = local_lights.lights[i];
         let offset = light.position_range.xyz - world;
         let direction = local_direction(light, offset);
-        result += local_radiance(light, offset) * max(dot(normal, direction), 0.0) / 3.14159265 * local_visibility(light, world, normal);
+        let radiance = local_radiance(light, offset);
+        if local_zero_contribution(radiance, normal, direction) { continue; }
+        result += radiance * max(dot(normal, direction), 0.0) / 3.14159265 * local_visibility(light, world, normal);
     }
     return result;
 }
@@ -98,7 +117,9 @@ fn local_diffuse(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
         let light = local_lights.lights[i];
         let offset = light.position_range.xyz - world;
         let direction = local_direction(light, offset);
-        result += local_radiance(light, offset) * max(dot(normal, direction), 0.0) / 3.14159265 * local_visibility(light, world, normal);
+        let radiance = local_radiance(light, offset);
+        if local_zero_contribution(radiance, normal, direction) { continue; }
+        result += radiance * max(dot(normal, direction), 0.0) / 3.14159265 * local_visibility(light, world, normal);
     }
     return result;
 }

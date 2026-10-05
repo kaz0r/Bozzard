@@ -1,0 +1,27 @@
+{
+  "description": "Run3 graph production-mode active factory, heading0; exact RGB before/after. PPM to PNG is a lossless format conversion. Other capture differences are recorded in summary.json.",
+  "captures": {
+    "baseline": {
+      "source_capture": "work/batch-rendering-optimizations/comparison-proof-final/run-3/graph/baseline/active_factory-heading0-1.ppm",
+      "source_ppm_sha256": "deff41e25a69e41fb48eab8fed0386ee9b409a44335421de97685ee72cb1a6d5",
+      "png_path": "docs/images/batch-rendering-optimizations/factory-baseline.png",
+      "png_sha256": "3411369b995e86609801faf108302573a3980acdf3a11ff03ba39621c42e140a",
+      "size": [
+        1280,
+        800
+      ],
+      "mode": "RGB"
+    },
+    "optimized": {
+      "source_capture": "work/batch-rendering-optimizations/comparison-proof-final/run-3/graph/optimized/active_factory-heading0-1.ppm",
+      "source_ppm_sha256": "deff41e25a69e41fb48eab8fed0386ee9b409a44335421de97685ee72cb1a6d5",
+      "png_path": "docs/images/batch-rendering-optimizations/factory-optimized.png",
+      "png_sha256": "3411369b995e86609801faf108302573a3980acdf3a11ff03ba39621c42e140a",
+      "size": [
+        1280,
+        800
+      ],
+      "mode": "RGB"
+    }
+  }
+}

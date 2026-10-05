@@ -1,8 +1,7 @@
 use super::*;
 
 impl SceneRenderer {
-    /// Compare opaque shader-graph instances with the former individual-graph path.
-    /// Transparent and deformed surfaces remain individual in both modes.
+    /// Compare compatible shader-graph instances with the individual-graph path.
     pub fn set_shader_graph_instancing_enabled(&mut self, enabled: bool) {
         if self.instancing.graph_enabled != enabled {
             self.instancing.graph_enabled = enabled;
@@ -20,13 +19,20 @@ impl SceneRenderer {
         gpu: &Gpu,
         draws: &[PreparedDraw],
         batches: &[Batch],
-        auxiliary: bool,
+        output_mask: u8,
     ) {
         for batch in batches.iter().filter(|batch| batch.indices.len() > 1) {
             let draw = &draws[batch.indices[0]];
+            if self
+                .variant_key(draw, batch.indices.len() as u32, output_mask)
+                .is_some()
+            {
+                continue;
+            }
             let Some(source) = &draw.object.material.shader else {
                 continue;
             };
+            let auxiliary = output_mask != 0;
             let key = (source.id, auxiliary);
             let flavor = usize::from(draw.pbr);
             if self.graphs[&key].instanced[flavor].is_some() {
@@ -49,7 +55,11 @@ impl SceneRenderer {
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("instanced graph shader"),
                     source: wgpu::ShaderSource::Wgsl(
-                        instance_module_text(graph_module_text(draw.pbr, source)).into(),
+                        instance_module_text_for(
+                            graph_module_text(draw.pbr, source),
+                            self.instancing.arena_enabled(),
+                        )
+                        .into(),
                     ),
                 });
             let pipeline = scene_pipeline(

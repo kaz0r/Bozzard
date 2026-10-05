@@ -278,15 +278,34 @@ fn requirements_include_model_surfaces_overrides_and_offscreen_shadow_casters() 
         required(&["mesh", "base", "override"])
     );
 }
-fn store() -> anyhow::Result<AssetStore> {
+struct BudgetImages(PathBuf);
+impl Drop for BudgetImages {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+fn store() -> anyhow::Result<(AssetStore, BudgetImages)> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/assets");
+    // Budget pressure needs three independent allocations. Canonical aliases
+    // correctly share storage and are covered by the separate alias test.
+    let images = BudgetImages(
+        std::env::temp_dir().join(format!("bozzard-residency-budget-{}", std::process::id())),
+    );
+    std::fs::create_dir_all(&images.0)?;
+    for id in ["a", "b", "c"] {
+        std::fs::copy(root.join("palette.png"), images.0.join(format!("{id}.png")))?;
+    }
     let mut sources: BTreeMap<_, _> = ["a", "b", "c"]
         .map(|id| {
             (
                 id.into(),
                 AssetSource {
                     kind: AssetKind::Image,
-                    path: "palette.png".into(),
+                    path: images
+                        .0
+                        .join(format!("{id}.png"))
+                        .to_string_lossy()
+                        .into_owned(),
                 },
             )
         })
@@ -301,7 +320,7 @@ fn store() -> anyhow::Result<AssetStore> {
     let mut store = AssetStore::new(&root, &sources)?;
     store.load_pending()?;
     store.require_ready()?;
-    Ok(store)
+    Ok((store, images))
 }
 #[test]
 fn budget_evicts_lru_unused_assets_restores_them_and_pins_an_oversized_working_set()
@@ -309,7 +328,7 @@ fn budget_evicts_lru_unused_assets_restores_them_and_pins_an_oversized_working_s
     let instance = wgpu::Instance::default();
     let gpu = pollster::block_on(Gpu::request_prefer_software(&instance))?;
     let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
-    let store = store()?;
+    let (store, _images) = store()?;
     let AssetData::Image(image) = store
         .get(store.handle("a").unwrap())
         .unwrap()
@@ -566,5 +585,61 @@ fn inherited_material_images_share_storage_and_survive_alias_eviction_and_source
     assert_ne!(second.rgba, first.rgba);
     assert_eq!(capture(&gpu, &mut renderer, "variant")?.rgba, second.rgba);
     std::fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
+fn canonical_image_aliases_share_gpu_storage_and_settled_frames_skip_catalog_scans()
+-> anyhow::Result<()> {
+    use std::sync::Arc;
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&wgpu::Instance::default()))?;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes/assets");
+    let sources = [("a", "palette.png"), ("b", "./palette.png")]
+        .into_iter()
+        .map(|(id, path)| {
+            (
+                id.into(),
+                AssetSource {
+                    kind: AssetKind::Image,
+                    path: path.into(),
+                },
+            )
+        })
+        .collect();
+    let mut store = AssetStore::new(&root, &sources)?;
+    store.load_pending()?;
+    let a = store
+        .get(store.handle("a").unwrap())
+        .unwrap()
+        .shared_data()
+        .unwrap();
+    let b = store
+        .get(store.handle("b").unwrap())
+        .unwrap()
+        .shared_data()
+        .unwrap();
+    assert!(Arc::ptr_eq(&a, &b));
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let mut residency = Residency::default();
+    residency.set_required(required(&["a", "b"]));
+    let loaded = residency.sync(&gpu, &mut renderer, &store)?;
+    assert_eq!(loaded.uploaded, 1, "aliases share one GPU image allocation");
+    assert_eq!(residency.stats().resident_assets, 2);
+    let before = residency.stats();
+    let a_pixels = capture(&gpu, &mut renderer, "a")?.rgba;
+    let b_pixels = capture(&gpu, &mut renderer, "b")?.rgba;
+    assert_eq!(a_pixels, b_pixels);
+    // A second settled call does no catalog work and no uploads.
+    residency.sync(&gpu, &mut renderer, &store)?;
+    let settled = residency.stats();
+    assert_eq!(settled.catalog_scans, before.catalog_scans);
+    assert!(settled.settled_reuses > before.settled_reuses);
+    residency.set_required(required(&["b"]));
+    residency.set_budget(Some(0));
+    let evicted = residency.advance(&gpu, &mut renderer, &store, 65536)?;
+    assert_eq!(evicted.evicted, 1);
+    assert_eq!(residency.stats().resident_assets, 1);
+    assert_eq!(residency.stats().resident_bytes, before.resident_bytes);
+    assert_eq!(capture(&gpu, &mut renderer, "b")?.rgba, b_pixels);
     Ok(())
 }

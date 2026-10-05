@@ -39,8 +39,15 @@ pub(crate) fn color_targets(
     transparent: bool,
     auxiliary: bool,
 ) -> [Option<wgpu::ColorTargetState>; 4] {
+    color_targets_mask(format, transparent, if auxiliary { 7 } else { 0 })
+}
+pub(crate) fn color_targets_mask(
+    format: wgpu::TextureFormat,
+    transparent: bool,
+    mask: u8,
+) -> [Option<wgpu::ColorTargetState>; 4] {
     std::array::from_fn(|i| {
-        if i > 0 && !auxiliary {
+        if i > 0 && mask & (1 << (i - 1)) == 0 {
             return None;
         }
         Some(wgpu::ColorTargetState {
@@ -152,6 +159,11 @@ struct PreviousFrame {
     signature: u64,
     taa: bool,
 }
+struct PendingFrame {
+    previous: Option<PreviousFrame>,
+    sample: u32,
+    reset: bool,
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum MotionMesh {
     Sprite(u64),
@@ -171,7 +183,7 @@ impl From<&MeshKind> for MotionMesh {
             MeshKind::Imported(id) => Self::Imported(id.clone()),
             MeshKind::ModelPart(id, part) => Self::ModelPart(id.clone(), *part),
             MeshKind::Sprite(sprite) => Self::Sprite(sprite.geometry.key()),
-            MeshKind::Text(_) => Self::Text,
+            MeshKind::Text(_) | MeshKind::SharedText(_) => Self::Text,
         }
     }
 }
@@ -180,6 +192,7 @@ pub(super) struct MotionHistory {
     previous: Option<PreviousFrame>,
     poses: BTreeMap<(u64, MotionMesh), Mat4>,
     sample: u32,
+    pending: Option<PendingFrame>,
 }
 fn halton(mut index: u32, base: u32) -> f32 {
     let mut weight = 1.;
@@ -204,7 +217,11 @@ impl MotionHistory {
         let active =
             !raw && (scene.display.temporal_aa.enabled || scene.display.motion_blur.enabled);
         if !active {
-            self.reset();
+            self.pending = Some(PendingFrame {
+                previous: None,
+                sample: 0,
+                reset: true,
+            });
             return (scene.view_projection, TemporalFrame::default());
         }
         let signature = frame_signature(scene);
@@ -242,15 +259,12 @@ impl MotionHistory {
                 0.
             };
         }
-        if !frame.valid {
-            self.sample = 0;
-            self.poses.clear();
-        }
+        let mut sample = if frame.valid { self.sample } else { 0 };
         if !frame.repeated {
-            self.sample = self.sample % 8 + 1;
+            sample = sample % 8 + 1;
         }
         frame.jitter = if scene.display.temporal_aa.enabled {
-            [halton(self.sample, 2) - 0.5, halton(self.sample, 3) - 0.5]
+            [halton(sample, 2) - 0.5, halton(sample, 3) - 0.5]
         } else {
             [0.; 2]
         };
@@ -263,20 +277,26 @@ impl MotionHistory {
             frame.previous_vp = jittered;
             frame.previous_jitter = frame.jitter;
         }
-        self.previous = Some(PreviousFrame {
-            vp: scene.view_projection,
-            jittered,
-            time,
-            size,
-            jitter: frame.jitter,
-            signature,
-            taa: scene.display.temporal_aa.enabled,
+        self.pending = Some(PendingFrame {
+            previous: Some(PreviousFrame {
+                vp: scene.view_projection,
+                jittered,
+                time,
+                size,
+                jitter: frame.jitter,
+                signature,
+                taa: scene.display.temporal_aa.enabled,
+            }),
+            sample,
+            reset: !frame.valid,
         });
         (jittered, frame)
     }
     pub fn previous_model(&self, item: &DrawItem) -> Option<Mat4> {
         if item.motion_id == 0 {
             Some(item.model)
+        } else if self.pending.as_ref().is_some_and(|pending| pending.reset) {
+            None
         } else {
             self.poses
                 .get(&(item.motion_id, MotionMesh::from(&item.mesh)))
@@ -284,6 +304,9 @@ impl MotionHistory {
         }
     }
     pub fn finish(&mut self, draws: &[PreparedDraw]) {
+        let pending = self.pending.take().expect("frame history prepared");
+        self.previous = pending.previous;
+        self.sample = pending.sample;
         if self.previous.is_some() {
             self.poses = draws
                 .iter()
@@ -295,7 +318,12 @@ impl MotionHistory {
                     )
                 })
                 .collect();
+        } else {
+            self.poses.clear();
         }
+    }
+    pub fn abort(&mut self) {
+        self.pending = None;
     }
 }
 
@@ -318,7 +346,7 @@ fn frame_signature(scene: &RenderScene) -> u64 {
     for item in &scene.items {
         item.motion_id.hash(&mut hash);
         MotionMesh::from(&item.mesh).hash(&mut hash);
-        if let MeshKind::Text(text) = &item.mesh {
+        if let Some(text) = item.mesh.text() {
             text.text.hash(&mut hash);
             text.monospace.hash(&mut hash);
             std::mem::discriminant(&text.alignment).hash(&mut hash);

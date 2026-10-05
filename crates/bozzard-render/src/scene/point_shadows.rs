@@ -15,7 +15,7 @@ const AXES: [(Vec3, Vec3); FACES] = [
     (Vec3::NEG_Z, Vec3::Y),
 ];
 
-fn projections(light: &LocalLight) -> Result<[Mat4; FACES]> {
+pub(super) fn projections(light: &LocalLight) -> Result<[Mat4; FACES]> {
     light.validate()?;
     ensure!(
         light.spot_angles.is_none(),

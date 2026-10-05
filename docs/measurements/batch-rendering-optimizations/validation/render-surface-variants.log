@@ -1,0 +1,17 @@
+     Running tests/surface_variants.rs (target/debug/deps/surface_variants-693759524b8ff9ef)
+
+running 4 tests
+test cached_object_sources_preserve_signed_zero_for_custom_graphs ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+signed_zero_proof exact_custom_graph_pixels=true transitions=2 prewarmed_first_frame_compiles=0
+ok
+test map_masks_winding_unlit_and_consumed_outputs_preserve_native_pixels ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+surface_variant_proof comparisons=73 missing_map_masks=16 mirrored_and_double_sided=true exact_pixels=true
+ok
+test stable_rows_and_normal_matrices_survive_material_edits_and_early_insertions ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+stable_object_proof material_edit_normal_builds=0 insertion_allocations=1 removal_writes=0
+ok
+test zero_local_light_contributions_preserve_diffuse_and_stock_brdf_pixels ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+zero_local_light_proof comparisons=30 diffuse_and_two_stock_brdf_hosts=true generic_and_specialized=true point_range_backface_hard_soft_cone_shadows=true exact_pixels=true
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 110.21s

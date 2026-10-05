@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "scope": "Successful upstream target evidence, refreshed render-assets lib/retained contracts after guards with original provenance retained for unchanged scopes. The new native graph-ordering target is recorded in validation.json. No test was rerun while curating these files.",
+  "validation": [
+    {
+      "crate": "bozzard-ecs",
+      "target": "lib",
+      "command": "cargo test --locked --offline -p bozzard-ecs --lib --no-fail-fast",
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "44156",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-ecs-lib.log",
+      "log_bytes": 858,
+      "sha256": "183b7b4295a2f0e703284963f90176a1cd5b29241376714216e5c5391a773a69",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-scene",
+      "target": "lib",
+      "command": "cargo test --locked --offline -p bozzard-scene --lib --test shared_render_views --test interpolation --no-fail-fast",
+      "result": {
+        "passed": 80,
+        "failed": 0,
+        "ignored": 1,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "26606",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-scene-lib.log",
+      "log_bytes": 7835,
+      "sha256": "0797334dbc3eef20d935b4122e8df5b83e4dafb2299f244b8f18a96707ee6850",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-scene",
+      "target": "interpolation",
+      "command": "cargo test --locked --offline -p bozzard-scene --lib --test shared_render_views --test interpolation --no-fail-fast",
+      "result": {
+        "passed": 13,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "26606",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-scene-interpolation.log",
+      "log_bytes": 1269,
+      "sha256": "0dbcd57567ebefd5018f858deb22ce520a3a5a485160dd4499163d1fff7ed144",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-scene",
+      "target": "shared_render_views",
+      "command": "cargo test --locked --offline -p bozzard-scene --lib --test shared_render_views --test interpolation --no-fail-fast",
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "26606",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-scene-shared-render-views.log",
+      "log_bytes": 956,
+      "sha256": "8bc8ae24a78bde8bf084e47ee7ed05cac6ba7dcd314033e4b4e364d89c66fed0",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-assets",
+      "target": "lib",
+      "command": "cargo test --locked --offline -p bozzard-assets --lib -- --nocapture --test-threads=1 > /tmp/bozzard-batch-assets-certified.log 2>&1 && cargo clippy --workspace --all-targets --locked --offline -- -D warnings > /tmp/bozzard-batch-clippy-certified.log 2>&1 && cargo fmt --all -- --check > /tmp/bozzard-batch-format-certified.log 2>&1",
+      "result": {
+        "passed": 51,
+        "failed": 0,
+        "ignored": 1,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "11726",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-assets-lib.log",
+      "log_bytes": 4803,
+      "sha256": "bcfd21529f855abcea6a06f436edb917ec2a648434784a53ada3a0251120c2e3",
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-assets-certified.log",
+        "sha256": "e9d5a7538bb084daebf6d818374e31939f831270c3b7005023a91c1d4113c945",
+        "extracted_lines": {
+          "first": 5,
+          "last": 61
+        },
+        "original_command_session_id": "11726",
+        "original_command_exit_code": 0,
+        "production_source_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+      },
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-assets",
+      "target": "procedural_meshes",
+      "command": "cargo test --locked --offline -p bozzard-assets --lib --test procedural_meshes --no-fail-fast",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "25918",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-assets-procedural-meshes.log",
+      "log_bytes": 290,
+      "sha256": "cbc25d44a88f4ff6c394806f598f9279d313aa04345d1e3c05b2f1b43a1577d0",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-render-assets",
+      "target": "lib",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test graph_ordering --test retained_frames -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-assets-guards-fixed.log 2>&1",
+      "result": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "53318",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-render-assets-lib.log",
+      "log_bytes": 754,
+      "sha256": "33d6c0156495298fc70d7d2a234dc13cf02e368d8b530e85b3b702e3a38cebeb",
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-assets-guards-fixed.log",
+        "sha256": "8ab34c8f6e0ef9291e976a8c2404a576abc27fd671a421494ae09fc1ef7ae018",
+        "original_command_session_id": "53318",
+        "original_command_exit_code": 0,
+        "production_source_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+        "extracted_lines": {
+          "first": 4,
+          "last": 14
+        }
+      },
+      "scope_status": "rerun_after_guards",
+      "repair_provenance": {
+        "supersedes_failed_compile_log_name": "bozzard-batch-render-assets-guards.log",
+        "note": "The new graph regression fixture was corrected to read public frame_stats(). The earlier command with private stats access failed compilation and is excluded from successful outputs."
+      }
+    },
+    {
+      "crate": "bozzard-render-assets",
+      "target": "cooked_models",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test retained_frames --test cooked_models --test residency --no-fail-fast",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "93837",
+      "original_command_exit_code": 101,
+      "log_path": "upstream-render-assets-cooked-models.log",
+      "log_bytes": 390,
+      "sha256": "478408e92caf9e45210abb3440c07e48e495fc262b3a15c8892cd48d49c2f201",
+      "note": "This target passed in an aggregate command that later exited 101 for the legacy residency fixture. Only this completed successful target section is exported. The corrected residency target separately passed all 6 tests in session 74963.",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-render-assets",
+      "target": "retained_frames",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --lib --test graph_ordering --test retained_frames -- --nocapture --test-threads=1 > /tmp/bozzard-batch-render-assets-guards-fixed.log 2>&1",
+      "result": {
+        "passed": 13,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "53318",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-render-assets-retained-frames.log",
+      "log_bytes": 1265,
+      "sha256": "4b98d7fb2170305d5f95eaa0c3524454562b50012a908adec68ef1b9041d89ee",
+      "counts_toward_unique_totals": true,
+      "source": {
+        "log_name": "bozzard-batch-render-assets-guards-fixed.log",
+        "sha256": "8ab34c8f6e0ef9291e976a8c2404a576abc27fd671a421494ae09fc1ef7ae018",
+        "original_command_session_id": "53318",
+        "original_command_exit_code": 0,
+        "production_source_commit": "9f8311402dfc3eac10c26daf3e64f122b45920f4",
+        "extracted_lines": {
+          "first": 25,
+          "last": 42
+        }
+      },
+      "scope_status": "rerun_after_guards",
+      "repair_provenance": {
+        "supersedes_failed_compile_log_name": "bozzard-batch-render-assets-guards.log",
+        "note": "The new graph regression fixture was corrected to read public frame_stats(). The earlier command with private stats access failed compilation and is excluded from successful outputs."
+      }
+    },
+    {
+      "crate": "bozzard-render-assets",
+      "target": "residency",
+      "command": "cargo test --locked --offline -p bozzard-render-assets --test residency",
+      "result": {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "74963",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-render-assets-residency.log",
+      "log_bytes": 1324,
+      "sha256": "9aa4e217897350bdbaac333c8fbef39de7477a80ca1613f661f1ca4c878dd12b",
+      "counts_toward_unique_totals": true,
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    },
+    {
+      "crate": "bozzard-render",
+      "target": "sun_cache::policy",
+      "command": "/tmp/bozzard-depth-policy-tests --nocapture",
+      "result": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "status": "passed",
+      "original_command_session_id": "25117",
+      "original_command_exit_code": 0,
+      "log_path": "upstream-depth-policy.log",
+      "log_bytes": 453,
+      "sha256": "011788c24d946e3bd283f6fbb12bb706a1eb6392b33d5be0a65db8346252c99c",
+      "compile_command": "rustc --edition 2024 --test /tmp/bozzard-depth-policy-tests.rs -o /tmp/bozzard-depth-policy-tests",
+      "compile_exit_code": 0,
+      "production_source": "crates/bozzard-render/src/scene/sun_cache/policy.rs",
+      "wrapper_path": "/tmp/bozzard-depth-policy-tests.rs",
+      "note": "Existing standalone production-module policy run; no Cargo or GPU execution.",
+      "counts_toward_unique_totals": false,
+      "duplicate_of": "render-lib",
+      "scope_status": "retained_unchanged_scope",
+      "retained_from_validation_snapshot_commit": "4d672c2acec535055ca9e830d1b67f07935ad96b"
+    }
+  ],
+  "note": "Paths refer to this validation directory. The standalone depth policy is supporting evidence and is excluded from unique totals because final renderer lib contains the same four tests."
+}

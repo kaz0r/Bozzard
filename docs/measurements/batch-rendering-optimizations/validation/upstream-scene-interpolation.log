@@ -1,0 +1,18 @@
+     Running tests/interpolation.rs (target/debug/deps/interpolation-ca4a885bfa64c7f2)
+
+running 13 tests
+test teleporting_a_child_snaps_its_world_pose_without_snapping_siblings ... ok
+test interpolation_keeps_large_finite_endpoints_and_positive_scale_invertible ... ok
+test repeated_frames_stationary_ticks_and_outside_tick_writes_never_replay_motion ... ok
+test explicit_teleports_snap_descendants_and_resume_smoothing_on_the_next_tick ... ok
+test rotation_wraps_follow_the_shortest_arc_and_reflections_snap ... ok
+test local_poses_preserve_hierarchies_shear_and_camera_light_alignment ... ok
+test unrepresentable_scale_blends_snap_only_the_affected_hierarchy ... ok
+test prefab_removal_reindexes_history_without_ghosts_or_reused_entity_poses ... ok
+test additive_scene_changes_keep_existing_motion_and_snap_new_members ... ok
+test two_dimensional_sprites_and_world_text_use_the_same_local_pose_as_meshes ... ok
+test tween_seeks_and_timeline_camera_cuts_do_not_blend_across_discontinuities ... ok
+test restart_and_checkpoint_load_replace_history_without_serializing_it ... ok
+test scripts_and_blueprints_can_reset_interpolation_without_changing_transform_semantics ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

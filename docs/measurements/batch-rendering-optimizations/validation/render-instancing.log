@@ -1,0 +1,38 @@
+     Running tests/instancing.rs (target/debug/deps/instancing-f9815840b25f9877)
+
+running 18 tests
+test a_tiny_view_of_a_large_scene_keeps_visibility_scoped_plans ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test camera_validation_errors_do_not_poison_shared_uniform_cache ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test coplanar_graph_instances_preserve_winners_and_skinned_graphs_remain_individual ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test graph_clock_is_shared_without_rebuilding_individual_objects ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test incremental_plans_retain_camera_and_rotor_edits_but_rebuild_for_new_conflicts ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test interleaved_meshes_batch_globally_without_changing_coplanar_or_transparent_pixels ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test local_light_masks_match_full_loops_through_geometry_light_and_material_edits ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test local_lighting_benchmark ... ignored, release-mode local lighting benchmark; run explicitly
+test opaque_graph_instances_match_individuals_through_edits_shadows_and_host_variants ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test opaque_runs_match_reference_through_edits_temporal_shadows_and_reuploads ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test orthographic_camera_churn_filters_hidden_surfaces_without_regrouping ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test partial_shadow_batches_match_individuals_with_nonzero_ranges_and_offscreen_casters ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test scale_benchmark ... ignored, release-mode synchronized CPU/wall benchmark; run explicitly
+test sparse_edits_and_batch_regrowth_reuse_instance_buffers ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test static_sun_depth_matches_full_render_through_moving_casters_and_invalidations ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test stationary_uniforms_are_reused_and_render_edits_match_uncached_output ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test unchanged_local_shadow_casters_skip_scans_and_preserve_invalidation ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test uniform_update_benchmark ... ignored, release-mode uniform update benchmark; run explicitly
+
+test result: ok. 15 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 103.19s

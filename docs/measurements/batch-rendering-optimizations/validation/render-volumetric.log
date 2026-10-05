@@ -1,0 +1,9 @@
+     Running tests/volumetric.rs (target/debug/deps/volumetric-aee67818bc5ced31)
+
+running 2 tests
+test volumetric_gpu_matches_homogeneous_transport_and_respects_depth ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test volumetric_gpu_shadowed_sun_point_spot_and_live_rebinding ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.07s

@@ -1,0 +1,9 @@
+     Running tests/optics.rs (target/debug/deps/optics-1efcb786bc443fe7)
+
+running 2 tests
+test auto_exposure_gpu_meter_adaptation_pause_reset_and_bypass ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test bokeh_gpu_focus_foreground_background_rebinding_and_encoding ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.09s

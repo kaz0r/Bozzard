@@ -1,0 +1,11 @@
+test_material_sets_viewport_and_shader_values (test_blender_helpers.BlenderHelpersTests.test_material_sets_viewport_and_shader_values) ... ok
+test_profile_keeps_extrusion_topology_and_center (test_blender_helpers.BlenderHelpersTests.test_profile_keeps_extrusion_topology_and_center) ... ok
+test_pack_is_required_and_header_is_checked (test_bozz_torio_package.PackageInventoryTests.test_pack_is_required_and_header_is_checked) ... ok
+test_scene_catalog_is_checked_after_relocation (test_bozz_torio_package.PackageInventoryTests.test_scene_catalog_is_checked_after_relocation) ... ok
+test_each_script_loads_sibling_helper_from_an_arbitrary_cwd (test_generator_imports.GeneratorImportTests.test_each_script_loads_sibling_helper_from_an_arbitrary_cwd) ... ok
+test_steam_library_is_adjacent_to_every_executable (test_package.PackageTests.test_steam_library_is_adjacent_to_every_executable) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.144s
+
+OK

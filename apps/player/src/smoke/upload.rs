@@ -143,9 +143,11 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         parts: vec![],
         warnings: vec![],
     }));
+    // CPU preparation can reject invalid geometry before GPU staging begins.
+    // Either rejection must leave the last published asset unchanged.
     ensure!(
-        renderer
-            .begin_upload(gpu, bozzard_render_assets::upload_source(invalid)?)
+        bozzard_render_assets::upload_source(invalid)
+            .and_then(|source| renderer.begin_upload(gpu, source))
             .is_err(),
         "invalid staged model accepted"
     );

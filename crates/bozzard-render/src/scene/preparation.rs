@@ -8,6 +8,7 @@ pub(super) struct SurfacePreparation {
     sources: Vec<DrawItem>,
     changed: Vec<bool>,
     models_changed: Vec<bool>,
+    membership_new: Vec<bool>,
     view_projection: Option<Mat4>,
 }
 impl SurfacePreparation {
@@ -18,13 +19,63 @@ impl SurfacePreparation {
         compact(&mut self.sources);
         compact(&mut self.changed);
         compact(&mut self.models_changed);
+        compact(&mut self.membership_new);
     }
     fn capacity_bytes(&self, draw_capacity: usize) -> usize {
         draw_capacity * mem::size_of::<PreparedDraw>()
             + self.sources.capacity() * mem::size_of::<DrawItem>()
             + self.changed.capacity() * mem::size_of::<bool>()
             + self.models_changed.capacity() * mem::size_of::<bool>()
+            + self.membership_new.capacity() * mem::size_of::<bool>()
     }
+}
+fn remap_sources(cache: &mut SurfacePreparation, sources: &[DrawItem]) -> bool {
+    cache.membership_new.clear();
+    cache.membership_new.resize(sources.len(), false);
+    if cache.sources.len() == sources.len()
+        && cache
+            .sources
+            .iter()
+            .zip(sources)
+            .all(|(a, b)| a.motion_id == b.motion_id)
+    {
+        return false;
+    }
+    let mut old = std::collections::HashMap::new();
+    for (index, source) in cache.sources.iter().enumerate() {
+        if source.motion_id == 0 || old.insert(source.motion_id, index).is_some() {
+            return false;
+        }
+    }
+    let mut ids = std::collections::HashSet::new();
+    if sources
+        .iter()
+        .any(|s| s.motion_id == 0 || !ids.insert(s.motion_id))
+    {
+        return false;
+    }
+    let mut previous: Vec<_> = mem::take(&mut cache.sources)
+        .into_iter()
+        .map(Some)
+        .collect();
+    let mut old_to_new = vec![usize::MAX; previous.len()];
+    cache.sources.reserve(sources.len());
+    for (index, source) in sources.iter().enumerate() {
+        if let Some(&before) = old.get(&source.motion_id) {
+            old_to_new[before] = index;
+            cache.sources.push(previous[before].take().unwrap());
+        } else {
+            cache.membership_new[index] = true;
+            cache.sources.push(source.clone());
+        }
+    }
+    for draw in &mut cache.draws {
+        draw.source_item = old_to_new
+            .get(draw.source_item)
+            .copied()
+            .unwrap_or(usize::MAX);
+    }
+    true
 }
 fn compact<T>(items: &mut Vec<T>) {
     // Keep normal frame-to-frame churn allocation-free without retaining a former large scene.
@@ -41,6 +92,17 @@ pub(super) struct DrawPreparation {
     // Keep these separate: regrouping matrix products changes rounding and signed zero.
     origin: Option<Mat4>,
     override_transform: Option<Mat4>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct SurfaceIdentity {
+    pub id: u64,
+    pub part: usize,
+}
+pub(super) fn surface_identity(draw: &PreparedDraw) -> Option<SurfaceIdentity> {
+    (draw.object.motion_id != 0).then_some(SurfaceIdentity {
+        id: draw.object.motion_id,
+        part: draw.preparation.surface_order,
+    })
 }
 fn bits_eq<const N: usize>(a: [f32; N], b: [f32; N]) -> bool {
     a.map(f32::to_bits) == b.map(f32::to_bits)
@@ -62,6 +124,17 @@ fn screen_eq(a: Option<ScreenText>, b: Option<ScreenText>) -> bool {
     }
 }
 fn mesh_eq(a: &MeshKind, b: &MeshKind) -> bool {
+    if let (Some(a), Some(b)) = (a.text(), b.text()) {
+        return a.text == b.text
+            && a.monospace == b.monospace
+            && a.custom_font == b.custom_font
+            && a.alignment == b.alignment
+            && screen_eq(a.screen, b.screen)
+            && option_array_eq(a.clip, b.clip)
+            && a.font_size.to_bits() == b.font_size.to_bits()
+            && option_float_eq(a.max_width, b.max_width)
+            && a.opacity.to_bits() == b.opacity.to_bits();
+    }
     match (a, b) {
         (MeshKind::Sprite(a), MeshKind::Sprite(b)) => {
             (Arc::ptr_eq(&a.geometry, &b.geometry)
@@ -114,7 +187,17 @@ fn material_eq(a: &Material, b: &Material) -> bool {
                     .all(|(a, b)| override_eq(a, b))))
         && match (&a.shader, &b.shader) {
             (None, None) => true,
-            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || (a.id == b.id && a.surface == b.surface),
+            (Some(a), Some(b)) => {
+                Arc::ptr_eq(a, b)
+                    || (a.id == b.id
+                        && a.opaque_sort_id == b.opaque_sort_id
+                        && a.surface == b.surface
+                        && a.numeric_parameters.len() == b.numeric_parameters.len()
+                        && a.numeric_parameters
+                            .iter()
+                            .zip(b.numeric_parameters.iter())
+                            .all(|(a, b)| bits_eq(*a, *b)))
+            }
             _ => false,
         }
 }
@@ -126,7 +209,17 @@ fn order(a: &PreparedDraw, b: &PreparedDraw) -> Ordering {
         if a.transparent {
             b.depth.total_cmp(&a.depth)
         } else {
-            a.shader.cmp(&b.shader).then_with(|| a.pbr.cmp(&b.pbr))
+            let shader_order = |draw: &PreparedDraw| {
+                draw.object
+                    .material
+                    .shader
+                    .as_ref()
+                    .map(|s| s.opaque_sort_id)
+                    .or(draw.shader)
+            };
+            shader_order(a)
+                .cmp(&shader_order(b))
+                .then_with(|| a.pbr.cmp(&b.pbr))
         }
     })
 }
@@ -175,6 +268,9 @@ fn refresh_draw(
     let center_changed = !bits_eq(draw.preparation.center.to_array(), center.to_array());
     if model_changed || camera_changed || center_changed {
         draw.preparation.center = center;
+        if !draw.transparent {
+            return false;
+        }
         let depth = view_projection
             .project_point3(draw.object.model.transform_point3(center))
             .z;
@@ -207,16 +303,18 @@ impl SceneRenderer {
             return draws;
         }
         let mut cache = mem::take(&mut self.surface_preparation);
+        let membership_changed = remap_sources(&mut cache, &scene.items);
         cache.changed.resize(scene.items.len(), false);
         cache.models_changed.resize(scene.items.len(), false);
         let retired = cache.sources.len() > scene.items.len();
         cache.sources.truncate(scene.items.len());
         for (index, source) in scene.items.iter().enumerate() {
             self.stats.surface_source_checks += 1;
-            let changed = cache
-                .sources
-                .get(index)
-                .is_none_or(|old| !static_eq(old, source));
+            let changed = cache.membership_new[index]
+                || cache
+                    .sources
+                    .get(index)
+                    .is_none_or(|old| !static_eq(old, source));
             cache.changed[index] = changed;
             cache.models_changed[index] = cache
                 .sources
@@ -224,7 +322,9 @@ impl SceneRenderer {
                 .is_none_or(|old| !matrix_eq(old.model, source.model));
             if changed {
                 self.stats.surface_items_rebuilt += 1;
-                if let Some(old) = cache.sources.get_mut(index) {
+                if cache.membership_new[index] {
+                    // The remapper already constructed this new source once.
+                } else if let Some(old) = cache.sources.get_mut(index) {
                     *old = source.clone();
                 } else {
                     cache.sources.push(source.clone());
@@ -241,12 +341,12 @@ impl SceneRenderer {
         cache.view_projection = Some(scene.view_projection);
         let mut draws = mem::take(&mut cache.draws);
         let previous_len = draws.len();
-        if retired || self.stats.surface_items_rebuilt != 0 {
+        if retired || membership_changed || self.stats.surface_items_rebuilt != 0 {
             draws.retain(|draw| {
                 draw.source_item < scene.items.len() && !cache.changed[draw.source_item]
             });
         }
-        let mut sort = previous_len != draws.len();
+        let mut sort = membership_changed || previous_len != draws.len();
         self.stats.surface_records_reused = draws.len();
         for draw in &mut draws {
             let source = &scene.items[draw.source_item];
@@ -322,23 +422,31 @@ impl SceneRenderer {
                        mut preparation: DrawPreparation| {
             preparation.surface_order = surface_order;
             surface_order += 1;
-            let depth = scene
-                .view_projection
-                .project_point3(object.model.transform_point3(center))
-                .z;
+            let transparent = cutoff.is_none() && translucent;
+            let depth = if transparent {
+                scene
+                    .view_projection
+                    .project_point3(object.model.transform_point3(center))
+                    .z
+            } else {
+                0.
+            };
             preparation.center = center;
             preparation.skinned = matches!(&object.mesh, MeshKind::ModelPart(asset, _) if self.skinning.sources.contains_key(asset));
             draws.push(PreparedDraw {
                 preparation,
                 source_item,
                 deformation: self.skinning.revision(&object),
+                shared_geometry: None,
+                world_geometry_units: None,
                 pbr_override,
                 pbr,
+                raster: 0,
                 shader: object.material.shader.as_ref().map(|s| s.id),
                 object,
                 opacity,
                 cutoff: cutoff.unwrap_or(0.0),
-                transparent: cutoff.is_none() && translucent,
+                transparent,
                 depth,
             });
         };
@@ -364,7 +472,7 @@ impl SceneRenderer {
             }
             return;
         }
-        if let MeshKind::Text(text) = &object.mesh {
+        if let Some(text) = object.mesh.text() {
             if text.screen.is_some() {
                 return;
             }
@@ -523,15 +631,91 @@ mod tests {
             preparation: Default::default(),
             source_item: index,
             deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
             pbr_override: [-1.; 2],
             shader: None,
             pbr: false,
+            raster: 0,
             object: source(),
             opacity: 1.,
             cutoff: 0.,
             transparent,
             depth,
         }
+    }
+    #[test]
+    fn numeric_graph_topology_keeps_literal_opaque_order_and_order_only_edits() {
+        fn graph(draw: &mut PreparedDraw, pipeline: u64, legacy: u64) {
+            draw.shader = Some(pipeline);
+            draw.object.material.shader = Some(Arc::new(ShaderSource {
+                id: pipeline,
+                opaque_sort_id: legacy,
+                surface: "shared numeric program".into(),
+                numeric_parameters: Arc::from([[legacy as f32, 0., 0., 0.]]),
+            }));
+        }
+        fn sorted(mut draws: Vec<PreparedDraw>, literal: bool) -> Vec<usize> {
+            if literal {
+                for draw in &mut draws {
+                    let source = Arc::make_mut(draw.object.material.shader.as_mut().unwrap());
+                    source.id = source.opaque_sort_id;
+                    draw.shader = Some(source.id);
+                }
+            }
+            draws.sort_unstable_by(retained_order);
+            draws.into_iter().map(|d| d.source_item).collect()
+        }
+        fn copies(draws: &[PreparedDraw]) -> Vec<PreparedDraw> {
+            draws
+                .iter()
+                .map(|original| {
+                    let mut copy = draw(original.source_item, original.transparent, original.depth);
+                    copy.object = original.object.clone();
+                    copy.shader = original.shader;
+                    copy.pbr = original.pbr;
+                    copy
+                })
+                .collect()
+        }
+        let mut a = draw(0, false, 0.);
+        let mut b = draw(1, false, 0.);
+        graph(&mut a, 7, 200);
+        graph(&mut b, 7, 100);
+        // Same pipeline, coincident depth: the legacy order must still be [B,A].
+        let original = vec![a, b];
+        assert_eq!(sorted(copies(&original), false), [1, 0]);
+        assert_eq!(
+            sorted(copies(&original), false),
+            sorted(copies(&original), true)
+        );
+
+        let mut inserted = copies(&original);
+        let mut c = draw(2, false, 0.);
+        graph(&mut c, 7, 150);
+        inserted.insert(0, c);
+        assert_eq!(sorted(copies(&inserted), false), [1, 2, 0]);
+        assert_eq!(sorted(copies(&inserted), false), sorted(inserted, true));
+
+        // Sort metadata itself is an observable source input, even when all
+        // consumed uniform/parameter bytes and the shared program stay equal.
+        let mut edited = original;
+        let before = edited[1].object.clone();
+        Arc::make_mut(edited[1].object.material.shader.as_mut().unwrap()).opaque_sort_id = 300;
+        assert!(!static_eq(&before, &edited[1].object));
+        assert_eq!(sorted(copies(&edited), false), [0, 1]);
+        assert_eq!(
+            sorted(copies(&edited), false),
+            sorted(copies(&edited), true)
+        );
+
+        // Alpha ties retain source order rather than acquiring opaque hash order.
+        for draw in &mut edited {
+            draw.transparent = true;
+            draw.depth = 0.5;
+        }
+        edited.reverse();
+        assert_eq!(sorted(edited, false), [0, 1]);
     }
     #[test]
     fn static_keys_ignore_runtime_matrices_but_preserve_float_bits_and_graph_content() {
@@ -546,11 +730,15 @@ mod tests {
         assert!(!static_eq(&positive, &edited));
         positive.material.shader = Some(Arc::new(ShaderSource {
             id: 7,
+            opaque_sort_id: 7,
+            numeric_parameters: Arc::from([]),
             surface: "first".into(),
         }));
         edited = positive.clone();
         edited.material.shader = Some(Arc::new(ShaderSource {
             id: 7,
+            opaque_sort_id: 7,
+            numeric_parameters: Arc::from([]),
             surface: "second".into(),
         }));
         assert!(!static_eq(&positive, &edited));
@@ -619,6 +807,89 @@ mod tests {
             reference.iter().map(|d| d.source_item).collect::<Vec<_>>(),
             retained.iter().map(|d| d.source_item).collect::<Vec<_>>()
         );
+    }
+    #[test]
+    fn insertion_remaps_owned_sources_and_retained_surfaces_by_identity() {
+        let mut cache = SurfacePreparation {
+            sources: (1..=3)
+                .map(|id| {
+                    let mut source = source();
+                    source.motion_id = id;
+                    source.mesh = MeshKind::Imported(format!("asset-{id}"));
+                    source
+                })
+                .collect(),
+            draws: (0..3).map(|index| draw(index, false, 0.)).collect(),
+            ..Default::default()
+        };
+        let old_pointer = match &cache.sources[0].mesh {
+            MeshKind::Imported(id) => id.as_ptr(),
+            _ => unreachable!(),
+        };
+        let mut inserted = source();
+        inserted.motion_id = 99;
+        let sources = std::iter::once(inserted)
+            .chain(cache.sources.iter().cloned())
+            .collect::<Vec<_>>();
+        assert!(remap_sources(&mut cache, &sources));
+        assert_eq!(cache.membership_new, [true, false, false, false]);
+        assert_eq!(
+            cache
+                .draws
+                .iter()
+                .map(|d| d.source_item)
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        assert_eq!(
+            match &cache.sources[1].mesh {
+                MeshKind::Imported(id) => id.as_ptr(),
+                _ => unreachable!(),
+            },
+            old_pointer
+        );
+        let mut duplicate = sources.clone();
+        duplicate[1].motion_id = duplicate[0].motion_id;
+        assert!(!remap_sources(&mut cache, &duplicate));
+        assert!(cache.membership_new.iter().all(|changed| !changed));
+    }
+    #[test]
+    fn opaque_camera_refresh_skips_depth_but_retains_skin_center() {
+        let source = source();
+        let mut opaque = draw(0, false, 7.);
+        let center = Vec3::new(1., 2., 3.);
+        let mut stats = FrameStats::default();
+        assert!(!refresh_draw(
+            &mut opaque,
+            &source,
+            DynamicInputs {
+                view_projection: Mat4::IDENTITY,
+                model_changed: false,
+                camera_changed: true,
+                center,
+                deformation: 4,
+            },
+            &mut stats
+        ));
+        assert_eq!(opaque.preparation.center, center);
+        assert_eq!(opaque.depth, 7.);
+        assert_eq!(stats.surface_depth_updates, 0);
+        assert_eq!(opaque.deformation, 4);
+        opaque.transparent = true;
+        assert!(refresh_draw(
+            &mut opaque,
+            &source,
+            DynamicInputs {
+                view_projection: Mat4::IDENTITY,
+                model_changed: false,
+                camera_changed: true,
+                center,
+                deformation: 4,
+            },
+            &mut stats
+        ));
+        assert_eq!(opaque.depth, 3.);
+        assert_eq!(stats.surface_depth_updates, 1);
     }
     #[test]
     fn dynamic_refresh_matches_sequential_surface_transforms_and_skin_centers() {

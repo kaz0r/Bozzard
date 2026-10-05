@@ -1,0 +1,8 @@
+     Running tests/text_rendering.rs (target/debug/deps/text_rendering-a1f93c4f257006f5)
+
+running 3 tests
+test empty_objects_have_only_transform_and_support_history ... ok
+test text_component_roundtrip_layers_bounds_picking_and_play_isolation ... ok
+test text_prefabs_are_independent_and_blueprint_color_visibility_work_headlessly ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s

@@ -1,0 +1,7 @@
+     Running tests/cooked_models.rs (target/debug/deps/cooked_models-88d09bd5599c8734)
+
+running 2 tests
+test lossless_full_resolution_cooking_reduces_uploaded_vertices_with_exact_alpha_output ... ok
+test cooked_static_and_skinned_models_match_native_reference_and_reduce_texture_storage ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 58.95s

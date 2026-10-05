@@ -63,7 +63,20 @@ fn assert_views(owned: &SceneView, shared: &SharedSceneView) {
     assert_eq!(owned.shader_graphs, shared.shader_graphs);
     assert_eq!(owned.material_instances, shared.material_instances);
     assert_eq!(owned.compute_textures, shared.compute_textures);
-    assert_eq!(owned.texts, shared.texts);
+    assert_eq!(
+        owned.texts,
+        shared
+            .texts
+            .iter()
+            .cloned()
+            .chain(
+                shared
+                    .shared_texts
+                    .iter()
+                    .map(|(model, text)| (*model, text.as_ref().clone()))
+            )
+            .collect::<Vec<_>>()
+    );
     assert_eq!(owned.particles, shared.particles);
     assert_eq!(owned.display, shared.display);
     assert_eq!(owned.display_time, shared.display_time);
@@ -475,13 +488,17 @@ fn prefab_despawn_generation_reuse_and_additive_loads_never_replay_cached_payloa
         base: None,
     };
     instance.register_prefab("cube".into(), prefab).unwrap();
+    let authored_revision = instance.authored_revision();
     let root = instance
         .spawn_prefab(&mut world, "cube", [30., 0., 0.])
         .unwrap();
+    assert!(instance.authored_revision() > authored_revision);
     let first = shared(&instance, &world);
     assert_eq!(first.objects.len(), 3);
     let old = instance.entity(&root).unwrap();
+    let authored_revision = instance.authored_revision();
     instance.destroy_prefab(&mut world, &root).unwrap();
+    assert!(instance.authored_revision() > authored_revision);
     assert_eq!(shared(&instance, &world).objects.len(), 2);
     let new_root = instance
         .spawn_prefab(&mut world, "cube", [40., 0., 0.])
@@ -499,15 +516,19 @@ fn prefab_despawn_generation_reuse_and_additive_loads_never_replay_cached_payloa
             .iter()
             .any(|(_, drawable)| drawable.color == [0.6, 0.7, 0.8])
     );
+    let authored_revision = instance.authored_revision();
     instance
         .load_runtime_scene(&mut world, "addition", true)
         .unwrap();
+    assert!(instance.authored_revision() > authored_revision);
     let loaded = shared(&instance, &world);
     assert_eq!(loaded.objects.len(), 5);
     assert_views(&instance.view(&world, Layer::ThreeD, 1.).unwrap(), &loaded);
+    let authored_revision = instance.authored_revision();
     instance
         .unload_runtime_scene(&mut world, "scene-1")
         .unwrap();
+    assert!(instance.authored_revision() > authored_revision);
     let unloaded = shared(&instance, &world);
     assert_eq!(unloaded.objects.len(), 3);
     assert_views(
@@ -517,4 +538,62 @@ fn prefab_despawn_generation_reuse_and_additive_loads_never_replay_cached_payloa
     // Held snapshots retain their original scene membership and render data.
     assert_eq!(loaded.objects.len(), 5);
     assert_eq!(first.objects.len(), 3);
+}
+
+#[test]
+fn sparse_transform_closure_reads_only_changed_subtrees_and_matches_full_scan_oracle() {
+    let (instance, mut world) = setup();
+    let first = shared(&instance, &world);
+    let warm = shared(&instance, &world);
+    assert_eq!(instance.render_transform_stats().unwrap().source_reads, 0);
+    assert_eq!(instance.render_transform_stats().unwrap().topology_reads, 0);
+    assert_eq!(
+        instance
+            .render_extraction_stats()
+            .unwrap()
+            .motion_id_rebuilds,
+        0
+    );
+    assert_eq!(
+        instance.render_extraction_stats().unwrap().motion_id_reuses,
+        warm.objects.len()
+    );
+    assert_eq!(
+        instance.render_transform_stats().unwrap().topology_rebuilds,
+        0
+    );
+    assert_views(&instance.view(&world, Layer::ThreeD, 1.).unwrap(), &warm);
+    let root = instance.entity("root").unwrap();
+    world
+        .get_mut::<Transform>(root)
+        .unwrap()
+        .bypass_change_detection()
+        .translation[0] = 7.;
+    let changed = shared(&instance, &world);
+    let sparse = instance.render_transform_stats().unwrap();
+    // Root, cube, text, lamp and camera inherit this changed parent; unrelated
+    // other-cube, sprite and orthographic camera retain their validated matrices.
+    assert_eq!(sparse.source_reads, 5);
+    assert_eq!(sparse.topology_reads, 0);
+    instance
+        .set_sparse_render_extraction_enabled(false)
+        .unwrap();
+    let reference = instance.view(&world, Layer::ThreeD, 1.).unwrap();
+    assert_eq!(instance.render_transform_stats().unwrap().source_reads, 8);
+    assert_eq!(instance.render_transform_stats().unwrap().topology_reads, 8);
+    assert_views(&reference, &changed);
+    instance.set_sparse_render_extraction_enabled(true).unwrap();
+    let repeated = shared(&instance, &world);
+    assert_views(&reference, &repeated);
+    assert_eq!(first.objects[1].0.transform_point3(Vec3::ZERO).x, 2.);
+    assert_eq!(changed.objects[1].0.transform_point3(Vec3::ZERO).x, 9.);
+    let camera = instance.entity("camera2").unwrap();
+    let removed = world.remove::<Transform>(camera).unwrap().unwrap();
+    assert!(
+        instance
+            .view_shared_from_camera(&world, Layer::ThreeD, 1., None)
+            .is_err()
+    );
+    world.insert(camera, removed).unwrap();
+    assert_views(&reference, &shared(&instance, &world));
 }

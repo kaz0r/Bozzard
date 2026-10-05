@@ -1,0 +1,18 @@
+     Running tests/retained_frames.rs (target/debug/deps/retained_frames-7e5797bf85516558)
+
+running 13 tests
+test asset_arc_identity_handles_divergent_clones_replacements_and_failed_reload ... ok
+test consumed_frames_allow_mutation_without_corrupting_future_reuse ... ok
+test conversion_errors_discard_candidates_and_retry_returns_current_data ... ok
+test frozen_frames_release_host_assets_and_unused_pool_when_cache_drops ... ok
+test frozen_frames_survive_same_tick_and_bypassed_world_edits ... ok
+test gi_freshness_reuses_frozen_components_and_rejects_same_tick_bypass_and_replacement ... ok
+test immutable_text_descriptors_follow_bypassed_edits_and_keep_frozen_frames ... ok
+test large_old_frames_release_payloads_after_the_current_workload_shrinks ... ok
+test late_drops_after_clear_or_disable_never_repopulate_obsolete_buffers ... ok
+test material_row_insertion_and_removal_reuse_unaffected_stable_motion_sources ... ok
+test retained_and_reference_frames_preserve_all_fields_and_transient_order ... ok
+test surface_source_filtering_membership_order_and_layers_track_current_inputs ... ok
+test warmed_frames_move_static_payloads_and_remove_appended_overlays ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s

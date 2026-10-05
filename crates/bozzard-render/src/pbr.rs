@@ -54,8 +54,27 @@ impl ModelShading<'_> {
 
 pub(crate) struct UploadedShading {
     pub double_sided: bool,
+    pub map_mask: u8,
+    pub base_color_opaque_addressing: bool,
     pub vertices: wgpu::Buffer,
     pub binding: wgpu::BindGroup,
+}
+
+fn opaque_alpha_addressing(sampler: &wgpu::SamplerDescriptor<'_>) -> bool {
+    // Base color is a 2D RGBA texture. Transparent borders can lower sampled
+    // alpha even when every uploaded texel is opaque, including filter taps
+    // near an edge. W addressing cannot affect its two texture coordinates.
+    [sampler.address_mode_u, sampler.address_mode_v]
+        .into_iter()
+        .all(|mode| match mode {
+            wgpu::AddressMode::ClampToEdge
+            | wgpu::AddressMode::Repeat
+            | wgpu::AddressMode::MirrorRepeat => true,
+            wgpu::AddressMode::ClampToBorder => matches!(
+                sampler.border_color,
+                Some(wgpu::SamplerBorderColor::OpaqueBlack | wgpu::SamplerBorderColor::OpaqueWhite)
+            ),
+        })
 }
 #[derive(Clone)]
 pub(crate) struct PbrRenderer {
@@ -196,7 +215,9 @@ impl PbrRenderer {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PBR tangent and UV attributes"),
                 contents: &crate::scene::float_bytes(material.vertices.iter().flatten().copied()),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+                usage: wgpu::BufferUsages::VERTEX
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC,
             });
         self.bind(gpu, material, views, vertices)
     }
@@ -258,7 +279,12 @@ impl PbrRenderer {
             });
         }
         UploadedShading {
+            map_mask: u8::from(material.normal.is_some())
+                | (u8::from(material.metallic_roughness.is_some()) << 1)
+                | (u8::from(material.occlusion.is_some()) << 2)
+                | (u8::from(material.emissive.is_some()) << 3),
             double_sided: material.double_sided,
+            base_color_opaque_addressing: opaque_alpha_addressing(&material.base_color_sampler),
             binding: gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("PBR material"),
                 layout: &self.layout,
@@ -272,6 +298,45 @@ impl PbrRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opaque_alpha_addressing_rejects_transparent_and_zero_texture_borders() {
+        use wgpu::{AddressMode as Address, SamplerBorderColor as Border};
+        let modes = [
+            Address::ClampToEdge,
+            Address::Repeat,
+            Address::MirrorRepeat,
+            Address::ClampToBorder,
+        ];
+        for u in modes {
+            for v in modes {
+                for border in [
+                    None,
+                    Some(Border::TransparentBlack),
+                    Some(Border::Zero),
+                    Some(Border::OpaqueBlack),
+                    Some(Border::OpaqueWhite),
+                ] {
+                    let sampler = wgpu::SamplerDescriptor {
+                        address_mode_u: u,
+                        address_mode_v: v,
+                        // Irrelevant to a 2D texture, even with a clear border.
+                        address_mode_w: Address::ClampToBorder,
+                        border_color: border,
+                        ..Default::default()
+                    };
+                    let uses_border = u == Address::ClampToBorder || v == Address::ClampToBorder;
+                    let opaque_border =
+                        matches!(border, Some(Border::OpaqueBlack | Border::OpaqueWhite));
+                    assert_eq!(
+                        opaque_alpha_addressing(&sampler),
+                        !uses_border || opaque_border,
+                        "U={u:?} V={v:?} border={border:?}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn emission_accepts_hdr_but_rejects_negative_and_nonfinite_values() {

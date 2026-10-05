@@ -14,6 +14,7 @@ pub enum BatchPlanRebuildReason {
     NonAffineModel,
     UnboundedGeometry,
     OrderingCapacity,
+    ConstructionCapacity,
     OrderingConflict,
 }
 
@@ -55,6 +56,8 @@ pub struct FrameStats {
     pub instanced_surfaces: usize,
     pub batching: BatchingStats,
     pub batch_plan_reused: bool,
+    /// Exact visible membership retained the cached eligibility diagnostics.
+    pub batch_diagnostics_reused: bool,
     pub batch_plan_rebuilds: usize,
     /// Ordering renewed after an envelope escape, without regrouping surfaces.
     pub batch_plan_recertifications: usize,
@@ -70,11 +73,33 @@ pub struct FrameStats {
     pub batch_order_checks: usize,
     /// Additional packed instance uniform bytes uploaded this frame.
     pub instance_uniform_bytes: usize,
+    /// Native per-pass member IDs, separate from stable object/parameter records.
+    pub instance_id_bytes: usize,
     /// New instance-buffer allocations; texture rebinding reuses the allocation.
     pub instance_buffer_allocations: usize,
     /// Additional packed shadow-caster bytes, independent of camera batches.
     pub shadow_instance_uniform_bytes: usize,
     pub shadow_instance_buffer_allocations: usize,
+    pub shadow_singleton_bytes: usize,
+    pub shadow_singleton_allocations: usize,
+    pub local_shadow_receiver_bytes: usize,
+    pub local_shadow_receiver_writes: usize,
+    pub native_instance_arena: bool,
+    /// Exact source identity/order reuse skipped native object-slot hashing.
+    pub native_object_membership_reused: bool,
+    pub render_bundle_compilations: usize,
+    pub render_bundle_replays: usize,
+    pub multi_draw_indirect_runs: usize,
+    pub multi_draw_indirect_draws: usize,
+    pub multi_draw_indirect_bytes: usize,
+    pub shadow_range_draws_saved: usize,
+    pub shadow_range_bytes: usize,
+    pub sun_range_plan_builds: usize,
+    pub sun_range_plan_reuses: usize,
+    pub local_static_depth_copies: usize,
+    pub local_static_triangles_skipped: u64,
+    /// Current depth-compatible membership reused the retained shadow groups.
+    pub shadow_batch_plan_reused: bool,
     /// Shared camera, lighting, fog and graph-clock bytes uploaded once per frame.
     pub frame_uniform_bytes: usize,
     pub shadow_draws: usize,
@@ -109,6 +134,12 @@ pub struct FrameStats {
     /// Mesh/texture clone calls; primitive keys may not allocate.
     pub shadow_metadata_key_clones: usize,
     pub graph_compilations: usize,
+    /// Ordinary graph pipeline flavors compiled only for submitted singleton draws.
+    pub graph_variant_compilations: usize,
+    /// Numeric graph input bytes uploaded without changing shader topology.
+    pub graph_parameter_bytes: usize,
+    /// Nonempty graph records scanned for validity; unchanged validated records skip it.
+    pub graph_parameter_validation_objects: usize,
     /// Lazily compiled opaque instanced graph host variants this frame.
     pub graph_instanced_compilations: usize,
     /// All active graphs plus at most eight recently absent graphs.
@@ -117,6 +148,10 @@ pub struct FrameStats {
     /// True when every shadow map was reused without another depth pass.
     pub shadow_cache_hit: bool,
     pub object_uniform_writes: usize,
+    /// Individually submitted surfaces allocate resources only on demand.
+    pub object_buffer_allocations: usize,
+    /// Inverse normal matrices rebuilt after current model changes.
+    pub normal_matrix_builds: usize,
     /// Object uniforms recomputed on the CPU, before byte comparison/upload.
     pub object_uniform_builds: usize,
     /// Conservative object/light pairs retained for visible lit surfaces.
@@ -132,6 +167,21 @@ pub struct FrameStats {
     pub geometry_store_bytes: u64,
     /// Color-pass mesh pipeline binds; excludes sky, shadow and display passes.
     pub pipeline_binds: usize,
+    pub material_binds: usize,
+    pub vertex_binds: usize,
+    pub index_binds: usize,
+    pub surface_variant_compilations: usize,
+    pub skinning_dispatches: usize,
+    pub skinning_shared_copies: usize,
+    /// Actors using another actor's exact current deformed buffers without copies.
+    pub skinning_shared_actors: usize,
+    pub skinning_culled_actors: usize,
+    pub hud_draws: usize,
+    pub hud_uniform_bytes: usize,
+    pub hud_geometry_copies: usize,
+    pub world_draws_saved: usize,
+    pub world_geometry_copies: usize,
+    pub world_id_bytes: usize,
     /// CPU work only, including command submission. Not GPU execution or FPS.
     pub cpu_ms: f64,
     pub prepare_ms: f64,
@@ -148,6 +198,7 @@ pub struct FrameStats {
     pub surface_order_reused: bool,
     /// Retained vector capacities, excluding shared Arc storage, owned key strings and GPU data.
     pub surface_preparation_bytes: usize,
+    pub frame_scratch_bytes: usize,
     pub encode_ms: f64,
     pub submit_ms: f64,
 }
@@ -245,6 +296,8 @@ impl SceneRenderer {
         self.shadow_preparation_cache = enabled;
         if !enabled {
             self.shadows.sun_cache.clear();
+            self.shadows.spots.release_static_depth();
+            self.shadows.points.release_static_depth();
         }
     }
     /// Compare retained light-space bounds with the original sun-fitting loop.
@@ -270,6 +323,9 @@ impl SceneRenderer {
         self.state_caching = enabled;
         if !enabled {
             self.surface_preparation.clear();
+            self.shadows.sun_cache.clear();
+            self.shadows.spots.release_static_depth();
+            self.shadows.points.release_static_depth();
         }
     }
     /// Compare conservative surface light masks with the full light loop.
@@ -293,15 +349,12 @@ impl SceneRenderer {
         scene: &RenderScene,
         draws: &[PreparedDraw],
         bounds: &[[Vec3; 2]],
-    ) -> Vec<bool> {
-        draws
-            .iter()
-            .zip(bounds)
-            .map(|(d, &bounds)| {
-                !self.culling
-                    || self.frustum_visible(bounds, scene.view_projection * d.object.model)
-            })
-            .collect()
+        output: &mut Vec<bool>,
+    ) {
+        output.clear();
+        output.extend(draws.iter().zip(bounds).map(|(d, &bounds)| {
+            !self.culling || self.frustum_visible(bounds, scene.view_projection * d.object.model)
+        }));
     }
 }
 #[cfg(test)]

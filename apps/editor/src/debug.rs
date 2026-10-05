@@ -309,7 +309,7 @@ impl DebugWorkspace {
                         ui.label(format!("{} planned draws · {} singletons · {} / {} graph surfaces instanced", b.planned_draws, b.singleton_draws, b.graph_instanced_surfaces, b.graph_surfaces));
                         ui.label(format!("Singletons: {} transparent · {} deformed · {} graph batching disabled · {} unsupported mesh", b.singleton_transparent, b.singleton_deformed, b.singleton_shader, b.singleton_unsupported_mesh));
                         ui.label(format!("{} unique keys · {} split groups/tails · {} instancing disabled", b.singleton_unique_key, b.singleton_split, b.singleton_disabled));
-                        ui.label(format!("Batch sizes 1 / 2–3 / 4–7 / 8–15 / 16–31 / 32–63 / 64: {:?}", b.size_histogram));
+                        ui.label(format!("Batch sizes 1 / 2–3 / 4–7 / 8–15 / 16–31 / 32–63 / 64–127 / 128–255 / 256–511 / 512–1023 / 1024+: {:?}", b.size_histogram));
                         ui.weak("Reasons partition planned singletons; culling, ordering and capacity tails share the split category. HUD and particles are excluded.");
                     });
                     if render.occlusion_candidates > 0 {

@@ -1,0 +1,6 @@
+     Running tests/procedural_meshes.rs (target/debug/deps/procedural_meshes-7ba78522738f8c01)
+
+running 1 test
+test terrain_and_brushes_use_mesh_picking_raw_packages_and_immutable_cooking ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

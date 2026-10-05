@@ -33,6 +33,8 @@ pub(super) struct Resources {
     count: wgpu::Buffer,
     cull_binding: Option<wgpu::BindGroup>,
     capacity: usize,
+    shared_size: Option<[u32; 2]>,
+    shared_pyramid: Option<wgpu::TextureView>,
     slots: Vec<Slot>,
     pending: Option<usize>,
     pub result: Option<OcclusionResult>,
@@ -251,6 +253,51 @@ impl Resources {
             ),
             cull_binding: None,
             capacity,
+            shared_size: None,
+            shared_pyramid: None,
+            slots: Vec::new(),
+            pending: None,
+            result: None,
+            visibility: Vec::new(),
+            visibility_generation: None,
+        }
+    }
+    /// A separate query stream shares pipelines and the original depth pyramid.
+    /// Only its candidate/output/readback buffers are independent.
+    pub fn new_queries(gpu: &Gpu, depth: &Self) -> Self {
+        let capacity = 64;
+        Self {
+            depth_pipeline: depth.depth_pipeline.clone(),
+            depth_uniform: depth.depth_uniform.clone(),
+            depth_binding: depth.depth_binding.clone(),
+            tiles: depth.tiles.clone(),
+            reduce: depth.reduce.clone(),
+            cull: depth.cull.clone(),
+            targets: None,
+            candidates: buffer(
+                gpu,
+                "instance occlusion bounds",
+                capacity as u64 * 32,
+                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            ),
+            arguments: buffer(
+                gpu,
+                "instance occlusion results",
+                capacity as u64 * 20,
+                wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::INDIRECT
+                    | wgpu::BufferUsages::COPY_SRC,
+            ),
+            count: buffer(
+                gpu,
+                "instance occlusion count",
+                16,
+                wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            ),
+            cull_binding: None,
+            capacity,
+            shared_size: None,
+            shared_pyramid: None,
             slots: Vec::new(),
             pending: None,
             result: None,
@@ -259,6 +306,23 @@ impl Resources {
         }
     }
     pub fn prepare(&mut self, gpu: &Gpu, size: [u32; 2], candidates: &[u8]) {
+        self.prepare_inner(gpu, size, candidates, None);
+    }
+    pub fn prepare_queries(&mut self, gpu: &Gpu, size: [u32; 2], candidates: &[u8], depth: &Self) {
+        self.prepare_inner(
+            gpu,
+            size,
+            candidates,
+            Some(&depth.targets.as_ref().unwrap().pyramid),
+        );
+    }
+    fn prepare_inner(
+        &mut self,
+        gpu: &Gpu,
+        size: [u32; 2],
+        candidates: &[u8],
+        pyramid: Option<&wgpu::TextureView>,
+    ) {
         let count = candidates.len() / 32;
         if count > self.capacity {
             self.capacity = count.next_power_of_two();
@@ -278,8 +342,15 @@ impl Resources {
             );
             self.cull_binding = None;
         }
-        if self.targets.as_ref().is_none_or(|t| t.size != size) {
+        if pyramid.is_none() && self.targets.as_ref().is_none_or(|t| t.size != size) {
             self.targets = Some(Targets::new(gpu, size, &self.tiles, &self.reduce));
+            self.cull_binding = None;
+        }
+        if let Some(pyramid) = pyramid
+            && (self.shared_size != Some(size) || self.shared_pyramid.as_ref() != Some(pyramid))
+        {
+            self.shared_size = Some(size);
+            self.shared_pyramid = Some(pyramid.clone());
             self.cull_binding = None;
         }
         if self.cull_binding.is_none() {
@@ -290,7 +361,7 @@ impl Resources {
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::TextureView(
-                            &self.targets.as_ref().unwrap().pyramid,
+                            pyramid.unwrap_or_else(|| &self.targets.as_ref().unwrap().pyramid),
                         ),
                     },
                     wgpu::BindGroupEntry {
@@ -347,7 +418,11 @@ impl Resources {
                 .iter()
                 .map(|s| s.capacity as u64 * 20)
                 .sum::<u64>()
-            + 80 * MAX_OCCLUDERS as u64
+            + if self.shared_size.is_some() {
+                0
+            } else {
+                80 * MAX_OCCLUDERS as u64
+            }
             + 16
     }
     #[allow(clippy::too_many_arguments)]
@@ -407,6 +482,7 @@ impl Resources {
         tested: usize,
         candidates: &[u8],
         generation: u64,
+        reduce_depth: bool,
     ) {
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -415,16 +491,18 @@ impl Resources {
             });
             // Compute usage scopes are per dispatch, so each reduction can read
             // the preceding mip without creating a new compute pass/encoder.
-            for (level, (binding, size)) in
-                self.targets.as_ref().unwrap().reductions.iter().enumerate()
-            {
-                pass.set_pipeline(if level == 0 {
-                    &self.tiles
-                } else {
-                    &self.reduce
-                });
-                pass.set_bind_group(0, binding, &[]);
-                pass.dispatch_workgroups(size[0].div_ceil(8), size[1].div_ceil(8), 1);
+            if reduce_depth {
+                for (level, (binding, size)) in
+                    self.targets.as_ref().unwrap().reductions.iter().enumerate()
+                {
+                    pass.set_pipeline(if level == 0 {
+                        &self.tiles
+                    } else {
+                        &self.reduce
+                    });
+                    pass.set_bind_group(0, binding, &[]);
+                    pass.dispatch_workgroups(size[0].div_ceil(8), size[1].div_ceil(8), 1);
+                }
             }
             pass.set_pipeline(&self.cull);
             pass.set_bind_group(0, self.cull_binding.as_ref().unwrap(), &[]);
@@ -502,7 +580,7 @@ impl Resources {
                         if newest {
                             self.visibility.push(visible);
                         }
-                        if !visible {
+                        if !visible && instances > 0 {
                             result.culled_batches += 1;
                             result.culled_surfaces += instances as usize;
                             result.skipped_triangles +=

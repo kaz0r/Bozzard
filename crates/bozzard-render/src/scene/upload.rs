@@ -437,7 +437,9 @@ impl UploadContext {
                 let shared = buffer(
                     vertices.len(),
                     32,
-                    wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+                    wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_SRC,
                     BufferSource::Vertices,
                 )?;
                 if parts.is_empty() {
@@ -447,7 +449,7 @@ impl UploadContext {
                         indices: buffer(
                             indices.len(),
                             4,
-                            wgpu::BufferUsages::INDEX,
+                            wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
                             BufferSource::Indices(None),
                         )?,
                         count: indices.len() as u32,
@@ -517,7 +519,9 @@ impl UploadContext {
                                 buffer(
                                     s.vertices.len(),
                                     48,
-                                    wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+                                    wgpu::BufferUsages::VERTEX
+                                        | wgpu::BufferUsages::STORAGE
+                                        | wgpu::BufferUsages::COPY_SRC,
                                     BufferSource::Shading(part_index),
                                 )?,
                             ))
@@ -539,7 +543,7 @@ impl UploadContext {
                                 indices: buffer(
                                     part.count as usize,
                                     4,
-                                    wgpu::BufferUsages::INDEX,
+                                    wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
                                     BufferSource::Indices(Some(part_index)),
                                 )?,
                                 count: part.count,
@@ -568,7 +572,13 @@ impl UploadContext {
             }
         };
         let skin = if let Some(skin) = source.skin() {
-            let UploadData::Model { vertices, .. } = &data else {
+            let UploadData::Model {
+                vertices,
+                indices,
+                parts,
+                ..
+            } = &data
+            else {
                 anyhow::bail!("only models may have skins");
             };
             ensure!(
@@ -580,6 +590,7 @@ impl UploadContext {
                 bindings: skin.bindings,
                 count: vertices.len(),
                 bounds: skinning::Source::bounds(&skin, vertices)?,
+                part_bounds: skinning::Source::part_bounds(&skin, vertices, indices, parts)?,
                 weights: buffer(
                     skin.vertices.len(),
                     32,

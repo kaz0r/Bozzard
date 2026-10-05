@@ -161,6 +161,9 @@ fn validate(mesh: &MeshData) -> Result<()> {
 pub fn encode(mesh: &MeshData, formats: &[Compression], progress: &Progress) -> Result<Vec<u8>> {
     progress.stage("Validating model for cooking")?;
     validate(mesh)?;
+    progress.stage("Optimizing full-resolution vertex streams")?;
+    let optimized = crate::optimize::mesh(mesh, progress)?;
+    let mesh = &optimized;
     let mut images = Images::default();
     let parts = mesh
         .parts

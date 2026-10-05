@@ -164,7 +164,9 @@ fn retained_surfaces_match_reference_through_edits_reuploads_skinning_and_failed
 
     scene.view_projection *= Mat4::from_translation(Vec3::new(0.17, 0.11, 0.));
     compare(&gpu, &mut renderers, &scene)?;
-    assert_eq!(renderers[1].frame_stats().surface_depth_updates, 6);
+    // Three masked model surfaces and the antialiased text need ordering depth;
+    // the opaque cube and checker sprite no longer calculate unused depth.
+    assert_eq!(renderers[1].frame_stats().surface_depth_updates, 4);
     assert_eq!(renderers[1].frame_stats().surface_records_built, 0);
     scene.items[0].model *=
         Mat4::from_rotation_y(0.4) * Mat4::from_scale(Vec3::new(-1.2, 0.9, 1.7));

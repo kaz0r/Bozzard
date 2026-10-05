@@ -1,0 +1,150 @@
+     Running unittests src/lib.rs (target/debug/deps/bozzard_render-8f8f5e5143f706bf)
+
+running 114 tests
+test mipmap::tests::rectangular_mip_chains_reach_one_pixel ... ok
+test pbr::tests::emission_accepts_hdr_but_rejects_negative_and_nonfinite_values ... ok
+test pbr::tests::opaque_alpha_addressing_rejects_transparent_and_zero_texture_borders ... ok
+test profiling::tests::timestamp_readback_is_bounded_matches_frames_and_reuses_slots ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test profiling::tests::timestamp_units_and_invalid_samples ... ok
+test scene::auto_exposure::tests::exposure_shader_validates ... ok
+test scene::depth_of_field::tests::bokeh_shader_validates ... ok
+test scene::display::tests::display_fxaa ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test scene::display::tests::display_fxaa_shader_validates ... ok
+test scene::hud::batching::tests::batch_shaders_validate_with_baseline_capabilities ... ok
+test scene::hud::batching::tests::ordered_hud_runs_match_singletons_and_skip_warm_work ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+hud_runs_proof 280->3draws warm_uniform_bytes=0 geometry_copies=0 layouts=0 order_clip_texture_density_edits_equal
+ok
+test scene::hud::tests::hud_pixels_ignore_camera_and_effects_follow_resize_and_release_resources ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+hud_gpu_ok anchoring resize camera_effect_isolation dynamic_text cleanup
+ok
+test scene::instancing::arena::tests::native_ranges_reserve_only_used_references_and_keep_slots_stable ... ok
+test scene::instancing::arena::tests::stable_gpu_slots_survive_early_insertion_removal_and_invalid_id_fallback ... ok
+test scene::instancing::arena::tests::unchanged_membership_skips_hash_remapping_without_hiding_order_or_identity_changes ... ok
+test scene::instancing::depth::tests::accepted_subset_certificate_tracks_mask_order_and_binding_class ... ok
+test scene::instancing::depth::tests::accepted_subset_depth_inputs_validate_keys_without_transform_repacking ... ok
+test scene::instancing::depth::tests::compact_records_ignore_all_non_depth_color_fields ... ok
+test scene::instancing::depth::tests::depth_groups_partition_spatial_neighbors_before_capacity_chunks ... ok
+test scene::instancing::diagnostics::tests::consecutive_graph_batches_require_matching_shader_identity_and_the_switch ... ok
+test scene::instancing::diagnostics::tests::graph_instanced_hosts_validate_on_baseline_capabilities ... ok
+test scene::instancing::diagnostics::tests::histogram_and_graph_counts_include_capacity_tails ... ok
+test scene::instancing::diagnostics::tests::native_histogram_counts_large_groups_without_overflow ... ok
+test scene::instancing::diagnostics::tests::native_instance_shader_indexes_storage_objects_and_numeric_parameters ... ok
+test scene::instancing::diagnostics::tests::ordered_transparent_runs_preserve_every_interleaved_surface ... ok
+test scene::instancing::diagnostics::tests::reasons_partition_visible_singletons_and_distinguish_compatible_peers ... ok
+test scene::instancing::reuse::spatial::tests::activation_failure_discards_the_sweep_and_fresh_queries_reset_scratch ... ok
+test scene::instancing::reuse::spatial::tests::factory_source_order_sweep_certifies_exact_pairs_within_shared_work_cap ... factory_ordering_sweep_proof population=2891 main_x_candidate_neighbors=238232 query_node_visits=151769 activation_updates=19787 total_work=171556 work_cap=185024 exact_inversion_pairs=3111 retained_pair_cap=23128
+ok
+test scene::instancing::reuse::spatial::tests::hierarchy_queries_match_exact_inversions_and_bound_every_node_visit ... ok
+test scene::instancing::reuse::spatial::tests::queries_keep_every_overlap_after_updates_and_bound_sparse_work ... ok
+test scene::instancing::reuse::tests::animated_groups_require_exact_current_previous_and_tangent_streams ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test scene::instancing::reuse::tests::certified_hidden_bridge_cannot_degrade_visible_grouping ... ok
+test scene::instancing::reuse::tests::dense_multi_key_construction_falls_back_before_quadratic_storage ... ok
+test scene::instancing::reuse::tests::filtering_reuses_index_storage_without_mutating_the_certificate ... ok
+test scene::instancing::reuse::tests::heterogeneous_text_requires_native_ordered_runs_and_preserves_state_boundaries ... ok
+test scene::instancing::reuse::tests::hidden_construction_fallback_is_rejected_through_camera_and_visibility_churn ... ok
+test scene::instancing::reuse::tests::initial_dense_inversions_reach_pair_capacity_before_work_capacity ... ok
+test scene::instancing::reuse::tests::long_thin_bounds_select_separating_axis_and_avoid_capacity_fallback ... ok
+test scene::instancing::reuse::tests::lookahead_unlocks_a_compatible_ready_peer_without_relaxing_edges ... ok
+test scene::instancing::reuse::tests::native_capacity_reduces_homogeneous_submission_without_graph_construction ... ok
+test scene::instancing::reuse::tests::optimal_original_order_skips_every_projection_and_overlap_edge ... ok
+test scene::instancing::reuse::tests::original_order_accepts_changing_deformation_bounds ... ok
+test scene::instancing::reuse::tests::original_order_cliques_do_not_exhaust_inversion_discovery_work ... ordering_rank_prune_proof population=4096 total_query_activation_work=57344 budget=262144 retained_pairs=0 dense_source_order_winners_preserved=true disjoint_tail_reorder_camera_reused=true
+ok
+test scene::instancing::reuse::tests::perspective_motion_reuses_a_safe_order_and_rejects_new_overlap ... ok
+test scene::instancing::reuse::tests::randomized_motion_camera_and_visibility_reuse_preserves_every_dependency ... ok
+test scene::instancing::reuse::tests::renewal_pair_storage_is_bounded ... ok
+test scene::instancing::reuse::tests::safe_envelope_escape_renews_without_regrouping ... ok
+test scene::instancing::reuse::tests::simultaneous_escapes_discover_conflicts_at_both_new_positions ... ok
+test scene::instancing::reuse::tests::sparse_plane_admits_a_quality_superset_and_retains_camera_visibility_churn ... ok
+test scene::instancing::reuse::tests::uncertain_projection_models_and_changed_mesh_bounds_keep_the_fallback ... ok
+test scene::instancing::reuse::tests::useful_hidden_plan_is_admitted_and_reuses_visibility_changes ... ok
+test scene::instancing::reuse::tests::visibility_churn_preserves_later_group_buffer_slots ... ok
+test scene::instancing::tests::runs_split_at_limits_culling_and_incompatible_surfaces ... ok
+test scene::instancing::tests::stock_instanced_shaders_validate_on_baseline_capabilities ... ok
+test scene::local_lights::culling::tests::cone_masks_reject_sphere_false_positives_and_refresh_direction ... ok
+test scene::local_lights::culling::tests::cone_sphere_test_keeps_every_sampled_illuminated_point ... ok
+test scene::local_lights::directional_uniform_and_validation ... ok
+test scene::local_shadow_maps::compaction::tests::accepted_runs_preserve_source_order_and_nonzero_offsets ... ok
+test scene::local_shadow_maps::compaction::tests::retained_rows_upload_only_dirty_runs_and_new_tail ... ok
+test scene::local_shadow_maps::optimization_tests::compact_expensive_static_local_layer_restores_immutable_depth ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+local_static_sun_proof 40012->13triangles one_static_group immutable_restore mover_departure sameID_reupload pixels_equal depth_budget_rejects_releases idle59_retains60_releases bypass_releases sun_unprofitable_releases
+ok
+test scene::local_shadow_maps::optimization_tests::fragmented_local_ranges_compact_after_retained_spatial_order ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+local_ranges_proof 80->1draws 960triangles unchanged checks160once packed7680bytes
+ok
+test scene::local_shadow_maps::optimization_tests::fragmented_sun_layers_compact_and_retain_exact_depth_rows ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+sun_ranges_proof fragmented13dynamic CW_CCW immutable_restore14->3draws unchanged14triangles warm0 dirty96bytes ordinary_color_and_shadow_fallback_exact cross7chunks8movers 8->2draws unchanged97triangles retained_subset_warm0regroups mask_change_rebuilds
+ok
+test scene::local_shadow_maps::optimization_tests::receiver_updates_only_dirty_rows_and_clears_retired_slots ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+local_receiver_proof warm0 edit80 retire80 initial160of320bytes
+ok
+test scene::local_shadow_maps::optimization_tests::retained_spatial_caster_index_matches_linear_scans_through_refits ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+local_spatial_proof checks28672->704 exactspot_pointfaces_offscreen_and_refits
+ok
+test scene::local_shadow_maps::spatial::tests::broad_phase_keeps_every_original_frustum_acceptance ... ok
+test scene::object_cache::tests::independent_cpu_records_need_no_gpu_allocation ... ok
+test scene::occlusion::tests::adaptive_cooldown_advances_once_before_both_stages_and_keeps_instance_savings ... ok
+test scene::occlusion::tests::adaptive_instance_cooldown_skips_preparation_and_resumes_with_exact_moving_pixels ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+adaptive_instance_prepare_proof bypass_frames=30 projection_refreshes=0 packed_query_rows=0 exact_moving_pixels=true bounded_resume=true productive_cached_compaction=true warm_zero_savings_input_reuse=true
+ok
+test scene::occlusion::tests::adaptive_policy_requires_fresh_unproductive_samples_and_resets_on_savings ... ok
+test scene::occlusion::tests::cached_instance_queries_compact_mixed_batches_and_invalidate_exactly ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+instance_occlusion_proof graph_candidates mixed_union_batch 1154->50triangles exact_camera_bounds_occluder_invalidation warm_input_reuse=true failed_reverted_retry=true asset_bounds_invalidation=true
+ok
+test scene::occlusion::tests::depth_and_compute_shaders_validate_with_baseline_capabilities ... ok
+test scene::occlusion::tests::projected_bounds_enclose_vertices_and_keep_near_crossings_visible ... ok
+test scene::occlusion::tests::retained_instance_input_certificate_rejects_every_changed_dependency ... ok
+test scene::particles::gpu::tests::compute_shaders_validate_on_baseline_limits ... ok
+test scene::particles::tests::particle_shader_validates ... ok
+test scene::point_shadows::tests::six_faces_cover_axes_edges_and_corners_with_pcf_border ... ok
+test scene::post_process::tests::depth_effects_shader_validates ... ok
+test scene::preparation::tests::dynamic_refresh_matches_sequential_surface_transforms_and_skin_centers ... ok
+test scene::preparation::tests::insertion_remaps_owned_sources_and_retained_surfaces_by_identity ... ok
+test scene::preparation::tests::numeric_graph_topology_keeps_literal_opaque_order_and_order_only_edits ... ok
+test scene::preparation::tests::opaque_camera_refresh_skips_depth_but_retains_skin_center ... ok
+test scene::preparation::tests::removing_a_large_scene_releases_excess_capacity ... ok
+test scene::preparation::tests::retained_sort_restores_canonical_ties_after_transparency_reorders ... ok
+test scene::preparation::tests::static_keys_ignore_runtime_matrices_but_preserve_float_bits_and_graph_content ... ok
+test scene::reflections::tests::reflections_shader_validates ... ok
+test scene::shadows::fit_cache_tests::cached_extents_match_original_fit_bytes_through_edits ... ok
+test scene::shadows::metadata_tests::direct_classification_and_retained_metadata_match_original_snapshots ... ok
+test scene::shadows::tests::bounds_fit_contains_corners_and_handles_vertical_sun ... ok
+test scene::shadows::tests::one_texel_of_world_bias_tracks_the_fitted_area ... ok
+test scene::shadows::tests::opaque_shadow_alpha_proof_preserves_custom_sampler_borders ... shadow_border_proof executed adapter="Apple M2 Pro" backend=Metal features=Features { features_wgpu: FeaturesWGPU(ADDRESS_MODE_CLAMP_TO_ZERO | ADDRESS_MODE_CLAMP_TO_BORDER), features_webgpu: FeaturesWebGPU(0x0) } comparisons=8 exact_pixels=true outside_uv_and_filtered_edge=true
+ok
+test scene::shadows::tests::opaque_shadow_specialization_matches_masked_reference_for_winding_and_alpha ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+opaque_shadow_proof vertex_only_cw_ccw rejected_alpha_skipped same_pixels_masked_alpha_cutoff_uv_sun_spot_point_grazing_bias
+ok
+test scene::shadows::tests::rejected_shadow_alpha_keeps_exact_threshold_and_cutoff_boundaries ... ok
+test scene::shadows::tests::shadow_shaders_validate_and_share_the_color_uniform_stride ... ok
+test scene::skinning::optimization_tests::posed_bounds_cover_weighted_matrix_cancellation ... ok
+test scene::skinning::optimization_tests::posed_part_joint_boxes_contain_weighted_vertices_without_whole_actor_extent ... ok
+test scene::skinning::optimization_tests::shared_visible_poses_and_hidden_reentry_preserve_current_and_history ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+skinning_proof 12->1dispatches currentcopies0 shared3 hidden8 color4->1 shadow12->1 distinct_history_partitions2 exact_GPU_current_previous_reentry_and_offscreen_sun
+ok
+test scene::spot_shadows::tests::cone_projection_tracks_position_direction_and_webgpu_depth ... ok
+test scene::submission::geometry::tests::copied_streams_preserve_authored_indices_base_vertices_and_first_instances ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test scene::sun_cache::policy::tests::depth_admission_bounds_bytes_dimensions_and_checked_arithmetic ... ok
+test scene::sun_cache::policy::tests::intermittent_movers_keep_a_bounded_idle_grace ... ok
+test scene::sun_cache::policy::tests::local_depth_budget_preserves_default_faces_and_rejects_larger_layers ... ok
+test scene::sun_cache::policy::tests::static_key_admission_bounds_counts_names_and_overflow ... ok
+test scene::sun_cache::tests::cache_policy_keeps_expensive_compact_groups_and_bypasses_small_scenes ... ok
+test scene::sun_cache::tests::depth_copy_shader_validates ... ok
+test scene::temporal::tests::temporal_shader_validates ... ok
+test scene::text::tests::layout_wraps_aligns_scales_and_validates ... ok
+test scene::text::tests::text_gpu_depth_atlas_growth_edits_and_cleanup ... ignored, requires hardware GPU; run with --ignored --nocapture
+test scene::text::world::tests::heterogeneous_world_text_and_sprites_preserve_order_motion_and_warm_streams ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+world_text_sprite_proof 400->2draws warmcopies0 warmIDbytes0 exact_alpha_order_motion_transform_tint_glyph_texture_insert_remove_portable_fallback_failed_retry_particles
+ok
+test scene::variants::tests::all_consumed_output_masks_validate_for_both_hosts_and_instances ... ok
+test scene::visibility::tests::conservative_clip_planes_transform_and_camera_crossings ... ok
+test scene::visibility::tests::early_corner_acceptance_matches_reference_for_projective_and_uncertain_bounds ... ok
+test scene::visibility::tests::frustum_predicate_benchmark ... ignored, release-mode CPU frustum profile; run without competing CPU/GPU work
+test scene::volumetric::tests::volumetric_shader_validates ... ok
+test tests::image_oracle_rejects_a_clear_only_frame ... ok
+
+test result: ok. 112 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 86.82s

@@ -19,8 +19,9 @@ pub struct BatchingStats {
     /// Compatible visible peers exist, but ordering, culling, capacity tails or
     /// the consecutive diagnostic path left this surface alone.
     pub singleton_split: usize,
-    /// Draw counts for sizes 1, 2–3, 4–7, 8–15, 16–31, 32–63, and 64.
-    pub size_histogram: [usize; 7],
+    /// Draw counts for power-of-two ranges from size 1 through 1024.
+    /// The final bucket includes 1024-record native arena groups.
+    pub size_histogram: [usize; 11],
 }
 
 pub(super) fn collect(
@@ -34,9 +35,11 @@ pub(super) fn collect(
         ..Default::default()
     };
     // Borrow asset keys: diagnostics must not clone per-surface strings every frame.
+    // wgpu Buffer Eq/Hash use immutable handle identity, never storage contents.
+    #[allow(clippy::mutable_key_type)]
     let mut peers = HashMap::new();
     for batch in batches {
-        stats.size_histogram[batch.indices.len().ilog2() as usize] += 1;
+        stats.size_histogram[(batch.indices.len().ilog2() as usize).min(10)] += 1;
         for &index in &batch.indices {
             let draw = &draws[index];
             if draw.shader.is_some() {
@@ -55,7 +58,7 @@ pub(super) fn collect(
             stats.singleton_disabled += 1;
         } else if draw.transparent {
             stats.singleton_transparent += 1;
-        } else if draw.deformation != 0 {
+        } else if draw.deformation != 0 && draw.shared_geometry.is_none() {
             stats.singleton_deformed += 1;
         } else if !graphs && draw.shader.is_some() {
             stats.singleton_shader += 1;
@@ -81,9 +84,12 @@ mod tests {
             preparation: Default::default(),
             source_item: 0,
             deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
             pbr_override: [-1.; 2],
             shader: None,
             pbr: false,
+            raster: 0,
             opacity: 1.,
             cutoff: 0.,
             transparent: false,
@@ -130,6 +136,7 @@ mod tests {
             .map(|index| Batch {
                 indices: vec![index],
                 slot: None,
+                first_instance: 0,
             })
             .collect();
         let stats = collect(&draws, &batches, true, false);
@@ -141,7 +148,7 @@ mod tests {
         assert_eq!(stats.singleton_unsupported_mesh, 1);
         assert_eq!(stats.singleton_unique_key, 1);
         assert_eq!(stats.singleton_split, 2);
-        assert_eq!(stats.size_histogram, [7, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(stats.size_histogram, [7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         let stats = collect(&draws, &batches, false, false);
         assert_eq!(stats.singleton_disabled, 7);
         assert_eq!(partition(stats), 7);
@@ -162,17 +169,19 @@ mod tests {
             Batch {
                 indices: (0..64).collect(),
                 slot: None,
+                first_instance: 0,
             },
             Batch {
                 indices: vec![64],
                 slot: None,
+                first_instance: 0,
             },
         ];
         let stats = collect(&draws, &batches, true, true);
         assert_eq!(stats.graph_surfaces, 65);
         assert_eq!(stats.graph_instanced_surfaces, 64);
         assert_eq!(stats.singleton_split, 1);
-        assert_eq!(stats.size_histogram, [1, 0, 0, 0, 0, 0, 1]);
+        assert_eq!(stats.size_histogram, [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
         assert_eq!(partition(stats), 1);
         assert_eq!(collect(&draws, &[], true, true).planned_draws, 0);
     }
@@ -185,7 +194,7 @@ mod tests {
         }
         draws[2].shader = Some(12);
         let sizes = |graphs| {
-            super::super::batches(&draws, &[true; 3], true, graphs)
+            super::super::batches(&draws, &[true; 3], true, graphs, false)
                 .into_iter()
                 .map(|b| b.indices.len())
                 .collect::<Vec<_>>()
@@ -201,6 +210,8 @@ mod tests {
     fn graph_instanced_hosts_validate_on_baseline_capabilities() {
         let source = ShaderSource {
             id: 1,
+            opaque_sort_id: 1,
+            numeric_parameters: std::sync::Arc::from([]),
             surface: "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { return default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); }".into(),
         };
         for pbr in [false, true] {
@@ -214,5 +225,70 @@ mod tests {
             .validate(&module)
             .unwrap();
         }
+    }
+    #[test]
+    fn native_instance_shader_indexes_storage_objects_and_numeric_parameters() {
+        for pbr in [false, true] {
+            let wgsl = instance_module_text_for(host_text(pbr), true);
+            assert!(wgsl.contains("var<storage, read> objects: array<ObjectUniform>"));
+            assert!(wgsl.contains("var<storage, read> graph_parameters: array<vec4<f32>>"));
+            assert!(wgsl.contains("graph_instance = object_slot"));
+            let module = wgpu::naga::front::wgsl::parse_str(&wgsl)
+                .unwrap_or_else(|e| panic!("{}", e.emit_to_string(&wgsl)));
+            wgpu::naga::valid::Validator::new(
+                wgpu::naga::valid::ValidationFlags::all(),
+                wgpu::naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .unwrap();
+        }
+    }
+    #[test]
+    fn ordered_transparent_runs_preserve_every_interleaved_surface() {
+        let mut draws: Vec<_> = (0..6).map(|_| draw()).collect();
+        for item in &mut draws {
+            item.transparent = true;
+        }
+        draws[2].object.material.texture = TextureKind::Checker;
+        draws[5].object.material.texture = TextureKind::Checker;
+        let batches = batches_with_capacity(&draws, &[true; 6], true, true, true, MAX_INSTANCES, 0);
+        assert_eq!(
+            batches
+                .iter()
+                .map(|b| b.indices.clone())
+                .collect::<Vec<_>>(),
+            [vec![0, 1], vec![2], vec![3, 4], vec![5]]
+        );
+        assert_eq!(
+            batches
+                .iter()
+                .flat_map(|b| b.indices.iter().copied())
+                .collect::<Vec<_>>(),
+            (0..6).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            super::super::batches(&draws, &[true; 6], true, true, false).len(),
+            6
+        );
+    }
+    #[test]
+    fn native_histogram_counts_large_groups_without_overflow() {
+        let draws: Vec<_> = (0..1184).map(|_| draw()).collect();
+        let batches = [
+            Batch {
+                indices: (0..1024).collect(),
+                slot: None,
+                first_instance: 0,
+            },
+            Batch {
+                indices: (1024..1184).collect(),
+                slot: None,
+                first_instance: 0,
+            },
+        ];
+        let stats = collect(&draws, &batches, true, true);
+        assert_eq!(stats.size_histogram[10], 1);
+        assert_eq!(stats.size_histogram[7], 1);
+        assert_eq!(stats.size_histogram.iter().sum::<usize>(), 2);
     }
 }

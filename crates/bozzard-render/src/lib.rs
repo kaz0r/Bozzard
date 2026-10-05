@@ -16,9 +16,9 @@ pub use scene::{
     Lighting, LocalLight, LocalShadowSettings, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS,
     MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats,
     OcclusionResult, Particle, ParticleKind, PendingUpload, RenderScene, SceneRenderer, ScreenText,
-    ShaderSource, SpotShadowSettings, SurfaceMaterialOverride, TextAlignment, TextMesh,
-    TextureKind, ToneMapper, UploadContext, UploadData, UploadProgress, UploadSource, Vignette,
-    VolumetricFog, text_bounds, upload_memory_bytes,
+    ShaderSource, ShaderWarmup, SpotShadowSettings, SurfaceMaterialOverride, TextAlignment,
+    TextMesh, TextureKind, ToneMapper, UploadContext, UploadData, UploadProgress, UploadSource,
+    Vignette, VolumetricFog, text_bounds, upload_memory_bytes,
 };
 
 use anyhow::{Context, Result, ensure};
@@ -134,7 +134,9 @@ impl Gpu {
                 required_features: adapter.features()
                     & (wgpu::Features::TIMESTAMP_QUERY
                         | wgpu::Features::TEXTURE_COMPRESSION_BC
-                        | wgpu::Features::TEXTURE_COMPRESSION_ASTC),
+                        | wgpu::Features::TEXTURE_COMPRESSION_ASTC
+                        | wgpu::Features::INDIRECT_FIRST_INSTANCE
+                        | wgpu::Features::MULTI_DRAW_INDIRECT_COUNT),
                 // Keep baseline features while allowing native/Retina-sized render targets.
                 required_limits: wgpu::Limits::downlevel_defaults()
                     .using_resolution(adapter.limits()),

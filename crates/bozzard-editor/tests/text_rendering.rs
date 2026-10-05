@@ -57,7 +57,10 @@ fn text_component_roundtrip_layers_bounds_picking_and_play_isolation() {
                 .unwrap()
                 .items
                 .iter()
-                .filter(|i| matches!(i.mesh, bozzard_render::MeshKind::Text(_)))
+                .filter(|i| matches!(
+                    i.mesh,
+                    bozzard_render::MeshKind::Text(_) | bozzard_render::MeshKind::SharedText(_)
+                ))
                 .count(),
             count
         );

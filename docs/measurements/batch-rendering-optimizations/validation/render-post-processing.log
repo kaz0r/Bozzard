@@ -1,0 +1,9 @@
+     Running tests/post_processing.rs (target/debug/deps/post_processing-f22a745579e5bdc4)
+
+running 2 tests
+test gpu_anamorphic_bloom_spreads_horizontally_and_heat_is_local ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+test gpu_post_processing_color_depth_resize_bypass_and_encoding ... adapter="Apple M2 Pro" backend=Metal type=IntegratedGpu driver="" driver_info=""
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.43s

@@ -1,8 +1,14 @@
 //! Ordered UI/text composition after display effects. Uniform storage and texture bindings are reused.
 use super::*;
 use std::collections::HashMap;
+mod batching;
 pub(super) struct HudRenderer {
     pipeline: wgpu::RenderPipeline,
+    format: wgpu::TextureFormat,
+    batched: Option<batching::Batching>,
+    pub draw_calls: usize,
+    pub uniform_bytes: usize,
+    pub geometry_copies: usize,
     sampler: wgpu::Sampler,
     encode: bool,
     uniform: wgpu::Buffer,
@@ -65,6 +71,11 @@ impl HudRenderer {
         )) * u64::from(gpu.device.limits().min_uniform_buffer_offset_alignment);
         Self {
             pipeline,
+            format,
+            batched: None,
+            draw_calls: 0,
+            uniform_bytes: 0,
+            geometry_copies: 0,
             sampler: gpu.device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("UI image sampler"),
                 mag_filter: wgpu::FilterMode::Linear,
@@ -89,6 +100,9 @@ impl HudRenderer {
     }
     pub fn invalidate(&mut self) {
         self.bindings.clear();
+        if let Some(batched) = &mut self.batched {
+            batched.invalidate();
+        }
     }
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
@@ -107,6 +121,15 @@ impl HudRenderer {
         for item in &scene.items {
             let (mesh, screen, opacity, clip) = match &item.mesh {
                 MeshKind::Text(text) => {
+                    let Some(screen) = text.screen else {
+                        continue;
+                    };
+                    let Some(mesh) = renderer.text.as_ref().and_then(|r| r.mesh(text)) else {
+                        continue;
+                    };
+                    (mesh, screen, text.opacity, text.clip)
+                }
+                MeshKind::SharedText(text) => {
                     let Some(screen) = text.screen else {
                         continue;
                     };
@@ -149,6 +172,28 @@ impl HudRenderer {
             draws.push((mesh, screen, opacity, &item.material, scissor));
         }
         ensure!(draws.len() <= 4096, "UI view exceeds 4096 draws");
+        self.draw_calls = 0;
+        self.uniform_bytes = 0;
+        self.geometry_copies = 0;
+        if renderer.hud_batching_enabled {
+            let batched = self
+                .batched
+                .get_or_insert_with(|| batching::Batching::new(gpu, self.format));
+            batched.draw(
+                gpu,
+                encoder,
+                target,
+                size,
+                renderer,
+                &draws,
+                self.encode && !raw,
+                scale,
+            )?;
+            self.draw_calls = batched.draw_calls;
+            self.uniform_bytes = batched.uniform_bytes;
+            self.geometry_copies = batched.geometry_copies;
+            return Ok(());
+        }
         if draws.len() > self.capacity {
             self.capacity = draws.len().next_power_of_two();
             self.uniform = Self::buffer(gpu, self.stride * self.capacity as u64);
@@ -211,6 +256,7 @@ impl HudRenderer {
         }
         if !self.bytes.is_empty() {
             gpu.queue.write_buffer(&self.uniform, 0, &self.bytes);
+            self.uniform_bytes = self.bytes.len();
         }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("authored UI after display"),
@@ -236,8 +282,15 @@ impl HudRenderer {
             pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
             pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..mesh.count, 0, 0..1);
+            self.draw_calls += 1;
         }
         Ok(())
+    }
+}
+impl SceneRenderer {
+    /// Diagnostic ordered singleton reference for authored UI rendering.
+    pub fn set_hud_batching_enabled(&mut self, enabled: bool) {
+        self.hud_batching_enabled = enabled;
     }
 }
 #[cfg(test)]
