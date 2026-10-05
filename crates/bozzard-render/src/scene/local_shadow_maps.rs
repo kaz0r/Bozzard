@@ -1,5 +1,5 @@
 use super::*;
-mod compaction;
+pub(super) mod compaction;
 mod spatial;
 
 // Independent spot/point banks retain at most 64 MiB of extra depth.
@@ -585,6 +585,7 @@ impl SceneRenderer {
     pub fn set_shadow_range_compaction_enabled(&mut self, enabled: bool) {
         self.shadows.spots.set_range_enabled(enabled);
         self.shadows.points.set_range_enabled(enabled);
+        self.shadows.sun_cache.set_range_enabled(enabled);
     }
 }
 
@@ -738,6 +739,284 @@ mod optimization_tests {
         );
         println!(
             "local_ranges_proof 80->1draws 960triangles unchanged checks160once packed7680bytes"
+        );
+        Ok(())
+    }
+    #[test]
+    fn fragmented_sun_layers_compact_and_retain_exact_depth_rows() -> Result<()> {
+        let exact = |reference: &crate::Frame, candidate: crate::Frame, context: &str| {
+            assert_eq!(reference.rgba.len(), candidate.rgba.len(), "{context}");
+            let different = reference
+                .rgba
+                .chunks_exact(4)
+                .zip(candidate.rgba.chunks_exact(4))
+                .filter(|(a, b)| a != b)
+                .count();
+            assert_eq!(different, 0, "{context}: pixels differ");
+        };
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut renderers = std::array::from_fn::<_, 3, _>(|_| {
+            SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
+        });
+        renderers[0].set_shadow_preparation_caching_enabled(false);
+        renderers[1].set_shadow_range_compaction_enabled(false);
+        let vertices = [
+            [-0.12, -0.12, 0., 0., 0., 1., 0., 1.],
+            [0.12, -0.12, 0., 0., 0., 1., 1., 1.],
+            [0., 0.12, 0., 0., 0., 1., 0.5, 0.],
+        ];
+        let attributes = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 3];
+        for renderer in &mut renderers {
+            renderer.set_occlusion_enabled(false);
+            renderer.upload_mesh(
+                &gpu,
+                "sun-range-receiver",
+                &[
+                    [-3.5, -3.5, 0., 0., 0., 1., 0., 1.],
+                    [3.5, -3.5, 0., 0., 0., 1., 1., 1.],
+                    [0., 3.5, 0., 0., 0., 1., 0.5, 0.],
+                ],
+                &(0..40_000).flat_map(|_| [0, 1, 2]).collect::<Vec<_>>(),
+            )?;
+            renderer.upload_model(
+                &gpu,
+                "sun-range-triangle",
+                &vertices,
+                &[0, 1, 2],
+                &[ModelPart {
+                    source_key: "0000000000000000",
+                    start: 0,
+                    count: 3,
+                    color: [1.; 4],
+                    alpha_cutoff: None,
+                    image: None,
+                    shading: Some(crate::ModelShading {
+                        vertex_start: 0,
+                        vertices: &attributes,
+                        metallic: 0.,
+                        roughness: 0.7,
+                        normal_scale: 1.,
+                        occlusion_strength: 1.,
+                        emissive_factor: [0.; 3],
+                        double_sided: false,
+                        base_color_sampler: Default::default(),
+                        normal: None,
+                        metallic_roughness: None,
+                        occlusion: None,
+                        emissive: None,
+                    }),
+                }],
+            )?;
+        }
+        let mut items = vec![DrawItem {
+            motion_id: 1,
+            model: Mat4::from_translation(Vec3::new(0., 0., -6.)),
+            mesh: MeshKind::Imported("sun-range-receiver".into()),
+            material: material(),
+        }];
+        items.extend((0..26).map(|index| DrawItem {
+            motion_id: index + 2,
+            model: Mat4::IDENTITY,
+            mesh: MeshKind::ModelPart("sun-range-triangle".into(), 0),
+            material: material(),
+        }));
+        // A fixed near-depth bound keeps the fitted sun matrix independent of
+        // the movers, while the expensive receiver supplies the far/XY bounds.
+        items.push(DrawItem {
+            motion_id: 28,
+            model: Mat4::from_translation(Vec3::new(3., 2., -1.)),
+            mesh: MeshKind::ModelPart("sun-range-triangle".into(), 0),
+            material: material(),
+        });
+        let mut scene = scene(items);
+        scene.lights.clear();
+        scene.lighting.shadows = true;
+        scene.lighting.shadow_resolution = 256;
+        scene.lighting.sun_direction = [0.15, 0.1, 1.];
+        let update = |scene: &mut RenderScene, tick: usize| {
+            for (index, item) in scene.items[1..27].iter_mut().enumerate() {
+                let moving = index % 2 == 1;
+                let pair = index / 2;
+                item.model =
+                    Mat4::from_translation(Vec3::new(
+                        -1.8 + (pair % 7) as f32 * 0.5 + if moving { 0.2 } else { 0. },
+                        -1.8 + (pair / 7) as f32 * 1.
+                            + if moving { tick as f32 * 0.01 } else { 0. },
+                        -3.,
+                    )) * Mat4::from_scale(Vec3::new(if pair % 2 == 0 { 1. } else { -1. }, 1., 1.));
+            }
+        };
+        for tick in 0..4 {
+            update(&mut scene, tick);
+            let full = capture(&gpu, &mut renderers[0], &scene)?;
+            exact(
+                &full,
+                capture(&gpu, &mut renderers[1], &scene)?,
+                "uncompacted sun cache",
+            );
+            exact(
+                &full,
+                capture(&gpu, &mut renderers[2], &scene)?,
+                "compacted sun cache",
+            );
+            if tick >= 2 {
+                assert!(renderers[1].stats.sun_static_cache_reused);
+                assert!(renderers[2].stats.sun_static_cache_reused);
+                assert_eq!(renderers[2].stats.sun_dynamic_casters, 13);
+                assert_eq!(renderers[1].stats.shadow_draws, 14);
+                assert_eq!(renderers[2].stats.shadow_draws, 3);
+                assert_eq!(renderers[1].stats.shadow_triangles, 14);
+                assert_eq!(renderers[2].stats.shadow_triangles, 14);
+                assert_eq!(renderers[2].shadows.sun_cache.range_draws_saved.get(), 11);
+                assert_eq!(
+                    renderers[2].shadows.sun_cache.range_write_bytes.get(),
+                    13 * 96
+                );
+            }
+            if tick == 3 {
+                let mut shadowless = scene.clone();
+                shadowless.lighting.shadows = false;
+                assert!(
+                    full.rgba != capture(&gpu, &mut renderers[0], &shadowless)?.rgba,
+                    "the exact comparison must observe sun shadows"
+                );
+            }
+        }
+        let candidate = &mut renderers[2];
+        // Inspect the actual retained stream independently of whole-map reuse:
+        // fixed accepted members cost zero bytes, one edited model row costs 96.
+        let draws = candidate.prepare(&scene);
+        let batches = candidate.prepare_shadow_instances(&gpu, &draws)?;
+        let accepted = draws
+            .iter()
+            .map(|draw| draw.object.motion_id >= 2 && draw.object.motion_id % 2 == 1)
+            .collect::<Vec<_>>();
+        candidate.shadows.sun_cache.reset_work_stats();
+        let warm = candidate
+            .shadows
+            .sun_cache
+            .prepare_ranges(candidate, &gpu, &draws, &batches, &accepted, true)
+            .unwrap();
+        assert_eq!(warm.bytes, 0);
+        assert_eq!(warm.saved, 11);
+        let mut compacted_coverage = Vec::new();
+        for batch in &warm.batches {
+            if warm
+                .bindings
+                .contains_key(&batch.slot.unwrap_or(usize::MAX))
+            {
+                assert_eq!(batch.first_instance, 0);
+                let coverage =
+                    candidate.shadow_coverage_at(batch.indices[0], &draws[batch.indices[0]]);
+                compacted_coverage.push(coverage);
+                assert!(batch.indices.iter().all(|&index| {
+                    accepted[index]
+                        && candidate.shadow_coverage_at(index, &draws[index]) == coverage
+                }));
+            }
+        }
+        assert!(compacted_coverage.contains(&shadows::ShadowCoverage::OpaqueCcw));
+        assert!(compacted_coverage.contains(&shadows::ShadowCoverage::OpaqueCw));
+        let index = accepted.iter().position(|&v| v).unwrap();
+        let original = *candidate.objects[index].uniform.as_ref().unwrap();
+        candidate.objects[index].uniform.as_mut().unwrap()[144..148]
+            .copy_from_slice(&0.125f32.to_le_bytes());
+        let dirty = candidate
+            .shadows
+            .sun_cache
+            .prepare_ranges(candidate, &gpu, &draws, &batches, &accepted, true)
+            .unwrap();
+        assert_eq!(dirty.bytes, 96);
+        candidate.objects[index].uniform = Some(original);
+        assert_eq!(
+            candidate
+                .shadows
+                .sun_cache
+                .prepare_ranges(candidate, &gpu, &draws, &batches, &accepted, true,)
+                .unwrap()
+                .bytes,
+            96
+        );
+        // prepare() lends the retained frame's draws to its caller. Normal
+        // rendering returns them after submission; this packing-only inspection
+        // must do the same before testing a subsequent renderer frame.
+        candidate.surface_preparation.draws = draws;
+        // Diagnostic fallbacks preserve nonzero accepted ranges and exact pixels;
+        // compact records must never bind against the ordinary color layout.
+        candidate.set_shadow_batching_enabled(false);
+        update(&mut scene, 4);
+        let full = capture(&gpu, &mut renderers[0], &scene)?;
+        exact(
+            &full,
+            capture(&gpu, &mut renderers[2], &scene)?,
+            "disabled shadow batching",
+        );
+        assert_eq!(renderers[2].shadows.sun_cache.range_draws_saved.get(), 0);
+        renderers[2].set_shadow_batching_enabled(true);
+        renderers[2].set_instancing_enabled(false);
+        update(&mut scene, 5);
+        let full = capture(&gpu, &mut renderers[0], &scene)?;
+        exact(
+            &full,
+            capture(&gpu, &mut renderers[2], &scene)?,
+            "disabled color batching",
+        );
+        assert_eq!(renderers[2].shadows.sun_cache.range_draws_saved.get(), 0);
+        renderers[2].set_instancing_enabled(true);
+        scene
+            .items
+            .retain(|item| item.motion_id == 1 || item.motion_id == 28);
+        scene.items.extend((0..1190).map(|index| DrawItem {
+            motion_id: 100 + index,
+            model: Mat4::IDENTITY,
+            mesh: MeshKind::Cube,
+            material: material(),
+        }));
+        let movers = [5, 175, 345, 515, 685, 855, 1025, 1026];
+        for tick in 0..4 {
+            for (index, item) in scene.items[2..].iter_mut().enumerate() {
+                item.model = Mat4::from_translation(Vec3::new(
+                    -2.8 + index as f32 * (5.6 / 1189.),
+                    -1.4 + if movers.contains(&index) {
+                        tick as f32 * 0.01
+                    } else {
+                        0.
+                    },
+                    -3.,
+                )) * Mat4::from_scale(Vec3::splat(0.02));
+            }
+            let full = capture(&gpu, &mut renderers[0], &scene)?;
+            exact(
+                &full,
+                capture(&gpu, &mut renderers[1], &scene)?,
+                "crosschunk uncompacted sun",
+            );
+            exact(
+                &full,
+                capture(&gpu, &mut renderers[2], &scene)?,
+                "crosschunk compacted sun",
+            );
+            if tick >= 2 {
+                assert!(renderers[1].stats.sun_static_cache_reused);
+                assert!(renderers[2].stats.sun_static_cache_reused);
+                assert_eq!(renderers[2].stats.sun_dynamic_casters, 8);
+                assert_eq!(renderers[1].stats.shadow_draws, 8);
+                assert_eq!(renderers[2].stats.shadow_draws, 2);
+                assert_eq!(renderers[1].stats.shadow_triangles, 97);
+                assert_eq!(renderers[2].stats.shadow_triangles, 97);
+                assert_eq!(renderers[2].shadows.sun_cache.range_draws_saved.get(), 6);
+                assert_eq!(
+                    renderers[2].shadows.sun_cache.range_write_bytes.get(),
+                    8 * 96
+                );
+            }
+        }
+        println!(
+            "sun_ranges_proof fragmented13dynamic CW_CCW immutable_restore14->3draws unchanged14triangles warm0 dirty96bytes ordinary_color_and_shadow_fallback_exact cross7chunks8movers 8->2draws unchanged97triangles"
         );
         Ok(())
     }

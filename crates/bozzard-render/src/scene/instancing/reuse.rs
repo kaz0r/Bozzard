@@ -579,6 +579,168 @@ mod tests {
         );
     }
 
+    fn options(capacity: usize, all_surfaces: bool) -> PlanOptions {
+        PlanOptions {
+            graphs: true,
+            transparent_runs: false,
+            capacity,
+            text_limit: 0,
+            incremental: true,
+            all_surfaces,
+        }
+    }
+
+    #[test]
+    fn hidden_construction_fallback_is_rejected_through_camera_and_visibility_churn() {
+        for capacity in [MAX_INSTANCES, arena::MAX_NATIVE_INSTANCES] {
+            // Exactly the production admission ratio: one quarter visible.
+            // Visible copies are disjoint, but the hidden mixed-key population
+            // exhausts the bounded DAG. Its source order still certifies.
+            const VISIBLE: usize = 160;
+            let mut draws = draws(4 * VISIBLE);
+            for (index, draw) in draws.iter_mut().enumerate() {
+                draw.object.material.texture = if index % 2 == 0 {
+                    TextureKind::White
+                } else {
+                    TextureKind::Checker
+                };
+                if index >= VISIBLE {
+                    draw.object.model = Mat4::from_translation(Vec3::new(1000., 0., -5.));
+                }
+            }
+            let bounds = vec![[Vec3::splat(-0.4), Vec3::splat(0.4)]; draws.len()];
+            let mut visible = vec![false; draws.len()];
+            visible[..VISIBLE].fill(true);
+            let full = build_plan(
+                &draws,
+                &bounds,
+                &vec![true; draws.len()],
+                camera(),
+                options(capacity, false),
+            );
+            assert!(full.construction_limited);
+            assert!(full.plan.ordering.as_ref().unwrap().original);
+            assert_eq!(
+                visible_batches(&full.plan, &visible, Vec::new()).len(),
+                VISIBLE
+            );
+
+            let mut policy = SupersetPolicy::default();
+            assert!(policy.request(None, BatchPlanRebuildReason::Visibility));
+            let admitted = build_plan(&draws, &bounds, &visible, camera(), options(capacity, true));
+            assert!(admitted.rejected_superset);
+            assert!(!admitted.construction_limited);
+            assert!(!admitted.plan.all_surfaces);
+            let expected = 2 * (VISIBLE / 2).div_ceil(capacity);
+            assert_eq!(admitted.plan.batches.len(), expected);
+            policy.rejected = admitted.rejected_superset;
+            let mut retained = admitted.plan;
+
+            for frame in 1..=24 {
+                // Camera motion and object motion accompany the changing
+                // frustum membership; none can admit the poor hidden plan.
+                visible[..VISIBLE].fill(true);
+                visible[frame % VISIBLE] = false;
+                draws[0].object.model *= Mat4::from_translation(Vec3::new(0.01, 0., 0.));
+                let view = camera() * Mat4::from_rotation_z(frame as f32 * 0.003);
+                let reason = retain(&mut retained, &draws, &visible, view, true, &bounds)
+                    .err()
+                    .unwrap();
+                assert_eq!(reason, BatchPlanRebuildReason::Visibility);
+                let promote = policy.request(Some(&retained), reason);
+                assert!(
+                    !promote,
+                    "known dense hidden graph was retried at frame {frame}"
+                );
+                let built = build_plan(&draws, &bounds, &visible, view, options(capacity, promote));
+                assert!(!built.rejected_superset);
+                assert!(!built.construction_limited);
+                assert!(!built.plan.all_surfaces);
+                assert_eq!(built.plan.batches.len(), expected);
+                retained = built.plan;
+                assert_safe(&retained, &draws, view, &visible);
+                // The recovered visible certificate also survives motion when
+                // membership is unchanged, rather than rebuilding every frame.
+                let moved_view = view * Mat4::from_translation(Vec3::new(0.001, 0., 0.));
+                retain(&mut retained, &draws, &visible, moved_view, true, &bounds).unwrap();
+                assert_safe(&retained, &draws, moved_view, &visible);
+            }
+            // Structural changes can make a previously rejected population
+            // useful. They reset the bounded admission policy for later churn.
+            for reason in [
+                BatchPlanRebuildReason::Membership,
+                BatchPlanRebuildReason::Metadata,
+                BatchPlanRebuildReason::Bounds,
+            ] {
+                assert!(!policy.request(Some(&retained), reason));
+                assert!(policy.request(Some(&retained), BatchPlanRebuildReason::Visibility));
+                policy.rejected = true;
+            }
+        }
+    }
+
+    #[test]
+    fn certified_hidden_bridge_cannot_degrade_visible_grouping() {
+        let mut draws = draws(3);
+        for (index, draw) in draws.iter_mut().enumerate() {
+            draw.object.model = Mat4::from_translation(Vec3::new(index as f32 - 1., 0., -5.));
+        }
+        draws[2].object.material.texture = draws[0].object.material.texture.clone();
+        let bounds = [
+            [Vec3::splat(-0.4), Vec3::splat(0.4)],
+            [Vec3::splat(-1.8), Vec3::splat(1.8)],
+            [Vec3::splat(-0.4), Vec3::splat(0.4)],
+        ];
+        let visible = [true, false, true];
+        for capacity in [MAX_INSTANCES, arena::MAX_NATIVE_INSTANCES] {
+            let full = build_plan(
+                &draws,
+                &bounds,
+                &[true; 3],
+                camera(),
+                options(capacity, false),
+            );
+            assert!(!full.construction_limited);
+            assert!(full.plan.ordering.is_ok());
+            assert_eq!(visible_batches(&full.plan, &visible, Vec::new()).len(), 2);
+            let built = build_plan(&draws, &bounds, &visible, camera(), options(capacity, true));
+            assert!(built.rejected_superset);
+            assert!(!built.plan.all_surfaces);
+            assert_eq!(built.plan.batches[0].indices, [0, 2]);
+            assert_eq!(built.plan.batches.len(), 1);
+            assert_safe(&built.plan, &draws, camera(), &visible);
+        }
+    }
+
+    #[test]
+    fn useful_hidden_plan_is_admitted_and_reuses_visibility_changes() {
+        let mut draws = draws(128);
+        for (index, draw) in draws.iter_mut().enumerate() {
+            draw.object.material.texture = if index % 2 == 0 {
+                TextureKind::White
+            } else {
+                TextureKind::Checker
+            };
+        }
+        let bounds = vec![[Vec3::splat(-0.4), Vec3::splat(0.4)]; draws.len()];
+        let mut visible = vec![false; draws.len()];
+        visible[..64].fill(true);
+        for capacity in [MAX_INSTANCES, arena::MAX_NATIVE_INSTANCES] {
+            let built = build_plan(&draws, &bounds, &visible, camera(), options(capacity, true));
+            assert!(!built.rejected_superset);
+            assert!(!built.construction_limited);
+            assert!(built.plan.all_surfaces);
+            let mut plan = built.plan;
+            for index in 64..128 {
+                visible[index] = true;
+                retain(&mut plan, &draws, &visible, camera(), true, &bounds).unwrap();
+                assert_eq!(visible_batches(&plan, &visible, Vec::new()).len(), 2);
+            }
+            assert_safe(&plan, &draws, camera(), &visible);
+            visible[64..].fill(false);
+        }
+    }
+
     #[test]
     fn lookahead_unlocks_a_compatible_ready_peer_without_relaxing_edges() {
         let mut draws = draws(3);

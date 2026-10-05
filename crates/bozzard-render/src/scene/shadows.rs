@@ -998,6 +998,7 @@ impl SceneRenderer {
     }
     pub(super) fn draw_shadows(
         &self,
+        gpu: &Gpu,
         encoder: &mut crate::profiling::Encoder,
         scene: &RenderScene,
         draws: &[PreparedDraw],
@@ -1019,20 +1020,52 @@ impl SceneRenderer {
         };
         let mut counts = (0, 0);
         if let Some(plan) = plan.filter(|p| p.rebuild) {
+            let accepted = plan
+                .static_mask
+                .iter()
+                .enumerate()
+                .map(|(i, &stable)| {
+                    stable
+                        && !draws[i].transparent
+                        && draws[i].object.material.lit
+                        && !self.shadow_rejected(&draws[i])
+                })
+                .collect::<Vec<_>>();
+            let compact = self
+                .shadows
+                .sun_cache
+                .prepare_ranges(self, gpu, draws, batches, &accepted, false);
             let mut pass = encoder.begin_render_pass(&descriptor(
                 self.shadows.sun_cache.depth(),
                 "sun static shadow casters",
             ));
             pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
-            counts = self.draw_shadow_casters(
+            counts = self.draw_shadow_casters_with_bindings(
                 &mut pass,
                 draws,
-                batches,
+                compact.as_ref().map_or(batches, |p| p.batches.as_slice()),
                 None,
                 false,
                 Some(&plan.static_mask),
+                compact.as_ref().map(|p| &p.bindings),
             );
         }
+        let compact = plan.and_then(|plan| {
+            let accepted = plan
+                .dynamic_mask
+                .iter()
+                .enumerate()
+                .map(|(i, &dynamic)| {
+                    dynamic
+                        && !draws[i].transparent
+                        && draws[i].object.material.lit
+                        && !self.shadow_rejected(&draws[i])
+                })
+                .collect::<Vec<_>>();
+            self.shadows
+                .sun_cache
+                .prepare_ranges(self, gpu, draws, batches, &accepted, true)
+        });
         let mut pass =
             encoder.begin_render_pass(&descriptor(&self.shadows.depth, "sun shadow casters"));
         if !scene.lighting.shadows || self.shadows.resolution == 1 {
@@ -1044,26 +1077,16 @@ impl SceneRenderer {
             counts.1 += 1;
         }
         pass.set_bind_group(1, &self.shadows.caster_binding, &[]);
-        let dynamic = self.draw_shadow_casters(
+        let dynamic = self.draw_shadow_casters_with_bindings(
             &mut pass,
             draws,
-            batches,
+            compact.as_ref().map_or(batches, |p| p.batches.as_slice()),
             None,
             false,
             plan.map(|p| p.dynamic_mask.as_slice()),
+            compact.as_ref().map(|p| &p.bindings),
         );
         (counts.0 + dynamic.0, counts.1 + dynamic.1)
-    }
-    pub(super) fn draw_shadow_casters(
-        &self,
-        pass: &mut wgpu::RenderPass<'_>,
-        draws: &[PreparedDraw],
-        batches: &[instancing::Batch],
-        projection: Option<Mat4>,
-        point: bool,
-        mask: Option<&[bool]>,
-    ) -> (usize, u64) {
-        self.draw_shadow_casters_with_bindings(pass, draws, batches, projection, point, mask, None)
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn draw_shadow_casters_with_bindings(

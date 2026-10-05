@@ -1,8 +1,8 @@
-//! Repack heavily fragmented local-light masks into a retained compact stream.
+//! Repack heavily fragmented shadow masks into a retained compact stream.
 //! Each map/static layer has distinct storage because queue writes precede draws.
 use super::*;
 #[derive(Default)]
-pub(super) struct Cache {
+pub(in crate::scene) struct Cache {
     entries: BTreeMap<usize, Entry>,
 }
 struct Entry {
@@ -11,7 +11,7 @@ struct Entry {
     texture: TextureKind,
     bytes: Vec<u8>,
 }
-pub(super) struct Plan {
+pub(in crate::scene) struct Plan {
     pub batches: Vec<instancing::Batch>,
     pub bindings: BTreeMap<usize, wgpu::BindGroup>,
     pub saved: usize,
@@ -40,13 +40,7 @@ impl Cache {
             let Some(slot) = batch.slot else {
                 continue;
             };
-            let mut runs = 0;
-            let mut prior = false;
-            for &index in &batch.indices {
-                let current = accepted[index];
-                runs += usize::from(current && !prior);
-                prior = current;
-            }
+            let runs = accepted_runs(&batch.indices, accepted);
             // Two cheap draws avoid introducing upload/packing work. Three or
             // more fragmented runs pay for one compact draw on this map.
             if runs < 3 {
@@ -57,50 +51,120 @@ impl Cache {
             if batch.indices.is_empty() {
                 continue;
             }
-            let texture = &renderer.objects[batch.indices[0]].texture;
-            let mut allocation = false;
-            if let std::collections::btree_map::Entry::Vacant(entry) = self.entries.entry(slot) {
-                allocation = true;
-                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("local shadow compacted ranges"),
-                    size: instancing::SHADOW_BUFFER_BYTES as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-                let binding = binding(renderer, device, texture, &buffer);
-                entry.insert(Entry {
-                    buffer,
-                    binding,
-                    texture: texture.clone(),
-                    bytes: Vec::new(),
-                });
-            }
-            let entry = self.entries.get_mut(&slot).unwrap();
             used.insert(slot);
-            if entry.texture != *texture {
-                entry.binding = binding(renderer, device, texture, &entry.buffer);
-                entry.texture = texture.clone();
-            }
-            let mut bytes = Vec::with_capacity(batch.indices.len() * 96);
-            for &index in &batch.indices {
-                let color = renderer.objects[index].uniform.as_ref().unwrap();
-                bytes.extend_from_slice(&color[96..160]);
-                bytes.extend_from_slice(&color[80..88]);
-                bytes.extend_from_slice(&color[76..80]);
-                bytes.extend_from_slice(&color[92..96]);
-                bytes.extend_from_slice(&color[160..168]);
-                bytes.extend_from_slice(&[0; 8]);
-            }
-            if allocation || !renderer.state_caching || entry.bytes != bytes {
-                queue.write_buffer(&entry.buffer, 0, &bytes);
-                result.bytes += bytes.len();
-                entry.bytes = bytes;
-            }
-            result.bindings.insert(slot, entry.binding.clone());
+            let (binding, bytes) = self.pack(renderer, device, queue, slot, &batch.indices);
+            result.bytes += bytes;
+            result.bindings.insert(slot, binding);
             result.saved += runs - 1;
         }
         self.entries.retain(|slot, _| used.contains(slot));
         result
+    }
+    /// Sun layers have no per-light frustum. Repack their compatible accepted
+    /// population across old spatial chunks only when at least two draws go away.
+    pub fn prepare_subset(
+        &mut self,
+        renderer: &SceneRenderer,
+        gpu: &Gpu,
+        batches: &[instancing::Batch],
+        accepted: &[bool],
+        mut subset: Vec<instancing::Batch>,
+    ) -> Option<Plan> {
+        let original_draws = batches
+            .iter()
+            .map(|batch| {
+                if batch.slot.is_some() {
+                    accepted_runs(&batch.indices, accepted)
+                } else {
+                    batch.indices.iter().filter(|&&i| accepted[i]).count()
+                }
+            })
+            .sum::<usize>();
+        let saved = original_draws.saturating_sub(subset.len());
+        if saved < 2 {
+            self.clear();
+            return None;
+        }
+        // Every synthetic slot is explicitly backed by this layer's buffer,
+        // including one-record groups. It must never address an unrelated old
+        // full-scene shadow binding or require a skipped individual color upload.
+        for (slot, batch) in subset.iter_mut().enumerate() {
+            batch.slot = Some(slot);
+            batch.first_instance = 0;
+        }
+        let mut result = Plan {
+            batches: subset,
+            bindings: BTreeMap::new(),
+            saved,
+            bytes: 0,
+        };
+        for batch in &result.batches {
+            let slot = batch.slot.unwrap();
+            let (binding, bytes) =
+                self.pack(renderer, &gpu.device, &gpu.queue, slot, &batch.indices);
+            result.bytes += bytes;
+            result.bindings.insert(slot, binding);
+        }
+        self.entries.retain(|slot, _| *slot < result.batches.len());
+        Some(result)
+    }
+    fn pack(
+        &mut self,
+        renderer: &SceneRenderer,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        slot: usize,
+        indices: &[usize],
+    ) -> (wgpu::BindGroup, usize) {
+        debug_assert!(!indices.is_empty() && indices.len() <= instancing::MAX_SHADOW_INSTANCES);
+        let mut written = 0;
+        let texture = &renderer.objects[indices[0]].texture;
+        let mut allocation = false;
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.entries.entry(slot) {
+            allocation = true;
+            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("shadow compacted ranges"),
+                size: instancing::SHADOW_BUFFER_BYTES as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let binding = binding(renderer, device, texture, &buffer);
+            entry.insert(Entry {
+                buffer,
+                binding,
+                texture: texture.clone(),
+                bytes: Vec::new(),
+            });
+        }
+        let entry = self.entries.get_mut(&slot).unwrap();
+        if entry.texture != *texture {
+            entry.binding = binding(renderer, device, texture, &entry.buffer);
+            entry.texture = texture.clone();
+        }
+        let mut bytes = Vec::with_capacity(indices.len() * 96);
+        for &index in indices {
+            let color = renderer.objects[index].uniform.as_ref().unwrap();
+            bytes.extend_from_slice(&color[96..160]);
+            bytes.extend_from_slice(&color[80..88]);
+            bytes.extend_from_slice(&color[76..80]);
+            bytes.extend_from_slice(&color[92..96]);
+            bytes.extend_from_slice(&color[160..168]);
+            bytes.extend_from_slice(&[0; 8]);
+        }
+        if allocation || !renderer.state_caching {
+            queue.write_buffer(&entry.buffer, 0, &bytes);
+            written += bytes.len();
+        } else {
+            // Uniform rows retain their original accepted order. Upload
+            // only dirty runs; stale rows past a shortened batch are never
+            // addressed by its instance range.
+            for range in changed_rows(&entry.bytes, &bytes) {
+                queue.write_buffer(&entry.buffer, range.start as u64, &bytes[range.clone()]);
+                written += range.len();
+            }
+        }
+        entry.bytes = bytes;
+        (entry.binding.clone(), written)
     }
 }
 fn binding(
@@ -115,7 +179,7 @@ fn binding(
         _ => &renderer.sampler,
     };
     device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("local shadow compacted ranges"),
+        label: Some("shadow compacted ranges"),
         layout: renderer.instancing.shadow_layout.as_ref().unwrap(),
         entries: &[
             wgpu::BindGroupEntry {
@@ -136,4 +200,71 @@ fn binding(
             },
         ],
     })
+}
+
+fn accepted_runs(indices: &[usize], accepted: &[bool]) -> usize {
+    let mut prior = false;
+    indices.iter().fold(0, |runs, &index| {
+        let current = accepted[index];
+        let count = runs + usize::from(current && !prior);
+        prior = current;
+        count
+    })
+}
+
+fn changed_rows(previous: &[u8], current: &[u8]) -> Vec<std::ops::Range<usize>> {
+    const STRIDE: usize = 96;
+    let mut ranges = Vec::new();
+    let mut first = None;
+    for offset in (0..current.len()).step_by(STRIDE) {
+        let end = offset + STRIDE;
+        if previous.get(offset..end) != Some(&current[offset..end]) {
+            first.get_or_insert(offset);
+        } else if let Some(start) = first.take() {
+            ranges.push(start..offset);
+        }
+    }
+    if let Some(start) = first {
+        ranges.push(start..current.len());
+    }
+    ranges
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepted_runs_preserve_source_order_and_nonzero_offsets() {
+        let indices = [5, 0, 4, 1, 3, 2, 6];
+        let accepted = [true, true, true, false, false, false, false];
+        assert_eq!(accepted_runs(&indices, &accepted), 3);
+        assert_eq!(
+            indices
+                .into_iter()
+                .filter(|&i| accepted[i])
+                .collect::<Vec<_>>(),
+            [0, 1, 2]
+        );
+        assert_eq!(accepted_runs(&[5, 0, 1, 4, 2], &accepted), 2);
+        assert_eq!(accepted_runs(&indices, &[false; 7]), 0);
+    }
+
+    #[test]
+    fn retained_rows_upload_only_dirty_runs_and_new_tail() {
+        let original = vec![0; 5 * 96];
+        assert!(changed_rows(&original, &original).is_empty());
+        let mut edited = original.clone();
+        edited[96 + 3] = 1;
+        edited[3 * 96 + 7] = 2;
+        assert_eq!(changed_rows(&original, &edited), [96..192, 288..384]);
+        edited[2 * 96] = 3;
+        let one_run = changed_rows(&original, &edited);
+        assert_eq!(one_run.len(), 1);
+        assert_eq!(one_run[0], 96..384);
+        assert!(changed_rows(&original, &original[..96]).is_empty());
+        let new_tail = changed_rows(&original[..96], &original);
+        assert_eq!(new_tail.len(), 1);
+        assert_eq!(new_tail[0], 96..480);
+    }
 }

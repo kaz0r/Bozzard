@@ -1872,6 +1872,7 @@ impl SceneRenderer {
     ) -> Result<()> {
         let started = std::time::Instant::now();
         self.stats = FrameStats::default();
+        self.shadows.sun_cache.reset_work_stats();
         self.shadows.spots.reset_work_stats();
         self.shadows.points.reset_work_stats();
         self.stats.viewport_size = size;
@@ -2357,7 +2358,6 @@ impl SceneRenderer {
             output_mask,
             !scene.particles.is_empty() && !raw,
         );
-        let occlusion_started = std::time::Instant::now();
         let occlusion = self.prepare_occlusion(
             gpu,
             &mut encoder,
@@ -2367,7 +2367,6 @@ impl SceneRenderer {
             &frustum_visible,
             &batches,
         );
-        self.stats.occlusion_prepare_ms = occlusion_started.elapsed().as_secs_f64() * 1000.;
         let state_started = std::time::Instant::now();
         let reuse_metadata = self.shadow_metadata_reuse && self.state_caching;
         let mut shadow_frame =
@@ -2659,7 +2658,7 @@ impl SceneRenderer {
             let batches = shadow_batches.as_ref().unwrap_or(&batches);
             if sun_changed {
                 (self.stats.shadow_draws, self.stats.shadow_triangles) =
-                    self.draw_shadows(&mut encoder, scene, &draws, batches, sun_plan.as_ref());
+                    self.draw_shadows(gpu, &mut encoder, scene, &draws, batches, sun_plan.as_ref());
             }
             let (spot_draws, spot_triangles) =
                 self.shadows
@@ -2676,9 +2675,11 @@ impl SceneRenderer {
         }
         self.stats.auxiliary_targets = output_mask.count_ones() as usize;
         self.stats.shadow_range_draws_saved = self.shadows.spots.range_draws_saved.get()
-            + self.shadows.points.range_draws_saved.get();
+            + self.shadows.points.range_draws_saved.get()
+            + self.shadows.sun_cache.range_draws_saved.get();
         self.stats.shadow_range_bytes = self.shadows.spots.range_write_bytes.get()
-            + self.shadows.points.range_write_bytes.get();
+            + self.shadows.points.range_write_bytes.get()
+            + self.shadows.sun_cache.range_write_bytes.get();
         self.stats.local_static_depth_copies = self.shadows.spots.static_depth_copies.get()
             + self.shadows.points.static_depth_copies.get();
         self.stats.local_static_triangles_skipped =

@@ -8,6 +8,7 @@ const MIN_SURFACES: usize = 64;
 const MAX_BATCHES: usize = 16_384;
 const MAX_OCCLUDERS: usize = 32;
 const MAX_DEPTH_TRIANGLES: u64 = 100_000;
+const UNPRODUCTIVE_COOLDOWN: u32 = 30;
 
 #[derive(Clone, Copy, Debug, Default, serde::Serialize)]
 pub struct OcclusionResult {
@@ -17,12 +18,12 @@ pub struct OcclusionResult {
     pub culled_surfaces: usize,
     pub skipped_triangles: u64,
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Projection {
     rectangle: [f32; 4], // pixel edges, expanded for raster/projection roundoff
     nearest: f32,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 struct CachedProjection {
     model: Mat4,
     bounds: [Vec3; 2],
@@ -58,6 +59,7 @@ pub(super) struct Occlusion {
     last_result_frame: Option<u64>,
     unproductive_results: u32,
     cooldown: u32,
+    frame_bypassed: bool,
     instance_enabled: bool,
     instance_resources: Option<gpu::Resources>,
     instance_candidates: Vec<u8>,
@@ -82,6 +84,7 @@ impl Default for Occlusion {
             last_result_frame: None,
             unproductive_results: 0,
             cooldown: 0,
+            frame_bypassed: false,
             instance_enabled: true,
             instance_resources: None,
             instance_candidates: Vec::new(),
@@ -226,6 +229,9 @@ impl SceneRenderer {
     /// Reference switch: disabled draws the same surfaces without depth/compute
     /// culling. Small scenes and scenes without useful opaque occluders skip it.
     pub fn set_occlusion_enabled(&mut self, enabled: bool) {
+        if self.occlusion.enabled != enabled {
+            self.occlusion.invalidate();
+        }
         self.occlusion.enabled = enabled;
     }
     pub fn occlusion_result(&self) -> Option<OcclusionResult> {
@@ -236,6 +242,7 @@ impl SceneRenderer {
         self.occlusion.instance_enabled = enabled;
         self.occlusion.instance_applied = false;
         self.occlusion.instance_snapshot = None;
+        self.occlusion.reset_adaptive_history();
     }
     /// Call before instance packing; the mask is an ordered subsequence of the
     /// original frustum-visible list. Retained GPU results require exact inputs.
@@ -247,17 +254,18 @@ impl SceneRenderer {
         size: [u32; 2],
         visible: &mut [bool],
     ) {
+        let started = std::time::Instant::now();
         let mut state = std::mem::take(&mut self.occlusion);
         state.apply_instances(self, gpu, view_projection, size, draws, visible);
         self.occlusion = state;
+        self.stats.occlusion_prepare_ms += started.elapsed().as_secs_f64() * 1000.;
     }
     /// Compare adaptive pass scheduling with always testing eligible views.
     /// Bypassing a test draws all frustum-visible surfaces; it never reuses
     /// approximate visibility from a different camera or scene.
     pub fn set_adaptive_occlusion_enabled(&mut self, enabled: bool) {
         self.occlusion.adaptive = enabled;
-        self.occlusion.unproductive_results = 0;
-        self.occlusion.cooldown = 0;
+        self.occlusion.reset_adaptive_history();
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn prepare_occlusion(
@@ -270,6 +278,7 @@ impl SceneRenderer {
         visible: &[bool],
         batches: &[instancing::Batch],
     ) -> Mode {
+        let started = std::time::Instant::now();
         let mut state = std::mem::take(&mut self.occlusion);
         let active = state.prepare(
             self,
@@ -282,6 +291,7 @@ impl SceneRenderer {
             batches,
         );
         self.occlusion = state;
+        self.stats.occlusion_prepare_ms += started.elapsed().as_secs_f64() * 1000.;
         active
     }
 }
@@ -291,6 +301,7 @@ impl Occlusion {
         // bounds. All publication/removal paths invalidate object bindings.
         self.snapshot = None;
         self.instance_snapshot = None;
+        self.reset_adaptive_history();
     }
     pub(super) fn batch_visible(&self, batch: usize) -> bool {
         self.resources.as_ref().unwrap().visibility[batch]
@@ -307,19 +318,58 @@ impl Occlusion {
         }
     }
     fn observe_result(&mut self, result: OcclusionResult) {
-        if self.last_result_frame == Some(result.frame_id) {
-            return;
+        if let Some(frame) = self.last_result_frame {
+            if frame > result.frame_id {
+                return;
+            }
+            if frame == result.frame_id {
+                // Separate readbacks can complete on different CPU frames.
+                // A late productive instance result upgrades its earlier
+                // zero-savings batch result without counting the frame twice.
+                if result.skipped_triangles > 0 {
+                    self.reset_adaptive_history();
+                }
+                return;
+            }
         }
         self.last_result_frame = Some(result.frame_id);
         if result.tested_batches > 0 && result.skipped_triangles == 0 {
             self.unproductive_results += 1;
             if self.unproductive_results >= 3 {
-                self.cooldown = 30;
+                self.cooldown = UNPRODUCTIVE_COOLDOWN;
                 self.unproductive_results = 0;
             }
         } else {
             self.unproductive_results = 0;
             self.cooldown = 0;
+        }
+    }
+    fn reset_adaptive_history(&mut self) {
+        self.unproductive_results = 0;
+        self.cooldown = 0;
+        self.frame_bypassed = false;
+    }
+    fn observe_frame_results(
+        &mut self,
+        batches: Option<OcclusionResult>,
+        instances: Option<OcclusionResult>,
+    ) {
+        // Both queries refer to the same submitted frame. Count it once;
+        // per-instance savings can make an unproductive union batch useful.
+        if let Some(result) = batches
+            .into_iter()
+            .chain(instances)
+            .max_by_key(|r| (r.frame_id, r.skipped_triangles))
+        {
+            self.observe_result(result);
+        }
+    }
+    fn advance_cooldown(&mut self, active: bool) {
+        // Called once, before both preparation stages. The last bypass frame
+        // remains bypassed even after its decrement reaches zero.
+        self.frame_bypassed = active && self.cooldown > 0;
+        if self.frame_bypassed {
+            self.cooldown -= 1;
         }
     }
     fn refresh_inputs(
@@ -403,10 +453,28 @@ impl Occlusion {
         self.instance_applied = false;
         self.instance_queries_ready = false;
         self.refreshed = false;
+        if let Some(resources) = &mut self.resources {
+            resources.poll(gpu);
+            renderer.stats.occlusion_result = resources.result;
+        }
         if let Some(resources) = &mut self.instance_resources {
             resources.poll(gpu);
         }
+        renderer.stats.occlusion_bytes = self.resources.as_ref().map_or(0, |r| r.bytes())
+            + self.instance_resources.as_ref().map_or(0, |r| r.bytes());
+        let adaptive = self.enabled && self.adaptive && renderer.culling && renderer.state_caching;
+        if adaptive {
+            self.observe_frame_results(
+                self.resources.as_ref().and_then(|r| r.result),
+                self.instance_resources
+                    .as_ref()
+                    .filter(|_| self.instance_enabled)
+                    .and_then(|r| r.result),
+            );
+        }
+        self.advance_cooldown(adaptive);
         if !self.enabled
+            || self.frame_bypassed
             || !self.instance_enabled
             || !renderer.culling
             || !renderer.state_caching
@@ -486,17 +554,6 @@ impl Occlusion {
         visible: &[bool],
         batches: &[instancing::Batch],
     ) -> Mode {
-        if let Some(resources) = &mut self.resources {
-            resources.poll(gpu);
-            renderer.stats.occlusion_result = resources.result;
-            renderer.stats.occlusion_bytes = resources.bytes();
-            if self.adaptive
-                && renderer.state_caching
-                && let Some(result) = resources.result
-            {
-                self.observe_result(result);
-            }
-        }
         if self.instance_applied {
             renderer.stats.occlusion_result =
                 self.instance_resources.as_ref().and_then(|r| r.result);
@@ -505,15 +562,12 @@ impl Occlusion {
             return Mode::Disabled;
         }
         if !self.enabled
+            || self.frame_bypassed
             || !renderer.culling
             || visible.iter().filter(|v| **v).count() < MIN_SURFACES
             || batches.len() > MAX_BATCHES
             || batches.len() < 4
         {
-            return Mode::Disabled;
-        }
-        if self.adaptive && renderer.state_caching && self.cooldown > 0 {
-            self.cooldown -= 1;
             return Mode::Disabled;
         }
         if !self.refreshed {
@@ -691,6 +745,222 @@ mod tests {
         });
         assert_eq!(state.cooldown, 0);
         assert_eq!(state.unproductive_results, 0);
+    }
+    #[test]
+    fn adaptive_cooldown_advances_once_before_both_stages_and_keeps_instance_savings() {
+        let mut state = Occlusion::default();
+        let empty = |frame| OcclusionResult {
+            frame_id: frame,
+            tested_batches: 16,
+            ..Default::default()
+        };
+        // Batch and individual queries from one frame are one observation.
+        for frame in 1..=2 {
+            state.observe_frame_results(Some(empty(frame)), Some(empty(frame)));
+            assert_eq!(state.unproductive_results, frame as u32);
+        }
+        state.observe_frame_results(
+            Some(empty(3)),
+            Some(OcclusionResult {
+                skipped_triangles: 12,
+                ..empty(3)
+            }),
+        );
+        assert_eq!(state.cooldown, 0);
+        assert_eq!(state.unproductive_results, 0);
+        // A delayed older readback cannot erase newer productive evidence.
+        state.observe_frame_results(Some(empty(2)), None);
+        assert_eq!(state.unproductive_results, 0);
+        for frame in 4..=6 {
+            state.observe_frame_results(Some(empty(frame)), Some(empty(frame)));
+        }
+        assert_eq!(state.cooldown, UNPRODUCTIVE_COOLDOWN);
+        for remaining in (0..UNPRODUCTIVE_COOLDOWN).rev() {
+            state.advance_cooldown(true);
+            assert!(state.frame_bypassed);
+            assert_eq!(state.cooldown, remaining);
+            // The late preparation stage reads this flag without consuming a
+            // second frame, including the final decrement from one to zero.
+            state.observe_frame_results(Some(empty(6)), Some(empty(6)));
+            assert_eq!(state.cooldown, remaining);
+        }
+        state.advance_cooldown(true);
+        assert!(!state.frame_bypassed);
+        state.observe_result(OcclusionResult {
+            skipped_triangles: 24,
+            ..empty(7)
+        });
+        assert_eq!(state.cooldown, 0);
+        for frame in 8..=10 {
+            state.observe_frame_results(Some(empty(frame)), None);
+        }
+        assert_eq!(state.cooldown, UNPRODUCTIVE_COOLDOWN);
+        state.observe_frame_results(
+            Some(empty(10)),
+            Some(OcclusionResult {
+                skipped_triangles: 48,
+                ..empty(10)
+            }),
+        );
+        assert_eq!(
+            state.cooldown, 0,
+            "late same-frame instance savings reactivate tests"
+        );
+        state.cooldown = 20;
+        state.invalidate();
+        state.advance_cooldown(true);
+        assert!(
+            !state.frame_bypassed,
+            "asset publication restarts fresh queries"
+        );
+        assert_eq!(state.unproductive_results, 0);
+    }
+    #[test]
+    fn adaptive_instance_cooldown_skips_preparation_and_resumes_with_exact_moving_pixels()
+    -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut optimized = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        let mut reference = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        reference.set_occlusion_enabled(false);
+        let material = |texture| Material {
+            metallic: None,
+            roughness: None,
+            surface_overrides: Default::default(),
+            tint: [0.4, 0.8, 0.3],
+            uv_scale: [1.; 2],
+            texture,
+            lit: false,
+            shader: None,
+        };
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            shader_time: 0.,
+            particles: vec![],
+            fog: Default::default(),
+            gi: None,
+            lights: vec![],
+            environment: EnvironmentSettings::disabled(),
+            display: DisplaySettings {
+                tone_mapping: false,
+                ..Default::default()
+            },
+            lighting: Lighting {
+                shadows: false,
+                ..Default::default()
+            },
+            view_projection: Mat4::IDENTITY,
+            items: vec![DrawItem {
+                motion_id: 1,
+                // A large surface behind the queries makes the test eligible,
+                // while every tested object remains visible.
+                model: Mat4::from_translation(Vec3::new(0., 0., -8.))
+                    * Mat4::from_scale(Vec3::new(2., 2., 1.)),
+                mesh: MeshKind::Quad,
+                material: material(TextureKind::White),
+            }],
+        };
+        for group in 0..4 {
+            for index in 0..24 {
+                scene.items.push(DrawItem {
+                    motion_id: 2 + group * 24 + index,
+                    model: Mat4::from_translation(Vec3::new(
+                        (index % 6) as f32 * 0.15 - 0.375,
+                        (index / 6) as f32 * 0.15 - 0.225,
+                        -4.,
+                    )) * Mat4::from_scale(Vec3::splat(0.08)),
+                    mesh: MeshKind::Cube,
+                    material: material(match group {
+                        0 => TextureKind::Checker,
+                        1 => TextureKind::Normals,
+                        2 => TextureKind::Toon,
+                        _ => TextureKind::White,
+                    }),
+                });
+            }
+        }
+        let camera = |frame: usize| {
+            glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 20.)
+                * Mat4::from_translation(Vec3::new(frame as f32 * 0.001, 0., 0.))
+        };
+        let compare = |optimized: &mut SceneRenderer,
+                       reference: &mut SceneRenderer,
+                       scene: &RenderScene|
+         -> Result<()> {
+            let capture = |renderer: &mut SceneRenderer| {
+                crate::capture_offscreen(&gpu, 128, 128, |target| {
+                    renderer.draw_linear(&gpu, target, [128; 2], scene)
+                })
+            };
+            assert_eq!(capture(optimized)?.rgba, capture(reference)?.rgba);
+            gpu.wait()?;
+            Ok(())
+        };
+        let mut frame = 0;
+        while frame < 12 {
+            scene.view_projection = camera(frame);
+            compare(&mut optimized, &mut reference, &scene)?;
+            frame += 1;
+            if optimized.occlusion.frame_bypassed {
+                break;
+            }
+        }
+        assert!(optimized.occlusion.frame_bypassed);
+        assert_eq!(optimized.occlusion.cooldown, UNPRODUCTIVE_COOLDOWN - 1);
+        let prepared_camera = optimized.occlusion.camera;
+        let projections = optimized.occlusion.projections.clone();
+        let queries = optimized.occlusion.instance_candidates.clone();
+        let generation = optimized.occlusion.instance_generation;
+        let mut bypass_frames = 1;
+        for _ in 0..UNPRODUCTIVE_COOLDOWN - 1 {
+            scene.view_projection = camera(frame);
+            frame += 1;
+            compare(&mut optimized, &mut reference, &scene)?;
+            assert!(optimized.occlusion.frame_bypassed);
+            assert!(!optimized.occlusion.refreshed);
+            assert!(!optimized.occlusion.instance_queries_ready);
+            assert!(!optimized.occlusion.instance_applied);
+            assert_eq!(optimized.occlusion.camera, prepared_camera);
+            assert_eq!(optimized.occlusion.projections, projections);
+            assert_eq!(optimized.occlusion.instance_candidates, queries);
+            assert_eq!(optimized.occlusion.instance_generation, generation);
+            assert_eq!(optimized.stats.occlusion_candidates, 0);
+            assert_eq!(optimized.stats.occlusion_depth_draws, 0);
+            assert_eq!(
+                optimized.stats.color_triangles,
+                reference.stats.color_triangles
+            );
+            bypass_frames += 1;
+        }
+        assert_eq!(optimized.occlusion.cooldown, 0);
+        scene.view_projection = camera(frame);
+        compare(&mut optimized, &mut reference, &scene)?;
+        assert!(!optimized.occlusion.frame_bypassed);
+        assert_eq!(
+            optimized.occlusion.camera,
+            Some((scene.view_projection, [128; 2]))
+        );
+        assert!(optimized.occlusion.instance_queries_ready);
+        assert!(optimized.stats.occlusion_depth_draws > 0);
+        assert!(optimized.stats.occlusion_prepare_ms > 0.);
+        // A changed asset restarts testing immediately, and subsequent fresh
+        // productive samples must retain exact per-instance compaction.
+        optimized.occlusion.invalidate();
+        scene.items[0].model = Mat4::from_translation(Vec3::new(0., 0., -2.))
+            * Mat4::from_scale(Vec3::new(2., 2., 1.));
+        for _ in 0..5 {
+            compare(&mut optimized, &mut reference, &scene)?;
+        }
+        assert_eq!(optimized.occlusion.cooldown, 0);
+        assert!(optimized.occlusion.instance_applied);
+        assert!(optimized.stats.color_triangles < reference.stats.color_triangles / 4);
+        println!(
+            "adaptive_instance_prepare_proof bypass_frames={bypass_frames} projection_refreshes=0 packed_query_rows=0 exact_moving_pixels=true bounded_resume=true productive_cached_compaction=true"
+        );
+        Ok(())
     }
     #[test]
     fn cached_instance_queries_compact_mixed_batches_and_invalidate_exactly() -> Result<()> {

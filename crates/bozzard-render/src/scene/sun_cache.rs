@@ -1,5 +1,6 @@
 use super::*;
 pub(super) mod policy;
+use local_shadow_maps::compaction;
 pub(super) use policy::{DEPTH_BUDGET_BYTES, depth_bytes};
 use policy::{depth_admitted, metadata_admitted, next_idle_age};
 
@@ -26,10 +27,27 @@ pub(super) struct Plan {
     pub dynamic_mask: Vec<bool>,
     pub rebuild: bool,
 }
-#[derive(Default)]
 pub(super) struct Cache {
     entry: Option<Entry>,
     idle_age: u32,
+    range_enabled: bool,
+    // Queue uploads happen before either render pass executes, so static and
+    // dynamic layers must never alias their compacted uniform storage.
+    range_layers: std::cell::RefCell<[compaction::Cache; 2]>,
+    pub range_draws_saved: std::cell::Cell<usize>,
+    pub range_write_bytes: std::cell::Cell<usize>,
+}
+impl Default for Cache {
+    fn default() -> Self {
+        Self {
+            entry: None,
+            idle_age: 0,
+            range_enabled: true,
+            range_layers: Default::default(),
+            range_draws_saved: Default::default(),
+            range_write_bytes: Default::default(),
+        }
+    }
 }
 struct Entry {
     depth: wgpu::TextureView,
@@ -44,6 +62,42 @@ impl Cache {
     pub fn clear(&mut self) {
         self.entry = None;
         self.idle_age = 0;
+        for layer in self.range_layers.get_mut() {
+            layer.clear();
+        }
+    }
+    pub fn reset_work_stats(&self) {
+        self.range_draws_saved.set(0);
+        self.range_write_bytes.set(0);
+    }
+    pub fn set_range_enabled(&mut self, enabled: bool) {
+        self.range_enabled = enabled;
+        if !enabled {
+            for layer in self.range_layers.get_mut() {
+                layer.clear();
+            }
+        }
+    }
+    pub fn prepare_ranges(
+        &self,
+        renderer: &SceneRenderer,
+        gpu: &Gpu,
+        draws: &[PreparedDraw],
+        batches: &[instancing::Batch],
+        accepted: &[bool],
+        dynamic: bool,
+    ) -> Option<compaction::Plan> {
+        if !self.range_enabled || !renderer.instancing.shadow_batching() {
+            return None;
+        }
+        let subset = renderer.shadow_subset_batches(draws, accepted);
+        let plan = self.range_layers.borrow_mut()[usize::from(dynamic)]
+            .prepare_subset(renderer, gpu, batches, accepted, subset)?;
+        self.range_draws_saved
+            .set(self.range_draws_saved.get() + plan.saved);
+        self.range_write_bytes
+            .set(self.range_write_bytes.get() + plan.bytes);
+        Some(plan)
     }
     /// Release source handles and keys after 60 unused updates; intermittent
     /// movers retain their static source during the bounded idle interval.

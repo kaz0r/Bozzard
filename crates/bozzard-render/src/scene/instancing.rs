@@ -66,6 +66,7 @@ pub(super) struct Instancing {
     native_mode: bool,
     arena: arena::Arena,
     text_bytes_limit: usize,
+    superset_policy: SupersetPolicy,
 }
 #[derive(Clone)]
 pub(super) struct Batch {
@@ -136,6 +137,7 @@ impl Instancing {
             native_mode,
             arena: Default::default(),
             text_bytes_limit: 16 * 1024,
+            superset_policy: Default::default(),
         }
     }
 }
@@ -383,6 +385,44 @@ struct Plan {
     ordering: std::result::Result<reuse::Ordering, BatchPlanRebuildReason>,
     changed: Vec<usize>,
     batch_of: Vec<usize>,
+}
+
+#[derive(Default)]
+struct SupersetPolicy {
+    rejected: bool,
+}
+impl SupersetPolicy {
+    fn request(&mut self, previous: Option<&Plan>, reason: BatchPlanRebuildReason) -> bool {
+        // Reconsider admission only when population/compatibility/geometry changes.
+        // Camera/frustum churn must not retry a known unproductive hidden graph.
+        if matches!(
+            reason,
+            BatchPlanRebuildReason::Cold
+                | BatchPlanRebuildReason::Membership
+                | BatchPlanRebuildReason::Metadata
+                | BatchPlanRebuildReason::Bounds
+                | BatchPlanRebuildReason::UnsupportedProjection
+        ) {
+            self.rejected = false;
+        }
+        previous.is_some_and(|plan| plan.all_surfaces)
+            || !self.rejected && reason == BatchPlanRebuildReason::Visibility
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PlanOptions {
+    graphs: bool,
+    transparent_runs: bool,
+    capacity: usize,
+    text_limit: usize,
+    incremental: bool,
+    all_surfaces: bool,
+}
+struct PlanBuild {
+    plan: Plan,
+    construction_limited: bool,
+    rejected_superset: bool,
 }
 
 // An opaque reorder can change an equal-depth winner. Retain original order for
@@ -811,6 +851,88 @@ fn visible_batches(plan: &Plan, visible: &[bool], mut output: Vec<Batch>) -> Vec
     output
 }
 
+fn build_plan(
+    draws: &[PreparedDraw],
+    bounds: &[[Vec3; 2]],
+    visible: &[bool],
+    camera: Mat4,
+    options: PlanOptions,
+) -> PlanBuild {
+    let candidate = |all_surfaces| {
+        let inputs = draws
+            .iter()
+            .zip(visible)
+            .zip(bounds)
+            .map(|((draw, &visible), &bounds)| Input {
+                mesh: draw.object.mesh.clone(),
+                texture: draw.object.material.texture.clone(),
+                model: draw.object.model,
+                bounds,
+                shader: draw.shader,
+                deformation: draw.deformation,
+                shared_geometry: draw.shared_geometry.clone(),
+                world_geometry_units: draw.world_geometry_units,
+                pbr: draw.pbr,
+                lit: draw.object.material.lit,
+                transparent: draw.transparent,
+                visible: all_surfaces || visible,
+                raster: draw.raster,
+            })
+            .collect::<Vec<_>>();
+        let (batches, projected, construction_limited) = global_batches_with_capacity(
+            draws,
+            &inputs,
+            camera,
+            options.graphs,
+            options.transparent_runs,
+            options.capacity,
+            options.text_limit,
+        );
+        let ordering = if options.incremental {
+            reuse::Ordering::new(&inputs, &batches, camera, projected)
+        } else {
+            Err(BatchPlanRebuildReason::IncrementalDisabled)
+        };
+        let batch_of = batch_membership(draws.len(), &batches);
+        PlanBuild {
+            plan: Plan {
+                camera,
+                all_surfaces,
+                inputs,
+                batches,
+                ordering,
+                changed: Vec::new(),
+                batch_of,
+            },
+            construction_limited,
+            rejected_superset: false,
+        }
+    };
+    let result = candidate(options.all_surfaces);
+    if !options.all_surfaces {
+        return result;
+    }
+    // Original order certifies even a construction-budget fallback, but can
+    // leave thousands of compatible visible peers as permanently split draws.
+    // A certificate proves correctness, not that hidden-scene admission helps.
+    let mut visible_result = candidate(false);
+    let filtered_draws = result
+        .plan
+        .batches
+        .iter()
+        .filter(|batch| batch.indices.iter().any(|&index| visible[index]))
+        .count();
+    if !result.construction_limited
+        && result.plan.ordering.is_ok()
+        && filtered_draws <= visible_result.plan.batches.len()
+    {
+        result
+    } else {
+        visible_result.rejected_superset = true;
+        visible_result
+    }
+}
+
 pub(super) fn native_arena_supported(gpu: &Gpu) -> bool {
     arena::supported(gpu)
 }
@@ -925,84 +1047,43 @@ impl SceneRenderer {
                 self.instancing.plan = previous;
             } else {
                 // Promote after actual frustum churn, not on a cold/static
-                // frame: frozen views keep their tighter original grouping.
-                let wants_superset = previous.as_ref().is_some_and(|plan| plan.all_surfaces)
-                    || checks.as_ref().err() == Some(&BatchPlanRebuildReason::Visibility);
+                // frame. Cache rejected promotions across camera/visibility
+                // churn so a dense hidden population is considered only once.
+                let reason = checks.err().unwrap();
+                let wants_superset = self
+                    .instancing
+                    .superset_policy
+                    .request(previous.as_ref(), reason);
                 // Do not build a huge hidden-scene graph for a tiny viewport.
                 // Once certified, a superset can still survive an empty frame.
                 let visible_count = visible.iter().filter(|v| **v).count();
-                let mut all_surfaces = wants_superset
+                let all_surfaces = wants_superset
                     && self.instancing.incremental
                     && reuse::orthographic(camera)
                     && draws.len() <= visible_count.saturating_mul(4).max(256);
-                let mut inputs = draws
-                    .iter()
-                    .zip(visible)
-                    .zip(bounds)
-                    .map(|((draw, &visible), &bounds)| Input {
-                        mesh: draw.object.mesh.clone(),
-                        texture: draw.object.material.texture.clone(),
-                        model: draw.object.model,
-                        bounds,
-                        shader: draw.shader,
-                        deformation: draw.deformation,
-                        shared_geometry: draw.shared_geometry.clone(),
-                        world_geometry_units: draw.world_geometry_units,
-                        pbr: draw.pbr,
-                        lit: draw.object.material.lit,
-                        transparent: draw.transparent,
-                        visible: all_surfaces || visible,
-                        raster: draw.raster,
-                    })
-                    .collect::<Vec<_>>();
-                let (mut batches, projected, construction_limited) = global_batches_with_capacity(
+                let built = build_plan(
                     draws,
-                    &inputs,
+                    bounds,
+                    visible,
                     camera,
-                    self.instancing.graph_enabled,
-                    self.instancing.transparent_runs,
-                    capacity,
-                    self.instancing.text_bytes_limit,
-                );
-                let mut ordering = if self.instancing.incremental {
-                    reuse::Ordering::new(&inputs, &batches, camera, projected)
-                } else {
-                    Err(BatchPlanRebuildReason::IncrementalDisabled)
-                };
-                // An uncertain hidden surface must not prevent a useful
-                // certificate for the visible scene, or degrade its grouping.
-                if all_surfaces && ordering.is_err() {
-                    all_surfaces = false;
-                    for (input, &visible) in inputs.iter_mut().zip(visible) {
-                        input.visible = visible;
-                    }
-                    let (visible_batches, projected, _) = global_batches_with_capacity(
-                        draws,
-                        &inputs,
-                        camera,
-                        self.instancing.graph_enabled,
-                        self.instancing.transparent_runs,
+                    PlanOptions {
+                        graphs: self.instancing.graph_enabled,
+                        transparent_runs: self.instancing.transparent_runs,
                         capacity,
-                        self.instancing.text_bytes_limit,
-                    );
-                    batches = visible_batches;
-                    ordering = reuse::Ordering::new(&inputs, &batches, camera, projected);
+                        text_limit: self.instancing.text_bytes_limit,
+                        incremental: self.instancing.incremental,
+                        all_surfaces,
+                    },
+                );
+                if built.rejected_superset {
+                    self.instancing.superset_policy.rejected = true;
                 }
-                let batch_of = batch_membership(draws.len(), &batches);
-                self.instancing.plan = Some(Plan {
-                    camera,
-                    all_surfaces,
-                    batches,
-                    inputs,
-                    ordering,
-                    changed: Vec::new(),
-                    batch_of,
-                });
+                self.instancing.plan = Some(built.plan);
                 self.stats.batch_plan_rebuilds = 1;
-                self.stats.batch_plan_rebuild_reason = if construction_limited {
+                self.stats.batch_plan_rebuild_reason = if built.construction_limited {
                     Some(BatchPlanRebuildReason::ConstructionCapacity)
                 } else {
-                    checks.err()
+                    Some(reason)
                 };
             }
             let output = std::mem::take(&mut self.instancing.frame_batches);

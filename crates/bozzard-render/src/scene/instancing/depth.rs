@@ -88,15 +88,22 @@ fn key(
     ))
 }
 fn groups(renderer: &SceneRenderer, draws: &[PreparedDraw], graphs: bool) -> Vec<Batch> {
+    groups_filtered(renderer, draws, graphs, None, true)
+}
+fn groups_filtered(
+    renderer: &SceneRenderer,
+    draws: &[PreparedDraw],
+    graphs: bool,
+    accepted: Option<&[bool]>,
+    spatial: bool,
+) -> Vec<Batch> {
     let mut members: Vec<Vec<usize>> = Vec::new();
     // wgpu Buffer Eq/Hash use immutable handle identity, never storage contents.
     #[allow(clippy::mutable_key_type)]
     let mut groups: HashMap<DepthKey<'_>, usize> = HashMap::new();
-    for (index, draw) in draws
-        .iter()
-        .enumerate()
-        .filter(|(_, d)| !d.transparent && d.object.material.lit)
-    {
+    for (index, draw) in draws.iter().enumerate().filter(|(i, d)| {
+        accepted.is_none_or(|mask| mask[*i]) && !d.transparent && d.object.material.lit
+    }) {
         let key = key(draw, graphs, renderer.shadow_coverage_at(index, draw));
         if let Some(group) = key.as_ref().and_then(|key| groups.get(key)).copied() {
             members[group].push(index);
@@ -109,7 +116,7 @@ fn groups(renderer: &SceneRenderer, draws: &[PreparedDraw], graphs: bool) -> Vec
     }
     let mut batches = Vec::new();
     for mut indices in members {
-        if indices.len() > MAX_SHADOW_INSTANCES {
+        if spatial && indices.len() > MAX_SHADOW_INSTANCES {
             let centers: Vec<_> = indices
                 .iter()
                 .map(|&i| {
@@ -131,6 +138,24 @@ fn groups(renderer: &SceneRenderer, draws: &[PreparedDraw], graphs: bool) -> Vec
         }
     }
     batches
+}
+impl SceneRenderer {
+    /// Reuse the certified depth key for a sun layer's accepted population.
+    /// Keep source order; large full-scene spatial chunks must not fragment a
+    /// small compatible subset. Unsupported casters remain singleton groups.
+    pub(in crate::scene) fn shadow_subset_batches(
+        &self,
+        draws: &[PreparedDraw],
+        accepted: &[bool],
+    ) -> Vec<Batch> {
+        groups_filtered(
+            self,
+            draws,
+            self.instancing.graph_enabled,
+            Some(accepted),
+            false,
+        )
+    }
 }
 // Stable one-axis ordering partitions large depth-compatible populations into
 // compact neighborhoods before chunking. Nonfinite centers retain source order.

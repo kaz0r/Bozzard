@@ -2,8 +2,9 @@
 """Compare saved release test executables without rebuilding between timed runs.
 
 Uses the existing deterministic Earth Factory fixtures, alternating executable
-order between independent process pairs. Exact RGB captures are checked across
-versions; each fixture separately asserts exact RGBA against its reference path.
+order between independent process pairs. Cross-version RGB defaults to strict
+equality; optional explicit bounds record every changed pixel and channel. Each
+fixture separately asserts exact RGBA against its reference path.
 """
 
 import argparse
@@ -63,7 +64,8 @@ def profile(binary, destination, kind):
     return reports
 
 
-def compare_captures(before, after, max_channel_delta=0, max_differing_pixels=0):
+def compare_captures(before, after, max_channel_delta=0, max_differing_pixels=0,
+                     max_differing_channels=0):
     captures = []
     before_files = {path.name: path for path in before.glob("*.ppm")}
     after_files = {path.name: path for path in after.glob("*.ppm")}
@@ -72,7 +74,7 @@ def compare_captures(before, after, max_channel_delta=0, max_differing_pixels=0)
     for name, path in sorted(before_files.items()):
         original, candidate = path.read_bytes(), after_files[name].read_bytes()
         equal = original == candidate
-        differing_pixels, channel_delta = 0, 0
+        differing_pixels, differing_channels, channel_delta = 0, 0, 0
         if not equal:
             original_parts, candidate_parts = original.split(b"\n", 3), candidate.split(b"\n", 3)
             original_header, candidate_header = original_parts[:3], candidate_parts[:3]
@@ -83,12 +85,17 @@ def compare_captures(before, after, max_channel_delta=0, max_differing_pixels=0)
             if len(original_pixels) != width * height * 3 or len(candidate_pixels) != len(original_pixels):
                 raise RuntimeError(f"Invalid capture payload: {name}")
             for offset in range(0, len(original_pixels), 3):
-                delta = max(abs(original_pixels[offset + i] - candidate_pixels[offset + i]) for i in range(3))
+                deltas = [abs(original_pixels[offset + i] - candidate_pixels[offset + i]) for i in range(3)]
+                delta = max(deltas)
                 differing_pixels += delta != 0
+                differing_channels += sum(value != 0 for value in deltas)
                 channel_delta = max(channel_delta, delta)
-        accepted = channel_delta <= max_channel_delta and differing_pixels <= max_differing_pixels
+        accepted = (channel_delta <= max_channel_delta
+                    and differing_pixels <= max_differing_pixels
+                    and differing_channels <= max_differing_channels)
         captures.append({"file": name, "exact_rgb": equal,
                          "differing_rgb_pixels": differing_pixels,
+                         "differing_rgb_channels": differing_channels,
                          "max_channel_delta_8bit": channel_delta,
                          "within_recorded_tolerance": accepted,
                          "baseline_sha256": sha256(path),
@@ -115,7 +122,7 @@ def aggregate(pairs, kind):
             if metric not in versions["baseline"][0]:
                 continue
             measurements = {
-                version: [sample[metric]["median_ms"] for sample in samples]
+                version: [sample[metric].get("median_ms") for sample in samples]
                 for version, samples in versions.items()
             }
             medians = {version: statistics.median(values)
@@ -155,10 +162,11 @@ def main():
     parser.add_argument("--profile", choices=("graph", "full", "both"), default="both")
     parser.add_argument("--max-channel-delta", type=int, default=0)
     parser.add_argument("--max-differing-pixels", type=int, default=0)
+    parser.add_argument("--max-differing-channels", type=int, default=0)
     arguments = parser.parse_args()
     if arguments.runs < 1:
         parser.error("--runs must be positive")
-    if not 0 <= arguments.max_channel_delta <= 255 or arguments.max_differing_pixels < 0:
+    if not 0 <= arguments.max_channel_delta <= 255 or arguments.max_differing_pixels < 0 or arguments.max_differing_channels < 0:
         parser.error("Capture tolerance requires a channel delta in 0..255 and nonnegative pixel count")
     kinds = tuple(PROFILES) if arguments.profile == "both" else (arguments.profile,)
     binaries = {"baseline": arguments.baseline, "optimized": arguments.optimized}
@@ -175,7 +183,7 @@ def main():
             before = arguments.output / f"run-{run + 1}" / kind / "baseline"
             after = arguments.output / f"run-{run + 1}" / kind / "optimized"
             captures.append({"run": run + 1, "profile": kind,
-                             "captures": compare_captures(before, after, arguments.max_channel_delta, arguments.max_differing_pixels)})
+                             "captures": compare_captures(before, after, arguments.max_channel_delta, arguments.max_differing_pixels, arguments.max_differing_channels)})
         pairs.append(pair)
         # Preserve completed measurements even if a later process fails.
         summary = {
@@ -187,6 +195,7 @@ def main():
             "cross_version_rgb_tolerance": {
                 "max_channel_delta_8bit": arguments.max_channel_delta,
                 "max_differing_pixels_per_capture": arguments.max_differing_pixels,
+                "max_differing_channels_per_capture": arguments.max_differing_channels,
             },
             "comparisons": {kind: aggregate(pairs, kind) for kind in kinds},
             "cross_version_captures": captures,
