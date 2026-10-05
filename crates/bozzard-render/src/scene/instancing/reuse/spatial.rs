@@ -148,19 +148,21 @@ impl Index {
     }
 }
 
-/// Temporary balanced hierarchy for initial inverted-order discovery. Geometry
-/// bounds and ordering ranges can both prune a complete subtree before any
-/// neighbor leaves are expanded; every node visit consumes the work budget.
+/// Temporary spatial hierarchy for a source-order sweep. Only preceding source
+/// objects are active, so each subtree's bounds and maximum emitted rank describe
+/// the same eligible population. Queries and activation updates share one cap.
 pub(super) struct InversionIndex {
     nodes: Vec<InversionNode>,
     root: Option<usize>,
     stack: Vec<usize>,
+    leaves: Vec<usize>,
 }
 struct InversionNode {
     bounds: Bounds,
-    first: usize,
+    parent: usize,
     last_rank: usize,
-    children: Option<[usize; 2]>,
+    // A leaf stores [source index, usize::MAX]; an interior stores two nodes.
+    children: [usize; 2],
 }
 impl InversionIndex {
     pub fn new(bounds: &[Bounds], ranks: &[usize]) -> Self {
@@ -170,33 +172,27 @@ impl InversionIndex {
             .filter_map(|(index, &rank)| (rank != usize::MAX).then_some(index))
             .collect();
         let mut nodes = Vec::with_capacity(indices.len().saturating_mul(2).saturating_sub(1));
-        let root =
-            (!indices.is_empty()).then(|| Self::build(&mut indices, bounds, ranks, &mut nodes));
+        let root = (!indices.is_empty()).then(|| Self::build(&mut indices, bounds, &mut nodes));
+        let mut leaves = vec![usize::MAX; ranks.len()];
+        for (index, node) in nodes.iter().enumerate() {
+            if node.children[1] == usize::MAX {
+                leaves[node.children[0]] = index;
+            }
+        }
         Self {
             nodes,
             root,
             stack: Vec::new(),
+            leaves,
         }
     }
-    fn build(
-        indices: &mut [usize],
-        boxes: &[Bounds],
-        ranks: &[usize],
-        nodes: &mut Vec<InversionNode>,
-    ) -> usize {
-        let mut bounds = [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)];
-        let mut first = usize::MAX;
-        let mut last_rank = 0;
+    fn build(indices: &mut [usize], boxes: &[Bounds], nodes: &mut Vec<InversionNode>) -> usize {
         let mut low = [f64::INFINITY; 3];
         let mut high = [f64::NEG_INFINITY; 3];
         let center = |index: usize, axis: usize| {
             f64::from(boxes[index][0][axis]) * 0.5 + f64::from(boxes[index][1][axis]) * 0.5
         };
         for &index in indices.iter() {
-            bounds[0] = bounds[0].min(boxes[index][0]);
-            bounds[1] = bounds[1].max(boxes[index][1]);
-            first = first.min(index);
-            last_rank = last_rank.max(ranks[index]);
             for axis in 0..3 {
                 let value = center(index, axis);
                 low[axis] = low[axis].min(value);
@@ -204,7 +200,7 @@ impl InversionIndex {
             }
         }
         let children = if indices.len() == 1 {
-            None
+            [indices[0], usize::MAX]
         } else {
             let axis = (0..3)
                 .max_by(|&a, &b| {
@@ -218,22 +214,69 @@ impl InversionIndex {
                 center(a, axis).total_cmp(&center(b, axis)).then(a.cmp(&b))
             });
             let (left, right) = indices.split_at_mut(middle);
-            Some([
-                Self::build(left, boxes, ranks, nodes),
-                Self::build(right, boxes, ranks, nodes),
-            ])
+            [
+                Self::build(left, boxes, nodes),
+                Self::build(right, boxes, nodes),
+            ]
         };
         let node = nodes.len();
         nodes.push(InversionNode {
-            bounds,
-            first,
-            last_rank,
+            bounds: [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)],
+            parent: usize::MAX,
+            last_rank: 0,
             children,
         });
+        if children[1] != usize::MAX {
+            for child in children {
+                nodes[child].parent = node;
+            }
+        }
         node
     }
     pub fn len(&self) -> usize {
         self.nodes.len()
+    }
+    pub fn activate(
+        &mut self,
+        index: usize,
+        rank: usize,
+        bounds: Bounds,
+        examined: &mut usize,
+        budget: usize,
+    ) -> bool {
+        debug_assert_ne!(rank, usize::MAX);
+        let mut current = self.leaves[index];
+        debug_assert_ne!(current, usize::MAX);
+        while current != usize::MAX {
+            *examined += 1;
+            if *examined > budget {
+                return false;
+            }
+            let children = self.nodes[current].children;
+            let (bounds, rank) = if children[1] == usize::MAX {
+                (bounds, rank + 1)
+            } else {
+                let left = &self.nodes[children[0]];
+                let right = &self.nodes[children[1]];
+                (
+                    [
+                        left.bounds[0].min(right.bounds[0]),
+                        left.bounds[1].max(right.bounds[1]),
+                    ],
+                    left.last_rank.max(right.last_rank),
+                )
+            };
+            let node = &mut self.nodes[current];
+            // A new leaf contained by the preceding aggregate with no greater
+            // rank cannot change any ancestor. Stop only after updating children.
+            if node.last_rank == rank && node.bounds == bounds {
+                break;
+            }
+            node.last_rank = rank;
+            node.bounds = bounds;
+            current = node.parent;
+        }
+        true
     }
     pub fn query(
         &mut self,
@@ -253,16 +296,17 @@ impl InversionIndex {
                 return false;
             }
             let node = &self.nodes[index_of_node];
-            // The leaf sought is earlier in original order but later in the
-            // emitted schedule. Both inequalities are strict; original peers
-            // cannot become dependencies just because their boxes coincide.
-            if node.first >= index || node.last_rank <= rank || !overlaps(node.bounds, bounds) {
+            // Only preceding source indices have been activated. Zero means an
+            // empty subtree; other stored ranks are one greater than real ranks.
+            if node.last_rank <= rank + 1 || !overlaps(node.bounds, bounds) {
                 continue;
             }
-            if let Some(children) = node.children {
-                self.stack.extend(children);
+            if node.children[1] == usize::MAX {
+                if node.children[0] < index {
+                    output.push(node.children[0]);
+                }
             } else {
-                output.push(node.first);
+                self.stack.extend(node.children);
             }
         }
         output.sort_unstable();
@@ -308,6 +352,8 @@ mod tests {
         assert_eq!(hierarchy.len(), 2 * eligible - 1);
         let mut output = Vec::new();
         let mut work = 0;
+        assert!(hierarchy.query(100, ranks[100], bounds[100], &mut output, &mut work, COUNT));
+        assert!(output.is_empty());
         for index in 0..COUNT {
             if ranks[index] == usize::MAX {
                 continue;
@@ -328,8 +374,15 @@ mod tests {
                 COUNT * COUNT * 2
             ));
             assert_eq!(output, expected, "missed/extra inversion at {index}");
+            assert!(hierarchy.activate(
+                index,
+                ranks[index],
+                bounds[index],
+                &mut work,
+                COUNT * COUNT * 2
+            ));
         }
-        // Capacity failure discards partial output; a fresh query still gets
+        // A failed query cannot certify partial output; a fresh query gets
         // the exact complete set, including uncertain and enormous boxes.
         work = 0;
         assert!(!hierarchy.query(100, ranks[100], bounds[100], &mut output, &mut work, 0));
@@ -351,6 +404,130 @@ mod tests {
             COUNT * 2
         ));
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn activation_failure_discards_the_sweep_and_fresh_queries_reset_scratch() {
+        let bounds = [[Vec3::ZERO, Vec3::ONE]; 2];
+        let ranks = [1, 0];
+        let mut failed = InversionIndex::new(&bounds, &ranks);
+        let mut work = 0;
+        assert!(!failed.activate(0, ranks[0], bounds[0], &mut work, 1));
+        assert_eq!(work, 2);
+        // Callers discard the failed ephemeral certificate and start fresh;
+        // they never continue a partially activated hierarchy after failure.
+        let mut fresh = InversionIndex::new(&bounds, &ranks);
+        let mut output = Vec::new();
+        work = 0;
+        assert!(fresh.query(1, ranks[1], bounds[1], &mut output, &mut work, 10));
+        assert!(output.is_empty());
+        assert!(fresh.activate(0, ranks[0], bounds[0], &mut work, 10));
+        assert!(fresh.query(1, ranks[1], bounds[1], &mut output, &mut work, 10));
+        assert_eq!(output, [0]);
+        work = 0;
+        assert!(!fresh.query(1, ranks[1], bounds[1], &mut output, &mut work, 1));
+        assert_eq!(work, 2);
+        work = 0;
+        assert!(fresh.query(1, ranks[1], bounds[1], &mut output, &mut work, 10));
+        assert_eq!(output, [0]);
+    }
+
+    #[test]
+    fn factory_source_order_sweep_certifies_exact_pairs_within_shared_work_cap() {
+        let data = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/factory_ordering_envelopes.bin"
+        ));
+        assert_eq!(&data[..8], b"BZBC0001");
+        let word = |offset: usize| u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap());
+        let count = word(8) as usize;
+        assert_eq!(count, 2891);
+        assert_eq!(word(12), 0, "the captured certificate uses world bounds");
+        assert_eq!(data.len(), 28 + count * 28);
+        let mut ranks = Vec::with_capacity(count);
+        let mut bounds = Vec::with_capacity(count);
+        for index in 0..count {
+            let start = 28 + index * 28;
+            ranks.push(word(start) as usize);
+            bounds.push([
+                Vec3::from_array(std::array::from_fn(|axis| {
+                    f32::from_bits(word(start + 4 + axis * 4))
+                })),
+                Vec3::from_array(std::array::from_fn(|axis| {
+                    f32::from_bits(word(start + 16 + axis * 4))
+                })),
+            ]);
+        }
+        let expected: Vec<_> = (0..count)
+            .flat_map(|after| {
+                (0..after).filter_map({
+                    let bounds = &bounds;
+                    let ranks = &ranks;
+                    move |before| {
+                        (ranks[before] > ranks[after] && overlaps(bounds[before], bounds[after]))
+                            .then_some((before, after))
+                    }
+                })
+            })
+            .collect();
+        assert_eq!(expected.len(), 3111);
+        let mut hierarchy = InversionIndex::new(&bounds, &ranks);
+        let mut output = Vec::new();
+        let mut discovered = Vec::new();
+        let mut work = 0;
+        let mut query_visits = 0;
+        let work_cap = (count * 64).min(super::super::MAX_PLAN_CANDIDATES);
+        for index in 0..count {
+            let preceding_work = work;
+            assert!(
+                hierarchy.query(
+                    index,
+                    ranks[index],
+                    bounds[index],
+                    &mut output,
+                    &mut work,
+                    work_cap
+                ),
+                "query work cap at source object {index}"
+            );
+            query_visits += work - preceding_work;
+            discovered.extend(output.iter().map(|&before| (before, index)));
+            assert!(
+                hierarchy.activate(index, ranks[index], bounds[index], &mut work, work_cap),
+                "activation work cap at source object {index}"
+            );
+        }
+        assert_eq!(discovered, expected);
+        assert!(discovered.len() <= (count * 8).min(32_768));
+        assert!(work <= work_cap);
+        // Pinned main's X-axis active sweep on these same envelope/rank bits:
+        // enumerate neighbors before rejecting non-inversions or Y/Z separation.
+        // Neighbors and query/update visits are distinct counted primitives.
+        let mut sweep: Vec<_> = (0..count).collect();
+        sweep.sort_by_key(|&index| ranks[index]);
+        sweep.sort_by(|&a, &b| bounds[a][0].x.total_cmp(&bounds[b][0].x));
+        let mut active: Vec<usize> = Vec::new();
+        let mut main_neighbors = 0;
+        let mut main_pairs = Vec::new();
+        for index in sweep {
+            active.retain(|&other| bounds[other][1].x >= bounds[index][0].x);
+            main_neighbors += active.len();
+            for &other in &active {
+                let (before, after) = (index.min(other), index.max(other));
+                if ranks[before] > ranks[after] && overlaps(bounds[index], bounds[other]) {
+                    main_pairs.push((before, after));
+                }
+            }
+            active.push(index);
+        }
+        main_pairs.sort_unstable_by_key(|&(before, after)| (after, before));
+        assert_eq!(main_pairs, expected);
+        println!(
+            "factory_ordering_sweep_proof population={count} main_x_candidate_neighbors={main_neighbors} query_node_visits={query_visits} activation_updates={} total_work={work} work_cap={work_cap} exact_inversion_pairs={} retained_pair_cap={}",
+            work - query_visits,
+            discovered.len(),
+            (count * 8).min(32_768),
+        );
     }
 
     #[test]

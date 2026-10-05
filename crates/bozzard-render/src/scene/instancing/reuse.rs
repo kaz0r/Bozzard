@@ -116,43 +116,63 @@ impl Ordering {
             result.envelopes[index] = expanded(bounds, margin + slack);
             ranks[index] = rank;
         }
-        // Original/emitted rank ranges prune source-order neighbors before
-        // enumeration. Coincident but non-inverted envelopes need no stored
-        // dependency and must not force a sparse useful plan to rebuild forever.
+        // Sweep source order, activating only preceding objects. Spatial/rank
+        // aggregates now describe the same eligible leaves, avoiding false
+        // candidates from unrelated earlier-index and later-rank objects.
         let mut discovery = spatial::InversionIndex::new(&result.envelopes, &ranks);
         let hierarchy_nodes = discovery.len();
         let mut work = 0usize;
+        let mut query_visits = 0usize;
+        let mut activation_updates = 0usize;
         let work_budget = inputs.len().saturating_mul(64).min(MAX_PLAN_CANDIDATES);
-        let diagnostic = |work: usize, pairs: usize, reason: &str| {
+        let diagnostic = |queries: usize, updates: usize, pairs: usize, reason: &str| {
             if std::env::var_os("BOZZARD_BATCH_PLAN_DIAGNOSTICS").is_some() {
                 eprintln!(
-                    "batch_ordering population={} hierarchy_nodes={} node_visits={} work_budget={} pairs={} pair_budget={} result={reason}",
+                    "batch_ordering population={} hierarchy_nodes={} node_visits={queries} activation_updates={updates} total_work={} work_budget={} pairs={} pair_budget={} result={reason}",
                     inputs.len(),
                     hierarchy_nodes,
-                    work,
+                    queries + updates,
                     work_budget,
                     pairs,
                     (inputs.len() * 8).min(32_768),
                 );
             }
         };
-        for index in order {
-            if !discovery.query(
+        // Constructor partitioning is bounded O(N log N) work, as before.
+        // Every query visit and activation update consumes this single cap.
+        for (index, &rank) in ranks.iter().enumerate() {
+            if rank == usize::MAX {
+                continue;
+            }
+            let preceding_work = work;
+            let complete = discovery.query(
                 index,
-                ranks[index],
+                rank,
                 result.envelopes[index],
                 &mut result.candidates,
                 &mut work,
                 work_budget,
-            ) {
-                diagnostic(work, result.pairs.len(), "candidate_work_capacity");
+            );
+            query_visits += work - preceding_work;
+            if !complete {
+                diagnostic(
+                    query_visits,
+                    activation_updates,
+                    result.pairs.len(),
+                    "candidate_work_capacity",
+                );
                 return Err(BatchPlanRebuildReason::OrderingCapacity);
             }
             for &before in &result.candidates {
                 // The hierarchy returns only complete envelope overlaps with
                 // an earlier original index and a later emitted rank.
                 if result.pairs.len() >= (inputs.len() * 8).min(32_768) {
-                    diagnostic(work, result.pairs.len(), "retained_pair_capacity");
+                    diagnostic(
+                        query_visits,
+                        activation_updates,
+                        result.pairs.len(),
+                        "retained_pair_capacity",
+                    );
                     return Err(BatchPlanRebuildReason::OrderingCapacity);
                 }
                 let pair = result.pairs.len();
@@ -161,8 +181,26 @@ impl Ordering {
                 result.neighbors[before].push(pair);
                 result.neighbors[index].push(pair);
             }
+            let preceding_work = work;
+            let complete =
+                discovery.activate(index, rank, result.envelopes[index], &mut work, work_budget);
+            activation_updates += work - preceding_work;
+            if !complete {
+                diagnostic(
+                    query_visits,
+                    activation_updates,
+                    result.pairs.len(),
+                    "activation_work_capacity",
+                );
+                return Err(BatchPlanRebuildReason::OrderingCapacity);
+            }
         }
-        diagnostic(work, result.pairs.len(), "certified");
+        diagnostic(
+            query_visits,
+            activation_updates,
+            result.pairs.len(),
+            "certified",
+        );
         // Keep only the existing bounded mutable grid for envelope renewal;
         // initial discovery needs at most 2N-1 temporary hierarchy nodes.
         drop(discovery);
@@ -736,7 +774,7 @@ mod tests {
         assert!(inputs.len() * neighbors.len() > inputs.len() * 64);
         let mut discovery = spatial::InversionIndex::new(&ordering.envelopes, &ordering.ranks);
         let mut work = 0;
-        for index in indices {
+        for index in 0..COUNT {
             assert!(discovery.query(
                 index,
                 ordering.ranks[index],
@@ -746,6 +784,13 @@ mod tests {
                 COUNT * 64
             ));
             assert!(neighbors.is_empty());
+            assert!(discovery.activate(
+                index,
+                ordering.ranks[index],
+                ordering.envelopes[index],
+                &mut work,
+                COUNT * 64
+            ));
         }
         let mut retained = Plan {
             camera: camera(),
@@ -767,7 +812,7 @@ mod tests {
         }
         assert_safe(&retained, &draws, view, &sample);
         println!(
-            "ordering_rank_prune_proof population={COUNT} node_visits={work} budget={} retained_pairs=0 dense_source_order_winners_preserved=true disjoint_tail_reorder_camera_reused=true",
+            "ordering_rank_prune_proof population={COUNT} total_query_activation_work={work} budget={} retained_pairs=0 dense_source_order_winners_preserved=true disjoint_tail_reorder_camera_reused=true",
             COUNT * 64
         );
     }
@@ -782,10 +827,9 @@ mod tests {
         let bounds = vec![[Vec3::splat(-0.4), Vec3::splat(0.4)]; draws.len()];
         let inputs = plan(&draws, camera(), &bounds).inputs;
         let count = inputs.len();
-        // Nine reverse-order queries already find more than 8N pair candidates;
-        // even visiting every hierarchy node per query cannot reach 64N work.
-        assert!((0..9).map(|offset| count - 1 - offset).sum::<usize>() > count * 8);
-        assert!(9 * (2 * count - 1) < count * 64);
+        // Source-order activation of a reversed emitted schedule produces real
+        // overlapping inversions. Count actual queries and updates, proving the
+        // retained-pair cap is reached before their shared traversal-work cap.
         let batches = [Batch {
             indices: (0..count).rev().collect(),
             slot: None,
@@ -795,6 +839,28 @@ mod tests {
             .iter()
             .map(|input| projected_bounds(input.bounds, camera() * input.model))
             .collect();
+        let ranks: Vec<_> = (0..count).rev().collect();
+        let mut discovery = spatial::InversionIndex::new(&bounds, &ranks);
+        let mut work = 0;
+        let mut pairs = 0;
+        let mut candidates = Vec::new();
+        for index in 0..count {
+            assert!(discovery.query(
+                index,
+                ranks[index],
+                bounds[index],
+                &mut candidates,
+                &mut work,
+                count * 64
+            ));
+            pairs += candidates.len();
+            if pairs > count * 8 {
+                break;
+            }
+            assert!(discovery.activate(index, ranks[index], bounds[index], &mut work, count * 64));
+        }
+        assert!(pairs > count * 8);
+        assert!(work < count * 64);
         assert_eq!(
             Ordering::new(&inputs, &batches, camera(), projected).err(),
             Some(BatchPlanRebuildReason::OrderingCapacity)
