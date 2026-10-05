@@ -63,6 +63,7 @@ impl App {
         let checkpoint_start = checkpoint_respawn(&scene, &original);
         let mut remove = None;
         let mut generate_lods = false;
+        let mut animation_preview = None;
         let mut error_slot: Option<anyhow::Error> = None;
         ui.push_id(&original.id, |ui| {
         egui::ScrollArea::vertical().id_salt("entity-properties").show(ui, |ui| {
@@ -146,8 +147,12 @@ impl App {
                                     .and_then(|runtime| runtime.players.get(&object.id))
                                     .map(|player| player.state);
                                 let graph_key = format!("{}:{}", self.editor.path.display(), object.id);
-                                if entry.name == "animator" && let Err(error) = crate::animation_ui::component(ui, &mut object, &self.editor.assets, self.workspace.animation_graph.entry(graph_key).or_default(), active_state) {
-                                    error_slot = Some(error);
+                                if entry.name == "animator" {
+                                    match crate::animation_ui::component(ui, &mut object, &self.editor.assets, &scene,
+                                        &graph_key, self.workspace.animation_graph.entry(graph_key.clone()).or_default(), active_state) {
+                                        Ok(request) => animation_preview = request,
+                                        Err(error) => error_slot = Some(error),
+                                    }
                                 }
                             });
                         }
@@ -222,6 +227,20 @@ impl App {
             synchronize_follow_camera(&mut scene);
             let r = self.editor.apply("Edit component", scene);
             self.result(r);
+        }
+        if let Some(request) = animation_preview
+            && self.editor.play.is_none()
+        {
+            match request {
+                crate::animation_ui::PreviewRequest::Sample { state, phase } => {
+                    let result = self
+                        .editor
+                        .scrub_animation_preview(&original.id, &state, phase);
+                    self.result(result);
+                }
+                crate::animation_ui::PreviewRequest::Clear => self.editor.clear_timeline_preview(),
+            }
+            self.viewport_stamp = None;
         }
         if generate_lods && self.loading.is_none() && self.editor.play.is_none() {
             self.editor.finish_gesture();

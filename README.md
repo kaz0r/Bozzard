@@ -147,7 +147,7 @@ Detailed authoring instructions, supported formats, and current limits live in t
 | Rendering | [Materials](docs/materials.md) · [Lighting and baked GI](docs/lighting.md) · [Shader editor](docs/shader-editor.md) · [Occlusion](docs/occlusion.md) |
 | Effects | [Atmosphere](docs/atmosphere-effects.md) · [Post-processing](docs/post-processing.md) · [Camera effects](docs/camera-effects.md) · [Fog](docs/fog.md) · [Volumetrics](docs/volumetrics.md) |
 | Physics | [Physics surface](docs/physics.md) · [Mesh colliders and Rigidbody settings](docs/mesh-colliders.md) |
-| UI and middleware | [Text and HUD rendering](docs/text-rendering.md) · [Audio, animation, UI, navigation, and particles](docs/middleware.md) |
+| UI and middleware | [Text and HUD rendering](docs/text-rendering.md) · [Character animation](docs/character-animation.md) · [Audio, animation, UI, navigation, and particles](docs/middleware.md) |
 | Compute and diagnostics | [WGSL compute](docs/compute.md) · [Debugging](docs/debugging.md) · [Performance](docs/performance.md) |
 | Distribution and multiplayer | [Native export](docs/exporting.md) · [Content packs](docs/content-packs.md) · [Steam multiplayer](docs/multiplayer.md) |
 | Engine development | [Architecture](docs/architecture.md) · [Editor extensions](docs/editor-extensions.md) · [Roadmap](docs/roadmap.md) |
@@ -194,7 +194,7 @@ cargo run --release -p bozzard-editor-app -- --smoke work/editor-smoke
 
 The player smoke checks rendered output, scene round-trips, and asset behavior. The editor smoke exercises the native UI, editing, Play, and save/load, and captures diagnostics in `work/editor-smoke/`. These are correctness checks; use release profiling for performance comparisons.
 
-[CI](.github/workflows/ci.yml) covers Ubuntu/Vulkan, Windows/DX12, and macOS/Metal, including lints, tests, headless dependency checks, release builds, and packaged rendering. Hosted Linux and Windows checks use software adapters. The manual [hardware workflow](.github/workflows/hardware.yml) checks real GPUs and desktop presentation on provisioned runners. Consult the workflow runs for current results.
+[CI](.github/workflows/ci.yml) covers Ubuntu/Vulkan, Windows/DX12, and macOS/Metal, including lints, tests, headless dependency checks, release builds, and packaged rendering. Debug checks and release packaging run in parallel jobs with separate time budgets; both must pass. Hosted Linux and Windows checks use software adapters. The manual [hardware workflow](.github/workflows/hardware.yml) checks real GPUs and desktop presentation on provisioned runners. Consult the workflow runs for current results.
 
 ## Exporting
 

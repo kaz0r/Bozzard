@@ -180,6 +180,47 @@ pub struct Clip {
     #[serde(default)]
     pub events: Vec<Marker>,
 }
+impl Clip {
+    /// Remove static rest channels and collapse constant step/linear channels at 1e-6 tolerance.
+    /// Quaternion axes stay in lockstep; animated rotations retain all sampled keys.
+    pub fn compact(&mut self, nodes: &[Joint]) -> Result<()> {
+        for channel in &self.channels {
+            channel.validate(nodes.len(), self.duration)?;
+        }
+        self.channels.retain_mut(|channel| {
+            if channel
+                .curves
+                .iter()
+                .any(|c| c.interpolation == Interpolation::Cubic)
+            {
+                return true;
+            }
+            let constant = channel.curves.iter().all(|curve| {
+                curve
+                    .keys
+                    .iter()
+                    .all(|key| (key.value - curve.keys[0].value).abs() <= 1e-6)
+            });
+            if !constant {
+                return true;
+            }
+            for curve in &mut channel.curves {
+                curve.keys.truncate(1);
+            }
+            let rest = nodes[channel.node as usize].rest;
+            let matches = match channel.property {
+                Property::Translation => &rest.translation[..],
+                Property::Rotation => &rest.rotation[..],
+                Property::Scale => &rest.scale[..],
+            }
+            .iter()
+            .zip(&channel.curves)
+            .all(|(rest, curve)| (*rest - curve.keys[0].value).abs() <= 1e-6);
+            !matches
+        });
+        Ok(())
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Rig {
@@ -253,16 +294,23 @@ impl Rig {
         self.nodes.iter().map(|n| n.rest).collect()
     }
     pub fn sample(&self, clip: usize, time: f32) -> Result<Vec<Pose>> {
+        let mut pose = Vec::with_capacity(self.nodes.len());
+        self.sample_into(clip, time, &mut pose)?;
+        Ok(pose)
+    }
+    /// Caller-owned scratch storage avoids a skeleton allocation for every blended clip.
+    pub fn sample_into(&self, clip: usize, time: f32, pose: &mut Vec<Pose>) -> Result<()> {
         ensure!(time.is_finite(), "invalid clip sample time");
         let clip = self
             .clips
             .get(clip)
             .context("animation clip does not exist")?;
-        let mut pose = self.rest_pose();
+        pose.clear();
+        pose.extend(self.nodes.iter().map(|node| node.rest));
         for channel in &clip.channels {
             channel.apply(time, &mut pose[channel.node as usize])?;
         }
-        Ok(pose)
+        Ok(())
     }
     /// Root motion needs only one joint, avoiding temporary whole-skeleton poses.
     pub fn sample_joint(&self, clip: usize, time: f32, node: usize) -> Result<Pose> {
@@ -279,7 +327,16 @@ impl Rig {
     }
     /// Unwrap each shortest-arc key interval so crossing +/-pi does not teleport an actor.
     pub fn root_yaw(&self, clip: usize, time: f32, node: usize) -> Result<f32> {
-        let yaw = |q: Quat| q.normalize().to_euler(glam::EulerRot::YXZ).0;
+        self.root_yaw_in_basis(clip, time, node, Quat::IDENTITY)
+    }
+    pub(super) fn root_yaw_in_basis(
+        &self,
+        clip: usize,
+        time: f32,
+        node: usize,
+        basis: Quat,
+    ) -> Result<f32> {
+        let yaw = |q: Quat| (basis * q).normalize().to_euler(glam::EulerRot::YXZ).0;
         let current = yaw(Quat::from_array(
             self.sample_joint(clip, time, node)?.rotation,
         ));
@@ -314,8 +371,14 @@ impl Rig {
         Ok(total + delta(current - previous))
     }
     pub fn palette(&self, pose: &[Pose]) -> Result<Vec<[f32; 16]>> {
-        ensure!(pose.len() == self.nodes.len(), "pose does not match rig");
         let mut global = Vec::with_capacity(pose.len());
+        let mut palette = Vec::with_capacity(self.bindings.len());
+        self.palette_into(pose, &mut global, &mut palette)?;
+        Ok(palette)
+    }
+    pub fn globals_into(&self, pose: &[Pose], global: &mut Vec<Mat4>) -> Result<()> {
+        ensure!(pose.len() == self.nodes.len(), "pose does not match rig");
+        global.clear();
         for (joint, pose) in self.nodes.iter().zip(pose) {
             pose.validate()?;
             let matrix =
@@ -326,17 +389,27 @@ impl Rig {
             );
             global.push(matrix);
         }
-        self.bindings
-            .iter()
-            .map(|b| {
-                let matrix = global[b.node as usize] * Mat4::from_cols_array(&b.inverse_bind);
-                ensure!(
-                    affine(matrix),
-                    "animated skin matrix is singular or overflows"
-                );
-                Ok(matrix.to_cols_array())
-            })
-            .collect()
+        Ok(())
+    }
+    /// Reuse both hierarchy and output buffers. Published Arc palettes remain immutable.
+    pub fn palette_into(
+        &self,
+        pose: &[Pose],
+        global: &mut Vec<Mat4>,
+        palette: &mut Vec<[f32; 16]>,
+    ) -> Result<()> {
+        self.globals_into(pose, global)?;
+        palette.clear();
+        for binding in &self.bindings {
+            let matrix =
+                global[binding.node as usize] * Mat4::from_cols_array(&binding.inverse_bind);
+            ensure!(
+                affine(matrix),
+                "animated skin matrix is singular or overflows"
+            );
+            palette.push(matrix.to_cols_array());
+        }
+        Ok(())
     }
     /// Layout identity is independent of clips, so event/transition edits need no mesh upload.
     pub fn signature(&self) -> u64 {
@@ -355,9 +428,10 @@ impl Rig {
     }
 }
 fn affine(matrix: Mat4) -> bool {
+    let determinant = matrix.determinant();
     matrix.is_finite()
-        && matrix.determinant().is_finite()
-        && matrix.determinant().abs() > 1e-12
+        && determinant.is_finite()
+        && determinant.abs() > 1e-12
         && matrix.x_axis.w.abs() < 1e-5
         && matrix.y_axis.w.abs() < 1e-5
         && matrix.z_axis.w.abs() < 1e-5

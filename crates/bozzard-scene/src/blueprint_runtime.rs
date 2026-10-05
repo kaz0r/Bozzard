@@ -1920,7 +1920,10 @@ impl SceneInstance {
             | K::PauseAnimation
             | K::StopAnimation
             | K::SeekAnimation
-            | K::SetAnimationParameter => {
+            | K::SetAnimationParameter
+            | K::RestartAnimationLayer
+            | K::SetAnimationWarpTarget
+            | K::ClearAnimationWarpTarget => {
                 use crate::middleware::animation::Control;
                 let control = match node.kind {
                     K::PlayAnimation => Control::Play {
@@ -1930,6 +1933,19 @@ impl SceneInstance {
                     K::PauseAnimation => Control::Pause,
                     K::StopAnimation => Control::Stop,
                     K::SeekAnimation => Control::Seek(value.number()?),
+                    K::RestartAnimationLayer => Control::RestartLayer {
+                        name: value.text()?.into(),
+                    },
+                    K::ClearAnimationWarpTarget => Control::ClearWarpTarget {
+                        name: value.text()?.into(),
+                    },
+                    K::SetAnimationWarpTarget => Control::WarpTarget {
+                        name: value.text()?.into(),
+                        goal: crate::middleware::animation::WarpGoal {
+                            position: eval.input(node, 2)?.vector()?,
+                            yaw_degrees: eval.input(node, 3)?.number()?,
+                        },
+                    },
                     _ => Control::Parameter {
                         name: value.text()?.into(),
                         value: eval.input(node, 2)?.number()?,

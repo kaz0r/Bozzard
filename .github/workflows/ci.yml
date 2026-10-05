@@ -16,10 +16,17 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
+  # Feature-specific tests compile separate dependency graphs. Keep source-line
+  # backtraces and assertions without full debug symbols or incremental data.
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
 
 jobs:
-  native:
-    name: Native / ${{ matrix.os }} / ${{ matrix.backend }}
+  # Debug checks and release packaging have independent time budgets and run in
+  # parallel. Combining both exceeded the Windows runner's 90-minute job limit.
+  checks:
+    name: Checks / ${{ matrix.os }} / ${{ matrix.backend }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -50,12 +57,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bozzard-xdg"
           chmod 700 "$RUNNER_TEMP/bozzard-xdg"
           echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
-          # Feature-specific tests also compile separate dependency graphs. Keep
-          # source-line backtraces without filling the runner with full debug
-          # information and incremental data; test assertions stay enabled.
-          echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
-          echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only" >> "$GITHUB_ENV"
-          echo "CARGO_PROFILE_TEST_DEBUG=line-tables-only" >> "$GITHUB_ENV"
       - name: Install pinned toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
       - name: Development package layout tests
@@ -93,13 +94,42 @@ jobs:
         run: cargo test -p bozzard-player interpolated_player_pixels_match_an_independently_authored_midpoint --locked --offline -- --ignored
       - name: Retained factory frames preserve pixels and checkpoints
         run: cargo test -p bozzard-editor --test retained_render retained_factory_pixels_and_checkpoints_match_reference --locked --offline -- --ignored --exact
-      - name: Reclaim Linux test build space before release
+  packages:
+    name: Package / ${{ matrix.os }} / ${{ matrix.backend }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            backend: vulkan
+            software: --software
+          - os: windows-2025
+            backend: dx12
+            software: --software
+          - os: macos-15
+            backend: metal
+            software: ""
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Linux graphics and window dependencies
         if: runner.os == 'Linux'
-        # All remaining builds and packaging use release artifacts.
         run: |
-          df -h .
-          cargo clean --profile dev
-          df -h .
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libx11-dev libxrandr-dev libxi-dev libasound2-dev xvfb
+          mkdir -p "$RUNNER_TEMP/bozzard-xdg"
+          chmod 700 "$RUNNER_TEMP/bozzard-xdg"
+          echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/bozzard-xdg" >> "$GITHUB_ENV"
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Build native release executables
         run: |
           cargo build --release --locked --offline -p bozzard-player -p bozzard-server -p bozzard-editor-app
@@ -197,3 +227,33 @@ jobs:
           name: bozzard-${{ matrix.os }}
           path: dist/*.zip
           if-no-files-found: error
+
+  # The protected branch requires these original Native check names. Always run
+  # the gates so a failed/cancelled prerequisite cannot become a successful skip.
+  native:
+    name: Native / ${{ matrix.os }} / ${{ matrix.backend }}
+    needs: [checks, packages]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            backend: vulkan
+          - os: windows-2025
+            backend: dx12
+          - os: macos-15
+            backend: metal
+    steps:
+      - name: Require every check and package verification to succeed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          PACKAGES_RESULT: ${{ needs.packages.result }}
+        shell: bash
+        run: |
+          if [[ "$CHECKS_RESULT" != "success" || "$PACKAGES_RESULT" != "success" ]]; then
+            printf '::error::Checks: %s; packages: %s. Both must succeed.\n' "$CHECKS_RESULT" "$PACKAGES_RESULT"
+            exit 1
+          fi
