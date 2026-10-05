@@ -4,6 +4,28 @@ use crate::{MeshData, SurfaceShading, animation::Skin, job::Progress};
 use anyhow::Result;
 
 pub(crate) fn mesh(mesh: &MeshData, progress: &Progress) -> Result<MeshData> {
+    progress.check()?;
+    // Packing part ranges is lossless only when their authored order is the
+    // complete original index order. Preserve arbitrary ranges verbatim: gaps,
+    // overlap or reordering would otherwise change global picking triangle IDs
+    // and could leave cloned part offsets pointing at a different surface.
+    let mut cursor = 0;
+    for part in &mesh.parts {
+        let Some(end) = part.start.checked_add(part.count) else {
+            return Ok(mesh.clone());
+        };
+        if part.start as usize != cursor
+            || part.count == 0
+            || !part.count.is_multiple_of(3)
+            || end as usize > mesh.indices.len()
+        {
+            return Ok(mesh.clone());
+        }
+        cursor = end as usize;
+    }
+    if !mesh.parts.is_empty() && cursor != mesh.indices.len() {
+        return Ok(mesh.clone());
+    }
     let mut output = MeshData {
         skin: mesh.skin.as_ref().map(|skin| Skin {
             rig: skin.rig.clone(),
@@ -24,6 +46,7 @@ pub(crate) fn mesh(mesh: &MeshData, progress: &Progress) -> Result<MeshData> {
     };
     for (start, count, part) in ranges {
         progress.check()?;
+        let index_start = output.indices.len() as u32;
         let base = output.vertices.len() as u32;
         let mut attributes = Vec::new();
         // Separate surfaces cannot weld across different PBR or skin streams.
@@ -60,6 +83,7 @@ pub(crate) fn mesh(mesh: &MeshData, progress: &Progress) -> Result<MeshData> {
         }
         if let Some(part) = part {
             let mut part = part.clone();
+            part.start = index_start;
             if let Some(shading) = &part.shading {
                 part.shading = Some(SurfaceShading {
                     vertex_start: base,
@@ -197,6 +221,91 @@ mod tests {
         let output = mesh(&input, &Progress::default()).unwrap();
         assert!(output.vertices.len() <= input.vertices.len());
         assert_eq!(ordered_attributes(&input), ordered_attributes(&output));
+    }
+
+    #[test]
+    fn noncanonical_part_spans_preserve_source_indices_ranges_and_picking_ids() {
+        let vertices: Vec<_> = (0..3)
+            .flat_map(|triangle| {
+                let x = triangle as f32 * 2.;
+                [
+                    [x, 0., 0., 0., 0., 1., 0., 0.],
+                    [x + 1., 0., 0., 0., 0., 1., 1., 0.],
+                    [x, 1., 0., 0., 0., 1., 0., 1.],
+                ]
+            })
+            .collect();
+        for spans in [
+            vec![(6, 3), (0, 6)], // Complete, out of authored index order.
+            vec![(0, 3), (6, 3)], // Interior gap.
+            vec![(0, 6), (3, 6)], // Overlap.
+            vec![(3, 6)],         // Leading gap.
+            vec![(0, 6)],         // Trailing gap.
+        ] {
+            let input = MeshData {
+                vertices: vertices.clone(),
+                indices: (0..9).collect(),
+                parts: spans
+                    .into_iter()
+                    .enumerate()
+                    .map(|(surface, (start, count))| MeshPart {
+                        source_key: format!("source-{surface}"),
+                        name: format!("surface-{surface}"),
+                        material_name: Some(format!("material-{surface}")),
+                        start,
+                        count,
+                        color: [surface as f32, 0., 1., 0.5],
+                        image: None,
+                        alpha_cutoff: Some(0.25),
+                        shading: None,
+                    })
+                    .collect(),
+                skin: None,
+                warnings: vec!["authored warning".into()],
+            };
+            // Production upload/cooking validation already rejects these spans.
+            // The optimizer boundary also preserves them if an internal caller
+            // reaches it without the ordered-partition precondition.
+            assert!(crate::simplify::validate_geometry(&input).is_err());
+            let output = mesh(&input, &Progress::default()).unwrap();
+            assert_eq!(output.indices, input.indices);
+            assert_eq!(
+                output
+                    .vertices
+                    .iter()
+                    .map(|v| v.map(f32::to_bits))
+                    .collect::<Vec<_>>(),
+                input
+                    .vertices
+                    .iter()
+                    .map(|v| v.map(f32::to_bits))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(ordered_attributes(&output), ordered_attributes(&input));
+            assert_eq!(output.warnings, input.warnings);
+            for (surface, (before, after)) in input.parts.iter().zip(&output.parts).enumerate() {
+                assert_eq!((after.start, after.count), (before.start, before.count));
+                assert_eq!(after.source_key, before.source_key);
+                assert_eq!(after.name, before.name);
+                assert_eq!(after.material_name, before.material_name);
+                assert_eq!(
+                    after.color.map(f32::to_bits),
+                    before.color.map(f32::to_bits)
+                );
+                assert_eq!(after.alpha_cutoff, before.alpha_cutoff);
+                assert_eq!(output.part_bounds(surface), input.part_bounds(surface));
+            }
+            let before = crate::picking::MeshIndex::build(&input, &Progress::default()).unwrap();
+            let after = crate::picking::MeshIndex::build(&output, &Progress::default()).unwrap();
+            for triangle in 0..3 {
+                let origin = glam::Vec3::new(triangle as f32 * 2. + 0.25, 0.25, 1.);
+                let accept = |candidate| candidate == triangle;
+                let source_hit = before.cast_filtered(&input, origin, glam::Vec3::NEG_Z, &accept);
+                let output_hit = after.cast_filtered(&output, origin, glam::Vec3::NEG_Z, &accept);
+                assert_eq!(output_hit, source_hit);
+                assert_eq!(output_hit.unwrap().triangle, triangle);
+            }
+        }
     }
 
     #[test]

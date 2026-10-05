@@ -242,11 +242,25 @@ impl Submission {
                             sample_count: 1,
                             multiview: None,
                         });
+                let mut last_pipeline = None;
+                let mut occupied_groups = [false; 4];
                 for record in records {
+                    if last_pipeline != Some(record.pipeline) {
+                        // A disappearing earlier group shifts later Metal
+                        // registers. Clear the logical slot before reassigning
+                        // even an identical group, bypassing redundant filtering.
+                        for (slot, occupied) in occupied_groups.iter_mut().enumerate() {
+                            if std::mem::take(occupied) {
+                                encoder.set_bind_group(slot as u32, None::<&wgpu::BindGroup>, &[]);
+                            }
+                        }
+                        last_pipeline = Some(record.pipeline);
+                    }
                     encoder.set_pipeline(record.pipeline);
                     for (slot, group) in record.groups.iter().enumerate() {
                         if let Some(group) = group {
                             encoder.set_bind_group(slot as u32, *group, &[]);
+                            occupied_groups[slot] = true;
                         }
                     }
                     for (slot, vertex) in record.vertices.iter().enumerate() {

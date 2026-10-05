@@ -334,3 +334,205 @@ fn native_geometry_arena_combines_distinct_meshes_with_exact_rebased_indices() -
     assert_eq!(renderers[1].frame_stats().multi_draw_indirect_bytes, 0);
     Ok(())
 }
+
+#[test]
+fn native_lit_object_rows_and_numeric_graphs_match_portable_through_multilight_churn()
+-> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    let mut renderers = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer.set_render_bundles_enabled(false);
+        renderer.set_native_multi_draw_enabled(false);
+        renderer
+    });
+    renderers[0].set_native_instance_arena_enabled(false);
+    let vertices = [
+        [-0.5, -0.5, 0., 0., 0., 1., 0., 1.],
+        [0.5, -0.5, 0., 0., 0., 1., 1., 1.],
+        [0., 0.5, 0., 0., 0., 1., 0.5, 0.],
+    ];
+    let attributes = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 3];
+    let map = |rgba: &'static [u8]| MaterialMap {
+        image: ModelImage {
+            width: 1,
+            height: 1,
+            rgba,
+        },
+        sampler: Default::default(),
+    };
+    for renderer in &mut renderers {
+        for (id, metallic, roughness) in
+            [("native-lit-a", 0.15, 0.47), ("native-lit-b", 0.68, 0.73)]
+        {
+            renderer.upload_model(
+                &gpu,
+                id,
+                &vertices,
+                &[0, 1, 2],
+                &[ModelPart {
+                    source_key: "0000000000000000",
+                    start: 0,
+                    count: 3,
+                    color: [1.; 4],
+                    alpha_cutoff: None,
+                    // The cubes use this same ModelPart texture key, so
+                    // group 0 survives PBR→stock pipeline transitions while
+                    // group 1 disappears and later Metal registers move.
+                    image: Some(ModelImage {
+                        width: 1,
+                        height: 1,
+                        rgba: if id == "native-lit-a" {
+                            &[255; 4]
+                        } else {
+                            &[220, 185, 240, 255]
+                        },
+                    }),
+                    shading: Some(ModelShading {
+                        vertex_start: 0,
+                        vertices: &attributes,
+                        metallic,
+                        roughness,
+                        normal_scale: 0.65,
+                        occlusion_strength: 0.8,
+                        emissive_factor: [0.04, 0.02, 0.03],
+                        double_sided: false,
+                        base_color_sampler: Default::default(),
+                        normal: Some(map(&[145, 128, 250, 255])),
+                        metallic_roughness: Some(map(&[255, 185, 125, 255])),
+                        occlusion: Some(map(&[205, 205, 205, 255])),
+                        emissive: Some(map(&[25, 40, 15, 255])),
+                    }),
+                }],
+            )?;
+        }
+    }
+    let graph = |value: f32| {
+        std::sync::Arc::new(ShaderSource {
+        id: 779931,
+        surface: "fn graph_material_surface(uv:vec2<f32>,normal_uv:vec2<f32>,mr_uv:vec2<f32>,ao_uv:vec2<f32>,emissive_uv:vec2<f32>,world_normal:vec3<f32>,tangent:vec4<f32>,world:vec3<f32>,view:vec3<f32>,front:bool,time:f32)->SurfaceParams { var s=default_material_surface(uv,normal_uv,mr_uv,ao_uv,emissive_uv,world_normal,tangent,world,view,front,time); s.emissive+=graph_numeric(0u).xyz; return s; }".into(),
+        numeric_parameters: std::sync::Arc::from([[value, 0.025, 0.01, 0.]]),
+    })
+    };
+    let mut scene = scene(300);
+    scene.lighting = Lighting {
+        shadows: true,
+        shadow_resolution: 256,
+        sun_intensity: 0.25,
+        sun_direction: Vec3::new(0.3, 0.7, 1.).normalize().to_array(),
+        ..Default::default()
+    };
+    scene.display.tone_mapping = true;
+    scene.lights = (0..32)
+        .map(|i| LocalLight {
+            directional: false,
+            position: [(i % 8) as f32 * 2.25, (i / 8) as f32 * 4.5, -2.2],
+            direction: [0., 0., -1.],
+            color: [0.3 + (i % 3) as f32 * 0.25, 0.4, 0.7],
+            intensity: 4. + (i % 5) as f32,
+            range: 5.5,
+            spot_angles: (i % 4 == 0).then_some([35., 55.]),
+            shadows: [0, 1, 16, 17]
+                .contains(&i)
+                .then_some(LocalShadowSettings::default()),
+        })
+        .collect();
+    let mut original = std::collections::BTreeMap::new();
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model = Mat4::from_translation(Vec3::new((i % 18) as f32, (i / 18) as f32, -6.))
+            * Mat4::from_rotation_y((i % 12) as f32 * 0.019)
+            * Mat4::from_scale(Vec3::new(0.65, 0.65 + (i % 7) as f32 * 0.01, 0.5));
+        original.insert(item.motion_id, item.model);
+        item.material.lit = true;
+        item.material.metallic = Some(0.1 + (i % 5) as f32 * 0.03);
+        item.material.roughness = Some(0.45 + (i % 4) as f32 * 0.05);
+        match i % 5 {
+            0 => {
+                item.mesh = MeshKind::Cube;
+                item.material.texture = TextureKind::ModelPart("native-lit-a".into(), 0);
+            }
+            1 => item.mesh = MeshKind::Imported("native-lit-a".into()),
+            2 => {
+                item.mesh = MeshKind::Cube;
+                item.material.texture = TextureKind::ModelPart("native-lit-a".into(), 0);
+                item.material.shader = Some(graph(0.01));
+            }
+            3 => item.mesh = MeshKind::Imported("native-lit-b".into()),
+            _ => {
+                item.mesh = MeshKind::Imported("native-lit-a".into());
+                item.material.shader = Some(graph(0.03));
+            }
+        }
+    }
+    let original_camera = scene.view_projection;
+    let hidden_model = scene.items[36].model;
+    let mut native = false;
+    for tick in 0..72 {
+        if tick >= 2 {
+            for item in scene.items.iter_mut().filter(|item| item.motion_id <= 12) {
+                item.model = original[&item.motion_id]
+                    * Mat4::from_translation(Vec3::new((tick as f32 * 0.07).sin() * 0.08, 0., 0.))
+                    * Mat4::from_rotation_z(tick as f32 * 0.001);
+            }
+            for item in scene
+                .items
+                .iter_mut()
+                .filter(|item| item.material.shader.is_some())
+            {
+                item.material.shader = Some(graph(0.01 + (tick % 7) as f32 * 0.003));
+            }
+        }
+        match tick {
+            8 => {
+                let mut item = scene.items[0].clone();
+                item.motion_id = 900_001;
+                item.model *= Mat4::from_translation(Vec3::new(0.1, 0.1, 0.1));
+                scene.items.insert(0, item);
+            }
+            16 => {
+                scene.items.remove(0);
+            }
+            24 => {
+                scene.lights[20].position[0] += 0.4;
+            }
+            32 => {
+                scene.items[36].model = Mat4::from_translation(Vec3::new(100., 100., -6.));
+            }
+            40 => {
+                scene.items[36].model = hidden_model;
+            }
+            48 => {
+                scene.items.remove(70);
+            }
+            56 => {
+                let mut item = scene.items[0].clone();
+                item.motion_id = 900_056;
+                item.model = hidden_model * Mat4::from_translation(Vec3::new(0.1, 0.1, 0.));
+                scene.items.insert(0, item);
+            }
+            64 => {
+                scene.view_projection = original_camera * Mat4::from_rotation_y(0.015);
+            }
+            71 => {
+                scene.view_projection = original_camera;
+            }
+            _ => {}
+        }
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        native |= stats.native_instance_arena;
+        assert!(stats.local_light_candidates > 0);
+        assert!(
+            stats.local_light_candidates < stats.local_light_slots,
+            "fixture must vary object light masks"
+        );
+        if tick == 1 {
+            assert_eq!(stats.instance_uniform_bytes, 0);
+            assert_eq!(stats.graph_parameter_bytes, 0);
+        }
+    }
+    println!(
+        "native_lit_arena_proof native={native} 300_objects 32_local_lights stock_PBR_graph nonzero_group_ranges 72_frames exact_pixels=true"
+    );
+    Ok(())
+}

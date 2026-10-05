@@ -828,6 +828,12 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
             let capture = bozzard_render::capture_offscreen(&gpu, size[0], size[1], |target| {
                 renderer.draw(&gpu, target, size, input.scene())
             })?;
+            if let Some(path) = &output {
+                capture.write_ppm(&path.join(format!(
+                    "{}-heading{heading:.0}-{mode}.ppm",
+                    workload.name()
+                )))?;
+            }
             ensure!(
                 capture
                     .rgba
@@ -842,12 +848,6 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
                 );
             } else {
                 reference = Some(capture.rgba.clone());
-            }
-            if let Some(path) = &output {
-                capture.write_ppm(&path.join(format!(
-                    "{}-heading{heading:.0}-{mode}.ppm",
-                    workload.name()
-                )))?;
             }
         }
         ensure!(state(&editor)? == checkpoint, "capture changed gameplay");

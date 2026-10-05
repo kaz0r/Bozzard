@@ -63,19 +63,38 @@ def profile(binary, destination, kind):
     return reports
 
 
-def compare_captures(before, after):
+def compare_captures(before, after, max_channel_delta=0, max_differing_pixels=0):
     captures = []
     before_files = {path.name: path for path in before.glob("*.ppm")}
     after_files = {path.name: path for path in after.glob("*.ppm")}
     if before_files.keys() != after_files.keys() or len(before_files) != 24:
         raise RuntimeError("Expected the same 24 captures from each executable")
     for name, path in sorted(before_files.items()):
-        equal = path.read_bytes() == after_files[name].read_bytes()
+        original, candidate = path.read_bytes(), after_files[name].read_bytes()
+        equal = original == candidate
+        differing_pixels, channel_delta = 0, 0
+        if not equal:
+            original_parts, candidate_parts = original.split(b"\n", 3), candidate.split(b"\n", 3)
+            original_header, candidate_header = original_parts[:3], candidate_parts[:3]
+            if len(original_parts) != 4 or len(candidate_parts) != 4 or original_header != candidate_header or original_header[0] != b"P6" or original_header[2] != b"255":
+                raise RuntimeError(f"Capture format or dimensions differ: {name}")
+            original_pixels, candidate_pixels = original_parts[3], candidate_parts[3]
+            width, height = map(int, original_header[1].split())
+            if len(original_pixels) != width * height * 3 or len(candidate_pixels) != len(original_pixels):
+                raise RuntimeError(f"Invalid capture payload: {name}")
+            for offset in range(0, len(original_pixels), 3):
+                delta = max(abs(original_pixels[offset + i] - candidate_pixels[offset + i]) for i in range(3))
+                differing_pixels += delta != 0
+                channel_delta = max(channel_delta, delta)
+        accepted = channel_delta <= max_channel_delta and differing_pixels <= max_differing_pixels
         captures.append({"file": name, "exact_rgb": equal,
+                         "differing_rgb_pixels": differing_pixels,
+                         "max_channel_delta_8bit": channel_delta,
+                         "within_recorded_tolerance": accepted,
                          "baseline_sha256": sha256(path),
                          "optimized_sha256": sha256(after_files[name])})
-    if not all(capture["exact_rgb"] for capture in captures):
-        raise RuntimeError(f"Cross-version captures differ in {before} and {after}")
+    if not all(capture["within_recorded_tolerance"] for capture in captures):
+        raise RuntimeError(f"Cross-version captures exceed the recorded tolerance in {before} and {after}")
     return captures
 
 
@@ -134,9 +153,13 @@ def main():
                         default=Path("work/batch-rendering-optimizations/comparison"))
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--profile", choices=("graph", "full", "both"), default="both")
+    parser.add_argument("--max-channel-delta", type=int, default=0)
+    parser.add_argument("--max-differing-pixels", type=int, default=0)
     arguments = parser.parse_args()
     if arguments.runs < 1:
         parser.error("--runs must be positive")
+    if not 0 <= arguments.max_channel_delta <= 255 or arguments.max_differing_pixels < 0:
+        parser.error("Capture tolerance requires a channel delta in 0..255 and nonnegative pixel count")
     kinds = tuple(PROFILES) if arguments.profile == "both" else (arguments.profile,)
     binaries = {"baseline": arguments.baseline, "optimized": arguments.optimized}
     pairs = []
@@ -152,7 +175,7 @@ def main():
             before = arguments.output / f"run-{run + 1}" / kind / "baseline"
             after = arguments.output / f"run-{run + 1}" / kind / "optimized"
             captures.append({"run": run + 1, "profile": kind,
-                             "captures": compare_captures(before, after)})
+                             "captures": compare_captures(before, after, arguments.max_channel_delta, arguments.max_differing_pixels)})
         pairs.append(pair)
         # Preserve completed measurements even if a later process fails.
         summary = {
@@ -161,6 +184,10 @@ def main():
             "binary_sha256": {version: sha256(path) for version, path in binaries.items()},
             "completed_process_pairs": len(pairs),
             "alternating_executable_order": True,
+            "cross_version_rgb_tolerance": {
+                "max_channel_delta_8bit": arguments.max_channel_delta,
+                "max_differing_pixels_per_capture": arguments.max_differing_pixels,
+            },
             "comparisons": {kind: aggregate(pairs, kind) for kind in kinds},
             "cross_version_captures": captures,
             "reports": pairs,

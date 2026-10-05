@@ -32,6 +32,18 @@ impl DrawState {
         if cache && self.pipeline.as_ref() == Some(value) {
             return false;
         }
+        if self.pipeline.as_ref() != Some(value) {
+            // Sparse layouts can move later backend registers when an earlier
+            // group disappears (for example PBR→stock). Explicitly clear each
+            // occupied slot so WebGPU's redundant-value filter cannot swallow
+            // the later assignment of the same bind group in the new pipeline.
+            for (slot, group) in self.groups.iter_mut().enumerate() {
+                if group.take().is_some() {
+                    pass.set_bind_group(slot as u32, None::<&wgpu::BindGroup>, &[]);
+                    self.counts.groups += 1;
+                }
+            }
+        }
         pass.set_pipeline(value);
         self.pipeline = Some(value.clone());
         self.counts.pipelines += 1;
