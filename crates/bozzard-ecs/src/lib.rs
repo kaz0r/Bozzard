@@ -22,7 +22,7 @@
 //! started on. A bookmark of `0` sees everything ever written.
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -81,6 +81,7 @@ trait ErasedStorage: Any + Send + Sync {
 struct Entry<T> {
     value: T,
     changed: u64,
+    revision: u64,
 }
 
 /// Mutable access that records a write, so readers can ask what changed since they last looked.
@@ -126,10 +127,24 @@ impl<T: Component> DerefMut for Mut<'_, T> {
     }
 }
 
+/// A conservative value/access revision and an exact component membership revision.
+/// Unlike ticks, mutable access (including bypassed writes) advances values. Interior
+/// mutation through a shared reference is outside this contract and needs its own key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ComponentRevision {
+    world: u64,
+    pub values: u64,
+    pub membership: u64,
+}
+
 struct Storage<T> {
     sparse: Vec<Option<usize>>,
     entities: Vec<Entity>,
     entries: Vec<Entry<T>>,
+    revision: u64,
+    membership: u64,
+    journal_floor: u64,
+    journal: VecDeque<(u64, Entity)>,
 }
 
 impl<T> Default for Storage<T> {
@@ -138,24 +153,56 @@ impl<T> Default for Storage<T> {
             sparse: Vec::new(),
             entities: Vec::new(),
             entries: Vec::new(),
+            revision: 0,
+            membership: 0,
+            journal_floor: 0,
+            journal: VecDeque::new(),
         }
     }
 }
 
 impl<T: Component> Storage<T> {
+    fn revise(&mut self, entity: Entity) -> u64 {
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .expect("component revision exhausted");
+        self.journal.push_back((self.revision, entity));
+        if self.journal.len() > 4096 {
+            self.journal_floor = self.journal.pop_front().unwrap().0;
+        }
+        self.revision
+    }
+    fn revise_all(&mut self) {
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .expect("component revision exhausted");
+        self.journal.clear();
+        self.journal_floor = self.revision;
+        for entry in &mut self.entries {
+            entry.revision = self.revision;
+        }
+    }
     fn position(&self, entity: Entity) -> Option<usize> {
         let index = self.sparse.get(entity.index as usize).copied().flatten()?;
         (self.entities[index] == entity).then_some(index)
     }
 
     fn insert(&mut self, entity: Entity, value: T, tick: u64) -> Option<T> {
+        let revision = self.revise(entity);
         let entry = Entry {
             value,
             changed: tick,
+            revision,
         };
         if let Some(index) = self.position(entity) {
             return Some(std::mem::replace(&mut self.entries[index], entry).value);
         }
+        self.membership = self
+            .membership
+            .checked_add(1)
+            .expect("component membership exhausted");
         self.sparse
             .resize(self.sparse.len().max(entity.index as usize + 1), None);
         self.sparse[entity.index as usize] = Some(self.entries.len());
@@ -166,6 +213,11 @@ impl<T: Component> Storage<T> {
 
     fn remove(&mut self, entity: Entity) -> Option<T> {
         let index = self.position(entity)?;
+        self.revise(entity);
+        self.membership = self
+            .membership
+            .checked_add(1)
+            .expect("component membership exhausted");
         self.sparse[entity.index as usize] = None;
         self.entities.swap_remove(index);
         let value = self.entries.swap_remove(index).value;
@@ -182,6 +234,7 @@ impl<T: Component> Storage<T> {
 
     fn entry_mut(&mut self, entity: Entity, tick: u64) -> Option<Mut<'_, T>> {
         let index = self.position(entity)?;
+        self.entries[index].revision = self.revise(entity);
         Some(Mut {
             entry: &mut self.entries[index],
             tick,
@@ -190,6 +243,7 @@ impl<T: Component> Storage<T> {
 
     /// Entities with their values and change ticks, split so both can be borrowed at once.
     fn split(&mut self) -> (&[Entity], &mut [Entry<T>]) {
+        self.revise_all();
         (&self.entities, &mut self.entries)
     }
 }
@@ -232,6 +286,8 @@ pub struct World {
     components: HashMap<TypeId, Box<dyn ErasedStorage>>,
     resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     change_tick: u64,
+    mutation_revision: u64,
+    component_mutation_revision: u64,
 }
 
 impl Default for World {
@@ -248,6 +304,8 @@ impl Default for World {
             resources: HashMap::new(),
             // Ticks start at 1 so that a bookmark of 0 means "everything ever written".
             change_tick: 1,
+            mutation_revision: 0,
+            component_mutation_revision: 0,
         }
     }
 }
@@ -293,6 +351,7 @@ impl World {
     }
 
     pub fn spawn(&mut self) -> Entity {
+        self.revise_components();
         let index = match self.free.pop() {
             Some(index) => index,
             None => {
@@ -324,6 +383,7 @@ impl World {
 
     pub fn despawn(&mut self, entity: Entity) -> Result<(), InvalidEntity> {
         self.validate(entity)?;
+        self.revise_components();
         for storage in self.components.values_mut() {
             storage.remove_entity(entity);
         }
@@ -344,6 +404,7 @@ impl World {
         value: T,
     ) -> Result<Option<T>, InvalidEntity> {
         self.validate(entity)?;
+        self.revise_components();
         let tick = self.change_tick;
         let storage = self
             .components
@@ -362,6 +423,7 @@ impl World {
 
     /// Mutable access. The returned [guard](Mut) records a write when it is dereferenced mutably.
     pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<Mut<'_, T>> {
+        self.revise_components();
         let tick = self.change_tick;
         self.storage_mut::<T>()?.entry_mut(entity, tick)
     }
@@ -395,6 +457,7 @@ impl World {
 
     pub fn remove<T: Component>(&mut self, entity: Entity) -> Result<Option<T>, InvalidEntity> {
         self.validate(entity)?;
+        self.revise_components();
         Ok(self
             .storage_mut::<T>()
             .and_then(|storage| storage.remove(entity)))
@@ -409,6 +472,7 @@ impl World {
 
     /// Mutable query. Each returned [guard](Mut) records a write when dereferenced mutably.
     pub fn query_mut<T: Component>(&mut self) -> impl Iterator<Item = (Entity, Mut<'_, T>)> {
+        self.revise_components();
         let tick = self.change_tick;
         let (entities, entries): (&[Entity], &mut [Entry<T>]) = match self.storage_mut::<T>() {
             Some(storage) => storage.split(),
@@ -426,6 +490,7 @@ impl World {
     pub fn query_pair_mut<A: Component, B: Component>(
         &mut self,
     ) -> Result<impl Iterator<Item = (Entity, Mut<'_, A>, &B)>, AliasedQuery> {
+        self.revise_components();
         let tick = self.change_tick;
         let (a, b) = (TypeId::of::<A>(), TypeId::of::<B>());
         if a == b {
@@ -460,11 +525,13 @@ impl World {
     }
 
     pub fn insert_resource<T: Component>(&mut self, value: T) -> Option<T> {
+        self.revise();
         self.resources
             .insert(TypeId::of::<T>(), Box::new(value))
             .map(|old| *old.downcast::<T>().expect("resource type"))
     }
     pub fn remove_resource<T: Component>(&mut self) -> Option<T> {
+        self.revise();
         self.resources
             .remove(&TypeId::of::<T>())
             .map(|value| *value.downcast::<T>().expect("resource type"))
@@ -473,7 +540,73 @@ impl World {
         self.resources.get(&TypeId::of::<T>())?.downcast_ref()
     }
     pub fn resource_mut<T: Component>(&mut self) -> Option<&mut T> {
+        self.revise();
         self.resources.get_mut(&TypeId::of::<T>())?.downcast_mut()
+    }
+
+    fn revise_components(&mut self) {
+        self.component_mutation_revision = self
+            .component_mutation_revision
+            .checked_add(1)
+            .expect("component world revision exhausted");
+        self.revise();
+    }
+    /// All owned component/structural mutation, excluding singleton resources.
+    pub fn component_mutation_revision(&self) -> (u64, u64) {
+        (self.id, self.component_mutation_revision)
+    }
+    fn revise(&mut self) {
+        self.mutation_revision = self
+            .mutation_revision
+            .checked_add(1)
+            .expect("world revision exhausted");
+    }
+    /// Identifies this world and all owned mutation/access, independent of simulation ticks.
+    pub fn mutation_revision(&self) -> (u64, u64) {
+        (self.id, self.mutation_revision)
+    }
+    /// Conservative owned-value and exact membership revisions for one component type.
+    pub fn component_revision<T: Component>(&self) -> ComponentRevision {
+        let storage = self.storage::<T>();
+        ComponentRevision {
+            world: self.id,
+            values: storage.map_or(0, |s| s.revision),
+            membership: storage.map_or(0, |s| s.membership),
+        }
+    }
+    /// Conservative owned value/access identity for one entity's component.
+    pub fn component_value_revision<T: Component>(&self, entity: Entity) -> Option<(u64, u64)> {
+        let storage = self.storage::<T>()?;
+        Some((self.id, storage.entries[storage.position(entity)?].revision))
+    }
+    /// Exact membership identity, suitable for caching query entity lists.
+    pub fn membership_revision<T: Component>(&self) -> (u64, u64) {
+        (self.id, self.component_revision::<T>().membership)
+    }
+    /// Sparse mutable accesses since a bookmark. None requests a complete scan after
+    /// membership changes, mutable queries, or journal eviction. Duplicate handles
+    /// are intentional; callers may deduplicate without losing any writes.
+    pub fn component_changes_since<T: Component>(
+        &self,
+        previous: ComponentRevision,
+    ) -> Option<impl Iterator<Item = Entity> + '_> {
+        let current = self.component_revision::<T>();
+        if previous.world != current.world
+            || previous.membership != current.membership
+            || previous.values > current.values
+        {
+            return None;
+        }
+        let storage = self.storage::<T>();
+        if storage.is_some_and(|s| previous.values < s.journal_floor) {
+            return None;
+        }
+        Some(storage.into_iter().flat_map(move |s| {
+            s.journal
+                .iter()
+                .filter(move |(revision, _)| *revision > previous.values)
+                .map(|(_, entity)| *entity)
+        }))
     }
 
     fn validate(&self, entity: Entity) -> Result<(), InvalidEntity> {
@@ -735,5 +868,121 @@ mod tests {
         assert!(live.is_changed_since::<Owned>(mapping[&first], bookmark));
         assert!(!live.is_changed_since::<String>(existing, bookmark));
         assert_eq!(live.get::<f32>(mapping[&second]), Some(&3.5));
+    }
+    #[test]
+    fn conservative_revisions_cover_same_tick_bypass_membership_queries_and_worlds() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.insert(e, 1_i32).unwrap();
+        let tick = world.changed_tick::<i32>(e);
+        let initial = world.component_revision::<i32>();
+        *world.get_mut::<i32>(e).unwrap().bypass_change_detection() = 2;
+        assert_eq!(world.changed_tick::<i32>(e), tick);
+        assert_eq!(
+            world
+                .component_changes_since::<i32>(initial)
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![e]
+        );
+        let second = world.component_revision::<i32>();
+        *world.get_mut::<i32>(e).unwrap() = 3;
+        assert_eq!(world.change_tick(), 1);
+        assert_ne!(world.component_revision::<i32>(), second);
+        let replacement = world.component_revision::<i32>();
+        world.remove::<i32>(e).unwrap();
+        world.insert(e, 4_i32).unwrap();
+        assert!(world.component_changes_since::<i32>(replacement).is_none());
+        let query = world.component_revision::<i32>();
+        world
+            .query_mut::<i32>()
+            .next()
+            .unwrap()
+            .1
+            .bypass_change_detection()
+            .clone_from(&5);
+        assert!(world.component_changes_since::<i32>(query).is_none());
+        let before_resource = world.mutation_revision();
+        world.insert_resource(7_u8);
+        assert_ne!(world.mutation_revision(), before_resource);
+        assert!(
+            World::new()
+                .component_changes_since::<i32>(initial)
+                .is_none()
+        );
+        let bookmark = world.component_revision::<i32>();
+        for _ in 0..4097 {
+            let _access = world.get_mut::<i32>(e).unwrap();
+        }
+        assert!(world.component_changes_since::<i32>(bookmark).is_none());
+        let bookmark = world.component_revision::<i32>();
+        world.despawn(e).unwrap();
+        assert!(world.component_changes_since::<i32>(bookmark).is_none());
+    }
+
+    #[test]
+    fn revision_journal_matches_full_snapshot_for_commands_joins_and_imported_entities() {
+        fn refresh(
+            world: &World,
+            bookmark: &mut ComponentRevision,
+            snapshot: &mut HashMap<Entity, i32>,
+        ) {
+            if let Some(changes) = world.component_changes_since::<i32>(*bookmark) {
+                for entity in changes {
+                    snapshot.insert(entity, *world.get::<i32>(entity).unwrap());
+                }
+            } else {
+                *snapshot = world.query::<i32>().map(|(e, value)| (e, *value)).collect();
+            }
+            assert_eq!(
+                *snapshot,
+                world.query::<i32>().map(|(e, value)| (e, *value)).collect()
+            );
+            *bookmark = world.component_revision::<i32>();
+        }
+        let mut world = World::new();
+        let mut bookmark = world.component_revision::<i32>();
+        let mut snapshot = HashMap::new();
+        let mut entities = Vec::new();
+        for i in 0..64 {
+            let entity = world.spawn();
+            world.insert(entity, i).unwrap();
+            world.insert(entity, true).unwrap();
+            entities.push(entity);
+        }
+        refresh(&world, &mut bookmark, &mut snapshot);
+        for pass in 0..8 {
+            for (i, &entity) in entities.iter().enumerate() {
+                *world
+                    .get_mut::<i32>(entity)
+                    .unwrap()
+                    .bypass_change_detection() = pass * 64 + i as i32;
+            }
+            refresh(&world, &mut bookmark, &mut snapshot);
+            for (_, mut value, _) in world.query_pair_mut::<i32, bool>().unwrap() {
+                *value.bypass_change_detection() += 1;
+            }
+            refresh(&world, &mut bookmark, &mut snapshot);
+            let entity = entities[pass as usize];
+            let mut commands = Commands::default();
+            commands.queue(move |world| {
+                world.remove::<i32>(entity).unwrap();
+                world.insert(entity, -pass).unwrap();
+            });
+            commands.apply(&mut world);
+            refresh(&world, &mut bookmark, &mut snapshot);
+        }
+        let mut imported = World::new();
+        let entity = imported.spawn();
+        imported.insert(entity, 999_i32).unwrap();
+        world.append_entities(imported);
+        refresh(&world, &mut bookmark, &mut snapshot);
+        for entity in entities.iter().step_by(2) {
+            world.despawn(*entity).unwrap();
+        }
+        refresh(&world, &mut bookmark, &mut snapshot);
+        let mut future = bookmark;
+        future.values += 1;
+        assert!(world.component_changes_since::<i32>(future).is_none());
     }
 }

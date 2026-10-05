@@ -1,4 +1,25 @@
 use super::*;
+pub(super) mod policy;
+pub(super) use policy::{DEPTH_BUDGET_BYTES, depth_bytes};
+use policy::{depth_admitted, metadata_admitted, next_idle_age};
+
+// Depth32Float has four logical payload bytes per texel. The sun and the two
+// independent local banks bound extra static sources separately; required
+// working shadow maps and driver/in-flight allocation overhead are not caches.
+fn key_owned_bytes(draw: &PreparedDraw) -> Option<usize> {
+    let mesh = match &draw.object.mesh {
+        MeshKind::Imported(id) | MeshKind::ModelPart(id, _) => id.len(),
+        // Owned text also clones font coordinate storage. Its full-shadow path
+        // remains available without retaining that extra descriptor in a key.
+        MeshKind::Text(_) => return None,
+        _ => 0,
+    };
+    let texture = match &draw.object.material.texture {
+        TextureKind::Imported(id) | TextureKind::ModelPart(id, _) => id.len(),
+        _ => 0,
+    };
+    mesh.checked_add(texture)
+}
 
 pub(super) struct Plan {
     pub static_mask: Vec<bool>,
@@ -8,6 +29,7 @@ pub(super) struct Plan {
 #[derive(Default)]
 pub(super) struct Cache {
     entry: Option<Entry>,
+    idle_age: u32,
 }
 struct Entry {
     depth: wgpu::TextureView,
@@ -21,42 +43,111 @@ struct Entry {
 impl Cache {
     pub fn clear(&mut self) {
         self.entry = None;
+        self.idle_age = 0;
     }
+    /// Release source handles and keys after 60 unused updates; intermittent
+    /// movers retain their static source during the bounded idle interval.
+    pub fn age_unused(&mut self) {
+        if self.entry.is_some() {
+            if let Some(age) = next_idle_age(self.idle_age) {
+                self.idle_age = age;
+            } else {
+                self.clear();
+            }
+        }
+    }
+    pub fn bytes(&self) -> u64 {
+        self.entry
+            .as_ref()
+            .and_then(|entry| depth_bytes(entry.resolution))
+            .unwrap_or(0)
+    }
+    // The cache key receives independent depth inputs and geometry cost estimates.
+    #[allow(clippy::too_many_arguments)]
     pub fn prepare(
         &mut self,
-        gpu: &Gpu,
+        device: &wgpu::Device,
         draws: &[PreparedDraw],
         batches: &[instancing::Batch],
         static_mask: Vec<bool>,
         row: &[u8],
         resolution: u32,
+        geometry_work: (u64, u64),
+    ) -> Option<Plan> {
+        self.prepare_with_budget(
+            device,
+            draws,
+            batches,
+            static_mask,
+            row,
+            resolution,
+            geometry_work,
+            DEPTH_BUDGET_BYTES,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn prepare_with_budget(
+        &mut self,
+        device: &wgpu::Device,
+        draws: &[PreparedDraw],
+        batches: &[instancing::Batch],
+        static_mask: Vec<bool>,
+        row: &[u8],
+        resolution: u32,
+        geometry_work: (u64, u64),
+        budget: u64,
     ) -> Option<Plan> {
         let count = static_mask.iter().filter(|v| **v).count();
+        let owned_bytes = draws
+            .iter()
+            .zip(&static_mask)
+            .filter(|(_, stable)| **stable)
+            .try_fold(row.len(), |bytes, (draw, _)| {
+                bytes.checked_add(key_owned_bytes(draw)?)
+            });
+        if !depth_admitted(
+            resolution,
+            device.limits().max_texture_dimension_2d,
+            budget.min(DEPTH_BUDGET_BYTES),
+        ) || !owned_bytes.is_some_and(|bytes| {
+            metadata_admitted(count, std::mem::size_of::<shadows::ShadowCaster>(), bytes)
+        }) {
+            self.clear();
+            return None;
+        }
         let dynamic_count = draws
             .iter()
             .enumerate()
             .filter(|(i, d)| !d.transparent && d.object.material.lit && !static_mask[*i])
             .count();
-        // A full-depth copy can cost more than a small instanced scene. Require
-        // substantial geometry and at least 32 static groups before allocating.
+        // Compare command work and geometry work separately: stronger batching
+        // can leave a few expensive meshes that are still worth caching.
         let groups = batches
             .iter()
             .filter(|b| b.indices.iter().any(|i| static_mask[*i]))
             .count();
-        if resolution == 1
-            || count < 64
-            || count <= dynamic_count
-            || dynamic_count == 0
-            || groups < 32
-        {
+        let (static_triangles, dynamic_triangles) = geometry_work;
+        if !profitable(
+            count,
+            dynamic_count,
+            groups,
+            static_triangles,
+            dynamic_triangles,
+            resolution,
+        ) {
+            self.clear();
             return None;
         }
+        self.idle_age = 0;
         if self
             .entry
             .as_ref()
             .is_none_or(|e| e.resolution != resolution)
         {
-            self.entry = Some(Entry::new(gpu, resolution));
+            // Release our old view/binding/pipeline before allocating a resized
+            // source. Submitted GPU commands keep their own resource handles.
+            self.clear();
+            self.entry = Some(Entry::new(device, resolution));
         }
         let entry = self.entry.as_mut().unwrap();
         let matches = entry.valid
@@ -98,37 +189,58 @@ impl Cache {
     }
     pub fn finish(&mut self, plan: &Plan, draws: &[PreparedDraw], row: &[u8]) {
         if plan.rebuild {
-            let entry = self.entry.as_mut().unwrap();
-            entry.row = row.to_vec();
-            entry.casters = draws
+            let casters = draws
                 .iter()
                 .zip(&plan.static_mask)
                 .filter(|(_, s)| **s)
                 .map(|(d, _)| shadows::ShadowCaster::new(d))
                 .collect();
-            entry.valid = true;
+            self.finish_retained(row, casters);
         }
     }
+    pub fn finish_retained(&mut self, row: &[u8], mut casters: Vec<shadows::ShadowCaster>) {
+        let entry = self.entry.as_mut().unwrap();
+        casters.shrink_to_fit();
+        entry.row.clear();
+        entry.row.extend_from_slice(row);
+        entry.row.shrink_to_fit();
+        entry.casters = casters;
+        entry.valid = true;
+    }
+}
+
+fn profitable(
+    static_count: usize,
+    dynamic_count: usize,
+    groups: usize,
+    static_triangles: u64,
+    dynamic_triangles: u64,
+    resolution: u32,
+) -> bool {
+    resolution > 1
+        && static_count > 0
+        && dynamic_count > 0
+        && ((static_count >= 64 && static_count > dynamic_count && groups >= 32)
+            || (static_triangles >= (u64::from(resolution).pow(2) / 32).max(10_000)
+                && static_triangles > dynamic_triangles.saturating_mul(2)))
 }
 impl Entry {
-    fn new(gpu: &Gpu, resolution: u32) -> Self {
-        let depth = shadows::target(gpu, resolution);
-        let layout = gpu
-            .device
-            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("sun cached depth source"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                }],
-            });
-        let binding = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+    fn new(device: &wgpu::Device, resolution: u32) -> Self {
+        let depth = shadows::target_device(device, resolution);
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("sun cached depth source"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Depth,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            }],
+        });
+        let binding = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sun cached depth source"),
             layout: &layout,
             entries: &[wgpu::BindGroupEntry {
@@ -136,48 +248,42 @@ impl Entry {
                 resource: wgpu::BindingResource::TextureView(&depth),
             }],
         });
-        let shader = gpu
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("sun cached depth copy"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shadow_copy.wgsl").into()),
-            });
-        let pipeline_layout = gpu
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("sun cached depth copy"),
-                bind_group_layouts: &[Some(&layout)],
-                immediate_size: 0,
-            });
-        let pipeline = gpu
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("sun cached depth copy"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    compilation_options: Default::default(),
-                    targets: &[],
-                }),
-                primitive: Default::default(),
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: Some(true),
-                    depth_compare: Some(wgpu::CompareFunction::Always),
-                    stencil: Default::default(),
-                    bias: Default::default(),
-                }),
-                multisample: Default::default(),
-                multiview_mask: None,
-                cache: None,
-            });
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("sun cached depth copy"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shadow_copy.wgsl").into()),
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("sun cached depth copy"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("sun cached depth copy"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[],
+            }),
+            primitive: Default::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Always),
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview_mask: None,
+            cache: None,
+        });
         Self {
             depth,
             binding,
@@ -192,6 +298,14 @@ impl Entry {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cache_policy_keeps_expensive_compact_groups_and_bypasses_small_scenes() {
+        assert!(super::profitable(1, 1, 1, 100_000, 12, 1024));
+        assert!(!super::profitable(1, 1, 1, 12, 12, 1024));
+        assert!(!super::profitable(100, 0, 32, 100_000, 0, 1024));
+        assert!(super::profitable(249, 8, 32, 3000, 96, 256));
+        assert!(!super::profitable(1, 1, 1, 100_000, 12, 4096));
+    }
     #[test]
     fn depth_copy_shader_validates() {
         let source = include_str!("shadow_copy.wgsl");

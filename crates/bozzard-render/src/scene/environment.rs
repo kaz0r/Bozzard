@@ -59,6 +59,7 @@ pub(super) struct Environment {
     bake: wgpu::RenderPipeline,
     integrate: wgpu::RenderPipeline,
     sky: [wgpu::RenderPipeline; 2],
+    sky_masks: BTreeMap<u8, wgpu::RenderPipeline>,
     ready: bool,
 }
 fn texture(gpu: &Gpu, size: u32, cube: bool, levels: u32) -> wgpu::Texture {
@@ -252,6 +253,7 @@ impl Environment {
                 pipeline(&sky_shader, "fs_main", true, false),
                 pipeline(&sky_shader, "fs_main", true, true),
             ],
+            sky_masks: BTreeMap::new(),
             ready: false,
         }
     }
@@ -351,12 +353,77 @@ impl Environment {
         &self,
         pass: &mut wgpu::RenderPass<'_>,
         settings: EnvironmentSettings,
-        auxiliary: bool,
+        mask: u8,
     ) {
         if settings.background && (settings.intensity > 0. || settings.star_intensity > 0.) {
-            pass.set_pipeline(&self.sky[usize::from(auxiliary)]);
+            let pipeline = if mask == 0 || mask == 7 {
+                &self.sky[usize::from(mask != 0)]
+            } else {
+                &self.sky_masks[&mask]
+            };
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(3, &self.binding, &[]);
             pass.draw(0..3, 0..1);
         }
+    }
+    pub fn prepare_mask(&mut self, gpu: &Gpu, mask: u8) {
+        if mask == 0 || mask == 7 || self.sky_masks.contains_key(&mask) {
+            return;
+        }
+        let module = gpu
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("sky consumed outputs"),
+                source: wgpu::ShaderSource::Wgsl(
+                    format!(
+                        "{}\n{}",
+                        include_str!("environment_sample.wgsl"),
+                        include_str!("environment_sky.wgsl")
+                    )
+                    .into(),
+                ),
+            });
+        let layout = gpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sky consumed outputs layout"),
+                bind_group_layouts: &[None, None, None, Some(&self.layout)],
+                immediate_size: 0,
+            });
+        let mut targets =
+            geometry::color_targets_mask(wgpu::TextureFormat::Rgba16Float, false, mask);
+        for target in targets.iter_mut().skip(1).flatten() {
+            target.write_mask = wgpu::ColorWrites::empty();
+        }
+        let pipeline = gpu
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("sky consumed outputs pipeline"),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &targets,
+                }),
+                primitive: Default::default(),
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: Some(false),
+                    depth_compare: Some(wgpu::CompareFunction::Always),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                multiview_mask: None,
+                cache: None,
+            });
+        self.sky_masks.insert(mask, pipeline);
     }
 }

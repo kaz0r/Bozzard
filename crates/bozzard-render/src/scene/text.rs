@@ -4,6 +4,8 @@ use epaint::{
     text::{Fonts, LayoutJob, TextOptions},
 };
 use std::sync::Arc;
+mod world;
+pub(super) use world::Cache as WorldCache;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TextAlignment {
@@ -56,7 +58,7 @@ impl Default for TextMesh {
     }
 }
 type Key = (
-    String,
+    Arc<str>,
     u32,
     Option<u32>,
     bool,
@@ -65,6 +67,13 @@ type Key = (
     u32,
     bool,
 );
+pub(super) fn text(mesh: &MeshKind) -> Option<&TextMesh> {
+    match mesh {
+        MeshKind::Text(text) => Some(text),
+        MeshKind::SharedText(text) => Some(text),
+        _ => None,
+    }
+}
 impl TextMesh {
     fn raster_em(&self, hud_scale: f32) -> f32 {
         if self.screen.is_some() {
@@ -75,7 +84,7 @@ impl TextMesh {
     }
     fn key(&self, hud_scale: f32) -> Key {
         (
-            self.text.clone(),
+            Arc::from(self.text.as_str()),
             self.font_size.to_bits(),
             self.max_width.map(f32::to_bits),
             self.monospace,
@@ -195,6 +204,10 @@ pub(super) struct TextRenderer {
     fonts: Fonts,
     custom_fonts: Vec<bozzard_text::FontKey>,
     meshes: BTreeMap<Key, MeshBuffers>,
+    galleys: BTreeMap<Key, Arc<epaint::text::Galley>>,
+    retained_keys: BTreeMap<usize, (Arc<TextMesh>, Key)>,
+    pub layouts: usize,
+    pub atlas_upload_bytes: usize,
     texture: Option<wgpu::Texture>,
     pub view: Option<wgpu::TextureView>,
     size: [usize; 2],
@@ -206,6 +219,10 @@ impl TextRenderer {
             fonts: fonts(),
             custom_fonts: Vec::new(),
             meshes: BTreeMap::new(),
+            galleys: BTreeMap::new(),
+            retained_keys: BTreeMap::new(),
+            layouts: 0,
+            atlas_upload_bytes: 0,
             texture: None,
             view: None,
             size: [0; 2],
@@ -213,10 +230,30 @@ impl TextRenderer {
         }
     }
     pub fn mesh(&self, text: &TextMesh) -> Option<&MeshBuffers> {
-        self.meshes.get(&text.key(self.hud_scale))
+        if let Some((_, key)) = self.retained_keys.get(&(text as *const TextMesh as usize)) {
+            self.meshes.get(key)
+        } else {
+            self.meshes.get(&text.key(self.hud_scale))
+        }
     }
     fn prepare(&mut self, gpu: &Gpu, items: &[DrawItem], hud_scale: f32) -> Result<bool> {
+        self.layouts = 0;
+        self.atlas_upload_bytes = 0;
+        if self.hud_scale != hud_scale {
+            self.retained_keys.clear();
+        }
         self.hud_scale = hud_scale;
+        let mut active = BTreeSet::new();
+        for item in items {
+            if let MeshKind::SharedText(text) = &item.mesh {
+                let pointer = Arc::as_ptr(text) as usize;
+                active.insert(pointer);
+                self.retained_keys
+                    .entry(pointer)
+                    .or_insert_with(|| (text.clone(), text.key(hud_scale)));
+            }
+        }
+        self.retained_keys.retain(|key, _| active.contains(key));
         ensure!(
             gpu.device.limits().max_texture_dimension_2d >= 4096,
             "text requires a 4096-pixel font atlas limit"
@@ -224,7 +261,7 @@ impl TextRenderer {
         let custom: BTreeMap<_, _> = items
             .iter()
             .filter_map(|item| {
-                if let MeshKind::Text(text) = &item.mesh {
+                if let Some(text) = text(&item.mesh) {
                     text.custom_font.as_ref().map(|font| (font.key(), font))
                 } else {
                     None
@@ -238,20 +275,26 @@ impl TextRenderer {
             for font in custom.values() {
                 font.install(&mut definitions);
             }
+            self.galleys.clear();
             self.fonts = Fonts::new(options(), definitions);
             self.custom_fonts = ids;
         }
         self.fonts.begin_pass(options());
-        let mut galleys = BTreeMap::new();
+        let mut keys = BTreeSet::new();
         let mut bytes = 0;
         for item in items {
-            if let MeshKind::Text(text) = &item.mesh {
+            if let Some(text) = text(&item.mesh) {
                 text.validate()?;
                 bytes += text.text.len();
                 ensure!(bytes <= 65536, "text view exceeds 65536 UTF-8 bytes");
-                let key = text.key(hud_scale);
-                if let std::collections::btree_map::Entry::Vacant(entry) = galleys.entry(key) {
+                let key = self
+                    .retained_keys
+                    .get(&(text as *const TextMesh as usize))
+                    .map_or_else(|| text.key(hud_scale), |(_, key)| key.clone());
+                keys.insert(key.clone());
+                if let std::collections::btree_map::Entry::Vacant(entry) = self.galleys.entry(key) {
                     entry.insert(layout(&mut self.fonts, text, hud_scale)?);
+                    self.layouts += 1;
                 }
             }
         }
@@ -260,9 +303,10 @@ impl TextRenderer {
         if reset || resized {
             self.meshes.clear();
         }
-        self.meshes.retain(|key, _| galleys.contains_key(key));
-        for (key, galley) in galleys {
-            if galley.num_indices == 0 || self.meshes.contains_key(&key) {
+        self.meshes.retain(|key, _| keys.contains(key));
+        self.galleys.retain(|key, _| keys.contains(key));
+        for (key, galley) in &self.galleys {
+            if galley.num_indices == 0 || self.meshes.contains_key(key) {
                 continue;
             }
             let scale = f32::from_bits(key.1) / f32::from_bits(key.6);
@@ -306,7 +350,8 @@ impl TextRenderer {
                     ]);
                 }
             }
-            self.meshes.insert(key, mesh(gpu, &vertices, &indices));
+            self.meshes
+                .insert(key.clone(), mesh(gpu, &vertices, &indices));
         }
         if let Some(delta) = self.fonts.font_image_delta() {
             if resized {
@@ -335,6 +380,7 @@ impl TextRenderer {
                 .iter()
                 .flat_map(|p| [255, 255, 255, p.a()])
                 .collect();
+            self.atlas_upload_bytes += rgba.len();
             let pos = delta.pos.unwrap_or([0, 0]);
             gpu.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
@@ -365,11 +411,7 @@ impl TextRenderer {
 }
 impl SceneRenderer {
     pub(super) fn prepare_text(&mut self, gpu: &Gpu, scene: &RenderScene) -> Result<()> {
-        if scene
-            .items
-            .iter()
-            .any(|i| matches!(i.mesh, MeshKind::Text(_)))
-        {
+        if scene.items.iter().any(|i| text(&i.mesh).is_some()) {
             if self.text.get_or_insert_with(TextRenderer::new).prepare(
                 gpu,
                 &scene.items,

@@ -13,16 +13,33 @@ struct Entry {
     global: Mat4,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TransformExtractionStats {
+    pub source_reads: usize,
+    pub revision_reuses: usize,
+    pub topology_reads: usize,
+    pub topology_rebuilds: usize,
+}
 #[derive(Default)]
 struct CachedTransforms {
     revision: Option<u64>,
     ids: Vec<String>,
     entities: Vec<Entity>,
+    entity_indices: std::collections::HashMap<Entity, usize>,
     parents: Vec<Option<usize>>,
     matrices: Vec<Mat4>,
     live: Vec<Option<Entry>>,
     rendered: Vec<Option<Entry>>,
     snapped: Vec<bool>,
+    source_revision: Option<bozzard_ecs::ComponentRevision>,
+    last_static: bool,
+    children: Vec<Vec<usize>>,
+    ranks: Vec<usize>,
+    dirty: Vec<u64>,
+    dirty_epoch: u64,
+    worklist: Vec<usize>,
+    disabled: bool,
+    stats: TransformExtractionStats,
 }
 
 fn compact<T>(items: &mut Vec<T>, active: usize) {
@@ -57,6 +74,27 @@ impl Cache {
 }
 
 impl SceneInstance {
+    /// Select exact full transform/source scans for the retention reference oracle.
+    pub fn set_sparse_render_extraction_enabled(&self, enabled: bool) -> Result<()> {
+        let mut cached = self
+            .transform_cache
+            .0
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transform cache lock poisoned"))?;
+        cached.disabled = !enabled;
+        cached.source_revision = None;
+        drop(cached);
+        self.render_cache.lock()?.revision_tracking_disabled = !enabled;
+        Ok(())
+    }
+    pub fn render_transform_stats(&self) -> Result<TransformExtractionStats> {
+        Ok(self
+            .transform_cache
+            .0
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transform cache lock poisoned"))?
+            .stats)
+    }
     pub(super) fn validate_render_pose(
         &self,
         world: &World,
@@ -127,20 +165,30 @@ impl SceneInstance {
             .0
             .lock()
             .map_err(|_| anyhow::anyhow!("transform cache lock poisoned"))?;
-        // Internal document edits can precede an index rebuild. Compare the
-        // topology itself as well as its revision, without allocating per frame.
-        let topology_changed = cached.ids.len() != self.document.objects.len()
-            || self
-                .document
-                .objects
-                .iter()
-                .enumerate()
-                .any(|(index, object)| {
-                    cached.ids[index] != object.id
-                        || cached.parents[index].map(|parent| cached.ids[parent].as_str())
-                            != object.parent.as_deref()
-                });
+        cached.stats = Default::default();
+        // Live topology is private and every prefab/load mutation rebuilds its
+        // hierarchy revision. The full-scan oracle also checks exact topology;
+        // unit tests retain this fallback for deliberately unversioned edits.
+        let check_topology = cached.disabled || cfg!(test);
+        cached.stats.topology_reads = if check_topology {
+            self.document.objects.len()
+        } else {
+            0
+        };
+        let topology_changed = check_topology
+            && (cached.ids.len() != self.document.objects.len()
+                || self
+                    .document
+                    .objects
+                    .iter()
+                    .enumerate()
+                    .any(|(index, object)| {
+                        cached.ids[index] != object.id
+                            || cached.parents[index].map(|parent| cached.ids[parent].as_str())
+                                != object.parent.as_deref()
+                    }));
         if cached.revision != Some(self.hierarchy_revision) || topology_changed {
+            cached.stats.topology_rebuilds = 1;
             cached.ids = self
                 .document
                 .objects
@@ -152,6 +200,12 @@ impl SceneInstance {
                 .objects
                 .iter()
                 .map(|object| self.entities[&object.id])
+                .collect();
+            cached.entity_indices = cached
+                .entities
+                .iter()
+                .enumerate()
+                .map(|(index, &entity)| (entity, index))
                 .collect();
             let indices: std::collections::HashMap<_, _> = self
                 .document
@@ -168,6 +222,18 @@ impl SceneInstance {
                 .collect();
             cached.live.clear();
             cached.rendered.clear();
+            cached.source_revision = None;
+            cached.last_static = false;
+            cached.children = vec![Vec::new(); cached.parents.len()];
+            for index in 0..cached.parents.len() {
+                if let Some(parent) = cached.parents[index] {
+                    cached.children[parent].push(index);
+                }
+            }
+            cached.ranks.resize(self.order.len(), 0);
+            for (rank, &index) in self.order.iter().enumerate() {
+                cached.ranks[index] = rank;
+            }
             let active = self.document.objects.len();
             cached.matrices.resize(active, Mat4::IDENTITY);
             cached.snapped.resize(active, false);
@@ -177,6 +243,60 @@ impl SceneInstance {
             compact(&mut cached.matrices, active);
             cached.revision = Some(self.hierarchy_revision);
         }
+        let source_revision = world.component_revision::<Transform>();
+        if !cached.disabled
+            && history.is_none()
+            && cached.last_static
+            && cached.source_revision == Some(source_revision)
+        {
+            cached.stats.revision_reuses = cached.matrices.len();
+            return extract(&cached.matrices);
+        }
+        cached.worklist.clear();
+        let changes = cached
+            .source_revision
+            .filter(|_| !cached.disabled && history.is_none() && cached.last_static)
+            .and_then(|previous| world.component_changes_since::<Transform>(previous));
+        if let Some(changes) = changes {
+            let active = cached.entities.len();
+            cached.dirty.resize(active, 0);
+            cached.dirty_epoch = if let Some(next) = cached.dirty_epoch.checked_add(1) {
+                next
+            } else {
+                cached.dirty.fill(0);
+                1
+            };
+            let epoch = cached.dirty_epoch;
+            for entity in changes {
+                if let Some(&index) = cached.entity_indices.get(&entity)
+                    && cached.dirty[index] != epoch
+                {
+                    cached.dirty[index] = epoch;
+                    cached.worklist.push(index);
+                }
+            }
+            let mut cursor = 0;
+            while cursor < cached.worklist.len() {
+                let index = cached.worklist[cursor];
+                for child_index in 0..cached.children[index].len() {
+                    let child = cached.children[index][child_index];
+                    if cached.dirty[child] != epoch {
+                        cached.dirty[child] = epoch;
+                        cached.worklist.push(child);
+                    }
+                }
+                cursor += 1;
+            }
+            let CachedTransforms {
+                worklist, ranks, ..
+            } = &mut *cached;
+            worklist.sort_unstable_by_key(|index| ranks[*index]);
+        } else {
+            cached.worklist.extend_from_slice(&self.order);
+        }
+        cached.stats.source_reads = cached.worklist.len();
+        cached.stats.revision_reuses = cached.matrices.len().saturating_sub(cached.worklist.len());
+        cached.last_static = false;
         let CachedTransforms {
             entities,
             parents,
@@ -184,6 +304,7 @@ impl SceneInstance {
             live,
             rendered,
             snapped,
+            worklist,
             ..
         } = &mut *cached;
         let cache = if history.is_some() { rendered } else { live };
@@ -193,7 +314,7 @@ impl SceneInstance {
         }
         // Parents precede children. Comparing values rather than ECS ticks also handles
         // multiple writes within a tick, reparenting, and runtime prefab index reuse.
-        for &index in &self.order {
+        for &index in worklist.iter() {
             let object = &self.document.objects[index];
             let entity = entities[index];
             let local = world
@@ -268,6 +389,8 @@ impl SceneInstance {
             };
             matrices[index] = global;
         }
-        extract(matrices)
+        cached.source_revision = Some(source_revision);
+        cached.last_static = history.is_none();
+        extract(&cached.matrices)
     }
 }

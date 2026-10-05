@@ -1,4 +1,9 @@
 use super::*;
+mod compaction;
+mod spatial;
+
+// Independent spot/point banks retain at most 64 MiB of extra depth.
+use sun_cache::policy::{LOCAL_DEPTH_BUDGET_BYTES, retained_depth_bytes};
 
 struct Caster {
     uniform: wgpu::Buffer,
@@ -6,11 +11,28 @@ struct Caster {
     row: Vec<u8>,
 }
 pub(super) struct Changes {
-    pub updates: Vec<Option<Vec<shadows::ShadowCaster>>>,
+    pub updates: Vec<Option<CasterUpdate>>,
     pub caster_checks: usize,
     pub reused_maps: usize,
 }
+pub(super) struct CasterUpdate {
+    casters: Vec<shadows::ShadowCaster>,
+    // The same exact frustum results validate the cache and encode its replacement.
+    accepted: Vec<bool>,
+    stable: Vec<bool>,
+    static_keys: std::cell::RefCell<Option<Vec<shadows::ShadowCaster>>>,
+}
 pub(super) struct ShadowMaps {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    range_enabled: bool,
+    spatial_enabled: bool,
+    spatial_index: std::cell::RefCell<Option<spatial::CasterIndex>>,
+    range_layers: std::cell::RefCell<Vec<[compaction::Cache; 2]>>,
+    pub range_draws_saved: std::cell::Cell<usize>,
+    pub range_write_bytes: std::cell::Cell<usize>,
+    pub static_depth_copies: std::cell::Cell<usize>,
+    pub static_triangles_skipped: std::cell::Cell<u64>,
     pub uniform: wgpu::Buffer,
     pub depth: wgpu::TextureView,
     layers: Vec<wgpu::TextureView>,
@@ -18,6 +40,11 @@ pub(super) struct ShadowMaps {
     matrices: Vec<Mat4>,
     resolution: u32,
     retained: Vec<Option<Vec<shadows::ShadowCaster>>>,
+    receiver_bytes: Vec<u8>,
+    pub receiver_write_bytes: usize,
+    pub receiver_writes: usize,
+    static_layers: std::cell::RefCell<Vec<sun_cache::Cache>>,
+    static_depth_budget: u64,
 }
 fn target(gpu: &Gpu, count: usize, resolution: u32) -> (wgpu::TextureView, Vec<wgpu::TextureView>) {
     let resolution = if count == 0 { 1 } else { resolution };
@@ -90,6 +117,16 @@ impl ShadowMaps {
             .collect();
         let (depth, layers) = target(gpu, 0, resolution);
         Self {
+            device: gpu.device.clone(),
+            queue: gpu.queue.clone(),
+            range_enabled: true,
+            spatial_enabled: true,
+            spatial_index: Default::default(),
+            range_layers: Default::default(),
+            range_draws_saved: Default::default(),
+            range_write_bytes: Default::default(),
+            static_depth_copies: Default::default(),
+            static_triangles_skipped: Default::default(),
             uniform,
             depth,
             layers,
@@ -97,6 +134,11 @@ impl ShadowMaps {
             matrices: Vec::new(),
             resolution,
             retained: Vec::new(),
+            receiver_bytes: Vec::new(),
+            receiver_write_bytes: 0,
+            receiver_writes: 0,
+            static_layers: Default::default(),
+            static_depth_budget: LOCAL_DEPTH_BUDGET_BYTES,
         }
     }
     /// Map ordering is rebuilt each frame; every pass has its own buffer because
@@ -108,6 +150,9 @@ impl ShadowMaps {
         );
         let changed = maps.len() != self.layers.len();
         if changed {
+            if maps.is_empty() {
+                *self.spatial_index.borrow_mut() = None;
+            }
             ensure!(
                 self.resolution <= gpu.device.limits().max_texture_dimension_2d
                     && maps.len() as u32 <= gpu.device.limits().max_texture_array_layers,
@@ -115,8 +160,19 @@ impl ShadowMaps {
             );
             (self.depth, self.layers) = target(gpu, maps.len(), self.resolution);
             self.retained = vec![None; maps.len()];
+            *self.range_layers.borrow_mut() = (0..maps.len())
+                .map(|_| std::array::from_fn(|_| compaction::Cache::default()))
+                .collect();
+            *self.static_layers.borrow_mut() = (0..maps.len())
+                .map(|_| sun_cache::Cache::default())
+                .collect();
         }
-        let mut bytes = vec![0; self.casters.len() * 80];
+        self.receiver_write_bytes = 0;
+        self.receiver_writes = 0;
+        let old_len = self.receiver_bytes.len();
+        self.receiver_bytes.resize(self.casters.len() * 80, 0);
+        let mut dirty_start = None;
+        let mut dirty_end = 0;
         for (slot, (matrix, shadow)) in maps.iter().enumerate() {
             let row = float_bytes(matrix.to_cols_array().into_iter().chain([
                 shadow.bias,
@@ -124,19 +180,83 @@ impl ShadowMaps {
                 0.,
                 1. / self.resolution as f32,
             ]));
-            bytes[slot * 80..(slot + 1) * 80].copy_from_slice(&row);
+            let start = slot * 80;
+            let end = start + 80;
+            if start >= old_len || self.receiver_bytes[start..end] != row {
+                self.receiver_bytes[start..end].copy_from_slice(&row);
+                dirty_start.get_or_insert(start);
+                dirty_end = end;
+            } else if let Some(first) = dirty_start.take() {
+                gpu.queue.write_buffer(
+                    &self.uniform,
+                    first as u64,
+                    &self.receiver_bytes[first..start],
+                );
+                self.receiver_write_bytes += start - first;
+                self.receiver_writes += 1;
+            }
             if self.casters[slot].row != row {
                 self.retained[slot] = None;
                 gpu.queue.write_buffer(&self.casters[slot].uniform, 0, &row);
                 self.casters[slot].row = row;
             }
         }
-        gpu.queue.write_buffer(&self.uniform, 0, &bytes);
-        self.matrices = maps.iter().map(|(m, _)| *m).collect();
+        let tail = maps.len() * 80;
+        if let Some(last) = self.receiver_bytes[tail..].iter().rposition(|v| *v != 0) {
+            dirty_end = (tail + last + 1).div_ceil(80) * 80;
+            self.receiver_bytes[tail..].fill(0);
+            dirty_start.get_or_insert(tail);
+        }
+        if let Some(first) = dirty_start {
+            gpu.queue.write_buffer(
+                &self.uniform,
+                first as u64,
+                &self.receiver_bytes[first..dirty_end],
+            );
+            self.receiver_write_bytes += dirty_end - first;
+            self.receiver_writes += 1;
+        }
+        self.matrices.clear();
+        self.matrices.extend(maps.iter().map(|(m, _)| *m));
         Ok(changed)
+    }
+    pub fn reset_work_stats(&mut self) {
+        self.receiver_write_bytes = 0;
+        self.receiver_writes = 0;
+        self.range_draws_saved.set(0);
+        self.range_write_bytes.set(0);
+        self.static_depth_copies.set(0);
+        self.static_triangles_skipped.set(0);
+    }
+    pub fn set_spatial_enabled(&mut self, enabled: bool) {
+        self.spatial_enabled = enabled;
+    }
+    pub fn set_range_enabled(&mut self, enabled: bool) {
+        self.range_enabled = enabled;
+    }
+    /// Release only optional static sources, preserving current working maps.
+    pub fn release_static_depth(&self) {
+        for cache in &mut *self.static_layers.borrow_mut() {
+            cache.clear();
+        }
+    }
+    /// Age all static sources once when the complete working maps are reused.
+    pub fn age_unused_static_depth(&self) {
+        for cache in &mut *self.static_layers.borrow_mut() {
+            cache.age_unused();
+        }
     }
     pub fn invalidate(&mut self) {
         self.retained.fill(None);
+        *self.spatial_index.get_mut() = None;
+        for layers in self.range_layers.get_mut() {
+            for cache in layers {
+                cache.clear();
+            }
+        }
+        for cache in self.static_layers.get_mut() {
+            cache.clear();
+        }
     }
 
     /// Use the exact caster predicate used by the depth pass, independently for
@@ -147,8 +267,27 @@ impl ShadowMaps {
         draws: &[PreparedDraw],
         same_casters: bool,
     ) -> Changes {
+        if renderer.state_caching && same_casters && self.retained.iter().all(Option::is_some) {
+            return Changes {
+                updates: (0..self.matrices.len()).map(|_| None).collect(),
+                caster_checks: 0,
+                reused_maps: self.matrices.len(),
+            };
+        }
         let mut caster_checks = 0;
         let mut reused_maps = 0;
+        let mut retained_index = self.spatial_index.borrow_mut();
+        let use_index = self.spatial_enabled
+            && renderer.culling
+            && draws.len() >= 256
+            && !self.matrices.is_empty();
+        if use_index {
+            if let Some(index) = &mut *retained_index {
+                index.refresh(renderer, draws);
+            } else {
+                *retained_index = Some(spatial::CasterIndex::new(renderer, draws));
+            }
+        }
         let updates = self
             .matrices
             .iter()
@@ -160,21 +299,47 @@ impl ShadowMaps {
                     reused_maps += 1;
                     return None;
                 }
-                let casters: Vec<_> = draws
-                    .iter()
-                    .filter(|d| !d.transparent && d.object.material.lit)
+                let mut accepted = vec![false; draws.len()];
+                let candidates = if use_index {
+                    retained_index.as_ref().unwrap().query(*matrix)
+                } else {
+                    (0..draws.len()).collect()
+                };
+                let casters: Vec<_> = candidates
+                    .into_iter()
+                    .map(|i| (i, &draws[i]))
+                    .filter(|(_, d)| !d.transparent && d.object.material.lit)
                     .inspect(|_| caster_checks += 1)
-                    .filter(|d| {
-                        !renderer.culling
+                    .filter(|(index, d)| {
+                        let visible = !renderer.culling
                             || renderer.frustum_visible(
                                 renderer.mesh_for(&d.object).bounds,
                                 *matrix * d.object.model,
-                            )
+                            );
+                        accepted[*index] = visible;
+                        visible
                     })
-                    .map(shadows::ShadowCaster::new)
+                    .map(|(_, d)| shadows::ShadowCaster::new(d))
                     .collect();
+                let mut stable = vec![false; draws.len()];
+                if let Some(old) = self.retained[slot]
+                    .as_ref()
+                    .filter(|old| old.len() == casters.len())
+                {
+                    for (prior, (index, draw)) in old
+                        .iter()
+                        .zip(draws.iter().enumerate().filter(|(i, _)| accepted[*i]))
+                    {
+                        stable[index] = draw.deformation == 0 && prior.matches(draw);
+                    }
+                }
                 (!renderer.state_caching || self.retained[slot].as_ref() != Some(&casters))
-                    .then_some(casters)
+                    .then_some(CasterUpdate {
+                        casters,
+                        accepted,
+                        stable,
+                        static_keys: Default::default(),
+                    })
             })
             .collect();
         Changes {
@@ -183,17 +348,21 @@ impl ShadowMaps {
             reused_maps,
         }
     }
-    pub fn invalidate_changes(&mut self, changes: &[Option<Vec<shadows::ShadowCaster>>]) {
+    pub fn invalidate_changes(&mut self, changes: &[Option<CasterUpdate>]) {
         for (slot, change) in changes.iter().enumerate() {
             if change.is_some() {
                 self.retained[slot] = None;
             }
         }
     }
-    pub fn finish(&mut self, changes: Vec<Option<Vec<shadows::ShadowCaster>>>) {
+    pub fn finish(&mut self, changes: Vec<Option<CasterUpdate>>) {
         for (slot, change) in changes.into_iter().enumerate() {
-            if change.is_some() {
-                self.retained[slot] = change;
+            if let Some(change) = change {
+                if let Some(keys) = change.static_keys.into_inner() {
+                    self.static_layers.get_mut()[slot]
+                        .finish_retained(&self.casters[slot].row, keys);
+                }
+                self.retained[slot] = Some(change.casters);
             }
         }
     }
@@ -204,12 +373,120 @@ impl ShadowMaps {
         draws: &[PreparedDraw],
         batches: &[instancing::Batch],
         point: bool,
-        changes: &[Option<Vec<shadows::ShadowCaster>>],
+        changes: &[Option<CasterUpdate>],
     ) -> (usize, u64) {
         let mut counts = (0, 0);
-        for (slot, matrix) in self.matrices.iter().enumerate() {
-            if changes[slot].is_none() {
+        let mut caches = self.static_layers.borrow_mut();
+        let mut ranges = self.range_layers.borrow_mut();
+        let caching = renderer.state_caching && renderer.shadow_preparation_cache;
+        let mut cached_bytes = 0;
+        // Existing sources keep deterministic map priority. Unchanged faces
+        // have a bounded idle grace. Bypassed or over-budget sources release
+        // handles before admission; required working maps remain intact.
+        for (slot, cache) in caches.iter_mut().enumerate() {
+            if caching && changes[slot].is_none() {
+                cache.age_unused();
+            }
+            if let Some(total) = retained_depth_bytes(
+                cached_bytes,
+                cache.bytes(),
+                self.static_depth_budget,
+                caching,
+            ) {
+                cached_bytes = total;
+            } else {
+                cache.clear();
+            }
+        }
+        for (slot, _) in self.matrices.iter().enumerate() {
+            let Some(change) = &changes[slot] else {
                 continue;
+            };
+            let work = draws
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| change.accepted[*i])
+                .fold((0u64, 0u64), |(a, b), (i, d)| {
+                    let triangles = u64::from(renderer.mesh_for(&d.object).count / 3);
+                    if change.stable[i] {
+                        (a + triangles, b)
+                    } else {
+                        (a, b + triangles)
+                    }
+                });
+            let previous_bytes = caches[slot].bytes();
+            let available = self
+                .static_depth_budget
+                .saturating_sub(cached_bytes - previous_bytes);
+            let plan = if caching {
+                // A local cache contains only this light's accepted stable
+                // casters. Its retained key list uses the same subset.
+                let static_mask = change
+                    .stable
+                    .iter()
+                    .zip(&change.accepted)
+                    .map(|(stable, accepted)| *stable && *accepted)
+                    .collect();
+                caches[slot].prepare_with_budget(
+                    &self.device,
+                    draws,
+                    batches,
+                    static_mask,
+                    &self.casters[slot].row,
+                    self.resolution,
+                    work,
+                    available,
+                )
+            } else {
+                None
+            };
+            cached_bytes = cached_bytes - previous_bytes + caches[slot].bytes();
+            debug_assert!(cached_bytes <= self.static_depth_budget);
+            if let Some(plan) = &plan
+                && plan.rebuild
+            {
+                let compact = if self.range_enabled && renderer.instancing.shadow_batching() {
+                    Some(ranges[slot][0].prepare(
+                        renderer,
+                        &self.device,
+                        &self.queue,
+                        batches,
+                        &plan.static_mask,
+                    ))
+                } else {
+                    None
+                };
+                if let Some(compact) = &compact {
+                    self.range_draws_saved
+                        .set(self.range_draws_saved.get() + compact.saved);
+                    self.range_write_bytes
+                        .set(self.range_write_bytes.get() + compact.bytes);
+                }
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("local static shadow casters"),
+                    color_attachments: &[],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: caches[slot].depth(),
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    ..Default::default()
+                });
+                pass.set_bind_group(1, &self.casters[slot].binding, &[]);
+                let work = renderer.draw_shadow_casters_with_bindings(
+                    &mut pass,
+                    draws,
+                    compact.as_ref().map_or(batches, |p| p.batches.as_slice()),
+                    None,
+                    point,
+                    Some(&plan.static_mask),
+                    compact.as_ref().map(|p| &p.bindings),
+                );
+                counts.0 += work.0;
+                counts.1 += work.1;
             }
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("local shadow casters"),
@@ -224,12 +501,502 @@ impl ShadowMaps {
                 }),
                 ..Default::default()
             });
+            let dynamic;
+            let accepted = if let Some(plan) = &plan {
+                // Always restore an immutable source. Loading and modifying that
+                // source itself would leave stale depth when a mover departs.
+                caches[slot].copy(&mut pass);
+                self.static_depth_copies
+                    .set(self.static_depth_copies.get() + 1);
+                if !plan.rebuild {
+                    self.static_triangles_skipped
+                        .set(self.static_triangles_skipped.get() + work.0);
+                }
+                counts.0 += 1;
+                counts.1 += 1;
+                dynamic = plan
+                    .dynamic_mask
+                    .iter()
+                    .zip(&change.accepted)
+                    .map(|(dynamic, accepted)| *dynamic && *accepted)
+                    .collect::<Vec<_>>();
+                &dynamic
+            } else {
+                &change.accepted
+            };
             pass.set_bind_group(1, &self.casters[slot].binding, &[]);
-            let (draws, triangles) =
-                renderer.draw_shadow_casters(&mut pass, draws, batches, Some(*matrix), point, None);
-            counts.0 += draws;
+            let compact = if self.range_enabled && renderer.instancing.shadow_batching() {
+                Some(ranges[slot][1].prepare(
+                    renderer,
+                    &self.device,
+                    &self.queue,
+                    batches,
+                    accepted,
+                ))
+            } else {
+                None
+            };
+            if let Some(compact) = &compact {
+                self.range_draws_saved
+                    .set(self.range_draws_saved.get() + compact.saved);
+                self.range_write_bytes
+                    .set(self.range_write_bytes.get() + compact.bytes);
+            }
+            let (submitted_draws, triangles) = renderer.draw_shadow_casters_with_bindings(
+                &mut pass,
+                draws,
+                compact.as_ref().map_or(batches, |p| p.batches.as_slice()),
+                None,
+                point,
+                Some(accepted),
+                compact.as_ref().map(|p| &p.bindings),
+            );
+            counts.0 += submitted_draws;
             counts.1 += triangles;
+            drop(pass);
+            if let Some(plan) = &plan
+                && plan.rebuild
+            {
+                let keys = change
+                    .casters
+                    .iter()
+                    .zip(
+                        change
+                            .accepted
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, accepted)| **accepted),
+                    )
+                    .filter(|(_, (i, _))| change.stable[*i])
+                    .map(|(key, _)| key.clone())
+                    .collect();
+                *change.static_keys.borrow_mut() = Some(keys);
+            }
         }
         counts
+    }
+}
+
+impl SceneRenderer {
+    pub fn set_shadow_spatial_culling_enabled(&mut self, enabled: bool) {
+        self.shadows.spots.set_spatial_enabled(enabled);
+        self.shadows.points.set_spatial_enabled(enabled);
+    }
+    pub fn set_shadow_range_compaction_enabled(&mut self, enabled: bool) {
+        self.shadows.spots.set_range_enabled(enabled);
+        self.shadows.points.set_range_enabled(enabled);
+    }
+}
+
+#[cfg(test)]
+mod optimization_tests {
+    use super::*;
+    fn material() -> Material {
+        Material {
+            metallic: None,
+            roughness: None,
+            surface_overrides: Default::default(),
+            tint: [0.5, 0.7, 0.4],
+            uv_scale: [1.; 2],
+            texture: TextureKind::White,
+            lit: true,
+            shader: None,
+        }
+    }
+    fn scene(items: Vec<DrawItem>) -> RenderScene {
+        RenderScene {
+            skin_poses: Default::default(),
+            shader_time: 0.,
+            particles: vec![],
+            fog: Default::default(),
+            gi: None,
+            lights: vec![LocalLight {
+                directional: false,
+                position: [0., 0., 2.],
+                direction: [0., 0., -1.],
+                color: [1.; 3],
+                intensity: 4.,
+                range: 20.,
+                spot_angles: Some([35., 45.]),
+                shadows: Some(Default::default()),
+            }],
+            environment: EnvironmentSettings::disabled(),
+            display: DisplaySettings {
+                tone_mapping: false,
+                ..Default::default()
+            },
+            lighting: Lighting {
+                shadows: false,
+                ..Default::default()
+            },
+            view_projection: glam::camera::rh::proj::directx::orthographic(
+                -4., 4., -4., 4., 0.1, 30.,
+            ),
+            items,
+        }
+    }
+    fn capture(
+        gpu: &Gpu,
+        renderer: &mut SceneRenderer,
+        scene: &RenderScene,
+    ) -> Result<crate::Frame> {
+        crate::capture_offscreen(gpu, 160, 160, |target| {
+            renderer.draw_linear(gpu, target, [160; 2], scene)
+        })
+    }
+    fn static_bytes(maps: &ShadowMaps) -> u64 {
+        maps.static_layers
+            .borrow()
+            .iter()
+            .map(sun_cache::Cache::bytes)
+            .sum()
+    }
+    #[test]
+    fn receiver_updates_only_dirty_rows_and_clears_retired_slots() -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        let mut maps = ShadowMaps::new(&gpu, &renderer.shadows.caster_layout, 4, 64);
+        let mut rows = vec![
+            (Mat4::IDENTITY, LocalShadowSettings::default()),
+            (
+                Mat4::from_translation(Vec3::X),
+                LocalShadowSettings::default(),
+            ),
+        ];
+        maps.update(&gpu, &rows)?;
+        assert_eq!(maps.receiver_write_bytes, 160);
+        assert_eq!(maps.receiver_writes, 1);
+        maps.update(&gpu, &rows)?;
+        assert_eq!(maps.receiver_write_bytes, 0);
+        assert_eq!(maps.receiver_writes, 0);
+        rows[1].0 *= Mat4::from_rotation_y(0.2);
+        maps.update(&gpu, &rows)?;
+        assert_eq!(maps.receiver_write_bytes, 80);
+        rows.truncate(1);
+        maps.update(&gpu, &rows)?;
+        assert_eq!(maps.receiver_write_bytes, 80);
+        assert!(maps.receiver_bytes[80..].iter().all(|v| *v == 0));
+        rows.clear();
+        maps.update(&gpu, &rows)?;
+        assert_eq!(maps.receiver_write_bytes, 80);
+        println!("local_receiver_proof warm0 edit80 retire80 initial160of320bytes");
+        Ok(())
+    }
+    #[test]
+    fn fragmented_local_ranges_compact_after_retained_spatial_order() -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut renderers = std::array::from_fn::<_, 2, _>(|_| {
+            SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
+        });
+        renderers[0].set_shadow_range_compaction_enabled(false);
+        for renderer in &mut renderers {
+            renderer.set_occlusion_enabled(false);
+            renderer.set_shadow_preparation_caching_enabled(false);
+        }
+        let mut scene = scene(
+            (0..160)
+                .map(|index| DrawItem {
+                    motion_id: index + 1,
+                    model: Mat4::from_translation(Vec3::new(0., 0., -5.)),
+                    mesh: MeshKind::Cube,
+                    material: material(),
+                })
+                .collect(),
+        );
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        for (index, item) in scene.items.iter_mut().enumerate() {
+            if index % 2 == 1 {
+                item.model = Mat4::from_translation(Vec3::new(20., 0., -5.));
+            }
+        }
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        assert_eq!(
+            renderers[0].stats.shadow_triangles,
+            renderers[1].stats.shadow_triangles
+        );
+        assert_eq!(renderers[0].stats.shadow_draws, 80);
+        assert_eq!(renderers[1].stats.shadow_draws, 1);
+        assert_eq!(renderers[1].shadows.spots.range_draws_saved.get(), 79);
+        assert_eq!(renderers[1].shadows.spots.range_write_bytes.get(), 80 * 96);
+        assert_eq!(
+            renderers[1].stats.local_shadow_caster_checks, 160,
+            "one validation scan, no second draw visibility scan"
+        );
+        println!(
+            "local_ranges_proof 80->1draws 960triangles unchanged checks160once packed7680bytes"
+        );
+        Ok(())
+    }
+    #[test]
+    fn retained_spatial_caster_index_matches_linear_scans_through_refits() -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut renderers = std::array::from_fn::<_, 2, _>(|_| {
+            SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
+        });
+        renderers[0].set_shadow_spatial_culling_enabled(false);
+        for renderer in &mut renderers {
+            renderer.set_occlusion_enabled(false);
+            renderer.set_shadow_preparation_caching_enabled(false);
+        }
+        let mut scene = scene(
+            (0..4096)
+                .map(|index| DrawItem {
+                    motion_id: index + 1,
+                    model: Mat4::from_translation(Vec3::new(
+                        (index % 32) as f32 * 3. - 46.5,
+                        ((index / 32) % 16) as f32 * 3. - 22.5,
+                        -5. - (index / 512) as f32 * 4.,
+                    )) * Mat4::from_scale(Vec3::splat(0.5)),
+                    mesh: MeshKind::Cube,
+                    material: material(),
+                })
+                .collect(),
+        );
+        scene.view_projection =
+            glam::camera::rh::proj::directx::orthographic(-10., 10., -10., 10., 0.1, 50.);
+        scene.lights[0].position = [-20., 0., 2.];
+        scene.lights[0].spot_angles = Some([10., 20.]);
+        scene.lights.push(LocalLight {
+            directional: false,
+            position: [20., 0., -10.],
+            direction: [0., 0., -1.],
+            color: [1., 0.5, 0.2],
+            intensity: 3.,
+            range: 10.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        });
+        for tick in 0..3 {
+            if tick > 0 {
+                for (index, item) in scene.items.iter_mut().enumerate() {
+                    if index % 17 == 0 {
+                        item.model *= Mat4::from_translation(Vec3::new(0.3, 0.2, -0.1));
+                    }
+                }
+            }
+            assert_eq!(
+                capture(&gpu, &mut renderers[0], &scene)?.rgba,
+                capture(&gpu, &mut renderers[1], &scene)?.rgba,
+                "BVH caster pixels differ tick{tick}"
+            );
+            assert_eq!(
+                renderers[0].stats.shadow_triangles,
+                renderers[1].stats.shadow_triangles
+            );
+            assert!(renderers[1].stats.visible_items < 4096);
+            assert!(renderers[1].stats.shadow_triangles > 0);
+            assert_eq!(renderers[0].stats.local_shadow_caster_checks, 4096 * 7);
+            assert!(
+                renderers[1].stats.local_shadow_caster_checks < 4096 * 3,
+                "spatial broadphase should substantially shrink checks"
+            );
+        }
+        println!(
+            "local_spatial_proof checks{}->{} exactspot_pointfaces_offscreen_and_refits",
+            renderers[0].stats.local_shadow_caster_checks,
+            renderers[1].stats.local_shadow_caster_checks
+        );
+        Ok(())
+    }
+    #[test]
+    fn compact_expensive_static_local_layer_restores_immutable_depth() -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut renderers = std::array::from_fn::<_, 2, _>(|_| {
+            SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
+        });
+        renderers[0].set_shadow_preparation_caching_enabled(false);
+        renderers[0].set_opaque_shadow_specialization_enabled(false);
+        for renderer in &mut renderers {
+            renderer.set_occlusion_enabled(false);
+            renderer.upload_mesh(
+                &gpu,
+                "expensive",
+                &[
+                    [-3., -3., 0., 0., 0., 1., 0., 1.],
+                    [3., -3., 0., 0., 0., 1., 1., 1.],
+                    [0., 3., 0., 0., 0., 1., 0.5, 0.],
+                ],
+                &(0..40_000).flat_map(|_| [0, 1, 2]).collect::<Vec<_>>(),
+            )?;
+        }
+        let mut scene = scene(vec![
+            DrawItem {
+                motion_id: 1,
+                model: Mat4::from_translation(Vec3::new(0., 0., -5.)),
+                mesh: MeshKind::Imported("expensive".into()),
+                material: material(),
+            },
+            DrawItem {
+                motion_id: 2,
+                model: Mat4::from_translation(Vec3::new(0., 0., -3.)),
+                mesh: MeshKind::Cube,
+                material: material(),
+            },
+            DrawItem {
+                motion_id: 3,
+                model: Mat4::from_translation(Vec3::new(40., 0., -3.)),
+                mesh: MeshKind::Cube,
+                material: material(),
+            },
+        ]);
+        for tick in 0..5 {
+            scene.items[1].model = Mat4::from_translation(Vec3::new(
+                if tick == 4 { 20. } else { tick as f32 * 0.2 },
+                0.,
+                -3.,
+            ));
+            assert_eq!(
+                capture(&gpu, &mut renderers[0], &scene)?.rgba,
+                capture(&gpu, &mut renderers[1], &scene)?.rgba,
+                "static local depth changed on mover tick{tick}"
+            );
+            if tick == 2 {
+                assert_eq!(renderers[1].shadows.spots.static_depth_copies.get(), 1);
+                assert_eq!(
+                    renderers[1].shadows.spots.static_triangles_skipped.get(),
+                    40_000
+                );
+                assert_eq!(renderers[1].stats.shadow_triangles, 13);
+                assert_eq!(renderers[0].stats.shadow_triangles, 40_012);
+            }
+        }
+        let layer_bytes = sun_cache::depth_bytes(spot_shadows::RESOLUTION).unwrap();
+        // Departure changes caster membership and conservatively bypasses this
+        // static subset. Re-entry warms it again once membership stabilizes.
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), 0);
+        for x in [0.55, 0.65] {
+            scene.items[1].model = Mat4::from_translation(Vec3::new(x, 0., -3.));
+            assert_eq!(
+                capture(&gpu, &mut renderers[0], &scene)?.rgba,
+                capture(&gpu, &mut renderers[1], &scene)?.rgba
+            );
+        }
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), layer_bytes);
+        // Admission failure releases an existing source and falls back to the
+        // exact full pass without reallocating the required working map.
+        renderers[1].shadows.spots.static_depth_budget = 0;
+        scene.items[1].model = Mat4::from_translation(Vec3::new(0.75, 0., -3.));
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), 0);
+        assert_eq!(renderers[1].shadows.spots.static_depth_copies.get(), 0);
+        assert_eq!(renderers[1].stats.shadow_triangles, 40_012);
+        renderers[1].shadows.spots.static_depth_budget = LOCAL_DEPTH_BUDGET_BYTES;
+        for x in [0.8, 0.9] {
+            scene.items[1].model = Mat4::from_translation(Vec3::new(x, 0., -3.));
+            assert_eq!(
+                capture(&gpu, &mut renderers[0], &scene)?.rgba,
+                capture(&gpu, &mut renderers[1], &scene)?.rgba
+            );
+        }
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), layer_bytes);
+        assert_eq!(
+            renderers[1].shadows.spots.static_triangles_skipped.get(),
+            40_000
+        );
+        // Idle grace retains the source for 59 unused updates, then drops its
+        // view/binding/pipeline/keys; cached working pixels remain exact.
+        for _ in 0..59 {
+            renderers[1].shadows.spots.age_unused_static_depth();
+        }
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), layer_bytes);
+        renderers[1].shadows.spots.age_unused_static_depth();
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), 0);
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        scene.items[1].model = Mat4::from_translation(Vec3::new(1., 0., -3.));
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), layer_bytes);
+        renderers[1].set_shadow_preparation_caching_enabled(false);
+        assert_eq!(static_bytes(&renderers[1].shadows.spots), 0);
+        renderers[1].set_shadow_preparation_caching_enabled(true);
+        // The same expensive one-group population also activates the revised
+        // sun heuristic after batching has collapsed its command count.
+        scene.items.pop();
+        scene.lights.clear();
+        scene.lighting.shadows = true;
+        scene.lighting.shadow_resolution = 256;
+        scene.lighting.sun_direction = [0., 0., 1.];
+        for tick in 0..3 {
+            scene.items[1].model = Mat4::from_translation(Vec3::new(tick as f32 * 0.1, 0., -3.));
+            assert_eq!(
+                capture(&gpu, &mut renderers[0], &scene)?.rgba,
+                capture(&gpu, &mut renderers[1], &scene)?.rgba,
+                "expensive compact sun cache tick{tick}"
+            );
+            if tick == 2 {
+                assert!(renderers[1].stats.sun_static_cache_reused);
+                assert_eq!(renderers[1].stats.sun_static_casters, 1);
+                assert_eq!(renderers[1].stats.shadow_triangles, 13);
+            }
+        }
+        assert_eq!(
+            renderers[1].shadows.sun_cache.bytes(),
+            sun_cache::depth_bytes(256).unwrap()
+        );
+        // A newly added overlapping expensive mover changes work profitability
+        // without changing the fitted projection. The rejected plan must free
+        // its previous static source immediately and preserve reference pixels.
+        let mut expensive_mover = scene.items[0].clone();
+        expensive_mover.motion_id = 4;
+        scene.items.push(expensive_mover);
+        scene.items[1].model = Mat4::from_translation(Vec3::new(0.3, 0., -3.));
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        assert_eq!(renderers[1].shadows.sun_cache.bytes(), 0);
+        assert!(!renderers[1].stats.sun_static_cache_reused);
+        scene.items.pop();
+        // Same-ID source publication invalidates the static layer and bindings.
+        for renderer in &mut renderers {
+            renderer.upload_mesh(
+                &gpu,
+                "expensive",
+                &[
+                    [-2., -1., 0., 0., 0., 1., 0., 1.],
+                    [2., -1., 0., 0., 0., 1., 1., 1.],
+                    [0., 1., 0., 0., 0., 1., 0.5, 0.],
+                ],
+                &[0, 1, 2],
+            )?;
+        }
+        assert_eq!(
+            capture(&gpu, &mut renderers[0], &scene)?.rgba,
+            capture(&gpu, &mut renderers[1], &scene)?.rgba
+        );
+        println!(
+            "local_static_sun_proof 40012->13triangles one_static_group immutable_restore mover_departure sameID_reupload pixels_equal depth_budget_rejects_releases idle59_retains60_releases bypass_releases sun_unprofitable_releases"
+        );
+        Ok(())
     }
 }

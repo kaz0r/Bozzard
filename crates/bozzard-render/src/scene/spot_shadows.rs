@@ -4,7 +4,7 @@ pub(super) const RESOLUTION: u32 = 1024;
 pub(super) const UNIFORM_SIZE: u64 = MAX_SHADOWED_SPOT_LIGHTS as u64 * 80;
 
 /// The cone's local -Z uses WebGPU's 0..1 perspective depth, independent of the camera.
-fn projection(light: &LocalLight) -> Result<Mat4> {
+pub(super) fn projection(light: &LocalLight) -> Result<Mat4> {
     light.validate()?;
     let outer = light
         .spot_angles

@@ -772,12 +772,10 @@ mod tests {
                 .iter()
                 .any(|item| matches!(item.mesh, bozzard_render::MeshKind::Sprite(_)))
         );
-        assert!(
-            render
-                .items
-                .iter()
-                .any(|item| matches!(item.mesh, bozzard_render::MeshKind::Text(_)))
-        );
+        assert!(render.items.iter().any(|item| matches!(
+            item.mesh,
+            bozzard_render::MeshKind::Text(_) | bozzard_render::MeshKind::SharedText(_)
+        )));
     }
 
     #[test]

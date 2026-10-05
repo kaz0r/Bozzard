@@ -77,7 +77,10 @@ fn custom_font_renders_bounds_and_fails_closed_on_missing_or_invalid_assets() ->
         render
             .items
             .iter()
-            .filter(|item| matches!(item.mesh, bozzard_render::MeshKind::Text(_)))
+            .filter(|item| matches!(
+                item.mesh,
+                bozzard_render::MeshKind::Text(_) | bozzard_render::MeshKind::SharedText(_)
+            ))
             .count(),
         1
     );

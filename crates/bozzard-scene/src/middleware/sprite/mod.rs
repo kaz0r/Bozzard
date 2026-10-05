@@ -534,6 +534,14 @@ pub struct Visual {
     pub color: [f32; 4],
     pub quads: Arc<[[f32; 8]]>,
 }
+pub(crate) fn motion_ids(entity: bozzard_ecs::Entity) -> [u64; 2] {
+    use std::hash::{Hash, Hasher};
+    ["sprite", "tilemap"].map(|role| {
+        let mut identity = std::collections::hash_map::DefaultHasher::new();
+        (entity, role).hash(&mut identity);
+        identity.finish().max(1)
+    })
+}
 pub enum Control {
     Play { clip: String, restart: bool },
     Pause,
@@ -739,14 +747,30 @@ impl SceneInstance {
         layer: Layer,
         matrix: impl Fn(&str) -> Mat4,
     ) -> Result<Vec<Visual>> {
-        let runtime = world.resource::<Runtime>();
-        let mut visuals = Vec::new();
         let sources: BTreeMap<_, _> = self
             .component_entities::<Sprite>(world)
             .into_iter()
             .chain(self.component_entities::<Tilemap>(world))
             .collect();
-        for (owner, &entity) in sources {
+        self.sprite_frame_with_entities(
+            world,
+            layer,
+            sources
+                .into_iter()
+                .map(|(id, entity)| (id.as_str(), *entity, motion_ids(*entity))),
+            matrix,
+        )
+    }
+    pub(crate) fn sprite_frame_with_entities<'a>(
+        &self,
+        world: &World,
+        layer: Layer,
+        sources: impl IntoIterator<Item = (&'a str, bozzard_ecs::Entity, [u64; 2])>,
+        matrix: impl Fn(&str) -> Mat4,
+    ) -> Result<Vec<Visual>> {
+        let runtime = world.resource::<Runtime>();
+        let mut visuals = Vec::new();
+        for (owner, entity, identities) in sources {
             if world
                 .get::<crate::BlueprintHidden>(entity)
                 .is_some_and(|h| h.0)
@@ -764,11 +788,8 @@ impl SceneInstance {
                     .and_then(|r| r.players.get(owner))
                     .filter(|r| !r.quads.is_empty())
                     .map_or_else(|| Player::new(source).quads, |r| r.quads.clone());
-                use std::hash::{Hash, Hasher};
-                let mut identity = std::collections::hash_map::DefaultHasher::new();
-                (entity, "sprite").hash(&mut identity);
                 visuals.push(Visual {
-                    motion_id: identity.finish().max(1),
+                    motion_id: identities[0],
                     model: matrix(owner),
                     image: source.image.clone(),
                     color: source.color,
@@ -782,11 +803,8 @@ impl SceneInstance {
                 let quads = runtime
                     .and_then(|r| r.tiles.get(owner))
                     .map_or_else(|| source.quads(), |t| t.quads.clone());
-                use std::hash::{Hash, Hasher};
-                let mut identity = std::collections::hash_map::DefaultHasher::new();
-                (entity, "tilemap").hash(&mut identity);
                 visuals.push(Visual {
-                    motion_id: identity.finish().max(1),
+                    motion_id: identities[1],
                     model: matrix(owner),
                     image: source.image.clone(),
                     color: source.color,

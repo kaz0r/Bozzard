@@ -1,4 +1,6 @@
 @group(0) @binding(0) var<uniform> object: ObjectUniform;
+override fast_unlit: bool = true;
+override stock_surface: bool = true;
 @group(0) @binding(1) var color_texture: texture_2d<f32>;
 @group(0) @binding(2) var color_sampler: sampler;
 // Extra material maps; procedural meshes bind neutral placeholders so shader
@@ -72,11 +74,18 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front: bool) -> SurfaceOutpu
         while remaining!=0u {
             let i=firstTrailingBit(remaining);remaining&=remaining-1u;
             let light=local_lights.lights[i];let offset=light.position_range.xyz-in.world;
-            color+=direct_brdf(base,metallic,roughness,n,v,local_direction(light,offset))*local_radiance(light,offset)*local_visibility(light,in.world,n);
+            let l=local_direction(light,offset);let radiance=local_radiance(light,offset);
+            if stock_surface && all(abs(base)<=vec3<f32>(1.001))
+                && all(abs(v)<=vec3<f32>(1.001)) && local_zero_contribution(radiance,n,l)
+                && local_brdf_pow_valid(v,l) { continue; }
+            color+=direct_brdf(base,metallic,roughness,n,v,l)*radiance*local_visibility(light,in.world,n);
         }
         color+=base*(1.0-metallic)*(frame.sun_color.w*frame.ambient_color.rgb+gi_diffuse(in.world,n)*(1.0-f0));
         color+=specular_environment(reflect(-v,n),roughness,max(dot(n,v),0.0001),f0);
         return surface_output(vec4<f32>(apply_fog(min(color,vec3<f32>(60000)),in.world,in.position.xy),alpha),in.position,in.previous,n,roughness,f0,1.0,0.0);
+    }
+    if stock_surface && fast_unlit && object.parameters.z == 0.0 && dot(params.normal, params.normal) > 0.5 {
+        return surface_output(vec4<f32>(apply_fog(min(base + params.emissive, vec3<f32>(60000.0)), in.world, in.position.xy), alpha),in.position,in.previous,params.normal,1.0,vec3<f32>(0),1.0,0.0);
     }
     let diffuse = local_diffuse_masked(in.world, params.normal, object_light_mask()) + frame.sun_color.w * frame.ambient_color.rgb + gi_diffuse(in.world,params.normal)
         + frame.sun_color.rgb * frame.sun.w * max(dot(params.normal, frame.sun.xyz), 0.0) / 3.14159265 * sun_visibility(in.world, params.normal);

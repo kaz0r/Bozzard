@@ -17,10 +17,16 @@ mod sprites;
 pub use sprites::{SpriteGeometry, SpriteMesh, SpriteQuad};
 mod text;
 pub use text::{ScreenText, TextAlignment, TextMesh, text_bounds};
+pub use variants::ShaderWarmup;
 mod host;
 pub(crate) use host::host_text;
+mod draw_state;
+mod frame_scratch;
 mod instancing;
+mod object_cache;
 mod preparation;
+mod submission;
+mod variants;
 mod visibility;
 pub use instancing::BatchingStats;
 pub use visibility::{BatchPlanRebuildReason, FrameStats};
@@ -69,16 +75,29 @@ pub use upload::{
 type ImageCache = BTreeMap<(usize, u32, u32, bool), (wgpu::TextureView, bool)>;
 const OBJECT_UNIFORM_BYTES: usize = 256;
 const FRAME_UNIFORM_BYTES: usize = 320;
+const GRAPH_PARAMETER_SLOTS: usize = 16;
+const GRAPH_PARAMETER_RECORD_BYTES: usize = GRAPH_PARAMETER_SLOTS * 16;
+const GRAPH_PARAMETER_BUFFER_BYTES: usize = GRAPH_PARAMETER_RECORD_BYTES * 64;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshKind {
     Sprite(SpriteMesh),
     Text(TextMesh),
+    SharedText(std::sync::Arc<TextMesh>),
     Quad,
     Cube,
     Sphere,
     Imported(String),
     ModelPart(String, usize),
+}
+impl MeshKind {
+    pub(crate) fn text(&self) -> Option<&TextMesh> {
+        match self {
+            Self::Text(text) => Some(text),
+            Self::SharedText(text) => Some(text),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -114,6 +133,8 @@ pub struct ShaderSource {
     /// Content hash of `surface`; keys the renderer's pipeline cache.
     pub id: u64,
     pub surface: String,
+    /// Numeric graph inputs do not change topology or pipeline identity.
+    pub numeric_parameters: std::sync::Arc<[[f32; 4]]>,
 }
 
 #[derive(Clone, Debug)]
@@ -199,9 +220,12 @@ struct PreparedDraw {
     preparation: preparation::DrawPreparation,
     source_item: usize,
     deformation: u64,
+    shared_geometry: Option<instancing::GeometryKey>,
+    world_geometry_units: Option<usize>,
     pbr_override: [f32; 2],
     shader: Option<u64>,
     pbr: bool,
+    raster: u8,
     object: DrawItem,
     opacity: f32,
     cutoff: f32,
@@ -210,14 +234,15 @@ struct PreparedDraw {
 }
 struct DrawCall<'a> {
     instances: u32,
+    first_instance: u32,
     indirect: Option<(&'a wgpu::Buffer, u64)>,
 }
 
 /// One shader graph's two host flavors, opaque and transparent each.
 #[derive(Clone)]
 struct GraphPipelines {
-    basic: [wgpu::RenderPipeline; 2],
-    pbr: [wgpu::RenderPipeline; 2],
+    basic: [Option<wgpu::RenderPipeline>; 2],
+    pbr: [Option<wgpu::RenderPipeline>; 2],
     instanced: [Option<wgpu::RenderPipeline>; 2],
 }
 struct MeshBuffers {
@@ -228,18 +253,51 @@ struct MeshBuffers {
     vertex_offset: u64,
 }
 struct ObjectBinding {
-    buffer: wgpu::Buffer,
+    resources: Option<ObjectResources>,
     texture: TextureKind,
-    binding: wgpu::BindGroup,
     uniform: Option<[u8; OBJECT_UNIFORM_BYTES]>,
+    uniform_revision: u64,
     dirty: bool,
     source: Option<ObjectUniformSource>,
     light_revision: u64,
     light_bounds: Option<[Vec3; 2]>,
+    transform: Option<(Mat4, Mat4, f32)>,
+    numeric_parameters: std::sync::Arc<[[f32; 4]]>,
+    parameter_revision: u64,
+    parameter_dirty: bool,
+}
+struct ObjectResources {
+    buffer: wgpu::Buffer,
+    binding: wgpu::BindGroup,
+    parameters: Option<wgpu::Buffer>,
+}
+impl ObjectBinding {
+    fn new(texture: TextureKind) -> Self {
+        Self {
+            resources: None,
+            texture,
+            uniform: None,
+            uniform_revision: 0,
+            dirty: true,
+            source: None,
+            light_revision: 0,
+            light_bounds: None,
+            transform: None,
+            numeric_parameters: std::sync::Arc::from([]),
+            parameter_revision: 0,
+            parameter_dirty: true,
+        }
+    }
+    fn binding(&self) -> &wgpu::BindGroup {
+        &self
+            .resources
+            .as_ref()
+            .expect("individual draw prepared")
+            .binding
+    }
 }
 
 /// Object-only inputs stay unchanged when the camera, lighting, fog or graph clock moves.
-#[derive(PartialEq)]
 struct ObjectUniformSource {
     model: Mat4,
     previous_model: Option<Mat4>,
@@ -247,6 +305,26 @@ struct ObjectUniformSource {
     surface: [f32; 4],
     double_sided: bool,
     light_mask: u32,
+}
+fn same_float_bits<const N: usize>(a: [f32; N], b: [f32; N]) -> bool {
+    a.map(f32::to_bits) == b.map(f32::to_bits)
+}
+fn same_matrix_bits(a: Mat4, b: Mat4) -> bool {
+    same_float_bits(a.to_cols_array(), b.to_cols_array())
+}
+impl PartialEq for ObjectUniformSource {
+    fn eq(&self, other: &Self) -> bool {
+        same_matrix_bits(self.model, other.model)
+            && match (self.previous_model, other.previous_model) {
+                (Some(a), Some(b)) => same_matrix_bits(a, b),
+                (None, None) => true,
+                _ => false,
+            }
+            && same_float_bits(self.tail, other.tail)
+            && same_float_bits(self.surface, other.surface)
+            && self.double_sided == other.double_sided
+            && self.light_mask == other.light_mask
+    }
 }
 struct DepthTarget {
     view: wgpu::TextureView,
@@ -266,6 +344,7 @@ pub struct SceneRenderer {
     motion_history: geometry::MotionHistory,
     particles: Option<particles::Particles>,
     text: Option<text::TextRenderer>,
+    world_text: text::WorldCache,
     stats: FrameStats,
     surface_preparation: preparation::SurfacePreparation,
     surface_preparation_caching: bool,
@@ -287,6 +366,7 @@ pub struct SceneRenderer {
     layout: wgpu::BindGroupLayout,
     frame_buffer: wgpu::Buffer,
     frame_uniform: Option<Vec<u8>>,
+    graph_parameter_defaults: wgpu::Buffer,
     /// Shader graph modules by content hash; compiled on first use per frame.
     graphs: BTreeMap<(u64, bool), std::sync::Arc<GraphPipelines>>,
     idle_graphs: std::collections::VecDeque<(u64, bool)>,
@@ -302,6 +382,13 @@ pub struct SceneRenderer {
     linear_mipmaps: crate::mipmap::Mipmaps,
     pbr: crate::pbr::PbrRenderer,
     objects: Vec<ObjectBinding>,
+    object_identities: Vec<Option<preparation::SurfaceIdentity>>,
+    uniform_serial: u64,
+    surface_variants: variants::VariantCache,
+    shader_optimizations: bool,
+    hud_batching_enabled: bool,
+    submission: submission::Submission,
+    frame_scratch: frame_scratch::Scratch,
     depth: Option<DepthTarget>,
     imported_meshes: BTreeMap<String, MeshBuffers>,
     models: BTreeMap<String, Vec<UploadedPart>>,
@@ -316,14 +403,28 @@ pub(crate) fn float_bytes(values: impl IntoIterator<Item = f32>) -> Vec<u8> {
     values.into_iter().flat_map(f32::to_le_bytes).collect()
 }
 
+fn graph_parameter_bytes(parameters: &[[f32; 4]]) -> [u8; GRAPH_PARAMETER_RECORD_BYTES] {
+    let mut bytes = [0; GRAPH_PARAMETER_RECORD_BYTES];
+    for (slot, value) in bytes.chunks_exact_mut(4).zip(parameters.iter().flatten()) {
+        slot.copy_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
 /// Splice a graph's `graph_material_surface` over the host's stock call site.
 /// Only fs_main calls it with fragment inputs, so the replacement is unique.
 fn graph_module_text(pbr: bool, source: &ShaderSource) -> String {
-    let host = host_text(pbr).replacen(
-        "default_material_surface(in",
-        "graph_material_surface(in",
-        1,
-    );
+    let host = host_text(pbr)
+        .replacen(
+            "override stock_surface: bool = true;",
+            "override stock_surface: bool = false;",
+            1,
+        )
+        .replacen(
+            "default_material_surface(in",
+            "graph_material_surface(in",
+            1,
+        );
     format!("{host}\n{}", source.surface)
 }
 
@@ -419,7 +520,9 @@ fn mesh(gpu: &Gpu, vertices: &[[f32; 8]], indices: &[u32]) -> MeshBuffers {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("scene mesh vertices"),
                 contents: &float_bytes(vertices.iter().flatten().copied()),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+                usage: wgpu::BufferUsages::VERTEX
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC,
             }),
         indices: gpu
             .device
@@ -429,7 +532,7 @@ fn mesh(gpu: &Gpu, vertices: &[[f32; 8]], indices: &[u32]) -> MeshBuffers {
                     .iter()
                     .flat_map(|i| i.to_le_bytes())
                     .collect::<Vec<_>>(),
-                usage: wgpu::BufferUsages::INDEX,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
             }),
         count: indices.len() as u32,
         vertex_offset: 0,
@@ -677,6 +780,16 @@ impl SceneRenderer {
             },
             count: None,
         });
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 12,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(GRAPH_PARAMETER_BUFFER_BYTES as u64),
+            },
+            count: None,
+        });
         let layout = gpu
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -694,6 +807,32 @@ impl SceneRenderer {
                     label: Some("instanced object layout"),
                     entries: &entries,
                 });
+        let native_instance_layout = instancing::native_arena_supported(gpu).then(|| {
+            for entry in &mut entries {
+                if entry.binding == 0 || entry.binding == 12 {
+                    entry.ty = wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(256),
+                    };
+                }
+            }
+            entries.push(wgpu::BindGroupLayoutEntry {
+                binding: 13,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(4),
+                },
+                count: None,
+            });
+            gpu.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("native shared object storage layout"),
+                    entries: &entries,
+                })
+        });
         let shadows = shadows::Shadows::new(gpu, &layout);
         let pipeline_layout = gpu
             .device
@@ -753,6 +892,7 @@ impl SceneRenderer {
             motion_history: Default::default(),
             particles: None,
             text: None,
+            world_text: Default::default(),
             stats: Default::default(),
             profiler: Default::default(),
             surface_preparation: Default::default(),
@@ -765,7 +905,7 @@ impl SceneRenderer {
             occlusion: Default::default(),
             state_caching: true,
             light_selection: Default::default(),
-            instancing: instancing::Instancing::new(instance_layout),
+            instancing: instancing::Instancing::new(instance_layout, native_instance_layout),
             environment,
             display,
             shadows,
@@ -781,6 +921,12 @@ impl SceneRenderer {
                 mapped_at_creation: false,
             }),
             frame_uniform: None,
+            graph_parameter_defaults: gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("empty graph numeric parameters"),
+                size: GRAPH_PARAMETER_BUFFER_BYTES as u64,
+                usage: wgpu::BufferUsages::UNIFORM,
+                mapped_at_creation: false,
+            }),
             graphs: BTreeMap::new(),
             idle_graphs: Default::default(),
             neutral_normal: neutral_texture(gpu),
@@ -798,6 +944,13 @@ impl SceneRenderer {
                 ..Default::default()
             }),
             objects: Vec::new(),
+            object_identities: Vec::new(),
+            uniform_serial: 0,
+            surface_variants: Default::default(),
+            shader_optimizations: true,
+            hud_batching_enabled: true,
+            submission: Default::default(),
+            frame_scratch: Default::default(),
             model_sampler: gpu.device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("model trilinear repeat sampler"),
                 address_mode_u: wgpu::AddressMode::Repeat,
@@ -822,85 +975,107 @@ impl SceneRenderer {
 
     /// Compile both host flavors for one shader graph. WGSL errors panic like the
     /// startup modules; graphs are validated before codegen, so errors are engine bugs.
-    fn compile_graph(
+    fn compile_graph_variant(
         &self,
         gpu: &Gpu,
         source: &ShaderSource,
         auxiliary: bool,
-    ) -> Result<GraphPipelines> {
-        // The basic host leaves group 1 unused, so it keeps an automatic (empty)
-        // layout; the PBR host binds the shared material map group.
-        let layout = |group1: Option<&wgpu::BindGroupLayout>| {
-            gpu.device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("shader graph pipeline layout"),
-                    bind_group_layouts: &[
-                        Some(&self.layout),
-                        group1,
-                        Some(&self.shadows.sample_layout),
-                        Some(&self.environment.layout),
-                    ],
-                    immediate_size: 0,
-                })
-        };
-        let flavor = |pbr: bool| {
-            let pipeline_layout = if pbr {
-                layout(Some(self.pbr.material_layout()))
-            } else {
-                layout(None)
-            };
-            let module = gpu
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("shader graph module"),
-                    source: wgpu::ShaderSource::Wgsl(graph_module_text(pbr, source).into()),
-                });
-            let name = if pbr { "pbr" } else { "basic" };
-            [
-                scene_pipeline(
-                    gpu,
-                    &format!("shader graph {name} opaque"),
-                    &pipeline_layout,
-                    &module,
-                    pbr,
-                    false,
-                    auxiliary,
-                ),
-                scene_pipeline(
-                    gpu,
-                    &format!("shader graph {name} transparent"),
-                    &pipeline_layout,
-                    &module,
-                    pbr,
-                    true,
-                    auxiliary,
-                ),
-            ]
-        };
-        Ok(GraphPipelines {
-            basic: flavor(false),
-            pbr: flavor(true),
-            instanced: [None, None],
-        })
+        pbr: bool,
+        transparent: bool,
+    ) -> wgpu::RenderPipeline {
+        let layout = gpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("shader graph pipeline layout"),
+                bind_group_layouts: &[
+                    Some(&self.layout),
+                    pbr.then(|| self.pbr.material_layout()),
+                    Some(&self.shadows.sample_layout),
+                    Some(&self.environment.layout),
+                ],
+                immediate_size: 0,
+            });
+        let module = gpu
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("shader graph module"),
+                source: wgpu::ShaderSource::Wgsl(graph_module_text(pbr, source).into()),
+            });
+        scene_pipeline(
+            gpu,
+            "shader graph variant",
+            &layout,
+            &module,
+            pbr,
+            transparent,
+            auxiliary,
+        )
     }
 
-    fn object_binding(&self, gpu: &Gpu, key: &TextureKind) -> Result<ObjectBinding> {
+    fn prepare_graph_variants(
+        &mut self,
+        gpu: &Gpu,
+        draws: &[PreparedDraw],
+        batches: &[instancing::Batch],
+        output_mask: u8,
+    ) {
+        let auxiliary = output_mask != 0;
+        for batch in batches.iter().filter(|batch| batch.slot.is_none()) {
+            let draw = &draws[batch.indices[0]];
+            if self.variant_key(draw, 1, output_mask).is_some() {
+                continue;
+            }
+            let Some(source) = &draw.object.material.shader else {
+                continue;
+            };
+            let key = (source.id, auxiliary);
+            let slot = usize::from(draw.transparent);
+            let variants = if draw.pbr {
+                &self.graphs[&key].pbr
+            } else {
+                &self.graphs[&key].basic
+            };
+            if variants[slot].is_some() {
+                continue;
+            }
+            let pipeline =
+                self.compile_graph_variant(gpu, source, auxiliary, draw.pbr, draw.transparent);
+            let variants = std::sync::Arc::make_mut(self.graphs.get_mut(&key).unwrap());
+            if draw.pbr {
+                variants.pbr[slot] = Some(pipeline);
+            } else {
+                variants.basic[slot] = Some(pipeline);
+            }
+            self.stats.graph_variant_compilations += 1;
+        }
+    }
+
+    fn object_resources(
+        &self,
+        gpu: &Gpu,
+        key: &TextureKind,
+        numeric: bool,
+    ) -> Result<ObjectResources> {
         let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene object uniform"),
             size: OBJECT_UNIFORM_BYTES as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let binding = self.texture_binding(gpu, key, &buffer, &self.layout)?;
-        Ok(ObjectBinding {
+        let parameters = numeric.then(|| {
+            gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("individual graph numeric parameters"),
+                size: GRAPH_PARAMETER_BUFFER_BYTES as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        });
+        let binding =
+            self.texture_binding(gpu, key, &buffer, &self.layout, parameters.as_ref(), None)?;
+        Ok(ObjectResources {
             buffer,
-            texture: key.clone(),
             binding,
-            uniform: None,
-            dirty: true,
-            source: None,
-            light_revision: 0,
-            light_bounds: None,
+            parameters,
         })
     }
 
@@ -910,6 +1085,8 @@ impl SceneRenderer {
         key: &TextureKind,
         buffer: &wgpu::Buffer,
         layout: &wgpu::BindGroupLayout,
+        parameters: Option<&wgpu::Buffer>,
+        instance_ids: Option<&wgpu::Buffer>,
     ) -> Result<wgpu::BindGroup> {
         let bind = |texture: &wgpu::TextureView| {
             let mut entries = vec![
@@ -934,6 +1111,12 @@ impl SceneRenderer {
                     ),
                 },
             ];
+            if let Some(ids) = instance_ids {
+                entries.push(wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: ids.as_entire_binding(),
+                });
+            }
             for slot in 1..5u32 {
                 let view = if slot == 1 {
                     &self.neutral_normal
@@ -952,6 +1135,12 @@ impl SceneRenderer {
             entries.push(wgpu::BindGroupEntry {
                 binding: 11,
                 resource: self.frame_buffer.as_entire_binding(),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 12,
+                resource: parameters
+                    .unwrap_or(&self.graph_parameter_defaults)
+                    .as_entire_binding(),
             });
             gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("scene object bindings"),
@@ -993,14 +1182,19 @@ impl SceneRenderer {
     }
 
     fn invalidate_object_bindings(&mut self) {
+        self.world_text.clear();
         self.surface_preparation.clear();
         self.occlusion.invalidate();
         if let Some(hud) = &mut self.hud {
             hud.invalidate();
         }
         self.objects.clear();
+        self.submission.invalidate();
+        self.object_identities.clear();
+        self.shadows.singletons.invalidate();
         self.instancing.bindings.clear();
         self.instancing.shadow_bindings.clear();
+        self.instancing.clear_depth_plan();
         self.shadow_frame = None;
         self.shadows.sun_cache.clear();
         self.shadows.sun_fit.clear();
@@ -1241,6 +1435,7 @@ impl SceneRenderer {
     ) -> Result<()> {
         ensure!(!parts.is_empty(), "skinned models need surfaces");
         let bounds = skinning::Source::bounds(&skin, vertices)?;
+        let part_bounds = skinning::Source::part_bounds(&skin, vertices, indices, parts)?;
         let bytes: Vec<u8> = skin
             .vertices
             .iter()
@@ -1263,6 +1458,7 @@ impl SceneRenderer {
                 weights,
                 count: vertices.len(),
                 bounds,
+                part_bounds,
             },
         );
         Ok(())
@@ -1409,7 +1605,7 @@ impl SceneRenderer {
                                         .to_le_bytes()
                                 })
                                 .collect::<Vec<_>>(),
-                            usage: wgpu::BufferUsages::INDEX,
+                            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
                         }),
                     count: part.count,
                     vertex_offset: part
@@ -1485,21 +1681,16 @@ impl SceneRenderer {
         self.invalidate_object_bindings();
         Ok(())
     }
-    fn draw_prepared(
-        &self,
-        pass: &mut wgpu::RenderPass<'_>,
+    fn prepared_record<'a>(
+        &'a self,
         draw: &PreparedDraw,
-        binding: &wgpu::BindGroup,
-        auxiliary: bool,
-        call: DrawCall<'_>,
-        last_pipeline: &mut Option<(bool, Option<u64>, bool, bool)>,
-    ) -> (u64, usize) {
-        let DrawCall {
-            instances,
-            indirect,
-        } = call;
-        let mut binds = 0;
+        binding: &'a wgpu::BindGroup,
+        output_mask: u8,
+        instances: u32,
+        first_instance: u32,
+    ) -> submission::Record<'a> {
         let object = &draw.object;
+        let auxiliary = output_mask != 0;
         let shading = match &object.mesh {
             MeshKind::ModelPart(id, index) => self.models[id][*index].shading.as_ref(),
             _ => None,
@@ -1510,72 +1701,114 @@ impl SceneRenderer {
             draw.transparent,
             instances > 1,
         );
-        let pipeline = if instances > 1
+        let pipeline = if let Some(key) = self.variant_key(draw, instances, output_mask) {
+            &self.surface_variants.pipelines[&key]
+        } else if instances > 1
             && let Some(id) = draw.shader
         {
             self.graphs[&(id, auxiliary)].instanced[usize::from(shading.is_some())]
                 .as_ref()
                 .unwrap()
         } else if instances > 1 {
-            &self.instancing.pipelines.as_ref().unwrap().pipelines[usize::from(auxiliary)]
+            self.instancing.pipelines.as_ref().unwrap().pipelines[usize::from(auxiliary)]
                 [usize::from(shading.is_some())]
+            .as_ref()
+            .unwrap()
         } else {
             match (key.0, key.1, key.2) {
-                (true, Some(id), false) => &self.graphs[&(id, auxiliary)].pbr[0],
-                (true, Some(id), true) => &self.graphs[&(id, auxiliary)].pbr[1],
-                (false, Some(id), false) => &self.graphs[&(id, auxiliary)].basic[0],
-                (false, Some(id), true) => &self.graphs[&(id, auxiliary)].basic[1],
+                (true, Some(id), false) => self.graphs[&(id, auxiliary)].pbr[0].as_ref().unwrap(),
+                (true, Some(id), true) => self.graphs[&(id, auxiliary)].pbr[1].as_ref().unwrap(),
+                (false, Some(id), false) => {
+                    self.graphs[&(id, auxiliary)].basic[0].as_ref().unwrap()
+                }
+                (false, Some(id), true) => self.graphs[&(id, auxiliary)].basic[1].as_ref().unwrap(),
                 (true, None, false) => &self.pbr.opaque[usize::from(auxiliary)],
                 (true, None, true) => &self.pbr.transparent[usize::from(auxiliary)],
                 (false, None, false) => &self.pipeline[usize::from(auxiliary)],
                 (false, None, true) => &self.transparent_pipeline[usize::from(auxiliary)],
             }
         };
-        if !self.state_caching || *last_pipeline != Some(key) {
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(2, &self.shadows.sample_binding, &[]);
-            pass.set_bind_group(3, &self.environment.binding, &[]);
-            binds = 1;
-            *last_pipeline = Some(key);
-        }
-        let mesh = self
-            .skinning
-            .mesh(object)
-            .unwrap_or_else(|| match &object.mesh {
-                MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
-                MeshKind::Sprite(sprite) => self.sprites.mesh(sprite).unwrap(),
-                MeshKind::Quad => &self.quad,
-                MeshKind::Cube => &self.cube,
-                MeshKind::Sphere => &self.sphere,
-                MeshKind::Imported(id) => &self.imported_meshes[id],
-                MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
-            });
-        pass.set_bind_group(0, binding, &[]);
-        pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
-        pass.set_vertex_buffer(
-            2,
+        let merged = self.world_text.entry(draw.source_item);
+        let mesh = merged.map(|entry| &entry.mesh).unwrap_or_else(|| {
             self.skinning
-                .previous(object)
-                .unwrap_or(&mesh.vertices)
-                .slice(mesh.vertex_offset..),
-        );
-        if let Some(shading) = shading {
-            pass.set_bind_group(1, &shading.binding, &[]);
-            pass.set_vertex_buffer(
-                1,
-                self.skinning
-                    .tangents(object)
-                    .unwrap_or(&shading.vertices)
-                    .slice(..),
-            );
+                .mesh(object)
+                .unwrap_or_else(|| match &object.mesh {
+                    MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
+                    MeshKind::SharedText(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
+                    MeshKind::Sprite(sprite) => self.sprites.mesh(sprite).unwrap(),
+                    MeshKind::Quad => &self.quad,
+                    MeshKind::Cube => &self.cube,
+                    MeshKind::Sphere => &self.sphere,
+                    MeshKind::Imported(id) => &self.imported_meshes[id],
+                    MeshKind::ModelPart(id, index) => &self.models[id][*index].mesh,
+                })
+        });
+        submission::Record {
+            pipeline,
+            groups: [
+                Some(merged.map_or(binding, |entry| &entry.binding)),
+                shading.map(|s| &s.binding),
+                Some(&self.shadows.sample_binding),
+                Some(&self.environment.binding),
+            ],
+            vertices: [
+                Some((&mesh.vertices, mesh.vertex_offset)),
+                shading.map(|s| (self.skinning.tangents(object).unwrap_or(&s.vertices), 0)),
+                (output_mask & 2 != 0).then(|| {
+                    (
+                        self.skinning.previous(object).unwrap_or(&mesh.vertices),
+                        mesh.vertex_offset,
+                    )
+                }),
+            ],
+            indices: &mesh.indices,
+            index_count: mesh.count,
+            instances: if merged.is_some() { 1 } else { instances },
+            first_instance: if merged.is_some() { 0 } else { first_instance },
+            geometry_stable: draw.deformation == 0,
         }
-        pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-        if let Some((buffer, offset)) = indirect {
+    }
+    fn draw_prepared(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        draw: &PreparedDraw,
+        binding: &wgpu::BindGroup,
+        output_mask: u8,
+        call: DrawCall<'_>,
+        state: &mut draw_state::DrawState,
+    ) -> (u64, usize) {
+        let record = self.prepared_record(
+            draw,
+            binding,
+            output_mask,
+            call.instances,
+            call.first_instance,
+        );
+        let binds = usize::from(state.pipeline(pass, record.pipeline, self.state_caching));
+        for (slot, group) in record.groups.iter().enumerate() {
+            if let Some(group) = group {
+                state.group(pass, slot, group, self.state_caching);
+            }
+        }
+        for (slot, vertex) in record.vertices.iter().enumerate() {
+            if let Some((buffer, offset)) = vertex {
+                state.vertex(pass, slot, buffer, *offset, self.state_caching);
+            }
+        }
+        state.index(pass, record.indices, self.state_caching);
+        if let Some((buffer, offset)) = call
+            .indirect
+            .filter(|_| self.world_text.entry(draw.source_item).is_none())
+        {
             pass.draw_indexed_indirect(buffer, offset);
         } else {
-            pass.draw_indexed(0..mesh.count, 0, 0..instances);
+            pass.draw_indexed(
+                0..record.index_count,
+                0,
+                record.first_instance..record.first_instance + record.instances,
+            );
         }
-        (u64::from(mesh.count / 3) * u64::from(instances), binds)
+        (record.triangles(), binds)
     }
     /// Logical-to-physical pixel scale for HUD text; world rendering is unchanged.
     pub fn set_hud_scale(&mut self, scale: f32) {
@@ -1618,6 +1851,8 @@ impl SceneRenderer {
             // Skin commands now share the frame encoder. A failed frame drops that
             // encoder before submission, so its cached poses must be retried.
             self.skinning.invalidate();
+            self.motion_history.abort();
+            self.world_text.clear();
             self.surface_preparation.clear();
             self.stats.surface_preparation_bytes = 0;
             self.shadow_frame = None;
@@ -1634,6 +1869,8 @@ impl SceneRenderer {
     ) -> Result<()> {
         let started = std::time::Instant::now();
         self.stats = FrameStats::default();
+        self.shadows.spots.reset_work_stats();
+        self.shadows.points.reset_work_stats();
         self.stats.viewport_size = size;
         ensure!(
             size.iter()
@@ -1694,6 +1931,13 @@ impl SceneRenderer {
         scene.display.validate()?;
         let stores = geometry::stores(scene, raw, self.state_caching);
         let auxiliary = stores.iter().any(|store| *store);
+        let output_mask = if self.shader_optimizations {
+            variants::mask(stores)
+        } else if auxiliary {
+            7
+        } else {
+            0
+        };
         let (view_projection, temporal_frame) = self.motion_history.begin(scene, size, raw);
         self.environment.prepare(
             gpu,
@@ -1701,6 +1945,7 @@ impl SceneRenderer {
             view_projection.inverse(),
             !raw && scene.display.reflections.enabled,
         )?;
+        self.environment.prepare_mask(gpu, output_mask);
         if self.depth.as_ref().is_none_or(|d| d.size != size) {
             self.geometry = None;
             if let Some(particles) = &mut self.particles {
@@ -1754,10 +1999,38 @@ impl SceneRenderer {
         self.prepare_text(gpu, scene)?;
         let mut encoder = self.profiler.encoder(gpu);
         self.stats.frame_id = encoder.frame;
-        self.skinning
-            .prepare(gpu, scene, &self.models, &mut encoder)?;
+        self.skinning.prepare(
+            gpu,
+            scene,
+            &self.models,
+            &mut encoder,
+            view_projection,
+            self.culling,
+        )?;
+        self.stats.skinning_dispatches = self.skinning.dispatches;
+        self.stats.skinning_shared_copies = self.skinning.shared_copies;
+        self.stats.skinning_shared_actors = self.skinning.shared_actors;
+        self.stats.skinning_culled_actors = self.skinning.culled_actors;
         self.sprites.prepare(gpu, &scene.items)?;
-        let draws = self.prepare(scene);
+        let mut draws = self.prepare(scene);
+        for draw in &mut draws {
+            draw.shared_geometry = self
+                .skinning
+                .instance_geometry(&draw.object, output_mask & 2 != 0);
+            if draw.shader.is_none()
+                && !draw.pbr
+                && draw.deformation == 0
+                && (draw
+                    .object
+                    .mesh
+                    .text()
+                    .is_some_and(|text| text.screen.is_none())
+                    || matches!(&draw.object.mesh, MeshKind::Sprite(sprite) if sprite.screen.is_none()))
+            {
+                let count = self.mesh_for(&draw.object).count;
+                draw.world_geometry_units = count.is_multiple_of(6).then_some(count as usize / 6);
+            }
+        }
         // Keep all active pipelines and a bounded set of recently absent previews.
         let mut graph_sources: BTreeMap<(u64, bool), &ShaderSource> = BTreeMap::new();
         for draw in &draws {
@@ -1783,22 +2056,30 @@ impl SceneRenderer {
         while self.idle_graphs.len() > if self.state_caching { 8 } else { 0 } {
             self.graphs.remove(&self.idle_graphs.pop_front().unwrap());
         }
-        for (id, source) in graph_sources {
-            if !self.graphs.contains_key(&id) {
-                let pipelines = self.compile_graph(gpu, source, auxiliary)?;
-                self.graphs.insert(id, std::sync::Arc::new(pipelines));
+        for (id, _) in graph_sources {
+            if let std::collections::btree_map::Entry::Vacant(entry) = self.graphs.entry(id) {
+                let pipelines = GraphPipelines {
+                    basic: [None, None],
+                    pbr: [None, None],
+                    instanced: [None, None],
+                };
+                entry.insert(std::sync::Arc::new(pipelines));
                 self.stats.graph_compilations += 1;
             }
         }
         self.stats.resident_graphs = self.graphs.len();
+        self.remap_object_bindings(&draws);
         self.objects.truncate(draws.len());
         for (index, draw) in draws.iter().enumerate() {
             let object = &draw.object;
+            self.texture_view(&object.material.texture)?;
             if index == self.objects.len() {
                 self.objects
-                    .push(self.object_binding(gpu, &object.material.texture)?);
+                    .push(ObjectBinding::new(object.material.texture.clone()));
             } else if self.objects[index].texture != object.material.texture {
-                self.objects[index] = self.object_binding(gpu, &object.material.texture)?;
+                self.objects[index].texture = object.material.texture.clone();
+                self.objects[index].resources = None;
+                self.objects[index].dirty = true;
             }
             if let MeshKind::ModelPart(id, index) = &object.mesh {
                 ensure!(
@@ -1815,19 +2096,25 @@ impl SceneRenderer {
                 );
             }
         }
-        let bounds: Vec<_> = draws
-            .iter()
-            .map(|d| self.mesh_for(&d.object).bounds)
-            .collect();
+        let mut bounds = std::mem::take(&mut self.frame_scratch.bounds);
+        bounds.clear();
+        bounds.extend(draws.iter().map(|d| self.mesh_for(&d.object).bounds));
         let visibility_started = std::time::Instant::now();
-        let visible = self.visibility(scene, &draws, &bounds);
+        let mut visible = std::mem::take(&mut self.frame_scratch.visible);
+        self.visibility(scene, &draws, &bounds, &mut visible);
+        let mut frustum_visible = std::mem::take(&mut self.frame_scratch.frustum);
+        frustum_visible.clear();
+        frustum_visible.extend_from_slice(&visible);
+        self.apply_cached_instance_occlusion(gpu, &draws, view_projection, size, &mut visible);
         self.stats.visibility_ms = visibility_started.elapsed().as_secs_f64() * 1000.;
         self.light_selection.update(&scene.lights);
         self.stats.scene_items = scene.items.len();
         self.stats.surfaces = draws.len();
-        self.stats.visible_surfaces = visible.iter().filter(|v| **v).count();
-        let mut visible_items = vec![false; scene.items.len()];
-        for (draw, &is_visible) in draws.iter().zip(&visible) {
+        self.stats.visible_surfaces = frustum_visible.iter().filter(|v| **v).count();
+        let mut visible_items = std::mem::take(&mut self.frame_scratch.items);
+        visible_items.clear();
+        visible_items.resize(scene.items.len(), false);
+        for (draw, &is_visible) in draws.iter().zip(&frustum_visible) {
             visible_items[draw.source_item] |= is_visible;
         }
         self.stats.visible_items = visible_items.iter().filter(|v| **v).count();
@@ -1861,6 +2148,45 @@ impl SceneRenderer {
         }
         for (index, (draw, binding)) in draws.iter().zip(&mut self.objects).enumerate() {
             let object = &draw.object;
+            let parameters = object
+                .material
+                .shader
+                .as_ref()
+                .map(|s| &s.numeric_parameters);
+            ensure!(
+                parameters.is_none_or(|p| p.len() <= GRAPH_PARAMETER_SLOTS
+                    && p.iter().flatten().all(|v| v.is_finite())),
+                "invalid graph numeric parameters"
+            );
+            let parameters_equal = parameters.map_or_else(
+                || binding.numeric_parameters.is_empty(),
+                |parameters| {
+                    std::sync::Arc::ptr_eq(parameters, &binding.numeric_parameters)
+                        || parameters.len() == binding.numeric_parameters.len()
+                            && parameters
+                                .iter()
+                                .flatten()
+                                .zip(binding.numeric_parameters.iter().flatten())
+                                .all(|(a, b)| a.to_bits() == b.to_bits())
+                },
+            );
+            if !parameters_equal || !self.state_caching {
+                binding.numeric_parameters = parameters
+                    .cloned()
+                    .unwrap_or_else(|| std::sync::Arc::from([]));
+                self.uniform_serial = self.uniform_serial.wrapping_add(1);
+                binding.parameter_revision = self.uniform_serial;
+                binding.parameter_dirty = true;
+                if binding
+                    .resources
+                    .as_ref()
+                    .is_some_and(|r| r.parameters.is_none())
+                    && !binding.numeric_parameters.is_empty()
+                {
+                    binding.resources = None;
+                    binding.dirty = true;
+                }
+            }
             let previous_model = self.motion_history.previous_model(object);
             let material = &object.material;
             let tail = [
@@ -1901,7 +2227,8 @@ impl SceneRenderer {
                 && binding.light_revision == self.light_selection.revision()
                 && binding.light_bounds == Some(bounds[index])
                 && binding.source.as_ref().is_some_and(|source| {
-                    source.model == object.model && source.tail[6] == tail[6]
+                    same_matrix_bits(source.model, object.model)
+                        && source.tail[6].to_bits() == tail[6].to_bits()
                 });
             let light_mask = if !lights_present {
                 0
@@ -1940,19 +2267,31 @@ impl SceneRenderer {
                 }
                 continue;
             }
-            let normal = object.model.inverse().transpose();
+            let (normal, determinant) = if self.state_caching
+                && let Some((model, normal, determinant)) = binding.transform
+                && same_matrix_bits(model, object.model)
+            {
+                (normal, determinant)
+            } else {
+                self.stats.normal_matrix_builds += 1;
+                (
+                    object.model.inverse().transpose(),
+                    object.model.determinant().signum(),
+                )
+            };
             ensure!(
                 object.model.is_finite() && normal.is_finite(),
                 "invalid object matrix"
             );
             self.stats.object_uniform_builds += 1;
+            binding.transform = Some((object.model, normal, determinant));
             let values = normal
                 .to_cols_array()
                 .into_iter()
                 .chain(tail)
                 .chain(object.model.to_cols_array())
                 .chain([
-                    object.model.determinant().signum(),
+                    determinant,
                     if double_sided { 1. } else { 0. },
                     (light_mask & 0xffff) as f32,
                     (light_mask >> 16) as f32,
@@ -1966,6 +2305,8 @@ impl SceneRenderer {
             }
             if !self.state_caching || binding.uniform.as_ref() != Some(&uniform) {
                 binding.uniform = Some(uniform);
+                self.uniform_serial = self.uniform_serial.wrapping_add(1);
+                binding.uniform_revision = self.uniform_serial;
                 binding.dirty = true;
             }
             binding.source = Some(source);
@@ -1977,8 +2318,42 @@ impl SceneRenderer {
         // Publish the stamp only after all objects validate, so an error cannot
         // make a retry skip validation against a newly changed camera.
         self.frame_uniform = Some(frame_uniform);
-        let batches = self.prepare_instances(gpu, &draws, &bounds, &visible, view_projection)?;
-        self.prepare_instanced_graphs(gpu, &draws, &batches, auxiliary);
+        for (index, draw) in draws.iter_mut().enumerate() {
+            let determinant = self.objects[index]
+                .transform
+                .expect("validated object transform")
+                .2;
+            draw.raster =
+                variants::raster_class(&self.models, draw, self.shader_optimizations, determinant);
+        }
+        self.instancing
+            .set_transparent_runs_allowed(raw || scene.particles.is_empty());
+        let batches =
+            self.prepare_instances(gpu, &draws, &bounds, &visible, view_projection, output_mask)?;
+        self.stats.native_instance_arena = self.instancing.arena_enabled();
+        let mut world_text = std::mem::take(&mut self.world_text);
+        let world_result = world_text.prepare(
+            self,
+            gpu,
+            &mut encoder,
+            &draws,
+            &batches,
+            !scene.particles.is_empty() && !raw,
+        );
+        self.world_text = world_text;
+        world_result?;
+        self.stats.world_draws_saved = self.world_text.draws_saved;
+        self.stats.world_geometry_copies = self.world_text.geometry_copies;
+        self.stats.world_id_bytes = self.world_text.id_bytes;
+        self.prepare_graph_variants(gpu, &draws, &batches, output_mask);
+        self.prepare_instanced_graphs(gpu, &draws, &batches, output_mask);
+        self.prepare_surface_variants(
+            gpu,
+            &draws,
+            &batches,
+            output_mask,
+            !scene.particles.is_empty() && !raw,
+        );
         let occlusion_started = std::time::Instant::now();
         let occlusion = self.prepare_occlusion(
             gpu,
@@ -1986,7 +2361,7 @@ impl SceneRenderer {
             view_projection,
             size,
             &draws,
-            &visible,
+            &frustum_visible,
             &batches,
         );
         self.stats.occlusion_prepare_ms = occlusion_started.elapsed().as_secs_f64() * 1000.;
@@ -2107,13 +2482,26 @@ impl SceneRenderer {
                     previous.stable_casters(&draws, self.culling)
                 };
                 self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
+                let geometry_work = draws
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, draw)| !draw.transparent && draw.object.material.lit)
+                    .fold((0_u64, 0_u64), |(s, d), (index, draw)| {
+                        let triangles = u64::from(self.mesh_for(&draw.object).count / 3);
+                        if mask[index] {
+                            (s + triangles, d)
+                        } else {
+                            (s, d + triangles)
+                        }
+                    });
                 sun_plan = self.shadows.sun_cache.prepare(
-                    gpu,
+                    &gpu.device,
                     &draws,
                     shadow_batches.as_ref().unwrap_or(&batches),
                     mask,
                     &self.shadows.uniform_row,
                     self.shadows.resolution,
+                    geometry_work,
                 );
                 if let Some(plan) = &sun_plan {
                     self.stats.sun_static_cache_reused = !plan.rebuild;
@@ -2142,7 +2530,12 @@ impl SceneRenderer {
             .iter()
             .chain(&point_changes)
             .any(Option::is_some);
-        let mut individual = vec![false; draws.len()];
+        let mut individual = std::mem::take(&mut self.frame_scratch.individual);
+        individual.clear();
+        individual.resize(draws.len(), false);
+        let mut shadow_individual = std::mem::take(&mut self.frame_scratch.shadow);
+        shadow_individual.clear();
+        shadow_individual.resize(draws.len(), false);
         for batch in &batches {
             if batch.slot.is_none() {
                 individual[batch.indices[0]] = true;
@@ -2154,7 +2547,7 @@ impl SceneRenderer {
                     .all(|&index| !draws[index].transparent && draws[index].object.material.lit)
             {
                 for &index in &batch.indices {
-                    individual[index] |=
+                    shadow_individual[index] |=
                         !draws[index].transparent && draws[index].object.material.lit;
                 }
             }
@@ -2162,21 +2555,55 @@ impl SceneRenderer {
         if let Some(batches) = &shadow_batches {
             for batch in batches.iter().filter(|b| b.slot.is_none()) {
                 for &index in &batch.indices {
-                    individual[index] = true;
+                    shadow_individual[index] = true;
                 }
             }
         }
         for (index, draw) in draws.iter().enumerate() {
-            individual[index] |= !draw.transparent
+            shadow_individual[index] |= !draw.transparent
                 && draw.object.material.lit
                 && !self.instancing.shadow_batching()
                 && (local_individuals
                     || sun_individuals && (!visible[index] || sun_plan.is_some()));
         }
-        for (needed, binding) in individual.into_iter().zip(&mut self.objects) {
+        self.prepare_shadow_singletons(gpu, &draws, &shadow_individual)?;
+        self.stats.shadow_singleton_bytes = self.shadows.singletons.write_bytes;
+        self.stats.shadow_singleton_allocations = self.shadows.singletons.allocations;
+        self.stats.local_shadow_receiver_bytes =
+            self.shadows.spots.receiver_write_bytes + self.shadows.points.receiver_write_bytes;
+        self.stats.local_shadow_receiver_writes =
+            self.shadows.spots.receiver_writes + self.shadows.points.receiver_writes;
+        for (index, &needed) in individual.iter().enumerate() {
+            if needed && self.objects[index].resources.is_none() {
+                let resources = self.object_resources(
+                    gpu,
+                    &self.objects[index].texture,
+                    !self.objects[index].numeric_parameters.is_empty(),
+                )?;
+                self.objects[index].resources = Some(resources);
+                self.objects[index].dirty = true;
+                self.objects[index].parameter_dirty = true;
+                self.stats.object_buffer_allocations += 1;
+            }
+            let binding = &mut self.objects[index];
+            if needed && binding.parameter_dirty {
+                if let Some(buffer) = binding
+                    .resources
+                    .as_ref()
+                    .and_then(|r| r.parameters.as_ref())
+                {
+                    let bytes = graph_parameter_bytes(&binding.numeric_parameters);
+                    gpu.queue.write_buffer(buffer, 0, &bytes);
+                    self.stats.graph_parameter_bytes += bytes.len();
+                }
+                binding.parameter_dirty = false;
+            }
             if needed && binding.dirty {
-                gpu.queue
-                    .write_buffer(&binding.buffer, 0, binding.uniform.as_ref().unwrap());
+                gpu.queue.write_buffer(
+                    &binding.resources.as_ref().unwrap().buffer,
+                    0,
+                    binding.uniform.as_ref().unwrap(),
+                );
                 binding.dirty = false;
                 self.stats.object_uniform_writes += 1;
             }
@@ -2244,7 +2671,16 @@ impl SceneRenderer {
             self.stats.shadow_draws += point_draws;
             self.stats.shadow_triangles += point_triangles;
         }
-        self.stats.auxiliary_targets = if auxiliary { 3 } else { 0 };
+        self.stats.auxiliary_targets = output_mask.count_ones() as usize;
+        self.stats.shadow_range_draws_saved = self.shadows.spots.range_draws_saved.get()
+            + self.shadows.points.range_draws_saved.get();
+        self.stats.shadow_range_bytes = self.shadows.spots.range_write_bytes.get()
+            + self.shadows.points.range_write_bytes.get();
+        self.stats.local_static_depth_copies = self.shadows.spots.static_depth_copies.get()
+            + self.shadows.points.static_depth_copies.get();
+        self.stats.local_static_triangles_skipped =
+            self.shadows.spots.static_triangles_skipped.get()
+                + self.shadows.points.static_triangles_skipped.get();
         self.stats.geometry_allocated_bytes = if self.geometry.is_some() {
             24 * u64::from(size[0]) * u64::from(size[1])
         } else {
@@ -2254,7 +2690,43 @@ impl SceneRenderer {
             * 8
             * u64::from(size[0])
             * u64::from(size[1]);
+        let mut pass_stats = FrameStats::default();
+        let mut submission = std::mem::take(&mut self.submission);
+        let submission_candidate = !has_particles
+            && occlusion != occlusion::Mode::Indirect
+            && submission.candidate(batches.len(), self.instancing.arena_enabled());
         {
+            let records: Vec<_> = if submission_candidate {
+                batches
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| {
+                        occlusion != occlusion::Mode::Cached || self.occlusion.batch_visible(*index)
+                    })
+                    .map(|(_, batch)| {
+                        let binding = match batch.slot {
+                            Some(slot) => &self.instancing.bindings[slot].binding,
+                            None => self.objects[batch.indices[0]].binding(),
+                        };
+                        self.prepared_record(
+                            &draws[batch.indices[0]],
+                            binding,
+                            output_mask,
+                            batch.indices.len() as u32,
+                            batch.first_instance,
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            submission.prepare(
+                gpu,
+                &records,
+                output_mask,
+                submission_candidate,
+                self.instancing.arena_enabled(),
+            );
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene opaque pass"),
                 color_attachments: &[
@@ -2267,7 +2739,7 @@ impl SceneRenderer {
                             a: 1.,
                         },
                     ),
-                    auxiliary
+                    (output_mask & 1 != 0)
                         .then(|| {
                             geometry::auxiliary_attachment(
                                 &self.geometry.as_ref().unwrap().normal,
@@ -2275,7 +2747,7 @@ impl SceneRenderer {
                             )
                         })
                         .flatten(),
-                    auxiliary
+                    (output_mask & 2 != 0)
                         .then(|| {
                             geometry::auxiliary_attachment(
                                 &self.geometry.as_ref().unwrap().motion,
@@ -2283,7 +2755,7 @@ impl SceneRenderer {
                             )
                         })
                         .flatten(),
-                    auxiliary
+                    (output_mask & 4 != 0)
                         .then(|| {
                             geometry::auxiliary_attachment(
                                 &self.geometry.as_ref().unwrap().specular,
@@ -2303,43 +2775,81 @@ impl SceneRenderer {
                 ..Default::default()
             });
             self.environment
-                .background(&mut pass, scene.environment, auxiliary);
-            let mut last_pipeline = None;
-            for (batch_index, batch) in batches.iter().enumerate() {
-                if occlusion == occlusion::Mode::Cached
-                    && !self.occlusion.batch_visible(batch_index)
-                {
-                    continue;
+                .background(&mut pass, scene.environment, output_mask);
+            let mut last_pipeline = draw_state::DrawState::default();
+            if submission_candidate {
+                let work =
+                    submission.draw(&mut pass, &records, &mut last_pipeline, self.state_caching);
+                pass_stats.render_bundle_compilations = work.bundle_compilations;
+                pass_stats.render_bundle_replays = work.bundle_replays;
+                pass_stats.multi_draw_indirect_runs = work.indirect_runs;
+                pass_stats.multi_draw_indirect_draws = work.indirect_draws;
+                pass_stats.multi_draw_indirect_bytes = work.indirect_bytes;
+                for record in &records {
+                    pass_stats.color_draws += 1;
+                    pass_stats.color_triangles += record.triangles();
+                    pass_stats.instanced_draws += usize::from(record.instances > 1);
+                    pass_stats.instanced_surfaces += if record.instances > 1 {
+                        record.instances as usize
+                    } else {
+                        0
+                    };
                 }
-                let draw = &draws[batch.indices[0]];
-                if has_particles && draw.transparent {
-                    continue;
+                pass_stats.pipeline_binds += last_pipeline.counts.pipelines;
+            } else {
+                for (batch_index, batch) in batches.iter().enumerate() {
+                    if occlusion == occlusion::Mode::Cached
+                        && !self.occlusion.batch_visible(batch_index)
+                    {
+                        continue;
+                    }
+                    let draw = &draws[batch.indices[0]];
+                    if has_particles && draw.transparent {
+                        continue;
+                    }
+                    let binding = match batch.slot {
+                        Some(slot) => &self.instancing.bindings[slot].binding,
+                        None => self.objects[batch.indices[0]].binding(),
+                    };
+                    let count = batch.indices.len() as u32;
+                    let (triangles, binds) = self.draw_prepared(
+                        &mut pass,
+                        draw,
+                        binding,
+                        output_mask,
+                        DrawCall {
+                            instances: count,
+                            first_instance: batch.first_instance,
+                            indirect: (occlusion == occlusion::Mode::Indirect)
+                                .then(|| (self.occlusion.arguments(), batch_index as u64 * 20)),
+                        },
+                        &mut last_pipeline,
+                    );
+                    pass_stats.color_draws += 1;
+                    pass_stats.instanced_draws += usize::from(count > 1);
+                    pass_stats.instanced_surfaces += if count > 1 { count as usize } else { 0 };
+                    pass_stats.color_triangles += triangles;
+                    pass_stats.pipeline_binds += binds;
                 }
-                let binding = batch
-                    .slot
-                    .map_or(&self.objects[batch.indices[0]].binding, |slot| {
-                        &self.instancing.bindings[slot].binding
-                    });
-                let count = batch.indices.len() as u32;
-                let (triangles, binds) = self.draw_prepared(
-                    &mut pass,
-                    draw,
-                    binding,
-                    auxiliary,
-                    DrawCall {
-                        instances: count,
-                        indirect: (occlusion == occlusion::Mode::Indirect)
-                            .then(|| (self.occlusion.arguments(), batch_index as u64 * 20)),
-                    },
-                    &mut last_pipeline,
-                );
-                self.stats.color_draws += 1;
-                self.stats.instanced_draws += usize::from(count > 1);
-                self.stats.instanced_surfaces += if count > 1 { count as usize } else { 0 };
-                self.stats.color_triangles += triangles;
-                self.stats.pipeline_binds += binds;
             }
+            pass_stats.material_binds = last_pipeline.counts.groups;
+            pass_stats.vertex_binds = last_pipeline.counts.vertices;
+            pass_stats.index_binds = last_pipeline.counts.indices;
         }
+        self.submission = submission;
+        self.stats.color_draws += pass_stats.color_draws;
+        self.stats.color_triangles += pass_stats.color_triangles;
+        self.stats.instanced_draws += pass_stats.instanced_draws;
+        self.stats.instanced_surfaces += pass_stats.instanced_surfaces;
+        self.stats.pipeline_binds += pass_stats.pipeline_binds;
+        self.stats.material_binds += pass_stats.material_binds;
+        self.stats.vertex_binds += pass_stats.vertex_binds;
+        self.stats.index_binds += pass_stats.index_binds;
+        self.stats.render_bundle_compilations = pass_stats.render_bundle_compilations;
+        self.stats.render_bundle_replays = pass_stats.render_bundle_replays;
+        self.stats.multi_draw_indirect_runs = pass_stats.multi_draw_indirect_runs;
+        self.stats.multi_draw_indirect_draws = pass_stats.multi_draw_indirect_draws;
+        self.stats.multi_draw_indirect_bytes = pass_stats.multi_draw_indirect_bytes;
         if has_particles {
             let load = |view, store| {
                 Some(wgpu::RenderPassColorAttachment {
@@ -2378,13 +2888,14 @@ impl SceneRenderer {
                 let (triangles, binds) = self.draw_prepared(
                     &mut pass,
                     &draws[index],
-                    &self.objects[index].binding,
-                    true,
+                    self.objects[index].binding(),
+                    7,
                     DrawCall {
                         instances: 1,
+                        first_instance: 0,
                         indirect: None,
                     },
-                    &mut None,
+                    &mut draw_state::DrawState::default(),
                 );
                 self.stats.color_draws += 1;
                 self.stats.color_triangles += triangles;
@@ -2404,6 +2915,7 @@ impl SceneRenderer {
         );
         if scene.items.iter().any(|i| match &i.mesh {
             MeshKind::Text(t) => t.screen.is_some(),
+            MeshKind::SharedText(t) => t.screen.is_some(),
             MeshKind::Sprite(s) => s.screen.is_some(),
             _ => false,
         }) {
@@ -2421,6 +2933,9 @@ impl SceneRenderer {
                 raw,
                 self.hud_scale,
             );
+            self.stats.hud_draws = hud.draw_calls;
+            self.stats.hud_uniform_bytes = hud.uniform_bytes;
+            self.stats.hud_geometry_copies = hud.geometry_copies;
             self.hud = Some(hud);
             result?;
         } else {
@@ -2440,6 +2955,12 @@ impl SceneRenderer {
             self.shadows
                 .sun_cache
                 .finish(plan, &draws, &self.shadows.uniform_row);
+        } else {
+            self.shadows.sun_cache.age_unused();
+        }
+        if self.stats.shadow_cache_hit {
+            self.shadows.spots.age_unused_static_depth();
+            self.shadows.points.age_unused_static_depth();
         }
         let state_started = std::time::Instant::now();
         if reuse_metadata {
@@ -2465,9 +2986,22 @@ impl SceneRenderer {
         self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
         self.instancing.frame_batches = batches;
+        if let Some(batches) = shadow_batches {
+            self.instancing.shadow_frame_batches = batches;
+        }
         if self.state_caching && self.surface_preparation_caching {
             self.surface_preparation.draws = draws;
         }
+        self.frame_scratch = frame_scratch::Scratch {
+            bounds,
+            visible,
+            frustum: frustum_visible,
+            items: visible_items,
+            individual,
+            shadow: shadow_individual,
+        };
+        self.frame_scratch.compact();
+        self.stats.frame_scratch_bytes = self.frame_scratch.bytes();
         self.stats.cpu_ms = started.elapsed().as_secs_f64() * 1000.;
         Ok(())
     }

@@ -44,5 +44,5 @@ struct Indirect {
         // roundoff. Empty/background pixels (depth 1) can never hide geometry.
         if farthest + 0.00002 < candidate.nearest { instances = 0u; }
     }
-    arguments[index] = Indirect(candidate.indices, instances, 0u, 0, 0u);
+    arguments[index] = Indirect(candidate.indices, instances, 0u, 0, candidate.padding);
 }

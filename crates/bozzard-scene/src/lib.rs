@@ -65,6 +65,7 @@ mod tile_view;
 mod transforms;
 pub use lighting::Lighting;
 pub use render_extraction::RenderExtractionStats;
+pub use transforms::TransformExtractionStats;
 
 use anyhow::{Context, Result, ensure};
 use bozzard_ecs::{Entity, World};
@@ -1195,6 +1196,12 @@ impl SceneInstance {
     pub fn document(&self) -> &Scene {
         &self.document
     }
+    /// Authored document generation. Public access is immutable; each live
+    /// prefab/load replacement advances this generation with its hierarchy.
+    /// Pair with this instance's render_cache_identity when retaining snapshots.
+    pub fn authored_revision(&self) -> u64 {
+        self.hierarchy_revision
+    }
     pub fn entity(&self, id: &str) -> Option<Entity> {
         self.entities.get(id).copied()
     }
@@ -1412,6 +1419,7 @@ impl SceneInstance {
             let mut shader_graphs = Vec::new();
             let mut material_instances = Vec::new();
             let mut texts = Vec::new();
+            let mut shared_texts = Vec::new();
             let mut owned_cache = render_extraction::CachedPayloads::default();
             let mut retained = if D::SHARED {
                 Some(self.render_cache.lock()?)
@@ -1454,11 +1462,27 @@ impl SceneInstance {
                         .is_some_and(|s| s.collected.contains(id))
                 {
                     text.validate()?;
-                    let mut text = text.clone();
-                    for channel in &mut text.color[..3] {
-                        *channel *= view_factor;
+                    if D::SHARED {
+                        shared_texts.push((
+                            matrix,
+                            cache.text(
+                                entity,
+                                text,
+                                view_factor,
+                                if cache.revision_tracking_disabled {
+                                    None
+                                } else {
+                                    world.component_value_revision::<TextRendering>(entity)
+                                },
+                            ),
+                        ));
+                    } else {
+                        let mut text = text.clone();
+                        for channel in &mut text.color[..3] {
+                            *channel *= view_factor;
+                        }
+                        texts.push((matrix, text));
                     }
-                    texts.push((matrix, text));
                 }
                 if let Some(drawable) = world.get::<Drawable>(entity)
                     && drawable.layer == layer
@@ -1485,6 +1509,7 @@ impl SceneInstance {
                             _ => {}
                         }
                     }
+                    let track_revisions = !cache.revision_tracking_disabled;
                     let drawable = D::resolve(
                         cache,
                         render_extraction::DrawableInput {
@@ -1493,12 +1518,24 @@ impl SceneInstance {
                             material: world.get::<Material>(entity),
                             mesh: selected_mesh,
                             factor: view_factor,
+                            revisions: if !track_revisions {
+                                [None, None]
+                            } else {
+                                [
+                                    world.component_value_revision::<Drawable>(entity),
+                                    world.component_value_revision::<Material>(entity),
+                                ]
+                            },
                         },
                     );
-                    use std::hash::{Hash, Hasher};
-                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                    entity.hash(&mut hasher);
-                    let motion_id = hasher.finish().max(1);
+                    let motion_id = if D::SHARED {
+                        cache.motion_id(entity)
+                    } else {
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        entity.hash(&mut hasher);
+                        hasher.finish().max(1)
+                    };
                     object_ids.push(motion_id);
                     if let Some(handle) = compute_state
                         .as_ref()
@@ -1515,6 +1552,10 @@ impl SceneInstance {
                             .filter(|p| !p.palette.is_empty())
                         {
                             Some(player) => (player.signature, player.palette.clone()),
+                            None if D::SHARED => {
+                                let palette = cache.rest_palette(entity, &animator.rig)?;
+                                (palette.signature, palette.matrices)
+                            }
                             None => (
                                 animator.rig.signature(),
                                 std::sync::Arc::new(
@@ -1532,7 +1573,15 @@ impl SceneInstance {
                     }
                     let graph = world.get::<shader_graph::ShaderGraph>(entity);
                     shader_graphs.push(if D::SHARED {
-                        cache.graph(entity, graph)
+                        cache.graph(
+                            entity,
+                            graph,
+                            if !track_revisions {
+                                None
+                            } else {
+                                world.component_value_revision::<shader_graph::ShaderGraph>(entity)
+                            },
+                        )
                     } else {
                         graph.map(|g| std::sync::Arc::new(g.clone()))
                     });
@@ -1585,9 +1634,19 @@ impl SceneInstance {
                 "too many runtime shadowed point lights"
             );
             Ok(RenderView {
-                sprites: self.sprite_frame_with_lookup(world, layer, |id| {
-                    matrices[self.object_indices[&self.entities[id]]]
-                })?,
+                sprites: self.sprite_frame_with_entities(
+                    world,
+                    layer,
+                    cache
+                        .sprite_entities
+                        .iter()
+                        .zip(&cache.sprite_motion_ids)
+                        .map(|(&index, &identities)| {
+                            let id = self.document.objects[index].id.as_str();
+                            (id, self.entities[id], identities)
+                        }),
+                    |id| matrices[self.object_indices[&self.entities[id]]],
+                )?,
                 skin_poses,
                 particles: if layer == Layer::ThreeD {
                     self.particle_state.frame()
@@ -1609,6 +1668,7 @@ impl SceneInstance {
                 shader_graphs,
                 material_instances,
                 texts,
+                shared_texts,
             })
         })
     }
@@ -1662,6 +1722,9 @@ pub struct RenderView<D> {
     pub particles: Vec<Particle>,
     pub display_time: f32,
     pub texts: Vec<(Mat4, TextRendering)>,
+    /// Immutable text descriptors used by retained extraction. Owned extraction
+    /// keeps `texts` as its independent compatibility/reference path.
+    pub shared_texts: Vec<(Mat4, std::sync::Arc<TextRendering>)>,
     pub fog: FogSettings,
     pub lights: Vec<WorldLight>,
     pub environment: EnvironmentSettings,

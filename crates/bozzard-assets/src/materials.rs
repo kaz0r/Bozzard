@@ -297,6 +297,8 @@ impl AssetStore {
                 entry.data = Some(Arc::new(AssetData::Material(Box::new(data))));
                 entry.state = LoadState::Ready;
                 entry.revision += 1;
+                store.publication = Arc::new(());
+                store.canonical_ids = Default::default();
             }
         }
         Ok(MaterialEdit {

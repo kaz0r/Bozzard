@@ -54,6 +54,7 @@ impl ModelShading<'_> {
 
 pub(crate) struct UploadedShading {
     pub double_sided: bool,
+    pub map_mask: u8,
     pub vertices: wgpu::Buffer,
     pub binding: wgpu::BindGroup,
 }
@@ -196,7 +197,9 @@ impl PbrRenderer {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PBR tangent and UV attributes"),
                 contents: &crate::scene::float_bytes(material.vertices.iter().flatten().copied()),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+                usage: wgpu::BufferUsages::VERTEX
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC,
             });
         self.bind(gpu, material, views, vertices)
     }
@@ -258,6 +261,10 @@ impl PbrRenderer {
             });
         }
         UploadedShading {
+            map_mask: u8::from(material.normal.is_some())
+                | (u8::from(material.metallic_roughness.is_some()) << 1)
+                | (u8::from(material.occlusion.is_some()) << 2)
+                | (u8::from(material.emissive.is_some()) << 3),
             double_sided: material.double_sided,
             binding: gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("PBR material"),

@@ -1,4 +1,5 @@
 use super::*;
+mod singleton;
 
 /// Exact depth-producing state, independent of camera, exposure and light color.
 /// Asset publication invalidates the retained frame even when asset IDs are reused.
@@ -297,6 +298,11 @@ impl ShadowFrame {
 }
 
 pub(super) struct Shadows {
+    device: wgpu::Device,
+    pub singletons: singleton::Cache,
+    opaque_enabled: bool,
+    variants:
+        std::cell::RefCell<BTreeMap<(bool, bool, bool, ShadowCoverage), wgpu::RenderPipeline>>,
     pub spots: local_shadow_maps::ShadowMaps,
     pub points: local_shadow_maps::ShadowMaps,
     pub gi_uniform: wgpu::Buffer,
@@ -318,18 +324,62 @@ pub(super) struct Shadows {
     pub sun_fit: sun_fit::Cache,
 }
 
-fn module_text(instanced: bool) -> String {
-    let source = format!(
-        "{}\n{}",
-        include_str!("object.wgsl"),
-        include_str!("shadow_cast.wgsl")
-    );
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) enum ShadowCoverage {
+    Masked,
+    OpaqueDouble,
+    OpaqueCcw,
+    OpaqueCw,
+}
+
+struct PipelineSpec {
+    instanced: bool,
+    point: bool,
+    compact: bool,
+    coverage: ShadowCoverage,
+}
+
+fn proven_opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
+    // Opaque depth does not execute graphs, exactly like the original caster.
+    // Check the effective alpha used by that shader, including masked materials.
+    if draw.opacity <= 0.00001 || draw.opacity < draw.cutoff {
+        return false;
+    }
+    match &draw.object.material.texture {
+        TextureKind::Generated(_) | TextureKind::Text => false,
+        TextureKind::Imported(id) => !renderer.transparent_textures.contains(id),
+        TextureKind::ModelPart(id, part) => !renderer.models[id][*part].translucent,
+        TextureKind::White
+        | TextureKind::Checker
+        | TextureKind::Normals
+        | TextureKind::ProceduralChecker
+        | TextureKind::Toon => true,
+    }
+}
+fn alpha_rejected(opacity: f32, cutoff: f32) -> bool {
+    // Normalized color textures sample alpha in [0,1]. At the largest possible
+    // sample the stock fragment still discards these effective-alpha values.
+    opacity <= 0.00001 || opacity < cutoff
+}
+
+fn module_text(instanced: bool, compact: bool) -> String {
+    let object = if compact {
+        "struct ObjectUniform { model: mat4x4<f32>, parameters: vec4<f32>, raster: vec4<f32> };"
+    } else {
+        include_str!("object.wgsl")
+    };
+    let source = format!("{}\n{}", object, include_str!("shadow_cast.wgsl"));
+    let source = if compact {
+        source.replace("object.tint.a", "object.parameters.z")
+    } else {
+        source
+    };
     if !instanced {
         return source;
     }
     source
         .replace("@group(0) @binding(0) var<uniform> object: ObjectUniform;",
-            &format!("@group(0) @binding(0) var<uniform> objects: array<ObjectUniform, {}>;\nvar<private> object: ObjectUniform;", instancing::MAX_INSTANCES))
+            &format!("@group(0) @binding(0) var<uniform> objects: array<ObjectUniform, {}>;\nvar<private> object: ObjectUniform;", if compact { instancing::MAX_SHADOW_INSTANCES } else { instancing::MAX_INSTANCES }))
         .replace("struct VertexOutput {", "struct VertexOutput { @location(1) @interpolate(flat) instance: u32,")
         .replace("fn vs_main(", "fn vs_main(@builtin(instance_index) instance: u32, ")
         .replace("var out: VertexOutput;", "object = objects[instance];\nvar out: VertexOutput;\nout.instance = instance;")
@@ -342,63 +392,99 @@ pub(super) fn pipeline(
     caster_layout: &wgpu::BindGroupLayout,
     instanced: bool,
     point: bool,
+    compact: bool,
 ) -> wgpu::RenderPipeline {
-    let layout = gpu
-        .device
-        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("shadow pipeline layout"),
-            bind_group_layouts: &[Some(object_layout), Some(caster_layout)],
-            immediate_size: 0,
-        });
-    let shader = gpu
-        .device
-        .create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("depth caster"),
-            source: wgpu::ShaderSource::Wgsl(module_text(instanced).into()),
-        });
-    gpu.device
-        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(if instanced {
-                "instanced shadow pass"
+    pipeline_variant(
+        &gpu.device,
+        object_layout,
+        caster_layout,
+        PipelineSpec {
+            instanced,
+            point,
+            compact,
+            coverage: ShadowCoverage::Masked,
+        },
+    )
+}
+
+fn pipeline_variant(
+    device: &wgpu::Device,
+    object_layout: &wgpu::BindGroupLayout,
+    caster_layout: &wgpu::BindGroupLayout,
+    spec: PipelineSpec,
+) -> wgpu::RenderPipeline {
+    let PipelineSpec {
+        instanced,
+        point,
+        compact,
+        coverage,
+    } = spec;
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("shadow pipeline layout"),
+        bind_group_layouts: &[Some(object_layout), Some(caster_layout)],
+        immediate_size: 0,
+    });
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("depth caster"),
+        source: wgpu::ShaderSource::Wgsl(module_text(instanced, compact).into()),
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(if instanced {
+            "instanced shadow pass"
+        } else {
+            "shadow pass"
+        }),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: 32,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x2],
+            })],
+        },
+        fragment: (coverage == ShadowCoverage::Masked).then_some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            compilation_options: Default::default(),
+            targets: &[],
+        }),
+        primitive: wgpu::PrimitiveState {
+            front_face: if coverage == ShadowCoverage::OpaqueCw {
+                wgpu::FrontFace::Cw
             } else {
-                "shadow pass"
-            }),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: 32,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x2],
-                })],
+                wgpu::FrontFace::Ccw
             },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[],
-            }),
-            primitive: Default::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
-                stencil: Default::default(),
-                bias: wgpu::DepthBiasState {
-                    constant: 0,
-                    slope_scale: if point { 3. } else { 1. },
-                    clamp: 0.,
-                },
-            }),
-            multisample: Default::default(),
-            multiview_mask: None,
-            cache: None,
-        })
+            cull_mode: matches!(
+                coverage,
+                ShadowCoverage::OpaqueCcw | ShadowCoverage::OpaqueCw
+            )
+            .then_some(wgpu::Face::Back),
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::Less),
+            stencil: Default::default(),
+            bias: wgpu::DepthBiasState {
+                constant: 0,
+                slope_scale: if point { 3. } else { 1. },
+                clamp: 0.,
+            },
+        }),
+        multisample: Default::default(),
+        multiview_mask: None,
+        cache: None,
+    })
 }
 pub(super) fn target(gpu: &Gpu, resolution: u32) -> wgpu::TextureView {
-    gpu.device
+    target_device(&gpu.device, resolution)
+}
+pub(super) fn target_device(device: &wgpu::Device, resolution: u32) -> wgpu::TextureView {
+    device
         .create_texture(&wgpu::TextureDescriptor {
             label: Some("sun shadow depth"),
             size: wgpu::Extent3d {
@@ -593,10 +679,14 @@ impl Shadows {
                 &points.uniform,
             ],
         );
-        let pipeline = pipeline(gpu, object_layout, &caster_layout, false, false);
+        let pipeline = pipeline(gpu, object_layout, &caster_layout, false, false, false);
         // Cube faces need the wider grazing-receiver bias used by the reference pass.
-        let point_pipeline = self::pipeline(gpu, object_layout, &caster_layout, false, true);
+        let point_pipeline = self::pipeline(gpu, object_layout, &caster_layout, false, true, false);
         Self {
+            device: gpu.device.clone(),
+            singletons: singleton::Cache::default(),
+            opaque_enabled: true,
+            variants: Default::default(),
             spots,
             points,
             gi_uniform,
@@ -755,12 +845,64 @@ pub(super) fn fit_extents(
         .then_some((matrix, far - near, texel.max_element()))
 }
 impl SceneRenderer {
+    pub(super) fn shadow_rejected(&self, draw: &PreparedDraw) -> bool {
+        self.shadows.opaque_enabled
+            && !matches!(draw.object.material.texture, TextureKind::Generated(_))
+            && alpha_rejected(draw.opacity, draw.cutoff)
+    }
+    /// Reference switch for exact alpha/raster parity of the opaque depth path.
+    pub fn set_opaque_shadow_specialization_enabled(&mut self, enabled: bool) {
+        if self.shadows.opaque_enabled != enabled {
+            self.shadows.opaque_enabled = enabled;
+            self.invalidate_object_bindings();
+        }
+    }
+    pub(super) fn shadow_coverage_at(&self, index: usize, draw: &PreparedDraw) -> ShadowCoverage {
+        let raster = self.objects.get(index).and_then(|binding| {
+            let source = binding.source.as_ref()?;
+            let (model, _, determinant) = binding.transform?;
+            (source.model == draw.object.model && model == draw.object.model)
+                .then_some((source.double_sided, determinant))
+        });
+        self.shadow_coverage_with_raster(draw, raster)
+    }
+    fn shadow_coverage_with_raster(
+        &self,
+        draw: &PreparedDraw,
+        raster: Option<(bool, f32)>,
+    ) -> ShadowCoverage {
+        if !self.shadows.opaque_enabled || !proven_opaque(self, draw) {
+            return ShadowCoverage::Masked;
+        }
+        let double_sided = raster.map_or_else(
+            || match &draw.object.mesh {
+                MeshKind::ModelPart(id, index) => self.models[id][*index]
+                    .shading
+                    .as_ref()
+                    .is_none_or(|s| s.double_sided),
+                _ => true,
+            },
+            |(double_sided, _)| double_sided,
+        );
+        if double_sided {
+            ShadowCoverage::OpaqueDouble
+        } else if raster.map_or_else(
+            || draw.object.model.determinant().signum(),
+            |(_, sign)| sign,
+        ) > 0.
+        {
+            ShadowCoverage::OpaqueCcw
+        } else {
+            ShadowCoverage::OpaqueCw
+        }
+    }
     pub(super) fn mesh_for(&self, object: &DrawItem) -> &MeshBuffers {
         if let Some(mesh) = self.skinning.mesh(object) {
             return mesh;
         }
         match &object.mesh {
             MeshKind::Text(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
+            MeshKind::SharedText(text) => self.text.as_ref().unwrap().mesh(text).unwrap(),
             MeshKind::Sprite(sprite) => self.sprites.mesh(sprite).unwrap(),
             MeshKind::Quad => &self.quad,
             MeshKind::Cube => &self.cube,
@@ -914,12 +1056,26 @@ impl SceneRenderer {
         point: bool,
         mask: Option<&[bool]>,
     ) -> (usize, u64) {
+        self.draw_shadow_casters_with_bindings(pass, draws, batches, projection, point, mask, None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn draw_shadow_casters_with_bindings(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        draws: &[PreparedDraw],
+        batches: &[instancing::Batch],
+        projection: Option<Mat4>,
+        point: bool,
+        mask: Option<&[bool]>,
+        compacted: Option<&BTreeMap<usize, wgpu::BindGroup>>,
+    ) -> (usize, u64) {
         let mut counts = (0, 0);
         let casts = |index: usize| {
             let draw = &draws[index];
             mask.is_none_or(|m| m[index])
                 && !draw.transparent
                 && draw.object.material.lit
+                && !self.shadow_rejected(draw)
                 && (!self.culling
                     || projection.is_none_or(|p| {
                         self.frustum_visible(
@@ -928,32 +1084,88 @@ impl SceneRenderer {
                         )
                     }))
         };
-        let mut was_instanced = None;
+        let mut last_variant = None;
+        let mut state = draw_state::DrawState::default();
         let mut submit = |index: usize, instances: std::ops::Range<u32>, slot: Option<usize>| {
             let draw = &draws[index];
             if casts(index) {
                 let instanced = slot.is_some();
-                if was_instanced != Some(instanced) {
-                    pass.set_pipeline(if instanced {
-                        &self.instancing.shadow_pipelines.as_ref().unwrap()[usize::from(point)]
-                    } else if point {
-                        &self.shadows.point_pipeline
+                // Independent shadow groups partition coverage and winding. A
+                // diagnostic color batch may mix winding, so retain its shader.
+                let coverage = if instanced && !self.instancing.shadow_batching() {
+                    ShadowCoverage::Masked
+                } else {
+                    self.shadow_coverage_at(index, draw)
+                };
+                let compact_singleton =
+                    !instanced && self.shadows.singletons.binding(index).is_some();
+                if last_variant != Some((instanced, compact_singleton, coverage)) {
+                    if coverage == ShadowCoverage::Masked && !compact_singleton {
+                        state.pipeline(
+                            pass,
+                            if instanced {
+                                &self.instancing.shadow_pipelines.as_ref().unwrap()
+                                    [usize::from(point)]
+                            } else if point {
+                                &self.shadows.point_pipeline
+                            } else {
+                                &self.shadows.pipeline
+                            },
+                            self.state_caching,
+                        );
                     } else {
-                        &self.shadows.pipeline
-                    });
-                    was_instanced = Some(instanced);
-                }
-                let binding = slot.map_or(&self.objects[index].binding, |slot| {
-                    if self.instancing.shadow_batching() {
-                        &self.instancing.shadow_bindings[slot].binding
-                    } else {
-                        &self.instancing.bindings[slot].binding
+                        let compact =
+                            compact_singleton || instanced && self.instancing.shadow_batching();
+                        let mut variants = self.shadows.variants.borrow_mut();
+                        let pipeline = variants
+                            .entry((instanced, point, compact, coverage))
+                            .or_insert_with(|| {
+                                let layout = if compact_singleton {
+                                    self.shadows.singletons.layout.as_ref().unwrap()
+                                } else if compact {
+                                    self.instancing.shadow_layout.as_ref().unwrap()
+                                } else if instanced {
+                                    &self.instancing.layout
+                                } else {
+                                    &self.layout
+                                };
+                                pipeline_variant(
+                                    &self.shadows.device,
+                                    layout,
+                                    &self.shadows.caster_layout,
+                                    PipelineSpec {
+                                        instanced,
+                                        point,
+                                        compact,
+                                        coverage,
+                                    },
+                                )
+                            });
+                        state.pipeline(pass, pipeline, self.state_caching);
                     }
-                });
+                    last_variant = Some((instanced, compact_singleton, coverage));
+                }
+                let binding = match slot {
+                    None if compact_singleton => self.shadows.singletons.binding(index).unwrap(),
+                    None => self.objects[index].binding(),
+                    Some(slot) if compacted.is_some_and(|map| map.contains_key(&slot)) => {
+                        &compacted.unwrap()[&slot]
+                    }
+                    Some(slot) if self.instancing.shadow_batching() => {
+                        &self.instancing.shadow_bindings[slot].binding
+                    }
+                    Some(slot) => &self.instancing.bindings[slot].binding,
+                };
                 let mesh = self.mesh_for(&draw.object);
-                pass.set_bind_group(0, binding, &[]);
-                pass.set_vertex_buffer(0, mesh.vertices.slice(mesh.vertex_offset..));
-                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                state.group(pass, 0, binding, self.state_caching);
+                state.vertex(
+                    pass,
+                    0,
+                    &mesh.vertices,
+                    mesh.vertex_offset,
+                    self.state_caching,
+                );
+                state.index(pass, &mesh.indices, self.state_caching);
                 let count = instances.end - instances.start;
                 pass.draw_indexed(0..mesh.count, 0, instances);
                 counts.0 += 1;
@@ -1001,10 +1213,25 @@ impl SceneRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ModelShading;
+    #[test]
+    fn rejected_shadow_alpha_keeps_exact_threshold_and_cutoff_boundaries() {
+        let threshold = 0.00001f32;
+        assert!(alpha_rejected(f32::from_bits(threshold.to_bits() - 1), 0.));
+        assert!(alpha_rejected(threshold, 0.));
+        assert!(!alpha_rejected(f32::from_bits(threshold.to_bits() + 1), 0.));
+        let cutoff = 0.5f32;
+        assert!(alpha_rejected(f32::from_bits(cutoff.to_bits() - 1), cutoff));
+        assert!(!alpha_rejected(cutoff, cutoff));
+        assert!(!alpha_rejected(
+            f32::from_bits(cutoff.to_bits() + 1),
+            cutoff
+        ));
+    }
     #[test]
     fn shadow_shaders_validate_and_share_the_color_uniform_stride() {
-        for instanced in [false, true] {
-            let source = module_text(instanced);
+        for (instanced, compact) in [(false, false), (true, false), (false, true), (true, true)] {
+            let source = module_text(instanced, compact);
             let module = wgpu::naga::front::wgsl::parse_str(&source)
                 .unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
             wgpu::naga::valid::Validator::new(
@@ -1022,8 +1249,204 @@ mod tests {
             let wgpu::naga::TypeInner::Struct { span, .. } = uniform.inner else {
                 panic!("uniform struct")
             };
-            assert_eq!(span as usize, OBJECT_UNIFORM_BYTES);
+            assert_eq!(
+                span as usize,
+                if compact { 96 } else { OBJECT_UNIFORM_BYTES }
+            );
         }
+    }
+    #[test]
+    fn opaque_shadow_specialization_matches_masked_reference_for_winding_and_alpha() -> Result<()> {
+        let gpu = pollster::block_on(Gpu::request(
+            &crate::instance(crate::Backend::native()),
+            None,
+            false,
+        ))?;
+        let mut renderers = std::array::from_fn::<_, 2, _>(|_| {
+            SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
+        });
+        renderers[0].set_opaque_shadow_specialization_enabled(false);
+        let vertices = [
+            [-0.4, -0.4, 0., 0., 0., 1., 0., 1.],
+            [0.4, -0.4, 0., 0., 0., 1., 1., 1.],
+            [0.4, 0.4, 0., 0., 0., 1., 1., 0.],
+            [-0.4, 0.4, 0., 0., 0., 1., 0., 0.],
+        ];
+        let attrs = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 4];
+        for renderer in &mut renderers {
+            renderer.set_occlusion_enabled(false);
+            renderer.set_shadow_preparation_caching_enabled(false);
+            renderer.upload_model(
+                &gpu,
+                "coverage",
+                &vertices,
+                &[0, 1, 2, 0, 2, 3],
+                &[
+                    ModelPart {
+                        source_key: "0000000000000000",
+                        start: 0,
+                        count: 6,
+                        color: [1.; 4],
+                        alpha_cutoff: Some(0.5),
+                        image: None,
+                        shading: Some(ModelShading {
+                            vertex_start: 0,
+                            vertices: &attrs,
+                            metallic: 0.,
+                            roughness: 0.7,
+                            normal_scale: 1.,
+                            occlusion_strength: 1.,
+                            emissive_factor: [0.; 3],
+                            double_sided: false,
+                            base_color_sampler: Default::default(),
+                            normal: None,
+                            metallic_roughness: None,
+                            occlusion: None,
+                            emissive: None,
+                        }),
+                    },
+                    ModelPart {
+                        source_key: "0000000000000001",
+                        start: 0,
+                        count: 6,
+                        color: [1.; 4],
+                        alpha_cutoff: Some(0.5),
+                        image: Some(ModelImage {
+                            width: 2,
+                            height: 1,
+                            rgba: &[255, 255, 255, 0, 255, 255, 255, 255],
+                        }),
+                        shading: Some(ModelShading {
+                            vertex_start: 0,
+                            vertices: &attrs,
+                            metallic: 0.,
+                            roughness: 0.7,
+                            normal_scale: 1.,
+                            occlusion_strength: 1.,
+                            emissive_factor: [0.; 3],
+                            double_sided: false,
+                            base_color_sampler: Default::default(),
+                            normal: None,
+                            metallic_roughness: None,
+                            occlusion: None,
+                            emissive: None,
+                        }),
+                    },
+                    ModelPart {
+                        source_key: "0000000000000002",
+                        start: 0,
+                        count: 6,
+                        color: [1., 1., 1., 0.25],
+                        alpha_cutoff: Some(0.5),
+                        image: None,
+                        shading: None,
+                    },
+                ],
+            )?;
+        }
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            shader_time: 0.,
+            particles: vec![],
+            fog: Default::default(),
+            gi: None,
+            lights: vec![LocalLight {
+                directional: false,
+                position: [0., 0., 2.],
+                direction: [0., 0., -1.],
+                color: [1.; 3],
+                intensity: 2.,
+                range: 20.,
+                spot_angles: Some([35., 50.]),
+                shadows: Some(Default::default()),
+            }],
+            environment: EnvironmentSettings::disabled(),
+            display: DisplaySettings {
+                tone_mapping: false,
+                ..Default::default()
+            },
+            lighting: Lighting {
+                shadows: true,
+                shadow_resolution: 256,
+                ..Default::default()
+            },
+            view_projection: glam::camera::rh::proj::directx::orthographic(
+                -4., 4., -4., 4., 0.1, 30.,
+            ),
+            items: (0..96)
+                .map(|index| DrawItem {
+                    motion_id: index + 1,
+                    model: Mat4::from_translation(Vec3::new(
+                        (index % 12) as f32 * 0.55 - 3.,
+                        (index / 12) as f32 * 0.6 - 2.,
+                        -5.,
+                    )) * Mat4::from_rotation_y(index as f32 * 0.11)
+                        * Mat4::from_scale(Vec3::new(
+                            if index % 2 == 0 { -1. } else { 1. },
+                            1.,
+                            1.,
+                        )),
+                    mesh: MeshKind::ModelPart("coverage".into(), (index / 2 % 3) as usize),
+                    material: Material {
+                        metallic: None,
+                        roughness: None,
+                        surface_overrides: Default::default(),
+                        tint: [0.3, 0.6, 0.8],
+                        uv_scale: [1.; 2],
+                        texture: TextureKind::White,
+                        lit: true,
+                        shader: None,
+                    },
+                })
+                .collect(),
+        };
+        let capture = |renderer: &mut SceneRenderer, scene: &RenderScene| {
+            crate::capture_offscreen(&gpu, 256, 256, |target| {
+                renderer.draw_linear(&gpu, target, [256; 2], scene)
+            })
+        };
+        scene.lights.push(LocalLight {
+            directional: false,
+            position: [-1.7, 0.7, -2.],
+            direction: [0., 0., -1.],
+            color: [1., 0.8, 0.5],
+            intensity: 3.,
+            range: 15.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        });
+        for tick in 0..3 {
+            if tick > 0 {
+                for item in &mut scene.items {
+                    item.model *= Mat4::from_rotation_x(0.04);
+                    item.material.uv_scale = [1. + tick as f32, 1.];
+                }
+            }
+            assert_eq!(
+                capture(&mut renderers[0], &scene)?.rgba,
+                capture(&mut renderers[1], &scene)?.rgba,
+                "opaque/masked shadow coverage tick{tick}"
+            );
+            assert!(
+                renderers[1].stats.shadow_triangles < renderers[0].stats.shadow_triangles,
+                "fully rejected masked alpha must omit geometry while retaining pixels"
+            );
+        }
+        let variants = renderers[1].shadows.variants.borrow();
+        assert!(
+            variants
+                .keys()
+                .any(|(_, _, _, coverage)| *coverage == ShadowCoverage::OpaqueCw)
+        );
+        assert!(
+            variants
+                .keys()
+                .any(|(_, _, _, coverage)| *coverage == ShadowCoverage::OpaqueCcw)
+        );
+        println!(
+            "opaque_shadow_proof vertex_only_cw_ccw rejected_alpha_skipped same_pixels_masked_alpha_cutoff_uv_sun_spot_point_grazing_bias"
+        );
+        Ok(())
     }
     #[test]
     fn bounds_fit_contains_corners_and_handles_vertical_sun() {
@@ -1181,9 +1604,12 @@ mod metadata_tests {
             preparation: Default::default(),
             source_item: 0,
             deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
             pbr_override: [-1.; 2],
             shader: None,
             pbr: false,
+            raster: 0,
             opacity: 1.,
             cutoff: 0.,
             transparent: false,

@@ -79,7 +79,17 @@ fn owned(view: &SharedSceneView) -> SceneView {
         material_instances: view.material_instances.clone(),
         particles: view.particles.clone(),
         display_time: view.display_time,
-        texts: view.texts.clone(),
+        texts: view
+            .texts
+            .iter()
+            .cloned()
+            .chain(
+                view.shared_texts
+                    .iter()
+                    .map(|(model, text)| (*model, text.as_ref().clone())),
+            )
+            .collect(),
+        shared_texts: Vec::new(),
         fog: view.fog,
         lights: view.lights.clone(),
         environment: view.environment,
@@ -96,7 +106,16 @@ fn assert_scene_equal(a: &RenderScene, b: &RenderScene) {
     );
     // Includes every setting and complete item/material/mesh payload, including
     // shader source, overrides, text, sprite geometry, particles, skin and GI.
-    assert_eq!(format!("{a:?}"), format!("{b:?}"));
+    let normalized = |scene: &RenderScene| {
+        let mut scene = scene.clone();
+        for item in &mut scene.items {
+            if let MeshKind::SharedText(text) = &item.mesh {
+                item.mesh = MeshKind::Text(text.as_ref().clone());
+            }
+        }
+        format!("{scene:?}")
+    };
+    assert_eq!(normalized(a), normalized(b));
 }
 
 fn extract(
@@ -179,7 +198,10 @@ fn retained_and_reference_frames_preserve_all_fields_and_transient_order() -> Re
             frame
                 .items
                 .iter()
-                .filter(|item| !matches!(item.mesh, MeshKind::Sprite(_) | MeshKind::Text(_)))
+                .filter(|item| !matches!(
+                    item.mesh,
+                    MeshKind::Sprite(_) | MeshKind::Text(_) | MeshKind::SharedText(_)
+                ))
                 .all(|item| item.material.lit == (layer == Layer::ThreeD))
         );
         let sprite = frame
@@ -190,12 +212,12 @@ fn retained_and_reference_frames_preserve_all_fields_and_transient_order() -> Re
         assert!(
             frame.items[..sprite]
                 .iter()
-                .all(|item| !matches!(item.mesh, MeshKind::Text(_)))
+                .all(|item| !matches!(item.mesh, MeshKind::Text(_) | MeshKind::SharedText(_)))
         );
         assert!(
             frame.items[sprite + 1..]
                 .iter()
-                .all(|item| matches!(item.mesh, MeshKind::Text(_)))
+                .all(|item| matches!(item.mesh, MeshKind::Text(_) | MeshKind::SharedText(_)))
         );
     }
     Ok(())
@@ -404,10 +426,12 @@ fn asset_arc_identity_handles_divergent_clones_replacements_and_failed_reload() 
     bind_material(&instance, &mut world);
     let cache = RenderSceneCache::default();
     let frozen = extract(&cache, &instance, &world, &base, Layer::ThreeD);
+    assert_eq!(frozen.stats().asset_catalog_reads, 2);
     assert_eq!(frozen.items[0].material.tint, [0.4, 0.5, 0.6]);
     let next = extract(&cache, &instance, &world, &fork, Layer::ThreeD);
     assert_eq!(next.items[0].material.tint, [0.8, 0.7, 0.6]);
     assert!(next.stats().assets_changed > 0);
+    assert_eq!(next.stats().asset_catalog_reads, 2);
     drop(next);
     fs::write(temp.0.join("shared.material.json"), b"invalid material").unwrap();
     fork.refresh();
@@ -418,6 +442,7 @@ fn asset_arc_identity_handles_divergent_clones_replacements_and_failed_reload() 
     let failed = extract(&cache, &instance, &world, &fork, Layer::ThreeD);
     assert_eq!(failed.items[0].material.tint, [0.8, 0.7, 0.6]);
     assert_eq!(failed.stats().assets_changed, 0);
+    assert_eq!(failed.stats().asset_catalog_reads, 0);
     assert_eq!(failed.stats().material_rebuilds, 0);
     drop(failed);
     // A separately constructed store can also reach the exact same revision.
@@ -437,6 +462,7 @@ fn asset_arc_identity_handles_divergent_clones_replacements_and_failed_reload() 
     assert_eq!(frozen.items[0].material.tint, [0.4, 0.5, 0.6]);
     drop(frozen);
     let warm = extract(&cache, &instance, &world, &replacement, Layer::ThreeD);
+    assert_eq!(warm.stats().asset_catalog_reads, 0);
     assert_eq!(
         warm.stats().material_rebuilds,
         0,
@@ -469,6 +495,7 @@ fn surface_source_filtering_membership_order_and_layers_track_current_inputs() {
         "fixture must expose one source surface"
     );
     let source = model.parts[0].source_key.clone();
+    assert_eq!(entry.mesh_part_bounds(0), model.part_bounds(0));
     let (instance, mut world) = setup();
     let a = instance.entity("a-cube").unwrap();
     let z = instance.entity("z-cube").unwrap();
@@ -496,6 +523,11 @@ fn surface_source_filtering_membership_order_and_layers_track_current_inputs() {
     let frame = cache
         .extract(reordered, &assets, Layer::ThreeD, None)
         .unwrap();
+    assert_eq!(
+        frame.stats().material_rebuilds,
+        0,
+        "reordering preserves immutable material rows"
+    );
     assert_eq!(frame.items[0].motion_id, z_motion);
     assert_eq!(frame.items[1].motion_id, a_motion);
     assert_scene_equal(&expected, &frame);
@@ -515,7 +547,7 @@ fn surface_source_filtering_membership_order_and_layers_track_current_inputs() {
         without
             .items
             .iter()
-            .all(|item| matches!(item.mesh, MeshKind::Text(_)))
+            .all(|item| matches!(item.mesh, MeshKind::Text(_) | MeshKind::SharedText(_)))
     );
     drop(without);
     world.insert(z, removed).unwrap();
@@ -534,8 +566,8 @@ fn surface_source_filtering_membership_order_and_layers_track_current_inputs() {
     let two_d = extract(&cache, &instance, &world, &assets, Layer::TwoD);
     assert_eq!(
         two_d.stats().material_rebuilds,
-        1,
-        "asset reload invalidates both layer pools"
+        0,
+        "unrelated mesh publication preserves the 2D material pool"
     );
     assert!(!two_d.items[0].material.lit);
 }
@@ -550,7 +582,7 @@ fn conversion_errors_discard_candidates_and_retry_returns_current_data() {
     bad.material_instances[0] = Some(Arc::new(MaterialInstance::new("missing".into())));
     assert!(cache.extract(bad, &assets, Layer::ThreeD, None).is_err());
     let mut bad_text = shared(&instance, &world, Layer::ThreeD);
-    bad_text.texts[0].1.font = TextFont::Custom("missing".into());
+    Arc::make_mut(&mut bad_text.shared_texts[0].1).font = TextFont::Custom("missing".into());
     assert!(
         cache
             .extract(bad_text, &assets, Layer::ThreeD, None)
@@ -679,4 +711,136 @@ fn large_old_frames_release_payloads_after_the_current_workload_shrinks() {
     );
     let next = extract(&cache, &instance, &world, &assets, Layer::ThreeD);
     assert_eq!(next.stats().material_rebuilds, 0);
+}
+
+#[test]
+fn immutable_text_descriptors_follow_bypassed_edits_and_keep_frozen_frames() {
+    let (instance, mut world) = setup();
+    let assets = empty_assets();
+    let cache = RenderSceneCache::default();
+    let first_source = shared(&instance, &world, Layer::ThreeD).shared_texts[0]
+        .1
+        .clone();
+    let second_source = shared(&instance, &world, Layer::ThreeD).shared_texts[0]
+        .1
+        .clone();
+    assert!(Arc::ptr_eq(&first_source, &second_source));
+    let first = extract(&cache, &instance, &world, &assets, Layer::ThreeD);
+    let second = extract(&cache, &instance, &world, &assets, Layer::ThreeD);
+    assert_eq!(first.stats().text_descriptor_rebuilds, 1);
+    assert_eq!(second.stats().text_descriptor_rebuilds, 0);
+    assert_eq!(second.stats().text_descriptor_reuses, 1);
+    assert_eq!(instance.render_extraction_stats().unwrap().text_rebuilds, 0);
+    assert_eq!(instance.render_extraction_stats().unwrap().text_reuses, 1);
+    let text = |frame: &RenderFrame| {
+        frame
+            .items
+            .iter()
+            .find_map(|item| match &item.mesh {
+                MeshKind::SharedText(text) => Some(text.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let frozen = text(&first);
+    assert!(Arc::ptr_eq(&frozen, &text(&second)));
+    world
+        .get_mut::<TextRendering>(instance.entity("text").unwrap())
+        .unwrap()
+        .bypass_change_detection()
+        .text
+        .push_str(" changed");
+    let third = extract(&cache, &instance, &world, &assets, Layer::ThreeD);
+    assert_eq!(frozen.text, "Text");
+    assert_eq!(text(&third).text, "Text changed");
+    assert!(!Arc::ptr_eq(&frozen, &text(&third)));
+    let expected = render_scene(
+        instance.view(&world, Layer::ThreeD, 1.6).unwrap(),
+        &assets,
+        Layer::ThreeD,
+        None,
+    )
+    .unwrap();
+    assert_scene_equal(&expected, &third);
+}
+
+#[test]
+fn gi_freshness_reuses_frozen_components_and_rejects_same_tick_bypass_and_replacement() -> Result<()>
+{
+    use bozzard_render_assets::{gi_freshness_stats, irradiance_volume};
+    let (original, old_world) = setup();
+    let mut scene = original.capture(&old_world)?;
+    let assets = empty_assets();
+    scene.gi.enabled = true;
+    scene.gi.volume.resolution = [2; 3];
+    let source = bozzard_assets::gi::source(&scene, &assets, scene.gi.volume)?;
+    scene.gi.baked = Some(Arc::new(bozzard_scene::BakedGi::new(
+        source,
+        scene.gi.volume,
+        Arc::new(vec![[0.; 4]; 8 * bozzard_scene::GI_PROBE_STRIDE]),
+    )?));
+    let mut world = World::new();
+    let instance = scene.spawn(&mut world)?;
+    let initial = gi_freshness_stats();
+    assert!(irradiance_volume(&instance, &world, &assets, Layer::ThreeD, None)?.is_some());
+    world.insert_resource(123_u32); // Presentation diagnostics/resources are not captured.
+    assert!(irradiance_volume(&instance, &world, &assets, Layer::ThreeD, None)?.is_some());
+    let warm = gi_freshness_stats();
+    assert_eq!(warm.rebuilds, initial.rebuilds + 1);
+    assert_eq!(warm.reuses, initial.reuses + 1);
+    let entity = instance.entity("a-cube").unwrap();
+    world
+        .get_mut::<Transform>(entity)
+        .unwrap()
+        .bypass_change_detection()
+        .translation[0] = 20.;
+    assert!(irradiance_volume(&instance, &world, &assets, Layer::ThreeD, None)?.is_none());
+    world.get_mut::<Transform>(entity).unwrap().translation[0] = -2.;
+    assert!(irradiance_volume(&instance, &world, &assets, Layer::ThreeD, None)?.is_some());
+    let mut drawable = world.remove::<Drawable>(entity)?.unwrap();
+    drawable.color[0] = 0.8;
+    world.insert(entity, drawable)?;
+    assert!(irradiance_volume(&instance, &world, &assets, Layer::ThreeD, None)?.is_none());
+    Ok(())
+}
+
+#[test]
+fn material_row_insertion_and_removal_reuse_unaffected_stable_motion_sources() {
+    let (instance, mut world) = setup();
+    let assets = empty_assets();
+    let cache = RenderSceneCache::default();
+    drop(extract(&cache, &instance, &world, &assets, Layer::ThreeD));
+    let base = world
+        .get::<Drawable>(instance.entity("z-cube").unwrap())
+        .unwrap()
+        .clone();
+    world
+        .insert(instance.entity("root").unwrap(), base)
+        .unwrap();
+    let inserted = extract(&cache, &instance, &world, &assets, Layer::ThreeD);
+    assert_eq!(inserted.stats().material_rebuilds, 1);
+    assert_eq!(inserted.stats().material_reuses, 2);
+    let expected = render_scene(
+        instance.view(&world, Layer::ThreeD, 1.6).unwrap(),
+        &assets,
+        Layer::ThreeD,
+        None,
+    )
+    .unwrap();
+    assert_scene_equal(&expected, &inserted);
+    drop(inserted);
+    world
+        .remove::<Drawable>(instance.entity("a-cube").unwrap())
+        .unwrap();
+    let removed = extract(&cache, &instance, &world, &assets, Layer::ThreeD);
+    assert_eq!(removed.stats().material_rebuilds, 0);
+    assert_eq!(removed.stats().material_reuses, 2);
+    let expected = render_scene(
+        instance.view(&world, Layer::ThreeD, 1.6).unwrap(),
+        &assets,
+        Layer::ThreeD,
+        None,
+    )
+    .unwrap();
+    assert_scene_equal(&expected, &removed);
 }
