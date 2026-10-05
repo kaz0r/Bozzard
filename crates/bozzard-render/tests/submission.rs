@@ -78,19 +78,23 @@ fn exact_resource_state_caching_reduces_binds_without_changing_draws() -> anyhow
         renderer
     });
     renderers[0].set_state_caching_enabled(false);
-    let scene = scene(80);
+    let mut scene = scene(80);
+    // Give both paths the same consumed outputs and two vertex streams, so the
+    // counts isolate binding reuse from unused-motion-output elimination.
+    scene.display.temporal_aa.enabled = true;
+    scene.display.reflections.enabled = true;
     for _ in 0..2 {
         compare(&gpu, &mut renderers, &scene)?;
         let before = renderers[0].frame_stats();
         let after = renderers[1].frame_stats();
         assert_eq!((before.color_draws, after.color_draws), (80, 80));
         assert_eq!((before.pipeline_binds, after.pipeline_binds), (80, 1));
-        assert_eq!((before.vertex_binds, after.vertex_binds), (80, 1));
+        assert_eq!((before.vertex_binds, after.vertex_binds), (160, 2));
         assert_eq!((before.index_binds, after.index_binds), (80, 1));
         assert!(after.material_binds < before.material_binds);
     }
     println!(
-        "resource_state_proof unchanged_draws=80 pipeline_binds=80->1 vertex_binds=80->1 index_binds=80->1 group_binds={}->{} exact_pixels=true",
+        "resource_state_proof unchanged_draws=80 pipeline_binds=80->1 vertex_binds=160->2 index_binds=80->1 group_binds={}->{} exact_pixels=true",
         renderers[0].frame_stats().material_binds,
         renderers[1].frame_stats().material_binds,
     );
