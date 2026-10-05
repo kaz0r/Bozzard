@@ -218,12 +218,13 @@ fn numeric_graphs_preserve_literal_coplanar_winners_through_edits_and_membership
             );
             comparisons += 1;
         }
-        assert!(candidates[1].stats.color_draws < reference.stats.color_draws);
+        assert!(candidates[1].frame_stats().color_draws < reference.frame_stats().color_draws);
         previous_reference = Some(expected.rgba);
     }
     println!(
         "numeric_graph_order_proof comparisons={comparisons} literal_opaque_winners=true shared_topology=true numeric_edits_insert_remove_reorder=true ordinary_and_instanced_exact=true draws={}->{}",
-        reference.stats.color_draws, candidates[1].stats.color_draws
+        reference.frame_stats().color_draws,
+        candidates[1].frame_stats().color_draws
     );
     Ok(())
 }
