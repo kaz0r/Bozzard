@@ -2680,6 +2680,8 @@ impl SceneRenderer {
         self.stats.shadow_range_bytes = self.shadows.spots.range_write_bytes.get()
             + self.shadows.points.range_write_bytes.get()
             + self.shadows.sun_cache.range_write_bytes.get();
+        self.stats.sun_range_plan_builds = self.shadows.sun_cache.range_plan_builds.get();
+        self.stats.sun_range_plan_reuses = self.shadows.sun_cache.range_plan_reuses.get();
         self.stats.local_static_depth_copies = self.shadows.spots.static_depth_copies.get()
             + self.shadows.points.static_depth_copies.get();
         self.stats.local_static_triangles_skipped =

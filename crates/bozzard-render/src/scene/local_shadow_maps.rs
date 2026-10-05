@@ -872,6 +872,8 @@ mod optimization_tests {
                 assert_eq!(renderers[1].stats.shadow_triangles, 14);
                 assert_eq!(renderers[2].stats.shadow_triangles, 14);
                 assert_eq!(renderers[2].shadows.sun_cache.range_draws_saved.get(), 11);
+                assert_eq!(renderers[2].frame_stats().sun_range_plan_builds, 0);
+                assert_eq!(renderers[2].frame_stats().sun_range_plan_reuses, 1);
                 assert_eq!(
                     renderers[2].shadows.sun_cache.range_write_bytes.get(),
                     13 * 96
@@ -903,6 +905,8 @@ mod optimization_tests {
             .unwrap();
         assert_eq!(warm.bytes, 0);
         assert_eq!(warm.saved, 11);
+        assert_eq!(candidate.shadows.sun_cache.range_plan_builds.get(), 0);
+        assert_eq!(candidate.shadows.sun_cache.range_plan_reuses.get(), 1);
         let mut compacted_coverage = Vec::new();
         for batch in &warm.batches {
             if warm
@@ -922,6 +926,39 @@ mod optimization_tests {
         assert!(compacted_coverage.contains(&shadows::ShadowCoverage::OpaqueCcw));
         assert!(compacted_coverage.contains(&shadows::ShadowCoverage::OpaqueCw));
         let index = accepted.iter().position(|&v| v).unwrap();
+        // A changed population cannot reuse its previous grouping/admission.
+        // Returning to the original mask also refreshes the certificate, while
+        // later model-row changes retain it and update their packed bytes only.
+        let mut reduced = accepted.clone();
+        reduced[index] = false;
+        candidate.shadows.sun_cache.reset_work_stats();
+        let changed = candidate
+            .shadows
+            .sun_cache
+            .prepare_ranges(candidate, &gpu, &draws, &batches, &reduced, true)
+            .unwrap();
+        assert!(
+            changed
+                .batches
+                .iter()
+                .flat_map(|batch| &batch.indices)
+                .all(|&index| reduced[index])
+        );
+        assert_eq!(candidate.shadows.sun_cache.range_plan_builds.get(), 1);
+        assert_eq!(candidate.shadows.sun_cache.range_plan_reuses.get(), 0);
+        candidate.shadows.sun_cache.reset_work_stats();
+        assert_eq!(
+            candidate
+                .shadows
+                .sun_cache
+                .prepare_ranges(candidate, &gpu, &draws, &batches, &accepted, true)
+                .unwrap()
+                .saved,
+            11
+        );
+        assert_eq!(candidate.shadows.sun_cache.range_plan_builds.get(), 1);
+        assert_eq!(candidate.shadows.sun_cache.range_plan_reuses.get(), 0);
+        candidate.shadows.sun_cache.reset_work_stats();
         let original = *candidate.objects[index].uniform.as_ref().unwrap();
         candidate.objects[index].uniform.as_mut().unwrap()[144..148]
             .copy_from_slice(&0.125f32.to_le_bytes());
@@ -941,6 +978,8 @@ mod optimization_tests {
                 .bytes,
             96
         );
+        assert_eq!(candidate.shadows.sun_cache.range_plan_builds.get(), 0);
+        assert_eq!(candidate.shadows.sun_cache.range_plan_reuses.get(), 2);
         // prepare() lends the retained frame's draws to its caller. Normal
         // rendering returns them after submission; this packing-only inspection
         // must do the same before testing a subsequent renderer frame.
@@ -1009,6 +1048,8 @@ mod optimization_tests {
                 assert_eq!(renderers[1].stats.shadow_triangles, 97);
                 assert_eq!(renderers[2].stats.shadow_triangles, 97);
                 assert_eq!(renderers[2].shadows.sun_cache.range_draws_saved.get(), 6);
+                assert_eq!(renderers[2].frame_stats().sun_range_plan_builds, 0);
+                assert_eq!(renderers[2].frame_stats().sun_range_plan_reuses, 1);
                 assert_eq!(
                     renderers[2].shadows.sun_cache.range_write_bytes.get(),
                     8 * 96
@@ -1016,7 +1057,7 @@ mod optimization_tests {
             }
         }
         println!(
-            "sun_ranges_proof fragmented13dynamic CW_CCW immutable_restore14->3draws unchanged14triangles warm0 dirty96bytes ordinary_color_and_shadow_fallback_exact cross7chunks8movers 8->2draws unchanged97triangles"
+            "sun_ranges_proof fragmented13dynamic CW_CCW immutable_restore14->3draws unchanged14triangles warm0 dirty96bytes ordinary_color_and_shadow_fallback_exact cross7chunks8movers 8->2draws unchanged97triangles retained_subset_warm0regroups mask_change_rebuilds"
         );
         Ok(())
     }

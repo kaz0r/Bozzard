@@ -51,6 +51,68 @@ pub(super) struct Plan {
     inputs: Vec<Input>,
     batches: Vec<Batch>,
 }
+/// Source membership and binding class determine the original accepted-run
+/// count. Slot numbers and offsets do not affect that count; the replacement
+/// stream owns independent bindings with zero-based instance ranges.
+struct SubsetSource {
+    accepted: Vec<bool>,
+    batches: Vec<SubsetBatchSource>,
+}
+struct SubsetBatchSource {
+    indices: Vec<usize>,
+    instanced: bool,
+}
+impl SubsetSource {
+    fn new(batches: &[Batch], accepted: &[bool]) -> Self {
+        Self {
+            accepted: accepted.to_vec(),
+            batches: batches
+                .iter()
+                .map(|batch| SubsetBatchSource {
+                    indices: batch.indices.clone(),
+                    instanced: batch.slot.is_some(),
+                })
+                .collect(),
+        }
+    }
+    fn matches(&self, batches: &[Batch], accepted: &[bool]) -> bool {
+        self.accepted == accepted
+            && self.batches.len() == batches.len()
+            && self
+                .batches
+                .iter()
+                .zip(batches)
+                .all(|(a, b)| a.indices == b.indices && a.instanced == b.slot.is_some())
+    }
+}
+/// Exact, retained Sun subset topology. Only accepted casters need depth-key
+/// validation; byte comparisons cover the full mask and original member layout.
+/// Storage contains at most the current source layout and accepted population.
+pub(in crate::scene) struct SubsetPlan {
+    source: SubsetSource,
+    inputs: Vec<(usize, Input)>,
+    pub batches: Vec<Batch>,
+    pub saved: usize,
+}
+impl SubsetPlan {
+    pub fn matches(
+        &self,
+        renderer: &SceneRenderer,
+        draws: &[PreparedDraw],
+        batches: &[Batch],
+        accepted: &[bool],
+    ) -> bool {
+        draws.len() == accepted.len()
+            && self.source.matches(batches, accepted)
+            && self.inputs.iter().all(|(index, input)| {
+                input.matches(
+                    &draws[*index],
+                    renderer.instancing.graph_enabled,
+                    renderer.shadow_coverage_at(*index, &draws[*index]),
+                )
+            })
+    }
+}
 #[derive(PartialEq, Eq, Hash)]
 struct DepthKey<'a>(
     MeshKey<'a>,
@@ -143,18 +205,42 @@ impl SceneRenderer {
     /// Reuse the certified depth key for a sun layer's accepted population.
     /// Keep source order; large full-scene spatial chunks must not fragment a
     /// small compatible subset. Unsupported casters remain singleton groups.
-    pub(in crate::scene) fn shadow_subset_batches(
+    pub(in crate::scene) fn shadow_subset_plan(
         &self,
         draws: &[PreparedDraw],
+        source: &[Batch],
         accepted: &[bool],
-    ) -> Vec<Batch> {
-        groups_filtered(
+    ) -> SubsetPlan {
+        let batches = groups_filtered(
             self,
             draws,
             self.instancing.graph_enabled,
             Some(accepted),
             false,
-        )
+        );
+        let saved =
+            local_shadow_maps::compaction::subset_draws_saved(source, accepted, batches.len());
+        let inputs = draws
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| accepted[*index])
+            .map(|(index, draw)| {
+                (
+                    index,
+                    Input::new(
+                        draw,
+                        self.instancing.graph_enabled,
+                        self.shadow_coverage_at(index, draw),
+                    ),
+                )
+            })
+            .collect();
+        SubsetPlan {
+            source: SubsetSource::new(source, accepted),
+            inputs,
+            batches,
+            saved,
+        }
     }
 }
 // Stable one-axis ordering partitions large depth-compatible populations into
@@ -408,6 +494,92 @@ fn prepare_bindings(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn accepted_subset_certificate_tracks_mask_order_and_binding_class() {
+        let accepted = [false, true, false, true];
+        let mut batches = vec![Batch {
+            indices: vec![2, 1, 0, 3],
+            slot: Some(9),
+            first_instance: 17,
+        }];
+        let source = SubsetSource::new(&batches, &accepted);
+        assert!(source.matches(&batches, &accepted));
+        // Synthetic streams own their binding and zero-based offsets. Physical
+        // source slot/offset churn cannot change accepted-run admission.
+        batches[0].slot = Some(4);
+        batches[0].first_instance = 0;
+        assert!(source.matches(&batches, &accepted));
+        assert!(!source.matches(&batches, &[false, true, true, true]));
+        batches[0].indices.swap(0, 1);
+        assert!(!source.matches(&batches, &accepted));
+        batches[0].indices.swap(0, 1);
+        batches[0].slot = None;
+        assert!(!source.matches(&batches, &accepted));
+        batches[0].slot = Some(9);
+        batches[0].indices.pop();
+        assert!(!source.matches(&batches, &accepted));
+        assert!(!source.matches(&[], &accepted));
+    }
+    #[test]
+    fn accepted_subset_depth_inputs_validate_keys_without_transform_repacking() {
+        let mut draw = PreparedDraw {
+            preparation: Default::default(),
+            source_item: 0,
+            deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
+            pbr_override: [-1.; 2],
+            shader: None,
+            pbr: false,
+            raster: 0,
+            opacity: 1.,
+            cutoff: 0.,
+            transparent: false,
+            depth: 0.,
+            object: DrawItem {
+                motion_id: 1,
+                model: Mat4::IDENTITY,
+                mesh: MeshKind::Cube,
+                material: Material {
+                    metallic: None,
+                    roughness: None,
+                    surface_overrides: Default::default(),
+                    tint: [1.; 3],
+                    uv_scale: [1.; 2],
+                    texture: TextureKind::White,
+                    lit: true,
+                    shader: None,
+                },
+            },
+        };
+        let masked = shadows::ShadowCoverage::Masked;
+        let input = Input::new(&draw, true, masked);
+        draw.object.model = Mat4::from_translation(Vec3::X);
+        draw.opacity = 0.75;
+        draw.cutoff = 0.5;
+        assert!(input.matches(&draw, true, masked));
+        draw.object.material.texture = TextureKind::Checker;
+        assert!(!input.matches(&draw, true, masked));
+        draw.object.material.texture = TextureKind::White;
+        draw.shader = Some(123);
+        assert!(input.matches(&draw, true, masked));
+        assert!(!input.matches(&draw, false, masked));
+        draw.shader = None;
+        draw.deformation = 1;
+        assert!(!input.matches(&draw, true, masked));
+        draw.deformation = 0;
+        draw.object.mesh = MeshKind::Sphere;
+        assert!(!input.matches(&draw, true, masked));
+        draw.object.mesh = MeshKind::Cube;
+        draw.object.material.lit = false;
+        assert!(!input.matches(&draw, true, masked));
+        draw.object.material.lit = true;
+        draw.transparent = true;
+        assert!(!input.matches(&draw, true, masked));
+        draw.transparent = false;
+        assert!(!input.matches(&draw, true, shadows::ShadowCoverage::OpaqueCw));
+        assert!(input.matches(&draw, true, masked));
+    }
     #[test]
     fn compact_records_ignore_all_non_depth_color_fields() {
         let color = std::array::from_fn(|i| i as u8);

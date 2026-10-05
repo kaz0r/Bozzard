@@ -1,5 +1,6 @@
 use super::*;
 mod spatial;
+pub(super) use spatial::Index as BoundsIndex;
 use std::collections::HashSet;
 
 type Bounds = [Vec3; 2];
@@ -115,23 +116,21 @@ impl Ordering {
             result.envelopes[index] = expanded(bounds, margin + slack);
             ranks[index] = rank;
         }
-        let mut sweep = order;
-        let axis = sweep_axis(&sweep, &result.envelopes);
-        sweep.sort_by(|&a, &b| {
-            result.envelopes[a][0][axis].total_cmp(&result.envelopes[b][0][axis])
-        });
-        let mut active: Vec<usize> = Vec::new();
+        result.spatial = spatial::Index::new(&result.envelopes, &ranks);
         let mut candidates = 0usize;
         let candidate_budget = inputs.len().saturating_mul(64).min(MAX_PLAN_CANDIDATES);
-        for index in sweep {
+        for index in order {
             let bounds = result.envelopes[index];
-            active.retain(|&other| result.envelopes[other][1][axis] >= bounds[0][axis]);
-            for &other in &active {
+            result.spatial.query(bounds, &mut result.candidates);
+            for &other in &result.candidates {
                 candidates += 1;
                 if candidates > candidate_budget {
                     return Err(BatchPlanRebuildReason::OrderingCapacity);
                 }
-                let (before, after) = (index.min(other), index.max(other));
+                if other >= index {
+                    continue;
+                }
+                let (before, after) = (other, index);
                 if ranks[before] < ranks[after] || !overlaps(bounds, result.envelopes[other]) {
                     continue;
                 }
@@ -145,12 +144,10 @@ impl Ordering {
                 result.neighbors[before].push(pair);
                 result.neighbors[after].push(pair);
             }
-            active.push(index);
         }
         result.checked.resize(result.pairs.len(), false);
         result.ranks = ranks;
         result.seen.resize(inputs.len(), false);
-        result.spatial = spatial::Index::new(&result.envelopes, &result.ranks);
         Ok(result)
     }
 
@@ -680,6 +677,80 @@ mod tests {
     }
 
     #[test]
+    fn sparse_plane_admits_a_quality_superset_and_retains_camera_visibility_churn() {
+        const SIDE: usize = 128;
+        const COUNT: usize = SIDE * SIDE;
+        const KEYS: usize = COUNT / 32;
+        // Even the best single-axis sweep examines over one million pairs on
+        // this disjoint plane, beyond the unchanged 524,288-candidate ceiling.
+        // Complete spatial neighborhoods stay small despite the long plane rows.
+        const {
+            assert!(SIDE * (SIDE * (SIDE - 1) / 2) > MAX_PLAN_CANDIDATES);
+        }
+        let mut draws = draws(COUNT);
+        for (index, draw) in draws.iter_mut().enumerate() {
+            draw.object.model = Mat4::from_translation(Vec3::new(
+                (index % SIDE) as f32 * 2. - SIDE as f32,
+                (index / SIDE) as f32 * 2. - SIDE as f32,
+                -5.,
+            ));
+            // 32 peers/key fit one group on both portable/native paths. Keys
+            // are interleaved, so the original-order fast path cannot mask a
+            // construction or certificate broadphase regression.
+            draw.object.material.texture =
+                TextureKind::Imported(format!("sparse-key-{}", index % KEYS));
+        }
+        let bounds = vec![[Vec3::splat(-0.4), Vec3::splat(0.4)]; COUNT];
+        let mut visible: Vec<_> = (0..COUNT).map(|index| index % 4 == 0).collect();
+        let view =
+            glam::camera::rh::proj::directx::orthographic(-200., 200., -200., 200., 0.1, 100.);
+        for capacity in [MAX_INSTANCES, arena::MAX_NATIVE_INSTANCES] {
+            let built = build_plan(&draws, &bounds, &visible, view, options(capacity, true));
+            assert!(!built.construction_limited);
+            assert!(!built.rejected_superset);
+            assert!(built.plan.all_surfaces);
+            assert_eq!(built.plan.batches.len(), KEYS);
+            let mut plan = built.plan;
+            let ordering = plan.ordering.as_ref().unwrap();
+            assert!(!ordering.original);
+            assert!(ordering.pairs.is_empty());
+            for frame in 1..=24 {
+                for (index, value) in visible.iter_mut().enumerate() {
+                    *value = index % 4 == frame % 4;
+                }
+                let camera = view * Mat4::from_rotation_z(frame as f32 * 0.01);
+                let checks = retain(&mut plan, &draws, &visible, camera, true, &bounds).unwrap();
+                assert_eq!(checks.bounds, 0);
+                assert_eq!(checks.pairs, 0);
+                assert!(!checks.recertified);
+                let output = visible_batches(&plan, &visible, Vec::new());
+                assert_eq!(output.len(), KEYS / 4);
+                assert_eq!(
+                    output
+                        .iter()
+                        .map(|batch| batch.indices.len())
+                        .sum::<usize>(),
+                    COUNT / 4
+                );
+                assert!(
+                    output
+                        .iter()
+                        .flat_map(|batch| &batch.indices)
+                        .all(|&index| visible[index])
+                );
+                // Exhaustively check a dispersed subset of 64 newly admitted
+                // boxes, covering inversions across widely separated rows.
+                let sample: Vec<_> = (0..COUNT).map(|index| index % 256 == frame % 4).collect();
+                assert_safe(&plan, &draws, camera, &sample);
+            }
+            visible
+                .iter_mut()
+                .enumerate()
+                .for_each(|(index, value)| *value = index % 4 == 0);
+        }
+    }
+
+    #[test]
     fn certified_hidden_bridge_cannot_degrade_visible_grouping() {
         let mut draws = draws(3);
         for (index, draw) in draws.iter_mut().enumerate() {
@@ -963,9 +1034,14 @@ mod tests {
             assert_eq!(ranks[index] != usize::MAX, visible);
         }
         let margin = padding(camera);
-        for a in 0..draws.len() {
-            for b in a + 1..draws.len() {
-                if !visible[a] || !visible[b] || ranks[a] < ranks[b] {
+        let visible_indices: Vec<_> = visible
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &visible)| visible.then_some(index))
+            .collect();
+        for (position, &a) in visible_indices.iter().enumerate() {
+            for &b in &visible_indices[position + 1..] {
+                if ranks[a] < ranks[b] {
                     continue;
                 }
                 // Independent, exhaustive check of each reordered opaque pair.

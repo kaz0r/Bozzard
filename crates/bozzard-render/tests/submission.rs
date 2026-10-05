@@ -132,15 +132,24 @@ fn native_arena_reduces_10000_copies_from_157_draws_to_10_and_retains_uploads() 
     );
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().instance_uniform_bytes, 0);
+    assert_eq!(
+        renderers[1].frame_stats().native_object_membership_reused,
+        native
+    );
     scene.items[1123].material.tint = [0.9, 0.1, 0.3];
     compare(&gpu, &mut renderers, &scene)?;
     assert_eq!(renderers[1].frame_stats().instance_uniform_bytes, 256);
+    assert_eq!(
+        renderers[1].frame_stats().native_object_membership_reused,
+        native
+    );
     if native {
         let mut inserted = scene.items[0].clone();
         inserted.motion_id = 99112233;
         inserted.model *= Mat4::from_translation(Vec3::new(0.2, 0.2, 0.));
         scene.items.insert(0, inserted);
         compare(&gpu, &mut renderers, &scene)?;
+        assert!(!renderers[1].frame_stats().native_object_membership_reused);
         assert_eq!(
             renderers[1].frame_stats().instance_uniform_bytes,
             256,
@@ -148,12 +157,18 @@ fn native_arena_reduces_10000_copies_from_157_draws_to_10_and_retains_uploads() 
         );
         scene.items.remove(0);
         compare(&gpu, &mut renderers, &scene)?;
+        assert!(!renderers[1].frame_stats().native_object_membership_reused);
         assert_eq!(
             renderers[1].frame_stats().instance_uniform_bytes,
             0,
             "early removal changes only compact instance IDs"
         );
         assert!(renderers[1].frame_stats().instance_id_bytes > 0);
+        compare(&gpu, &mut renderers, &scene)?;
+        assert!(renderers[1].frame_stats().native_object_membership_reused);
+        println!(
+            "arena_membership_proof 10000_warm_hash_insertions=0 exact_pixels=true edits_reuse=true insertion_removal_remap=true"
+        );
     }
     renderers[1].set_native_instance_arena_enabled(false);
     compare(&gpu, &mut renderers, &scene)?;

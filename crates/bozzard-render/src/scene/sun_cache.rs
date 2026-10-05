@@ -33,9 +33,22 @@ pub(super) struct Cache {
     range_enabled: bool,
     // Queue uploads happen before either render pass executes, so static and
     // dynamic layers must never alias their compacted uniform storage.
-    range_layers: std::cell::RefCell<[compaction::Cache; 2]>,
+    range_layers: std::cell::RefCell<[RangeLayer; 2]>,
     pub range_draws_saved: std::cell::Cell<usize>,
     pub range_write_bytes: std::cell::Cell<usize>,
+    pub range_plan_builds: std::cell::Cell<usize>,
+    pub range_plan_reuses: std::cell::Cell<usize>,
+}
+#[derive(Default)]
+struct RangeLayer {
+    stream: compaction::Cache,
+    topology: Option<instancing::SubsetPlan>,
+}
+impl RangeLayer {
+    fn clear(&mut self) {
+        self.stream.clear();
+        self.topology = None;
+    }
 }
 impl Default for Cache {
     fn default() -> Self {
@@ -46,6 +59,8 @@ impl Default for Cache {
             range_layers: Default::default(),
             range_draws_saved: Default::default(),
             range_write_bytes: Default::default(),
+            range_plan_builds: Default::default(),
+            range_plan_reuses: Default::default(),
         }
     }
 }
@@ -69,6 +84,8 @@ impl Cache {
     pub fn reset_work_stats(&self) {
         self.range_draws_saved.set(0);
         self.range_write_bytes.set(0);
+        self.range_plan_builds.set(0);
+        self.range_plan_reuses.set(0);
     }
     pub fn set_range_enabled(&mut self, enabled: bool) {
         self.range_enabled = enabled;
@@ -90,9 +107,26 @@ impl Cache {
         if !self.range_enabled || !renderer.instancing.shadow_batching() {
             return None;
         }
-        let subset = renderer.shadow_subset_batches(draws, accepted);
-        let plan = self.range_layers.borrow_mut()[usize::from(dynamic)]
-            .prepare_subset(renderer, gpu, batches, accepted, subset)?;
+        let mut layers = self.range_layers.borrow_mut();
+        let layer = &mut layers[usize::from(dynamic)];
+        let reused = renderer.state_caching
+            && layer
+                .topology
+                .as_ref()
+                .is_some_and(|plan| plan.matches(renderer, draws, batches, accepted));
+        if reused {
+            self.range_plan_reuses.set(self.range_plan_reuses.get() + 1);
+        } else {
+            layer.topology = Some(renderer.shadow_subset_plan(draws, batches, accepted));
+            self.range_plan_builds.set(self.range_plan_builds.get() + 1);
+        }
+        let topology = layer.topology.as_ref().unwrap();
+        let plan = layer.stream.prepare_certified_subset(
+            renderer,
+            gpu,
+            topology.batches.clone(),
+            topology.saved,
+        )?;
         self.range_draws_saved
             .set(self.range_draws_saved.get() + plan.saved);
         self.range_write_bytes

@@ -85,6 +85,8 @@ pub struct FrameStats {
     pub local_shadow_receiver_bytes: usize,
     pub local_shadow_receiver_writes: usize,
     pub native_instance_arena: bool,
+    /// Exact source identity/order reuse skipped native object-slot hashing.
+    pub native_object_membership_reused: bool,
     pub render_bundle_compilations: usize,
     pub render_bundle_replays: usize,
     pub multi_draw_indirect_runs: usize,
@@ -92,6 +94,8 @@ pub struct FrameStats {
     pub multi_draw_indirect_bytes: usize,
     pub shadow_range_draws_saved: usize,
     pub shadow_range_bytes: usize,
+    pub sun_range_plan_builds: usize,
+    pub sun_range_plan_reuses: usize,
     pub local_static_depth_copies: usize,
     pub local_static_triangles_skipped: u64,
     /// Current depth-compatible membership reused the retained shadow groups.

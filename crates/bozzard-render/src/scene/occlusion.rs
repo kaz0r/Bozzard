@@ -65,6 +65,9 @@ pub(super) struct Occlusion {
     instance_candidates: Vec<u8>,
     instance_snapshot: Option<Snapshot>,
     instance_generation: u64,
+    instance_input_visible: Vec<bool>,
+    instance_inputs_valid: bool,
+    instance_input_reused: bool,
     instance_applied: bool,
     instance_queries_ready: bool,
     refreshed: bool,
@@ -90,6 +93,9 @@ impl Default for Occlusion {
             instance_candidates: Vec::new(),
             instance_snapshot: None,
             instance_generation: 0,
+            instance_input_visible: Vec::new(),
+            instance_inputs_valid: false,
+            instance_input_reused: false,
             instance_applied: false,
             instance_queries_ready: false,
             refreshed: false,
@@ -301,6 +307,7 @@ impl Occlusion {
         // bounds. All publication/removal paths invalidate object bindings.
         self.snapshot = None;
         self.instance_snapshot = None;
+        self.instance_inputs_valid = false;
         self.reset_adaptive_history();
     }
     pub(super) fn batch_visible(&self, batch: usize) -> bool {
@@ -371,6 +378,33 @@ impl Occlusion {
         if self.frame_bypassed {
             self.cooldown -= 1;
         }
+    }
+    fn retained_instance_inputs_match(
+        &self,
+        stats: &FrameStats,
+        vp: Mat4,
+        size: [u32; 2],
+        draws: &[PreparedDraw],
+        visible: &[bool],
+    ) -> bool {
+        // Surface preparation already compares exact source mesh/material
+        // content and matrix bits. Publication invalidates these snapshots.
+        // Its unchanged order/records/model certificate lets us reuse bounds,
+        // occluder selection and query bytes without repeating their expansion.
+        // Posed bounds have a separate lifecycle, so keep deformation on the
+        // full validation path even when the source records were retained.
+        self.instance_inputs_valid
+            && stats.surface_order_reused
+            && stats.surface_records_built == 0
+            && stats.surface_model_updates == 0
+            && self
+                .instance_snapshot
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.camera == (vp, size))
+            && self.instance_input_visible.as_slice() == visible
+            && self.projections.len() == draws.len()
+            && self.instance_candidates.len() == draws.len() * 32
+            && draws.iter().all(|draw| draw.deformation == 0)
     }
     fn refresh_inputs(
         &mut self,
@@ -451,6 +485,7 @@ impl Occlusion {
         visible: &mut [bool],
     ) {
         self.instance_applied = false;
+        self.instance_input_reused = false;
         self.instance_queries_ready = false;
         self.refreshed = false;
         if let Some(resources) = &mut self.resources {
@@ -483,47 +518,58 @@ impl Occlusion {
         {
             return;
         }
-        self.refresh_inputs(renderer, vp, size, draws, visible);
-        self.refreshed = true;
-        if self.occluders.is_empty() {
-            return;
-        }
-        self.instance_candidates.clear();
-        for (index, draw) in draws.iter().enumerate() {
-            let projection = self.projections[index]
-                .projection
-                .filter(|_| visible[index] && !draw.transparent && draw.deformation == 0);
-            let (rectangle, nearest) =
-                projection.map_or(([0.; 4], -1.), |p| (p.rectangle, p.nearest));
-            candidate(
-                &mut self.instance_candidates,
-                rectangle,
-                nearest,
-                renderer.mesh_for(&draw.object).count,
-                u32::from(visible[index]),
-            );
-        }
-        self.instance_queries_ready = true;
-        let unchanged = snapshot_matches(
-            self.instance_snapshot.as_ref(),
-            renderer,
-            vp,
-            size,
-            draws,
-            &self.occluders,
-            &self.instance_candidates,
-        );
-        if !unchanged {
-            self.instance_generation = self.instance_generation.wrapping_add(1);
-            self.instance_snapshot = Some(snapshot(
+        self.instance_input_reused =
+            self.retained_instance_inputs_match(&renderer.stats, vp, size, draws, visible);
+        if !self.instance_input_reused {
+            // A failed/no-occluder refresh must not leave the preceding input
+            // certificate valid, even if a later frame reverts its source data.
+            self.instance_inputs_valid = false;
+            self.refresh_inputs(renderer, vp, size, draws, visible);
+            self.refreshed = true;
+            if self.occluders.is_empty() {
+                return;
+            }
+            self.instance_candidates.clear();
+            for (index, draw) in draws.iter().enumerate() {
+                let projection = self.projections[index]
+                    .projection
+                    .filter(|_| visible[index] && !draw.transparent && draw.deformation == 0);
+                let (rectangle, nearest) =
+                    projection.map_or(([0.; 4], -1.), |p| (p.rectangle, p.nearest));
+                candidate(
+                    &mut self.instance_candidates,
+                    rectangle,
+                    nearest,
+                    renderer.mesh_for(&draw.object).count,
+                    u32::from(visible[index]),
+                );
+            }
+            let unchanged = snapshot_matches(
+                self.instance_snapshot.as_ref(),
                 renderer,
                 vp,
                 size,
                 draws,
                 &self.occluders,
                 &self.instance_candidates,
-            ));
+            );
+            if !unchanged {
+                self.instance_generation = self.instance_generation.wrapping_add(1);
+                self.instance_snapshot = Some(snapshot(
+                    renderer,
+                    vp,
+                    size,
+                    draws,
+                    &self.occluders,
+                    &self.instance_candidates,
+                ));
+            }
+            self.instance_input_visible.clear();
+            self.instance_input_visible.extend_from_slice(visible);
+            self.instance_inputs_valid = true;
         }
+        self.refreshed = true;
+        self.instance_queries_ready = true;
         if let Some(resources) = &self.instance_resources
             && resources.visibility_generation == Some(self.instance_generation)
             && resources.visibility.len() == visible.len()
@@ -724,6 +770,119 @@ impl Occlusion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn retained_instance_input_certificate_rejects_every_changed_dependency() {
+        let camera = Mat4::IDENTITY;
+        let size = [128; 2];
+        let mut draw = PreparedDraw {
+            preparation: Default::default(),
+            source_item: 0,
+            deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
+            pbr_override: [-1.; 2],
+            shader: None,
+            pbr: false,
+            raster: 0,
+            object: DrawItem {
+                motion_id: 1,
+                model: Mat4::IDENTITY,
+                mesh: MeshKind::Cube,
+                material: Material {
+                    metallic: None,
+                    roughness: None,
+                    tint: [1.; 3],
+                    uv_scale: [1.; 2],
+                    texture: TextureKind::White,
+                    lit: false,
+                    shader: None,
+                    surface_overrides: Default::default(),
+                },
+            },
+            opacity: 1.,
+            cutoff: 0.,
+            transparent: false,
+            depth: 0.,
+        };
+        let mut state = Occlusion {
+            instance_inputs_valid: true,
+            instance_input_visible: vec![true],
+            instance_candidates: vec![0; 32],
+            projections: vec![CachedProjection {
+                model: Mat4::IDENTITY,
+                bounds: [Vec3::ZERO; 2],
+                projection: None,
+            }],
+            instance_snapshot: Some(Snapshot {
+                camera: (camera, size),
+                depth: vec![],
+                candidates: vec![0; 32],
+            }),
+            ..Default::default()
+        };
+        let mut stats = FrameStats {
+            surface_order_reused: true,
+            ..Default::default()
+        };
+        let matches = |state: &Occlusion, stats: &FrameStats, draw: &PreparedDraw| {
+            state.retained_instance_inputs_match(
+                stats,
+                camera,
+                size,
+                std::slice::from_ref(draw),
+                &[true],
+            )
+        };
+        assert!(matches(&state, &stats, &draw));
+        stats.surface_order_reused = false;
+        assert!(
+            !matches(&state, &stats, &draw),
+            "membership or order changed"
+        );
+        stats.surface_order_reused = true;
+        stats.surface_records_built = 1;
+        assert!(
+            !matches(&state, &stats, &draw),
+            "mesh/material/occluder source changed"
+        );
+        stats.surface_records_built = 0;
+        stats.surface_model_updates = 1;
+        assert!(!matches(&state, &stats, &draw), "matrix bits changed");
+        stats.surface_model_updates = 0;
+        draw.deformation = 1;
+        assert!(
+            !matches(&state, &stats, &draw),
+            "posed bounds require full validation"
+        );
+        draw.deformation = 0;
+        assert!(!state.retained_instance_inputs_match(
+            &stats,
+            camera,
+            [129; 2],
+            std::slice::from_ref(&draw),
+            &[true]
+        ));
+        assert!(!state.retained_instance_inputs_match(
+            &stats,
+            camera * Mat4::from_rotation_y(0.01),
+            size,
+            std::slice::from_ref(&draw),
+            &[true]
+        ));
+        assert!(!state.retained_instance_inputs_match(
+            &stats,
+            camera,
+            size,
+            std::slice::from_ref(&draw),
+            &[false]
+        ));
+        assert!(!state.retained_instance_inputs_match(&stats, camera, size, &[], &[]));
+        state.invalidate();
+        assert!(
+            !matches(&state, &stats, &draw),
+            "asset bounds/coverage publication invalidated"
+        );
+    }
     #[test]
     fn adaptive_policy_requires_fresh_unproductive_samples_and_resets_on_savings() {
         let mut state = Occlusion::default();
@@ -946,6 +1105,16 @@ mod tests {
         assert!(optimized.occlusion.instance_queries_ready);
         assert!(optimized.stats.occlusion_depth_draws > 0);
         assert!(optimized.stats.occlusion_prepare_ms > 0.);
+        // An unchanged open view produces no additional fresh results; reuse
+        // its exact CPU inputs instead of repacking zero-savings queries forever.
+        let prepared = optimized.occlusion.projections.clone();
+        let rows = optimized.occlusion.instance_candidates.clone();
+        for _ in 0..3 {
+            compare(&mut optimized, &mut reference, &scene)?;
+            assert!(optimized.occlusion.instance_input_reused);
+            assert_eq!(optimized.occlusion.projections, prepared);
+            assert_eq!(optimized.occlusion.instance_candidates, rows);
+        }
         // A changed asset restarts testing immediately, and subsequent fresh
         // productive samples must retain exact per-instance compaction.
         optimized.occlusion.invalidate();
@@ -958,7 +1127,7 @@ mod tests {
         assert!(optimized.occlusion.instance_applied);
         assert!(optimized.stats.color_triangles < reference.stats.color_triangles / 4);
         println!(
-            "adaptive_instance_prepare_proof bypass_frames={bypass_frames} projection_refreshes=0 packed_query_rows=0 exact_moving_pixels=true bounded_resume=true productive_cached_compaction=true"
+            "adaptive_instance_prepare_proof bypass_frames={bypass_frames} projection_refreshes=0 packed_query_rows=0 exact_moving_pixels=true bounded_resume=true productive_cached_compaction=true warm_zero_savings_input_reuse=true"
         );
         Ok(())
     }
@@ -1069,6 +1238,34 @@ mod tests {
                 >= 80
         );
         let saved = optimized.stats.color_triangles;
+        let generation = optimized.occlusion.instance_generation;
+        let projections = optimized.occlusion.projections.clone();
+        let rows = optimized.occlusion.instance_candidates.clone();
+        for _ in 0..4 {
+            assert_eq!(capture(&mut optimized, &scene)?.rgba, expected.rgba);
+            assert!(optimized.occlusion.instance_input_reused);
+            assert!(optimized.occlusion.instance_applied);
+            assert_eq!(optimized.occlusion.instance_generation, generation);
+            assert_eq!(optimized.occlusion.projections, projections);
+            assert_eq!(optimized.occlusion.instance_candidates, rows);
+        }
+        // The early stage packs changed inputs, then singular normal-matrix
+        // validation fails before GPU submission. Reverting must not mistake
+        // the failed CPU snapshot for the old submitted visibility result.
+        let original_model = scene.items[9].model;
+        scene.items[9].model =
+            Mat4::from_translation(Vec3::new(1.5, 1., -4.)) * Mat4::from_scale(Vec3::ZERO);
+        assert!(capture(&mut optimized, &scene).is_err());
+        assert!(optimized.occlusion.instance_generation > generation);
+        assert!(!optimized.occlusion.instance_input_reused);
+        scene.items[9].model = original_model;
+        assert_eq!(capture(&mut optimized, &scene)?.rgba, expected.rgba);
+        assert!(!optimized.occlusion.instance_input_reused);
+        assert!(!optimized.occlusion.instance_applied);
+        for _ in 0..3 {
+            assert_eq!(capture(&mut optimized, &scene)?.rgba, expected.rgba);
+        }
+        assert!(optimized.occlusion.instance_input_reused);
         // Changed camera and bounds reject old masks before packing; strict
         // current-frame GPU queries still produce exact reference pixels.
         scene.items[9].model =
@@ -1077,10 +1274,69 @@ mod tests {
         let expected = capture(&mut reference, &scene)?;
         assert_eq!(capture(&mut optimized, &scene)?.rgba, expected.rgba);
         assert!(!optimized.occlusion.instance_applied);
+        assert!(!optimized.occlusion.instance_input_reused);
         for _ in 0..3 {
             assert_eq!(capture(&mut optimized, &scene)?.rgba, expected.rgba);
             gpu.wait()?;
         }
+        // A large surface becoming a graph changes its eligibility as a depth
+        // occluder even though its geometry and model stay identical.
+        scene.items[0].material.shader = Some(graph.clone());
+        assert_eq!(
+            capture(&mut optimized, &scene)?.rgba,
+            capture(&mut reference, &scene)?.rgba
+        );
+        assert!(!optimized.occlusion.instance_input_reused);
+        assert!(!optimized.occlusion.instance_applied);
+        assert!(!optimized.occlusion.instance_inputs_valid);
+        scene.items[0].material.shader = None;
+        for _ in 0..3 {
+            assert_eq!(
+                capture(&mut optimized, &scene)?.rgba,
+                capture(&mut reference, &scene)?.rgba
+            );
+        }
+        assert!(optimized.occlusion.instance_input_reused);
+        let quad = |half: f32| {
+            [
+                [-half, -half, 0., 0., 0., 1., 0., 0.],
+                [half, -half, 0., 0., 0., 1., 1., 0.],
+                [half, half, 0., 0., 0., 1., 1., 1.],
+                [-half, half, 0., 0., 0., 1., 0., 1.],
+            ]
+        };
+        for renderer in [&mut optimized, &mut reference] {
+            renderer.upload_mesh(
+                &gpu,
+                "retained-query-occluder",
+                &quad(0.5),
+                &[0, 1, 2, 0, 2, 3],
+            )?;
+        }
+        scene.items[0].mesh = MeshKind::Imported("retained-query-occluder".into());
+        for _ in 0..3 {
+            assert_eq!(
+                capture(&mut optimized, &scene)?.rgba,
+                capture(&mut reference, &scene)?.rgba
+            );
+        }
+        assert!(optimized.occlusion.instance_input_reused);
+        // The source ID remains identical, but publication changes its actual
+        // bounds/depth coverage and invalidates the retained certificate.
+        for renderer in [&mut optimized, &mut reference] {
+            renderer.upload_mesh(
+                &gpu,
+                "retained-query-occluder",
+                &quad(0.3),
+                &[0, 1, 2, 0, 2, 3],
+            )?;
+        }
+        assert_eq!(
+            capture(&mut optimized, &scene)?.rgba,
+            capture(&mut reference, &scene)?.rgba
+        );
+        assert!(!optimized.occlusion.instance_input_reused);
+        assert!(!optimized.occlusion.instance_applied);
         // Removing the occluder must immediately restore every former member.
         scene.items.remove(0);
         assert_eq!(
@@ -1120,7 +1376,7 @@ mod tests {
         assert!(optimized.occlusion.cooldown > 0);
         assert_eq!(optimized.stats.occlusion_depth_draws, 0);
         println!(
-            "instance_occlusion_proof graph_candidates mixed_union_batch {}->{}triangles exact_camera_bounds_occluder_invalidation",
+            "instance_occlusion_proof graph_candidates mixed_union_batch {}->{}triangles exact_camera_bounds_occluder_invalidation warm_input_reuse=true failed_reverted_retry=true asset_bounds_invalidation=true",
             reference.stats.color_triangles, saved
         );
         Ok(())

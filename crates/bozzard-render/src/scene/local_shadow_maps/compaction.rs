@@ -62,25 +62,13 @@ impl Cache {
     }
     /// Sun layers have no per-light frustum. Repack their compatible accepted
     /// population across old spatial chunks only when at least two draws go away.
-    pub fn prepare_subset(
+    pub fn prepare_certified_subset(
         &mut self,
         renderer: &SceneRenderer,
         gpu: &Gpu,
-        batches: &[instancing::Batch],
-        accepted: &[bool],
         mut subset: Vec<instancing::Batch>,
+        saved: usize,
     ) -> Option<Plan> {
-        let original_draws = batches
-            .iter()
-            .map(|batch| {
-                if batch.slot.is_some() {
-                    accepted_runs(&batch.indices, accepted)
-                } else {
-                    batch.indices.iter().filter(|&&i| accepted[i]).count()
-                }
-            })
-            .sum::<usize>();
-        let saved = original_draws.saturating_sub(subset.len());
         if saved < 2 {
             self.clear();
             return None;
@@ -166,6 +154,27 @@ impl Cache {
         entry.bytes = bytes;
         (entry.binding.clone(), written)
     }
+}
+
+/// Cold quality admission shared with the retained Sun topology certificate.
+/// The certificate validates source member order, binding class and mask before
+/// reusing this count; local-map compaction keeps its per-batch policy above.
+pub(in crate::scene) fn subset_draws_saved(
+    batches: &[instancing::Batch],
+    accepted: &[bool],
+    subset_count: usize,
+) -> usize {
+    batches
+        .iter()
+        .map(|batch| {
+            if batch.slot.is_some() {
+                accepted_runs(&batch.indices, accepted)
+            } else {
+                batch.indices.iter().filter(|&&i| accepted[i]).count()
+            }
+        })
+        .sum::<usize>()
+        .saturating_sub(subset_count)
 }
 fn binding(
     renderer: &SceneRenderer,

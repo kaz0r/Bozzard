@@ -5,6 +5,7 @@ mod depth;
 mod diagnostics;
 mod graphs;
 mod reuse;
+pub(super) use depth::SubsetPlan;
 pub use diagnostics::BatchingStats;
 
 // Fits the downlevel 16 KiB uniform-binding limit without storage-buffer features.
@@ -451,28 +452,6 @@ fn projected_bounds(bounds: [Vec3; 2], matrix: Mat4) -> [Vec3; 2] {
     [result[0] - padding, result[1] + padding]
 }
 
-// Choose the axis with the most separation relative to total projected width.
-// Long thin bounds sharing X can still be separated cheaply along Y or depth.
-fn sweep_axis(indices: &[usize], boxes: &[[Vec3; 2]]) -> usize {
-    let mut low = [f64::INFINITY; 3];
-    let mut high = [f64::NEG_INFINITY; 3];
-    let mut widths = [0.; 3];
-    for &index in indices {
-        for axis in 0..3 {
-            low[axis] = low[axis].min(f64::from(boxes[index][0][axis]));
-            high[axis] = high[axis].max(f64::from(boxes[index][1][axis]));
-            widths[axis] += f64::from(boxes[index][1][axis] - boxes[index][0][axis]);
-        }
-    }
-    let score = |axis: usize| {
-        let score = (high[axis] - low[axis]) / widths[axis].max(1e-20);
-        if score.is_finite() { score } else { 0. }
-    };
-    (0..3)
-        .max_by(|&a, &b| score(a).total_cmp(&score(b)).then(b.cmp(&a)))
-        .unwrap_or(0)
-}
-
 fn enqueue(
     index: usize,
     group: usize,
@@ -626,27 +605,40 @@ fn global_batches_with_capacity(
             world_boxes[index] = [bounds[0] - padding, bounds[1] + padding];
         }
     }
-    let axis = sweep_axis(&sweep, &boxes);
-    sweep.sort_by(|&a, &b| {
-        boxes[a][0][axis]
-            .total_cmp(&boxes[b][0][axis])
-            .then(a.cmp(&b))
-    });
+    // A one-axis sweep can exhaust the candidate budget on a sparse plane:
+    // its active set ignores separation along the other two axes. The bounded
+    // movement grid already preserves every full-bounds overlap, including
+    // uncertain/large boxes in its conservative broad list.
+    let broad_bounds = if world_padding.is_some() {
+        &world_boxes
+    } else {
+        &boxes
+    };
+    let mut ranks = vec![usize::MAX; draws.len()];
+    for &index in &sweep {
+        ranks[index] = index;
+    }
+    let mut spatial = reuse::BoundsIndex::new(broad_bounds, &ranks);
+    let mut nearby = Vec::new();
     let mut followers = vec![Vec::new(); draws.len()];
     let mut group_has_followers = vec![false; queues.len()];
     let mut pending = vec![0usize; draws.len()];
-    let mut active: Vec<usize> = Vec::new();
     let mut edge_count = 0;
     let mut candidates = 0;
     let edge_budget = draws.len().saturating_mul(16).min(MAX_PLAN_EDGES);
     let candidate_budget = draws.len().saturating_mul(64).min(MAX_PLAN_CANDIDATES);
     for &index in &sweep {
+        spatial.query(broad_bounds[index], &mut nearby);
         let bounds = boxes[index];
-        active.retain(|&other| boxes[other][1][axis] >= bounds[0][axis]);
-        for &other in &active {
+        for &other in &nearby {
             candidates += 1;
             if candidates > candidate_budget {
                 return (original, Vec::new(), true);
+            }
+            // Each original-order dependency is considered once. Self/later
+            // candidates still count toward the work budget before rejection.
+            if other >= index {
+                continue;
             }
             let previous = boxes[other];
             if previous[1].cmplt(bounds[0]).any() || bounds[1].cmplt(previous[0]).any() {
@@ -659,16 +651,14 @@ fn global_batches_with_capacity(
                     continue;
                 }
             }
-            let (before, after) = (index.min(other), index.max(other));
             edge_count += 1;
             if edge_count > edge_budget {
                 return (original, Vec::new(), true);
             }
-            followers[before].push(after);
-            group_has_followers[group_of[before]] = true;
-            pending[after] += 1;
+            followers[other].push(index);
+            group_has_followers[group_of[other]] = true;
+            pending[index] += 1;
         }
-        active.push(index);
     }
     let mut ready = BTreeSet::new();
     for &index in &sweep {
@@ -922,6 +912,18 @@ fn build_plan(
         .iter()
         .filter(|batch| batch.indices.iter().any(|&index| visible[index]))
         .count();
+    if std::env::var_os("BOZZARD_BATCH_PLAN_DIAGNOSTICS").is_some() {
+        eprintln!(
+            "batch_superset total={} visible={} capacity={} construction_limited={} ordering={:?} filtered_draws={} visible_draws={}",
+            draws.len(),
+            visible.iter().filter(|v| **v).count(),
+            options.capacity,
+            result.construction_limited,
+            result.plan.ordering.as_ref().err(),
+            filtered_draws,
+            visible_result.plan.batches.len(),
+        );
+    }
     if !result.construction_limited
         && result.plan.ordering.is_ok()
         && filtered_draws <= visible_result.plan.batches.len()

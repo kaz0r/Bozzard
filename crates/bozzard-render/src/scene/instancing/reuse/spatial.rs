@@ -2,8 +2,8 @@ use super::*;
 
 /// Bounded uniform grid for conservative movement envelopes. Large, uncertain,
 /// or out-of-range envelopes stay in a broad list and can never be omitted.
-pub(super) struct Index {
-    cell_size: f64,
+pub(in crate::scene::instancing) struct Index {
+    cell_size: [f64; 3],
     buckets: HashMap<[i32; 3], Vec<usize>>,
     cells: Vec<Vec<[i32; 3]>>,
     broad: Vec<usize>,
@@ -15,7 +15,7 @@ pub(super) struct Index {
 impl Default for Index {
     fn default() -> Self {
         Self {
-            cell_size: 1.,
+            cell_size: [1.; 3],
             buckets: HashMap::new(),
             cells: Vec::new(),
             broad: Vec::new(),
@@ -27,20 +27,27 @@ impl Default for Index {
 }
 impl Index {
     pub fn new(bounds: &[Bounds], ranks: &[usize]) -> Self {
-        let mut sizes: Vec<_> = bounds
-            .iter()
-            .zip(ranks)
-            .filter(|(_, rank)| **rank != usize::MAX)
-            .map(|(b, _)| (b[1] - b[0]).max_element())
-            .filter(|v| v.is_finite() && *v > 0.)
-            .collect();
-        sizes.sort_unstable_by(f32::total_cmp);
+        // Independent axis scales preserve separation for long, thin boxes;
+        // a wide X extent must not merge thousands of disjoint Y/depth rows.
+        let cell_size = std::array::from_fn(|axis| {
+            let mut sizes: Vec<_> = bounds
+                .iter()
+                .zip(ranks)
+                .filter(|(_, rank)| **rank != usize::MAX)
+                .map(|(b, _)| b[1][axis] - b[0][axis])
+                .filter(|v| v.is_finite() && *v > 0.)
+                .collect();
+            sizes.sort_unstable_by(f32::total_cmp);
+            f64::from(
+                sizes
+                    .get(sizes.len() / 2)
+                    .copied()
+                    .unwrap_or(1.)
+                    .max(0.0001),
+            )
+        });
         let mut result = Self {
-            cell_size: sizes
-                .get(sizes.len() / 2)
-                .copied()
-                .unwrap_or(1.)
-                .max(0.0001) as f64,
+            cell_size,
             cells: (0..bounds.len()).map(|_| Vec::new()).collect(),
             marks: vec![0; bounds.len()],
             all: ranks
@@ -61,8 +68,8 @@ impl Index {
         let mut end = [0; 3];
         let mut count = 1usize;
         for axis in 0..3 {
-            let a = (bounds[0][axis] as f64 / self.cell_size).floor();
-            let b = (bounds[1][axis] as f64 / self.cell_size).floor();
+            let a = (bounds[0][axis] as f64 / self.cell_size[axis]).floor();
+            let b = (bounds[1][axis] as f64 / self.cell_size[axis]).floor();
             if !a.is_finite()
                 || !b.is_finite()
                 || a < i32::MIN as f64

@@ -90,6 +90,21 @@ pub(super) struct Arena {
     ids_changed: Vec<bool>,
 }
 impl Arena {
+    fn assign_identities(
+        &mut self,
+        identities: impl Iterator<Item = Option<preparation::SurfaceIdentity>> + Clone,
+    ) -> bool {
+        // Exact membership/order comparison avoids rebuilding the hash tables
+        // on transform, material, visibility and camera-only changes.
+        if self.identities.iter().copied().eq(identities.clone()) {
+            return true;
+        }
+        self.identities.clear();
+        self.identities.extend(identities);
+        self.table.assign(&self.identities);
+        false
+    }
+
     pub(super) fn buffers(&self) -> (&wgpu::Buffer, &wgpu::Buffer) {
         let (objects, parameters, _) = self
             .buffers
@@ -179,11 +194,8 @@ pub(super) fn prepare(
         arena.textures.clear();
         arena.sizes.clear();
     }
-    arena.identities.clear();
-    arena
-        .identities
-        .extend(draws.iter().map(preparation::surface_identity));
-    arena.table.assign(&arena.identities);
+    renderer.stats.native_object_membership_reused =
+        arena.assign_identities(draws.iter().map(preparation::surface_identity));
     let required = arena.table.slots.len();
     let required_ids = layout_ranges(&mut arena.sizes, bindings.len(), batches, &mut arena.starts);
     ensure!(
@@ -387,6 +399,27 @@ mod tests {
         slots.sort_unstable();
         slots.dedup();
         assert_eq!(slots.len(), 3);
+    }
+    #[test]
+    fn unchanged_membership_skips_hash_remapping_without_hiding_order_or_identity_changes() {
+        let mut arena = Arena::default();
+        let ids = [identity(1), identity(2), identity(3)];
+        assert!(!arena.assign_identities(ids.into_iter()));
+        let slots = arena.table.draw_slots.clone();
+        assert!(arena.assign_identities(ids.into_iter()));
+        assert_eq!(arena.table.draw_slots, slots);
+        assert!(!arena.assign_identities([identity(3), identity(1), identity(2)].into_iter()));
+        assert_eq!(arena.table.draw_slots, [slots[2], slots[0], slots[1]]);
+        assert!(!arena.assign_identities([identity(3), identity(1)].into_iter()));
+        assert!(arena.assign_identities([identity(3), identity(1)].into_iter()));
+        assert!(!arena.assign_identities([identity(3), identity(3)].into_iter()));
+        assert!(!arena.table.unique);
+        assert!(arena.assign_identities([identity(3), identity(3)].into_iter()));
+        assert!(!arena.assign_identities([None, None].into_iter()));
+        assert!(arena.assign_identities([None, None].into_iter()));
+        assert_eq!(arena.table.draw_slots, [0, 1]);
+        assert!(!arena.assign_identities([identity(8), identity(9)].into_iter()));
+        assert!(arena.table.unique);
     }
     #[test]
     fn native_ranges_reserve_only_used_references_and_keep_slots_stable() {
