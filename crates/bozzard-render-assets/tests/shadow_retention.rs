@@ -62,19 +62,34 @@ fn independently_animated_shadow_maps_match_uncached_frames() -> Result<()> {
         let stats = cached.frame_stats();
         if step == 0 {
             ensure!(
-                stats.auxiliary_targets == 0 && stats.geometry_allocated_bytes == 0,
+                stats.auxiliary_targets == 0
+                    && stats.geometry_allocated_bytes == 0
+                    && stats.geometry_store_bytes == 0,
                 "unused buffers were allocated"
             );
         }
         if step == 15 {
+            // TAA consumes normal/roughness and motion; fresnel/occlusion is
+            // needed only by reflections. Allocation remains three textures,
+            // while the specialized shader stores only the two live outputs.
             ensure!(
-                stats.auxiliary_targets == 3 && stats.geometry_allocated_bytes == 160 * 100 * 24,
-                "TAA buffers were not allocated"
+                stats.auxiliary_targets == 2
+                    && stats.geometry_allocated_bytes == 160 * 100 * 24
+                    && stats.geometry_store_bytes == 160 * 100 * 16,
+                "TAA auxiliary outputs did not match their consumers: {stats:?}"
+            );
+        }
+        if step == 16 || step == 17 {
+            ensure!(
+                stats.auxiliary_targets == 3
+                    && stats.geometry_allocated_bytes == 160 * 100 * 24
+                    && stats.geometry_store_bytes == 160 * 100 * 24,
+                "temporal and reflection effects did not store every required output: {stats:?}"
             );
         }
         if step == 18 {
             ensure!(
-                stats.auxiliary_targets == 0,
+                stats.auxiliary_targets == 0 && stats.geometry_store_bytes == 0,
                 "disabled effects still use auxiliary attachments"
             );
         }
