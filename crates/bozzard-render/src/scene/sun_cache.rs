@@ -2,24 +2,58 @@ use super::*;
 pub(super) mod policy;
 use local_shadow_maps::compaction;
 pub(super) use policy::{DEPTH_BUDGET_BYTES, depth_bytes};
-use policy::{depth_admitted, metadata_admitted, next_idle_age};
+use policy::{certificate_admitted, depth_admitted, next_idle_age};
 
 // Depth32Float has four logical payload bytes per texel. The sun and the two
 // independent local banks bound extra static sources separately; required
 // working shadow maps and driver/in-flight allocation overhead are not caches.
-fn key_owned_bytes(draw: &PreparedDraw) -> Option<usize> {
-    let mesh = match &draw.object.mesh {
-        MeshKind::Imported(id) | MeshKind::ModelPart(id, _) => id.len(),
-        // Owned text also clones font coordinate storage. Its full-shadow path
-        // remains available without retaining that extra descriptor in a key.
-        MeshKind::Text(_) => return None,
-        _ => 0,
-    };
-    let texture = match &draw.object.material.texture {
-        TextureKind::Imported(id) | TextureKind::ModelPart(id, _) => id.len(),
-        _ => 0,
-    };
-    mesh.checked_add(texture)
+
+/// Per-draw caster change serials. Each frame the renderer stamps every lit
+/// draw whose depth inputs differ from the previous frame's draw at the same
+/// position; any change of draw count or lit/transparent layout (or a frame
+/// without a comparison) starts a new epoch instead.
+#[derive(Clone, Copy)]
+pub(super) struct Serials<'a> {
+    pub values: &'a [u64],
+    pub epoch: u64,
+    pub current: u64,
+}
+/// Proof that a static depth source holds exactly its member casters, each
+/// unchanged since `built`. Memory is one bit per draw, without keys.
+pub(super) struct Certificate {
+    epoch: u64,
+    built: u64,
+    members: Vec<u64>,
+    count: usize,
+    draws: usize,
+}
+impl Certificate {
+    pub fn new(static_mask: &[bool], serials: Serials<'_>) -> Self {
+        let mut members = vec![0u64; static_mask.len().div_ceil(64)];
+        let mut count = 0;
+        for (index, _) in static_mask.iter().enumerate().filter(|(_, s)| **s) {
+            members[index / 64] |= 1 << (index % 64);
+            count += 1;
+        }
+        Self {
+            epoch: serials.epoch,
+            built: serials.current,
+            members,
+            count,
+            draws: static_mask.len(),
+        }
+    }
+    fn matches(&self, static_mask: &[bool], count: usize, serials: Serials<'_>) -> bool {
+        self.epoch == serials.epoch
+            && self.draws == static_mask.len()
+            && serials.values.len() == static_mask.len()
+            && self.count == count
+            && static_mask.iter().enumerate().all(|(index, &stable)| {
+                !stable
+                    || (self.members[index / 64] >> (index % 64) & 1 == 1
+                        && serials.values[index] <= self.built)
+            })
+    }
 }
 
 pub(super) struct Plan {
@@ -72,7 +106,7 @@ struct Entry {
     pipeline: wgpu::RenderPipeline,
     resolution: u32,
     row: Vec<u8>,
-    casters: Vec<shadows::ShadowCaster>,
+    certificate: Option<Certificate>,
     valid: bool,
 }
 impl Cache {
@@ -156,6 +190,7 @@ impl Cache {
             .and_then(|entry| depth_bytes(entry.resolution))
             .unwrap_or(0)
     }
+
     // The cache key receives independent depth inputs and geometry cost estimates.
     #[allow(clippy::too_many_arguments)]
     pub fn prepare(
@@ -167,6 +202,7 @@ impl Cache {
         row: &[u8],
         resolution: u32,
         geometry_work: (u64, u64),
+        serials: Serials<'_>,
     ) -> Option<Plan> {
         self.prepare_with_budget(
             device,
@@ -177,6 +213,7 @@ impl Cache {
             resolution,
             geometry_work,
             DEPTH_BUDGET_BYTES,
+            serials,
         )
     }
     #[allow(clippy::too_many_arguments)]
@@ -190,22 +227,15 @@ impl Cache {
         resolution: u32,
         geometry_work: (u64, u64),
         budget: u64,
+        serials: Serials<'_>,
     ) -> Option<Plan> {
         let count = static_mask.iter().filter(|v| **v).count();
-        let owned_bytes = draws
-            .iter()
-            .zip(&static_mask)
-            .filter(|(_, stable)| **stable)
-            .try_fold(row.len(), |bytes, (draw, _)| {
-                bytes.checked_add(key_owned_bytes(draw)?)
-            });
         if !depth_admitted(
             resolution,
             device.limits().max_texture_dimension_2d,
             budget.min(DEPTH_BUDGET_BYTES),
-        ) || !owned_bytes.is_some_and(|bytes| {
-            metadata_admitted(count, std::mem::size_of::<shadows::ShadowCaster>(), bytes)
-        }) {
+        ) || !certificate_admitted(draws.len(), row.len())
+        {
             self.clear();
             return None;
         }
@@ -246,18 +276,10 @@ impl Cache {
         let entry = self.entry.as_mut().unwrap();
         let matches = entry.valid
             && entry.row == row
-            && entry.casters.len() == count
             && entry
-                .casters
-                .iter()
-                .zip(
-                    draws
-                        .iter()
-                        .zip(&static_mask)
-                        .filter(|(_, s)| **s)
-                        .map(|(d, _)| d),
-                )
-                .all(|(c, d)| c.matches(d));
+                .certificate
+                .as_ref()
+                .is_some_and(|certificate| certificate.matches(&static_mask, count, serials));
         if !matches {
             entry.valid = false;
         }
@@ -284,28 +306,21 @@ impl Cache {
         pass.set_bind_group(0, &entry.binding, &[]);
         pass.draw(0..3, 0..1);
     }
-    /// Retain the rebuilt key list and recycle the plan's masks: the dynamic mask
+    /// Certify a rebuilt source and recycle the plan's masks: the dynamic mask
     /// stays here for the next plan, the static mask returns to the caller.
-    pub fn finish(&mut self, plan: Plan, draws: &[PreparedDraw], row: &[u8]) -> Vec<bool> {
+    pub fn finish(&mut self, plan: Plan, row: &[u8], serials: Serials<'_>) -> Vec<bool> {
         if plan.rebuild {
-            let casters = draws
-                .iter()
-                .zip(&plan.static_mask)
-                .filter(|(_, s)| **s)
-                .map(|(d, _)| shadows::ShadowCaster::new(d))
-                .collect();
-            self.finish_retained(row, casters);
+            self.finish_retained(row, Certificate::new(&plan.static_mask, serials));
         }
         self.spare_dynamic = plan.dynamic_mask;
         plan.static_mask
     }
-    pub fn finish_retained(&mut self, row: &[u8], mut casters: Vec<shadows::ShadowCaster>) {
+    pub fn finish_retained(&mut self, row: &[u8], certificate: Certificate) {
         let entry = self.entry.as_mut().unwrap();
-        casters.shrink_to_fit();
         entry.row.clear();
         entry.row.extend_from_slice(row);
         entry.row.shrink_to_fit();
-        entry.casters = casters;
+        entry.certificate = Some(certificate);
         entry.valid = true;
     }
 }
@@ -391,7 +406,7 @@ impl Entry {
             pipeline,
             resolution,
             row: Vec::new(),
-            casters: Vec::new(),
+            certificate: None,
             valid: false,
         }
     }
@@ -399,6 +414,40 @@ impl Entry {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    #[test]
+    fn certificates_reject_epoch_serial_membership_and_count_changes() {
+        let mask: Vec<bool> = (0..200).map(|i| i % 3 == 0).collect();
+        let count = mask.iter().filter(|m| **m).count();
+        let mut values = vec![4u64; 200];
+        fn serials(values: &[u64], epoch: u64) -> Serials<'_> {
+            Serials {
+                values,
+                epoch,
+                current: 9,
+            }
+        }
+        let certificate = Certificate::new(&mask, serials(&values, 2));
+        assert!(certificate.matches(&mask, count, serials(&values, 2)));
+        // A later epoch (layout change or missing comparison) invalidates.
+        assert!(!certificate.matches(&mask, count, serials(&values, 3)));
+        // A static member changed after the build.
+        values[63] = 10;
+        assert!(!certificate.matches(&mask, count, serials(&values, 2)));
+        // A dynamic (non-member) draw may change freely.
+        values[63] = 4;
+        values[64] = 10;
+        assert!(certificate.matches(&mask, count, serials(&values, 2)));
+        // Membership must be identical, not merely the same size.
+        let mut moved = mask.clone();
+        moved[0] = false;
+        moved[1] = true;
+        assert!(!certificate.matches(&moved, count, serials(&values, 2)));
+        let mut grown = mask.clone();
+        grown[1] = true;
+        assert!(!certificate.matches(&grown, count + 1, serials(&values, 2)));
+        assert!(!certificate.matches(&mask[..150], count, serials(&values[..150], 2)));
+    }
     #[test]
     fn cache_policy_keeps_expensive_compact_groups_and_bypasses_small_scenes() {
         assert!(super::profitable(1, 1, 1, 100_000, 12, 1024));

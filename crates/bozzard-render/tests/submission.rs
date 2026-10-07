@@ -997,3 +997,84 @@ fn native_shadow_lists_match_portable_depth_and_collapse_draws() -> anyhow::Resu
     assert!(restored.native_shadow_lists);
     Ok(())
 }
+#[test]
+fn static_sun_certificate_reuses_beyond_16384_casters() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers: [SceneRenderer; 2] = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    // Reference: every sun map rendered from scratch.
+    renderers[0].set_shadow_preparation_caching_enabled(false);
+    let mut scene = field(20_000);
+    scene.view_projection = field_camera(0.4, 120.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 1024;
+    scene.lighting.sun_direction = Vec3::new(0.4, 1., 0.3).normalize().to_array();
+    let mut mover = scene.items[0].clone();
+    mover.motion_id = 50_000;
+    mover.model = Mat4::from_translation(Vec3::new(0., 6., 0.)) * Mat4::from_scale(Vec3::splat(3.));
+    scene.items.push(mover);
+    let check = |renderers: &mut [SceneRenderer; 2], scene: &RenderScene, context: &str| {
+        let frames = renderers
+            .iter_mut()
+            .map(|renderer| {
+                capture_offscreen(&gpu, 192, 192, |target| {
+                    renderer.draw(&gpu, target, [192; 2], scene)
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            frames[0].rgba, frames[1].rgba,
+            "{context}: static depth changed pixels"
+        );
+        anyhow::Ok(renderers[1].frame_stats())
+    };
+    let step = |renderers: &mut [SceneRenderer; 2], scene: &mut RenderScene, context: &str| {
+        scene.items.last_mut().unwrap().model *= Mat4::from_translation(Vec3::X * 0.4);
+        check(renderers, scene, context)
+    };
+    check(&mut renderers, &scene, "cold")?;
+    let mut reused = 0;
+    for tick in 0..6 {
+        let stats = step(&mut renderers, &mut scene, &format!("tick {tick}"))?;
+        if tick > 0 {
+            assert!(stats.sun_static_cache_reused, "tick {tick}: {stats:?}");
+            assert_eq!(stats.sun_static_casters, 20_000);
+            assert_eq!(stats.sun_dynamic_casters, 1);
+            reused += 1;
+        }
+    }
+    println!("static_certificate_proof static_casters=20000 moving=1 reused_ticks={reused}/5");
+    // Each edit forces exactly one rebuild; the next moving tick reuses again.
+    type Edit = fn(&mut RenderScene);
+    let edits: [(&str, Edit); 3] = [
+        ("uv scale", |scene| {
+            scene.items[7].material.uv_scale = [2., 1.]
+        }),
+        ("swap", |scene| scene.items.swap(11, 12)),
+        ("insert at front", |scene| {
+            let mut extra = scene.items[3].clone();
+            extra.motion_id = 60_000;
+            extra.model *= Mat4::from_translation(Vec3::Y * 3.);
+            scene.items.insert(0, extra);
+        }),
+    ];
+    for (name, edit) in edits {
+        edit(&mut scene);
+        let rebuilt = step(&mut renderers, &mut scene, name)?;
+        assert!(!rebuilt.sun_static_cache_reused, "{name}: {rebuilt:?}");
+        step(&mut renderers, &mut scene, name)?;
+        let again = step(&mut renderers, &mut scene, name)?;
+        assert!(again.sun_static_cache_reused, "{name}: {again:?}");
+    }
+    // Rebuilding the snapshot instead of reusing it still compares every
+    // caster, so unchanged static depth stays certified through the switch.
+    renderers[1].set_shadow_metadata_reuse_enabled(false);
+    for tick in 0..3 {
+        let stats = step(&mut renderers, &mut scene, "metadata reuse off")?;
+        assert!(stats.sun_static_cache_reused, "tick {tick}: {stats:?}");
+    }
+    Ok(())
+}

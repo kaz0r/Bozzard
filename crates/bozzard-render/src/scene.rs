@@ -388,6 +388,11 @@ pub struct SceneRenderer {
     objects: Vec<ObjectBinding>,
     object_identities: Vec<Option<preparation::SurfaceIdentity>>,
     uniform_serial: u64,
+    /// Static shadow sources are certified against these per-draw stamps.
+    caster_serials: Vec<u64>,
+    caster_serial: u64,
+    caster_epoch: u64,
+    caster_layout: Vec<u8>,
     surface_variants: variants::VariantCache,
     shader_optimizations: bool,
     hud_batching_enabled: bool,
@@ -951,6 +956,10 @@ impl SceneRenderer {
             objects: Vec::new(),
             object_identities: Vec::new(),
             uniform_serial: 0,
+            caster_serials: Vec::new(),
+            caster_serial: 0,
+            caster_epoch: 0,
+            caster_layout: Vec::new(),
             surface_variants: Default::default(),
             shader_optimizations: true,
             hud_batching_enabled: true,
@@ -2423,6 +2432,18 @@ impl SceneRenderer {
                 },
             }
         };
+        // Stamp changed casters for static-source certificates. Without a
+        // position-aligned comparison of every lit draw, start a new epoch.
+        if reuse_metadata && self.shadow_frame.is_some() {
+            self.update_caster_serials(&draws, Some(&comparison.unchanged));
+        } else if let Some(previous) = self.shadow_frame.as_ref().filter(|_| !reuse_metadata) {
+            let unchanged = previous
+                .compare_into(scene, &draws, self.culling, Default::default())
+                .unchanged;
+            self.update_caster_serials(&draws, Some(&unchanged));
+        } else {
+            self.update_caster_serials(&draws, None);
+        }
         self.stats.shadow_state_ms = state_started.elapsed().as_secs_f64() * 1000.;
         self.stats.shadow_cache_hit = self.state_caching && comparison.whole;
         let mut sun_changed = !self.state_caching || !comparison.sun;
@@ -2518,6 +2539,11 @@ impl SceneRenderer {
                             (s, d + triangles)
                         }
                     });
+                let serials = sun_cache::Serials {
+                    values: &self.caster_serials,
+                    epoch: self.caster_epoch,
+                    current: self.caster_serial,
+                };
                 sun_plan = self.shadows.sun_cache.prepare(
                     &gpu.device,
                     &draws,
@@ -2526,6 +2552,7 @@ impl SceneRenderer {
                     &self.shadows.uniform_row,
                     self.shadows.resolution,
                     geometry_work,
+                    serials,
                 );
                 if let Some(plan) = &sun_plan {
                     self.stats.sun_static_cache_reused = !plan.rebuild;
@@ -3022,10 +3049,15 @@ impl SceneRenderer {
         self.shadows.points.finish(point_changes);
         let mut returned_stable = None;
         if let Some(plan) = sun_plan {
+            let serials = sun_cache::Serials {
+                values: &self.caster_serials,
+                epoch: self.caster_epoch,
+                current: self.caster_serial,
+            };
             returned_stable = Some(self.shadows.sun_cache.finish(
                 plan,
-                &draws,
                 &self.shadows.uniform_row,
+                serials,
             ));
         } else {
             self.shadows.sun_cache.age_unused();
@@ -3086,6 +3118,49 @@ impl SceneRenderer {
 }
 
 impl SceneRenderer {
+    fn caster_serials(&self) -> sun_cache::Serials<'_> {
+        sun_cache::Serials {
+            values: &self.caster_serials,
+            epoch: self.caster_epoch,
+            current: self.caster_serial,
+        }
+    }
+    /// Advance the frame's caster serial. `unchanged` pairs each lit draw with
+    /// the previous frame's lit draw at the same row; rows equal positions only
+    /// while the lit/transparent layout is unchanged, so layout edits (or a
+    /// missing comparison) start a new epoch that invalidates every certificate.
+    fn update_caster_serials(&mut self, draws: &[PreparedDraw], unchanged: Option<&[bool]>) {
+        self.caster_serial += 1;
+        let code = |draw: &PreparedDraw| match (draw.object.material.lit, draw.transparent) {
+            (false, _) => 0u8,
+            (true, false) => 1,
+            (true, true) => 2,
+        };
+        let same_layout = self.caster_layout.len() == draws.len()
+            && self
+                .caster_layout
+                .iter()
+                .zip(draws)
+                .all(|(&layout, draw)| layout == code(draw));
+        match unchanged {
+            Some(unchanged) if same_layout && self.caster_serials.len() == draws.len() => {
+                for ((serial, draw), &same) in
+                    self.caster_serials.iter_mut().zip(draws).zip(unchanged)
+                {
+                    if draw.object.material.lit && !same {
+                        *serial = self.caster_serial;
+                    }
+                }
+            }
+            _ => {
+                self.caster_epoch += 1;
+                self.caster_serials.clear();
+                self.caster_serials.resize(draws.len(), self.caster_serial);
+                self.caster_layout.clear();
+                self.caster_layout.extend(draws.iter().map(code));
+            }
+        }
+    }
     /// Capture GPU passes when the device supports timestamps. Readback never blocks rendering.
     pub fn set_profiling_enabled(&mut self, enabled: bool) {
         self.profiler.enabled = enabled;
