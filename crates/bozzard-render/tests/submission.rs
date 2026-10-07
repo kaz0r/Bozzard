@@ -712,3 +712,87 @@ fn native_arena_stays_native_past_former_128_mib_cliff() -> anyhow::Result<()> {
     }
     Ok(())
 }
+fn morton(x: u32, z: u32) -> u64 {
+    let spread = |mut v: u64| {
+        v &= 0xffff_ffff;
+        v = (v | (v << 16)) & 0x0000_ffff_0000_ffff;
+        v = (v | (v << 8)) & 0x00ff_00ff_00ff_00ff;
+        v = (v | (v << 4)) & 0x0f0f_0f0f_0f0f_0f0f;
+        v = (v | (v << 2)) & 0x3333_3333_3333_3333;
+        (v | (v << 1)) & 0x5555_5555_5555_5555
+    };
+    spread(x as u64) | (spread(z as u64) << 1)
+}
+/// A perspective field of tinted cubes in Morton (spatially coherent) order.
+fn field(count: usize) -> RenderScene {
+    let side = (count as f32).sqrt().ceil() as u32;
+    let mut cells: Vec<(u32, u32)> = (0..side * side)
+        .map(|i| (i % side, i / side))
+        .take(count)
+        .collect();
+    cells.sort_by_key(|&(x, z)| morton(x, z));
+    let mut scene = scene(count);
+    for (item, (x, z)) in scene.items.iter_mut().zip(cells) {
+        item.mesh = MeshKind::Cube;
+        item.material.lit = true;
+        item.material.tint = [
+            0.2 + (x % 6) as f32 * 0.12,
+            0.3 + (z % 5) as f32 * 0.1,
+            0.4 + ((x + z) % 4) as f32 * 0.1,
+        ];
+        let height = 0.5 + ((x * 7 + z * 13) % 5) as f32 * 0.3;
+        item.model = Mat4::from_translation(Vec3::new(
+            x as f32 - side as f32 * 0.5,
+            height * 0.5,
+            z as f32 - side as f32 * 0.5,
+        )) * Mat4::from_scale(Vec3::new(0.8, height, 0.8));
+    }
+    scene
+}
+fn field_camera(heading: f32, radius: f32) -> Mat4 {
+    glam::camera::rh::proj::directx::perspective(0.9, 1., 0.5, radius * 4.)
+        * glam::camera::rh::view::look_at_mat4(
+            Vec3::new(
+                heading.cos() * radius,
+                radius * 0.45,
+                heading.sin() * radius,
+            ),
+            Vec3::ZERO,
+            Vec3::Y,
+        )
+}
+#[test]
+fn native_perspective_orbit_keeps_a_superset_plan_through_frustum_churn() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    renderers[0].set_incremental_batch_planning_enabled(false);
+    let mut scene = field(20_000);
+    let mut reused = 0;
+    for frame in 0..12 {
+        // Orbit close to the field: a partial, changing set of cubes is in view.
+        scene.view_projection = field_camera(frame as f32 * 0.21, 40.);
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        assert!(stats.visible_surfaces < 20_000, "frame {frame}");
+        if !stats.native_instance_arena {
+            println!("native arena unavailable; perspective superset proof skipped");
+            return Ok(());
+        }
+        if frame >= 2 {
+            assert!(stats.batch_plan_superset, "frame {frame}: {stats:?}");
+            reused += usize::from(stats.batch_plan_reused);
+        }
+        assert_eq!(renderers[0].frame_stats().batch_plan_rebuilds, 1);
+    }
+    println!(
+        "perspective_superset_proof surfaces=20000 reused={reused}/10 color_draws={} visible={}",
+        renderers[1].frame_stats().color_draws,
+        renderers[1].frame_stats().visible_surfaces
+    );
+    assert_eq!(reused, 10);
+    Ok(())
+}

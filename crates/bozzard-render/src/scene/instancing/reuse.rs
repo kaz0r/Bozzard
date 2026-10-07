@@ -55,6 +55,10 @@ pub(super) struct Ordering {
 }
 
 impl Ordering {
+    /// Opaque draws keep source order, which is valid for every camera.
+    pub(super) fn original(&self) -> bool {
+        self.original
+    }
     pub(super) fn new(
         inputs: &[Input],
         batches: &[Batch],
@@ -1441,6 +1445,7 @@ mod tests {
             false,
             arena::MAX_NATIVE_INSTANCES,
             16 * 1024,
+            false,
         );
         assert_eq!(native.len(), 10);
         assert!(projected.is_empty());

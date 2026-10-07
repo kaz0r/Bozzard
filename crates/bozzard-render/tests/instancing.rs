@@ -845,6 +845,68 @@ fn orthographic_camera_churn_filters_hidden_surfaces_without_regrouping() -> any
     Ok(())
 }
 
+fn ring_scene(interleaved: bool) -> RenderScene {
+    let mut scene = scene(128);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        let angle = i as f32 / 128. * std::f32::consts::TAU;
+        item.model = Mat4::from_translation(Vec3::new(angle.cos() * 9., 0., angle.sin() * 9.))
+            * Mat4::from_scale(Vec3::splat(0.8));
+        // Source order grouped by key keeps the original order at the lower bound.
+        let sphere = if interleaved { i % 2 == 1 } else { i >= 64 };
+        if sphere {
+            item.mesh = MeshKind::Sphere;
+        }
+    }
+    scene
+}
+fn orbit(heading: f32) -> Mat4 {
+    glam::camera::rh::proj::directx::perspective(1.0, 1., 0.1, 60.)
+        * glam::camera::rh::view::look_at_mat4(
+            Vec3::new(0., 3., 0.),
+            Vec3::new(heading.cos() * 9., 0., heading.sin() * 9.),
+            Vec3::Y,
+        )
+}
+#[test]
+fn perspective_orbit_reuses_original_order_superset() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| portable_renderer(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_instancing_enabled(false);
+    for renderer in &mut renderers {
+        renderer.set_occlusion_enabled(false);
+    }
+    let mut scene = ring_scene(false);
+    let mut reused = 0;
+    for frame in 0..26 {
+        scene.view_projection = orbit(frame as f32 * 0.26);
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        assert!(
+            stats.visible_surfaces < 128,
+            "frame {frame}: surfaces enter and leave view"
+        );
+        if frame >= 2 {
+            assert!(stats.batch_plan_superset, "frame {frame}: {stats:?}");
+            assert_eq!(stats.batch_plan_rebuilds, 0, "frame {frame}");
+            reused += usize::from(stats.batch_plan_reused);
+        }
+    }
+    assert_eq!(reused, 24);
+    // Interleaved keys would need reordering; perspective keeps visible-only plans.
+    let mut scene = ring_scene(true);
+    let mut rebuilds = 0;
+    for frame in 0..8 {
+        scene.view_projection = orbit(frame as f32 * 0.26);
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        assert!(!stats.batch_plan_superset, "frame {frame}");
+        rebuilds += stats.batch_plan_rebuilds;
+    }
+    assert!(rebuilds > 1, "visible-only plans rebuild on frustum churn");
+    Ok(())
+}
+
 #[test]
 fn a_tiny_view_of_a_large_scene_keeps_visibility_scoped_plans() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;

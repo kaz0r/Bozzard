@@ -60,6 +60,8 @@ pub struct FrameStats {
     pub instanced_surfaces: usize,
     pub batching: BatchingStats,
     pub batch_plan_reused: bool,
+    /// The plan covers hidden surfaces too, so frustum churn reuses it.
+    pub batch_plan_superset: bool,
     /// Exact visible membership retained the cached eligibility diagnostics.
     pub batch_diagnostics_reused: bool,
     pub batch_plan_rebuilds: usize,
