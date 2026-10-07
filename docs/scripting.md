@@ -222,6 +222,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_light_color(target, rgb)` | object light color (linear RGB, each channel 0..1) |
 | `set_sun_light(rgb, intensity)`, `set_ambient_light(rgb, intensity)` | scene light color (linear RGB 0..1) and intensity (0..100000); preserves sun direction/shadow settings |
 | `set_environment(zenith, horizon, ground, intensity)` | live sky/IBL colors (linear RGB 0..1), intensity 0..1000; preserves background visibility and stars |
+| `set_fog(color, density)` | live analytic distance fog: color (linear RGB 0..1) and distance density 0..1000; density 0 disables it. Height fog and the start distance stay as authored; volumetric fog is separate (`set_fog_density`) |
 | `set_star_intensity(intensity)` | background-only stars (0..1000, default 0); perspective direction field / fixed distant field for orthographic cameras |
 | `set_focus_distance`, `set_aperture`, `set_fog_density`, `set_fog_light_intensity`, `set_exposure`, `set_bloom_intensity`, `set_saturation`, `set_heat_strength`, `set_grain_intensity`, `set_vignette_intensity` | display overrides |
 | `spawn_prefab(asset, position)`, `destroy_prefab(target)` | returns a spawn handle |

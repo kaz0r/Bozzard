@@ -211,6 +211,11 @@ enum Command {
         intensity: f32,
     },
     Stars(f32),
+    /// Analytic distance fog color and density; density 0 disables the fog.
+    Fog {
+        color: [f32; 3],
+        density: f32,
+    },
     /// One of the ten display overrides, named by the blueprint node that sets it.
     Display {
         kind: blueprint::NodeKind,
@@ -1301,6 +1306,13 @@ fn register(host: Arc<Mutex<Host>>) -> Engine {
             && intensity.is_finite() && (0.0..=1000.).contains(&intensity),
             || "environment needs RGB in 0..1 and intensity in 0..1000".into())?;
         Command::Environment { zenith, horizon, ground, intensity }
+    });
+    write!("set_fog", (color: Array, density: f32), |_state| {
+        let color = vector_of(color)?;
+        ensure_script(color.iter().all(|v| (0.0..=1.).contains(v))
+            && density.is_finite() && (0.0..=1000.).contains(&density),
+            || "fog needs RGB in 0..1 and density in 0..1000".into())?;
+        Command::Fog { color, density }
     });
     write!("set_star_intensity", (intensity: f32), |_state| {
         ensure_script(intensity.is_finite() && (0.0..=1000.).contains(&intensity),
@@ -2754,6 +2766,12 @@ impl SceneInstance {
                     self.environment_override
                         .get_or_insert(self.document.environment)
                         .star_intensity = intensity;
+                }
+                Command::Fog { color, density } => {
+                    let fog = self.fog_override.get_or_insert(self.document.fog);
+                    fog.color = color;
+                    fog.distance_density = density;
+                    fog.enabled = density > 0.;
                 }
                 Command::Display { kind, value } => self.set_display_parameter(kind, value)?,
                 Command::Spawn {
