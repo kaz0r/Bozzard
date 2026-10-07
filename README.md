@@ -86,6 +86,7 @@ Pass a scene path to either the editor or player with `--scene PATH`.
 | Atmosphere | [Scene](examples/demo/scenes/atmosphere-lab.json) · [Guide](docs/atmosphere-effects.md) | Particles, temporal AA, motion blur, and reflections |
 | Middleware | [Guide](docs/middleware.md) | Audio, animation, timelines, UI, tilemaps, navigation, and particles |
 | Compute | [Waves scene](examples/demo/scenes/compute-waves.json) · [Guide](docs/compute.md) | WGSL compute jobs and generated material textures |
+| Pagoda Garden | [Scene](examples/pagoda-garden/scenes/pagoda.json) · [Guide](examples/pagoda-garden/README.md) | A 142k-voxel pagoda garden baked for the batch renderer, with orbit camera, koi, clouds, petals and a day/night toggle |
 | Sponza | [Setup and licensing](docs/sponza.md) | Imported architecture and renderer verification; assets download separately |
 
 ## Editor

@@ -1,0 +1,106 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "Bozzard tools/gen_pagoda.py"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "tree-cherry-0p9-pink1-6b452e",
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "tree-cherry-0p9-pink1-6b452e",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1
+     },
+     "indices": 2,
+     "material": 0
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "c-6b452e",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.147027,
+     0.059511,
+     0.027321,
+     1.0
+    ],
+    "metallicFactor": 0.0,
+    "roughnessFactor": 1.0
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AADAvwAAIEEAAAC/AADAvwAAIEEAAAA/AAAAvwAAIEEAAAA/AAAAvwAAIEEAAAC/AADAPwAAAEEAAAC/AAAgQAAAAEEAAAC/AAAgQAAAAEEAAAA/AADAPwAAAEEAAAA/AAAAPwAAgD8AAAC/AAAAPwAAAEAAAAC/AAAAPwAAAEAAAAA/AAAAPwAAgD8AAAA/AAAAvwAAgD8AAAC/AAAAvwAAgD8AAAA/AAAAvwAAAEAAAAA/AAAAvwAAAEAAAAC/AAAAvwAAgD8AAAC/AAAAPwAAgD8AAAC/AAAAPwAAgD8AAAA/AAAAvwAAgD8AAAA/AAAAvwAAgD8AAAA/AAAAPwAAgD8AAAA/AAAAPwAAAEAAAAA/AAAAvwAAAEAAAAA/AAAAvwAAgD8AAAC/AAAAvwAAAEAAAAC/AAAAPwAAAEAAAAC/AAAAPwAAgD8AAAC/AAAAPwAAoEAAAAC/AAAAPwAAwEAAAAC/AAAAPwAAwEAAAAA/AAAAPwAAoEAAAAA/AAAAvwAAoEAAAAC/AAAAvwAAoEAAAAA/AAAAvwAAwEAAAAA/AAAAvwAAwEAAAAC/AAAAvwAAoEAAAAA/AAAAPwAAoEAAAAA/AAAAPwAAwEAAAAA/AAAAvwAAwEAAAAA/AAAAvwAAoEAAAAC/AAAAvwAAwEAAAAC/AAAAPwAAwEAAAAC/AAAAPwAAoEAAAAC/AAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8AEAARABIAEAASABMAFAAVABYAFAAWABcAGAAZABoAGAAaABsAHAAdAB4AHAAeAB8AIAAhACIAIAAiACMAJAAlACYAJAAmACcAKAApACoAKAAqACsA",
+   "byteLength": 1188
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 528,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 528,
+   "byteLength": 528,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 1056,
+   "byteLength": 132,
+   "target": 34963
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 44,
+   "type": "VEC3",
+   "min": [
+    -1.5,
+    1.0,
+    -0.5
+   ],
+   "max": [
+    2.5,
+    10.0,
+    0.5
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 44,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5123,
+   "count": 66,
+   "type": "SCALAR"
+  }
+ ]
+}

@@ -1,0 +1,106 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "Bozzard tools/gen_pagoda.py"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "tree-cherry-1p25-white-6b452e",
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "tree-cherry-1p25-white-6b452e",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1
+     },
+     "indices": 2,
+     "material": 0
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "c-6b452e",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.147027,
+     0.059511,
+     0.027321,
+     1.0
+    ],
+    "metallicFactor": 0.0,
+    "roughnessFactor": 1.0
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AAAAPwAAgEAAAAC/AAAAPwAAoEAAAAC/AAAAPwAAoEAAAAA/AAAAPwAAgEAAAAA/AAAAvwAAgEAAAAC/AAAAvwAAgEAAAAA/AAAAvwAAoEAAAAA/AAAAvwAAoEAAAAC/AAAAvwAAgEAAAAA/AAAAPwAAgEAAAAA/AAAAPwAAoEAAAAA/AAAAvwAAoEAAAAA/AAAAvwAAgEAAAAC/AAAAvwAAoEAAAAC/AAAAPwAAoEAAAAC/AAAAPwAAgEAAAAC/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8A",
+   "byteLength": 432
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 192,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 192,
+   "byteLength": 192,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 384,
+   "byteLength": 48,
+   "target": 34963
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 16,
+   "type": "VEC3",
+   "min": [
+    -0.5,
+    4.0,
+    -0.5
+   ],
+   "max": [
+    0.5,
+    5.0,
+    0.5
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 16,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5123,
+   "count": 24,
+   "type": "SCALAR"
+  }
+ ]
+}

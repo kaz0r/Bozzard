@@ -240,7 +240,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_object_list(target, name, values)` | replace a declared list on another local object, with the same type/capacity checks and immediate read-after-write behavior |
 | `print(value)` | one line to stdout and the runtime's message list |
 
-Sun, ambient, environment, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
+Sun, ambient, environment, fog, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
 
 Tile views are local to the scene instance and reset on restart/Stop. They leave
 simulation entities, authored material colors, and the 2D HUD intact. Tiles use
