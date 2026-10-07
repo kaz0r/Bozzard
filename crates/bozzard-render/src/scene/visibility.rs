@@ -311,6 +311,16 @@ impl SceneRenderer {
         }
     }
     /// Compare retained light-space bounds with the original sun-fitting loop.
+    /// Reference switch: disabled, transparent lit receivers widen the fitted
+    /// sun box like casters; enabled (default), they only extend its far plane,
+    /// so receivers moving outside the casters' footprint keep the fit and its
+    /// static depth.
+    pub fn set_sun_fit_transparent_far_only_enabled(&mut self, enabled: bool) {
+        if self.sun_fit_transparent_far_only != enabled {
+            self.sun_fit_transparent_far_only = enabled;
+            self.shadow_frame = None;
+        }
+    }
     pub fn set_sun_fit_caching_enabled(&mut self, enabled: bool) {
         self.sun_fit_caching = enabled;
         if !enabled {

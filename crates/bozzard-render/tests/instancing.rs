@@ -1416,6 +1416,78 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
     Ok(())
 }
 
+#[test]
+fn transparent_receivers_above_casters_do_not_refit_sun() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    // [0]: same policy without the receiver; [1]: far-only policy; [2]: legacy fit.
+    let mut renderers: [SceneRenderer; 3] =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[2].set_sun_fit_transparent_far_only_enabled(false);
+    for renderer in &mut renderers {
+        renderer.set_occlusion_enabled(false);
+        renderer.upload_image(&gpu, "glass", 1, 1, &[100, 200, 240, 128])?;
+    }
+    let mut scene = scene(64);
+    scene.view_projection =
+        glam::camera::rh::proj::directx::orthographic(-9., 9., -9., 9., 0.1, 30.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 512;
+    scene.lighting.sun_direction = Vec3::new(0.3, 0.2, 1.).normalize().to_array();
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model = Mat4::from_translation(Vec3::new(
+            (i % 8) as f32 * 2. - 7.,
+            (i / 8) as f32 * 2. - 7.,
+            -5.,
+        )) * Mat4::from_scale(Vec3::splat(0.9));
+    }
+    let mut floor = scene.items[0].clone();
+    floor.motion_id = 5000;
+    floor.mesh = MeshKind::Quad;
+    floor.model =
+        Mat4::from_translation(Vec3::new(0., 0., -6.)) * Mat4::from_scale(Vec3::splat(18.));
+    floor.material.texture = TextureKind::White;
+    scene.items.push(floor);
+    let plain = scene.clone();
+    // A drifting "cloud": transparent, lit, nearer the sun and outside the view.
+    let mut cloud = scene.items[0].clone();
+    cloud.motion_id = 5001;
+    cloud.mesh = MeshKind::Quad;
+    cloud.material.texture = TextureKind::Imported("glass".into());
+    cloud.model =
+        Mat4::from_translation(Vec3::new(20., 0., -1.)) * Mat4::from_scale(Vec3::splat(4.));
+    scene.items.push(cloud);
+    let mut legacy_refits = 0;
+    for tick in 0..6 {
+        scene.items.last_mut().unwrap().model *= Mat4::from_translation(Vec3::X * 0.5);
+        let reference = capture(&gpu, &mut renderers[0], &plain)?;
+        let far_only = capture(&gpu, &mut renderers[1], &scene)?;
+        capture(&gpu, &mut renderers[2], &scene)?;
+        assert_eq!(
+            reference.rgba, far_only.rgba,
+            "tick {tick}: the cloud changed the fit"
+        );
+        if tick > 0 {
+            assert!(
+                renderers[1].frame_stats().sun_shadow_fit_reused,
+                "tick {tick}"
+            );
+            legacy_refits += usize::from(!renderers[2].frame_stats().sun_shadow_fit_reused);
+        }
+    }
+    assert_eq!(
+        legacy_refits, 5,
+        "the legacy fit chases the moving receiver"
+    );
+    // Inside the casters' box both policies fit identically.
+    let last = scene.items.len() - 1;
+    scene.items[last].model =
+        Mat4::from_translation(Vec3::new(0., 0., -5.5)) * Mat4::from_scale(Vec3::splat(4.));
+    let far_only = capture(&gpu, &mut renderers[1], &scene)?;
+    let legacy = capture(&gpu, &mut renderers[2], &scene)?;
+    assert_eq!(far_only.rgba, legacy.rgba);
+    Ok(())
+}
+
 fn graph_source(id: u64, multiplier: f32) -> std::sync::Arc<ShaderSource> {
     std::sync::Arc::new(ShaderSource {
         numeric_parameters: std::sync::Arc::from([]),
