@@ -72,7 +72,7 @@ pub(super) fn run(
     };
     for (i, (name, _, _)) in modes.iter().enumerate() {
         println!(
-            "frame_benchmark mode={name} frames={frames} size={}x{} cpu_median_ms={:.3} synchronized_wall_median_ms={:.3} prepare_median_ms={:.3} encode_median_ms={:.3} submit_median_ms={:.3} surfaces={} visible={} culled={} triangles={} shadow_draws={} shadow_triangles={} pipeline_binds={} shadow_cache_hit={} object_uniform_writes={} geometry_store_bytes={} exact_pixels=true",
+            "frame_benchmark mode={name} frames={frames} size={}x{} cpu_median_ms={:.3} synchronized_wall_median_ms={:.3} prepare_median_ms={:.3} encode_median_ms={:.3} submit_median_ms={:.3} surfaces={} visible={} culled={} triangles={} color_draws={} native_arena={} mdi_runs={} bundle_replays={} shadow_draws={} shadow_triangles={} native_shadow_lists={} shadow_mdi_runs={} pipeline_binds={} shadow_cache_hit={} object_uniform_writes={} geometry_store_bytes={} exact_pixels=true",
             size[0],
             size[1],
             median(&mut cpu[i]),
@@ -84,8 +84,14 @@ pub(super) fn run(
             stats[i].visible_surfaces,
             stats[i].culled_surfaces,
             stats[i].color_triangles,
+            stats[i].color_draws,
+            stats[i].native_instance_arena,
+            stats[i].multi_draw_indirect_runs,
+            stats[i].render_bundle_replays,
             stats[i].shadow_draws,
             stats[i].shadow_triangles,
+            stats[i].native_shadow_lists,
+            stats[i].shadow_multi_draw_indirect_runs,
             stats[i].pipeline_binds,
             stats[i].shadow_cache_hit,
             stats[i].object_uniform_writes,

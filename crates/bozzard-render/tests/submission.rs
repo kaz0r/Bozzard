@@ -1078,3 +1078,190 @@ fn static_sun_certificate_reuses_beyond_16384_casters() -> anyhow::Result<()> {
     }
     Ok(())
 }
+#[test]
+#[ignore = "release-mode 140k-cube perspective shadow benchmark; run explicitly"]
+fn scale_shadow_benchmark() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let count = std::env::var("BOZZARD_SCALE_CUBES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(140_000);
+    // portable: the 64-record path main fell back to past ~129k surfaces;
+    // native-color: native color batches over portable 170-record depth;
+    // optimized: native color plus native shadow lists and certificates.
+    let names = ["portable", "native-color", "optimized"];
+    let mut renderers: [SceneRenderer; 3] = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer.set_profiling_enabled(true);
+        renderer
+    });
+    renderers[0].set_native_instance_arena_enabled(false);
+    renderers[1].set_native_shadow_lists_enabled(false);
+    if std::env::var_os("BOZZARD_SCALE_NO_STATIC").is_some() {
+        // Re-render every shadow caster each frame to isolate depth submission.
+        for renderer in &mut renderers {
+            renderer.set_shadow_preparation_caching_enabled(false);
+        }
+    }
+    let mut scene = field(count);
+    let side = (count as f32).sqrt();
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 2048;
+    scene.lighting.sun_direction = Vec3::new(0.4, 1., 0.3).normalize().to_array();
+    let mut floor = scene.items[0].clone();
+    floor.motion_id = 900_000;
+    floor.mesh = MeshKind::Quad;
+    floor.model = Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2)
+        * Mat4::from_scale(Vec3::splat(side * 1.2));
+    scene.items.push(floor);
+    let mut mover = scene.items[0].clone();
+    mover.motion_id = 900_001;
+    scene.items.push(mover);
+    let place = |scene: &mut RenderScene, frame: usize| {
+        let angle = frame as f32 * 0.02;
+        scene.view_projection = field_camera(angle, side * 0.55);
+        scene.items.last_mut().unwrap().model = Mat4::from_translation(Vec3::new(
+            (angle * 3.).cos() * side * 0.2,
+            4.,
+            (angle * 3.).sin() * side * 0.2,
+        )) * Mat4::from_scale(Vec3::splat(3.));
+    };
+    place(&mut scene, 0);
+    let first = renderers
+        .iter_mut()
+        .map(|renderer| {
+            capture_offscreen(&gpu, 320, 320, |target| {
+                renderer.draw(&gpu, target, [320; 2], &scene)
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    assert_eq!(first[0].rgba, first[1].rgba, "native color changed pixels");
+    assert_eq!(
+        first[0].rgba, first[2].rgba,
+        "native shadows changed pixels"
+    );
+    let target = gpu
+        .device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("scale shadow benchmark target"),
+            size: wgpu::Extent3d {
+                width: 1280,
+                height: 720,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&Default::default());
+    #[derive(Default)]
+    struct Samples {
+        cpu: Vec<f64>,
+        prepare: Vec<f64>,
+        planning: Vec<f64>,
+        encode: Vec<f64>,
+        wall: Vec<f64>,
+        shadow_gpu: Vec<f64>,
+        total_gpu: Vec<f64>,
+        plan_reused: usize,
+        static_reused: usize,
+        frames: usize,
+    }
+    let mut samples: [Samples; 3] = Default::default();
+    let warmup = 10;
+    let measured = 60;
+    for frame in 1..=warmup + measured {
+        place(&mut scene, frame);
+        for offset in 0..3 {
+            let mode = (frame + offset) % 3;
+            if std::env::var("BOZZARD_SCALE_ONLY").is_ok_and(|only| only != names[mode]) {
+                continue;
+            }
+            let renderer = &mut renderers[mode];
+            let start = std::time::Instant::now();
+            renderer.draw(&gpu, &target, [1280, 720], &scene)?;
+            gpu.wait()?;
+            let wall = start.elapsed().as_secs_f64() * 1000.;
+            let stats = renderer.frame_stats();
+            for timing in renderer.poll_gpu_profiles(&gpu)? {
+                if frame <= warmup || timing.failed {
+                    continue;
+                }
+                let pass = |shadow: bool| {
+                    timing
+                        .passes
+                        .iter()
+                        .filter(|p| !shadow || p.name.contains("shadow"))
+                        .filter_map(|p| p.milliseconds)
+                        .sum::<f64>()
+                };
+                samples[mode].shadow_gpu.push(pass(true));
+                samples[mode].total_gpu.push(pass(false));
+            }
+            if frame > warmup {
+                let s = &mut samples[mode];
+                s.cpu.push(stats.cpu_ms);
+                s.prepare.push(stats.prepare_ms);
+                s.planning.push(stats.batch_plan_ms);
+                s.encode.push(stats.encode_ms);
+                s.wall.push(wall);
+                s.plan_reused += usize::from(stats.batch_plan_reused);
+                s.static_reused += usize::from(stats.sun_static_cache_reused);
+                s.frames += 1;
+            }
+        }
+    }
+    let median = |values: &[f64]| {
+        let mut values = values.to_vec();
+        values.sort_by(f64::total_cmp);
+        values.get(values.len() / 2).copied().unwrap_or(f64::NAN)
+    };
+    if std::env::var_os("BOZZARD_SCALE_STAGES").is_some() {
+        for (mode, renderer) in renderers.iter().enumerate() {
+            let s = renderer.frame_stats();
+            println!(
+                "scale_stages mode={} surface_prepare_ms={:.2} visibility_ms={:.2} plan_ms={:.2} occlusion_ms={:.2} shadow_state_ms={:.2} sun_fit_ms={:.2} prepare_ms={:.2}",
+                names[mode],
+                s.surface_prepare_ms,
+                s.visibility_ms,
+                s.batch_plan_ms,
+                s.occlusion_prepare_ms,
+                s.shadow_state_ms,
+                s.sun_fit_ms,
+                s.prepare_ms
+            );
+        }
+    }
+    for (mode, s) in samples.iter().enumerate() {
+        let stats = renderers[mode].frame_stats();
+        println!(
+            "scale_shadow mode={} surfaces={} visible={} arena={} color_draws={} color_mdi_runs={} bundle_replays={} shadow_draws={} shadow_mdi_runs={} shadow_mdi_draws={} plan_reused={}/{} static_sun_reused={}/{} cpu_ms={:.2} prepare_ms={:.2} plan_ms={:.3} encode_ms={:.2} wall_ms={:.2} gpu_shadow_ms={:.2} gpu_total_ms={:.2}",
+            names[mode],
+            stats.surfaces,
+            stats.visible_surfaces,
+            stats.native_instance_arena,
+            stats.color_draws,
+            stats.multi_draw_indirect_runs,
+            stats.render_bundle_replays,
+            stats.shadow_draws,
+            stats.shadow_multi_draw_indirect_runs,
+            stats.shadow_multi_draw_indirect_draws,
+            s.plan_reused,
+            s.frames,
+            s.static_reused,
+            s.frames,
+            median(&s.cpu),
+            median(&s.prepare),
+            median(&s.planning),
+            median(&s.encode),
+            median(&s.wall),
+            median(&s.shadow_gpu),
+            median(&s.total_gpu),
+        );
+    }
+    Ok(())
+}
