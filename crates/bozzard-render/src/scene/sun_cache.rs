@@ -106,7 +106,11 @@ impl Cache {
         accepted: &[bool],
         dynamic: bool,
     ) -> Option<compaction::Plan> {
-        if !self.range_enabled || !renderer.instancing.shadow_batching() {
+        // Native shadow lists already submit only accepted casters per group.
+        if !self.range_enabled
+            || !renderer.instancing.shadow_batching()
+            || renderer.native_shadows_active()
+        {
             return None;
         }
         let mut layers = self.range_layers.borrow_mut();

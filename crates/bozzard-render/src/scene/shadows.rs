@@ -1,4 +1,5 @@
 use super::*;
+pub(super) mod native;
 mod singleton;
 
 /// Exact depth-producing state, independent of camera, exposure and light color.
@@ -340,6 +341,7 @@ pub(super) struct Shadows {
     pub uniform_row: Vec<u8>,
     pub sun_cache: sun_cache::Cache,
     pub sun_fit: sun_fit::Cache,
+    pub native: native::NativeShadows,
     /// Per-pass caster masks reused across frames instead of reallocated.
     accepted_scratch: std::cell::RefCell<Vec<bool>>,
     covered_scratch: std::cell::RefCell<Vec<bool>>,
@@ -358,6 +360,8 @@ struct PipelineSpec {
     point: bool,
     compact: bool,
     coverage: ShadowCoverage,
+    /// Storage-table records selected through per-pass instance IDs.
+    native: bool,
 }
 
 fn proven_opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
@@ -431,6 +435,7 @@ pub(super) fn pipeline(
             point,
             compact,
             coverage: ShadowCoverage::Masked,
+            native: false,
         },
     )
 }
@@ -446,6 +451,7 @@ fn pipeline_variant(
         point,
         compact,
         coverage,
+        native,
     } = spec;
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("shadow pipeline layout"),
@@ -454,7 +460,14 @@ fn pipeline_variant(
     });
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("depth caster"),
-        source: wgpu::ShaderSource::Wgsl(module_text(instanced, compact).into()),
+        source: wgpu::ShaderSource::Wgsl(
+            if native {
+                native::module_text()
+            } else {
+                module_text(instanced, compact)
+            }
+            .into(),
+        ),
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(if instanced {
@@ -734,6 +747,7 @@ impl Shadows {
             uniform_row: Vec::new(),
             sun_cache: sun_cache::Cache::default(),
             sun_fit: sun_fit::Cache::default(),
+            native: Default::default(),
             accepted_scratch: Default::default(),
             covered_scratch: Default::default(),
         }
@@ -1203,6 +1217,7 @@ impl SceneRenderer {
                                         point,
                                         compact,
                                         coverage,
+                                        native: false,
                                     },
                                 )
                             });
@@ -1237,12 +1252,19 @@ impl SceneRenderer {
                 counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
         };
+        let native = self.native_shadows_active();
+        let mut native_groups = Vec::new();
         let mut covered = self.shadows.covered_scratch.borrow_mut();
         covered.clear();
         covered.resize(draws.len(), false);
         for batch in batches {
             for &index in &batch.indices {
                 covered[index] = true;
+            }
+            // Keyed depth groups read the native caster table after this loop.
+            if native && batch.slot.is_some() {
+                native_groups.push(batch);
+                continue;
             }
             // Instance indices address the original packed buffer, including a
             // nonzero first instance. Skip rejected members without repacking
@@ -1274,7 +1296,21 @@ impl SceneRenderer {
                 submit(index, 0..1, None);
             }
         }
+        if !native_groups.is_empty() {
+            let work = self
+                .shadows
+                .native
+                .encode(self, pass, draws, &native_groups, point, &casts);
+            counts.0 += work.0;
+            counts.1 += work.1;
+        }
         counts
+    }
+    /// Shadow depth groups draw from the native caster table and ID streams.
+    pub(super) fn native_shadows_active(&self) -> bool {
+        self.shadows.native.enabled
+            && self.instancing.arena_enabled()
+            && self.instancing.shadow_batching()
     }
 }
 #[cfg(test)]
@@ -1580,6 +1616,10 @@ mod tests {
             SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
         });
         renderers[0].set_opaque_shadow_specialization_enabled(false);
+        for renderer in &mut renderers {
+            // Inspects the portable variant cache; native coverage has its own proof.
+            renderer.set_native_shadow_lists_enabled(false);
+        }
         let vertices = [
             [-0.4, -0.4, 0., 0., 0., 1., 0., 1.],
             [0.4, -0.4, 0., 0., 0., 1., 1., 1.],

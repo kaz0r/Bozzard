@@ -3,7 +3,7 @@
 //! data inside a retained buffer does not require recording another bundle.
 use super::draw_state::DrawState;
 use super::*;
-mod geometry;
+pub(in crate::scene) mod geometry;
 
 const MIN_BUNDLE_DRAWS: usize = 128;
 const MIN_INDIRECT_RUN: usize = 8;
@@ -176,6 +176,10 @@ fn argument_bytes(records: &[Record], mut bytes: Vec<u8>) -> Vec<u8> {
     bytes
 }
 impl Submission {
+    /// Native multi-draw-indirect is allowed (the diagnostic switch).
+    pub fn indirect_enabled(&self) -> bool {
+        self.indirect_enabled
+    }
     pub fn invalidate(&mut self) {
         self.bundle = Default::default();
         self.indirect = Default::default();

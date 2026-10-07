@@ -85,6 +85,11 @@ pub struct FrameStats {
     pub instance_buffer_allocations: usize,
     /// Additional packed shadow-caster bytes, independent of camera batches.
     pub shadow_instance_uniform_bytes: usize,
+    /// Depth groups drew from the native caster table and per-pass ID streams.
+    pub native_shadow_lists: bool,
+    pub shadow_instance_id_bytes: usize,
+    pub shadow_multi_draw_indirect_runs: usize,
+    pub shadow_multi_draw_indirect_draws: usize,
     pub shadow_instance_buffer_allocations: usize,
     pub shadow_singleton_bytes: usize,
     pub shadow_singleton_allocations: usize,
@@ -318,6 +323,17 @@ impl SceneRenderer {
     pub fn set_sun_fit_transparent_far_only_enabled(&mut self, enabled: bool) {
         if self.sun_fit_transparent_far_only != enabled {
             self.sun_fit_transparent_far_only = enabled;
+            self.shadow_frame = None;
+        }
+    }
+    /// Reference switch: disabled, native-arena devices draw depth groups from
+    /// the portable 170-record uniform batches instead of the native caster
+    /// table with per-pass ID lists and multi-draw-indirect runs.
+    pub fn set_native_shadow_lists_enabled(&mut self, enabled: bool) {
+        if self.shadows.native.enabled != enabled {
+            self.shadows.native.enabled = enabled;
+            self.instancing.clear_depth_plan();
+            self.instancing.shadow_bindings.clear();
             self.shadow_frame = None;
         }
     }

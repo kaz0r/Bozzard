@@ -50,6 +50,10 @@ impl Input {
 pub(super) struct Plan {
     inputs: Vec<Input>,
     batches: Vec<Batch>,
+    /// Native plans keep whole depth groups; `keyed` marks groups drawn from
+    /// the native caster table (others are individual casters).
+    native: bool,
+    keyed: Vec<bool>,
 }
 /// Source membership and binding class determine the original accepted-run
 /// count. Slot numbers and offsets do not affect that count; the replacement
@@ -150,7 +154,7 @@ fn key(
     ))
 }
 fn groups(renderer: &SceneRenderer, draws: &[PreparedDraw], graphs: bool) -> Vec<Batch> {
-    groups_filtered(renderer, draws, graphs, None, true)
+    groups_filtered(renderer, draws, graphs, None, true, MAX_SHADOW_INSTANCES)
 }
 fn groups_filtered(
     renderer: &SceneRenderer,
@@ -158,6 +162,7 @@ fn groups_filtered(
     graphs: bool,
     accepted: Option<&[bool]>,
     spatial: bool,
+    capacity: usize,
 ) -> Vec<Batch> {
     let mut members: Vec<Vec<usize>> = Vec::new();
     // wgpu Buffer Eq/Hash use immutable handle identity, never storage contents.
@@ -178,7 +183,7 @@ fn groups_filtered(
     }
     let mut batches = Vec::new();
     for mut indices in members {
-        if spatial && indices.len() > MAX_SHADOW_INSTANCES {
+        if spatial && indices.len() > capacity {
             let centers: Vec<_> = indices
                 .iter()
                 .map(|&i| {
@@ -191,7 +196,7 @@ fn groups_filtered(
                 .collect();
             spatial_order(&mut indices, &centers);
         }
-        for indices in indices.chunks(MAX_SHADOW_INSTANCES) {
+        for indices in indices.chunks(capacity) {
             batches.push(Batch {
                 indices: indices.to_vec(),
                 slot: None,
@@ -217,6 +222,7 @@ impl SceneRenderer {
             self.instancing.graph_enabled,
             Some(accepted),
             false,
+            MAX_SHADOW_INSTANCES,
         );
         let saved =
             local_shadow_maps::compaction::subset_draws_saved(source, accepted, batches.len());
@@ -355,8 +361,10 @@ pub(super) fn prepare(
     draws: &[PreparedDraw],
 ) -> Result<Vec<Batch>> {
     let graphs = renderer.instancing.graph_enabled;
+    let native = renderer.native_shadows_active();
     let reused = renderer.instancing.shadow_plan.as_ref().is_some_and(|p| {
-        p.inputs.len() == draws.len()
+        p.native == native
+            && p.inputs.len() == draws.len()
             && p.inputs
                 .iter()
                 .zip(draws)
@@ -366,7 +374,20 @@ pub(super) fn prepare(
                 })
     });
     if !reused {
-        let batches = groups(renderer, draws, graphs);
+        // Native groups are never split: one storage table serves any count.
+        let batches = if native {
+            groups_filtered(renderer, draws, graphs, None, false, usize::MAX)
+        } else {
+            groups(renderer, draws, graphs)
+        };
+        let keyed = batches
+            .iter()
+            .map(|batch| {
+                let index = batch.indices[0];
+                let draw = &draws[index];
+                native && key(draw, graphs, renderer.shadow_coverage_at(index, draw)).is_some()
+            })
+            .collect();
         let mut inputs = renderer
             .instancing
             .shadow_plan
@@ -381,7 +402,12 @@ pub(super) fn prepare(
                 inputs[index] = Input::new(draw, graphs, coverage);
             }
         }
-        renderer.instancing.shadow_plan = Some(Plan { inputs, batches });
+        renderer.instancing.shadow_plan = Some(Plan {
+            inputs,
+            batches,
+            native,
+            keyed,
+        });
     }
     renderer.stats.shadow_batch_plan_reused = reused;
     let plan = renderer.instancing.shadow_plan.as_ref().unwrap();
@@ -399,6 +425,14 @@ pub(super) fn prepare(
         output[index].slot = None;
     }
     output.truncate(plan.batches.len());
+    if native {
+        // Keyed groups address the native table by draw position; their
+        // records are uploaded with the frame's ID streams.
+        for (batch, &keyed) in output.iter_mut().zip(&plan.keyed) {
+            batch.slot = keyed.then_some(0);
+        }
+        return Ok(output);
+    }
     if renderer.instancing.shadow_layout.is_none() {
         renderer.instancing.shadow_layout = Some(layout(gpu));
     }

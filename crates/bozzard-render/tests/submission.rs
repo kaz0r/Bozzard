@@ -796,3 +796,204 @@ fn native_perspective_orbit_keeps_a_superset_plan_through_frustum_churn() -> any
     assert_eq!(reused, 10);
     Ok(())
 }
+fn upload_masked(gpu: &Gpu, renderer: &mut SceneRenderer) -> anyhow::Result<()> {
+    let vertices = [
+        [-0.5, -0.5, 0., 0., 0., 1., 0., 1.],
+        [0.5, -0.5, 0., 0., 0., 1., 1., 1.],
+        [0., 0.5, 0., 0., 0., 1., 0.5, 0.],
+    ];
+    let attrs = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 3];
+    renderer.upload_model(
+        gpu,
+        "leaf",
+        &vertices,
+        &[0, 1, 2],
+        &[ModelPart {
+            source_key: "0000000000000000",
+            start: 0,
+            count: 3,
+            color: [1.; 4],
+            alpha_cutoff: Some(0.5),
+            image: Some(ModelImage {
+                width: 2,
+                height: 1,
+                rgba: &[255, 255, 255, 40, 255, 255, 255, 255],
+            }),
+            shading: Some(ModelShading {
+                vertex_start: 0,
+                vertices: &attrs,
+                metallic: 0.,
+                roughness: 0.8,
+                normal_scale: 1.,
+                occlusion_strength: 1.,
+                emissive_factor: [0.; 3],
+                double_sided: true,
+                base_color_sampler: Default::default(),
+                normal: None,
+                metallic_roughness: None,
+                occlusion: None,
+                emissive: None,
+            }),
+        }],
+    )
+}
+#[test]
+fn native_shadow_lists_match_portable_depth_and_collapse_draws() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers: [SceneRenderer; 2] = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    // Reference: native color, portable 170-record depth uniforms.
+    renderers[0].set_native_shadow_lists_enabled(false);
+    for renderer in &mut renderers {
+        upload_masked(&gpu, renderer)?;
+    }
+    let mut scene = scene(10_000);
+    scene.view_projection =
+        glam::camera::rh::proj::directx::orthographic(-26., 26., -26., 26., 0.1, 60.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 1024;
+    scene.lighting.sun_direction = Vec3::new(0.35, 0.25, 1.).normalize().to_array();
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.mesh = MeshKind::Cube;
+        item.material.lit = true;
+        item.model = Mat4::from_translation(Vec3::new(
+            (i % 100) as f32 * 0.5 - 25.,
+            (i / 100) as f32 * 0.5 - 25.,
+            -10. + (i % 7) as f32 * 0.3,
+        )) * Mat4::from_scale(Vec3::splat(0.3));
+    }
+    let template = scene.items[0].clone();
+    let extra = |motion_id: u64, mesh: MeshKind, model: Mat4| {
+        let mut item = template.clone();
+        item.motion_id = motion_id;
+        if let MeshKind::ModelPart(id, part) = &mesh {
+            item.material.texture = TextureKind::ModelPart(id.clone(), *part);
+        }
+        item.mesh = mesh;
+        item.model = model;
+        item
+    };
+    let leaves = (0..64).map(|i| {
+        extra(
+            20_000 + i,
+            MeshKind::ModelPart("leaf".into(), 0),
+            Mat4::from_translation(Vec3::new(
+                (i % 8) as f32 * 3. - 12.,
+                (i / 8) as f32 * 3. - 12.,
+                -6.,
+            )) * Mat4::from_scale(Vec3::splat(1.5)),
+        )
+    });
+    let spheres = (0..32).map(|i| {
+        extra(
+            30_000 + i,
+            MeshKind::Sphere,
+            Mat4::from_translation(Vec3::new(i as f32 * 1.4 - 22., 18., -7.)),
+        )
+    });
+    let floor = extra(
+        40_000,
+        MeshKind::Quad,
+        Mat4::from_translation(Vec3::new(0., 0., -12.)) * Mat4::from_scale(Vec3::splat(52.)),
+    );
+    let extras: Vec<_> = leaves.chain(spheres).chain([floor]).collect();
+    scene.items.extend(extras);
+    scene.lights = vec![
+        LocalLight {
+            directional: false,
+            position: [-8., 6., -3.],
+            direction: [0., 0., -1.],
+            color: [1., 0.8, 0.6],
+            intensity: 30.,
+            range: 30.,
+            spot_angles: Some([30., 45.]),
+            shadows: Some(Default::default()),
+        },
+        LocalLight {
+            directional: false,
+            position: [10., -6., -4.],
+            direction: [0., 0., -1.],
+            color: [0.6, 0.8, 1.],
+            intensity: 30.,
+            range: 25.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        },
+    ];
+    let check = |renderers: &mut [SceneRenderer; 2], scene: &RenderScene, context: &str| {
+        let frames = renderers
+            .iter_mut()
+            .map(|renderer| {
+                capture_offscreen(&gpu, 256, 256, |target| {
+                    renderer.draw(&gpu, target, [256; 2], scene)
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            frames[0].rgba, frames[1].rgba,
+            "{context}: native depth changed pixels"
+        );
+        let (portable, native) = (renderers[0].frame_stats(), renderers[1].frame_stats());
+        assert_eq!(
+            portable.shadow_triangles, native.shadow_triangles,
+            "{context}"
+        );
+        anyhow::Ok((portable, native))
+    };
+    let (portable, native) = check(&mut renderers, &scene, "cold")?;
+    if !native.native_instance_arena {
+        println!("native arena unavailable; native shadow proof skipped");
+        return Ok(());
+    }
+    assert!(native.native_shadow_lists && !portable.native_shadow_lists);
+    assert!(
+        native.shadow_draws * 10 < portable.shadow_draws,
+        "{native:?}"
+    );
+    let (_, warm) = check(&mut renderers, &scene, "warm")?;
+    assert_eq!(
+        warm.shadow_instance_uniform_bytes, 0,
+        "no stationary record uploads"
+    );
+    println!(
+        "shadow_native_proof casters={} portable_draws={} native_draws={} mdi_runs={} mdi_draws={}",
+        scene.items.len(),
+        portable.shadow_draws,
+        native.shadow_draws,
+        native.shadow_multi_draw_indirect_runs,
+        native.shadow_multi_draw_indirect_draws,
+    );
+    for tick in 0..4 {
+        for item in &mut scene.items[..8] {
+            item.model *= Mat4::from_translation(Vec3::X * 0.2);
+        }
+        check(&mut renderers, &scene, &format!("moving casters {tick}"))?;
+    }
+    for tick in 0..2 {
+        scene.lights[0].position[0] += 1.5;
+        check(&mut renderers, &scene, &format!("moving spot {tick}"))?;
+    }
+    for renderer in &mut renderers {
+        renderer.set_native_multi_draw_enabled(false);
+    }
+    scene.items[9].model *= Mat4::from_translation(Vec3::Y * 0.2);
+    let (_, direct) = check(&mut renderers, &scene, "direct draws")?;
+    assert_eq!(direct.shadow_multi_draw_indirect_runs, 0);
+    for renderer in &mut renderers {
+        renderer.set_native_multi_draw_enabled(true);
+        renderer.set_shadow_batching_enabled(false);
+    }
+    scene.items[10].model *= Mat4::from_translation(Vec3::Y * 0.2);
+    let (_, unbatched) = check(&mut renderers, &scene, "shadow batching off")?;
+    assert!(!unbatched.native_shadow_lists);
+    for renderer in &mut renderers {
+        renderer.set_shadow_batching_enabled(true);
+    }
+    scene.items[11].model *= Mat4::from_translation(Vec3::Y * 0.2);
+    let (_, restored) = check(&mut renderers, &scene, "shadow batching restored")?;
+    assert!(restored.native_shadow_lists);
+    Ok(())
+}

@@ -22,6 +22,13 @@ pub(super) struct CasterUpdate {
     stable: Vec<bool>,
     static_keys: std::cell::RefCell<Option<Vec<shadows::ShadowCaster>>>,
 }
+impl CasterUpdate {
+    /// Casters this map's frustum accepted: an upper bound on its static and
+    /// dynamic layers together, which partition that set.
+    pub fn accepted_count(&self) -> usize {
+        self.accepted.iter().filter(|accepted| **accepted).count()
+    }
+}
 pub(super) struct ShadowMaps {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -445,7 +452,10 @@ impl ShadowMaps {
             if let Some(plan) = &plan
                 && plan.rebuild
             {
-                let compact = if self.range_enabled && renderer.instancing.shadow_batching() {
+                let compact = if self.range_enabled
+                    && renderer.instancing.shadow_batching()
+                    && !renderer.native_shadows_active()
+                {
                     Some(ranges[slot][0].prepare(
                         renderer,
                         &self.device,
@@ -525,7 +535,10 @@ impl ShadowMaps {
                 &change.accepted
             };
             pass.set_bind_group(1, &self.casters[slot].binding, &[]);
-            let compact = if self.range_enabled && renderer.instancing.shadow_batching() {
+            let compact = if self.range_enabled
+                && renderer.instancing.shadow_batching()
+                && !renderer.native_shadows_active()
+            {
                 Some(ranges[slot][1].prepare(
                     renderer,
                     &self.device,
@@ -701,6 +714,8 @@ mod optimization_tests {
         for renderer in &mut renderers {
             renderer.set_occlusion_enabled(false);
             renderer.set_shadow_preparation_caching_enabled(false);
+            // Covers portable range compaction; native lists have their own proof.
+            renderer.set_native_shadow_lists_enabled(false);
         }
         let mut scene = scene(
             (0..160)
@@ -764,6 +779,10 @@ mod optimization_tests {
         });
         renderers[0].set_shadow_preparation_caching_enabled(false);
         renderers[1].set_shadow_range_compaction_enabled(false);
+        for renderer in &mut renderers {
+            // Covers portable sun range compaction; native lists have their own proof.
+            renderer.set_native_shadow_lists_enabled(false);
+        }
         let vertices = [
             [-0.12, -0.12, 0., 0., 0., 1., 0., 1.],
             [0.12, -0.12, 0., 0., 0., 1., 1., 1.],

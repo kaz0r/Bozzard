@@ -1197,6 +1197,7 @@ impl SceneRenderer {
         self.submission.invalidate();
         self.object_identities.clear();
         self.shadows.singletons.invalidate();
+        self.shadows.native.invalidate();
         self.instancing.bindings.clear();
         self.instancing.shadow_bindings.clear();
         self.instancing.clear_depth_plan();
@@ -2480,11 +2481,12 @@ impl SceneRenderer {
                 if self.instancing.shadow_batching() {
                     shadow_batches = Some(self.prepare_shadow_instances(gpu, &draws)?);
                 }
-                if shadow_batches
-                    .as_ref()
-                    .unwrap_or(&batches)
-                    .iter()
-                    .any(|b| b.slot.is_some())
+                if !self.native_shadows_active()
+                    && shadow_batches
+                        .as_ref()
+                        .unwrap_or(&batches)
+                        .iter()
+                        .any(|b| b.slot.is_some())
                 {
                     self.prepare_instanced_shadows(gpu);
                 }
@@ -2540,6 +2542,40 @@ impl SceneRenderer {
                 drop(previous_frame.take());
                 self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
             }
+        }
+        self.stats.native_shadow_lists = self.native_shadows_active();
+        if self.stats.native_shadow_lists
+            && let Some(groups) = &shadow_batches
+        {
+            // Exact upper bounds: the sun's static and dynamic layers partition
+            // its casters, and each local map's layers partition its accepted set.
+            let keyed = groups
+                .iter()
+                .filter(|g| g.slot.is_some())
+                .map(|g| g.indices.len())
+                .sum::<usize>();
+            let keyed_groups = groups.iter().filter(|g| g.slot.is_some()).count();
+            let sun_passes = if sun_changed && scene.lighting.shadows {
+                1 + usize::from(sun_plan.as_ref().is_some_and(|p| p.rebuild))
+            } else {
+                0
+            };
+            let local = spot_changes.iter().chain(&point_changes).flatten();
+            let local_passes = 2 * local.clone().count();
+            let id_bound = usize::from(sun_passes > 0) * keyed
+                + local.map(|change| change.accepted_count()).sum::<usize>();
+            let mut native = std::mem::take(&mut self.shadows.native);
+            let prepared = native.prepare(
+                self,
+                gpu,
+                &draws,
+                groups,
+                !self.stats.shadow_batch_plan_reused,
+                id_bound,
+                keyed_groups * (sun_passes + local_passes),
+            );
+            self.shadows.native = native;
+            prepared?;
         }
         self.stats.sun_bounds_cache_bytes = self.shadows.sun_fit.bytes();
         // Packed color and shadow groups already contain their uniforms.
@@ -2692,6 +2728,13 @@ impl SceneRenderer {
                     .draw(self, &mut encoder, &draws, batches, true, &point_changes);
             self.stats.shadow_draws += point_draws;
             self.stats.shadow_triangles += point_triangles;
+            if self.stats.native_shadow_lists {
+                self.shadows.native.flush(gpu);
+                self.stats.shadow_instance_id_bytes = self.shadows.native.id_bytes;
+                self.stats.shadow_instance_uniform_bytes += self.shadows.native.record_bytes;
+                self.stats.shadow_multi_draw_indirect_runs = self.shadows.native.indirect_runs;
+                self.stats.shadow_multi_draw_indirect_draws = self.shadows.native.indirect_draws;
+            }
         }
         self.stats.auxiliary_targets = output_mask.count_ones() as usize;
         self.stats.shadow_range_draws_saved = self.shadows.spots.range_draws_saved.get()

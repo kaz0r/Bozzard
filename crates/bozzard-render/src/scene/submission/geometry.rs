@@ -43,7 +43,7 @@ impl Source {
     }
 }
 #[derive(Default)]
-pub(super) struct Arena {
+pub(in crate::scene) struct Arena {
     sources: Vec<Source>,
     vertices: [Option<wgpu::Buffer>; 3],
     indices: Option<wgpu::Buffer>,
@@ -66,7 +66,7 @@ fn vertex_count(key: Key<'_>) -> Option<u64> {
         .filter(|&count| count > 0)
 }
 impl Arena {
-    pub(super) fn prepare(
+    pub(in crate::scene) fn prepare(
         &mut self,
         gpu: &Gpu,
         records: &[Record<'_>],
@@ -237,8 +237,39 @@ impl Arena {
         }
         state.index(pass, self.indices.as_ref().unwrap(), cache);
     }
-    pub(super) fn disable(&mut self) {
+    pub(in crate::scene) fn disable(&mut self) {
         self.enabled = false;
+    }
+    /// Packed (first index, base vertex) of a mesh copied by the last `prepare`.
+    pub(in crate::scene) fn base_of(
+        &self,
+        vertices: &wgpu::Buffer,
+        offset: u64,
+        indices: &wgpu::Buffer,
+        count: u32,
+    ) -> Option<(u32, i32)> {
+        if !self.enabled {
+            return None;
+        }
+        let key = Key {
+            vertices: [Some((vertices, offset)), None, None],
+            indices,
+            count,
+        };
+        self.sources
+            .iter()
+            .position(|source| source.key() == key)
+            .map(|slot| self.base[slot])
+    }
+    /// Bind the packed position stream and index stream for indirect runs.
+    pub(in crate::scene) fn bind_streams(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        state: &mut DrawState,
+        cache: bool,
+    ) {
+        state.vertex(pass, 0, self.vertices[0].as_ref().unwrap(), 0, cache);
+        state.index(pass, self.indices.as_ref().unwrap(), cache);
     }
 }
 
