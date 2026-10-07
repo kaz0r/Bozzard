@@ -199,6 +199,8 @@ pub struct FrameStats {
     /// Retained vector capacities, excluding shared Arc storage, owned key strings and GPU data.
     pub surface_preparation_bytes: usize,
     pub frame_scratch_bytes: usize,
+    /// Motion-history key rows rewritten (and asset IDs cloned) this frame.
+    pub motion_history_key_updates: usize,
     pub encode_ms: f64,
     pub submit_ms: f64,
 }

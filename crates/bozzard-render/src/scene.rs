@@ -1,7 +1,7 @@
 use crate::Gpu;
 use anyhow::{Context, Result, ensure};
 use glam::{Mat4, Vec3};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use wgpu::util::DeviceExt;
 mod temporal_settings;
 pub use temporal_settings::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
@@ -2195,7 +2195,7 @@ impl SceneRenderer {
                     binding.dirty = true;
                 }
             }
-            let previous_model = self.motion_history.previous_model(object);
+            let previous_model = self.motion_history.previous_model(index, object);
             let material = &object.material;
             let tail = [
                 material.tint[0],
@@ -3011,6 +3011,7 @@ impl SceneRenderer {
         }
         self.stats.shadow_state_ms += state_started.elapsed().as_secs_f64() * 1000.;
         self.motion_history.finish(&draws);
+        self.stats.motion_history_key_updates = self.motion_history.key_updates();
         self.instancing.frame_batches = batches;
         if let Some(batches) = shadow_batches {
             self.instancing.shadow_frame_batches = batches;
