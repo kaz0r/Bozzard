@@ -42,14 +42,22 @@ pub(super) struct Comparison {
     pub unchanged: Vec<bool>,
 }
 impl Comparison {
-    pub fn cold(count: usize) -> Self {
+    /// A cold comparison over retained mask storage, avoiding per-frame allocation.
+    pub fn reuse(count: usize, (mut stable_mask, mut unchanged): (Vec<bool>, Vec<bool>)) -> Self {
+        stable_mask.clear();
+        stable_mask.resize(count, false);
+        unchanged.clear();
+        unchanged.resize(count, false);
         Self {
             whole: false,
             sun: false,
             opaque: false,
-            stable_mask: vec![false; count],
-            unchanged: vec![false; count],
+            stable_mask,
+            unchanged,
         }
+    }
+    pub fn into_buffers(self) -> (Vec<bool>, Vec<bool>) {
+        (self.stable_mask, self.unchanged)
     }
 }
 fn sun_key(scene: &RenderScene) -> (bool, u32, [f32; 3], f32, f32) {
@@ -124,13 +132,23 @@ impl ShadowCaster {
 }
 
 impl ShadowFrame {
+    #[cfg(test)]
     pub fn compare(
         &self,
         scene: &RenderScene,
         draws: &[PreparedDraw],
         culling: bool,
     ) -> Comparison {
-        let mut result = Comparison::cold(draws.len());
+        self.compare_into(scene, draws, culling, Default::default())
+    }
+    pub fn compare_into(
+        &self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        culling: bool,
+        buffers: (Vec<bool>, Vec<bool>),
+    ) -> Comparison {
+        let mut result = Comparison::reuse(draws.len(), buffers);
         let mut previous = self.casters.iter();
         let mut opaque = self.casters.iter().filter(|c| !c.transparent);
         let mut all_same = true;
@@ -322,6 +340,9 @@ pub(super) struct Shadows {
     pub uniform_row: Vec<u8>,
     pub sun_cache: sun_cache::Cache,
     pub sun_fit: sun_fit::Cache,
+    /// Per-pass caster masks reused across frames instead of reallocated.
+    accepted_scratch: std::cell::RefCell<Vec<bool>>,
+    covered_scratch: std::cell::RefCell<Vec<bool>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -713,6 +734,8 @@ impl Shadows {
             uniform_row: Vec::new(),
             sun_cache: sun_cache::Cache::default(),
             sun_fit: sun_fit::Cache::default(),
+            accepted_scratch: Default::default(),
+            covered_scratch: Default::default(),
         }
     }
     pub fn rebind(&mut self, gpu: &Gpu) {
@@ -1020,21 +1043,19 @@ impl SceneRenderer {
         };
         let mut counts = (0, 0);
         if let Some(plan) = plan.filter(|p| p.rebuild) {
-            let accepted = plan
-                .static_mask
-                .iter()
-                .enumerate()
-                .map(|(i, &stable)| {
-                    stable
-                        && !draws[i].transparent
-                        && draws[i].object.material.lit
-                        && !self.shadow_rejected(&draws[i])
-                })
-                .collect::<Vec<_>>();
+            let mut accepted = self.shadows.accepted_scratch.borrow_mut();
+            accepted.clear();
+            accepted.extend(plan.static_mask.iter().enumerate().map(|(i, &stable)| {
+                stable
+                    && !draws[i].transparent
+                    && draws[i].object.material.lit
+                    && !self.shadow_rejected(&draws[i])
+            }));
             let compact = self
                 .shadows
                 .sun_cache
                 .prepare_ranges(self, gpu, draws, batches, &accepted, false);
+            drop(accepted);
             let mut pass = encoder.begin_render_pass(&descriptor(
                 self.shadows.sun_cache.depth(),
                 "sun static shadow casters",
@@ -1051,17 +1072,14 @@ impl SceneRenderer {
             );
         }
         let compact = plan.and_then(|plan| {
-            let accepted = plan
-                .dynamic_mask
-                .iter()
-                .enumerate()
-                .map(|(i, &dynamic)| {
-                    dynamic
-                        && !draws[i].transparent
-                        && draws[i].object.material.lit
-                        && !self.shadow_rejected(&draws[i])
-                })
-                .collect::<Vec<_>>();
+            let mut accepted = self.shadows.accepted_scratch.borrow_mut();
+            accepted.clear();
+            accepted.extend(plan.dynamic_mask.iter().enumerate().map(|(i, &dynamic)| {
+                dynamic
+                    && !draws[i].transparent
+                    && draws[i].object.material.lit
+                    && !self.shadow_rejected(&draws[i])
+            }));
             self.shadows
                 .sun_cache
                 .prepare_ranges(self, gpu, draws, batches, &accepted, true)
@@ -1202,7 +1220,9 @@ impl SceneRenderer {
                 counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
         };
-        let mut covered = vec![false; draws.len()];
+        let mut covered = self.shadows.covered_scratch.borrow_mut();
+        covered.clear();
+        covered.resize(draws.len(), false);
         for batch in batches {
             for &index in &batch.indices {
                 covered[index] = true;

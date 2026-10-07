@@ -30,6 +30,7 @@ pub(super) struct Plan {
 pub(super) struct Cache {
     entry: Option<Entry>,
     idle_age: u32,
+    spare_dynamic: Vec<bool>,
     range_enabled: bool,
     // Queue uploads happen before either render pass executes, so static and
     // dynamic layers must never alias their compacted uniform storage.
@@ -55,6 +56,7 @@ impl Default for Cache {
         Self {
             entry: None,
             idle_age: 0,
+            spare_dynamic: Vec::new(),
             range_enabled: true,
             range_layers: Default::default(),
             range_draws_saved: Default::default(),
@@ -255,11 +257,14 @@ impl Cache {
         if !matches {
             entry.valid = false;
         }
-        let dynamic_mask = draws
-            .iter()
-            .enumerate()
-            .map(|(i, d)| !d.transparent && d.object.material.lit && !static_mask[i])
-            .collect();
+        let mut dynamic_mask = std::mem::take(&mut self.spare_dynamic);
+        dynamic_mask.clear();
+        dynamic_mask.extend(
+            draws
+                .iter()
+                .enumerate()
+                .map(|(i, d)| !d.transparent && d.object.material.lit && !static_mask[i]),
+        );
         Some(Plan {
             static_mask,
             dynamic_mask,
@@ -275,7 +280,9 @@ impl Cache {
         pass.set_bind_group(0, &entry.binding, &[]);
         pass.draw(0..3, 0..1);
     }
-    pub fn finish(&mut self, plan: &Plan, draws: &[PreparedDraw], row: &[u8]) {
+    /// Retain the rebuilt key list and recycle the plan's masks: the dynamic mask
+    /// stays here for the next plan, the static mask returns to the caller.
+    pub fn finish(&mut self, plan: Plan, draws: &[PreparedDraw], row: &[u8]) -> Vec<bool> {
         if plan.rebuild {
             let casters = draws
                 .iter()
@@ -285,6 +292,8 @@ impl Cache {
                 .collect();
             self.finish_retained(row, casters);
         }
+        self.spare_dynamic = plan.dynamic_mask;
+        plan.static_mask
     }
     pub fn finish_retained(&mut self, row: &[u8], mut casters: Vec<shadows::ShadowCaster>) {
         let entry = self.entry.as_mut().unwrap();

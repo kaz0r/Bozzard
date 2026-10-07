@@ -2375,11 +2375,15 @@ impl SceneRenderer {
         let reuse_metadata = self.shadow_metadata_reuse && self.state_caching;
         let mut shadow_frame =
             (!reuse_metadata).then(|| shadows::ShadowFrame::new(scene, &draws, self.culling));
+        let comparison_buffers = (
+            std::mem::take(&mut self.frame_scratch.shadow_stable),
+            std::mem::take(&mut self.frame_scratch.shadow_unchanged),
+        );
         let mut comparison = if reuse_metadata {
-            self.shadow_frame.as_ref().map_or_else(
-                || shadows::Comparison::cold(draws.len()),
-                |p| p.compare(scene, &draws, self.culling),
-            )
+            match self.shadow_frame.as_ref() {
+                Some(p) => p.compare_into(scene, &draws, self.culling, comparison_buffers),
+                None => shadows::Comparison::reuse(draws.len(), comparison_buffers),
+            }
         } else {
             let frame = shadow_frame.as_ref().unwrap();
             self.stats.shadow_metadata_built_casters =
@@ -2402,8 +2406,17 @@ impl SceneRenderer {
                         .shadow_frame
                         .as_ref()
                         .is_some_and(|p| p.same_local_casters(frame)),
-                stable_mask: Vec::new(),
-                unchanged: Vec::new(),
+                // Metadata reuse is disabled: no per-draw masks are read.
+                stable_mask: {
+                    let mut mask = comparison_buffers.0;
+                    mask.clear();
+                    mask
+                },
+                unchanged: {
+                    let mut mask = comparison_buffers.1;
+                    mask.clear();
+                    mask
+                },
             }
         };
         self.stats.shadow_state_ms = state_started.elapsed().as_secs_f64() * 1000.;
@@ -2961,10 +2974,13 @@ impl SceneRenderer {
         self.stats.submit_ms = submit_started.elapsed().as_secs_f64() * 1000.;
         self.shadows.spots.finish(spot_changes);
         self.shadows.points.finish(point_changes);
-        if let Some(plan) = &sun_plan {
-            self.shadows
-                .sun_cache
-                .finish(plan, &draws, &self.shadows.uniform_row);
+        let mut returned_stable = None;
+        if let Some(plan) = sun_plan {
+            returned_stable = Some(self.shadows.sun_cache.finish(
+                plan,
+                &draws,
+                &self.shadows.uniform_row,
+            ));
         } else {
             self.shadows.sun_cache.age_unused();
         }
@@ -3002,6 +3018,7 @@ impl SceneRenderer {
         if self.state_caching && self.surface_preparation_caching {
             self.surface_preparation.draws = draws;
         }
+        let (stable, unchanged) = comparison.into_buffers();
         self.frame_scratch = frame_scratch::Scratch {
             bounds,
             visible,
@@ -3009,6 +3026,10 @@ impl SceneRenderer {
             items: visible_items,
             individual,
             shadow: shadow_individual,
+            shadow_stable: returned_stable
+                .filter(|mask| mask.capacity() >= stable.capacity())
+                .unwrap_or(stable),
+            shadow_unchanged: unchanged,
         };
         self.frame_scratch.compact();
         self.stats.frame_scratch_bytes = self.frame_scratch.bytes();

@@ -1259,12 +1259,16 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
     floor.material.texture = TextureKind::White;
     scene.items.push(floor);
     compare(&gpu, &mut renderers, &scene)?;
+    let mut warm_scratch = None;
     for tick in 0..8 {
         for item in &mut scene.items[248..256] {
             item.model *= Mat4::from_translation(Vec3::X * 0.15);
         }
         compare(&gpu, &mut renderers, &scene)?;
         let cached = renderers[1].frame_stats();
+        // Shadow masks are recycled: moving casters do not grow frame scratch.
+        let scratch = *warm_scratch.get_or_insert(cached.frame_scratch_bytes);
+        assert_eq!(cached.frame_scratch_bytes, scratch, "tick {tick}");
         assert_eq!(cached.sun_depth_copies, 1, "tick {tick}: {cached:?}");
         assert_eq!(cached.sun_dynamic_casters, 8);
         assert_eq!(cached.sun_bounds_recomputed, 8);
