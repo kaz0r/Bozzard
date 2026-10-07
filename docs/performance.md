@@ -328,6 +328,10 @@ of 60 warm frames, Intel Iris Xe (TGL GT2), Mesa 26.2.3 ANV, release build:
 | 140k | `main` | 1,204 | 825 | 0/60 | 0/60 | 195.4 ms | 227.0 ms | 6.88 ms |
 | 140k | this pass | 95 | 2 | 60/60 | 60/60 | 109.6 ms | 125.6 ms | 0.93 ms |
 
+![Frame time and renderer CPU at 100k and 140k surfaces, main versus this pass](images/large-scene-batching/frame-time.svg)
+
+![Per-frame draw and projection counts before and after, log scale](images/large-scene-batching/work-reduction.svg)
+
 The static sun reuse is new at this scale: `main` refused the cache above 16,384
 casters, so the moving caster re-rendered every static caster each frame. The
 perspective superset trades a few partially visible native chunks (71 versus 56
@@ -347,6 +351,17 @@ per-frame passes: surface preparation (~22 ms), shadow preparation (~25 ms),
 plan retention (~12 ms), bounds and visibility (~11 ms), object uniforms
 (~10 ms) and the shadow comparison (~9 ms). Making those passes change-driven
 is the next step; it needs dirty lists from extraction through the renderer.
+
+![Remaining renderer CPU by stage at 140k surfaces](images/large-scene-batching/cpu-breakdown.svg)
+
+The recorded values live in
+[`measurements/large-scene-batching/summary.json`](measurements/large-scene-batching/summary.json);
+`python3 tools/chart_large_scene_batching.py` rebuilds the charts (standard
+library only; `--check` verifies them). The
+[Pagoda Garden](../examples/pagoda-garden/README.md) example is the matching
+real scene: in editor Play it draws 1,072 surfaces in ~190 color draws, keeps a
+perspective superset plan and the static sun depth on every frame, and renders
+in 6.0 ms of GPU time at a steady 60 Hz.
 
 Reproduce, choosing the cube count and optional static-depth bypass:
 

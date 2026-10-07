@@ -6,6 +6,10 @@ with a red bridge, torii gates over the path, cherry, pine, maple and willow
 trees, flowers, drifting clouds and falling petals. About 142,000 voxels become
 roughly 190 color draws.
 
+| Day | Night (Space or N in Play) |
+| --- | --- |
+| ![The pagoda garden by day](../../docs/images/pagoda-garden/day.jpg) | ![The pagoda garden at night](../../docs/images/pagoda-garden/night.jpg) |
+
 ```sh
 cargo run --release --locked -p bozzard-editor-app -- --scene examples/pagoda-garden/scenes/pagoda.json
 cargo run --release --locked -p bozzard-player -- --scene examples/pagoda-garden/scenes/pagoda.json
@@ -31,6 +35,9 @@ original placed it, then bakes the voxels for the batch renderer:
 | 7 clouds | Translucent glTFs driven by `scripts/cloud.rhai`; they cast no shadows |
 | Petals | Four particle emitters |
 
+In editor Play on Intel Iris Xe the scene holds 60 Hz: 1,072 surfaces in ~190
+color draws, 6.0 ms of GPU time (see the
+[large-scene batching measurements](../../docs/performance.md#large-scene-batching-on-iris-xe--vulkan)).
 Object IDs are sorted in render order, so each mesh's instances are contiguous
 and the batch planner keeps source order at its lower bound; a perspective
 camera then reuses one hidden-surface plan while it orbits. Lantern, lamp, gold

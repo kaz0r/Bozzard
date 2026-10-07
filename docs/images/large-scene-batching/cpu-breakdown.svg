@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" role="img" aria-labelledby="title desc">
+<title id="title">Remaining renderer CPU at 140k surfaces</title>
+<desc id="desc">Per-frame renderer CPU by stage, this pass, about 115 ms in total. Shadow preparation 24.6 ms; Surface preparation 22.4 ms; Batch plan retention 17.6 ms; Bounds and frustum 11.4 ms; Object uniforms 10.2 ms; Shadow comparison 8.8 ms; Bindings and textures 6.7 ms; Raster classes 4.2 ms; Other 8.9 ms</desc>
+<style>.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.ink2{fill:#52514e}.muted{fill:#898781}
+.grid{stroke:#e1e0d9;stroke-width:1}.axis{stroke:#c3c2b7;stroke-width:1}
+.main{fill:#8f8d86}.pass{fill:#2a78d6}.link{stroke:#c3c2b7;stroke-width:2}
+.ring{stroke:#fcfcfb;stroke-width:2}
+@media (prefers-color-scheme: dark){
+.surface{fill:#1a1a19}.ink{fill:#ffffff}.ink2{fill:#c3c2b7}.muted{fill:#898781}
+.grid{stroke:#2c2c2a}.axis{stroke:#383835}.main{fill:#6f6d66}.pass{fill:#3987e5}
+.link{stroke:#383835}.ring{stroke:#1a1a19}}
+text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+.title{font-size:16px;font-weight:600}.subtitle{font-size:12px}
+.label{font-size:12px}.value{font-size:11px;font-variant-numeric:tabular-nums}
+.tick{font-size:11px;font-variant-numeric:tabular-nums}</style>
+<rect class="surface" width="760" height="420" rx="8"/>
+<text x="24.0" y="32.0" class="title ink" text-anchor="start">Where the remaining renderer CPU goes at 140k surfaces</text>
+<text x="24.0" y="52.0" class="subtitle ink2" text-anchor="start">This pass · ~115 ms per frame, spread over exact O(N) passes across every surface</text>
+<line x1="210.0" y1="76.0" x2="210.0" y2="350.0" class="axis"/>
+<text x="210.0" y="368.0" class="tick muted" text-anchor="middle">0 ms</text>
+<line x1="308.0" y1="76.0" x2="308.0" y2="350.0" class="grid"/>
+<text x="308.0" y="368.0" class="tick muted" text-anchor="middle">5 ms</text>
+<line x1="406.0" y1="76.0" x2="406.0" y2="350.0" class="grid"/>
+<text x="406.0" y="368.0" class="tick muted" text-anchor="middle">10 ms</text>
+<line x1="504.0" y1="76.0" x2="504.0" y2="350.0" class="grid"/>
+<text x="504.0" y="368.0" class="tick muted" text-anchor="middle">15 ms</text>
+<line x1="602.0" y1="76.0" x2="602.0" y2="350.0" class="grid"/>
+<text x="602.0" y="368.0" class="tick muted" text-anchor="middle">20 ms</text>
+<line x1="700.0" y1="76.0" x2="700.0" y2="350.0" class="grid"/>
+<text x="700.0" y="368.0" class="tick muted" text-anchor="middle">25 ms</text>
+<text x="198.0" y="96.0" class="label ink" text-anchor="end">Shadow preparation</text>
+<path class="pass" d="M210.0,84.0 H688.4 Q692.4,84.0 692.4,88.0 V96.0 Q692.4,100.0 688.4,100.0 H210.0 Z"/>
+<text x="700.4" y="96.0" class="value ink2" text-anchor="start">24.6</text>
+<text x="198.0" y="126.0" class="label ink" text-anchor="end">Surface preparation</text>
+<path class="pass" d="M210.0,114.0 H645.6 Q649.6,114.0 649.6,118.0 V126.0 Q649.6,130.0 645.6,130.0 H210.0 Z"/>
+<text x="657.6" y="126.0" class="value ink2" text-anchor="start">22.4</text>
+<text x="198.0" y="156.0" class="label ink" text-anchor="end">Batch plan retention</text>
+<path class="pass" d="M210.0,144.0 H551.7 Q555.7,144.0 555.7,148.0 V156.0 Q555.7,160.0 551.7,160.0 H210.0 Z"/>
+<text x="563.7" y="156.0" class="value ink2" text-anchor="start">17.6</text>
+<text x="198.0" y="186.0" class="label ink" text-anchor="end">Bounds and frustum</text>
+<path class="pass" d="M210.0,174.0 H429.2 Q433.2,174.0 433.2,178.0 V186.0 Q433.2,190.0 429.2,190.0 H210.0 Z"/>
+<text x="441.2" y="186.0" class="value ink2" text-anchor="start">11.4</text>
+<text x="198.0" y="216.0" class="label ink" text-anchor="end">Object uniforms</text>
+<path class="pass" d="M210.0,204.0 H405.7 Q409.7,204.0 409.7,208.0 V216.0 Q409.7,220.0 405.7,220.0 H210.0 Z"/>
+<text x="417.7" y="216.0" class="value ink2" text-anchor="start">10.2</text>
+<text x="198.0" y="246.0" class="label ink" text-anchor="end">Shadow comparison</text>
+<path class="pass" d="M210.0,234.0 H379.1 Q383.1,234.0 383.1,238.0 V246.0 Q383.1,250.0 379.1,250.0 H210.0 Z"/>
+<text x="391.1" y="246.0" class="value ink2" text-anchor="start">8.8</text>
+<text x="198.0" y="276.0" class="label ink" text-anchor="end">Bindings and textures</text>
+<path class="pass" d="M210.0,264.0 H336.3 Q340.3,264.0 340.3,268.0 V276.0 Q340.3,280.0 336.3,280.0 H210.0 Z"/>
+<text x="348.3" y="276.0" class="value ink2" text-anchor="start">6.7</text>
+<text x="198.0" y="306.0" class="label ink" text-anchor="end">Raster classes</text>
+<path class="pass" d="M210.0,294.0 H288.9 Q292.9,294.0 292.9,298.0 V306.0 Q292.9,310.0 288.9,310.0 H210.0 Z"/>
+<text x="300.9" y="306.0" class="value ink2" text-anchor="start">4.2</text>
+<text x="198.0" y="336.0" class="label ink" text-anchor="end">Other</text>
+<path class="pass" d="M210.0,324.0 H381.4 Q385.4,324.0 385.4,328.0 V336.0 Q385.4,340.0 381.4,340.0 H210.0 Z"/>
+<text x="393.4" y="336.0" class="value ink2" text-anchor="start">8.9</text>
+<text x="24.0" y="406.0" class="subtitle muted" text-anchor="start">Making these passes change-driven (dirty lists from extraction to the renderer) is the next step.</text>
+</svg>
