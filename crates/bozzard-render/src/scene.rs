@@ -2339,6 +2339,7 @@ impl SceneRenderer {
         let batches =
             self.prepare_instances(gpu, &draws, &bounds, &visible, view_projection, output_mask)?;
         self.stats.native_instance_arena = self.instancing.arena_enabled();
+        self.stats.native_arena_max_records = instancing::arena::max_records_for(gpu);
         let mut world_text = std::mem::take(&mut self.world_text);
         let world_result = world_text.prepare(
             self,

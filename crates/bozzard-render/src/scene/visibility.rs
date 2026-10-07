@@ -89,6 +89,8 @@ pub struct FrameStats {
     pub local_shadow_receiver_bytes: usize,
     pub local_shadow_receiver_writes: usize,
     pub native_instance_arena: bool,
+    /// Object records the device's storage binding admits for the native arena.
+    pub native_arena_max_records: usize,
     /// Exact source identity/order reuse skipped native object-slot hashing.
     pub native_object_membership_reused: bool,
     pub render_bundle_compilations: usize,

@@ -682,3 +682,33 @@ fn occlusion_bound_prepass_skips_projection_without_qualifying_occluders() -> an
     );
     Ok(())
 }
+#[test]
+#[ignore = "release-mode 140k-surface arena capacity check; run explicitly"]
+fn native_arena_stays_native_past_former_128_mib_cliff() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    renderers[0].set_native_instance_arena_enabled(false);
+    let count = 140_000;
+    let scene = scene(count);
+    for frame in 0..3 {
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        let admitted = stats.native_arena_max_records >= count + count / 4 + 8192;
+        println!(
+            "arena_cliff_proof frame={frame} surfaces={count} max_records={} native={} portable_draws={} native_draws={}",
+            stats.native_arena_max_records,
+            stats.native_instance_arena,
+            renderers[0].frame_stats().color_draws,
+            stats.color_draws,
+        );
+        assert_eq!(stats.native_instance_arena, admitted);
+        if admitted {
+            assert!(stats.color_draws * 10 < renderers[0].frame_stats().color_draws);
+        }
+    }
+    Ok(())
+}

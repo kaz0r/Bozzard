@@ -1,6 +1,6 @@
 use super::*;
 use std::collections::HashMap;
-mod arena;
+pub(super) mod arena;
 mod depth;
 mod diagnostics;
 mod graphs;
@@ -967,7 +967,7 @@ impl SceneRenderer {
         let native = self.instancing.native_requested
             && self.instancing.shadow_batches_enabled
             && self.instancing.native_layout.is_some()
-            && arena::fits(gpu, draws);
+            && arena::fits(gpu, draws, self.instancing.native_mode);
         if native == self.instancing.native_mode {
             return;
         }
