@@ -595,3 +595,90 @@ fn native_lit_object_rows_and_numeric_graphs_match_portable_through_multilight_c
     );
     Ok(())
 }
+#[test]
+fn occlusion_bound_prepass_skips_projection_without_qualifying_occluders() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    // Reference without occlusion, full projection, and the conservative pre-pass.
+    let mut renderers: [SceneRenderer; 3] =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_occlusion_enabled(false);
+    renderers[1].set_occlusion_bound_prepass_enabled(false);
+    let mut scene = scene(4096);
+    let projection = glam::camera::rh::proj::directx::perspective(0.9, 1., 0.1, 200.);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.mesh = MeshKind::Cube;
+        item.model = Mat4::from_translation(Vec3::new(
+            (i % 64) as f32 - 31.5,
+            0.,
+            -((i / 64) as f32) - 8.,
+        )) * Mat4::from_scale(Vec3::splat(0.4));
+    }
+    let views = [
+        Vec3::new(0., 6., 2.),
+        Vec3::new(3., 7., 1.),
+        Vec3::new(-4., 5., 3.),
+    ];
+    let run = |scene: &RenderScene, renderers: &mut [SceneRenderer; 3]| {
+        let frames = renderers
+            .iter_mut()
+            .map(|renderer| capture(&gpu, renderer, scene))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            frames[0].rgba, frames[1].rgba,
+            "full projection changed pixels"
+        );
+        assert_eq!(
+            frames[0].rgba, frames[2].rgba,
+            "bound pre-pass changed pixels"
+        );
+        anyhow::Ok(())
+    };
+    let mut proof = None;
+    for eye in views {
+        scene.view_projection = projection
+            * glam::camera::rh::view::look_at_mat4(eye, Vec3::new(0., 0., -40.), Vec3::Y);
+        run(&scene, &mut renderers)?;
+        let full = renderers[1].frame_stats();
+        let bounded = renderers[2].frame_stats();
+        // Only near cubes whose bound reaches 2% of the view need exact corners.
+        assert!(full.occlusion_projections > 1000, "{full:?}");
+        assert!(
+            bounded.occlusion_projections * 10 < full.occlusion_projections,
+            "{bounded:?}"
+        );
+        assert!(bounded.occlusion_bound_rejections > 1000);
+        assert_eq!(full.occlusion_depth_draws, 0);
+        proof.get_or_insert((
+            full.occlusion_projections,
+            bounded.occlusion_projections,
+            bounded.occlusion_bound_rejections,
+        ));
+    }
+    // A wall in front of the field qualifies: both selections then agree exactly.
+    let mut wall = scene.items[0].clone();
+    wall.motion_id = 100_000;
+    wall.mesh = MeshKind::Quad;
+    wall.model =
+        Mat4::from_translation(Vec3::new(0., 2., -14.)) * Mat4::from_scale(Vec3::new(40., 6., 1.));
+    scene.items.push(wall);
+    let mut depth_draws = 0;
+    for eye in views {
+        scene.view_projection = projection
+            * glam::camera::rh::view::look_at_mat4(eye, Vec3::new(0., 0., -40.), Vec3::Y);
+        for _ in 0..3 {
+            run(&scene, &mut renderers)?;
+            let full = renderers[1].frame_stats();
+            let bounded = renderers[2].frame_stats();
+            assert_eq!(full.occlusion_candidates, bounded.occlusion_candidates);
+            assert_eq!(full.occlusion_depth_draws, bounded.occlusion_depth_draws);
+            assert_eq!(full.visible_surfaces, bounded.visible_surfaces);
+            depth_draws += bounded.occlusion_depth_draws;
+        }
+    }
+    assert!(depth_draws > 0, "the wall must qualify as an occluder");
+    let (full, bounded, rejections) = proof.unwrap();
+    println!(
+        "occlusion_prepass_proof surfaces=4096 full_projections={full} bounded_projections={bounded} rejections={rejections} occluder_depth_draws={depth_draws}"
+    );
+    Ok(())
+}

@@ -47,6 +47,10 @@ pub struct FrameStats {
     pub occlusion_depth_draws: usize,
     pub occlusion_depth_triangles: u64,
     pub occlusion_candidates: usize,
+    /// Exact surface projections computed while selecting occluders and queries.
+    pub occlusion_projections: usize,
+    /// Surfaces rejected as occluders by their conservative screen bound alone.
+    pub occlusion_bound_rejections: usize,
     /// Identical depth inputs and bounds reused completed visibility on the CPU.
     pub occlusion_cache_hit: bool,
     pub occlusion_bytes: u64,

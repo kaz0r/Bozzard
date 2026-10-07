@@ -27,6 +27,9 @@ struct Projection {
 struct CachedProjection {
     model: Mat4,
     bounds: [Vec3; 2],
+    /// Camera generation the projection was computed for; stale entries are
+    /// refreshed only when the frame has at least one qualifying occluder.
+    camera: u64,
     projection: Option<Projection>,
 }
 #[derive(Clone, PartialEq)]
@@ -71,6 +74,8 @@ pub(super) struct Occlusion {
     instance_applied: bool,
     instance_queries_ready: bool,
     refreshed: bool,
+    bound_prepass: bool,
+    camera_generation: u64,
 }
 impl Default for Occlusion {
     fn default() -> Self {
@@ -99,6 +104,8 @@ impl Default for Occlusion {
             instance_applied: false,
             instance_queries_ready: false,
             refreshed: false,
+            bound_prepass: true,
+            camera_generation: 0,
         }
     }
 }
@@ -144,6 +151,46 @@ fn project(bounds: [Vec3; 2], mvp: Mat4, size: [u32; 2]) -> Option<Projection> {
         rectangle,
         nearest: min.z,
     })
+}
+/// Conservative upper bound on `project`'s clamped rectangle area, from a
+/// world-space sphere around the box. `None` when the sphere reaches the camera
+/// plane, where only the exact corner projection can decide.
+fn projected_area_bound(bounds: [Vec3; 2], model: Mat4, vp: Mat4, size: [u32; 2]) -> Option<f32> {
+    let half = (bounds[1] - bounds[0]) * 0.5;
+    let linear = glam::Mat3::from_mat4(model);
+    // The Frobenius norm bounds the largest stretch of any rotation/scale/shear.
+    let stretch = (linear.x_axis.length_squared()
+        + linear.y_axis.length_squared()
+        + linear.z_axis.length_squared())
+    .sqrt();
+    let radius = half.length() * stretch * 1.001 + 1e-4;
+    let center = model.transform_point3(bounds[0] + half).extend(1.);
+    let [x, y, _, w] = [0, 1, 2, 3].map(|row| {
+        let row = vp.row(row);
+        (row.dot(center), row.truncate().length() * radius)
+    });
+    let near = w.0 - w.1;
+    if !near.is_finite() || near <= 1e-5 || !x.0.is_finite() || !y.0.is_finite() {
+        return None;
+    }
+    // For w > 0, x/w is monotone in x and in w, so extremes lie at the corners.
+    let extent = |(value, spread): (f32, f32)| {
+        let quotients = [
+            (value - spread) / (w.0 - w.1),
+            (value - spread) / (w.0 + w.1),
+            (value + spread) / (w.0 - w.1),
+            (value + spread) / (w.0 + w.1),
+        ];
+        let low = quotients.into_iter().fold(f32::INFINITY, f32::min);
+        let high = quotients.into_iter().fold(f32::NEG_INFINITY, f32::max);
+        high - low
+    };
+    let width = size[0] as f32;
+    let height = size[1] as f32;
+    // `project` pads by two pixels per edge; keep one more pixel and 1% slack.
+    let span = |ndc: f32, pixels: f32| ((ndc * 0.5 * pixels + 6.) * 1.01).min(pixels - 1.).max(0.);
+    let area = span(extent(x), width) * span(extent(y), height);
+    area.is_finite().then_some(area)
 }
 pub(super) fn opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
     if draw.transparent
@@ -239,6 +286,12 @@ impl SceneRenderer {
             self.occlusion.invalidate();
         }
         self.occlusion.enabled = enabled;
+    }
+    /// Reference switch: disabled projects every surface before selecting
+    /// occluders; enabled first rejects surfaces whose conservative screen
+    /// bound cannot reach the occluder threshold.
+    pub fn set_occlusion_bound_prepass_enabled(&mut self, enabled: bool) {
+        self.occlusion.bound_prepass = enabled;
     }
     pub fn occlusion_result(&self) -> Option<OcclusionResult> {
         self.occlusion.resources.as_ref().and_then(|r| r.result)
@@ -408,38 +461,63 @@ impl Occlusion {
     }
     fn refresh_inputs(
         &mut self,
-        renderer: &SceneRenderer,
+        renderer: &mut SceneRenderer,
         vp: Mat4,
         size: [u32; 2],
         draws: &[PreparedDraw],
         visible: &[bool],
     ) {
-        let camera_changed = self.camera != Some((vp, size));
-        self.camera = Some((vp, size));
+        if self.camera != Some((vp, size)) {
+            self.camera = Some((vp, size));
+            self.camera_generation = self.camera_generation.wrapping_add(1);
+        }
+        let generation = self.camera_generation;
+        let minimum_area = size[0] as f32 * size[1] as f32 * 0.02;
         self.projections.truncate(draws.len());
         self.occluders.clear();
+        let mut projections = 0;
+        let mut rejections = 0;
+        // Selection: cheap predicates first, then a conservative screen bound,
+        // and an exact projection only where the bound can reach the threshold.
         for (index, draw) in draws.iter().enumerate() {
             let bounds = renderer.mesh_for(&draw.object).bounds;
             if index == self.projections.len() {
                 self.projections.push(CachedProjection {
                     model: draw.object.model,
                     bounds,
-                    projection: project(bounds, vp * draw.object.model, size),
+                    camera: generation.wrapping_sub(1),
+                    projection: None,
                 });
-            } else {
-                let previous = &mut self.projections[index];
-                if camera_changed
-                    || previous.model != draw.object.model
-                    || previous.bounds != bounds
-                {
-                    *previous = CachedProjection {
-                        model: draw.object.model,
-                        bounds,
-                        projection: project(bounds, vp * draw.object.model, size),
-                    };
-                }
             }
-            if !visible[index] || !opaque(renderer, draw) {
+            let fresh = {
+                let cached = &self.projections[index];
+                cached.camera == generation
+                    && cached.model == draw.object.model
+                    && cached.bounds == bounds
+            };
+            let qualifies = visible[index]
+                && renderer.mesh_for(&draw.object).count as u64 / 3 <= MAX_DEPTH_TRIANGLES
+                && opaque(renderer, draw);
+            if !qualifies && self.bound_prepass {
+                continue;
+            }
+            if !fresh {
+                if self.bound_prepass
+                    && projected_area_bound(bounds, draw.object.model, vp, size)
+                        .is_some_and(|bound| bound < minimum_area)
+                {
+                    rejections += 1;
+                    continue;
+                }
+                projections += 1;
+                self.projections[index] = CachedProjection {
+                    model: draw.object.model,
+                    bounds,
+                    camera: generation,
+                    projection: project(bounds, vp * draw.object.model, size),
+                };
+            }
+            if !qualifies {
                 continue;
             }
             let Some(p) = self.projections[index].projection else {
@@ -447,13 +525,32 @@ impl Occlusion {
             };
             let r = p.rectangle;
             let area = (r[2] - r[0]) * (r[3] - r[1]);
-            if area < size[0] as f32 * size[1] as f32 * 0.02
-                || renderer.mesh_for(&draw.object).count as u64 / 3 > MAX_DEPTH_TRIANGLES
-            {
+            if area < minimum_area {
                 continue;
             }
             self.occluders.push((index, p));
         }
+        // Candidate rectangles need every projection, but only when depth exists.
+        if !self.occluders.is_empty() {
+            for (index, draw) in draws.iter().enumerate() {
+                let bounds = renderer.mesh_for(&draw.object).bounds;
+                let cached = &mut self.projections[index];
+                if cached.camera != generation
+                    || cached.model != draw.object.model
+                    || cached.bounds != bounds
+                {
+                    projections += 1;
+                    *cached = CachedProjection {
+                        model: draw.object.model,
+                        bounds,
+                        camera: generation,
+                        projection: project(bounds, vp * draw.object.model, size),
+                    };
+                }
+            }
+        }
+        renderer.stats.occlusion_projections += projections;
+        renderer.stats.occlusion_bound_rejections += rejections;
         // Favor nearby large surfaces; retain at most 32 without sorting the
         // scene's full draw list or changing the color pass's tie ordering.
         let order = |a: &(usize, Projection), b: &(usize, Projection)| {
@@ -774,6 +871,71 @@ impl Occlusion {
 mod tests {
     use super::*;
     #[test]
+    fn projected_area_bound_never_undercuts_the_exact_rectangle() {
+        let mut seed = 0x9e37_79b9_u64;
+        let mut next = || {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((seed >> 40) as f32 / (1u64 << 24) as f32) * 2. - 1.
+        };
+        let size = [640, 360];
+        let mut bounded = 0;
+        for _ in 0..10_000 {
+            let vp = glam::camera::rh::proj::directx::perspective(
+                0.6 + next().abs() * 1.2,
+                16. / 9.,
+                0.1,
+                400.,
+            ) * glam::camera::rh::view::look_at_mat4(
+                Vec3::new(next() * 30., 5. + next() * 20., next() * 30.),
+                Vec3::new(next() * 5., next() * 5., next() * 5.),
+                Vec3::Y,
+            );
+            let low = Vec3::new(next(), next(), next()) * 2.;
+            let bounds = [
+                low,
+                low + Vec3::new(next().abs(), next().abs(), next().abs()) * 3.,
+            ];
+            let model = Mat4::from_scale_rotation_translation(
+                Vec3::new(
+                    0.2 + next().abs() * 6.,
+                    0.2 + next().abs(),
+                    0.2 + next().abs() * 3.,
+                ),
+                glam::Quat::from_euler(glam::EulerRot::YXZ, next() * 3., next() * 3., next() * 3.),
+                Vec3::new(next() * 60., next() * 20., next() * 60.),
+            ) * Mat4::from_cols_array(&[
+                1.,
+                0.,
+                0.,
+                0.,
+                next() * 0.5,
+                1.,
+                0.,
+                0.,
+                0.,
+                0.,
+                1.,
+                0.,
+                0.,
+                0.,
+                0.,
+                1.,
+            ]);
+            let Some(bound) = projected_area_bound(bounds, model, vp, size) else {
+                continue;
+            };
+            bounded += 1;
+            if let Some(exact) = project(bounds, vp * model, size) {
+                let r = exact.rectangle;
+                let area = (r[2] - r[0]) * (r[3] - r[1]);
+                assert!(bound >= area, "bound {bound} below exact {area}");
+            }
+        }
+        assert!(bounded > 5_000, "bounds decided most cases: {bounded}");
+    }
+    #[test]
     fn retained_instance_input_certificate_rejects_every_changed_dependency() {
         let camera = Mat4::IDENTITY;
         let size = [128; 2];
@@ -814,6 +976,7 @@ mod tests {
             projections: vec![CachedProjection {
                 model: Mat4::IDENTITY,
                 bounds: [Vec3::ZERO; 2],
+                camera: 0,
                 projection: None,
             }],
             instance_snapshot: Some(Snapshot {
