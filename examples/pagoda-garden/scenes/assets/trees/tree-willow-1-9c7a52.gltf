@@ -1,0 +1,106 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "Bozzard tools/gen_pagoda.py"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "tree-willow-1-9c7a52",
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "tree-willow-1-9c7a52",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1
+     },
+     "indices": 2,
+     "material": 0
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "c-9c7a52",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.332452,
+     0.194618,
+     0.084376,
+     1.0
+    ],
+    "metallicFactor": 0.0,
+    "roughnessFactor": 1.0
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AAAAPwAAAEAAAAC/AAAAPwAAQEAAAAC/AAAAPwAAQEAAAAA/AAAAPwAAAEAAAAA/AAAAvwAAAEAAAAC/AAAAvwAAAEAAAAA/AAAAvwAAQEAAAAA/AAAAvwAAQEAAAAC/AAAAvwAAAEAAAAA/AAAAPwAAAEAAAAA/AAAAPwAAQEAAAAA/AAAAvwAAQEAAAAA/AAAAvwAAAEAAAAC/AAAAvwAAQEAAAAC/AAAAPwAAQEAAAAC/AAAAPwAAAEAAAAC/AAAAPwAAAEEAAAC/AAAAPwAAEEEAAAC/AAAAPwAAEEEAAAA/AAAAPwAAAEEAAAA/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8AEAARABIAEAASABMA",
+   "byteLength": 540
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 240,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 240,
+   "byteLength": 240,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 480,
+   "byteLength": 60,
+   "target": 34963
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 20,
+   "type": "VEC3",
+   "min": [
+    -0.5,
+    2.0,
+    -0.5
+   ],
+   "max": [
+    0.5,
+    9.0,
+    0.5
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 20,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5123,
+   "count": 30,
+   "type": "SCALAR"
+  }
+ ]
+}

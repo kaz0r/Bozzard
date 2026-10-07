@@ -211,6 +211,9 @@ fn invalid_runtime_lighting_is_rejected_before_application() {
         "set_environment([0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [-0.1, 0.5, 0.5], 1.0)",
         "set_star_intensity(-0.1)",
         "set_star_intensity(1001.0)",
+        "set_fog([0.5, 1.2, 0.5], 0.01)",
+        "set_fog([0.5, 0.5, 0.5], -0.01)",
+        "set_fog([0.5, 0.5, 0.5], 1001.0)",
     ] {
         let (mut instance, mut world) =
             scripted_lighting(&format!("fn on_start(me) {{ {call}; }}"));
@@ -223,5 +226,44 @@ fn invalid_runtime_lighting_is_rejected_before_application() {
         let view = instance.view(&world, Layer::ThreeD, 1.).unwrap();
         assert_eq!(view.lighting, instance.document().lighting);
         assert_eq!(view.environment, instance.document().environment);
+        assert_eq!(view.fog, instance.document().fog);
     }
+}
+
+#[test]
+fn runtime_fog_overrides_distance_fog_without_editing_the_document() {
+    use bozzard_scene::{GameplayInput, Layer};
+    let (mut instance, mut world) = scripted_lighting(
+        r#"
+        fn on_start(me) { set_fog([0.02, 0.03, 0.08], 0.03); }
+        fn on_update(me, dt) {
+            if input_pressed("N") { set_fog([0.6, 0.7, 0.9], 0.0); }
+        }
+    "#,
+    );
+    let authored = instance.document().clone();
+    instance
+        .step_scripts(&mut world, 1. / 60., GameplayInput::default())
+        .unwrap();
+    let night = instance.view(&world, Layer::ThreeD, 1.).unwrap();
+    assert!(night.fog.enabled);
+    assert_eq!(night.fog.color, [0.02, 0.03, 0.08]);
+    assert_eq!(night.fog.distance_density, 0.03);
+    // Height fog and start distance stay authored.
+    assert_eq!(night.fog.start_distance, authored.fog.start_distance);
+    assert_eq!(night.fog.height_density, authored.fog.height_density);
+    instance
+        .step_scripts(
+            &mut world,
+            1. / 60.,
+            GameplayInput {
+                keys: bozzard_scene::keys::bit("N"),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let off = instance.view(&world, Layer::ThreeD, 1.).unwrap();
+    assert!(!off.fog.enabled, "density 0 disables distance fog");
+    assert_eq!(off.fog.color, [0.6, 0.7, 0.9]);
+    assert_eq!(instance.document(), &authored);
 }

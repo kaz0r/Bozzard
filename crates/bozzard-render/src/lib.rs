@@ -70,6 +70,26 @@ pub fn instance(backend: Backend) -> wgpu::Instance {
     wgpu::Instance::new(descriptor)
 }
 
+/// Baseline features while allowing native/Retina-sized render targets.
+fn baseline_limits(adapter: &wgpu::Limits) -> wgpu::Limits {
+    wgpu::Limits::downlevel_defaults().using_resolution(adapter.clone())
+}
+/// The baseline plus the adapter's large storage/buffer sizes, capped at 1 GiB
+/// per binding and 2 GiB per buffer. The downlevel 128 MiB binding otherwise
+/// caps the native instance arena near 129k surfaces.
+pub(crate) fn device_limits(adapter: &wgpu::Limits) -> wgpu::Limits {
+    let mut limits = baseline_limits(adapter);
+    limits.max_storage_buffer_binding_size = adapter
+        .max_storage_buffer_binding_size
+        .min(1 << 30)
+        .max(limits.max_storage_buffer_binding_size);
+    limits.max_buffer_size = adapter
+        .max_buffer_size
+        .min(2 << 30)
+        .max(limits.max_buffer_size);
+    limits
+}
+
 #[derive(Clone)]
 pub struct Gpu {
     pub adapter: wgpu::Adapter,
@@ -128,22 +148,26 @@ impl Gpu {
             "adapter={:?} backend={:?} type={:?} driver={:?} driver_info={:?}",
             info.name, info.backend, info.device_type, info.driver, info.driver_info
         );
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Bozzard device"),
-                required_features: adapter.features()
-                    & (wgpu::Features::TIMESTAMP_QUERY
-                        | wgpu::Features::TEXTURE_COMPRESSION_BC
-                        | wgpu::Features::TEXTURE_COMPRESSION_ASTC
-                        | wgpu::Features::INDIRECT_FIRST_INSTANCE
-                        | wgpu::Features::MULTI_DRAW_INDIRECT_COUNT),
-                // Keep baseline features while allowing native/Retina-sized render targets.
-                required_limits: wgpu::Limits::downlevel_defaults()
-                    .using_resolution(adapter.limits()),
-                ..Default::default()
-            })
-            .await
-            .context("creating graphics device")?;
+        let descriptor = |required_limits| wgpu::DeviceDescriptor {
+            label: Some("Bozzard device"),
+            required_features: adapter.features()
+                & (wgpu::Features::TIMESTAMP_QUERY
+                    | wgpu::Features::TEXTURE_COMPRESSION_BC
+                    | wgpu::Features::TEXTURE_COMPRESSION_ASTC
+                    | wgpu::Features::INDIRECT_FIRST_INSTANCE
+                    | wgpu::Features::MULTI_DRAW_INDIRECT_COUNT),
+            required_limits,
+            ..Default::default()
+        };
+        let limits = device_limits(&adapter.limits());
+        let (device, queue) = match adapter.request_device(&descriptor(limits)).await {
+            Ok(device) => device,
+            // An adapter that misreports its large-buffer limits still gets the baseline device.
+            Err(_) => adapter
+                .request_device(&descriptor(baseline_limits(&adapter.limits())))
+                .await
+                .context("creating graphics device")?,
+        };
         Ok(Self::from_device(adapter, device, queue))
     }
 
@@ -453,6 +477,32 @@ pub use scene::ParticleSimulation;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn device_limits_raise_storage_sizes_within_caps() {
+        let baseline = wgpu::Limits::downlevel_defaults();
+        let mut adapter = wgpu::Limits {
+            max_storage_buffer_binding_size: 4 << 30,
+            max_buffer_size: 8 << 30,
+            ..Default::default()
+        };
+        let limits = super::device_limits(&adapter);
+        assert_eq!(limits.max_storage_buffer_binding_size, 1 << 30);
+        assert_eq!(limits.max_buffer_size, 2 << 30);
+        adapter.max_storage_buffer_binding_size = 512 << 20;
+        adapter.max_buffer_size = 768 << 20;
+        let limits = super::device_limits(&adapter);
+        assert_eq!(limits.max_storage_buffer_binding_size, 512 << 20);
+        assert_eq!(limits.max_buffer_size, 768 << 20);
+        // Smaller adapters keep the baseline request rather than lowering it.
+        adapter.max_storage_buffer_binding_size = 1 << 20;
+        adapter.max_buffer_size = 1 << 20;
+        let limits = super::device_limits(&adapter);
+        assert_eq!(
+            limits.max_storage_buffer_binding_size,
+            baseline.max_storage_buffer_binding_size
+        );
+        assert_eq!(limits.max_buffer_size, baseline.max_buffer_size);
+    }
     use super::*;
     #[test]
     fn image_oracle_rejects_a_clear_only_frame() {

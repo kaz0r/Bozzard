@@ -20,7 +20,14 @@ pub(super) struct CasterUpdate {
     // The same exact frustum results validate the cache and encode its replacement.
     accepted: Vec<bool>,
     stable: Vec<bool>,
-    static_keys: std::cell::RefCell<Option<Vec<shadows::ShadowCaster>>>,
+    static_certificate: std::cell::RefCell<Option<sun_cache::Certificate>>,
+}
+impl CasterUpdate {
+    /// Casters this map's frustum accepted: an upper bound on its static and
+    /// dynamic layers together, which partition that set.
+    pub fn accepted_count(&self) -> usize {
+        self.accepted.iter().filter(|accepted| **accepted).count()
+    }
 }
 pub(super) struct ShadowMaps {
     device: wgpu::Device,
@@ -338,7 +345,7 @@ impl ShadowMaps {
                         casters,
                         accepted,
                         stable,
-                        static_keys: Default::default(),
+                        static_certificate: Default::default(),
                     })
             })
             .collect();
@@ -358,9 +365,9 @@ impl ShadowMaps {
     pub fn finish(&mut self, changes: Vec<Option<CasterUpdate>>) {
         for (slot, change) in changes.into_iter().enumerate() {
             if let Some(change) = change {
-                if let Some(keys) = change.static_keys.into_inner() {
+                if let Some(certificate) = change.static_certificate.into_inner() {
                     self.static_layers.get_mut()[slot]
-                        .finish_retained(&self.casters[slot].row, keys);
+                        .finish_retained(&self.casters[slot].row, certificate);
                 }
                 self.retained[slot] = Some(change.casters);
             }
@@ -436,6 +443,7 @@ impl ShadowMaps {
                     self.resolution,
                     work,
                     available,
+                    renderer.caster_serials(),
                 )
             } else {
                 None
@@ -445,7 +453,10 @@ impl ShadowMaps {
             if let Some(plan) = &plan
                 && plan.rebuild
             {
-                let compact = if self.range_enabled && renderer.instancing.shadow_batching() {
+                let compact = if self.range_enabled
+                    && renderer.instancing.shadow_batching()
+                    && !renderer.native_shadows_active()
+                {
                     Some(ranges[slot][0].prepare(
                         renderer,
                         &self.device,
@@ -525,7 +536,10 @@ impl ShadowMaps {
                 &change.accepted
             };
             pass.set_bind_group(1, &self.casters[slot].binding, &[]);
-            let compact = if self.range_enabled && renderer.instancing.shadow_batching() {
+            let compact = if self.range_enabled
+                && renderer.instancing.shadow_batching()
+                && !renderer.native_shadows_active()
+            {
                 Some(ranges[slot][1].prepare(
                     renderer,
                     &self.device,
@@ -557,20 +571,10 @@ impl ShadowMaps {
             if let Some(plan) = &plan
                 && plan.rebuild
             {
-                let keys = change
-                    .casters
-                    .iter()
-                    .zip(
-                        change
-                            .accepted
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, accepted)| **accepted),
-                    )
-                    .filter(|(_, (i, _))| change.stable[*i])
-                    .map(|(key, _)| key.clone())
-                    .collect();
-                *change.static_keys.borrow_mut() = Some(keys);
+                *change.static_certificate.borrow_mut() = Some(sun_cache::Certificate::new(
+                    &plan.static_mask,
+                    renderer.caster_serials(),
+                ));
             }
         }
         counts
@@ -701,6 +705,8 @@ mod optimization_tests {
         for renderer in &mut renderers {
             renderer.set_occlusion_enabled(false);
             renderer.set_shadow_preparation_caching_enabled(false);
+            // Covers portable range compaction; native lists have their own proof.
+            renderer.set_native_shadow_lists_enabled(false);
         }
         let mut scene = scene(
             (0..160)
@@ -764,6 +770,10 @@ mod optimization_tests {
         });
         renderers[0].set_shadow_preparation_caching_enabled(false);
         renderers[1].set_shadow_range_compaction_enabled(false);
+        for renderer in &mut renderers {
+            // Covers portable sun range compaction; native lists have their own proof.
+            renderer.set_native_shadow_lists_enabled(false);
+        }
         let vertices = [
             [-0.12, -0.12, 0., 0., 0., 1., 0., 1.],
             [0.12, -0.12, 0., 0., 0., 1., 1., 1.],

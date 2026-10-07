@@ -344,3 +344,33 @@ fn moving_silhouettes_spread_and_static_foreground_stays_sharp() -> anyhow::Resu
     }
     Ok(())
 }
+#[test]
+fn stable_draw_order_retains_motion_keys_without_rewrites() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    let mut scene = scene();
+    scene.display.temporal_aa.enabled = true;
+    scene.items = (0..2000)
+        .map(|i| {
+            let position = Vec3::new((i % 50) as f32 * 0.12 - 3., (i / 50) as f32 * 0.1 - 2., -3.);
+            item(i + 1, position, Vec3::splat(0.05), [0.8, 0.4, 0.2])
+        })
+        .collect();
+    capture(&gpu, &mut renderer, &scene, [160, 120])?;
+    assert_eq!(renderer.frame_stats().motion_history_key_updates, 2000);
+    for tick in 0..4 {
+        for item in &mut scene.items {
+            item.model *= Mat4::from_translation(Vec3::X * 0.01);
+        }
+        capture(&gpu, &mut renderer, &scene, [160, 120])?;
+        assert_eq!(
+            renderer.frame_stats().motion_history_key_updates,
+            0,
+            "tick {tick}: moving poses reuse their positional keys"
+        );
+    }
+    scene.items.swap(3, 1500);
+    capture(&gpu, &mut renderer, &scene, [160, 120])?;
+    assert_eq!(renderer.frame_stats().motion_history_key_updates, 2);
+    Ok(())
+}

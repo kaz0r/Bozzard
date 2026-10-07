@@ -106,8 +106,11 @@ content hash (or the stock shader). Each indexed draw packs up
 to 64 instances within the portable 16 KiB uniform limit. Shared frame constants
 leave each instance with a 256-byte record; changed records upload independently.
 A cached plan also retains grouping through modest movement and orthographic
-camera changes when conservative ordering checks remain valid. Visibility,
-geometry or grouping changes and uncertain projections rebuild the plan.
+camera changes when conservative ordering checks remain valid. Hidden-surface
+supersets keep a plan through frustum churn: orthographic ones when filtering
+matches the visible-only schedule, perspective ones when source order is kept.
+Other visibility, geometry or grouping changes and uncertain projections
+rebuild the plan.
 Packed instances reuse their buffers; individual uniform uploads are deferred
 until a color or shadow draw needs them.
 
@@ -286,6 +289,93 @@ mesh/texture clone calls fall from 5,782 to zero. Submitted geometry and capture
 match. GPU time is about 1.5% higher; no GPU speedup is established. The full
 native suite passes 61 tests. See [classification guards, individual runs and
 reproduction](batch-renderer-optimizations.md#retained-shadow-metadata-and-direct-classification).
+
+## Large-scene batching on Iris Xe / Vulkan
+
+A follow-up pass targets scenes past one hundred thousand surfaces with a
+perspective camera, where several retained paths previously fell back:
+
+- **Native arena capacity.** Devices are requested with the adapter's storage
+  binding and buffer sizes (capped at 1 GiB / 2 GiB, with a baseline retry), and
+  arena admission has hysteresis. The former 128 MiB downlevel binding sent
+  scenes above ~129k surfaces to 64-record portable batches.
+- **Perspective supersets.** Source-ordered hidden-surface plans are certified
+  for every camera, so a perspective camera keeps one plan through frustum churn
+  instead of rebuilding whenever a surface enters or leaves view.
+- **Native shadow lists.** Keyed depth groups draw from one storage table of
+  compact caster records through per-pass instance-ID streams, one draw per
+  group, with same-state runs merged into `multi_draw_indexed_indirect`.
+- **Static shadow certificates.** Static sun and local depth sources are
+  certified by per-draw change serials and a one-bit-per-draw member set rather
+  than per-caster keys, so the 16,384-key cap is gone.
+- **Smaller per-frame costs.** Occluder selection rejects surfaces by a
+  conservative screen bound before projecting them, motion history keeps poses
+  by draw position, shadow masks and indirect arguments reuse storage, and
+  transparent receivers only extend the sun fit's far plane (drifting
+  translucent geometry no longer refits the sun and discards its static depth).
+
+`scale_shadow_benchmark` (in `crates/bozzard-render/tests/submission.rs`)
+renders a Morton-ordered field of tinted cubes with a floor, an orbiting
+perspective camera, one orbiting caster and a 2048² sun at 1280 × 720,
+interleaving three modes per frame after an exact-pixel check between them. The
+`main` column runs an API-equivalent twin of the benchmark at `46e4f2f`. Medians
+of 60 warm frames, Intel Iris Xe (TGL GT2), Mesa 26.2.3 ANV, release build:
+
+| Cubes | Build | Color draws | Sun shadow draws | Plan reused | Static sun reused | Renderer CPU | Synchronized | GPU shadow passes |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 100k | `main` | 56 | 590 | 0/60 | 0/60 | 142.4 ms | 165.7 ms | 10.74 ms |
+| 100k | this pass | 71 | 2 | 60/60 | 60/60 | 79.7 ms | 93.2 ms | 0.89 ms |
+| 140k | `main` | 1,204 | 825 | 0/60 | 0/60 | 195.4 ms | 227.0 ms | 6.88 ms |
+| 140k | this pass | 95 | 2 | 60/60 | 60/60 | 109.6 ms | 125.6 ms | 0.93 ms |
+
+![Frame time and renderer CPU at 100k and 140k surfaces, main versus this pass](images/large-scene-batching/frame-time.svg)
+
+![Per-frame draw and projection counts before and after, log scale](images/large-scene-batching/work-reduction.svg)
+
+The static sun reuse is new at this scale: `main` refused the cache above 16,384
+casters, so the moving caster re-rendered every static caster each frame. The
+perspective superset trades a few partially visible native chunks (71 versus 56
+color draws at 100k) for skipping plan rebuilds (73 → 8 ms of planning).
+
+With static depth disabled (`BOZZARD_SCALE_NO_STATIC=1`) every frame re-renders
+all casters, isolating depth submission. At 140k, portable depth batches submit
+825 sun draws; native shadow lists submit the same depth in one indirect run of 2
+draws with identical pixels. CPU encoding moves from 5.25 to 5.10 ms and GPU
+shadow time is unchanged (7.4–7.5 ms): this single-mesh field is bound by
+vertex work, not command count. Native lists matter most for many distinct
+groups and local maps; `native_shadow_lists_match_portable_depth_and_collapse_draws`
+reduces a sun/spot/point fixture with 10,097 casters from 328 to 23 shadow draws.
+
+The remaining renderer CPU at 140k (~110 ms) is spread across exact O(N)
+per-frame passes: surface preparation (~22 ms), shadow preparation (~25 ms),
+plan retention (~12 ms), bounds and visibility (~11 ms), object uniforms
+(~10 ms) and the shadow comparison (~9 ms). Making those passes change-driven
+is the next step; it needs dirty lists from extraction through the renderer.
+
+![Remaining renderer CPU by stage at 140k surfaces](images/large-scene-batching/cpu-breakdown.svg)
+
+The recorded values live in
+[`measurements/large-scene-batching/summary.json`](measurements/large-scene-batching/summary.json);
+`python3 tools/chart_large_scene_batching.py` rebuilds the charts (standard
+library only; `--check` verifies them). The
+[Pagoda Garden](../examples/pagoda-garden/README.md) example is the matching
+real scene: in editor Play it draws 1,072 surfaces in ~190 color draws, keeps a
+perspective superset plan and the static sun depth on every frame, and renders
+in 6.0 ms of GPU time at a steady 60 Hz.
+
+Reproduce, choosing the cube count and optional static-depth bypass:
+
+```sh
+BOZZARD_SCALE_CUBES=140000 cargo test --release -p bozzard-render --test submission scale_shadow_benchmark -- --ignored --nocapture
+BOZZARD_SCALE_NO_STATIC=1 BOZZARD_SCALE_STAGES=1 cargo test --release -p bozzard-render --test submission scale_shadow_benchmark -- --ignored --nocapture
+cargo test --release -p bozzard-render --test submission native_arena_stays_native_past_former_128_mib_cliff -- --ignored --nocapture
+```
+
+`BOZZARD_SCALE_ONLY=optimized` restricts the run to one mode. Exact-pixel
+proofs run in the ordinary suite: `occlusion_bound_prepass_*` (4,096 → 66 exact
+projections), `native_perspective_orbit_*` (10/10 plans reused), the 140k
+arena capacity check (137 instead of 2,188 draws), native shadow lists and
+`static_sun_certificate_reuses_beyond_16384_casters`.
 
 ## Recorded Sponza measurements
 

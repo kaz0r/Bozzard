@@ -1,0 +1,47 @@
+{
+  "device": "Intel Iris Xe (TGL GT2), Mesa 26.2.3 ANV, Vulkan, release build",
+  "date": "2026-10-07",
+  "baseline": "main 46e4f2f (API-equivalent twin of scale_shadow_benchmark)",
+  "benchmark": {
+    "command": "BOZZARD_SCALE_CUBES=<n> cargo test --release -p bozzard-render --test submission scale_shadow_benchmark -- --ignored --nocapture",
+    "scene": "Morton-ordered tinted cube field, floor, orbiting perspective camera, one orbiting caster, 2048 sun, 1280x720",
+    "frames": "median of 60 warm frames",
+    "runs": [
+      {"cubes": 100000, "build": "main", "color_draws": 56, "sun_shadow_draws": 590, "plan_reused": 0, "static_sun_reused": 0, "cpu_ms": 142.44, "plan_ms": 72.93, "synchronized_ms": 165.74, "gpu_shadow_ms": 10.74, "gpu_total_ms": 20.90},
+      {"cubes": 100000, "build": "this pass", "color_draws": 71, "sun_shadow_draws": 2, "plan_reused": 60, "static_sun_reused": 60, "cpu_ms": 79.74, "plan_ms": 8.44, "synchronized_ms": 93.20, "gpu_shadow_ms": 0.89, "gpu_total_ms": 12.19},
+      {"cubes": 140000, "build": "main", "color_draws": 1204, "sun_shadow_draws": 825, "plan_reused": 0, "static_sun_reused": 0, "cpu_ms": 195.38, "plan_ms": 91.94, "synchronized_ms": 227.03, "gpu_shadow_ms": 6.88, "gpu_total_ms": 19.79},
+      {"cubes": 140000, "build": "this pass", "color_draws": 95, "sun_shadow_draws": 2, "plan_reused": 60, "static_sun_reused": 60, "cpu_ms": 109.55, "plan_ms": 11.50, "synchronized_ms": 125.61, "gpu_shadow_ms": 0.93, "gpu_total_ms": 14.09}
+    ],
+    "no_static_depth": [
+      {"cubes": 140000, "mode": "portable depth batches", "sun_shadow_draws": 825, "indirect_runs": 0, "encode_ms": 5.25, "gpu_shadow_ms": 7.43},
+      {"cubes": 140000, "mode": "native shadow lists", "sun_shadow_draws": 2, "indirect_runs": 1, "encode_ms": 5.10, "gpu_shadow_ms": 7.51}
+    ]
+  },
+  "fixtures": [
+    {"label": "Sun shadow draws, 140k cubes", "before": 825, "after": 2, "source": "scale_shadow_benchmark"},
+    {"label": "Color draws, 140k cubes", "before": 1204, "after": 95, "source": "scale_shadow_benchmark"},
+    {"label": "Color draws, 140k-quad arena check", "before": 2188, "after": 137, "source": "native_arena_stays_native_past_former_128_mib_cliff"},
+    {"label": "Shadow draws, sun + spot + point fixture", "before": 328, "after": 23, "source": "native_shadow_lists_match_portable_depth_and_collapse_draws"},
+    {"label": "Exact occluder projections, 4,096 cubes", "before": 4096, "after": 66, "source": "occlusion_bound_prepass_skips_projection_without_qualifying_occluders"}
+  ],
+  "cpu_stages_140k": {
+    "note": "Optimized mode, temporary per-section timers in draw_frame_inner, mean of 20 warm frames; totals ~115 ms",
+    "stages": [
+      {"label": "Shadow preparation", "ms": 24.61},
+      {"label": "Surface preparation", "ms": 22.43},
+      {"label": "Batch plan retention", "ms": 17.64},
+      {"label": "Bounds and frustum", "ms": 11.39},
+      {"label": "Object uniforms", "ms": 10.19},
+      {"label": "Shadow comparison", "ms": 8.83},
+      {"label": "Bindings and textures", "ms": 6.65},
+      {"label": "Raster classes", "ms": 4.23},
+      {"label": "Other", "ms": 8.95}
+    ]
+  },
+  "pagoda_garden_editor_play": {
+    "command": "bozzard-editor --scene examples/pagoda-garden/scenes/pagoda.json --benchmark-frames 120 --benchmark-play",
+    "surfaces": 1072, "color_draws": 192, "superset_plan_frames": 120, "plan_reused_frames": 109,
+    "static_sun_reused_frames": 120, "frame_interval_median_ms": 16.85, "editor_cpu_median_ms": 7.03,
+    "gpu_total_median_ms": 6.03, "gpu_shadow_median_ms": 1.05
+  }
+}

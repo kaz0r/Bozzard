@@ -10,6 +10,21 @@ struct Entry {
     bounds: [u32; 6],
     extent: [Vec3; 2],
 }
+/// How a lit surface contributes to the fitted sun box.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum FitRole {
+    None,
+    /// Opaque casters bound the box in every axis.
+    Box,
+    /// Transparent receivers only extend its far plane: outside the casters'
+    /// light-space footprint, or nearer the sun than every caster, nothing can
+    /// shade them, and sampling outside the map already returns lit.
+    Far,
+}
+/// Combine caster extrema with receivers' farthest depth (most negative view z).
+pub(super) fn combine(min: Vec3, max: Vec3, far: f32) -> (Vec3, Vec3) {
+    (Vec3::new(min.x, min.y, min.z.min(far)), max)
+}
 pub(super) struct Prepared {
     pub fit: Option<(Mat4, f32, f32)>,
     pub fallback: bool,
@@ -27,7 +42,7 @@ impl Cache {
         &mut self,
         view: Mat4,
         resolution: u32,
-        inputs: impl ExactSizeIterator<Item = (Mat4, [Vec3; 2], bool)>,
+        inputs: impl ExactSizeIterator<Item = (Mat4, [Vec3; 2], FitRole)>,
     ) -> Prepared {
         let key = view.to_cols_array().map(f32::to_bits);
         if self.view != Some(key) {
@@ -40,14 +55,15 @@ impl Cache {
         }
         let mut min = Vec3::splat(f32::INFINITY);
         let mut max = -min;
+        let mut far = f32::INFINITY;
         let mut prepared = Prepared {
             fit: None,
             fallback: false,
             reused: 0,
             rebuilt: 0,
         };
-        for (slot, (model, bounds, lit)) in self.entries.iter_mut().zip(inputs) {
-            if !lit {
+        for (slot, (model, bounds, role)) in self.entries.iter_mut().zip(inputs) {
+            if role == FitRole::None {
                 *slot = None;
                 continue;
             }
@@ -93,9 +109,14 @@ impl Cache {
                 extent
             };
             // Preserve object order, including equal signed-zero extrema.
-            min = min.min(extent[0]);
-            max = max.max(extent[1]);
+            if role == FitRole::Box {
+                min = min.min(extent[0]);
+                max = max.max(extent[1]);
+            } else {
+                far = far.min(extent[0].z);
+            }
         }
+        let (min, max) = combine(min, max, far);
         prepared.fit = shadows::fit_extents(min, max, view, resolution);
         prepared
     }

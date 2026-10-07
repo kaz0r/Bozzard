@@ -1,6 +1,6 @@
 use super::*;
 use std::collections::HashMap;
-mod arena;
+pub(super) mod arena;
 mod depth;
 mod diagnostics;
 mod graphs;
@@ -519,9 +519,11 @@ fn global_batches(
         transparent_runs,
         MAX_INSTANCES,
         0,
+        false,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn global_batches_with_capacity(
     draws: &[PreparedDraw],
     inputs: &[Input],
@@ -530,6 +532,7 @@ fn global_batches_with_capacity(
     transparent_runs: bool,
     capacity: usize,
     text_limit: usize,
+    force_original: bool,
 ) -> (Vec<Batch>, Vec<[Vec3; 2]>, bool) {
     // wgpu Buffer Eq/Hash use immutable handle identity, never storage contents.
     #[allow(clippy::mutable_key_type)]
@@ -574,7 +577,10 @@ fn global_batches_with_capacity(
             .count();
     // No ordering can improve a plan already at the compatibility/capacity lower
     // bound. In particular, coincident homogeneous copies need no quadratic DAG.
-    if original.len() == lower_bound {
+    // Perspective hidden-surface supersets keep source order outright: it is
+    // certified for every camera, and projecting off-screen or behind-camera
+    // boxes into a dependency graph would only add conservative edges.
+    if force_original || original.len() == lower_bound {
         return (original, Vec::new(), false);
     }
     let mut boxes = vec![[Vec3::ZERO; 2]; draws.len()];
@@ -848,7 +854,8 @@ fn build_plan(
     camera: Mat4,
     options: PlanOptions,
 ) -> PlanBuild {
-    let candidate = |all_surfaces| {
+    let perspective = !reuse::orthographic(camera);
+    let candidate = |all_surfaces: bool| {
         let inputs = draws
             .iter()
             .zip(visible)
@@ -877,6 +884,7 @@ fn build_plan(
             options.transparent_runs,
             options.capacity,
             options.text_limit,
+            all_surfaces && perspective,
         );
         let ordering = if options.incremental {
             reuse::Ordering::new(&inputs, &batches, camera, projected)
@@ -924,9 +932,23 @@ fn build_plan(
             visible_result.plan.batches.len(),
         );
     }
+    // Orthographic supersets must match the visible-only schedule. Perspective
+    // supersets are source-ordered; on native arenas, whose draws are cheap
+    // indirect records, they may touch a few more partially visible chunks in
+    // exchange for surviving frustum churn without rebuilding the plan.
+    let visible_draws = visible_result.plan.batches.len();
+    let slack = if perspective && options.capacity > MAX_INSTANCES {
+        (visible_draws / 2).max(8)
+    } else {
+        0
+    };
     if !result.construction_limited
-        && result.plan.ordering.is_ok()
-        && filtered_draws <= visible_result.plan.batches.len()
+        && result
+            .plan
+            .ordering
+            .as_ref()
+            .is_ok_and(|ordering| !perspective || ordering.original())
+        && filtered_draws <= visible_draws + slack
     {
         result
     } else {
@@ -967,7 +989,7 @@ impl SceneRenderer {
         let native = self.instancing.native_requested
             && self.instancing.shadow_batches_enabled
             && self.instancing.native_layout.is_some()
-            && arena::fits(gpu, draws);
+            && arena::fits(gpu, draws, self.instancing.native_mode);
         if native == self.instancing.native_mode {
             return;
         }
@@ -1061,7 +1083,6 @@ impl SceneRenderer {
                 let visible_count = visible.iter().filter(|v| **v).count();
                 let all_surfaces = wants_superset
                     && self.instancing.incremental
-                    && reuse::orthographic(camera)
                     && draws.len() <= visible_count.saturating_mul(4).max(256);
                 let built = build_plan(
                     draws,
@@ -1089,7 +1110,9 @@ impl SceneRenderer {
                 };
             }
             let output = std::mem::take(&mut self.instancing.frame_batches);
-            visible_batches(self.instancing.plan.as_ref().unwrap(), visible, output)
+            let plan = self.instancing.plan.as_ref().unwrap();
+            self.stats.batch_plan_superset = plan.all_surfaces;
+            visible_batches(plan, visible, output)
         } else {
             batches_with_capacity(
                 draws,

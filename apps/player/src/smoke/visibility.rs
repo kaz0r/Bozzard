@@ -265,13 +265,15 @@ fn shadow_cache_checks(
         &[255, 255, 255, 255, 255, 255, 255, 0],
     )?;
     compare(gpu, renderer, &scene, false, "new transparent texture")?;
+    // Transparent receivers only extend the sun fit's far plane: moving one
+    // beside the opaque casters keeps the fitted box and every shadow map.
     scene.items[1].model *= Mat4::from_translation(Vec3::new(-0.3, 0.5, 0.));
     compare(
         gpu,
         renderer,
         &scene,
-        false,
-        "transparent receiver changes sun fit",
+        true,
+        "transparent receiver keeps the caster-fitted sun",
     )?;
     renderer.upload_image(
         gpu,

@@ -19,12 +19,17 @@ struct Table {
     seen: std::collections::HashSet<preparation::SurfaceIdentity>,
 }
 impl Table {
-    fn assign(&mut self, identities: &[Option<preparation::SurfaceIdentity>]) {
+    /// Assign stable slots. New identities reuse free slots or append, so the
+    /// table grows by at most `identities.len()`; resetting whenever that could
+    /// pass `limit` keeps every slot inside the device-sized object table.
+    fn assign(&mut self, identities: &[Option<preparation::SurfaceIdentity>], limit: usize) {
         self.seen.clear();
         let unique = identities
             .iter()
             .all(|id| id.is_some_and(|id| self.seen.insert(id)));
-        if unique != self.unique || self.slots.len() > identities.len().saturating_mul(4).max(8192)
+        if unique != self.unique
+            || self.slots.len() > identities.len().saturating_mul(4).max(8192)
+            || self.slots.len().saturating_add(identities.len()) > limit
         {
             *self = Self {
                 unique,
@@ -93,6 +98,7 @@ impl Arena {
     fn assign_identities(
         &mut self,
         identities: impl Iterator<Item = Option<preparation::SurfaceIdentity>> + Clone,
+        limit: usize,
     ) -> bool {
         // Exact membership/order comparison avoids rebuilding the hash tables
         // on transform, material, visibility and camera-only changes.
@@ -101,7 +107,7 @@ impl Arena {
         }
         self.identities.clear();
         self.identities.extend(identities);
-        self.table.assign(&self.identities);
+        self.table.assign(&self.identities, limit);
         false
     }
 
@@ -136,8 +142,22 @@ fn max_records(gpu: &Gpu) -> usize {
         .min(limits.max_buffer_size)
         / OBJECT_UNIFORM_BYTES as u64) as usize
 }
-pub(super) fn fits(gpu: &Gpu, draws: usize) -> bool {
-    draws.saturating_mul(4).saturating_add(8192) <= max_records(gpu)
+/// Native admission with hysteresis. Entering needs 25% plus 8,192 records of
+/// headroom; an active arena stays native while one spare batch of records
+/// remains, so scenes near the boundary do not toggle (each toggle invalidates
+/// plans, bindings, pipelines, occlusion and shadow state).
+pub(super) fn fits(gpu: &Gpu, draws: usize, native: bool) -> bool {
+    fits_records(max_records(gpu), draws, native)
+}
+fn fits_records(max_records: usize, draws: usize, native: bool) -> bool {
+    if native {
+        draws.saturating_add(MAX_NATIVE_INSTANCES) <= max_records
+    } else {
+        (draws / 4).saturating_add(draws).saturating_add(8192) <= max_records
+    }
+}
+pub(in crate::scene) fn max_records_for(gpu: &Gpu) -> usize {
+    max_records(gpu)
 }
 fn layout_ranges(
     sizes: &mut Vec<usize>,
@@ -194,8 +214,10 @@ pub(super) fn prepare(
         arena.textures.clear();
         arena.sizes.clear();
     }
-    renderer.stats.native_object_membership_reused =
-        arena.assign_identities(draws.iter().map(preparation::surface_identity));
+    renderer.stats.native_object_membership_reused = arena.assign_identities(
+        draws.iter().map(preparation::surface_identity),
+        max_records(gpu),
+    );
     let required = arena.table.slots.len();
     let required_ids = layout_ranges(&mut arena.sizes, bindings.len(), batches, &mut arena.starts);
     ensure!(
@@ -385,15 +407,58 @@ mod tests {
         Some(preparation::SurfaceIdentity { id, part: 0 })
     }
     #[test]
+    fn table_never_exceeds_limit_under_churn() {
+        let mut table = Table::default();
+        let limit = 9000;
+        let mut seed = 7_u64;
+        for round in 0..200_u64 {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            let count = 4000 + (seed >> 52) as usize;
+            // Mostly replaced identities, forcing growth into free/new slots.
+            let ids: Vec<_> = (0..count as u64)
+                .map(|i| identity(if i % 3 == 0 { i } else { round * 10_000 + i }))
+                .collect();
+            table.assign(&ids, limit);
+            assert!(
+                table.slots.len() <= limit,
+                "round {round}: {}",
+                table.slots.len()
+            );
+            assert!(table.draw_slots.iter().all(|&slot| (slot as usize) < limit));
+        }
+    }
+    #[test]
+    fn fits_hysteresis_does_not_thrash() {
+        let max = 100_000;
+        // Entering needs 25% + 8192 headroom; staying needs one spare batch.
+        assert!(fits_records(max, 73_000, false));
+        assert!(!fits_records(max, 75_000, false));
+        assert!(fits_records(max, 75_000, true));
+        assert!(fits_records(max, max - MAX_NATIVE_INSTANCES, true));
+        assert!(!fits_records(max, max - MAX_NATIVE_INSTANCES + 1, true));
+        let mut native = false;
+        let mut toggles = 0;
+        for step in 0..400 {
+            let draws = 72_000 + (step % 40) * 100;
+            let next = fits_records(max, draws, native);
+            toggles += usize::from(next != native);
+            native = next;
+        }
+        assert_eq!(toggles, 1, "oscillating counts enter once and stay native");
+    }
+    #[test]
     fn stable_gpu_slots_survive_early_insertion_removal_and_invalid_id_fallback() {
         let mut table = Table::default();
-        table.assign(&[identity(1), identity(2), identity(3)]);
+        table.assign(&[identity(1), identity(2), identity(3)], usize::MAX);
         let slots = table.draw_slots.clone();
-        table.assign(&[identity(99), identity(1), identity(2), identity(3)]);
+        table.assign(
+            &[identity(99), identity(1), identity(2), identity(3)],
+            usize::MAX,
+        );
         assert_eq!(&table.draw_slots[1..], &slots);
-        table.assign(&[identity(1), identity(3)]);
+        table.assign(&[identity(1), identity(3)], usize::MAX);
         assert_eq!(table.draw_slots, [slots[0], slots[2]]);
-        table.assign(&[identity(1), identity(1), None]);
+        table.assign(&[identity(1), identity(1), None], usize::MAX);
         assert!(!table.unique);
         let mut slots = table.draw_slots.clone();
         slots.sort_unstable();
@@ -404,21 +469,24 @@ mod tests {
     fn unchanged_membership_skips_hash_remapping_without_hiding_order_or_identity_changes() {
         let mut arena = Arena::default();
         let ids = [identity(1), identity(2), identity(3)];
-        assert!(!arena.assign_identities(ids.into_iter()));
+        assert!(!arena.assign_identities(ids.into_iter(), usize::MAX));
         let slots = arena.table.draw_slots.clone();
-        assert!(arena.assign_identities(ids.into_iter()));
+        assert!(arena.assign_identities(ids.into_iter(), usize::MAX));
         assert_eq!(arena.table.draw_slots, slots);
-        assert!(!arena.assign_identities([identity(3), identity(1), identity(2)].into_iter()));
+        assert!(!arena.assign_identities(
+            [identity(3), identity(1), identity(2)].into_iter(),
+            usize::MAX
+        ));
         assert_eq!(arena.table.draw_slots, [slots[2], slots[0], slots[1]]);
-        assert!(!arena.assign_identities([identity(3), identity(1)].into_iter()));
-        assert!(arena.assign_identities([identity(3), identity(1)].into_iter()));
-        assert!(!arena.assign_identities([identity(3), identity(3)].into_iter()));
+        assert!(!arena.assign_identities([identity(3), identity(1)].into_iter(), usize::MAX));
+        assert!(arena.assign_identities([identity(3), identity(1)].into_iter(), usize::MAX));
+        assert!(!arena.assign_identities([identity(3), identity(3)].into_iter(), usize::MAX));
         assert!(!arena.table.unique);
-        assert!(arena.assign_identities([identity(3), identity(3)].into_iter()));
-        assert!(!arena.assign_identities([None, None].into_iter()));
-        assert!(arena.assign_identities([None, None].into_iter()));
+        assert!(arena.assign_identities([identity(3), identity(3)].into_iter(), usize::MAX));
+        assert!(!arena.assign_identities([None, None].into_iter(), usize::MAX));
+        assert!(arena.assign_identities([None, None].into_iter(), usize::MAX));
         assert_eq!(arena.table.draw_slots, [0, 1]);
-        assert!(!arena.assign_identities([identity(8), identity(9)].into_iter()));
+        assert!(!arena.assign_identities([identity(8), identity(9)].into_iter(), usize::MAX));
         assert!(arena.table.unique);
     }
     #[test]

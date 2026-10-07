@@ -1101,6 +1101,7 @@ impl Scene {
             display_overrides: Default::default(),
             lighting_override: None,
             environment_override: None,
+            fog_override: None,
             tile_view: Default::default(),
             script_engine: std::sync::OnceLock::new(),
             scripts: BTreeMap::new(),
@@ -1129,6 +1130,7 @@ pub struct SceneInstance {
     display_overrides: display::DisplayOverrides,
     lighting_override: Option<Lighting>,
     environment_override: Option<EnvironmentSettings>,
+    fog_override: Option<FogSettings>,
     tile_view: tile_view::TileView,
     templates: BTreeMap<String, Prefab>,
     next_spawn: u64,
@@ -1653,7 +1655,7 @@ impl SceneInstance {
                 } else {
                     Vec::new()
                 },
-                fog: self.document.fog,
+                fog: self.fog_override.unwrap_or(self.document.fog),
                 lights,
                 environment: self
                     .environment_override

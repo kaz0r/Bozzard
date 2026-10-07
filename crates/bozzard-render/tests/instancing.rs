@@ -845,6 +845,68 @@ fn orthographic_camera_churn_filters_hidden_surfaces_without_regrouping() -> any
     Ok(())
 }
 
+fn ring_scene(interleaved: bool) -> RenderScene {
+    let mut scene = scene(128);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        let angle = i as f32 / 128. * std::f32::consts::TAU;
+        item.model = Mat4::from_translation(Vec3::new(angle.cos() * 9., 0., angle.sin() * 9.))
+            * Mat4::from_scale(Vec3::splat(0.8));
+        // Source order grouped by key keeps the original order at the lower bound.
+        let sphere = if interleaved { i % 2 == 1 } else { i >= 64 };
+        if sphere {
+            item.mesh = MeshKind::Sphere;
+        }
+    }
+    scene
+}
+fn orbit(heading: f32) -> Mat4 {
+    glam::camera::rh::proj::directx::perspective(1.0, 1., 0.1, 60.)
+        * glam::camera::rh::view::look_at_mat4(
+            Vec3::new(0., 3., 0.),
+            Vec3::new(heading.cos() * 9., 0., heading.sin() * 9.),
+            Vec3::Y,
+        )
+}
+#[test]
+fn perspective_orbit_reuses_original_order_superset() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers =
+        std::array::from_fn(|_| portable_renderer(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_instancing_enabled(false);
+    for renderer in &mut renderers {
+        renderer.set_occlusion_enabled(false);
+    }
+    let mut scene = ring_scene(false);
+    let mut reused = 0;
+    for frame in 0..26 {
+        scene.view_projection = orbit(frame as f32 * 0.26);
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        assert!(
+            stats.visible_surfaces < 128,
+            "frame {frame}: surfaces enter and leave view"
+        );
+        if frame >= 2 {
+            assert!(stats.batch_plan_superset, "frame {frame}: {stats:?}");
+            assert_eq!(stats.batch_plan_rebuilds, 0, "frame {frame}");
+            reused += usize::from(stats.batch_plan_reused);
+        }
+    }
+    assert_eq!(reused, 24);
+    // Interleaved keys would need reordering; perspective keeps visible-only plans.
+    let mut scene = ring_scene(true);
+    let mut rebuilds = 0;
+    for frame in 0..8 {
+        scene.view_projection = orbit(frame as f32 * 0.26);
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        assert!(!stats.batch_plan_superset, "frame {frame}");
+        rebuilds += stats.batch_plan_rebuilds;
+    }
+    assert!(rebuilds > 1, "visible-only plans rebuild on frustum churn");
+    Ok(())
+}
+
 #[test]
 fn a_tiny_view_of_a_large_scene_keeps_visibility_scoped_plans() -> anyhow::Result<()> {
     let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
@@ -1259,12 +1321,16 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
     floor.material.texture = TextureKind::White;
     scene.items.push(floor);
     compare(&gpu, &mut renderers, &scene)?;
+    let mut warm_scratch = None;
     for tick in 0..8 {
         for item in &mut scene.items[248..256] {
             item.model *= Mat4::from_translation(Vec3::X * 0.15);
         }
         compare(&gpu, &mut renderers, &scene)?;
         let cached = renderers[1].frame_stats();
+        // Shadow masks are recycled: moving casters do not grow frame scratch.
+        let scratch = *warm_scratch.get_or_insert(cached.frame_scratch_bytes);
+        assert_eq!(cached.frame_scratch_bytes, scratch, "tick {tick}");
         assert_eq!(cached.sun_depth_copies, 1, "tick {tick}: {cached:?}");
         assert_eq!(cached.sun_dynamic_casters, 8);
         assert_eq!(cached.sun_bounds_recomputed, 8);
@@ -1347,6 +1413,78 @@ fn static_sun_depth_matches_full_render_through_moving_casters_and_invalidations
         }
         compare(&gpu, &mut renderers, &scene)?;
     }
+    Ok(())
+}
+
+#[test]
+fn transparent_receivers_above_casters_do_not_refit_sun() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    // [0]: same policy without the receiver; [1]: far-only policy; [2]: legacy fit.
+    let mut renderers: [SceneRenderer; 3] =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[2].set_sun_fit_transparent_far_only_enabled(false);
+    for renderer in &mut renderers {
+        renderer.set_occlusion_enabled(false);
+        renderer.upload_image(&gpu, "glass", 1, 1, &[100, 200, 240, 128])?;
+    }
+    let mut scene = scene(64);
+    scene.view_projection =
+        glam::camera::rh::proj::directx::orthographic(-9., 9., -9., 9., 0.1, 30.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 512;
+    scene.lighting.sun_direction = Vec3::new(0.3, 0.2, 1.).normalize().to_array();
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.model = Mat4::from_translation(Vec3::new(
+            (i % 8) as f32 * 2. - 7.,
+            (i / 8) as f32 * 2. - 7.,
+            -5.,
+        )) * Mat4::from_scale(Vec3::splat(0.9));
+    }
+    let mut floor = scene.items[0].clone();
+    floor.motion_id = 5000;
+    floor.mesh = MeshKind::Quad;
+    floor.model =
+        Mat4::from_translation(Vec3::new(0., 0., -6.)) * Mat4::from_scale(Vec3::splat(18.));
+    floor.material.texture = TextureKind::White;
+    scene.items.push(floor);
+    let plain = scene.clone();
+    // A drifting "cloud": transparent, lit, nearer the sun and outside the view.
+    let mut cloud = scene.items[0].clone();
+    cloud.motion_id = 5001;
+    cloud.mesh = MeshKind::Quad;
+    cloud.material.texture = TextureKind::Imported("glass".into());
+    cloud.model =
+        Mat4::from_translation(Vec3::new(20., 0., -1.)) * Mat4::from_scale(Vec3::splat(4.));
+    scene.items.push(cloud);
+    let mut legacy_refits = 0;
+    for tick in 0..6 {
+        scene.items.last_mut().unwrap().model *= Mat4::from_translation(Vec3::X * 0.5);
+        let reference = capture(&gpu, &mut renderers[0], &plain)?;
+        let far_only = capture(&gpu, &mut renderers[1], &scene)?;
+        capture(&gpu, &mut renderers[2], &scene)?;
+        assert_eq!(
+            reference.rgba, far_only.rgba,
+            "tick {tick}: the cloud changed the fit"
+        );
+        if tick > 0 {
+            assert!(
+                renderers[1].frame_stats().sun_shadow_fit_reused,
+                "tick {tick}"
+            );
+            legacy_refits += usize::from(!renderers[2].frame_stats().sun_shadow_fit_reused);
+        }
+    }
+    assert_eq!(
+        legacy_refits, 5,
+        "the legacy fit chases the moving receiver"
+    );
+    // Inside the casters' box both policies fit identically.
+    let last = scene.items.len() - 1;
+    scene.items[last].model =
+        Mat4::from_translation(Vec3::new(0., 0., -5.5)) * Mat4::from_scale(Vec3::splat(4.));
+    let far_only = capture(&gpu, &mut renderers[1], &scene)?;
+    let legacy = capture(&gpu, &mut renderers[2], &scene)?;
+    assert_eq!(far_only.rgba, legacy.rgba);
     Ok(())
 }
 

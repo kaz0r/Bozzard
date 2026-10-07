@@ -3,7 +3,7 @@
 //! data inside a retained buffer does not require recording another bundle.
 use super::draw_state::DrawState;
 use super::*;
-mod geometry;
+pub(in crate::scene) mod geometry;
 
 const MIN_BUNDLE_DRAWS: usize = 128;
 const MIN_INDIRECT_RUN: usize = 8;
@@ -103,6 +103,8 @@ struct IndirectCache {
     buffer: Option<wgpu::Buffer>,
     capacity: usize,
     bytes: Vec<u8>,
+    /// Previous argument storage, refilled each frame and swapped on change.
+    scratch: Vec<u8>,
     runs: Vec<(usize, usize)>,
     geometry: geometry::Arena,
 }
@@ -157,8 +159,9 @@ fn run_ranges(records: &[Record], geometry: bool) -> Vec<(usize, usize)> {
     }
     runs
 }
-fn argument_bytes(records: &[Record]) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(records.len() * 20);
+fn argument_bytes(records: &[Record], mut bytes: Vec<u8>) -> Vec<u8> {
+    bytes.clear();
+    bytes.reserve(records.len() * 20);
     for record in records {
         for word in [
             record.index_count,
@@ -173,6 +176,10 @@ fn argument_bytes(records: &[Record]) -> Vec<u8> {
     bytes
 }
 impl Submission {
+    /// Native multi-draw-indirect is allowed (the diagnostic switch).
+    pub fn indirect_enabled(&self) -> bool {
+        self.indirect_enabled
+    }
     pub fn invalidate(&mut self) {
         self.bundle = Default::default();
         self.indirect = Default::default();
@@ -314,7 +321,9 @@ impl Submission {
             if self.indirect.runs.is_empty() {
                 return;
             }
-            let bytes = packed.unwrap_or_else(|| argument_bytes(records));
+            let bytes = packed.unwrap_or_else(|| {
+                argument_bytes(records, std::mem::take(&mut self.indirect.scratch))
+            });
             let allocate = self.indirect.buffer.is_none() || bytes.len() > self.indirect.capacity;
             if allocate {
                 self.indirect.capacity = bytes.len().next_power_of_two();
@@ -329,7 +338,9 @@ impl Submission {
                 gpu.queue
                     .write_buffer(self.indirect.buffer.as_ref().unwrap(), 0, &bytes);
                 self.work.indirect_bytes = bytes.len();
-                self.indirect.bytes = bytes;
+                self.indirect.scratch = std::mem::replace(&mut self.indirect.bytes, bytes);
+            } else {
+                self.indirect.scratch = bytes;
             }
             self.mode = Mode::Indirect;
         }

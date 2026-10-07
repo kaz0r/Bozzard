@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="354" viewBox="0 0 760 354" role="img" aria-labelledby="title desc">
+<title id="title">Frame cost at 100k and 140k surfaces</title>
+<desc id="desc">Synchronized frame time and renderer CPU per frame for main and this pass. 100k cubes: frame time 165.7 to 93.2 ms, CPU 142.4 to 79.7 ms; 140k cubes: frame time 227.0 to 125.6 ms, CPU 195.4 to 109.5 ms</desc>
+<style>.surface{fill:#fcfcfb}.ink{fill:#0b0b0b}.ink2{fill:#52514e}.muted{fill:#898781}
+.grid{stroke:#e1e0d9;stroke-width:1}.axis{stroke:#c3c2b7;stroke-width:1}
+.main{fill:#8f8d86}.pass{fill:#2a78d6}.link{stroke:#c3c2b7;stroke-width:2}
+.ring{stroke:#fcfcfb;stroke-width:2}
+@media (prefers-color-scheme: dark){
+.surface{fill:#1a1a19}.ink{fill:#ffffff}.ink2{fill:#c3c2b7}.muted{fill:#898781}
+.grid{stroke:#2c2c2a}.axis{stroke:#383835}.main{fill:#6f6d66}.pass{fill:#3987e5}
+.link{stroke:#383835}.ring{stroke:#1a1a19}}
+text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+.title{font-size:16px;font-weight:600}.subtitle{font-size:12px}
+.label{font-size:12px}.value{font-size:11px;font-variant-numeric:tabular-nums}
+.tick{font-size:11px;font-variant-numeric:tabular-nums}</style>
+<rect class="surface" width="760" height="354" rx="8"/>
+<text x="24.0" y="32.0" class="title ink" text-anchor="start">Frame cost at 100k–140k surfaces</text>
+<text x="24.0" y="52.0" class="subtitle ink2" text-anchor="start">Intel Iris Xe (TGL GT2), Mesa 26.2.3 ANV, Vulkan, release build · median of 60 warm frames · lower is better</text>
+<text x="679.0" y="36.0" class="label ink2" text-anchor="start">this pass</text>
+<rect x="665.0" y="27.0" width="10" height="10" rx="2" class="pass"/>
+<text x="555.0" y="36.0" class="label ink2" text-anchor="start">main (46e4f2f)</text>
+<rect x="541.0" y="27.0" width="10" height="10" rx="2" class="main"/>
+<text x="24.0" y="84.0" class="label ink" text-anchor="start">Synchronized frame time (ms)</text>
+<line x1="64.0" y1="268.0" x2="364.0" y2="268.0" class="axis"/>
+<text x="56.0" y="272.0" class="tick muted" text-anchor="end">0</text>
+<line x1="64.0" y1="235.2" x2="364.0" y2="235.2" class="grid"/>
+<text x="56.0" y="239.2" class="tick muted" text-anchor="end">50</text>
+<line x1="64.0" y1="202.4" x2="364.0" y2="202.4" class="grid"/>
+<text x="56.0" y="206.4" class="tick muted" text-anchor="end">100</text>
+<line x1="64.0" y1="169.6" x2="364.0" y2="169.6" class="grid"/>
+<text x="56.0" y="173.6" class="tick muted" text-anchor="end">150</text>
+<line x1="64.0" y1="136.8" x2="364.0" y2="136.8" class="grid"/>
+<text x="56.0" y="140.8" class="tick muted" text-anchor="end">200</text>
+<line x1="64.0" y1="104.0" x2="364.0" y2="104.0" class="grid"/>
+<text x="56.0" y="108.0" class="tick muted" text-anchor="end">250</text>
+<path class="main" d="M114.0,268.0 V163.3 Q114.0,159.3 118.0,159.3 H134.0 Q138.0,159.3 138.0,163.3 V268.0 Z"/>
+<text x="126.0" y="153.3" class="value ink2" text-anchor="middle">165.7</text>
+<path class="pass" d="M140.0,268.0 V210.9 Q140.0,206.9 144.0,206.9 H160.0 Q164.0,206.9 164.0,210.9 V268.0 Z"/>
+<text x="152.0" y="200.9" class="value ink2" text-anchor="middle">93.2</text>
+<text x="139.0" y="286.0" class="label ink2" text-anchor="middle">100k cubes</text>
+<text x="139.0" y="302.0" class="value ink" text-anchor="middle">−44%</text>
+<path class="main" d="M264.0,268.0 V123.1 Q264.0,119.1 268.0,119.1 H284.0 Q288.0,119.1 288.0,123.1 V268.0 Z"/>
+<text x="276.0" y="113.1" class="value ink2" text-anchor="middle">227.0</text>
+<path class="pass" d="M290.0,268.0 V189.6 Q290.0,185.6 294.0,185.6 H310.0 Q314.0,185.6 314.0,189.6 V268.0 Z"/>
+<text x="302.0" y="179.6" class="value ink2" text-anchor="middle">125.6</text>
+<text x="289.0" y="286.0" class="label ink2" text-anchor="middle">140k cubes</text>
+<text x="289.0" y="302.0" class="value ink" text-anchor="middle">−45%</text>
+<text x="380.0" y="84.0" class="label ink" text-anchor="start">Renderer CPU (ms)</text>
+<line x1="420.0" y1="268.0" x2="720.0" y2="268.0" class="axis"/>
+<text x="412.0" y="272.0" class="tick muted" text-anchor="end">0</text>
+<line x1="420.0" y1="235.2" x2="720.0" y2="235.2" class="grid"/>
+<text x="412.0" y="239.2" class="tick muted" text-anchor="end">50</text>
+<line x1="420.0" y1="202.4" x2="720.0" y2="202.4" class="grid"/>
+<text x="412.0" y="206.4" class="tick muted" text-anchor="end">100</text>
+<line x1="420.0" y1="169.6" x2="720.0" y2="169.6" class="grid"/>
+<text x="412.0" y="173.6" class="tick muted" text-anchor="end">150</text>
+<line x1="420.0" y1="136.8" x2="720.0" y2="136.8" class="grid"/>
+<text x="412.0" y="140.8" class="tick muted" text-anchor="end">200</text>
+<line x1="420.0" y1="104.0" x2="720.0" y2="104.0" class="grid"/>
+<text x="412.0" y="108.0" class="tick muted" text-anchor="end">250</text>
+<path class="main" d="M470.0,268.0 V178.6 Q470.0,174.6 474.0,174.6 H490.0 Q494.0,174.6 494.0,178.6 V268.0 Z"/>
+<text x="482.0" y="168.6" class="value ink2" text-anchor="middle">142.4</text>
+<path class="pass" d="M496.0,268.0 V219.7 Q496.0,215.7 500.0,215.7 H516.0 Q520.0,215.7 520.0,219.7 V268.0 Z"/>
+<text x="508.0" y="209.7" class="value ink2" text-anchor="middle">79.7</text>
+<text x="495.0" y="286.0" class="label ink2" text-anchor="middle">100k cubes</text>
+<text x="495.0" y="302.0" class="value ink" text-anchor="middle">−44%</text>
+<path class="main" d="M620.0,268.0 V143.8 Q620.0,139.8 624.0,139.8 H640.0 Q644.0,139.8 644.0,143.8 V268.0 Z"/>
+<text x="632.0" y="133.8" class="value ink2" text-anchor="middle">195.4</text>
+<path class="pass" d="M646.0,268.0 V200.1 Q646.0,196.1 650.0,196.1 H666.0 Q670.0,196.1 670.0,200.1 V268.0 Z"/>
+<text x="658.0" y="190.1" class="value ink2" text-anchor="middle">109.5</text>
+<text x="645.0" y="286.0" class="label ink2" text-anchor="middle">140k cubes</text>
+<text x="645.0" y="302.0" class="value ink" text-anchor="middle">−44%</text>
+<text x="24.0" y="324.0" class="subtitle muted" text-anchor="start">Tinted cube field, floor, orbiting perspective camera, one moving caster, 2048² sun, 1280 × 720.</text>
+<text x="24.0" y="341.0" class="subtitle muted" text-anchor="start">Synchronized frame time spans draw plus GPU completion; renderer CPU excludes the GPU.</text>
+</svg>

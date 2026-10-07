@@ -47,6 +47,10 @@ pub struct FrameStats {
     pub occlusion_depth_draws: usize,
     pub occlusion_depth_triangles: u64,
     pub occlusion_candidates: usize,
+    /// Exact surface projections computed while selecting occluders and queries.
+    pub occlusion_projections: usize,
+    /// Surfaces rejected as occluders by their conservative screen bound alone.
+    pub occlusion_bound_rejections: usize,
     /// Identical depth inputs and bounds reused completed visibility on the CPU.
     pub occlusion_cache_hit: bool,
     pub occlusion_bytes: u64,
@@ -56,6 +60,8 @@ pub struct FrameStats {
     pub instanced_surfaces: usize,
     pub batching: BatchingStats,
     pub batch_plan_reused: bool,
+    /// The plan covers hidden surfaces too, so frustum churn reuses it.
+    pub batch_plan_superset: bool,
     /// Exact visible membership retained the cached eligibility diagnostics.
     pub batch_diagnostics_reused: bool,
     pub batch_plan_rebuilds: usize,
@@ -79,12 +85,19 @@ pub struct FrameStats {
     pub instance_buffer_allocations: usize,
     /// Additional packed shadow-caster bytes, independent of camera batches.
     pub shadow_instance_uniform_bytes: usize,
+    /// Depth groups drew from the native caster table and per-pass ID streams.
+    pub native_shadow_lists: bool,
+    pub shadow_instance_id_bytes: usize,
+    pub shadow_multi_draw_indirect_runs: usize,
+    pub shadow_multi_draw_indirect_draws: usize,
     pub shadow_instance_buffer_allocations: usize,
     pub shadow_singleton_bytes: usize,
     pub shadow_singleton_allocations: usize,
     pub local_shadow_receiver_bytes: usize,
     pub local_shadow_receiver_writes: usize,
     pub native_instance_arena: bool,
+    /// Object records the device's storage binding admits for the native arena.
+    pub native_arena_max_records: usize,
     /// Exact source identity/order reuse skipped native object-slot hashing.
     pub native_object_membership_reused: bool,
     pub render_bundle_compilations: usize,
@@ -199,6 +212,8 @@ pub struct FrameStats {
     /// Retained vector capacities, excluding shared Arc storage, owned key strings and GPU data.
     pub surface_preparation_bytes: usize,
     pub frame_scratch_bytes: usize,
+    /// Motion-history key rows rewritten (and asset IDs cloned) this frame.
+    pub motion_history_key_updates: usize,
     pub encode_ms: f64,
     pub submit_ms: f64,
 }
@@ -301,6 +316,27 @@ impl SceneRenderer {
         }
     }
     /// Compare retained light-space bounds with the original sun-fitting loop.
+    /// Reference switch: disabled, transparent lit receivers widen the fitted
+    /// sun box like casters; enabled (default), they only extend its far plane,
+    /// so receivers moving outside the casters' footprint keep the fit and its
+    /// static depth.
+    pub fn set_sun_fit_transparent_far_only_enabled(&mut self, enabled: bool) {
+        if self.sun_fit_transparent_far_only != enabled {
+            self.sun_fit_transparent_far_only = enabled;
+            self.shadow_frame = None;
+        }
+    }
+    /// Reference switch: disabled, native-arena devices draw depth groups from
+    /// the portable 170-record uniform batches instead of the native caster
+    /// table with per-pass ID lists and multi-draw-indirect runs.
+    pub fn set_native_shadow_lists_enabled(&mut self, enabled: bool) {
+        if self.shadows.native.enabled != enabled {
+            self.shadows.native.enabled = enabled;
+            self.instancing.clear_depth_plan();
+            self.instancing.shadow_bindings.clear();
+            self.shadow_frame = None;
+        }
+    }
     pub fn set_sun_fit_caching_enabled(&mut self, enabled: bool) {
         self.sun_fit_caching = enabled;
         if !enabled {

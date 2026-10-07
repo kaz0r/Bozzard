@@ -1,7 +1,6 @@
 //! Optional depth-source admission, independent of graphics backend creation.
 pub(crate) const DEPTH_BUDGET_BYTES: u64 = 64 * 1024 * 1024;
 pub(crate) const LOCAL_DEPTH_BUDGET_BYTES: u64 = 32 * 1024 * 1024;
-pub(crate) const MAX_CASTER_KEYS: usize = 16_384;
 pub(crate) const METADATA_BUDGET_BYTES: usize = 4 * 1024 * 1024;
 const IDLE_UPDATES: u32 = 60;
 
@@ -15,12 +14,15 @@ pub(crate) fn depth_admitted(resolution: u32, max_dimension: u32, budget: u64) -
         && resolution <= max_dimension
         && depth_bytes(resolution).is_some_and(|bytes| bytes <= budget)
 }
-pub(crate) fn metadata_admitted(count: usize, key_bytes: usize, owned_bytes: usize) -> bool {
-    count <= MAX_CASTER_KEYS
-        && count
-            .checked_mul(key_bytes)
-            .and_then(|bytes| bytes.checked_add(owned_bytes))
-            .is_some_and(|bytes| bytes <= METADATA_BUDGET_BYTES)
+/// A static source's certificate holds one bit per draw plus its uniform row.
+/// The 4 MiB metadata budget therefore admits about 33 million draws.
+pub(crate) fn certificate_admitted(draws: usize, row_bytes: usize) -> bool {
+    draws
+        .div_ceil(64)
+        .checked_mul(8)
+        .and_then(|bytes| bytes.checked_add(row_bytes))
+        .and_then(|bytes| bytes.checked_add(64))
+        .is_some_and(|bytes| bytes <= METADATA_BUDGET_BYTES)
 }
 pub(crate) fn retained_depth_bytes(
     used: u64,
@@ -53,12 +55,15 @@ mod tests {
         assert_eq!(depth_bytes(u32::MAX), None);
     }
     #[test]
-    fn static_key_admission_bounds_counts_names_and_overflow() {
-        assert!(metadata_admitted(64, 400, 80));
-        assert!(!metadata_admitted(MAX_CASTER_KEYS + 1, 1, 0));
-        assert!(!metadata_admitted(1, 400, METADATA_BUDGET_BYTES));
-        assert!(!metadata_admitted(1, 400, usize::MAX));
-        assert!(!metadata_admitted(2, usize::MAX, 0));
+    fn certificate_admission_bounds_bits_rows_and_overflow() {
+        // The former 16,384-key cap no longer limits static sources.
+        assert!(certificate_admitted(16_385, 80));
+        assert!(certificate_admitted(1_000_000, 80));
+        assert!(certificate_admitted(33_000_000, 80));
+        assert!(!certificate_admitted(34_000_000, 80));
+        assert!(!certificate_admitted(1, METADATA_BUDGET_BYTES));
+        assert!(!certificate_admitted(usize::MAX, 0));
+        assert!(!certificate_admitted(1, usize::MAX));
     }
     #[test]
     fn local_depth_budget_preserves_default_faces_and_rejects_larger_layers() {

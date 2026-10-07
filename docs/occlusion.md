@@ -31,7 +31,10 @@ write indexed indirect arguments. The color pass preserves its original order an
 depth buffer. Background and padded pixels, near-plane crossings and equal-depth
 surfaces remain conservative. Small scenes (fewer than 64 visible surfaces or four
 batches), scenes without eligible occluders, and more than 16,384 batches bypass
-the extra passes.
+the extra passes. Occluder selection first rejects surfaces whose conservative
+world-sphere screen bound cannot reach the 2% threshold, then projects only the
+remaining candidates; projected rectangles for the query batches are computed
+only when at least one occluder qualifies.
 
 Transparent surfaces, shader graphs and deformed geometry are not culled by this
 stage. Alpha-masked, transparent, generated-texture, text, sprite, shader-graph and

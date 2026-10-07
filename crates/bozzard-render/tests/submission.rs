@@ -595,3 +595,673 @@ fn native_lit_object_rows_and_numeric_graphs_match_portable_through_multilight_c
     );
     Ok(())
 }
+#[test]
+fn occlusion_bound_prepass_skips_projection_without_qualifying_occluders() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request_prefer_software(&instance(Backend::native())))?;
+    // Reference without occlusion, full projection, and the conservative pre-pass.
+    let mut renderers: [SceneRenderer; 3] =
+        std::array::from_fn(|_| SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm));
+    renderers[0].set_occlusion_enabled(false);
+    renderers[1].set_occlusion_bound_prepass_enabled(false);
+    let mut scene = scene(4096);
+    let projection = glam::camera::rh::proj::directx::perspective(0.9, 1., 0.1, 200.);
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.mesh = MeshKind::Cube;
+        item.model = Mat4::from_translation(Vec3::new(
+            (i % 64) as f32 - 31.5,
+            0.,
+            -((i / 64) as f32) - 8.,
+        )) * Mat4::from_scale(Vec3::splat(0.4));
+    }
+    let views = [
+        Vec3::new(0., 6., 2.),
+        Vec3::new(3., 7., 1.),
+        Vec3::new(-4., 5., 3.),
+    ];
+    let run = |scene: &RenderScene, renderers: &mut [SceneRenderer; 3]| {
+        let frames = renderers
+            .iter_mut()
+            .map(|renderer| capture(&gpu, renderer, scene))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            frames[0].rgba, frames[1].rgba,
+            "full projection changed pixels"
+        );
+        assert_eq!(
+            frames[0].rgba, frames[2].rgba,
+            "bound pre-pass changed pixels"
+        );
+        anyhow::Ok(())
+    };
+    let mut proof = None;
+    for eye in views {
+        scene.view_projection = projection
+            * glam::camera::rh::view::look_at_mat4(eye, Vec3::new(0., 0., -40.), Vec3::Y);
+        run(&scene, &mut renderers)?;
+        let full = renderers[1].frame_stats();
+        let bounded = renderers[2].frame_stats();
+        // Only near cubes whose bound reaches 2% of the view need exact corners.
+        assert!(full.occlusion_projections > 1000, "{full:?}");
+        assert!(
+            bounded.occlusion_projections * 10 < full.occlusion_projections,
+            "{bounded:?}"
+        );
+        assert!(bounded.occlusion_bound_rejections > 1000);
+        assert_eq!(full.occlusion_depth_draws, 0);
+        proof.get_or_insert((
+            full.occlusion_projections,
+            bounded.occlusion_projections,
+            bounded.occlusion_bound_rejections,
+        ));
+    }
+    // A wall in front of the field qualifies: both selections then agree exactly.
+    let mut wall = scene.items[0].clone();
+    wall.motion_id = 100_000;
+    wall.mesh = MeshKind::Quad;
+    wall.model =
+        Mat4::from_translation(Vec3::new(0., 2., -14.)) * Mat4::from_scale(Vec3::new(40., 6., 1.));
+    scene.items.push(wall);
+    let mut depth_draws = 0;
+    for eye in views {
+        scene.view_projection = projection
+            * glam::camera::rh::view::look_at_mat4(eye, Vec3::new(0., 0., -40.), Vec3::Y);
+        for _ in 0..3 {
+            run(&scene, &mut renderers)?;
+            let full = renderers[1].frame_stats();
+            let bounded = renderers[2].frame_stats();
+            assert_eq!(full.occlusion_candidates, bounded.occlusion_candidates);
+            assert_eq!(full.occlusion_depth_draws, bounded.occlusion_depth_draws);
+            assert_eq!(full.visible_surfaces, bounded.visible_surfaces);
+            depth_draws += bounded.occlusion_depth_draws;
+        }
+    }
+    assert!(depth_draws > 0, "the wall must qualify as an occluder");
+    let (full, bounded, rejections) = proof.unwrap();
+    println!(
+        "occlusion_prepass_proof surfaces=4096 full_projections={full} bounded_projections={bounded} rejections={rejections} occluder_depth_draws={depth_draws}"
+    );
+    Ok(())
+}
+#[test]
+#[ignore = "release-mode 140k-surface arena capacity check; run explicitly"]
+fn native_arena_stays_native_past_former_128_mib_cliff() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    renderers[0].set_native_instance_arena_enabled(false);
+    let count = 140_000;
+    let scene = scene(count);
+    for frame in 0..3 {
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        let admitted = stats.native_arena_max_records >= count + count / 4 + 8192;
+        println!(
+            "arena_cliff_proof frame={frame} surfaces={count} max_records={} native={} portable_draws={} native_draws={}",
+            stats.native_arena_max_records,
+            stats.native_instance_arena,
+            renderers[0].frame_stats().color_draws,
+            stats.color_draws,
+        );
+        assert_eq!(stats.native_instance_arena, admitted);
+        if admitted {
+            assert!(stats.color_draws * 10 < renderers[0].frame_stats().color_draws);
+        }
+    }
+    Ok(())
+}
+fn morton(x: u32, z: u32) -> u64 {
+    let spread = |mut v: u64| {
+        v &= 0xffff_ffff;
+        v = (v | (v << 16)) & 0x0000_ffff_0000_ffff;
+        v = (v | (v << 8)) & 0x00ff_00ff_00ff_00ff;
+        v = (v | (v << 4)) & 0x0f0f_0f0f_0f0f_0f0f;
+        v = (v | (v << 2)) & 0x3333_3333_3333_3333;
+        (v | (v << 1)) & 0x5555_5555_5555_5555
+    };
+    spread(x as u64) | (spread(z as u64) << 1)
+}
+/// A perspective field of tinted cubes in Morton (spatially coherent) order.
+fn field(count: usize) -> RenderScene {
+    let side = (count as f32).sqrt().ceil() as u32;
+    let mut cells: Vec<(u32, u32)> = (0..side * side)
+        .map(|i| (i % side, i / side))
+        .take(count)
+        .collect();
+    cells.sort_by_key(|&(x, z)| morton(x, z));
+    let mut scene = scene(count);
+    for (item, (x, z)) in scene.items.iter_mut().zip(cells) {
+        item.mesh = MeshKind::Cube;
+        item.material.lit = true;
+        item.material.tint = [
+            0.2 + (x % 6) as f32 * 0.12,
+            0.3 + (z % 5) as f32 * 0.1,
+            0.4 + ((x + z) % 4) as f32 * 0.1,
+        ];
+        let height = 0.5 + ((x * 7 + z * 13) % 5) as f32 * 0.3;
+        item.model = Mat4::from_translation(Vec3::new(
+            x as f32 - side as f32 * 0.5,
+            height * 0.5,
+            z as f32 - side as f32 * 0.5,
+        )) * Mat4::from_scale(Vec3::new(0.8, height, 0.8));
+    }
+    scene
+}
+fn field_camera(heading: f32, radius: f32) -> Mat4 {
+    glam::camera::rh::proj::directx::perspective(0.9, 1., 0.5, radius * 4.)
+        * glam::camera::rh::view::look_at_mat4(
+            Vec3::new(
+                heading.cos() * radius,
+                radius * 0.45,
+                heading.sin() * radius,
+            ),
+            Vec3::ZERO,
+            Vec3::Y,
+        )
+}
+#[test]
+fn native_perspective_orbit_keeps_a_superset_plan_through_frustum_churn() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    renderers[0].set_incremental_batch_planning_enabled(false);
+    let mut scene = field(20_000);
+    let mut reused = 0;
+    for frame in 0..12 {
+        // Orbit close to the field: a partial, changing set of cubes is in view.
+        scene.view_projection = field_camera(frame as f32 * 0.21, 40.);
+        compare(&gpu, &mut renderers, &scene)?;
+        let stats = renderers[1].frame_stats();
+        assert!(stats.visible_surfaces < 20_000, "frame {frame}");
+        if !stats.native_instance_arena {
+            println!("native arena unavailable; perspective superset proof skipped");
+            return Ok(());
+        }
+        if frame >= 2 {
+            assert!(stats.batch_plan_superset, "frame {frame}: {stats:?}");
+            reused += usize::from(stats.batch_plan_reused);
+        }
+        assert_eq!(renderers[0].frame_stats().batch_plan_rebuilds, 1);
+    }
+    println!(
+        "perspective_superset_proof surfaces=20000 reused={reused}/10 color_draws={} visible={}",
+        renderers[1].frame_stats().color_draws,
+        renderers[1].frame_stats().visible_surfaces
+    );
+    assert_eq!(reused, 10);
+    Ok(())
+}
+fn upload_masked(gpu: &Gpu, renderer: &mut SceneRenderer) -> anyhow::Result<()> {
+    let vertices = [
+        [-0.5, -0.5, 0., 0., 0., 1., 0., 1.],
+        [0.5, -0.5, 0., 0., 0., 1., 1., 1.],
+        [0., 0.5, 0., 0., 0., 1., 0.5, 0.],
+    ];
+    let attrs = [[1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.]; 3];
+    renderer.upload_model(
+        gpu,
+        "leaf",
+        &vertices,
+        &[0, 1, 2],
+        &[ModelPart {
+            source_key: "0000000000000000",
+            start: 0,
+            count: 3,
+            color: [1.; 4],
+            alpha_cutoff: Some(0.5),
+            image: Some(ModelImage {
+                width: 2,
+                height: 1,
+                rgba: &[255, 255, 255, 40, 255, 255, 255, 255],
+            }),
+            shading: Some(ModelShading {
+                vertex_start: 0,
+                vertices: &attrs,
+                metallic: 0.,
+                roughness: 0.8,
+                normal_scale: 1.,
+                occlusion_strength: 1.,
+                emissive_factor: [0.; 3],
+                double_sided: true,
+                base_color_sampler: Default::default(),
+                normal: None,
+                metallic_roughness: None,
+                occlusion: None,
+                emissive: None,
+            }),
+        }],
+    )
+}
+#[test]
+fn native_shadow_lists_match_portable_depth_and_collapse_draws() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers: [SceneRenderer; 2] = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    // Reference: native color, portable 170-record depth uniforms.
+    renderers[0].set_native_shadow_lists_enabled(false);
+    for renderer in &mut renderers {
+        upload_masked(&gpu, renderer)?;
+    }
+    let mut scene = scene(10_000);
+    scene.view_projection =
+        glam::camera::rh::proj::directx::orthographic(-26., 26., -26., 26., 0.1, 60.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 1024;
+    scene.lighting.sun_direction = Vec3::new(0.35, 0.25, 1.).normalize().to_array();
+    for (i, item) in scene.items.iter_mut().enumerate() {
+        item.mesh = MeshKind::Cube;
+        item.material.lit = true;
+        item.model = Mat4::from_translation(Vec3::new(
+            (i % 100) as f32 * 0.5 - 25.,
+            (i / 100) as f32 * 0.5 - 25.,
+            -10. + (i % 7) as f32 * 0.3,
+        )) * Mat4::from_scale(Vec3::splat(0.3));
+    }
+    let template = scene.items[0].clone();
+    let extra = |motion_id: u64, mesh: MeshKind, model: Mat4| {
+        let mut item = template.clone();
+        item.motion_id = motion_id;
+        if let MeshKind::ModelPart(id, part) = &mesh {
+            item.material.texture = TextureKind::ModelPart(id.clone(), *part);
+        }
+        item.mesh = mesh;
+        item.model = model;
+        item
+    };
+    let leaves = (0..64).map(|i| {
+        extra(
+            20_000 + i,
+            MeshKind::ModelPart("leaf".into(), 0),
+            Mat4::from_translation(Vec3::new(
+                (i % 8) as f32 * 3. - 12.,
+                (i / 8) as f32 * 3. - 12.,
+                -6.,
+            )) * Mat4::from_scale(Vec3::splat(1.5)),
+        )
+    });
+    let spheres = (0..32).map(|i| {
+        extra(
+            30_000 + i,
+            MeshKind::Sphere,
+            Mat4::from_translation(Vec3::new(i as f32 * 1.4 - 22., 18., -7.)),
+        )
+    });
+    let floor = extra(
+        40_000,
+        MeshKind::Quad,
+        Mat4::from_translation(Vec3::new(0., 0., -12.)) * Mat4::from_scale(Vec3::splat(52.)),
+    );
+    let extras: Vec<_> = leaves.chain(spheres).chain([floor]).collect();
+    scene.items.extend(extras);
+    scene.lights = vec![
+        LocalLight {
+            directional: false,
+            position: [-8., 6., -3.],
+            direction: [0., 0., -1.],
+            color: [1., 0.8, 0.6],
+            intensity: 30.,
+            range: 30.,
+            spot_angles: Some([30., 45.]),
+            shadows: Some(Default::default()),
+        },
+        LocalLight {
+            directional: false,
+            position: [10., -6., -4.],
+            direction: [0., 0., -1.],
+            color: [0.6, 0.8, 1.],
+            intensity: 30.,
+            range: 25.,
+            spot_angles: None,
+            shadows: Some(Default::default()),
+        },
+    ];
+    let check = |renderers: &mut [SceneRenderer; 2], scene: &RenderScene, context: &str| {
+        let frames = renderers
+            .iter_mut()
+            .map(|renderer| {
+                capture_offscreen(&gpu, 256, 256, |target| {
+                    renderer.draw(&gpu, target, [256; 2], scene)
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            frames[0].rgba, frames[1].rgba,
+            "{context}: native depth changed pixels"
+        );
+        let (portable, native) = (renderers[0].frame_stats(), renderers[1].frame_stats());
+        assert_eq!(
+            portable.shadow_triangles, native.shadow_triangles,
+            "{context}"
+        );
+        anyhow::Ok((portable, native))
+    };
+    let (portable, native) = check(&mut renderers, &scene, "cold")?;
+    if !native.native_instance_arena {
+        println!("native arena unavailable; native shadow proof skipped");
+        return Ok(());
+    }
+    assert!(native.native_shadow_lists && !portable.native_shadow_lists);
+    assert!(
+        native.shadow_draws * 10 < portable.shadow_draws,
+        "{native:?}"
+    );
+    let (_, warm) = check(&mut renderers, &scene, "warm")?;
+    assert_eq!(
+        warm.shadow_instance_uniform_bytes, 0,
+        "no stationary record uploads"
+    );
+    println!(
+        "shadow_native_proof casters={} portable_draws={} native_draws={} mdi_runs={} mdi_draws={}",
+        scene.items.len(),
+        portable.shadow_draws,
+        native.shadow_draws,
+        native.shadow_multi_draw_indirect_runs,
+        native.shadow_multi_draw_indirect_draws,
+    );
+    for tick in 0..4 {
+        for item in &mut scene.items[..8] {
+            item.model *= Mat4::from_translation(Vec3::X * 0.2);
+        }
+        check(&mut renderers, &scene, &format!("moving casters {tick}"))?;
+    }
+    for tick in 0..2 {
+        scene.lights[0].position[0] += 1.5;
+        check(&mut renderers, &scene, &format!("moving spot {tick}"))?;
+    }
+    for renderer in &mut renderers {
+        renderer.set_native_multi_draw_enabled(false);
+    }
+    scene.items[9].model *= Mat4::from_translation(Vec3::Y * 0.2);
+    let (_, direct) = check(&mut renderers, &scene, "direct draws")?;
+    assert_eq!(direct.shadow_multi_draw_indirect_runs, 0);
+    for renderer in &mut renderers {
+        renderer.set_native_multi_draw_enabled(true);
+        renderer.set_shadow_batching_enabled(false);
+    }
+    scene.items[10].model *= Mat4::from_translation(Vec3::Y * 0.2);
+    let (_, unbatched) = check(&mut renderers, &scene, "shadow batching off")?;
+    assert!(!unbatched.native_shadow_lists);
+    for renderer in &mut renderers {
+        renderer.set_shadow_batching_enabled(true);
+    }
+    scene.items[11].model *= Mat4::from_translation(Vec3::Y * 0.2);
+    let (_, restored) = check(&mut renderers, &scene, "shadow batching restored")?;
+    assert!(restored.native_shadow_lists);
+    Ok(())
+}
+#[test]
+fn static_sun_certificate_reuses_beyond_16384_casters() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let mut renderers: [SceneRenderer; 2] = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer
+    });
+    // Reference: every sun map rendered from scratch.
+    renderers[0].set_shadow_preparation_caching_enabled(false);
+    let mut scene = field(20_000);
+    scene.view_projection = field_camera(0.4, 120.);
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 1024;
+    scene.lighting.sun_direction = Vec3::new(0.4, 1., 0.3).normalize().to_array();
+    let mut mover = scene.items[0].clone();
+    mover.motion_id = 50_000;
+    mover.model = Mat4::from_translation(Vec3::new(0., 6., 0.)) * Mat4::from_scale(Vec3::splat(3.));
+    scene.items.push(mover);
+    let check = |renderers: &mut [SceneRenderer; 2], scene: &RenderScene, context: &str| {
+        let frames = renderers
+            .iter_mut()
+            .map(|renderer| {
+                capture_offscreen(&gpu, 192, 192, |target| {
+                    renderer.draw(&gpu, target, [192; 2], scene)
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        assert_eq!(
+            frames[0].rgba, frames[1].rgba,
+            "{context}: static depth changed pixels"
+        );
+        anyhow::Ok(renderers[1].frame_stats())
+    };
+    let step = |renderers: &mut [SceneRenderer; 2], scene: &mut RenderScene, context: &str| {
+        scene.items.last_mut().unwrap().model *= Mat4::from_translation(Vec3::X * 0.4);
+        check(renderers, scene, context)
+    };
+    check(&mut renderers, &scene, "cold")?;
+    let mut reused = 0;
+    for tick in 0..6 {
+        let stats = step(&mut renderers, &mut scene, &format!("tick {tick}"))?;
+        if tick > 0 {
+            assert!(stats.sun_static_cache_reused, "tick {tick}: {stats:?}");
+            assert_eq!(stats.sun_static_casters, 20_000);
+            assert_eq!(stats.sun_dynamic_casters, 1);
+            reused += 1;
+        }
+    }
+    println!("static_certificate_proof static_casters=20000 moving=1 reused_ticks={reused}/5");
+    // Each edit forces exactly one rebuild; the next moving tick reuses again.
+    type Edit = fn(&mut RenderScene);
+    let edits: [(&str, Edit); 3] = [
+        ("uv scale", |scene| {
+            scene.items[7].material.uv_scale = [2., 1.]
+        }),
+        ("swap", |scene| scene.items.swap(11, 12)),
+        ("insert at front", |scene| {
+            let mut extra = scene.items[3].clone();
+            extra.motion_id = 60_000;
+            extra.model *= Mat4::from_translation(Vec3::Y * 3.);
+            scene.items.insert(0, extra);
+        }),
+    ];
+    for (name, edit) in edits {
+        edit(&mut scene);
+        let rebuilt = step(&mut renderers, &mut scene, name)?;
+        assert!(!rebuilt.sun_static_cache_reused, "{name}: {rebuilt:?}");
+        step(&mut renderers, &mut scene, name)?;
+        let again = step(&mut renderers, &mut scene, name)?;
+        assert!(again.sun_static_cache_reused, "{name}: {again:?}");
+    }
+    // Rebuilding the snapshot instead of reusing it still compares every
+    // caster, so unchanged static depth stays certified through the switch.
+    renderers[1].set_shadow_metadata_reuse_enabled(false);
+    for tick in 0..3 {
+        let stats = step(&mut renderers, &mut scene, "metadata reuse off")?;
+        assert!(stats.sun_static_cache_reused, "tick {tick}: {stats:?}");
+    }
+    Ok(())
+}
+#[test]
+#[ignore = "release-mode 140k-cube perspective shadow benchmark; run explicitly"]
+fn scale_shadow_benchmark() -> anyhow::Result<()> {
+    let gpu = pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))?;
+    let count = std::env::var("BOZZARD_SCALE_CUBES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(140_000);
+    // portable: the 64-record path main fell back to past ~129k surfaces;
+    // native-color: native color batches over portable 170-record depth;
+    // optimized: native color plus native shadow lists and certificates.
+    let names = ["portable", "native-color", "optimized"];
+    let mut renderers: [SceneRenderer; 3] = std::array::from_fn(|_| {
+        let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+        renderer.set_occlusion_enabled(false);
+        renderer.set_profiling_enabled(true);
+        renderer
+    });
+    renderers[0].set_native_instance_arena_enabled(false);
+    renderers[1].set_native_shadow_lists_enabled(false);
+    if std::env::var_os("BOZZARD_SCALE_NO_STATIC").is_some() {
+        // Re-render every shadow caster each frame to isolate depth submission.
+        for renderer in &mut renderers {
+            renderer.set_shadow_preparation_caching_enabled(false);
+        }
+    }
+    let mut scene = field(count);
+    let side = (count as f32).sqrt();
+    scene.lighting.shadows = true;
+    scene.lighting.shadow_resolution = 2048;
+    scene.lighting.sun_direction = Vec3::new(0.4, 1., 0.3).normalize().to_array();
+    let mut floor = scene.items[0].clone();
+    floor.motion_id = 900_000;
+    floor.mesh = MeshKind::Quad;
+    floor.model = Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2)
+        * Mat4::from_scale(Vec3::splat(side * 1.2));
+    scene.items.push(floor);
+    let mut mover = scene.items[0].clone();
+    mover.motion_id = 900_001;
+    scene.items.push(mover);
+    let place = |scene: &mut RenderScene, frame: usize| {
+        let angle = frame as f32 * 0.02;
+        scene.view_projection = field_camera(angle, side * 0.55);
+        scene.items.last_mut().unwrap().model = Mat4::from_translation(Vec3::new(
+            (angle * 3.).cos() * side * 0.2,
+            4.,
+            (angle * 3.).sin() * side * 0.2,
+        )) * Mat4::from_scale(Vec3::splat(3.));
+    };
+    place(&mut scene, 0);
+    let first = renderers
+        .iter_mut()
+        .map(|renderer| {
+            capture_offscreen(&gpu, 320, 320, |target| {
+                renderer.draw(&gpu, target, [320; 2], &scene)
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    assert_eq!(first[0].rgba, first[1].rgba, "native color changed pixels");
+    assert_eq!(
+        first[0].rgba, first[2].rgba,
+        "native shadows changed pixels"
+    );
+    let target = gpu
+        .device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("scale shadow benchmark target"),
+            size: wgpu::Extent3d {
+                width: 1280,
+                height: 720,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&Default::default());
+    #[derive(Default)]
+    struct Samples {
+        cpu: Vec<f64>,
+        prepare: Vec<f64>,
+        planning: Vec<f64>,
+        encode: Vec<f64>,
+        wall: Vec<f64>,
+        shadow_gpu: Vec<f64>,
+        total_gpu: Vec<f64>,
+        plan_reused: usize,
+        static_reused: usize,
+        frames: usize,
+    }
+    let mut samples: [Samples; 3] = Default::default();
+    let warmup = 10;
+    let measured = 60;
+    for frame in 1..=warmup + measured {
+        place(&mut scene, frame);
+        for offset in 0..3 {
+            let mode = (frame + offset) % 3;
+            if std::env::var("BOZZARD_SCALE_ONLY").is_ok_and(|only| only != names[mode]) {
+                continue;
+            }
+            let renderer = &mut renderers[mode];
+            let start = std::time::Instant::now();
+            renderer.draw(&gpu, &target, [1280, 720], &scene)?;
+            gpu.wait()?;
+            let wall = start.elapsed().as_secs_f64() * 1000.;
+            let stats = renderer.frame_stats();
+            for timing in renderer.poll_gpu_profiles(&gpu)? {
+                if frame <= warmup || timing.failed {
+                    continue;
+                }
+                let pass = |shadow: bool| {
+                    timing
+                        .passes
+                        .iter()
+                        .filter(|p| !shadow || p.name.contains("shadow"))
+                        .filter_map(|p| p.milliseconds)
+                        .sum::<f64>()
+                };
+                samples[mode].shadow_gpu.push(pass(true));
+                samples[mode].total_gpu.push(pass(false));
+            }
+            if frame > warmup {
+                let s = &mut samples[mode];
+                s.cpu.push(stats.cpu_ms);
+                s.prepare.push(stats.prepare_ms);
+                s.planning.push(stats.batch_plan_ms);
+                s.encode.push(stats.encode_ms);
+                s.wall.push(wall);
+                s.plan_reused += usize::from(stats.batch_plan_reused);
+                s.static_reused += usize::from(stats.sun_static_cache_reused);
+                s.frames += 1;
+            }
+        }
+    }
+    let median = |values: &[f64]| {
+        let mut values = values.to_vec();
+        values.sort_by(f64::total_cmp);
+        values.get(values.len() / 2).copied().unwrap_or(f64::NAN)
+    };
+    if std::env::var_os("BOZZARD_SCALE_STAGES").is_some() {
+        for (mode, renderer) in renderers.iter().enumerate() {
+            let s = renderer.frame_stats();
+            println!(
+                "scale_stages mode={} surface_prepare_ms={:.2} visibility_ms={:.2} plan_ms={:.2} occlusion_ms={:.2} shadow_state_ms={:.2} sun_fit_ms={:.2} prepare_ms={:.2}",
+                names[mode],
+                s.surface_prepare_ms,
+                s.visibility_ms,
+                s.batch_plan_ms,
+                s.occlusion_prepare_ms,
+                s.shadow_state_ms,
+                s.sun_fit_ms,
+                s.prepare_ms
+            );
+        }
+    }
+    for (mode, s) in samples.iter().enumerate() {
+        let stats = renderers[mode].frame_stats();
+        println!(
+            "scale_shadow mode={} surfaces={} visible={} arena={} color_draws={} color_mdi_runs={} bundle_replays={} shadow_draws={} shadow_mdi_runs={} shadow_mdi_draws={} plan_reused={}/{} static_sun_reused={}/{} cpu_ms={:.2} prepare_ms={:.2} plan_ms={:.3} encode_ms={:.2} wall_ms={:.2} gpu_shadow_ms={:.2} gpu_total_ms={:.2}",
+            names[mode],
+            stats.surfaces,
+            stats.visible_surfaces,
+            stats.native_instance_arena,
+            stats.color_draws,
+            stats.multi_draw_indirect_runs,
+            stats.render_bundle_replays,
+            stats.shadow_draws,
+            stats.shadow_multi_draw_indirect_runs,
+            stats.shadow_multi_draw_indirect_draws,
+            s.plan_reused,
+            s.frames,
+            s.static_reused,
+            s.frames,
+            median(&s.cpu),
+            median(&s.prepare),
+            median(&s.planning),
+            median(&s.encode),
+            median(&s.wall),
+            median(&s.shadow_gpu),
+            median(&s.total_gpu),
+        );
+    }
+    Ok(())
+}

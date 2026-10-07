@@ -1,0 +1,106 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "Bozzard tools/gen_pagoda.py"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "tree-maple-1p2-maple-4e3220",
+   "mesh": 0
+  }
+ ],
+ "meshes": [
+  {
+   "name": "tree-maple-1p2-maple-4e3220",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1
+     },
+     "indices": 2,
+     "material": 0
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "c-4e3220",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.076185,
+     0.031896,
+     0.014444,
+     1.0
+    ],
+    "metallicFactor": 0.0,
+    "roughnessFactor": 1.0
+   }
+  }
+ ],
+ "buffers": [
+  {
+   "uri": "data:application/octet-stream;base64,AAAAPwAAAEAAAAC/AAAAPwAAQEAAAAC/AAAAPwAAQEAAAAA/AAAAPwAAAEAAAAA/AAAAvwAAAEAAAAC/AAAAvwAAAEAAAAA/AAAAvwAAQEAAAAA/AAAAvwAAQEAAAAC/AAAAvwAAAEAAAAA/AAAAPwAAAEAAAAA/AAAAPwAAQEAAAAA/AAAAvwAAQEAAAAA/AAAAvwAAAEAAAAC/AAAAvwAAQEAAAAC/AAAAPwAAQEAAAAC/AAAAPwAAAEAAAAC/AAAAPwAAgEAAAAC/AAAAPwAAoEAAAAC/AAAAPwAAoEAAAAA/AAAAPwAAgEAAAAA/AAAAvwAAgEAAAAC/AAAAvwAAgEAAAAA/AAAAvwAAoEAAAAA/AAAAvwAAoEAAAAC/AAAAvwAAgEAAAAA/AAAAPwAAgEAAAAA/AAAAPwAAoEAAAAA/AAAAvwAAoEAAAAA/AAAAvwAAgEAAAAC/AAAAvwAAoEAAAAC/AAAAPwAAoEAAAAC/AAAAPwAAgEAAAAC/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8AEAARABIAEAASABMAFAAVABYAFAAWABcAGAAZABoAGAAaABsAHAAdAB4AHAAeAB8A",
+   "byteLength": 864
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 384,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 384,
+   "byteLength": 384,
+   "target": 34962
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 768,
+   "byteLength": 96,
+   "target": 34963
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 32,
+   "type": "VEC3",
+   "min": [
+    -0.5,
+    2.0,
+    -0.5
+   ],
+   "max": [
+    0.5,
+    5.0,
+    0.5
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 32,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5123,
+   "count": 48,
+   "type": "SCALAR"
+  }
+ ]
+}

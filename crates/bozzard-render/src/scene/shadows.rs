@@ -1,4 +1,5 @@
 use super::*;
+pub(super) mod native;
 mod singleton;
 
 /// Exact depth-producing state, independent of camera, exposure and light color.
@@ -42,14 +43,22 @@ pub(super) struct Comparison {
     pub unchanged: Vec<bool>,
 }
 impl Comparison {
-    pub fn cold(count: usize) -> Self {
+    /// A cold comparison over retained mask storage, avoiding per-frame allocation.
+    pub fn reuse(count: usize, (mut stable_mask, mut unchanged): (Vec<bool>, Vec<bool>)) -> Self {
+        stable_mask.clear();
+        stable_mask.resize(count, false);
+        unchanged.clear();
+        unchanged.resize(count, false);
         Self {
             whole: false,
             sun: false,
             opaque: false,
-            stable_mask: vec![false; count],
-            unchanged: vec![false; count],
+            stable_mask,
+            unchanged,
         }
+    }
+    pub fn into_buffers(self) -> (Vec<bool>, Vec<bool>) {
+        (self.stable_mask, self.unchanged)
     }
 }
 fn sun_key(scene: &RenderScene) -> (bool, u32, [f32; 3], f32, f32) {
@@ -124,13 +133,23 @@ impl ShadowCaster {
 }
 
 impl ShadowFrame {
+    #[cfg(test)]
     pub fn compare(
         &self,
         scene: &RenderScene,
         draws: &[PreparedDraw],
         culling: bool,
     ) -> Comparison {
-        let mut result = Comparison::cold(draws.len());
+        self.compare_into(scene, draws, culling, Default::default())
+    }
+    pub fn compare_into(
+        &self,
+        scene: &RenderScene,
+        draws: &[PreparedDraw],
+        culling: bool,
+        buffers: (Vec<bool>, Vec<bool>),
+    ) -> Comparison {
+        let mut result = Comparison::reuse(draws.len(), buffers);
         let mut previous = self.casters.iter();
         let mut opaque = self.casters.iter().filter(|c| !c.transparent);
         let mut all_same = true;
@@ -322,6 +341,10 @@ pub(super) struct Shadows {
     pub uniform_row: Vec<u8>,
     pub sun_cache: sun_cache::Cache,
     pub sun_fit: sun_fit::Cache,
+    pub native: native::NativeShadows,
+    /// Per-pass caster masks reused across frames instead of reallocated.
+    accepted_scratch: std::cell::RefCell<Vec<bool>>,
+    covered_scratch: std::cell::RefCell<Vec<bool>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -337,6 +360,8 @@ struct PipelineSpec {
     point: bool,
     compact: bool,
     coverage: ShadowCoverage,
+    /// Storage-table records selected through per-pass instance IDs.
+    native: bool,
 }
 
 fn proven_opaque(renderer: &SceneRenderer, draw: &PreparedDraw) -> bool {
@@ -410,6 +435,7 @@ pub(super) fn pipeline(
             point,
             compact,
             coverage: ShadowCoverage::Masked,
+            native: false,
         },
     )
 }
@@ -425,6 +451,7 @@ fn pipeline_variant(
         point,
         compact,
         coverage,
+        native,
     } = spec;
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("shadow pipeline layout"),
@@ -433,7 +460,14 @@ fn pipeline_variant(
     });
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("depth caster"),
-        source: wgpu::ShaderSource::Wgsl(module_text(instanced, compact).into()),
+        source: wgpu::ShaderSource::Wgsl(
+            if native {
+                native::module_text()
+            } else {
+                module_text(instanced, compact)
+            }
+            .into(),
+        ),
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(if instanced {
@@ -713,6 +747,9 @@ impl Shadows {
             uniform_row: Vec::new(),
             sun_cache: sun_cache::Cache::default(),
             sun_fit: sun_fit::Cache::default(),
+            native: Default::default(),
+            accepted_scratch: Default::default(),
+            covered_scratch: Default::default(),
         }
     }
     pub fn rebind(&mut self, gpu: &Gpu) {
@@ -800,18 +837,24 @@ pub(super) fn corners(bounds: [Vec3; 2]) -> impl Iterator<Item = Vec3> {
 /// depth range, and the world size of one shadow texel. A fitted box spreads the map's fixed
 /// resolution over whatever it covers, so that texel size is what the bias has to keep up with.
 fn fit(
-    points: impl Iterator<Item = Vec3>,
+    points: impl Iterator<Item = (Vec3, bool)>,
     direction: Vec3,
     resolution: u32,
 ) -> Option<(Mat4, f32, f32)> {
     let view = sun_view(direction);
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = -min;
-    for p in points {
+    let mut far = f32::INFINITY;
+    for (p, receiver) in points {
         let p = view.transform_point3(p);
-        min = min.min(p);
-        max = max.max(p);
+        if receiver {
+            far = far.min(p.z);
+        } else {
+            min = min.min(p);
+            max = max.max(p);
+        }
     }
+    let (min, max) = sun_fit::combine(min, max, far);
     fit_extents(min, max, view, resolution)
 }
 pub(super) fn sun_view(direction: Vec3) -> Mat4 {
@@ -929,6 +972,16 @@ impl SceneRenderer {
         let fit_started = std::time::Instant::now();
         let light = scene.lighting;
         let direction = Vec3::from(light.sun_direction).normalize();
+        let far_only = self.sun_fit_transparent_far_only;
+        let role = |d: &PreparedDraw| {
+            if !d.object.material.lit {
+                sun_fit::FitRole::None
+            } else if far_only && d.transparent {
+                sun_fit::FitRole::Far
+            } else {
+                sun_fit::FitRole::Box
+            }
+        };
         let cached = (self.sun_fit_caching && self.state_caching).then(|| {
             self.shadows.sun_fit.prepare(
                 sun_view(direction),
@@ -936,7 +989,7 @@ impl SceneRenderer {
                 draws
                     .iter()
                     .zip(bounds)
-                    .map(|(d, b)| (d.object.model, *b, d.object.material.lit)),
+                    .map(|(d, b)| (d.object.model, *b, role(d))),
             )
         });
         let fit = if let Some(cached) = &cached
@@ -953,10 +1006,11 @@ impl SceneRenderer {
             fit(
                 draws
                     .iter()
-                    .filter(|d| d.object.material.lit)
+                    .filter(|d| role(d) != sun_fit::FitRole::None)
                     .flat_map(|d| {
+                        let receiver = role(d) == sun_fit::FitRole::Far;
                         corners(self.mesh_for(&d.object).bounds)
-                            .map(|p| d.object.model.transform_point3(p))
+                            .map(move |p| (d.object.model.transform_point3(p), receiver))
                     }),
                 direction,
                 light.shadow_resolution,
@@ -1020,21 +1074,19 @@ impl SceneRenderer {
         };
         let mut counts = (0, 0);
         if let Some(plan) = plan.filter(|p| p.rebuild) {
-            let accepted = plan
-                .static_mask
-                .iter()
-                .enumerate()
-                .map(|(i, &stable)| {
-                    stable
-                        && !draws[i].transparent
-                        && draws[i].object.material.lit
-                        && !self.shadow_rejected(&draws[i])
-                })
-                .collect::<Vec<_>>();
+            let mut accepted = self.shadows.accepted_scratch.borrow_mut();
+            accepted.clear();
+            accepted.extend(plan.static_mask.iter().enumerate().map(|(i, &stable)| {
+                stable
+                    && !draws[i].transparent
+                    && draws[i].object.material.lit
+                    && !self.shadow_rejected(&draws[i])
+            }));
             let compact = self
                 .shadows
                 .sun_cache
                 .prepare_ranges(self, gpu, draws, batches, &accepted, false);
+            drop(accepted);
             let mut pass = encoder.begin_render_pass(&descriptor(
                 self.shadows.sun_cache.depth(),
                 "sun static shadow casters",
@@ -1051,17 +1103,14 @@ impl SceneRenderer {
             );
         }
         let compact = plan.and_then(|plan| {
-            let accepted = plan
-                .dynamic_mask
-                .iter()
-                .enumerate()
-                .map(|(i, &dynamic)| {
-                    dynamic
-                        && !draws[i].transparent
-                        && draws[i].object.material.lit
-                        && !self.shadow_rejected(&draws[i])
-                })
-                .collect::<Vec<_>>();
+            let mut accepted = self.shadows.accepted_scratch.borrow_mut();
+            accepted.clear();
+            accepted.extend(plan.dynamic_mask.iter().enumerate().map(|(i, &dynamic)| {
+                dynamic
+                    && !draws[i].transparent
+                    && draws[i].object.material.lit
+                    && !self.shadow_rejected(&draws[i])
+            }));
             self.shadows
                 .sun_cache
                 .prepare_ranges(self, gpu, draws, batches, &accepted, true)
@@ -1168,6 +1217,7 @@ impl SceneRenderer {
                                         point,
                                         compact,
                                         coverage,
+                                        native: false,
                                     },
                                 )
                             });
@@ -1202,10 +1252,19 @@ impl SceneRenderer {
                 counts.1 += u64::from(mesh.count / 3) * count as u64;
             }
         };
-        let mut covered = vec![false; draws.len()];
+        let native = self.native_shadows_active();
+        let mut native_groups = Vec::new();
+        let mut covered = self.shadows.covered_scratch.borrow_mut();
+        covered.clear();
+        covered.resize(draws.len(), false);
         for batch in batches {
             for &index in &batch.indices {
                 covered[index] = true;
+            }
+            // Keyed depth groups read the native caster table after this loop.
+            if native && batch.slot.is_some() {
+                native_groups.push(batch);
+                continue;
             }
             // Instance indices address the original packed buffer, including a
             // nonzero first instance. Skip rejected members without repacking
@@ -1237,7 +1296,21 @@ impl SceneRenderer {
                 submit(index, 0..1, None);
             }
         }
+        if !native_groups.is_empty() {
+            let work = self
+                .shadows
+                .native
+                .encode(self, pass, draws, &native_groups, point, &casts);
+            counts.0 += work.0;
+            counts.1 += work.1;
+        }
         counts
+    }
+    /// Shadow depth groups draw from the native caster table and ID streams.
+    pub(super) fn native_shadows_active(&self) -> bool {
+        self.shadows.native.enabled
+            && self.instancing.arena_enabled()
+            && self.instancing.shadow_batching()
     }
 }
 #[cfg(test)]
@@ -1543,6 +1616,10 @@ mod tests {
             SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm)
         });
         renderers[0].set_opaque_shadow_specialization_enabled(false);
+        for renderer in &mut renderers {
+            // Inspects the portable variant cache; native coverage has its own proof.
+            renderer.set_native_shadow_lists_enabled(false);
+        }
         let vertices = [
             [-0.4, -0.4, 0., 0., 0., 1., 0., 1.],
             [0.4, -0.4, 0., 0., 0., 1., 1., 1.],
@@ -1729,7 +1806,8 @@ mod tests {
     fn bounds_fit_contains_corners_and_handles_vertical_sun() {
         let bounds = [Vec3::new(-20., -2., -10.), Vec3::new(25., 12., 10.)];
         for direction in [Vec3::Y, -Vec3::Y, Vec3::new(0.4, 0.8, 0.6).normalize()] {
-            let (m, range, texel) = fit(corners(bounds), direction, 2048).unwrap();
+            let (m, range, texel) =
+                fit(corners(bounds).map(|p| (p, false)), direction, 2048).unwrap();
             assert!(range > 0. && texel > 0.);
             for p in corners(bounds) {
                 let q = m.project_point3(p);
@@ -1752,7 +1830,8 @@ mod tests {
         let bias = |authored: f32, texel: f32, range: f32| (authored + texel) / range;
         let mut grew = false;
         for bounds in [arena, stray] {
-            let (_, range, texel) = fit(corners(bounds), direction, 2048).unwrap();
+            let (_, range, texel) =
+                fit(corners(bounds).map(|p| (p, false)), direction, 2048).unwrap();
             // Floor faces sit 0.85 to the sun, so a slanted texel misreads 0.62 texels of depth.
             let error = 0.62 * texel / range;
             assert!(bias(0.005, texel, range) >= error, "{texel} {range}");
@@ -1791,7 +1870,7 @@ mod fit_cache_tests {
                 (
                     Mat4::from_translation(Vec3::new(random(), random(), random())),
                     bounds,
-                    true,
+                    sun_fit::FitRole::Box,
                 )
             })
             .collect();
@@ -1801,7 +1880,12 @@ mod fit_cache_tests {
                 * Mat4::from_rotation_y(random())
                 * Mat4::from_scale(Vec3::new(random(), random(), random()));
             if tick % 17 == 0 {
-                inputs[index].2 = !inputs[index].2;
+                // Cycle casters, transparent receivers and unlit surfaces.
+                inputs[index].2 = match inputs[index].2 {
+                    sun_fit::FitRole::Box => sun_fit::FitRole::Far,
+                    sun_fit::FitRole::Far => sun_fit::FitRole::None,
+                    sun_fit::FitRole::None => sun_fit::FitRole::Box,
+                };
             }
             if tick % 29 == 0 {
                 inputs[index].1[1].x += 0.125;
@@ -1820,28 +1904,37 @@ mod fit_cache_tests {
             let expected = fit(
                 inputs
                     .iter()
-                    .filter(|i| i.2)
-                    .flat_map(|(m, b, _)| corners(*b).map(|p| m.transform_point3(p))),
+                    .filter(|i| i.2 != sun_fit::FitRole::None)
+                    .flat_map(|(m, b, role)| {
+                        let receiver = *role == sun_fit::FitRole::Far;
+                        corners(*b).map(move |p| (m.transform_point3(p), receiver))
+                    }),
                 direction,
                 resolution,
             );
             let result = cache.prepare(sun_view(direction), resolution, inputs.iter().copied());
             assert!(!result.fallback);
             assert_eq!(bits(result.fit), bits(expected), "tick {tick}");
-            if tick % 100 != 0 && inputs.iter().filter(|i| i.2).count() > 4 {
+            if tick % 100 != 0
+                && inputs
+                    .iter()
+                    .filter(|i| i.2 != sun_fit::FitRole::None)
+                    .count()
+                    > 4
+            {
                 assert!(result.reused > 0, "tick {tick}");
             }
         }
         for scale in [0., -0., 1e-20, 1e20] {
             for item in &mut inputs {
                 item.0 = Mat4::from_scale(Vec3::splat(scale));
-                item.2 = true;
+                item.2 = sun_fit::FitRole::Box;
             }
             let result = cache.prepare(sun_view(Vec3::Z), 256, inputs.iter().copied());
             let expected = fit(
                 inputs
                     .iter()
-                    .flat_map(|(m, b, _)| corners(*b).map(|p| m.transform_point3(p))),
+                    .flat_map(|(m, b, _)| corners(*b).map(|p| (m.transform_point3(p), false))),
                 Vec3::Z,
                 256,
             );
@@ -1857,7 +1950,7 @@ mod fit_cache_tests {
         inputs.push((
             Mat4::from_scale(Vec3::splat(3e38)),
             [Vec3::splat(-2.), Vec3::splat(2.)],
-            true,
+            sun_fit::FitRole::Box,
         ));
         assert!(
             cache

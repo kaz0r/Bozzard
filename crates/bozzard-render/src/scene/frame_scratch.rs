@@ -7,6 +7,9 @@ pub(super) struct Scratch {
     pub items: Vec<bool>,
     pub individual: Vec<bool>,
     pub shadow: Vec<bool>,
+    /// Shadow comparison masks, returned after the frame's shadow passes.
+    pub shadow_stable: Vec<bool>,
+    pub shadow_unchanged: Vec<bool>,
 }
 impl Scratch {
     pub fn compact(&mut self) {
@@ -21,6 +24,8 @@ impl Scratch {
         compact(&mut self.items);
         compact(&mut self.individual);
         compact(&mut self.shadow);
+        compact(&mut self.shadow_stable);
+        compact(&mut self.shadow_unchanged);
     }
     pub fn bytes(&self) -> usize {
         self.bounds.capacity() * std::mem::size_of::<[Vec3; 2]>()
@@ -29,5 +34,7 @@ impl Scratch {
             + self.items.capacity()
             + self.individual.capacity()
             + self.shadow.capacity()
+            + self.shadow_stable.capacity()
+            + self.shadow_unchanged.capacity()
     }
 }

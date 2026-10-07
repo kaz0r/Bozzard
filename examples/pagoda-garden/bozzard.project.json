@@ -1,0 +1,6 @@
+{
+ "version": 1,
+ "name": "Pagoda Garden",
+ "start_scene": "scenes/pagoda.json",
+ "view": "3d"
+}

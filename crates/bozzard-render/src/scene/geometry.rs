@@ -174,23 +174,147 @@ enum MotionMesh {
     ModelPart(String, usize),
     Text,
 }
-impl From<&MeshKind> for MotionMesh {
-    fn from(mesh: &MeshKind) -> Self {
+/// A borrowed motion key: compares and hashes without cloning asset IDs.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum MotionMeshRef<'a> {
+    Sprite(u64),
+    Quad,
+    Cube,
+    Sphere,
+    Imported(&'a str),
+    ModelPart(&'a str, usize),
+    Text,
+}
+impl<'a> From<&'a MeshKind> for MotionMeshRef<'a> {
+    fn from(mesh: &'a MeshKind) -> Self {
         match mesh {
             MeshKind::Quad => Self::Quad,
             MeshKind::Cube => Self::Cube,
             MeshKind::Sphere => Self::Sphere,
-            MeshKind::Imported(id) => Self::Imported(id.clone()),
-            MeshKind::ModelPart(id, part) => Self::ModelPart(id.clone(), *part),
+            MeshKind::Imported(id) => Self::Imported(id),
+            MeshKind::ModelPart(id, part) => Self::ModelPart(id, *part),
             MeshKind::Sprite(sprite) => Self::Sprite(sprite.geometry.key()),
             MeshKind::Text(_) | MeshKind::SharedText(_) => Self::Text,
+        }
+    }
+}
+impl From<MotionMeshRef<'_>> for MotionMesh {
+    fn from(mesh: MotionMeshRef<'_>) -> Self {
+        match mesh {
+            MotionMeshRef::Quad => Self::Quad,
+            MotionMeshRef::Cube => Self::Cube,
+            MotionMeshRef::Sphere => Self::Sphere,
+            MotionMeshRef::Imported(id) => Self::Imported(id.to_owned()),
+            MotionMeshRef::ModelPart(id, part) => Self::ModelPart(id.to_owned(), part),
+            MotionMeshRef::Sprite(key) => Self::Sprite(key),
+            MotionMeshRef::Text => Self::Text,
+        }
+    }
+}
+impl MotionMesh {
+    fn as_ref(&self) -> MotionMeshRef<'_> {
+        match self {
+            Self::Quad => MotionMeshRef::Quad,
+            Self::Cube => MotionMeshRef::Cube,
+            Self::Sphere => MotionMeshRef::Sphere,
+            Self::Imported(id) => MotionMeshRef::Imported(id),
+            Self::ModelPart(id, part) => MotionMeshRef::ModelPart(id, *part),
+            Self::Sprite(key) => MotionMeshRef::Sprite(*key),
+            Self::Text => MotionMeshRef::Text,
+        }
+    }
+}
+fn motion_fingerprint(motion_id: u64, mesh: MotionMeshRef<'_>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    motion_id.hash(&mut hash);
+    mesh.hash(&mut hash);
+    hash.finish()
+}
+/// Previous-frame poses retained by draw position. Stable draw order resolves
+/// each lookup positionally; reordered or duplicated keys use a fingerprint
+/// index that is rebuilt only when the key list changes. Duplicate keys keep
+/// the former map semantics: the last occurrence wins.
+#[derive(Default)]
+struct Poses {
+    keys: Vec<(u64, MotionMesh)>,
+    models: Vec<Mat4>,
+    index: HashMap<u64, u32>,
+    duplicates: bool,
+    collisions: bool,
+    key_updates: usize,
+}
+impl Poses {
+    fn clear(&mut self) {
+        self.keys.clear();
+        self.models.clear();
+        self.index.clear();
+        self.duplicates = false;
+        self.collisions = false;
+    }
+    fn get(&self, index: usize, item: &DrawItem) -> Option<Mat4> {
+        let mesh = MotionMeshRef::from(&item.mesh);
+        let matches =
+            |i: usize| self.keys[i].0 == item.motion_id && self.keys[i].1.as_ref() == mesh;
+        if !self.duplicates && index < self.keys.len() && matches(index) {
+            return Some(self.models[index]);
+        }
+        if self.collisions {
+            return (0..self.keys.len())
+                .rev()
+                .find(|&i| matches(i))
+                .map(|i| self.models[i]);
+        }
+        let candidate = *self.index.get(&motion_fingerprint(item.motion_id, mesh))? as usize;
+        matches(candidate).then(|| self.models[candidate])
+    }
+    fn update(&mut self, draws: &[PreparedDraw]) {
+        let mut changed = self.keys.len() != draws.len();
+        self.key_updates = 0;
+        for (index, draw) in draws.iter().enumerate() {
+            let object = &draw.object;
+            let mesh = MotionMeshRef::from(&object.mesh);
+            if index == self.keys.len() {
+                self.keys.push((object.motion_id, mesh.into()));
+                self.models.push(object.model);
+                self.key_updates += 1;
+                continue;
+            }
+            let key = &mut self.keys[index];
+            if key.0 != object.motion_id || key.1.as_ref() != mesh {
+                *key = (object.motion_id, mesh.into());
+                self.key_updates += 1;
+                changed = true;
+            }
+            self.models[index] = object.model;
+        }
+        self.keys.truncate(draws.len());
+        self.models.truncate(draws.len());
+        if !changed && self.key_updates == 0 {
+            return;
+        }
+        self.index.clear();
+        self.duplicates = false;
+        self.collisions = false;
+        for (index, (motion_id, mesh)) in self.keys.iter().enumerate() {
+            if *motion_id == 0 {
+                continue;
+            }
+            let fingerprint = motion_fingerprint(*motion_id, mesh.as_ref());
+            if let Some(previous) = self.index.insert(fingerprint, index as u32) {
+                if self.keys[previous as usize] == self.keys[index] {
+                    self.duplicates = true;
+                } else {
+                    self.collisions = true;
+                }
+            }
         }
     }
 }
 #[derive(Default)]
 pub(super) struct MotionHistory {
     previous: Option<PreviousFrame>,
-    poses: BTreeMap<(u64, MotionMesh), Mat4>,
+    poses: Poses,
     sample: u32,
     pending: Option<PendingFrame>,
 }
@@ -292,34 +416,28 @@ impl MotionHistory {
         });
         (jittered, frame)
     }
-    pub fn previous_model(&self, item: &DrawItem) -> Option<Mat4> {
+    pub fn previous_model(&self, index: usize, item: &DrawItem) -> Option<Mat4> {
         if item.motion_id == 0 {
             Some(item.model)
         } else if self.pending.as_ref().is_some_and(|pending| pending.reset) {
             None
         } else {
-            self.poses
-                .get(&(item.motion_id, MotionMesh::from(&item.mesh)))
-                .copied()
+            self.poses.get(index, item)
         }
+    }
+    /// Key rows rewritten by the last `finish`; zero for a stable draw order.
+    pub fn key_updates(&self) -> usize {
+        self.poses.key_updates
     }
     pub fn finish(&mut self, draws: &[PreparedDraw]) {
         let pending = self.pending.take().expect("frame history prepared");
         self.previous = pending.previous;
         self.sample = pending.sample;
         if self.previous.is_some() {
-            self.poses = draws
-                .iter()
-                .filter(|d| d.object.motion_id != 0)
-                .map(|d| {
-                    (
-                        (d.object.motion_id, MotionMesh::from(&d.object.mesh)),
-                        d.object.model,
-                    )
-                })
-                .collect();
+            self.poses.update(draws);
         } else {
             self.poses.clear();
+            self.poses.key_updates = 0;
         }
     }
     pub fn abort(&mut self) {
@@ -338,14 +456,23 @@ fn frame_signature(scene: &RenderScene) -> u64 {
     floats(scene.view_projection.to_cols_array(), &mut hash);
     // Only small settings use Debug; geometry and potentially large GI grids
     // are hashed directly, with no per-frame scene serialization/allocation.
-    format!(
-        "{:?}{:?}{:?}{:?}{:?}",
-        scene.display, scene.lighting, scene.fog, scene.environment, scene.lights
-    )
-    .hash(&mut hash);
+    struct HashWriter<'a, H>(&'a mut H);
+    impl<H: Hasher> std::fmt::Write for HashWriter<'_, H> {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            self.0.write(text.as_bytes());
+            Ok(())
+        }
+    }
+    let _ = std::fmt::Write::write_fmt(
+        &mut HashWriter(&mut hash),
+        format_args!(
+            "{:?}{:?}{:?}{:?}{:?}",
+            scene.display, scene.lighting, scene.fog, scene.environment, scene.lights
+        ),
+    );
     for item in &scene.items {
         item.motion_id.hash(&mut hash);
-        MotionMesh::from(&item.mesh).hash(&mut hash);
+        MotionMeshRef::from(&item.mesh).hash(&mut hash);
         if let Some(text) = item.mesh.text() {
             text.text.hash(&mut hash);
             text.monospace.hash(&mut hash);
@@ -414,4 +541,121 @@ fn frame_signature(scene: &RenderScene) -> u64 {
         );
     }
     hash.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn draw(motion_id: u64, mesh: MeshKind, model: Mat4) -> PreparedDraw {
+        PreparedDraw {
+            preparation: Default::default(),
+            source_item: 0,
+            deformation: 0,
+            shared_geometry: None,
+            world_geometry_units: None,
+            pbr_override: [-1.; 2],
+            shader: None,
+            pbr: false,
+            raster: 0,
+            object: DrawItem {
+                motion_id,
+                model,
+                mesh,
+                material: Material {
+                    metallic: None,
+                    roughness: None,
+                    tint: [1.; 3],
+                    uv_scale: [1.; 2],
+                    texture: TextureKind::White,
+                    lit: true,
+                    shader: None,
+                    surface_overrides: Default::default(),
+                },
+            },
+            opacity: 1.,
+            cutoff: 0.,
+            transparent: false,
+            depth: 0.,
+        }
+    }
+    #[test]
+    fn positional_history_matches_reference_map() {
+        let mut seed = 0x2545_f491_u64;
+        let mut next = |bound: u64| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (seed >> 33) % bound
+        };
+        let meshes = |pick: u64| match pick {
+            0 => MeshKind::Cube,
+            1 => MeshKind::Quad,
+            2 => MeshKind::Imported("a".into()),
+            3 => MeshKind::Imported("b".into()),
+            4 => MeshKind::ModelPart("m".into(), 0),
+            _ => MeshKind::ModelPart("m".into(), 1),
+        };
+        let mut poses = Poses::default();
+        let mut reference = BTreeMap::new();
+        let mut previous: Vec<PreparedDraw> = Vec::new();
+        let mut stable_frames = 0;
+        for frame in 0..400 {
+            // Mostly stable order, with occasional reorder, insertion, removal and duplicates.
+            let mut draws: Vec<PreparedDraw> = if frame % 5 != 0 && !previous.is_empty() {
+                previous
+                    .iter()
+                    .map(|d| draw(d.object.motion_id, d.object.mesh.clone(), d.object.model))
+                    .collect()
+            } else {
+                (0..next(14))
+                    .map(|_| draw(next(6), meshes(next(6)), Mat4::IDENTITY))
+                    .collect()
+            };
+            if frame % 7 == 3 && draws.len() > 1 {
+                let a = next(draws.len() as u64) as usize;
+                let b = next(draws.len() as u64) as usize;
+                draws.swap(a, b);
+            }
+            for (i, d) in draws.iter_mut().enumerate() {
+                d.object.model =
+                    Mat4::from_translation(Vec3::new(frame as f32, i as f32, next(9) as f32));
+            }
+            for (index, d) in draws.iter().enumerate() {
+                if d.object.motion_id == 0 {
+                    continue;
+                }
+                let expected = reference
+                    .get(&(
+                        d.object.motion_id,
+                        MotionMesh::from(MotionMeshRef::from(&d.object.mesh)),
+                    ))
+                    .copied();
+                assert_eq!(
+                    poses.get(index, &d.object),
+                    expected,
+                    "frame {frame} row {index}"
+                );
+            }
+            poses.update(&draws);
+            stable_frames += usize::from(poses.key_updates == 0);
+            reference = draws
+                .iter()
+                .filter(|d| d.object.motion_id != 0)
+                .map(|d| {
+                    (
+                        (
+                            d.object.motion_id,
+                            MotionMesh::from(MotionMeshRef::from(&d.object.mesh)),
+                        ),
+                        d.object.model,
+                    )
+                })
+                .collect();
+            previous = draws;
+        }
+        assert!(
+            stable_frames > 200,
+            "stable order rewrites no keys: {stable_frames}"
+        );
+    }
 }
