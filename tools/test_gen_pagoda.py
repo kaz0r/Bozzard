@@ -8,6 +8,7 @@ Linux reference check for the committed example.
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 
@@ -32,12 +33,17 @@ class GeneratorTests(unittest.TestCase):
 
     def test_layout_matches_the_original_scene(self):
         stats = self.stats
-        # 138,927 original voxels plus 3,292 filled valley columns; tolerate
-        # a few cross-platform rounding differences.
+        # 138,927 original voxels plus 3,292 filled valley columns. Placement
+        # decisions follow libm sin/cos/atan2/hypot results, which differ in
+        # the last bit between platforms, so only glibc pins exact values.
         self.assertAlmostEqual(stats["world_voxels"], 142_219, delta=1500)
-        self.assertEqual(stats["trees"], 47)
+        self.assertTrue(40 <= stats["trees"] <= 55, stats["trees"])
         self.assertEqual(len(stats["koi_colors"]), 11)
-        self.assertEqual(stats["koi_colors"], [2, 2, 0, 1, 0, 1, 2, 2, 2, 1, 2])
+        self.assertTrue(all(color in (0, 1, 2) for color in stats["koi_colors"]))
+        if sys.platform.startswith("linux"):
+            self.assertEqual(stats["trees"], 47)
+            self.assertEqual(stats["koi_colors"], [2, 2, 0, 1, 0, 1, 2, 2, 2, 1, 2])
+        # Fixes draw from their own stream: the shared layout is unchanged.
         faithful = gen.build(fixes=False)[1]
         self.assertEqual(faithful["trees"], stats["trees"])
         self.assertEqual(faithful["koi_colors"], stats["koi_colors"])
@@ -96,7 +102,7 @@ class GeneratorTests(unittest.TestCase):
                 self.assertEqual(len(primitives), 1, path)
             uri = doc["buffers"][0]["uri"]
             if not uri.startswith("data:"):
-                self.assertIn(str(Path(path).parent / uri), self.files)
+                self.assertIn((Path(path).parent / uri).as_posix(), self.files)
 
     def test_check_mode_round_trips_through_a_directory(self):
         with tempfile.TemporaryDirectory() as directory:
