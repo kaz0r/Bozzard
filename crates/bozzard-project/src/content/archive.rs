@@ -7,23 +7,27 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-pub(super) struct Staging {
+pub(crate) struct Staging {
     pub path: PathBuf,
 }
 impl Staging {
     pub fn new(parent: &Path) -> Result<Self> {
+        Self::with_prefix(parent, ".bozzard-content")
+    }
+    /// A unique hidden sibling folder, so publication is a same-filesystem rename.
+    pub fn with_prefix(parent: &Path, prefix: &str) -> Result<Self> {
         fs::create_dir_all(parent)?;
         static NEXT: AtomicU64 = AtomicU64::new(0);
         loop {
             let path = parent.join(format!(
-                ".bozzard-content-{}-{}",
+                "{prefix}-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             match fs::create_dir(&path) {
                 Ok(()) => return Ok(Self { path }),
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e).context("creating content staging folder"),
+                Err(e) => return Err(e).context("creating staging folder"),
             }
         }
     }
@@ -34,10 +38,10 @@ impl Drop for Staging {
     }
 }
 
-pub(super) fn hex(bytes: impl AsRef<[u8]>) -> String {
+pub(crate) fn hex(bytes: impl AsRef<[u8]>) -> String {
     bytes.as_ref().iter().map(|b| format!("{b:02x}")).collect()
 }
-pub(super) fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
+pub(crate) fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
     let file = fs::File::open(path)?;
     let length = file.metadata()?.len();
     ensure!(
@@ -54,7 +58,7 @@ pub(super) fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
     );
     Ok(bytes)
 }
-fn copy_hash(
+pub(crate) fn copy_hash(
     input: &mut impl Read,
     output: &mut impl Write,
     limit: u64,
@@ -76,7 +80,7 @@ fn copy_hash(
     }
     Ok((total, hex(digest.finalize())))
 }
-pub(super) fn inventory(root: &Path, progress: &Progress) -> Result<Vec<FileEntry>> {
+pub(crate) fn inventory(root: &Path, progress: &Progress) -> Result<Vec<FileEntry>> {
     let mut pending = vec![root.to_owned()];
     let mut files = Vec::new();
     let mut directories = 0;

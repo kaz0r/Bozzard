@@ -13,9 +13,12 @@ pub enum Pane {
     Debug,
     Script,
     Timeline,
+    Kennel,
 }
+/// Panes the layout tracks; one slot each.
+pub const PANES: usize = 9;
 impl Pane {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; PANES] = [
         Self::Scene,
         Self::Hierarchy,
         Self::Inspector,
@@ -24,6 +27,7 @@ impl Pane {
         Self::Debug,
         Self::Script,
         Self::Timeline,
+        Self::Kennel,
     ];
     fn title(self) -> &'static str {
         match self {
@@ -35,11 +39,12 @@ impl Pane {
             Self::Debug => "Debug",
             Self::Script => "Script source",
             Self::Timeline => "Timeline",
+            Self::Kennel => "Kennel",
         }
     }
     fn home(self) -> Dock {
         match self {
-            Self::Scene => Dock::Center,
+            Self::Scene | Self::Kennel => Dock::Center,
             Self::Hierarchy => Dock::Left,
             Self::Inspector => Dock::LeftLower,
             Self::Assets | Self::Debug | Self::Script | Self::Timeline => Dock::Bottom,
@@ -86,24 +91,24 @@ pub struct Layout {
         default = "default_locations",
         deserialize_with = "deserialize_locations"
     )]
-    locations: [Dock; 8],
+    locations: [Dock; PANES],
     selected: [Option<Pane>; 5],
     generation: u64,
     #[serde(skip)]
-    tab_rects: [Option<egui::Rect>; 8],
+    tab_rects: [Option<egui::Rect>; PANES],
     #[serde(skip)]
-    tab_layers: [Option<egui::LayerId>; 8],
+    tab_layers: [Option<egui::LayerId>; PANES],
     #[serde(skip)]
     drag_candidate: Option<(Pane, egui::Pos2)>,
 }
-fn default_locations() -> [Dock; 8] {
+fn default_locations() -> [Dock; PANES] {
     Pane::ALL.map(Pane::home)
 }
 fn deserialize_locations<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
-) -> Result<[Dock; 8], D::Error> {
+) -> Result<[Dock; PANES], D::Error> {
     let saved = Vec::<Dock>::deserialize(deserializer)?;
-    if saved.len() > 8 {
+    if saved.len() > PANES {
         return Err(serde::de::Error::custom("too many dock locations"));
     }
     let mut locations = default_locations();
@@ -124,8 +129,8 @@ impl Default for Layout {
                 Some(Pane::Scene),
             ],
             generation: 0,
-            tab_rects: [None; 8],
-            tab_layers: [None; 8],
+            tab_rects: [None; PANES],
+            tab_layers: [None; PANES],
             drag_candidate: None,
         }
     }
@@ -150,7 +155,7 @@ impl Layout {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
-        visible: [bool; 8],
+        visible: [bool; PANES],
         mut draw: impl FnMut(Pane, &mut egui::Ui),
     ) {
         let ctx = ui.ctx().clone();
@@ -312,11 +317,11 @@ impl Layout {
         &mut self,
         ui: &mut egui::Ui,
         dock: Dock,
-        visible: [bool; 8],
+        visible: [bool; PANES],
         action: &mut Option<(Pane, Dock)>,
         draw: &mut impl FnMut(Pane, &mut egui::Ui),
     ) {
-        // Six panes are a fixed upper bound: stack storage, no per-frame panel lists.
+        // The pane count is a fixed upper bound: stack storage, no per-frame panel lists.
         let present = Pane::ALL.map(|p| visible[p as usize] && self.locations[p as usize] == dock);
         let active = &mut self.selected[dock as usize];
         if active.is_none_or(|p| !present[p as usize]) {
@@ -408,7 +413,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ui| {
-                    layout.show(ui, [true; 8], |pane, ui| {
+                    layout.show(ui, [true; PANES], |pane, ui| {
                         ui.label(pane.title());
                     })
                 },
@@ -476,9 +481,9 @@ mod tests {
         assert_eq!(restored.locations[Pane::Inspector as usize], Dock::Right);
         assert_eq!(restored.locations[Pane::Assets as usize], Dock::Floating);
         let ctx = egui::Context::default();
-        let mut counts = [0; 8];
+        let mut counts = [0; PANES];
         let mut output = ctx.run_ui(Default::default(), |ui| {
-            restored.show(ui, [true; 8], |p, ui| {
+            restored.show(ui, [true; PANES], |p, ui| {
                 counts[p as usize] += 1;
                 ui.label(p.title());
             })
@@ -499,5 +504,6 @@ mod tests {
         let upgraded: Layout = serde_json::from_value(legacy).unwrap();
         assert_eq!(upgraded.locations[Pane::Script as usize], Dock::Bottom);
         assert_eq!(upgraded.locations[Pane::Timeline as usize], Dock::Bottom);
+        assert_eq!(upgraded.locations[Pane::Kennel as usize], Dock::Center);
     }
 }

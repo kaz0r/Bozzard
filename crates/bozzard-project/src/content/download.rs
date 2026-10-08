@@ -8,12 +8,12 @@ use std::{
 use url::Url;
 
 #[derive(Clone)]
-enum Location {
+pub(crate) enum Location {
     File(PathBuf),
     Http(Url),
 }
 impl Location {
-    fn parse(value: &str) -> Result<Self> {
+    pub(crate) fn parse(value: &str) -> Result<Self> {
         if value.starts_with("http://") || value.starts_with("https://") {
             let url = Url::parse(value)?;
             validate_url(&url)?;
@@ -26,7 +26,7 @@ impl Location {
             Ok(Self::File(std::path::absolute(value)?))
         }
     }
-    fn resolve(&self, value: &str) -> Result<Self> {
+    pub(crate) fn resolve(&self, value: &str) -> Result<Self> {
         if value.starts_with("http://") || value.starts_with("https://") {
             return Self::parse(value);
         }
@@ -44,7 +44,11 @@ impl Location {
             }
         }
     }
-    fn open(&self, limit: u64, progress: &Progress) -> Result<(Box<dyn Read + Send>, Self)> {
+    pub(crate) fn open(
+        &self,
+        limit: u64,
+        progress: &Progress,
+    ) -> Result<(Box<dyn Read + Send>, Self)> {
         progress.check()?;
         match self {
             Self::File(path) => {
@@ -223,25 +227,11 @@ impl ContentStore {
         // OS locks are released on process exit. No stale lock-file ownership or
         // simultaneous repair can race another installer of the same generation.
         fs::create_dir_all(&self.root)?;
-        let lock = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(self.root.join(format!(".{}.lock", reference.sha256)))?;
-        loop {
-            progress.check()?;
-            match lock.try_lock() {
-                Ok(()) => break,
-                Err(fs::TryLockError::WouldBlock) => {
-                    progress.stage("Waiting for another content installer")?;
-                    std::thread::sleep(Duration::from_millis(50));
-                }
-                Err(fs::TryLockError::Error(e)) => {
-                    return Err(e).context("locking content installation");
-                }
-            }
-        }
+        let _lock = lock_exclusive(
+            &self.root.join(format!(".{}.lock", reference.sha256)),
+            "Waiting for another content installer",
+            progress,
+        )?;
         let root = self.root.join(&reference.sha256);
         let (index, typed_validation_needed) =
             match archive::verify_cache(&root, reference, progress) {
@@ -297,6 +287,31 @@ impl ContentStore {
         self.mounted.insert(reference.sha256.clone(), pack.clone());
         progress.report(1, 1, "Content ready")?;
         Ok(pack)
+    }
+}
+
+/// Holds an OS file lock until the returned handle drops; the OS releases it on process exit,
+/// so a crashed installer never leaves a stale lock behind. Waiting stays cancellable.
+pub(crate) fn lock_exclusive(path: &Path, waiting: &str, progress: &Progress) -> Result<fs::File> {
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
+        .with_context(|| format!("opening lock {}", path.display()))?;
+    loop {
+        progress.check()?;
+        match lock.try_lock() {
+            Ok(()) => return Ok(lock),
+            Err(fs::TryLockError::WouldBlock) => {
+                progress.stage(waiting)?;
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(fs::TryLockError::Error(e)) => {
+                return Err(e).context("locking installation");
+            }
+        }
     }
 }
 

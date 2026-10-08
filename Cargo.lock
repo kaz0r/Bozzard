@@ -716,6 +716,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -763,6 +764,7 @@ dependencies = [
  "bozzard-scene",
  "flate2",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

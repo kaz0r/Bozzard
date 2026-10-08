@@ -150,7 +150,7 @@ Detailed authoring instructions, supported formats, and current limits live in t
 | Physics | [Physics surface](docs/physics.md) · [Mesh colliders and Rigidbody settings](docs/mesh-colliders.md) |
 | UI and middleware | [Text and HUD rendering](docs/text-rendering.md) · [Character animation](docs/character-animation.md) · [Audio, animation, UI, navigation, and particles](docs/middleware.md) |
 | Compute and diagnostics | [WGSL compute](docs/compute.md) · [Debugging](docs/debugging.md) · [Performance](docs/performance.md) |
-| Distribution and multiplayer | [Native export](docs/exporting.md) · [Content packs](docs/content-packs.md) · [Steam multiplayer](docs/multiplayer.md) |
+| Distribution and multiplayer | [Native export](docs/exporting.md) · [Content packs](docs/content-packs.md) · [Kennel packages](docs/kennel.md) · [Steam multiplayer](docs/multiplayer.md) |
 | Engine development | [Architecture](docs/architecture.md) · [Editor extensions](docs/editor-extensions.md) · [Roadmap](docs/roadmap.md) |
 
 ## Workspace
@@ -165,7 +165,7 @@ Detailed authoring instructions, supported formats, and current limits live in t
 | `bozzard-text` / `bozzard-audio` / `bozzard-compute` | Text, audio, and compute support |
 | `bozzard-diagnostics` | Profiling, logs, and render/simulation metrics |
 | `bozzard-network` | Networking, session pacing, and Steam integration |
-| `bozzard-project` | Project manifests, native export, and content bundles |
+| `bozzard-project` | Project manifests, native export, content bundles, and Kennel packages |
 | `bozzard-editor` / `bozzard-editor-app` | Editor transactions and the native UI shell |
 | `bozzard-demo` | Shared simulation setup and reference scenes |
 | `bozzard-player` / `bozzard-server` | Native player and graphics-free simulation harness |
@@ -199,7 +199,7 @@ The player smoke checks rendered output, scene round-trips, and asset behavior. 
 
 ## Exporting
 
-Use **File → Export game…** to package a standalone game that runs without Rust or the source checkout. **File → Build content pack…** produces reusable cooked content and address catalogs. See [native game export](docs/exporting.md) and [content packs](docs/content-packs.md) for platform requirements and packaging details.
+Use **File → Export game…** to package a standalone game that runs without Rust or the source checkout. **File → Build content pack…** produces reusable cooked content and address catalogs. **Kennel** in the menu bar opens the package store, which installs packages such as `steam` into the open project and adds their scripts to the scene; `bozzard-project kennel install <NAME> <PROJECT>` does the same from a terminal. See [native game export](docs/exporting.md), [content packs](docs/content-packs.md) and [Kennel packages](docs/kennel.md) for platform requirements and packaging details.
 
 To build a development bundle containing the player, editor, server, and example assets:
 

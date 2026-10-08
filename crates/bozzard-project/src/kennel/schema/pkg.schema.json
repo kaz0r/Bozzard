@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Bozzard-Engine/bozzard-plugin-library/main/schema/pkg.schema.json",
+  "title": "Kennel package manifest",
+  "description": "A Bozzard Kennel package: packages/<name>/<name>.pkg.json. `bozzard-project kennel check` is the authoritative validator; this schema assists editors.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kennel", "name", "version", "title", "summary", "category", "authors", "license", "engine"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kennel": { "const": 1, "description": "Kennel format version." },
+    "name": { "$ref": "#/$defs/name", "description": "Package name; must match its folder." },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this package.",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "category": { "enum": ["integration", "scripts", "art", "audio", "template", "tool"] },
+    "tags": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9-]{1,32}$" }
+    },
+    "authors": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "SPDX expression for the files the package authors itself."
+    },
+    "repository": { "type": "string", "pattern": "^https://", "maxLength": 512 },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bozzard"],
+      "properties": {
+        "bozzard": { "type": "string", "description": "Semver requirement on the Bozzard engine version, e.g. \">=0.1.0\"." },
+        "script_api": { "type": "integer", "minimum": 0, "description": "Lowest native script API the scripts need." },
+        "features": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "pattern": "^[a-z0-9_-]{1,64}$" },
+          "description": "Cargo features the engine build must enable."
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "type": "string", "description": "Semver requirement." }
+    },
+    "build_env": {
+      "type": "object",
+      "maxProperties": 8,
+      "description": "Environment variables a build should set, as folders (holding bins) relative to the installation.",
+      "propertyNames": { "pattern": "^[A-Z_][A-Z0-9_]{0,63}$" },
+      "additionalProperties": { "$ref": "#/$defs/path" }
+    },
+    "bins": { "type": "array", "items": { "$ref": "#/$defs/bin" } },
+    "scripts": { "type": "array", "items": { "$ref": "#/$defs/script" } },
+    "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" } },
+    "files": { "type": "array", "items": { "$ref": "#/$defs/file" } }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$" },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Portable relative path with '/' separators.",
+      "pattern": "^[^/\\\\:]+(/[^/\\\\:]+)*$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "bytes": { "type": "integer", "minimum": 0, "maximum": 268435456 },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$", "description": "<package>/<name>; the scene catalog ID to use." },
+    "bin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets", "path", "bytes", "sha256"],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9_]+-[a-z0-9_]+$", "description": "<os>-<arch>, e.g. linux-x86_64, macos-aarch64, windows-x86_64." }
+        },
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "$ref": "#/$defs/bytes" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "license": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256"],
+      "description": "Upstream download pinned by its own SHA-256. With archive, member names the file inside it.",
+      "properties": {
+        "url": { "type": "string", "pattern": "^https://", "maxLength": 2048 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "archive": { "enum": ["tar.gz"] },
+        "member": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      },
+      "dependentRequired": { "archive": ["member"], "member": ["archive"] }
+    },
+    "script": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "bytes", "sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "path": { "$ref": "#/$defs/path", "pattern": "\\.(rhai|rs)$" },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 1048576 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "path", "bytes", "sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["material", "compute_shader", "audio", "prefab", "image", "mesh", "font"] },
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "$ref": "#/$defs/bytes" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "$ref": "#/$defs/bytes" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

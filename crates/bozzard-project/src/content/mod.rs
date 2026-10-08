@@ -4,10 +4,12 @@ mod build;
 mod download;
 use crate::{CookReport, CookTarget};
 use anyhow::{Context, Result, ensure};
+pub(crate) use archive::{Staging, copy_hash, hex, inventory, read_bounded};
 use bozzard_assets::job::Progress;
 use bozzard_scene::{AssetKind, AssetSource, Layer};
 pub use build::{PreparedPack, prepare_pack};
 pub use download::{ContentCatalog, ContentStore, default_cache_directory, load_catalog};
+pub(crate) use download::{Location, lock_exclusive};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -158,10 +160,10 @@ impl Entry {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct FileEntry {
-    path: String,
-    bytes: u64,
-    sha256: String,
+pub(crate) struct FileEntry {
+    pub(crate) path: String,
+    pub(crate) bytes: u64,
+    pub(crate) sha256: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -197,18 +199,10 @@ impl Index {
                 && (1..=MAX_FILES).contains(&self.files.len()),
             "invalid content index counts"
         );
+        portable_file_set(self.files.iter().map(|f| f.path.as_str()), INDEX_FILE)?;
         let mut total = 0_u64;
         let mut previous = None;
-        let mut portable = std::collections::BTreeSet::new();
         for file in &self.files {
-            portable_path(&file.path)?;
-            let folded = file.path.to_ascii_lowercase();
-            ensure!(
-                file.path.is_ascii()
-                    && folded.split('/').next() != Some(INDEX_FILE)
-                    && portable.insert(folded),
-                "content files must use unique portable ASCII paths"
-            );
             digest(&file.sha256)?;
             ensure!(
                 previous.is_none_or(|p: &str| p < file.path.as_str()),
@@ -220,14 +214,6 @@ impl Index {
                 .checked_add(file.bytes)
                 .context("pack size overflow")?;
             ensure!(total <= MAX_PACK, "content pack exceeds 4 GiB");
-        }
-        for file in &portable {
-            for (offset, _) in file.match_indices('/') {
-                ensure!(
-                    !portable.contains(&file[..offset]),
-                    "content file conflicts with a parent directory"
-                );
-            }
         }
         for (id, entry) in &self.entries {
             address(id)?;
@@ -303,7 +289,34 @@ impl ResolvedContent {
     }
 }
 
-fn digest(value: &str) -> Result<()> {
+/// Paths that can coexist in one folder on every platform: portable, ASCII, unique after
+/// case folding, outside `reserved`, and never both a file and another file's parent.
+pub(crate) fn portable_file_set<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+    reserved: &str,
+) -> Result<()> {
+    let mut portable = std::collections::BTreeSet::new();
+    for path in paths {
+        portable_path(path)?;
+        let folded = path.to_ascii_lowercase();
+        ensure!(
+            path.is_ascii()
+                && folded.split('/').next() != Some(reserved)
+                && portable.insert(folded),
+            "files must use unique portable ASCII paths: {path}"
+        );
+    }
+    for file in &portable {
+        for (offset, _) in file.match_indices('/') {
+            ensure!(
+                !portable.contains(&file[..offset]),
+                "file conflicts with a parent directory: {file}"
+            );
+        }
+    }
+    Ok(())
+}
+pub(crate) fn digest(value: &str) -> Result<()> {
     ensure!(
         value.len() == 64
             && value
@@ -313,7 +326,7 @@ fn digest(value: &str) -> Result<()> {
     );
     Ok(())
 }
-fn address(value: &str) -> Result<()> {
+pub(crate) fn address(value: &str) -> Result<()> {
     ensure!(
         !value.is_empty()
             && value.len() <= 128
@@ -325,7 +338,7 @@ fn address(value: &str) -> Result<()> {
     );
     Ok(())
 }
-fn portable_path(value: &str) -> Result<()> {
+pub(crate) fn portable_path(value: &str) -> Result<()> {
     ensure!(
         !value.is_empty()
             && value.len() <= 512
@@ -345,7 +358,7 @@ fn portable_path(value: &str) -> Result<()> {
                         && (stem.starts_with("COM") || stem.starts_with("LPT"))
                         && matches!(stem.as_bytes()[3], b'1'..=b'9'))
             }),
-        "content path must be a portable relative file path: {value}"
+        "paths must be portable relative file paths: {value}"
     );
     Ok(())
 }

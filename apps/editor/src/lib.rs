@@ -37,6 +37,7 @@ mod gameplay_input;
 mod gi;
 mod hierarchy;
 mod inspector;
+mod kennel;
 mod level_tools;
 mod lights;
 mod loading;
@@ -122,6 +123,9 @@ struct Workspace {
     canvas_preview: [u32; 2],
     timeline_visible: bool,
     timeline_zoom: f32,
+    kennel_visible: bool,
+    /// Kennel registry folder or URL; empty uses the public registry.
+    kennel_registry: String,
 }
 impl Default for Workspace {
     fn default() -> Self {
@@ -155,6 +159,8 @@ impl Default for Workspace {
             canvas_preview: [0, 0],
             timeline_visible: false,
             timeline_zoom: 100.,
+            kennel_visible: false,
+            kennel_registry: String::new(),
         }
     }
 }
@@ -225,6 +231,7 @@ struct App {
     hierarchy_frame_requested: bool,
     hierarchy_rename: Option<(String, String, bool)>,
     asset_browser: asset_browser::AssetBrowser,
+    kennel: kennel::Store,
     lod_tools: lod_ui::LodTools,
     blueprint_pane: blueprints::BlueprintPane,
     script_pane: scripts::ScriptPane,
@@ -336,6 +343,7 @@ impl App {
         workspace.select_available_view(editor.scene());
         let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb);
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
+        let kennel = kennel::Store::new(workspace.kennel_registry.clone());
         Ok(Self {
             debug: Default::default(),
             benchmark: None,
@@ -376,6 +384,7 @@ impl App {
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
             asset_browser: asset_browser::AssetBrowser::default(),
+            kennel,
             lod_tools: lod_ui::LodTools::default(),
             blueprint_pane: blueprints::BlueprintPane::default(),
             script_pane: Default::default(),
@@ -842,6 +851,14 @@ impl App {
                             self.workspace.debug_visible = !self.workspace.debug_visible;
                             self.dock_focus = Some(docking::Pane::Debug);
                         }
+                        if ui
+                            .selectable_label(self.workspace.kennel_visible, "Kennel")
+                            .on_hover_text("Browse and install packages from the Kennel store")
+                            .clicked()
+                        {
+                            self.workspace.kennel_visible = true;
+                            self.dock_focus = Some(docking::Pane::Kennel);
+                        }
                         ui.menu_button("View", |ui| {
                             if ui
                                 .checkbox(&mut self.workspace.hierarchy_visible, "Hierarchy")
@@ -888,6 +905,15 @@ impl App {
                                 .changed()
                             {
                                 self.dock_focus = Some(docking::Pane::Settings);
+                            }
+                            if ui
+                                .checkbox(
+                                    &mut self.workspace.kennel_visible,
+                                    "Kennel · Package store",
+                                )
+                                .changed()
+                            {
+                                self.dock_focus = Some(docking::Pane::Kennel);
                             }
                             ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
                             if ui
@@ -1197,6 +1223,7 @@ impl App {
         if scene.clicked() {
             self.workspace.blueprints_visible = false;
             self.workspace.shaders_visible = false;
+            self.dock_focus = Some(docking::Pane::Scene);
         }
         let blueprint = ui.selectable_label(
             self.workspace.blueprints_visible && !self.workspace.shaders_visible,
@@ -1468,6 +1495,9 @@ impl eframe::App for App {
         let debug_started = self.debug_begin_frame();
         let mut debug_stage = debug_started.map(|s| s.0);
         self.poll_loading();
+        if let Some(report) = self.kennel.poll() {
+            self.kennel_report(report);
+        }
         self.editor.repair_surface_selection();
         self.debug_editor_stage("Loading and selection", &mut debug_stage);
         let now = Instant::now();
@@ -1797,6 +1827,7 @@ impl eframe::App for App {
             self.workspace.debug_visible,
             self.script_pane.is_open(),
             self.workspace.timeline_visible,
+            self.workspace.kennel_visible,
         ];
         self.viewport_rect = None;
         layout.show(ui, visible, |pane, ui| {
@@ -1810,6 +1841,7 @@ impl eframe::App for App {
                 docking::Pane::Debug => self.debug_content(ui),
                 docking::Pane::Script => self.script_source_pane(ui),
                 docking::Pane::Timeline => self.timeline_pane(ui),
+                docking::Pane::Kennel => self.kennel_content(ui),
             }
             if let Some(start) = start {
                 self.debug.editor_stages.insert(
@@ -1852,6 +1884,7 @@ impl eframe::App for App {
             || self.editor.play.is_some()
             || self.loading.is_some()
             || self.refresh.is_some()
+            || self.kennel.busy()
             || self.residency.progress().is_some()
             || self.residency.preparing().is_some()
             || self.workspace.shaders_visible
@@ -1871,6 +1904,7 @@ impl eframe::App for App {
     }
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.workspace.scene_path = Some(self.editor.path.clone());
+        self.workspace.kennel_registry = self.kennel.location.clone();
         eframe::set_value(storage, "workspace", &self.workspace);
     }
 }
