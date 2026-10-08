@@ -6,6 +6,7 @@ on 2026-09-24. This older feature inventory contains stale unchecked entries;
 in particular, Blueprint depth has shipped as documented in
 [Blueprint authoring depth](docs/blueprint-depth.md), and the multiplayer CPU
 optimization baseline is recorded in [multiplayer performance](docs/multiplayer.md#cpu-performance-benchmark).
+Structural cleanup of the engine itself is tracked in the [refactoring roadmap](docs/refactoring.md).
 
 What Bozzard still needs to be an engine a team ships games in, judged against Unity and Unreal.
 Checked items exist today and are covered by tests or docs; unchecked items are work, sized
