@@ -29,7 +29,7 @@ impl Editor {
         if object.parent.as_deref() == parent {
             return Ok(());
         }
-        let demo = SceneDemo::new(&self.scene)?;
+        let demo = SceneRuntime::new(&self.scene)?;
         let matrices = demo.instance().global_transforms(&demo.app.world)?;
         let world = matrices[id];
         let parent_world = parent.map_or(Mat4::IDENTITY, |id| matrices[id]);
@@ -92,7 +92,7 @@ mod tests {
         Editor::new(scene, Path::new("work/hierarchy-test.json")).unwrap()
     }
     fn worlds(editor: &Editor) -> BTreeMap<String, Mat4> {
-        let demo = SceneDemo::new(editor.scene()).unwrap();
+        let demo = SceneRuntime::new(editor.scene()).unwrap();
         demo.instance().global_transforms(&demo.app.world).unwrap()
     }
     #[test]

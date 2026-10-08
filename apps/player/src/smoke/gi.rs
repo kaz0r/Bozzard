@@ -246,7 +246,7 @@ pub(super) fn baked_room(gpu: &Gpu, output: &Path) -> Result<()> {
     document.gi.baked = Some(Arc::new(baked));
     document.gi.enabled = true;
     let document = bozzard_scene::Scene::from_json(&document.to_json()?)?;
-    let demo = bozzard_demo::SceneDemo::new(&document)?;
+    let demo = bozzard_runtime::SceneRuntime::new(&document)?;
     let mut scene = extract(&demo, &assets, Layer::ThreeD, 1.6)?;
     ensure!(
         scene.gi.is_some(),

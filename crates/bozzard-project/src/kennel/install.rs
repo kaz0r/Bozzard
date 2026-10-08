@@ -59,7 +59,7 @@ impl Lockfile {
     }
     fn save(&self, root: &Path) -> Result<()> {
         let json = serde_json::to_string_pretty(self)? + "\n";
-        bozzard_demo::save_json(&json, &root.join(LOCKFILE))
+        bozzard_runtime::save_json(&json, &root.join(LOCKFILE))
     }
 }
 

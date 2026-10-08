@@ -31,7 +31,7 @@ fn spawned_graphs_rebase_prefab_dependencies_and_preload_cycles_once() {
         Temp(std::env::temp_dir().join(format!("bozzard-prefab-chain-{}", std::process::id())));
     std::fs::create_dir(&temp.0).unwrap();
     let path = temp.0.join("scene.json");
-    let mut editor = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+    let mut editor = Editor::new(bozzard_runtime::scene_document().unwrap(), &path).unwrap();
     editor.create(Mesh::Cube, Layer::ThreeD).unwrap();
     let graph = |asset: &str, enabled| {
         let mut spawn = Node::new(2, K::SpawnPrefab, [0.; 2]);
@@ -79,7 +79,7 @@ fn spawned_graphs_rebase_prefab_dependencies_and_preload_cycles_once() {
     );
     scene.objects.last_mut().unwrap().blueprints = vec![graph("parent", true)];
     let count = scene.objects.len();
-    let mut play = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    let mut play = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path)).unwrap();
     assert_eq!(
         play.instance()
             .document()
@@ -97,9 +97,9 @@ fn spawned_graphs_rebase_prefab_dependencies_and_preload_cycles_once() {
     let child = play.instance().document().objects.last().unwrap();
     assert_eq!(child.blueprints[0].graph.nodes[1].prefab, "parent");
     std::fs::remove_file(temp.0.join("child.prefab.json")).unwrap();
-    assert!(bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path)).is_err());
+    assert!(bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path)).is_err());
     scene.assets.clear();
-    assert!(bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path)).is_err());
+    assert!(bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path)).is_err());
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn optional_material_and_blueprint_prefab_lifecycle_survive_history_play_and_sav
         temp.0.join("paint.png"),
     )
     .unwrap();
-    let mut scene = bozzard_demo::scene_document().unwrap();
+    let mut scene = bozzard_runtime::scene_document().unwrap();
     for object in &mut scene.objects {
         object.blueprints.clear();
         object.spin = None;

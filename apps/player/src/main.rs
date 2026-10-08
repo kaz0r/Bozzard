@@ -14,8 +14,8 @@ mod presentation;
 mod project;
 mod smoke;
 mod view;
-use bozzard_demo::{SceneDemo, load_document, save_document_from};
 use bozzard_render::{Backend, Gpu, SceneRenderer, instance, wgpu};
+use bozzard_runtime::{SceneRuntime, load_document, save_document_from};
 use bozzard_scene::{Layer, Scene, Transform};
 use cli::*;
 use player::*;
@@ -115,7 +115,7 @@ struct CursorCaptureState {
 struct Player {
     options: Options,
     view: Option<View>,
-    demo: SceneDemo,
+    demo: SceneRuntime,
     assets: assets::Assets,
     audio: bozzard_audio::NativeAudio,
     paused: bool,
@@ -133,7 +133,7 @@ struct Player {
 }
 
 fn main() -> Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
         return Ok(());
@@ -183,8 +183,8 @@ fn main() -> Result<()> {
         return Ok(());
     }
     #[cfg(feature = "steam")]
-    bozzard_demo::steam_runtime::initialize_player(&document)?;
-    let mut demo = SceneDemo::new_with_prefabs(&document, options.scene.as_deref())?;
+    bozzard_runtime::steam_runtime::initialize_player(&document)?;
+    let mut demo = SceneRuntime::new_with_prefabs(&document, options.scene.as_deref())?;
     ensure!(
         demo.instance().has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"

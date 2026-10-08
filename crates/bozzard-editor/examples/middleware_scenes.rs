@@ -521,7 +521,7 @@ fn laboratory(root: &Path) -> Result<Scene> {
         height: 1.2,
         ..Default::default()
     };
-    let demo = bozzard_demo::SceneDemo::new(&scene)?;
+    let demo = bozzard_runtime::SceneRuntime::new(&scene)?;
     let baked = demo
         .instance()
         .bake_navigation(&demo.app.world, &settings, |_, _| Ok(()))?;

@@ -189,7 +189,7 @@ impl App {
         );
         // The initial Save As already rebased asset paths into this output directory.
         // Write a sibling document without replacing the live asset/selection identity.
-        bozzard_demo::save_document(self.editor.scene(), &output.join("material-scene.json"))?;
+        bozzard_runtime::save_document(self.editor.scene(), &output.join("material-scene.json"))?;
         println!(
             "editor_material_override_smoke_ok transform texture uv material undo redo shared_residency scene_save"
         );
@@ -250,7 +250,7 @@ impl App {
                     bozzard_project::bundled_gamepack(&binary).context("export has no gamepack")?;
                 let packed = bozzard_project::GamePack::open(&manifest, &Default::default())?;
                 let (_, source) = bozzard_project::Project::load(&packed.project_path())?;
-                let scene = bozzard_demo::load_document(Some(&source))?;
+                let scene = bozzard_runtime::load_document(Some(&source))?;
                 let expected = self
                     .smoke_expected
                     .as_ref()
@@ -264,7 +264,7 @@ impl App {
                     "export changed the editor document or stopped Play"
                 );
                 ensure!(
-                    bozzard_demo::load_document(Some(&self.editor.path))?.name != expected.name,
+                    bozzard_runtime::load_document(Some(&self.editor.path))?.name != expected.name,
                     "export unexpectedly saved unsaved authoring changes"
                 );
                 println!(
@@ -670,7 +670,7 @@ impl App {
                     // Pixel oracle: the smoke-created teal cube must shade the
                     // region its camera projection predicts, not just anywhere.
                     let cube = self.editor.selected.clone().context("smoke cube lost")?;
-                    let demo = bozzard_demo::SceneDemo::new(self.editor.scene())?;
+                    let demo = bozzard_runtime::SceneRuntime::new(self.editor.scene())?;
                     let matrices = demo.instance().global_transforms(&demo.app.world)?;
                     let center = matrices[&cube].transform_point3(Vec3::ZERO);
                     let aspect = target.size[0] as f32 / target.size[1] as f32;

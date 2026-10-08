@@ -33,10 +33,10 @@ fn interpolated_player_pixels_match_an_independently_authored_midpoint() -> Resu
     let mut reference = scene.clone();
     reference.objects[0].transform.translation[0] = 0.5;
     reference.objects[1].transform.translation[0] = 1.;
-    let reference = extract(&SceneDemo::new(&reference)?, &assets, Layer::ThreeD, 1.)?;
+    let reference = extract(&SceneRuntime::new(&reference)?, &assets, Layer::ThreeD, 1.)?;
     let expected = capture(&reference)?;
     for threaded in [false, true] {
-        let mut demo = SceneDemo::new(&scene)?;
+        let mut demo = SceneRuntime::new(&scene)?;
         demo.set_threaded_simulation(threaded)?;
         demo.set_render_interpolation(true)?;
         let cube = demo.instance().entity("cube").unwrap();

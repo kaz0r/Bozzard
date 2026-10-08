@@ -7,7 +7,7 @@ pub struct EffectsPreview {
     // same revision as its source while containing different visible objects.
     source: Arc<Scene>,
     render_cache: bozzard_render_assets::RenderSceneCache,
-    demo: SceneDemo,
+    demo: SceneRuntime,
 }
 impl EffectsPreview {
     pub fn new(editor: &Editor) -> Result<Self> {
@@ -16,7 +16,7 @@ impl EffectsPreview {
     /// Native previews use persistent GPU particle motion; headless previews retain the CPU reference.
     pub fn with_gpu_particles(editor: &Editor, gpu: bool) -> Result<Self> {
         let source = editor.scene_snapshot();
-        let mut demo = SceneDemo::new(&source)?;
+        let mut demo = SceneRuntime::new(&source)?;
         demo.with_instance(|instance, _| instance.set_gpu_particles(gpu));
         if editor
             .scene()
@@ -202,7 +202,7 @@ mod tests {
     use super::*;
     #[test]
     fn effects_preview_preserves_scene_history_and_pauses_particles() -> Result<()> {
-        let scene = bozzard_demo::scene_document()?;
+        let scene = bozzard_runtime::scene_document()?;
         let mut editor = Editor::new(
             scene,
             std::path::Path::new("/tmp/bozzard-effects-preview.json"),
@@ -245,7 +245,7 @@ mod tests {
     fn an_edit_after_the_frame_rebuild_is_still_drawn() -> Result<()> {
         for gpu in [false, true] {
             let mut editor = Editor::new(
-                bozzard_demo::scene_document()?,
+                bozzard_runtime::scene_document()?,
                 std::path::Path::new("/tmp/bozzard-effects-refresh.json"),
             )?;
             editor.create_particle_emitter(bozzard_scene::ParticleKind::Smoke)?;
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn wet_material_volume_roundtrip_and_undo() -> Result<()> {
         let mut editor = Editor::new(
-            bozzard_demo::scene_document()?,
+            bozzard_runtime::scene_document()?,
             std::path::Path::new("/tmp/bozzard-effects-material.json"),
         )?;
         editor.selected = editor

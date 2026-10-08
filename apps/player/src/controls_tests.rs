@@ -77,7 +77,7 @@ fn authored_player() -> Player {
         .join("../../examples/demo/scenes/first-trail.json");
     let document = load_document(Some(&path)).unwrap();
     let assets = assets::Assets::load(&document, Some(&path)).unwrap();
-    let demo = SceneDemo::new(&document).unwrap();
+    let demo = SceneRuntime::new(&document).unwrap();
     let options = Options {
         scene: Some(path),
         ..Default::default()
@@ -191,7 +191,7 @@ fn newly_placed_factory_models_keep_the_window_presenting() -> Result<()> {
         }]
     }).to_string())?;
     let mut player = authored_player();
-    player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    player.demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     player.demo.set_threaded_simulation(true)?;
     player.assets = assets::Assets::load(player.demo.instance().document(), Some(&path))?;
     player.options.scene = Some(path);
@@ -317,7 +317,7 @@ fn steam_overlay_activates_in_native_window_and_keeps_presenting() -> Result<()>
             self.player.about_to_wait(event_loop);
             if !self.requested
                 && self.player.frames >= 60
-                && bozzard_demo::steam_runtime::overlay_available()
+                && bozzard_runtime::steam_runtime::overlay_available()
             {
                 self.requested = true;
                 for id in ["coop-open-title", "coop-steam-overlay"] {
@@ -332,13 +332,13 @@ fn steam_overlay_activates_in_native_window_and_keeps_presenting() -> Result<()>
             }
         }
     }
-    let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let document = load_document(Some(&path))?;
-    bozzard_demo::steam_runtime::initialize_player(&document)?;
+    bozzard_runtime::steam_runtime::initialize_player(&document)?;
     let mut player = authored_player();
-    player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    player.demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     player.assets = assets::Assets::load(player.demo.instance().document(), Some(&path))?;
     player.options.scene = Some(path);
     player.options.frames = Some(600);
@@ -406,12 +406,12 @@ fn steam_overlay_blocks_native_shortcuts_without_pausing() -> Result<()> {
 #[ignore = "requires local Steam; creates/leaves a solo lobby without sending invitations or chat"]
 fn factory_lobby_preserves_native_frames_keyboard_and_chat_capture() -> Result<()> {
     use bozzard_scene::{BlueprintRuntime, blueprint::Value, middleware::ui::Input};
-    let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let document = load_document(Some(&path))?;
     let mut player = authored_player();
-    player.demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    player.demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     player.demo.app.step();
     player.demo.check_simulation()?;
     player.demo.enable_multiplayer(None)?;
@@ -518,7 +518,7 @@ fn middleware_menu_keeps_a_free_pointer_and_accepts_slider_clicks() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/demo/scenes/middleware-lab.json");
     let scene = load_document(Some(&path)).unwrap();
-    let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    let mut demo = SceneRuntime::new_with_prefabs(&scene, Some(&path)).unwrap();
     let frame = demo
         .instance()
         .ui_frame(&demo.app.world, Layer::ThreeD, [1280., 720.])
@@ -564,7 +564,7 @@ fn game_menu_keys_do_not_repeat_or_leak_into_gameplay() {
         "../../../examples/demo/scenes/game-flow-lab.json"
     ))
     .unwrap();
-    player.demo = SceneDemo::new(&scene).unwrap();
+    player.demo = SceneRuntime::new(&scene).unwrap();
     player.gameplay_controls.event(&WindowEvent::Focused(true));
     let key = |player: &mut Player, code, repeat, synthetic| {
         player
@@ -632,7 +632,7 @@ fn earth_factory_escape_uses_the_menu_instead_of_the_window_exit_shortcut() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let scene = load_document(Some(&path)).unwrap();
-    player.demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    player.demo = SceneRuntime::new_with_prefabs(&scene, Some(&path)).unwrap();
     player.demo.app.step();
     player.demo.check_simulation().unwrap();
     player
@@ -688,7 +688,7 @@ fn a_scene_assigned_key_reaches_gameplay_instead_of_a_menu_command() {
         "../../../examples/demo/scenes/game-flow-lab.json"
     ))
     .unwrap();
-    player.demo = SceneDemo::new(&scene).unwrap();
+    player.demo = SceneRuntime::new(&scene).unwrap();
     player.gameplay_controls.event(&WindowEvent::Focused(true));
     // Start the run, then press a key only a scene would use.
     player
@@ -759,7 +759,7 @@ fn blueprint_input_without_player_controller_toggles_rendered_mesh() {
         "../../../examples/demo/scenes/blueprint-lab.json"
     ))
     .unwrap();
-    player.demo = SceneDemo::new(&scene).unwrap();
+    player.demo = SceneRuntime::new(&scene).unwrap();
     player.gameplay_controls.event(&WindowEvent::Focused(true));
     let visible = |p: &Player| {
         p.demo
@@ -893,7 +893,7 @@ fn combined_dispatch_reserves_gameplay_positions_and_restarts_physically() {
 
     // The same physical S/logical R still reloads legacy non-controller scenes.
     player.options.scene = None;
-    player.demo = SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap();
+    player.demo = SceneRuntime::new(&bozzard_runtime::scene_document().unwrap()).unwrap();
     player.demo.app.step();
     player
         .dispatch_keyboard(
@@ -935,7 +935,7 @@ fn scripted_factory_receives_enter_digits_and_r_instead_of_viewer_shortcuts() {
         BlackboardValue::Scalar(Value::Bool(true)),
     );
     player.options.scene = Some(path.clone());
-    player.demo = SceneDemo::new_with_prefabs(&document, Some(&path)).unwrap();
+    player.demo = SceneRuntime::new_with_prefabs(&document, Some(&path)).unwrap();
     // The initial window may already be focused without emitting Focused(true).
     for _ in 0..8 {
         player.demo.app.step();
@@ -1208,8 +1208,8 @@ fn authored_player_space_does_not_pause_and_restart_clears_win_and_input() {
 }
 #[test]
 fn view_pause_pan_and_transactional_reload_work_without_a_gpu() {
-    let assets = assets::Assets::load(&bozzard_demo::scene_document().unwrap(), None).unwrap();
-    let demo = SceneDemo::new(&bozzard_demo::scene_document().unwrap()).unwrap();
+    let assets = assets::Assets::load(&bozzard_runtime::scene_document().unwrap(), None).unwrap();
+    let demo = SceneRuntime::new(&bozzard_runtime::scene_document().unwrap()).unwrap();
     let mut player = Player::new(Options::default(), demo, assets);
     player
         .handle_key(&Key::Named(NamedKey::Space), false)

@@ -133,7 +133,7 @@ fn create_place_history_save_play_and_headless_expansion() {
     // Headless simulation does not read authoring prefab files.
     std::fs::remove_file(source_path(&reopened, &asset)).unwrap();
     let document = Scene::from_json(&std::fs::read_to_string(path).unwrap()).unwrap();
-    bozzard_demo::SceneDemo::new(&document).unwrap();
+    bozzard_runtime::SceneRuntime::new(&document).unwrap();
 }
 
 #[test]
@@ -538,7 +538,7 @@ fn dependencies_rebase_import_bind_colliding_ids_and_are_protected_in_history() 
     let project = t.0.join("other");
     std::fs::create_dir(&project).unwrap();
     let mut other = Editor::new(
-        bozzard_demo::scene_document().unwrap(),
+        bozzard_runtime::scene_document().unwrap(),
         &project.join("scene.json"),
     )
     .unwrap();
@@ -633,7 +633,7 @@ fn shared_source_updates_across_scenes_and_abandoned_import_keeps_user_file() {
     let asset = run(&mut first, PrefabCommand::Create);
     let path = source_path(&first, &asset);
     let mut second = Editor::new(
-        bozzard_demo::scene_document().unwrap(),
+        bozzard_runtime::scene_document().unwrap(),
         &t.0.join("second/scene.json"),
     )
     .unwrap();
@@ -903,7 +903,7 @@ fn blueprint_references_remap_through_prefab_duplicate_apply_and_save() {
     let saved = t.0.join("saved.json");
     e.save(&saved).unwrap();
     let reopened = Editor::open(&saved).unwrap();
-    let mut demo = bozzard_demo::SceneDemo::new(reopened.scene()).unwrap();
+    let mut demo = bozzard_runtime::SceneRuntime::new(reopened.scene()).unwrap();
     demo.app.step();
     demo.check_simulation().unwrap();
     for root in ["root", second.as_str(), third.as_str()] {
@@ -1066,7 +1066,7 @@ fn variants_inherit_new_source_components_keep_local_overrides_and_apply_to_the_
     assert_eq!(source(&e, &base), changed);
     let variant_of_variant = run(&mut e, PrefabCommand::Variant);
     let resolved =
-        bozzard_demo::load_prefab(&source_path(&e, &variant_of_variant), &Default::default())
+        bozzard_runtime::load_prefab(&source_path(&e, &variant_of_variant), &Default::default())
             .unwrap();
     assert_eq!(resolved.sources.len(), 3);
     assert_eq!(
@@ -1255,7 +1255,7 @@ fn structural_cycles_are_rejected_but_spawn_only_cycles_remain_valid() {
     let second_path = first_path.parent().unwrap().join("second.prefab.json");
     std::fs::write(&first_path, first.to_json().unwrap()).unwrap();
     std::fs::write(&second_path, second.to_json().unwrap()).unwrap();
-    let error = bozzard_demo::load_prefab(&first_path, &Default::default())
+    let error = bozzard_runtime::load_prefab(&first_path, &Default::default())
         .err()
         .unwrap();
     assert!(format!("{error:#}").contains("cycle"));
@@ -1263,5 +1263,5 @@ fn structural_cycles_are_rejected_but_spawn_only_cycles_remain_valid() {
     second.base = None;
     std::fs::write(&first_path, first.to_json().unwrap()).unwrap();
     std::fs::write(&second_path, second.to_json().unwrap()).unwrap();
-    assert!(bozzard_demo::load_prefab(&first_path, &Default::default()).is_ok());
+    assert!(bozzard_runtime::load_prefab(&first_path, &Default::default()).is_ok());
 }

@@ -7,8 +7,8 @@ use std::{collections::BTreeSet, path::PathBuf};
 fn bonfire_soak() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/demo/scenes/bonfire-lab.json");
-    let scene = bozzard_demo::load_document(Some(&path)).unwrap();
-    let mut demo = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+    let scene = bozzard_runtime::load_document(Some(&path)).unwrap();
+    let mut demo = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path)).unwrap();
     for block in 0..8 {
         let start = std::time::Instant::now();
         for _ in 0..300 {

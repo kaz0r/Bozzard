@@ -187,7 +187,7 @@ impl PrefabSource {
             base: self.base.clone(),
         };
         let json = prefab.to_json()?;
-        let reads = bozzard_demo::resolve_prefab(prefab, target, progress)?.sources;
+        let reads = bozzard_runtime::resolve_prefab(prefab, target, progress)?.sources;
         let previous = if target == original
             || target
                 .canonicalize()
@@ -224,7 +224,7 @@ pub(super) fn is_prefab_path(path: &Path) -> bool {
 }
 
 pub(super) fn load_source(path: PathBuf, progress: &Progress) -> Result<LoadedScene> {
-    let resolved = bozzard_demo::load_prefab(&path, progress)?;
+    let resolved = bozzard_runtime::load_prefab(&path, progress)?;
     let prefab = resolved.prefab;
     let mut scene = prefab.authoring_scene();
     let mut assets = AssetStore::new(root(&path), &scene.assets)?;
@@ -905,7 +905,7 @@ fn read_asset(
     let source = scene.assets.get(asset).context("prefab asset missing")?;
     ensure!(source.kind == AssetKind::Prefab, "asset is not a prefab");
     let target = root(path).join(&source.path);
-    let resolved = bozzard_demo::load_prefab(&target, progress)?;
+    let resolved = bozzard_runtime::load_prefab(&target, progress)?;
     let mut dependencies = resolved.sources;
     let bytes = dependencies
         .remove(&target.canonicalize()?)

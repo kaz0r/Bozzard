@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn fog_player_extraction_matches_authored_settings_and_disables_2d() {
-    let mut scene = bozzard_demo::scene_document().unwrap();
+    let mut scene = bozzard_runtime::scene_document().unwrap();
     scene.fog = bozzard_scene::FogSettings {
         enabled: true,
         color: [0.2, 0.3, 0.4],
@@ -13,7 +13,7 @@ fn fog_player_extraction_matches_authored_settings_and_disables_2d() {
         height_falloff: 0.5,
     };
     let assets = bozzard_assets::AssetStore::new(std::path::Path::new("."), &scene.assets).unwrap();
-    let demo = SceneDemo::new(&scene).unwrap();
+    let demo = SceneRuntime::new(&scene).unwrap();
     let fog = extract(&demo, &assets, Layer::ThreeD, 1.).unwrap().fog;
     assert!(fog.enabled);
     assert_eq!(fog.color, scene.fog.color);

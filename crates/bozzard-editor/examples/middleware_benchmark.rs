@@ -3,7 +3,7 @@ use anyhow::Result;
 use bozzard_scene::{Layer, Scene};
 use std::{path::Path, time::Instant};
 fn measure(scene: &Scene, gpu_particles: bool) -> Result<(f64, usize)> {
-    let mut demo = bozzard_demo::SceneDemo::new(scene)?;
+    let mut demo = bozzard_runtime::SceneRuntime::new(scene)?;
     demo.with_instance(|instance, _| instance.set_gpu_particles(gpu_particles));
     for _ in 0..360 {
         demo.app.step();

@@ -182,7 +182,7 @@ impl DebugWorkspace {
     fn profiler_ui(
         &mut self,
         ui: &mut egui::Ui,
-        network: Option<bozzard_demo::multiplayer::Telemetry>,
+        network: Option<bozzard_runtime::multiplayer::Telemetry>,
     ) {
         ui.horizontal_wrapped(|ui| {
             if ui
@@ -756,7 +756,7 @@ impl App {
                     live_gpu_memory: &'a Memory,
                 }
                 use std::io::Write;
-                bozzard_demo::save_atomic(&path, |file| {
+                bozzard_runtime::save_atomic(&path, |file| {
                     let mut writer = std::io::BufWriter::new(file);
                     serde_json::to_writer_pretty(
                         &mut writer,

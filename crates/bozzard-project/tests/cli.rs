@@ -83,7 +83,7 @@ fn bundle_commands_build_list_and_resolve_a_relocated_game() -> anyhow::Result<(
     let resolved: serde_json::Value = serde_json::from_slice(&resolved.stdout)?;
     let path = PathBuf::from(resolved["path"].as_str().unwrap());
     let scene = bozzard_scene::Scene::from_json(&fs::read_to_string(&path)?)?;
-    let mut game = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path))?;
+    let mut game = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path))?;
     game.game_action(bozzard_scene::GameAction::Start)?;
     game.app.step();
     game.check_simulation()?;

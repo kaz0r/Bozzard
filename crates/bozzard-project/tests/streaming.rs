@@ -1,12 +1,12 @@
 use anyhow::Result;
 use bozzard_app::job::{Job, Progress};
 use bozzard_assets::{AssetData, AssetStore};
-use bozzard_demo::SceneDemo;
 use bozzard_project::{
     CookTarget,
     content::{PackSpec, prepare_pack},
     streaming::{self, SceneAssets},
 };
+use bozzard_runtime::SceneRuntime;
 use bozzard_scene::{
     AssetKind, AssetSource, Object, Scene, Transform,
     scene_loading::{LoadPhase, SceneLoaderHandle, SceneSource},
@@ -47,7 +47,7 @@ impl Fixture {
                 path: "levels/next.json".into(),
             },
         );
-        let mut next = bozzard_demo::scene_document()?;
+        let mut next = bozzard_runtime::scene_document()?;
         next.assets.insert(
             "incoming-motion".into(),
             AssetSource {
@@ -82,8 +82,9 @@ impl Fixture {
         )?;
         Ok(Self { root, main })
     }
-    fn demo(&self) -> Result<SceneDemo> {
-        let mut demo = SceneDemo::new_with_prefabs(&self.main, Some(&self.root.join("main.json")))?;
+    fn demo(&self) -> Result<SceneRuntime> {
+        let mut demo =
+            SceneRuntime::new_with_prefabs(&self.main, Some(&self.root.join("main.json")))?;
         let mut assets = AssetStore::new(&self.root, &self.main.assets)?;
         assets.load_pending()?;
         assets.require_ready()?;
@@ -117,7 +118,7 @@ fn wait<T: Send + 'static>(job: &Job<T>) -> Result<T> {
         std::thread::sleep(Duration::from_millis(1));
     }
 }
-fn finish(demo: &mut SceneDemo) -> String {
+fn finish(demo: &mut SceneRuntime) -> String {
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
         demo.app.step();
@@ -324,7 +325,7 @@ fn addressable_pack_can_replace_the_scene_after_authoring_files_are_deleted() ->
 fn lazy_scene_graphs_are_cooked_transitively_and_keep_cycles_after_relocation() -> Result<()> {
     use bozzard_project::content::{ContentStore, load_catalog};
     let fixture = Fixture::new()?;
-    let mut main = bozzard_demo::scene_document()?;
+    let mut main = bozzard_runtime::scene_document()?;
     main.runtime_scene_sources = fixture.main.runtime_scene_sources.clone();
     fs::write(fixture.root.join("main.json"), main.to_json()?)?;
     let next_path = fixture.root.join("levels/next.json");
@@ -370,7 +371,7 @@ fn lazy_scene_graphs_are_cooked_transitively_and_keep_cycles_after_relocation() 
     )?;
     let path = mounted.path();
     let document = Scene::from_json(&fs::read_to_string(&path)?)?;
-    let mut demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    let mut demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     let mut assets = AssetStore::new(path.parent().unwrap(), &document.assets)?;
     assets.load_pending()?;
     streaming::install_with_cache(
@@ -419,7 +420,7 @@ fn save_as_rebases_lazy_files_and_catalogs_without_opening_them() -> Result<()> 
             address: "level".into(),
         },
     );
-    let saved = bozzard_demo::prepare_document_from(
+    let saved = bozzard_runtime::prepare_document_from(
         &scene,
         &fixture.root.join("saved/main.json"),
         Some(&fixture.root.join("main.json")),
@@ -661,7 +662,7 @@ fn loading_lab_runs_the_same_load_unload_reload_controls_as_the_native_player() 
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/demo/scenes/scene-loading-lab.json");
     let document = Scene::from_json(&fs::read_to_string(&path)?)?;
-    let mut demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    let mut demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     let mut assets = AssetStore::new(path.parent().unwrap(), &document.assets)?;
     assets.load_pending()?;
     streaming::install_with_cache(

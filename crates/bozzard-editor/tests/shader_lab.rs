@@ -114,7 +114,7 @@ fn shader_time_follows_simulation_not_edit_preview() -> anyhow::Result<()> {
 
     let mut graph = ShaderGraph::default();
     graph.nodes.push(Node::new(2, NodeKind::Time, [40., 40.]));
-    let mut scene = bozzard_demo::scene_document()?;
+    let mut scene = bozzard_runtime::scene_document()?;
     scene.objects.retain(|o| o.drawable.is_none());
     scene.objects[0].shader_graph = Some(graph);
     let dir = std::env::temp_dir().join("bozzard-shader-time-test");

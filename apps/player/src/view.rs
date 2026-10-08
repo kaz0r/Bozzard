@@ -30,7 +30,9 @@ pub(crate) fn configure_surface_checked(
 
 pub(crate) type RetiredComputeJob = (bozzard_scene::compute::Owner, u64, String, bool);
 
-pub(crate) fn retire_pending_compute_jobs(demo: &mut SceneDemo) -> Result<Vec<RetiredComputeJob>> {
+pub(crate) fn retire_pending_compute_jobs(
+    demo: &mut SceneRuntime,
+) -> Result<Vec<RetiredComputeJob>> {
     demo.with_instance(|instance, _| {
         let Some(mut compute) = instance.compute_if_initialized() else {
             return Ok(Vec::new());
@@ -128,7 +130,7 @@ impl View {
         &mut self,
         event_loop: &ActiveEventLoop,
         options: &Options,
-        demo: &mut SceneDemo,
+        demo: &mut SceneRuntime,
         assets: &mut assets::Assets,
     ) -> Result<()> {
         let reason = self.gpu.failure().unwrap_or("device failure").to_owned();
@@ -253,7 +255,7 @@ impl View {
 
     pub(crate) fn draw(
         &mut self,
-        demo: &mut SceneDemo,
+        demo: &mut SceneRuntime,
         assets: &mut assets::Assets,
         layer: Layer,
         elapsed: Option<Duration>,
@@ -269,7 +271,7 @@ impl View {
 
     pub(crate) fn draw_prepared(
         &mut self,
-        demo: &mut SceneDemo,
+        demo: &mut SceneRuntime,
         assets: &mut assets::Assets,
         layer: Layer,
         elapsed: &mut Option<Duration>,

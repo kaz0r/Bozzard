@@ -166,8 +166,8 @@ Detailed authoring instructions, supported formats, and current limits live in t
 | `bozzard-diagnostics` | Profiling, logs, and render/simulation metrics |
 | `bozzard-network` | Networking, session pacing, and Steam integration |
 | `bozzard-project` | Project manifests, native export, content bundles, and Kennel packages |
+| `bozzard-runtime` | The running scene shared by the player, editor Play and server: scene files, prefabs, multiplayer, Steam startup and Stellar-IX sessions |
 | `bozzard-editor` / `bozzard-editor-app` | Editor transactions and the native UI shell |
-| `bozzard-demo` | Shared simulation setup and reference scenes |
 | `bozzard-player` / `bozzard-server` | Native player and graphics-free simulation harness |
 | `bozz-torio` | Standalone 2D factory game |
 

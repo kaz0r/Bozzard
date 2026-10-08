@@ -52,7 +52,7 @@ simulation continues. **Scene Loading Status** provides Loading, Progress (0–1
 and Error outputs. **Cancel Scene Loading** prevents publication; **Unload Scene** accepts
 an additive instance's handle. See [scene loading and lifetime](scene-loading.md).
 
-**Save Game State** and **Load Game State** accept a slot of 1–64 letters, digits, underscores or hyphens. The slot is never a path. Hosts using `SceneDemo::new_with_prefabs` persist slots under `BOZZARD_SAVE_DIR`, or the user's data directory under `bozzard/saves/<scene-name hash>`. Explicit save I/O is synchronous at the tick boundary and uses a synced temporary file followed by rename. Checkpoints are limited to 64 MiB; headless `SceneDemo::new` can use bounded in-memory slots or configure `GameSaves::in_directory`.
+**Save Game State** and **Load Game State** accept a slot of 1–64 letters, digits, underscores or hyphens. The slot is never a path. Hosts using `SceneRuntime::new_with_prefabs` persist slots under `BOZZARD_SAVE_DIR`, or the user's data directory under `bozzard/saves/<scene-name hash>`. Explicit save I/O is synchronous at the tick boundary and uses a synced temporary file followed by rename. Checkpoints are limited to 64 MiB; headless `SceneRuntime::new` can use bounded in-memory slots or configure `GameSaves::in_directory`.
 
 Checkpoints include additive-instance ownership, scene membership/transforms/components, private and shared variables/lists, started/enabled/overlap state, pending timers and their event contexts, random sequences, latest query/spawn outputs, visibility, cursor mode, game-flow state, gravity and rigidbody linear/angular velocities, sleeping state, and display overrides. The scene catalog must match. Invalid saves are checked before replacement. Physics reconstructs contacts on its next step; solver warm-start caches and visual particle history are not checkpointed. This is a gameplay checkpoint, not a bit-identical physics replay format. `save_game_json` / `load_game_json` expose the same format without disk I/O. Editor Stop restores the untouched authored document; ordinary editor Save still saves authoring state.
 
@@ -69,7 +69,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 python3 tools/check_headless.py
-cargo run --release -p bozzard-demo --example benchmark_blueprints --locked
+cargo run --release -p bozzard-runtime --example benchmark_blueprints --locked
 ```
 
 The added tests cover typed scopes/lists and invalid domains, timers and event context, contact normals/impulses, destruction, persistent checkpoints, random continuation, scene replacement/additive remapping/restart, query holes/rotations/ties/capacity, editor draft rendering/copy-paste/history/Play isolation, and exported scene catalogs after source removal.

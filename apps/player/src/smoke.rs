@@ -1,7 +1,7 @@
 use super::*;
-use bozzard_demo::{Position, demo};
 use bozzard_render::{DrawItem, Material, MeshKind, RenderScene, TextureKind};
 use bozzard_render::{Frame, TriangleRenderer, capture_offscreen, render_offscreen};
+use bozzard_runtime::{Position, demo};
 use glam::{Mat4, Vec3};
 mod benchmark;
 mod bloom;
@@ -398,7 +398,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
     depth_scene.view_projection = projection * Mat4::from_translation(Vec3::new(-1.5, 0.0, -3.0));
     let panned = capture(gpu, &mut renderer, &depth_scene, [257, 193])?;
     pixel(&panned, 128, 96, [5, 6, 10])?;
-    let document = bozzard_demo::scene_document()?;
+    let document = bozzard_runtime::scene_document()?;
     let empty_assets =
         bozzard_assets::AssetStore::new(std::path::Path::new("."), &document.assets)?;
     check_document(
@@ -411,7 +411,7 @@ fn scene_checks(gpu: &Gpu, options: &Options) -> Result<()> {
         true,
     )?;
     if let Some(path) = &options.scene {
-        let document = SceneDemo::new_with_prefabs(&load_document(Some(path))?, Some(path))?
+        let document = SceneRuntime::new_with_prefabs(&load_document(Some(path))?, Some(path))?
             .instance()
             .document()
             .clone();
@@ -680,7 +680,7 @@ fn check_document(
         (Layer::TwoD, "2d", [640, 400]),
         (Layer::ThreeD, "3d", [800, 500]),
     ] {
-        let mut demo = SceneDemo::new_with_prefabs(
+        let mut demo = SceneRuntime::new_with_prefabs(
             document,
             options.scene.as_deref().filter(|_| prefix == "loaded"),
         )?;
@@ -795,7 +795,7 @@ fn check_document(
                 && saved.post_process_volumes == document.post_process_volumes,
             "runtime display overrides leaked into scene saving"
         );
-        let mut restored = SceneDemo::new_with_prefabs(
+        let mut restored = SceneRuntime::new_with_prefabs(
             &Scene::from_json(&saved.to_json()?)?,
             options.scene.as_deref().filter(|_| prefix == "loaded"),
         )?;

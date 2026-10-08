@@ -7,9 +7,9 @@ Bozzard owns its ECS, scheduling, scene model, renderer design, module contract,
 The dependency direction is intentional:
 
 ```text
-bozzard-server -> bozzard-demo -> bozzard-app -> bozzard-ecs
-bozzard-demo -> bozzard-scene -> bozzard-ecs + glam + serde + bozzard-text
-bozzard-player -> bozzard-demo
+bozzard-server -> bozzard-runtime -> bozzard-app -> bozzard-ecs
+bozzard-runtime -> bozzard-scene -> bozzard-ecs + glam + serde + bozzard-text
+bozzard-player -> bozzard-runtime
 bozzard-player -> bozzard-render -> wgpu
 bozzard-player -> bozzard-assets -> bozzard-scene + image + tobj
 bozzard-player -> bozzard-audio -> Kira + CPAL

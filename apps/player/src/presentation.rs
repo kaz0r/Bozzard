@@ -1,7 +1,7 @@
 use anyhow::Result;
-use bozzard_demo::SceneDemo;
 use bozzard_render::RenderScene;
 use bozzard_render_assets::{RenderFrame, RenderSceneCache};
+use bozzard_runtime::SceneRuntime;
 use bozzard_scene::Layer;
 
 #[cfg(test)]
@@ -12,7 +12,7 @@ mod fog_tests;
 mod interpolation_tests;
 
 pub fn extract(
-    demo: &SceneDemo,
+    demo: &SceneRuntime,
     assets: &bozzard_assets::AssetStore,
     layer: Layer,
     aspect: f32,
@@ -30,7 +30,7 @@ pub fn extract(
 }
 
 pub fn extract_frame(
-    demo: &SceneDemo,
+    demo: &SceneRuntime,
     assets: &bozzard_assets::AssetStore,
     cache: &RenderSceneCache,
     layer: Layer,

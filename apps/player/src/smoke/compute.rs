@@ -9,7 +9,7 @@ pub(super) fn check_document(
     assets: &bozzard_assets::AssetStore,
     options: &Options,
 ) -> Result<()> {
-    let mut demo = SceneDemo::new_with_prefabs(document, options.scene.as_deref())?;
+    let mut demo = SceneRuntime::new_with_prefabs(document, options.scene.as_deref())?;
     let mut bridge = ComputeBridge::new(gpu);
     demo.with_instance(|instance, _| bridge.prepare(instance));
     let layer = if demo.instance().has_view(Layer::ThreeD) {

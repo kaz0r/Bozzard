@@ -150,9 +150,9 @@ fn authored_lighting_survives_undo_play_and_scene_roundtrip() {
 
 #[test]
 fn display_exposure_is_3d_only() {
-    let mut scene = bozzard_demo::scene_document().unwrap();
+    let mut scene = bozzard_runtime::scene_document().unwrap();
     scene.display.exposure_ev = 3.;
-    let demo = bozzard_demo::SceneDemo::new(&scene).unwrap();
+    let demo = bozzard_runtime::SceneRuntime::new(&scene).unwrap();
     let assets = bozzard_assets::AssetStore::new(std::path::Path::new("."), &scene.assets).unwrap();
     let two = bozzard_editor::extract(&demo, &assets, bozzard_scene::Layer::TwoD, 1.).unwrap();
     assert_eq!(two.display.exposure_ev, 0.);

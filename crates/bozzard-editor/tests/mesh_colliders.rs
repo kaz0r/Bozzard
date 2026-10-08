@@ -79,9 +79,10 @@ fn cook_independent_surface_colliders_roundtrip_undo_and_play_without_source_ass
     }
     detached.views.clear();
     detached.assets.clear();
-    let standalone =
-        bozzard_demo::SceneDemo::new(&Scene::from_json(&detached.to_json().unwrap()).unwrap())
-            .unwrap();
+    let standalone = bozzard_runtime::SceneRuntime::new(
+        &Scene::from_json(&detached.to_json().unwrap()).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
         standalone
             .instance()

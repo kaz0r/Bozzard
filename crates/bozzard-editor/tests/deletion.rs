@@ -14,7 +14,7 @@ fn project_delete_removes_users_restores_files_and_protects_overwrites_and_refer
     let temp = Temp(std::env::temp_dir().join(format!("bozzard-delete-{}", std::process::id())));
     std::fs::create_dir(&temp.0).unwrap();
     let mut editor = Editor::new(
-        bozzard_demo::scene_document().unwrap(),
+        bozzard_runtime::scene_document().unwrap(),
         &temp.0.join("scene.json"),
     )
     .unwrap();

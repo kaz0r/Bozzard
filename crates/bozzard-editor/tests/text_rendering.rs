@@ -228,7 +228,7 @@ fn text_prefabs_are_independent_and_blueprint_color_visibility_work_headlessly()
             path: "label.prefab.json".into(),
         },
     );
-    let mut demo = bozzard_demo::SceneDemo::new(&scene).unwrap();
+    let mut demo = bozzard_runtime::SceneRuntime::new(&scene).unwrap();
     demo.with_instance(|i, _| i.register_prefab("label".into(), prefab))
         .unwrap();
     let a = demo
