@@ -1,6 +1,6 @@
 //! Headless project creation and structural scene merge tools.
 use anyhow::{Context, Result, bail, ensure};
-use bozzard_project::{create_project, merge_scenes};
+use bozzard_project::{create_project, kennel, merge_scenes};
 use bozzard_scene::Scene;
 use std::{
     fs,
@@ -27,6 +27,118 @@ fn create_file(path: &Path, bytes: &[u8]) -> Result<()> {
     file.sync_all()?;
     Ok(())
 }
+/// `kennel <subcommand>`: flags may appear anywhere; positionals select the action.
+fn kennel(args: &[std::ffi::OsString]) -> Result<()> {
+    let mut registry = None;
+    let (mut all_targets, mut force, mut fetch) = (false, false, false);
+    let mut positional = Vec::new();
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        let arg = arg.to_str().context("kennel arguments must be UTF-8")?;
+        match arg {
+            "--registry" => {
+                let value = args.next().context("--registry needs a folder or URL")?;
+                registry = Some(value.to_str().context("registry must be UTF-8")?.to_owned());
+            }
+            "--all-targets" => all_targets = true,
+            "--force" => force = true,
+            "--fetch" => fetch = true,
+            flag if flag.starts_with("--") => bail!("unknown kennel option {flag}"),
+            _ => positional.push(arg),
+        }
+    }
+    let progress = bozzard_assets::job::Progress::default();
+    let open = || {
+        let location = registry.clone().unwrap_or_else(kennel::default_registry);
+        kennel::Registry::open(&location, &progress)
+    };
+    match positional.as_slice() {
+        ["list", query @ ..] if query.len() <= 1 => {
+            let registry = open()?;
+            let query = query.first().map(|q| q.to_lowercase()).unwrap_or_default();
+            for (name, entry) in &registry.index.packages {
+                let haystack = format!(
+                    "{name} {} {} {}",
+                    entry.title,
+                    entry.summary,
+                    entry.tags.join(" ")
+                );
+                if haystack.to_lowercase().contains(&query) {
+                    println!(
+                        "{name} {} [{}] {}",
+                        entry.version,
+                        entry.category.as_str(),
+                        entry.summary
+                    );
+                }
+            }
+        }
+        ["info", name] => {
+            let (manifest, _) = open()?.manifest(name, &progress)?;
+            println!("{}", serde_json::to_string_pretty(&manifest)?);
+        }
+        ["install", name, project] => {
+            let options = kennel::InstallOptions {
+                all_targets,
+                force,
+                cache: None,
+            };
+            let installed =
+                kennel::install(Path::new(project), name, &open()?, options, &progress)?;
+            for package in installed {
+                println!(
+                    "kennel_install_ok name={} version={} dir={} files={} targets={} requires_features={}{}",
+                    package.name,
+                    package.version,
+                    package.directory.display(),
+                    package.files,
+                    package.targets.join(","),
+                    package.features.join(","),
+                    if package.unchanged { " unchanged" } else { "" }
+                );
+                for (variable, folder) in package.build_env {
+                    println!("{variable}={}", folder.display());
+                }
+            }
+        }
+        ["verify", project] => {
+            let verified = kennel::verify(Path::new(project), &progress)?;
+            for (name, version, files) in &verified {
+                println!("kennel_verify_ok name={name} version={version} files={files}");
+            }
+            if verified.is_empty() {
+                println!("kennel_verify_ok packages=0");
+            }
+        }
+        ["remove", name, project] => {
+            kennel::remove(Path::new(project), name, force, &progress)?;
+            println!("kennel_remove_ok name={name}");
+        }
+        ["index", folder] => {
+            let index = kennel::build_index(Path::new(folder))?;
+            println!(
+                "kennel_index_ok packages={} index={}",
+                index.packages.len(),
+                Path::new(folder).join(kennel::INDEX_FILE).display()
+            );
+        }
+        ["check", folder] => {
+            let cache = if fetch {
+                Some(kennel::cache_directory()?)
+            } else {
+                None
+            };
+            let report = kennel::check(Path::new(folder), cache.as_deref(), &progress)?;
+            println!(
+                "kennel_check_ok packages={} files={} scripts={} assets={} sources={}",
+                report.packages, report.files, report.scripts, report.assets, report.sources
+            );
+        }
+        _ => bail!("invalid kennel arguments; run bozzard-project --help"),
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
@@ -238,8 +350,10 @@ fn main() -> Result<()> {
                 }
             }
         }
+        "kennel" if args.len() >= 2 => kennel(&args[1..])?,
         "help" | "--help" | "-h" => println!(
-            "Bozzard project tools\n  bundle <SPEC.json> <NEW_RELEASE_FOLDER>\n  list-content <CATALOG_FILE_OR_URL>\n  fetch-content <CATALOG_FILE_OR_URL> <ADDRESS> <CACHE_DIR>\n  new <third-person|collect-2d> <NEW_FOLDER> <NAME>\n  merge <BASE.json> <OURS.json> <THEIRS.json> <NEW_OUTPUT.json>\n  cook-texture <bc|astc|universal> <INPUT.png> <NEW_OUTPUT.btex> [srgb|linear]\n  cook-model <rgba|bc|astc|universal> <INPUT.obj|gltf|glb> <NEW_OUTPUT.bmesh>\n\nMerge conflicts produce NEW_OUTPUT.json.conflicts.json and a nonzero exit code.\nAll inputs and existing destinations are preserved."
+            "Bozzard project tools\n  bundle <SPEC.json> <NEW_RELEASE_FOLDER>\n  list-content <CATALOG_FILE_OR_URL>\n  fetch-content <CATALOG_FILE_OR_URL> <ADDRESS> <CACHE_DIR>\n  new <third-person|collect-2d> <NEW_FOLDER> <NAME>\n  merge <BASE.json> <OURS.json> <THEIRS.json> <NEW_OUTPUT.json>\n  cook-texture <bc|astc|universal> <INPUT.png> <NEW_OUTPUT.btex> [srgb|linear]\n  cook-model <rgba|bc|astc|universal> <INPUT.obj|gltf|glb> <NEW_OUTPUT.bmesh>\n\nKennel packages (registry: --registry <FOLDER|URL>, $BOZZARD_KENNEL_REGISTRY, or {})\n  kennel list [QUERY]\n  kennel info <NAME>\n  kennel install <NAME> <PROJECT> [--all-targets] [--force]\n  kennel verify <PROJECT>\n  kennel remove <NAME> <PROJECT> [--force]\n  kennel index <REGISTRY_FOLDER>\n  kennel check <REGISTRY_FOLDER> [--fetch]\n\nMerge conflicts produce NEW_OUTPUT.json.conflicts.json and a nonzero exit code.\nAll inputs and existing destinations are preserved.",
+            kennel::DEFAULT_REGISTRY
         ),
         _ => bail!("invalid arguments; run bozzard-project --help"),
     }
