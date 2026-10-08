@@ -244,7 +244,19 @@ fn check_accepts_published_packages_and_rejects_drift() {
         (2, 4, 3, 0)
     );
     let index = Registry::open(registry.to_str().unwrap(), &progress).unwrap();
-    assert_eq!(index.index.packages["kit"].version, "1.0.0");
+    let entry = &index.index.packages["kit"];
+    assert_eq!(entry.version, "1.0.0");
+    assert!(entry.matches("kit", "") && entry.matches("kit", "KENNEL  test"));
+    assert!(!entry.matches("kit", "kennel steam"));
+    let (manifest, _) = index.manifest("kit", &progress).unwrap();
+    assert_eq!(
+        index
+            .package_text(&manifest, "README.md", &progress)
+            .unwrap(),
+        "# Kit\n"
+    );
+    let unlisted = index.package_text(&manifest, "notes.txt", &progress);
+    assert!(message(unlisted.unwrap_err()).contains("kit stores no file notes.txt"));
 
     let fails = |expected: &str| {
         let error = message(kennel::check(&registry, None, &progress).unwrap_err());
@@ -256,6 +268,8 @@ fn check_accepts_published_packages_and_rejects_drift() {
     fs::remove_file(registry.join("packages/kit/notes.txt")).unwrap();
     fs::write(&readme, b"# Changed\n").unwrap();
     fails("kit: README.md does not match its manifest entry");
+    let tampered = index.package_text(&manifest, "README.md", &progress);
+    assert!(message(tampered.unwrap_err()).contains("README.md does not match"));
     fs::write(&readme, b"# Kit\n").unwrap();
 
     kit()

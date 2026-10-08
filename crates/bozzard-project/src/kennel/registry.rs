@@ -52,6 +52,23 @@ pub struct IndexEntry {
     pub sha256: String,
 }
 
+impl IndexEntry {
+    /// Whether every word of `query` appears in the package's name, title, summary or tags,
+    /// ignoring case. An empty query matches every package.
+    pub fn matches(&self, name: &str, query: &str) -> bool {
+        let haystack = format!(
+            "{name} {} {} {}",
+            self.title,
+            self.summary,
+            self.tags.join(" ")
+        )
+        .to_lowercase();
+        query
+            .split_whitespace()
+            .all(|word| haystack.contains(&word.to_lowercase()))
+    }
+}
+
 impl Index {
     pub fn manifest_path(name: &str) -> String {
         format!("{PACKAGES_DIR}/{name}/{}", Manifest::file_name(name))
@@ -141,6 +158,29 @@ impl Registry {
     pub(super) fn package_file(&self, name: &str, path: &str) -> Result<Location> {
         self.index_location
             .resolve(&format!("{PACKAGES_DIR}/{name}/{path}"))
+    }
+
+    /// A UTF-8 file stored in a package folder, such as its README, checked against the
+    /// manifest's size and hash. `manifest` comes from [`Registry::manifest`].
+    pub fn package_text(
+        &self,
+        manifest: &Manifest,
+        path: &str,
+        progress: &Progress,
+    ) -> Result<String> {
+        let name = &manifest.name;
+        let item = manifest
+            .payload()
+            .find(|item| item.path == path && item.source.is_none())
+            .with_context(|| format!("{name} stores no file {path}"))?;
+        ensure!(item.bytes <= MAX_DOCUMENT, "{name}: {path} exceeds 1 MiB");
+        let bytes = fetch(&self.package_file(name, path)?, MAX_DOCUMENT, progress)
+            .with_context(|| format!("reading {name}/{path}"))?;
+        ensure!(
+            bytes.len() as u64 == item.bytes && hex(Sha256::digest(&bytes)) == item.sha256,
+            "{name}: {path} does not match its manifest entry"
+        );
+        String::from_utf8(bytes).with_context(|| format!("{name}: {path} is not UTF-8"))
     }
 }
 

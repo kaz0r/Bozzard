@@ -61,6 +61,14 @@ pub enum Category {
     Tool,
 }
 impl Category {
+    pub const ALL: [Self; 6] = [
+        Self::Integration,
+        Self::Scripts,
+        Self::Art,
+        Self::Audio,
+        Self::Template,
+        Self::Tool,
+    ];
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Integration => "integration",
@@ -181,6 +189,17 @@ impl Manifest {
     pub fn version(&self) -> Result<semver::Version> {
         semver::Version::parse(&self.version)
             .with_context(|| format!("{}: version '{}' is not semver", self.name, self.version))
+    }
+
+    /// Whether this engine's version meets `engine.bozzard`.
+    pub fn supports_engine(&self) -> Result<bool> {
+        Ok(semver::VersionReq::parse(&self.engine.bozzard)?
+            .matches(&semver::Version::parse(super::ENGINE_VERSION)?))
+    }
+
+    /// Whether this engine provides the script API `engine.script_api` names.
+    pub fn supports_script_api(&self) -> bool {
+        self.engine.script_api <= crate::runtime::SCRIPT_API_VERSION
     }
 
     pub fn validate(&self) -> Result<()> {

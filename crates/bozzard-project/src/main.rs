@@ -55,15 +55,9 @@ fn kennel(args: &[std::ffi::OsString]) -> Result<()> {
     match positional.as_slice() {
         ["list", query @ ..] if query.len() <= 1 => {
             let registry = open()?;
-            let query = query.first().map(|q| q.to_lowercase()).unwrap_or_default();
+            let query = query.first().copied().unwrap_or_default();
             for (name, entry) in &registry.index.packages {
-                let haystack = format!(
-                    "{name} {} {} {}",
-                    entry.title,
-                    entry.summary,
-                    entry.tags.join(" ")
-                );
-                if haystack.to_lowercase().contains(&query) {
+                if entry.matches(name, query) {
                     println!(
                         "{name} {} [{}] {}",
                         entry.version,

@@ -168,15 +168,14 @@ fn resolve(
     }
     let (manifest, bytes) = registry.manifest(name, progress)?;
     satisfies(&manifest)?;
-    let engine = semver::Version::parse(ENGINE_VERSION)?;
     ensure!(
-        semver::VersionReq::parse(&manifest.engine.bozzard)?.matches(&engine),
+        manifest.supports_engine()?,
         "{name} {} needs Bozzard {}; this engine is {ENGINE_VERSION}",
         manifest.version,
         manifest.engine.bozzard
     );
     ensure!(
-        manifest.engine.script_api <= SCRIPT_API_VERSION,
+        manifest.supports_script_api(),
         "{name} {} needs script API {}; this engine provides {SCRIPT_API_VERSION}",
         manifest.version,
         manifest.engine.script_api
