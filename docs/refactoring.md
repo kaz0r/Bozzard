@@ -19,7 +19,7 @@ Rules:
 | Item | What moves | Guarded by |
 | --- | --- | --- |
 | [x] Split `bozzard-scene` script runtime | `script_runtime.rs`, 4,600 lines, becomes `script_runtime/` modules for host, conversion, the Rhai API groups, compile, reload, tick, commands, loading and tests. `pub use` lists stay. | 28 unit tests in the file, plus demo, editor and network script tests |
-| [ ] Split `bozzard-assets` root | `lib.rs`, 2,800 lines, becomes `store`, `source`, `import/{obj,gltf,image}` and `portable`. | 52 unit tests, 16 of them importer tests |
+| [x] Split `bozzard-assets` root | `lib.rs`, 2,800 lines, becomes `store`, `source`, `import/{obj,gltf,image}` and `portable`. | 52 unit tests, 16 of them importer tests |
 | [ ] Editor job boilerplate | `Loading` forwards fraction, label and cancellation through one `Progress` handle instead of four 11-arm matches. A `begin_job` helper replaces the repeated "wait for the current operation" guards and interaction resets. | Editor app tests and the editor smoke run |
 | [ ] Split the player | `apps/player/src/main.rs`, 3,000 lines, becomes `cli`, `view`, `keyboard`, `frame_stats` and `handler`. One `Player::new` replaces three struct literals. | 17 unit tests and the three-OS device-recreation smoke in CI |
 | [ ] Renderer construction helpers | `hdr_target`, `fullscreen_pipeline`, bind-group layout entries and a growable buffer replace 5–7 copies each in the post-processing and shadow passes. These run at construction and resize time only. | Post-processing, optics, volumetric and temporal GPU tests |
