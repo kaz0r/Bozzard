@@ -85,36 +85,14 @@ impl Temporal {
                 source: wgpu::ShaderSource::Wgsl(include_str!("temporal.wgsl").into()),
             });
         let pipeline = |entry, count| {
-            gpu.device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(entry),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vs_main"),
-                        compilation_options: Default::default(),
-                        buffers: &[],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(entry),
-                        compilation_options: Default::default(),
-                        targets: &(0..count)
-                            .map(|_| {
-                                Some(wgpu::ColorTargetState {
-                                    format: wgpu::TextureFormat::Rgba16Float,
-                                    blend: None,
-                                    write_mask: wgpu::ColorWrites::ALL,
-                                })
-                            })
-                            .collect::<Vec<_>>(),
-                    }),
-                    primitive: Default::default(),
-                    depth_stencil: None,
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
+            gpu_util::fullscreen_pipeline(
+                gpu,
+                entry,
+                Some(&pipeline_layout),
+                &shader,
+                entry,
+                &vec![wgpu::TextureFormat::Rgba16Float; count],
+            )
         };
         Self {
             taa: pipeline("fs_taa", 2),
@@ -168,13 +146,13 @@ impl Temporal {
             self.targets = Some(Targets {
                 size,
                 colors: std::array::from_fn(|_| {
-                    geometry::color_texture(gpu, size, "temporal HDR history")
+                    gpu_util::color_texture(gpu, size, "temporal HDR history")
                 }),
                 surfaces: std::array::from_fn(|_| {
-                    geometry::color_texture(gpu, size, "temporal surface history")
+                    gpu_util::color_texture(gpu, size, "temporal surface history")
                 }),
-                blur: geometry::color_texture(gpu, size, "motion blur output"),
-                tiles: geometry::color_texture(
+                blur: gpu_util::color_texture(gpu, size, "motion blur output"),
+                tiles: gpu_util::color_texture(
                     gpu,
                     size.map(|d| d.div_ceil(16)),
                     "maximum velocity tiles",

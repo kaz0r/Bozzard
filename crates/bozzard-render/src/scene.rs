@@ -6,6 +6,7 @@ use wgpu::util::DeviceExt;
 mod temporal_settings;
 pub use temporal_settings::{MotionBlur, ScreenSpaceReflections, TemporalAntiAliasing};
 pub(crate) mod geometry;
+mod gpu_util;
 mod particles;
 mod skinning;
 pub use skinning::{SkinData, SkinPose};

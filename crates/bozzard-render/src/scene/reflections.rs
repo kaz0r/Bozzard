@@ -70,33 +70,14 @@ impl Reflections {
                 label: Some("screen space reflections"),
                 source: wgpu::ShaderSource::Wgsl(shader_source().into()),
             });
-        let pipeline = gpu
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("screen space reflections"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba16Float,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: Default::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                multiview_mask: None,
-                cache: None,
-            });
+        let pipeline = gpu_util::fullscreen_pipeline(
+            gpu,
+            "screen space reflections",
+            Some(&pipeline_layout),
+            &shader,
+            "fs_main",
+            &[wgpu::TextureFormat::Rgba16Float],
+        );
         Self {
             layout,
             pipeline,
@@ -136,7 +117,7 @@ impl Reflections {
             .is_none_or(|(_, size)| *size != frame.size);
         if resized {
             self.target = Some((
-                geometry::color_texture(gpu, frame.size, "reflected HDR scene"),
+                gpu_util::color_texture(gpu, frame.size, "reflected HDR scene"),
                 frame.size,
             ));
         }

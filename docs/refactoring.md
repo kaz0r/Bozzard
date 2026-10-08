@@ -22,7 +22,7 @@ Rules:
 | [x] Split `bozzard-assets` root | `lib.rs`, 2,800 lines, becomes `store`, `source`, `import/{obj,gltf,image}` and `portable`. | 52 unit tests, 16 of them importer tests |
 | [x] Editor job boilerplate | `Loading` forwards fraction, label and cancellation through one `Progress` handle (`Job::progress`) instead of four 11-arm matches. | Editor app tests and the editor smoke run |
 | [x] Split the player | `apps/player/src/main.rs`, 3,000 lines, becomes `cli`, `view` (window, surface, device), `player` (mouse look, title, keyboard commands), `handler` (event loop) and `controls_tests`. One `Player::new` replaces three struct literals. | 17 unit tests and the three-OS device-recreation smoke in CI |
-| [ ] Renderer construction helpers | `hdr_target`, `fullscreen_pipeline`, bind-group layout entries and a growable buffer replace 5–7 copies each in the post-processing and shadow passes. These run at construction and resize time only. | Post-processing, optics, volumetric and temporal GPU tests |
+| [x] Renderer construction helpers | `scene/gpu_util.rs` holds `color_texture` (the HDR target four passes each redefined) and `fullscreen_pipeline` (seven copies of the same full-screen pass descriptor). Both run at construction and resize time only. | The renderer's 174 tests, including post-processing, optics, volumetric and temporal |
 | [ ] Runtime crate | `bozzard-demo`'s library moves to `crates/bozzard-runtime`. `examples/demo` keeps its scenes, tests and benchmarks. Document I/O (`save_json`, `save_atomic`, …) moves to `bozzard-scene`; the Steam wrappers go to `bozzard_network::steam`. | Workspace tests; `tools/check_headless.py` for the server's dependency tree |
 
 ## Phase 2: settle duplicated behaviour
@@ -49,6 +49,11 @@ Rules:
 - **Component rows own spawn and capture.** `ComponentType` gains the
   `spawn`/`capture`/`validate` hooks middleware entries already have. That removes the
   three hand-kept core field lists in `bozzard-scene/src/lib.rs`.
+- **Renderer buffers and layouts.** Five hand-rolled power-of-two buffer growths
+  (`hud`, `submission`, `occlusion/gpu`, `instancing/arena`, `compute`) and the
+  bind-group layout entries in `Shadows::new` and `SceneRenderer::new` repeat each other.
+  The growth policies differ, and the arena also shrinks, while tests assert allocation
+  counts. So a shared `GrowBuffer` has to state which policy it keeps.
 - **Mesh building.** The OBJ and glTF importers share vertex caps, index checks, normals
   generation and part limits through one `MeshBuilder`.
 
