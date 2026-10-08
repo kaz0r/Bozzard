@@ -32,8 +32,8 @@ mod script_runtime;
 pub use script_runtime::{
     NetworkFrame, NetworkOutbox, NetworkRequest, ScriptAttachmentStats, ScriptModule,
     ScriptReloadCandidate, ScriptReloadRequest, ScriptReloadStatus, ScriptRuntime,
-    ScriptRuntimeStats, load_sources, load_sources_with_progress, script_function_descriptions,
-    script_hook_descriptions, script_hook_signatures,
+    ScriptRuntimeStats, check_script_sources, load_sources, load_sources_with_progress,
+    script_function_descriptions, script_hook_descriptions, script_hook_signatures,
 };
 mod fog;
 pub use fog::FogSettings;

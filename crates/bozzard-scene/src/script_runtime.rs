@@ -1773,6 +1773,16 @@ pub(crate) fn compile_sources(
     imports::compile_catalog(sources, progress)
 }
 
+/// Compiles a script catalog keyed by asset ID without a scene, as a scene load would: imports
+/// resolve within the catalog and hook arities are checked. Tools use it to vet scripts before
+/// they reach a project.
+pub fn check_script_sources(
+    sources: BTreeMap<String, String>,
+    progress: &bozzard_app::job::Progress,
+) -> Result<()> {
+    compile_sources(sources, progress).map(drop)
+}
+
 // ---------------------------------------------------------------- instance binding
 
 impl SceneInstance {
@@ -3266,6 +3276,41 @@ pub fn load_sources_with_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn check_script_sources_resolves_imports_and_hook_arity() {
+        let progress = bozzard_app::job::Progress::default();
+        let catalog = |entries: &[(&str, &str)]| {
+            entries
+                .iter()
+                .map(|(id, source)| ((*id).to_owned(), (*source).to_owned()))
+                .collect::<BTreeMap<_, _>>()
+        };
+        check_script_sources(
+            catalog(&[
+                ("kit/math", "fn twice(x) { x * 2.0 }"),
+                (
+                    "kit/player",
+                    "import \"kit/math\" as math;\nfn network_input(key) { math::twice(1.0) > 1.0 }",
+                ),
+            ]),
+            &progress,
+        )
+        .unwrap();
+        let missing = check_script_sources(
+            catalog(&[(
+                "kit/player",
+                "import \"kit/absent\" as other;\nfn f() { 1 }",
+            )]),
+            &progress,
+        );
+        assert!(missing.unwrap_err().to_string().contains("kit/absent"));
+        let arity = check_script_sources(
+            catalog(&[("kit/player", "fn network_input(key, extra) { true }")]),
+            &progress,
+        );
+        assert!(arity.unwrap_err().to_string().contains("network_input"));
+    }
 
     #[test]
     fn network_requests_are_local_bounded_and_disabled_without_a_session() {
