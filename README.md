@@ -199,7 +199,7 @@ The player smoke checks rendered output, scene round-trips, and asset behavior. 
 
 ## Exporting
 
-Use **File → Export game…** to package a standalone game that runs without Rust or the source checkout. **File → Build content pack…** produces reusable cooked content and address catalogs. `bozzard-project kennel install <NAME> <PROJECT>` adds packages such as `steam` from the Kennel store. See [native game export](docs/exporting.md), [content packs](docs/content-packs.md) and [Kennel packages](docs/kennel.md) for platform requirements and packaging details.
+Use **File → Export game…** to package a standalone game that runs without Rust or the source checkout. **File → Build content pack…** produces reusable cooked content and address catalogs. **Kennel** in the menu bar opens the package store, which installs packages such as `steam` into the open project and adds their scripts to the scene; `bozzard-project kennel install <NAME> <PROJECT>` does the same from a terminal. See [native game export](docs/exporting.md), [content packs](docs/content-packs.md) and [Kennel packages](docs/kennel.md) for platform requirements and packaging details.
 
 To build a development bundle containing the player, editor, server, and example assets:
 

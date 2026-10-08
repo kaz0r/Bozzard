@@ -19,6 +19,35 @@ cargo run -p bozzard-project -- kennel remove steam path/to/my-game
 manifest. A project is a folder containing `bozzard.project.json`, or the path to a
 project manifest file.
 
+## In the editor
+
+Click **Kennel** in the menu bar, or check **View → Kennel · Package store**. The store opens
+as a tab beside the scene view, and like any panel it can be docked elsewhere or detached.
+It installs into the project that holds the active scene: the nearest folder above the
+scene that contains `bozzard.project.json`.
+
+- **Browse.** Search by words in the name, title, summary or tags, filter by category, or
+  show only installed packages. Cards mark installed packages and available updates. The
+  **Registry** field takes a folder or URL. Leave it empty to use `BOZZARD_KENNEL_REGISTRY`
+  or the public registry.
+- **Check.** A package's page compares it with this editor build: its Bozzard version
+  requirement, its script API, the Cargo features it needs (the editor knows whether it
+  was built with `steam`), and whether it has binaries for this machine. Install stays
+  disabled until the package is compatible.
+- **Install, update and remove.** These run on the store's own background job, so editing
+  continues while a package downloads. **Binaries for every platform** is the same as
+  `--all-targets`. When an install or removal is refused because the installed files were
+  modified, the notice offers to replace or remove them anyway, as `--force` does.
+  **Verify** re-hashes the whole installation.
+- **Add to scene.** Adds the package's scripts and assets, and those of its dependencies,
+  to the active scene's asset catalog under their declared IDs, with paths relative to the
+  scene file. It is one undoable change; save the scene to keep it. Entries that already
+  point into `kennel/` are updated in place, so the same button follows an upgrade.
+- **Build environment.** After an install, the notice and the package page show each
+  `build_env` variable as an absolute path with a Copy button.
+- **Readme.** The package's `README.md` is downloaded, checked against its manifest hash,
+  and rendered on the package page.
+
 ## Registries
 
 A registry is either a folder or an HTTPS base URL that contains `index.json` and
@@ -148,3 +177,5 @@ Kennel does not load native code at runtime. A package's binaries reach a game t
 engine's own build, for example as the `STEAM_SDK_LOCATION` for a `steam`-feature build.
 `cargo test -p bozzard-project --test kennel` covers registry checks, manifest validation,
 upstream downloads over a loopback server, installs, upgrades, removal and scene wiring.
+`cargo test -p bozzard-editor-app kennel` drives the editor store through a dependency
+install, adding to the scene with undo, verification and forced removal.
