@@ -2885,16 +2885,25 @@ impl SceneRenderer {
             * u64::from(size[1]);
         let mut pass_stats = FrameStats::default();
         let mut submission = std::mem::take(&mut self.submission);
-        let submission_candidate = !has_particles
-            && occlusion != occlusion::Mode::Indirect
-            && submission.candidate(batches.len(), self.instancing.arena_enabled());
+        // Live particles interleave with transparent surfaces in a later pass.
+        // This pass skips those batches; the rest keep their order and can
+        // still be retained or drawn indirectly.
+        let interleaved =
+            |batch: &instancing::Batch| has_particles && draws[batch.indices[0]].transparent;
+        let submission_candidate = occlusion != occlusion::Mode::Indirect
+            && submission.candidate(
+                batches.iter().filter(|batch| !interleaved(batch)).count(),
+                self.instancing.arena_enabled(),
+            );
         {
             let records: Vec<_> = if submission_candidate {
                 batches
                     .iter()
                     .enumerate()
-                    .filter(|(index, _)| {
-                        occlusion != occlusion::Mode::Cached || self.occlusion.batch_visible(*index)
+                    .filter(|(index, batch)| {
+                        (occlusion != occlusion::Mode::Cached
+                            || self.occlusion.batch_visible(*index))
+                            && !interleaved(batch)
                     })
                     .map(|(_, batch)| {
                         let binding = match batch.slot {
@@ -2996,10 +3005,10 @@ impl SceneRenderer {
                     {
                         continue;
                     }
-                    let draw = &draws[batch.indices[0]];
-                    if has_particles && draw.transparent {
+                    if interleaved(batch) {
                         continue;
                     }
+                    let draw = &draws[batch.indices[0]];
                     let binding = match batch.slot {
                         Some(slot) => &self.instancing.bindings[slot].binding,
                         None => self.objects[batch.indices[0]].binding(),
