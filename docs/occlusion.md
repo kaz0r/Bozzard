@@ -47,8 +47,8 @@ Readback uses at most three asynchronous buffers and never waits for the GPU in
 ordinary rendering. Completed batch visibility can omit CPU draw commands only
 when the actual view-projection matrix (including temporal jitter), viewport,
 selected depth geometry/transforms/sidedness, and all candidate bounds/depths/counts
-match exactly. Asset replacement invalidates reuse even when IDs and bounds stay
-the same. Any changed inputs use current-frame GPU visibility. Disabling state
+match exactly. Replacing or evicting geometry invalidates reuse even when IDs and
+bounds stay the same. Any changed inputs use current-frame GPU visibility. Disabling state
 caching also disables this reuse. Pipelines, depth targets, query buffers and CPU
 storage are retained until their required sizes change.
 
