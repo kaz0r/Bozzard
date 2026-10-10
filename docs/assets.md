@@ -50,7 +50,7 @@ Each optional component header has **×** to remove it; Blueprint attachments ha
 
 Cameras have selectable viewport icons in Edit mode. Selecting one shows a short perspective or orthographic viewing frustum, following its lens, viewport aspect, and parent transform; guides are hidden during Play.
 
-Imported model primitives become independent child entities under a transform parent, retaining their source names, appearance, and shared geometry. Each child supports its own Transform, Material, Rigidbody, Blueprint, duplication, and deletion. Unpartitioned OBJ meshes remain whole objects. Selecting a legacy virtual surface converts that model into children as one undoable edit; linked prefab models must be unpacked first. Parent transform graphs remain on the parent; legacy graphs that recolor or hide its removed drawable must be retargeted to children.
+Imported model primitives become independent child entities under a transform parent, retaining their source names, appearance, and shared geometry. Each child supports its own Transform, Material, Rigidbody, Blueprint, duplication, and deletion. Unpartitioned OBJ meshes remain whole objects. Selecting a legacy virtual surface only inspects it and leaves the document unchanged. The first edit to that surface, from the gizmo or the inspector, converts the model into children; the conversion and the edit undo together as one step. Linked prefab models must be unpacked first. Parent transform graphs remain on the parent; legacy graphs that recolor or hide its removed drawable must be retargeted to children.
 
 ### Editing a submesh
 

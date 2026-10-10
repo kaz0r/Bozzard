@@ -1,5 +1,6 @@
 //! Imported primitives become ordinary child objects; component editing needs no special ECS.
 use super::*;
+use bozzard_scene::SurfaceMaterialOverride;
 
 impl Editor {
     /// Convert a legacy whole-model drawable without losing its surface overrides.
@@ -130,28 +131,76 @@ impl Editor {
         Ok(children)
     }
 
-    /// Primary editor picking promotes legacy surface rows to component-bearing children.
-    /// Legacy surface selection remains available for scripts editing old override documents.
+    /// Primary editor picking only selects. A surface of a legacy whole model is selected
+    /// for inspection; its first edit makes the model's children ([`Self::edit_selected_surface`],
+    /// [`Self::split_selected_surface`]). Models that stay whole are selected whole.
     pub fn select_component_pick(&mut self, pick: Option<Pick>) -> Result<()> {
         if let Some(Pick {
             object,
-            surface: Some(index),
+            surface: Some(_),
         }) = &pick
+            && !self.splits_into_children(object)
         {
-            let children = self.expand_model(object)?;
-            if children.is_empty() {
-                self.select_object(Some(object.clone()));
-                return Ok(());
-            }
-            self.select_object(Some(
-                children
-                    .get(*index)
-                    .context("surface no longer exists")?
-                    .clone(),
-            ));
+            self.select_object(Some(object.clone()));
             return Ok(());
         }
         self.select_pick(pick)
+    }
+
+    /// Whether editing one of this object's surfaces converts it into child entities.
+    /// Skinned and unpartitioned models stay whole. LOD and linked prefab models do split,
+    /// but conversion refuses them with the steps to take first.
+    pub fn splits_into_children(&self, id: &str) -> bool {
+        self.object_mesh(id)
+            .is_some_and(|mesh| mesh.skin.is_none() && !mesh.parts.is_empty())
+    }
+
+    /// Make the inspected surface's model into children and select that surface's child.
+    /// Inside a gesture, the conversion and the edit that follows undo as one step.
+    /// Returns false when nothing was converted.
+    pub fn split_selected_surface(&mut self) -> Result<bool> {
+        let Some((owner, index)) = self.surface_to_split() else {
+            return Ok(false);
+        };
+        let mut scene = self.scene.clone();
+        let children = self.expand_model_objects(&mut scene, &owner)?;
+        self.apply("Make model children independent", scene)?;
+        self.select_object(Some(
+            children
+                .get(index)
+                .context("surface no longer exists")?
+                .clone(),
+        ));
+        Ok(true)
+    }
+
+    /// Edit the inspected surface. The edit is carried into the new child the same way
+    /// conversion carries saved overrides, so the split and the edit are one Undo step.
+    /// Models that stay whole keep the legacy per-surface override.
+    pub fn edit_selected_surface(&mut self, value: SurfaceMaterialOverride) -> Result<()> {
+        let Some((owner, index)) = self.surface_to_split() else {
+            return self.set_selected_material_override(value);
+        };
+        let mut scene = self.surface_override_scene(value)?;
+        if scene == self.scene {
+            return Ok(());
+        }
+        let children = self.expand_model_objects(&mut scene, &owner)?;
+        self.apply("Edit surface", scene)?;
+        self.select_object(Some(
+            children
+                .get(index)
+                .context("surface no longer exists")?
+                .clone(),
+        ));
+        Ok(())
+    }
+
+    fn surface_to_split(&self) -> Option<(String, usize)> {
+        let surface = self.selected_surface()?;
+        let owner = self.selected.clone()?;
+        self.splits_into_children(&owner)
+            .then_some((owner, surface.index))
     }
 }
 
@@ -159,6 +208,146 @@ impl Editor {
 mod tests {
     use super::*;
     use bozzard_render::MeshKind;
+
+    fn open(scene: &str) -> Editor {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes")
+            .join(scene);
+        Editor::open(&path).unwrap()
+    }
+
+    fn surface(object: &str, index: usize) -> Option<Pick> {
+        Some(Pick {
+            object: object.into(),
+            surface: Some(index),
+        })
+    }
+
+    #[test]
+    fn picking_model_surfaces_only_selects() {
+        let mut editor = open("bonfire-lab.json");
+        let before = editor.scene().clone();
+        let models: Vec<_> = before
+            .objects
+            .iter()
+            .filter(|o| editor.splits_into_children(&o.id))
+            .map(|o| o.id.clone())
+            .collect();
+        assert_eq!(models.len(), 15);
+        for id in &models {
+            editor.select_component_pick(surface(id, 0)).unwrap();
+            assert_eq!(editor.selected.as_deref(), Some(id.as_str()));
+            assert_eq!(editor.selected_surface().map(|s| s.index), Some(0));
+        }
+        assert_eq!(editor.scene(), &before);
+        assert!(!editor.dirty());
+        assert_eq!(editor.undo_label(), None);
+    }
+
+    #[test]
+    fn first_surface_edit_converts_the_model_in_the_same_undo_step() {
+        let mut editor = open("model-lab.json");
+        let before = editor.scene().clone();
+        editor
+            .select_component_pick(surface("courier-gltf", 3))
+            .unwrap();
+        let inherited = editor.selected_material_override().unwrap();
+        editor.edit_selected_surface(inherited.clone()).unwrap();
+        assert_eq!(editor.scene(), &before, "an unchanged value is not an edit");
+
+        let mut tinted = inherited;
+        tinted.tint = [1., 0.2, 0.2];
+        editor.begin_gesture("Edit surface");
+        editor.edit_selected_surface(tinted).unwrap();
+        // The rest of the gesture edits the new child.
+        let mut transform = editor.selected_transform().unwrap();
+        transform.scale = [2.; 3];
+        editor.set_selected_transform(transform).unwrap();
+        editor.finish_gesture();
+
+        let child = editor.selected_object().unwrap();
+        assert_eq!(child.parent.as_deref(), Some("courier-gltf"));
+        assert_eq!(child.transform.scale, [2.; 3]);
+        let drawable = child.drawable.as_ref().unwrap();
+        assert!(matches!(drawable.mesh, Mesh::Surface { index: 3, .. }));
+        assert!(
+            drawable
+                .material_overrides
+                .iter()
+                .any(|v| v.tint == [1., 0.2, 0.2])
+        );
+        assert_eq!(editor.scene().objects.len(), before.objects.len() + 10);
+        assert_eq!(editor.undo_label(), Some("Edit surface"));
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &before);
+        assert_eq!(editor.undo_label(), None);
+    }
+
+    #[test]
+    fn a_gizmo_drag_continues_on_the_child_without_moving_the_surface() {
+        let mut editor = open("model-lab.json");
+        editor
+            .select_component_pick(surface("courier-gltf", 2))
+            .unwrap();
+        // Legacy documents may already have moved the surface.
+        let mut moved = editor.selected_material_override().unwrap();
+        moved.transform.translation = [0.3, -0.2, 0.1];
+        moved.transform.rotation_degrees = [0., 30., 0.];
+        moved.transform.scale = [1.2, 1., 0.9];
+        editor.set_selected_material_override(moved).unwrap();
+        let legacy = editor.scene().clone();
+        let placement = |editor: &Editor| {
+            let transform = editor.selected_transform().unwrap();
+            let parent = editor.selected_transform_parent().unwrap();
+            (
+                parent.transform_point3(Vec3::from(transform.translation)),
+                [Vec3::X, Vec3::Y, Vec3::Z].map(|axis| parent.transform_vector3(axis)),
+                transform.rotation_degrees,
+                transform.scale,
+            )
+        };
+        let before = placement(&editor);
+
+        editor.begin_gesture("Transform gizmo");
+        assert!(editor.split_selected_surface().unwrap());
+        let after = placement(&editor);
+        assert!(before.0.abs_diff_eq(after.0, 1e-5));
+        for (a, b) in before.1.iter().zip(after.1) {
+            assert!(a.abs_diff_eq(b, 1e-5));
+        }
+        assert_eq!((before.2, before.3), (after.2, after.3));
+        assert!(!editor.split_selected_surface().unwrap());
+
+        let mut transform = editor.selected_transform().unwrap();
+        transform.translation[0] += 1.;
+        editor.set_selected_transform(transform).unwrap();
+        editor.finish_gesture();
+        assert_eq!(editor.undo_label(), Some("Transform gizmo"));
+        editor.undo().unwrap();
+        assert_eq!(editor.scene(), &legacy);
+    }
+
+    #[test]
+    fn skinned_model_picks_select_the_whole_model_unchanged() {
+        let mut editor = open("middleware-lab.json");
+        let mut scene = editor.scene().clone();
+        let banner = scene
+            .objects
+            .iter_mut()
+            .find(|o| o.id == "root-motion-banner")
+            .unwrap();
+        banner.extras.remove("animator").unwrap();
+        editor.apply("Remove animator", scene).unwrap();
+        let before = editor.scene().clone();
+        assert!(!editor.splits_into_children("root-motion-banner"));
+        editor
+            .select_component_pick(surface("root-motion-banner", 0))
+            .unwrap();
+        assert_eq!(editor.selected.as_deref(), Some("root-motion-banner"));
+        assert!(editor.selected_surface().is_none());
+        assert_eq!(editor.scene(), &before, "picking must not add an Animator");
+    }
+
     #[test]
     fn child_entities_preserve_geometry_and_support_independent_components() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

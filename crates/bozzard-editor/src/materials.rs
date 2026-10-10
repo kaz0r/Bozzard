@@ -218,6 +218,12 @@ impl Editor {
 
     /// Called inside the normal gesture boundary for slider drags, or as one command.
     pub fn set_selected_material_override(&mut self, value: SurfaceMaterialOverride) -> Result<()> {
+        let scene = self.surface_override_scene(value)?;
+        self.apply("Edit surface", scene)
+    }
+
+    /// The document with `value` saved as the selected surface's override.
+    pub(super) fn surface_override_scene(&self, value: SurfaceMaterialOverride) -> Result<Scene> {
         ensure!(self.play.is_none(), "Stop Play before editing materials");
         value.validate()?;
         let selected = self
@@ -248,7 +254,7 @@ impl Editor {
             values.push(value);
         }
         values.sort_by_key(|v| v.surface);
-        self.apply("Edit surface", scene)
+        Ok(scene)
     }
 }
 

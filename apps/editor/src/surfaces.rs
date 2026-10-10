@@ -51,7 +51,7 @@ impl App {
                     let selected = self.editor.selected.as_deref() == Some(object)
                         && self.editor.selected_surface().is_some_and(|s| s.index == index);
                     let row = clipped_selectable_row(ui, selected, label)
-                        .on_hover_text(format!("{full_name}\nSelect to make model surfaces independent child entities · Each child supports components · Unpack linked prefabs first"));
+                        .on_hover_text(format!("{full_name}\nSelect to inspect · The first edit makes model surfaces independent child entities · Each child supports components · Unpack linked prefabs first"));
                     if row.clicked() || row.double_clicked() {
                         self.editor.finish_gesture();
                         let result = self.editor.select_component_pick(Some(bozzard_editor::Pick {
@@ -195,7 +195,14 @@ impl App {
                 }
                 whole = ui.button("Select whole model").clicked();
             });
-            ui.weak("Edit this surface here or with W / E / R gizmos. Components and physics belong to the whole model.");
+            if self
+                .editor
+                .splits_into_children(self.editor.selected.as_deref().unwrap())
+            {
+                ui.weak("Edit this surface here or with W / E / R gizmos. The first edit makes the model's surfaces independent child entities, each with its own components.");
+            } else {
+                ui.weak("Edit this surface here or with W / E / R gizmos. Components and physics belong to the whole model.");
+            }
             if let Some(original) = &original_override {
                 ui.separator();
                 let mut value = original.clone();
@@ -285,13 +292,18 @@ impl App {
                     original.source,
                 );
                 value.transform = original.transform;
-                let result = self.editor.set_selected_material_override(value);
+                let result = self.editor.edit_selected_surface(value);
                 self.result(result);
             }
         } else if let Some(value) = material_edit {
             self.editor.begin_gesture("Edit surface");
-            let result = self.editor.set_selected_material_override(value);
+            let result = self.editor.edit_selected_surface(value);
             self.result(result);
+        }
+        if self.editor.selected_surface().is_none() && selected.is_some() {
+            // The edit converted the model; follow the selection to the surface's child.
+            self.hierarchy_state
+                .reset_selection(self.editor.selected.as_deref());
         }
         if whole {
             self.editor.finish_gesture();
