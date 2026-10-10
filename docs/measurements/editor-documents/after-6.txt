@@ -1,0 +1,32 @@
+document_benchmark objects=1546
+document_benchmark path=clone_document samples=200 median_ms=0.175051 p95_ms=0.224231
+document_benchmark path=shared_document samples=200 median_ms=0.000030 p95_ms=0.000030
+document_benchmark path=gi_freshness_reference samples=200 median_ms=3.136481 p95_ms=3.330402
+document_benchmark path=gi_freshness_cached samples=200 median_ms=0.000020 p95_ms=0.000030
+document_benchmark path=gi_freshness_after_display_edit samples=200 median_ms=0.058740 p95_ms=0.064380
+document_benchmark path=extract_runtime_reference samples=200 median_ms=0.647034 p95_ms=0.674885
+document_benchmark path=extract_authoring samples=200 median_ms=0.625274 p95_ms=0.640024
+document_benchmark path=extract_effects_preview samples=200 median_ms=0.628494 p95_ms=0.641974
+document_benchmark path=prefab_inspector_overrides samples=200 median_ms=0.000040 p95_ms=0.000050
+document_benchmark pagoda objects=1056 assets=139 load_ms=67.3
+document_benchmark pagoda pick=c-pagoda surface=Some(16) ndc=[0.0, 0.0]
+document_benchmark path=pagoda_validate samples=200 median_ms=0.530588 p95_ms=0.543094
+document_benchmark path=pagoda_global_transforms samples=200 median_ms=0.718125 p95_ms=0.732295
+document_benchmark path=pagoda_dirty samples=200 median_ms=0.000020 p95_ms=0.000030
+document_benchmark path=pagoda_edit_world samples=200 median_ms=1.365499 p95_ms=1.380349
+document_benchmark path=pagoda_effects_preview_build samples=200 median_ms=3.906370 p95_ms=3.937786
+document_benchmark path=pagoda_idle_overlays samples=200 median_ms=0.001070 p95_ms=0.001090
+document_benchmark path=pagoda_idle_frame samples=200 median_ms=0.434893 p95_ms=0.445073
+document_benchmark path=pagoda_select_click samples=200 median_ms=0.644314 p95_ms=0.654094
+document_benchmark path=pagoda_hover_pick samples=200 median_ms=0.169671 p95_ms=0.175121
+document_benchmark path=pagoda_gizmo_drag_frame samples=200 median_ms=3.585518 p95_ms=3.626433
+document_benchmark path=pagoda_gizmo_held_frame samples=200 median_ms=0.480498 p95_ms=0.490233
+document_benchmark path=pagoda_structural_edit_frame samples=100 median_ms=3.686864 p95_ms=3.827715
+document_benchmark path=pagoda_structural_edit_only samples=100 median_ms=0.779105 p95_ms=0.814475
+document_benchmark path=pagoda_frame_after_edit samples=100 median_ms=2.916100 p95_ms=2.978050
+document_benchmark path=pagoda_undo_frame samples=100 median_ms=2.985504 p95_ms=3.085970
+document_benchmark path=pagoda_hot_reload_cycle samples=40 median_ms=4.699546 p95_ms=4.779181
+document_benchmark path=pagoda_hot_reload_changed_scan samples=200 median_ms=0.219931 p95_ms=0.225312
+document_benchmark path=pagoda_hidden_object_view samples=100 median_ms=1.127762 p95_ms=1.142887
+document_benchmark path=pagoda_two_scene_view_small_edit samples=100 median_ms=0.977256 p95_ms=0.984846
+document_benchmark path=pagoda_two_scene_view samples=100 median_ms=1.946248 p95_ms=2.050583
