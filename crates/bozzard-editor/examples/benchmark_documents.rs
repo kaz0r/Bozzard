@@ -384,6 +384,19 @@ fn pagoda(path: PathBuf) -> Result<()> {
             Ok(store)
         },
     )?;
+    // The editor's usual pass compares file metadata only (sources settled long ago).
+    measure_n(
+        "pagoda_hot_reload_changed_scan",
+        200,
+        &mut session,
+        |session| Ok(session.editor.assets.clone()),
+        |_, mut store| {
+            let changed =
+                store.refresh_scan(bozzard_assets::RefreshScan::Changed, &Default::default())?;
+            ensure!(changed.is_empty(), "nothing changed on disk");
+            Ok(store)
+        },
+    )?;
 
     // Workspace views rebuilt after an edit: one hidden object, then a second open scene.
     let edit = |session: &mut Session| -> Result<()> {
