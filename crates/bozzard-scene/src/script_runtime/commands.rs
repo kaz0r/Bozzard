@@ -236,6 +236,7 @@ impl SceneInstance {
                         .context("End Game needs Game Flow enabled in scene settings")?
                         .end_game(&message)?;
                 }
+                Command::Settings(request) => crate::player_settings::request(world, request)?,
                 Command::QuitGame => {
                     world.insert_resource(crate::GameSession {
                         phase: crate::GamePhase::Quit,

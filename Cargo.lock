@@ -823,6 +823,7 @@ name = "bozzard-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bozzard-diagnostics",
  "bozzard-network",
  "bozzard-runtime",
  "ctrlc",

@@ -12,6 +12,11 @@ use std::{
 };
 
 fn main() -> Result<()> {
+    bozzard_diagnostics::crash::install(bozzard_diagnostics::crash::CrashConfig::new(
+        &bozzard_diagnostics::crash::executable_name("bozzard-server"),
+        env!("CARGO_PKG_VERSION"),
+        option_env!("BOZZARD_GIT_HASH"),
+    ));
     let mut ticks: u32 = 120;
     let mut realtime = false;
     let mut scene: Option<PathBuf> = None;

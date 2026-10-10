@@ -114,6 +114,8 @@ Scene opening, imports, asset preparation, and save preparation use background j
 
 Gameplay scenes define their own controls. The native player provides **F5** to save a scene snapshot and **F6** to reload scripted/Blueprint scenes. Player Controller scenes use **WASD**, **Space**, and mouse-look, with physical **R** restarting the run; individual examples document their own behavior.
 
+The player and exported games apply each user's [player settings](docs/player-settings.md) — window mode and size, VSync, a quality preset and master/music/SFX/UI volume — before the first frame; games change them through Blueprint nodes or Rhai functions, and `--settings FILE` selects another settings file. A panic in the player, editor or server writes a [crash report](docs/debugging.md#crash-reports).
+
 For scenes without gameplay logic, **1/2** switch views, **Space** pauses animation, arrow keys pan, **R** reloads, and **Escape** closes the window. F5 defaults to `work/saved-scene.json`; `--save-path FILE` changes the destination. A snapshot captures the current runtime scene state, which may include animated transforms.
 
 ```sh
@@ -150,7 +152,7 @@ Detailed authoring instructions, supported formats, and current limits live in t
 | Physics | [Physics surface](docs/physics.md) · [Mesh colliders and Rigidbody settings](docs/mesh-colliders.md) |
 | UI and middleware | [Text and HUD rendering](docs/text-rendering.md) · [Character animation](docs/character-animation.md) · [Audio, animation, UI, navigation, and particles](docs/middleware.md) |
 | Compute and diagnostics | [WGSL compute](docs/compute.md) · [Debugging](docs/debugging.md) · [Performance](docs/performance.md) |
-| Distribution and multiplayer | [Native export](docs/exporting.md) · [Content packs](docs/content-packs.md) · [Kennel packages](docs/kennel.md) · [Steam multiplayer](docs/multiplayer.md) |
+| Distribution and multiplayer | [Native export](docs/exporting.md) · [Player settings](docs/player-settings.md) · [Content packs](docs/content-packs.md) · [Kennel packages](docs/kennel.md) · [Steam multiplayer](docs/multiplayer.md) |
 | Engine development | [Architecture](docs/architecture.md) · [Editor extensions](docs/editor-extensions.md) · [Roadmap](docs/roadmap.md) |
 
 ## Workspace

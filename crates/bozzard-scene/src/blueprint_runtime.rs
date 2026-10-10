@@ -430,6 +430,9 @@ impl Eval<'_> {
                         .unwrap_or(widget.value),
                 )
             }
+            kind if crate::player_settings::is_query(kind) => {
+                crate::player_settings::query(self.world, kind, socket.port, &v)?
+            }
             K::UiReducedMotion => Value::Bool(
                 self.world
                     .resource::<crate::middleware::ui::Preferences>()
@@ -2079,6 +2082,16 @@ impl SceneInstance {
             }
             K::SetVelocity => {
                 self.set_velocity(world, &target, entity, Vec3::from(value.vector()?))?;
+            }
+            kind if crate::player_settings::is_action(kind) => {
+                let second = if node.inputs.len() > 2 {
+                    Some(eval.input(node, 2)?)
+                } else {
+                    None
+                };
+                let request =
+                    crate::player_settings::action_request(kind, &value, second.as_ref())?;
+                crate::player_settings::request(world, request)?;
             }
             K::LockCursor => {
                 world.insert_resource(CursorCapture {

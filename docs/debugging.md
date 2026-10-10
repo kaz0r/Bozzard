@@ -189,3 +189,45 @@ without tracing measured 2.10–2.12 ms/tick; recording 4,096 event/action snaps
 measured 5.24–5.50 ms/tick, retaining only the newest 256. The mostly event-driven middleware
 lab measured about 26 µs/tick in all three modes. These are warmed headless measurements;
 trace overhead depends on the number and contents of executed nodes.
+
+## Crash reports
+
+The player, exported games, the editor and the headless server install a panic hook at
+startup; exported games need no setup. A panic on any thread writes one plain-text report,
+prints `crash report written to PATH` on stderr and then continues with Rust's default panic
+output and exit behaviour. A report contains:
+
+- the app (the game's project name in the player and exported games, else the executable
+  name such as `bozzard-editor` or `bozzard-server`), engine version, and commit when the build
+  set `BOZZARD_GIT_HASH`;
+- UTC time, OS, architecture, process ID and the panicking thread's name and ID;
+- the panic message and source location, and a backtrace captured regardless of `RUST_BACKTRACE`;
+- the newest 64 log lines, each at most 512 bytes: console messages from Blueprints, scripts,
+  the runtime and the editor, plus player warnings such as a rejected
+  [settings file](player-settings.md).
+
+Reports are named `crash-<app>-<UTC time>-<process>-<n>.txt` in
+`<user data>/bozzard/crashes/` (the user data directory used by
+[save games](blueprint-depth.md#scenes-and-checkpoints)); `BOZZARD_CRASH_DIR` overrides it, and
+the temporary directory is used when no user data directory exists. Each process writes at
+most eight reports, so a panicking worker loop cannot fill the disk, and startup keeps only the
+newest 32 reports.
+
+On its next interactive launch the editor reports what was written since its previous launch,
+including player and server reports from the same machine: the status bar names the newest
+file and **Debug → Console** has a **Crash reports** warning listing up to eight paths. Smoke and
+benchmark runs neither show nor consume that notice.
+
+The hook only formats into a fixed file; it never panics, never blocks on the log ring for more
+than a brief retry, and loses only the report if the disk write fails. Steady-state logging
+reuses the ring's line buffers. Unrecoverable GPU errors and other `Result` failures still end
+the process through their normal error path, without a report.
+
+```sh
+cargo test -p bozzard-diagnostics
+```
+
+The tests cover report formatting, UTC dates and portable names, directory selection, ring
+bounds and buffer reuse, listing/pruning and the once-per-launch notice, and, in their own test
+binary, a panicking spawned thread that writes a bounded report into a temporary directory and
+then reaches the previous hook.

@@ -282,6 +282,7 @@ impl SceneInstance {
         self.prepare_script_compute(host);
         host.elapsed = runtime.elapsed;
         host.loading = self.scene_load_status(world);
+        host.settings = crate::player_settings::current(world);
         host.input = input;
         host.tokens = runtime.tokens.clone();
         host.geometry = snapshot.clone();

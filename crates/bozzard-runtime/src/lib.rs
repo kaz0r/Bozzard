@@ -198,6 +198,27 @@ pub fn save_atomic(
     result
 }
 
+/// `<user data>/bozzard/<kind>/<hash of the starting scene's name>`: one game's saves or settings.
+pub fn game_data_dir(kind: &str, game: &str) -> Option<std::path::PathBuf> {
+    let key = game.bytes().fold(14695981039346656037u64, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(1099511628211)
+    });
+    Some(
+        bozzard_diagnostics::paths::engine_data_dir()?
+            .join(kind)
+            .join(format!("{key:016x}")),
+    )
+}
+
+/// `BOZZARD_SETTINGS_DIR/settings.json`, else the game's settings directory.
+pub fn player_settings_path(game: &str) -> Option<std::path::PathBuf> {
+    std::env::var_os("BOZZARD_SETTINGS_DIR")
+        .filter(|directory| !directory.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| game_data_dir("settings", game))
+        .map(|directory| directory.join(bozzard_scene::player_settings::SETTINGS_FILE))
+}
+
 pub fn scene_document() -> anyhow::Result<Scene> {
     Scene::from_json(include_str!("../../../examples/demo/scenes/scene-lab.json"))
 }
@@ -690,6 +711,8 @@ impl SceneRuntime {
         }
         Ok(())
     }
+    /// Loads prefabs, scripts and kernels, and configures save-slot and player-settings files
+    /// for the starting scene's name.
     pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
         Self::new_with_prefabs_progress(document, path, &bozzard_app::job::Progress::default())
     }
@@ -709,19 +732,7 @@ impl SceneRuntime {
         progress.check()?;
         let directory = std::env::var_os("BOZZARD_SAVE_DIR")
             .map(std::path::PathBuf::from)
-            .or_else(|| {
-                let base = std::env::var_os("LOCALAPPDATA")
-                    .or_else(|| std::env::var_os("XDG_DATA_HOME"))
-                    .map(std::path::PathBuf::from)
-                    .or_else(|| {
-                        std::env::var_os("HOME")
-                            .map(|p| std::path::PathBuf::from(p).join(".local/share"))
-                    })?;
-                let key = document.name.bytes().fold(14695981039346656037u64, |h, b| {
-                    (h ^ u64::from(b)).wrapping_mul(1099511628211)
-                });
-                Some(base.join("bozzard/saves").join(format!("{key:016x}")))
-            });
+            .or_else(|| game_data_dir("saves", &document.name));
         if let Some(directory) = directory {
             demo.app
                 .world
@@ -729,6 +740,12 @@ impl SceneRuntime {
                     directory,
                 ));
         }
+        // Defaults only: the native player reads the file; editor Play never does.
+        demo.app
+            .world
+            .insert_resource(bozzard_scene::player_settings::SettingsStore::new(
+                player_settings_path(&document.name),
+            ));
         demo.with_instance(|instance, _| -> anyhow::Result<()> {
             for (asset, prefab) in templates {
                 progress.check()?;
@@ -962,6 +979,31 @@ pub fn pump_idle_steam_callbacks() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prefab_runtimes_configure_default_settings_beside_saves_without_reading_them() {
+        let document = scene_document().unwrap();
+        let demo = SceneRuntime::new_with_prefabs(&document, None).unwrap();
+        let store = demo
+            .app
+            .world
+            .resource::<bozzard_scene::player_settings::SettingsStore>()
+            .unwrap();
+        assert_eq!(*store.applied(), Default::default());
+        assert_eq!(store.revision(), 0, "nothing was loaded");
+        assert_eq!(
+            store.path(),
+            player_settings_path(&document.name).as_deref()
+        );
+        if let (Some(saves), Some(settings)) = (
+            game_data_dir("saves", &document.name),
+            game_data_dir("settings", &document.name),
+        ) {
+            let key = settings.file_name().unwrap();
+            assert_eq!(saves.file_name(), Some(key));
+            assert!(settings.ends_with(Path::new("bozzard/settings").join(key)));
+            assert_ne!(game_data_dir("settings", "Other Game"), Some(settings));
+        }
+    }
     #[test]
     fn gameplay_edges_accumulate_until_tick_and_clear_on_focus_loss() {
         let document = Scene::from_json(include_str!(
