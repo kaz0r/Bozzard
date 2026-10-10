@@ -1198,6 +1198,15 @@ impl SceneInstance {
     pub fn document(&self) -> &Scene {
         &self.document
     }
+    /// The matrices of `global_transforms`, in `document()` object order and without
+    /// an ID map. Copy what is needed; the transform cache stays locked during `read`.
+    pub fn with_global_transforms<T>(
+        &self,
+        world: &World,
+        read: impl FnOnce(&[Mat4]) -> Result<T>,
+    ) -> Result<T> {
+        self.with_render_transforms(world, None, read)
+    }
     /// Authored document generation. Public access is immutable; each live
     /// prefab/load replacement advances this generation with its hierarchy.
     /// Pair with this instance's render_cache_identity when retaining snapshots.
