@@ -565,6 +565,73 @@ mod tests {
         }
     }
     #[test]
+    #[ignore = "release-mode temporal history CPU profile; run explicitly"]
+    fn temporal_history_benchmark() {
+        let item = |i: usize| DrawItem {
+            motion_id: i as u64 + 1,
+            model: Mat4::from_translation(Vec3::new(i as f32, 0., -5.)),
+            mesh: MeshKind::Imported(format!("mesh-{}", i % 64)),
+            material: draw(0, MeshKind::Cube, Mat4::IDENTITY).object.material,
+        };
+        let particle = |i: usize| Particle {
+            simulation: None,
+            id: i as u64,
+            position: Vec3::splat(i as f32),
+            velocity: Vec3::Y,
+            size: 0.3,
+            rotation: 0.,
+            color: [0.5; 3],
+            opacity: 0.5,
+            kind: ParticleKind::Smoke,
+            softness: 0.2,
+            trail_length: 0.,
+            seed: 0.1,
+        };
+        let mut scene = RenderScene {
+            skin_poses: Default::default(),
+            particles: (0..16_384).map(particle).collect(),
+            fog: Default::default(),
+            gi: Some(IrradianceVolume {
+                min: [0.; 3],
+                max: [1.; 3],
+                resolution: [16; 3],
+                intensity: 1.,
+                normal_bias: 0.,
+                probes: std::sync::Arc::new(vec![[0.5; 4]; 16 * 16 * 16 * 41]),
+            }),
+            lights: Vec::new(),
+            environment: Default::default(),
+            display: Default::default(),
+            lighting: Default::default(),
+            view_projection: Mat4::IDENTITY,
+            items: (0..4096).map(item).collect(),
+            shader_time: 0.,
+        };
+        scene.display.temporal_aa.enabled = true;
+        for (workload, advance) in [("play", true), ("paused", false)] {
+            let mut history = MotionHistory::default();
+            let mut samples = Vec::new();
+            for frame in 0..70 {
+                if advance {
+                    scene.display.time_seconds = frame as f32 / 60.;
+                }
+                let start = std::time::Instant::now();
+                let (_, temporal) = std::hint::black_box(history.begin(&scene, [640, 400], false));
+                samples.push(start.elapsed().as_secs_f64() * 1000.);
+                history.finish(&[]);
+                if frame > 1 {
+                    assert_eq!(temporal.repeated, !advance);
+                }
+            }
+            samples.drain(..10);
+            samples.sort_by(f64::total_cmp);
+            println!(
+                "temporal_history workload={workload} items=4096 particles=16384 gi_probes=4096 begin_median_ms={:.4}",
+                samples[samples.len() / 2]
+            );
+        }
+    }
+    #[test]
     fn positional_history_matches_reference_map() {
         let mut seed = 0x2545_f491_u64;
         let mut next = |bound: u64| {
