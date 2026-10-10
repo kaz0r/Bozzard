@@ -96,6 +96,10 @@ impl<'a> Matrices<'a> {
     pub(crate) fn entity(&self, entity: Entity) -> Option<&Mat4> {
         self.dense.get(*self.instance.object_indices.get(&entity)?)
     }
+    /// The matrix at a document index.
+    pub(crate) fn at(&self, index: usize) -> Mat4 {
+        self.dense[index]
+    }
 }
 impl<Q: AsRef<str> + ?Sized> std::ops::Index<&Q> for Matrices<'_> {
     type Output = Mat4;
