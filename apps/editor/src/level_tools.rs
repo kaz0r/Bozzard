@@ -3,7 +3,10 @@ use anyhow::{Result, ensure};
 use bozzard_assets::{
     blockout::{Blockout, BrushPrimitive},
     job::Job,
-    terrain::{BrushMode, Terrain, TerrainBrush},
+    terrain::{
+        BrushMode, Terrain, TerrainBrush, TerrainLayer, TerrainPaint, TerrainPaintBrush,
+        TerrainPaintStroke,
+    },
 };
 use bozzard_editor::{
     Editor, FoliageSettings, PreparedFoliage, PreparedGeometry, TerrainRequest, TerrainSource,
@@ -34,13 +37,19 @@ impl Default for Preferences {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Mode {
     #[default]
     Select,
     Terrain,
+    TerrainPaint,
     Blockout,
     Measure,
+}
+impl Mode {
+    fn terrain(self) -> bool {
+        matches!(self, Self::Terrain | Self::TerrainPaint)
+    }
 }
 struct TerrainDraft {
     source: TerrainSource,
@@ -49,6 +58,52 @@ struct TerrainDraft {
     changed: bool,
     matrix: Mat4,
     matrix_revision: u64,
+    paint_stroke: Option<MaterialStroke>,
+}
+struct MaterialStroke {
+    weights: TerrainPaintStroke,
+    previous: Option<[f32; 2]>,
+    brushes: Vec<TerrainPaintBrush>,
+}
+impl MaterialStroke {
+    fn new(terrain: &Terrain) -> Result<Self> {
+        Ok(Self {
+            weights: TerrainPaintStroke::new(terrain)?,
+            previous: None,
+            brushes: Vec::with_capacity(64),
+        })
+    }
+
+    fn paint(
+        &mut self,
+        terrain: &mut Terrain,
+        center: [f32; 2],
+        layer: usize,
+        radius: f32,
+        rate: f32,
+        dt: f32,
+    ) -> Result<bool> {
+        let from = self.previous.unwrap_or(center);
+        let distance = glam::Vec2::from_array(from).distance(glam::Vec2::from_array(center));
+        // Bound fast drags without leaving gaps between ordinary pointer samples.
+        let samples = (distance / (radius * 0.5)).ceil().clamp(1., 64.) as usize;
+        let strength = -(-rate * dt / samples as f32).exp_m1();
+        self.brushes.clear();
+        for index in 1..=samples {
+            let fraction = index as f32 / samples as f32;
+            self.brushes.push(TerrainPaintBrush {
+                layer,
+                center: std::array::from_fn(|axis| {
+                    from[axis] + (center[axis] - from[axis]) * fraction
+                }),
+                radius,
+                strength,
+            });
+        }
+        let changed = self.weights.paint_path(terrain, &self.brushes)?;
+        self.previous = Some(center);
+        Ok(changed)
+    }
 }
 enum Work {
     Geometry(Job<PreparedGeometry>, bool),
@@ -71,6 +126,9 @@ pub struct LevelTools {
     radius: f32,
     strength: f32,
     flatten_height: f32,
+    paint_layer: usize,
+    paint_strength: f32,
+    paint_layers: [TerrainLayer; 3],
     primitive: BrushPrimitive,
     dimensions: [f32; 3],
     yaw: f32,
@@ -105,6 +163,9 @@ impl Default for LevelTools {
             radius: 3.,
             strength: 2.,
             flatten_height: 0.,
+            paint_layer: 1,
+            paint_strength: 4.,
+            paint_layers: TerrainPaint::new(0).layers,
             primitive: BrushPrimitive::Box,
             dimensions: [2.; 3],
             yaw: 0.,
@@ -134,6 +195,16 @@ impl LevelTools {
     }
     fn open_terrain(&mut self, editor: &Editor, id: &str) -> Result<()> {
         let source = editor.terrain_source(id)?;
+        self.paint_layers = source
+            .terrain
+            .paint
+            .as_ref()
+            .map_or_else(|| TerrainPaint::new(0).layers, |paint| paint.layers);
+        let mode = if self.mode == Mode::TerrainPaint {
+            Mode::TerrainPaint
+        } else {
+            Mode::Terrain
+        };
         self.draft = Some(TerrainDraft {
             data: source.terrain.clone(),
             source,
@@ -141,8 +212,9 @@ impl LevelTools {
             changed: false,
             matrix: editor.object_matrix(id)?,
             matrix_revision: editor.revision(),
+            paint_stroke: None,
         });
-        self.mode = Mode::Terrain;
+        self.mode = mode;
         self.error = false;
         Ok(())
     }
@@ -159,12 +231,195 @@ impl LevelTools {
         );
         self.work = Some(Work::Geometry(
             editor.terrain_job(TerrainRequest::Sculpt {
-                source: draft.source.clone(),
+                source: Box::new(draft.source.clone()),
                 terrain: draft.data.clone(),
             })?,
             true,
         ));
         Ok(())
+    }
+    fn finish_stroke(&mut self, editor: &Editor, enabled: bool) -> Result<()> {
+        self.stroking = false;
+        if let Some(draft) = &mut self.draft {
+            draft.paint_stroke = None;
+        }
+        if !enabled || self.work.is_some() {
+            return Ok(());
+        }
+        if self.mode.terrain() {
+            self.save_terrain(editor)
+        } else if !self.stamps.is_empty() {
+            self.work = Some(Work::Geometry(
+                editor.blockout_job(
+                    Blockout {
+                        version: 1,
+                        primitive: self.primitive,
+                    },
+                    std::mem::take(&mut self.stamps),
+                )?,
+                false,
+            ));
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+    fn terrain_controls(&mut self, ui: &mut egui::Ui, editor: &Editor) {
+        egui::CollapsingHeader::new("Terrain")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Width / depth");
+                    for value in &mut self.terrain_size {
+                        ui.add(egui::DragValue::new(value).range(0.01..=100_000.).speed(1.));
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Vertices per axis");
+                    ui.add(egui::DragValue::new(&mut self.terrain_resolution).range(2..=129));
+                });
+                vector(ui, "Origin", &mut self.origin, -1_000_000., 1_000_000.);
+                if ui
+                    .add_enabled(!self.dirty(), egui::Button::new("Create terrain"))
+                    .clicked()
+                {
+                    let result = Terrain::flat([self.terrain_resolution; 2], self.terrain_size)
+                        .and_then(|terrain| {
+                            editor.terrain_job(TerrainRequest::Create {
+                                terrain,
+                                position: self.origin,
+                            })
+                        })
+                        .map(|job| self.work = Some(Work::Geometry(job, true)));
+                    self.report(result);
+                }
+                if ui
+                    .add_enabled(
+                        !self.dirty() && editor.selected.is_some(),
+                        egui::Button::new("Edit selected terrain"),
+                    )
+                    .clicked()
+                {
+                    let id = editor.selected.as_ref().unwrap();
+                    let result = self.open_terrain(editor, id);
+                    self.report(result);
+                }
+                if let Some(draft) = &self.draft {
+                    ui.label(format!("Editing {}", draft.source.object()));
+                }
+                if self.mode == Mode::TerrainPaint {
+                    self.paint_controls(ui);
+                } else {
+                    ui.horizontal_wrapped(|ui| {
+                        for (mode, name) in [
+                            (BrushMode::Raise, "Raise"),
+                            (BrushMode::Lower, "Lower"),
+                            (BrushMode::Flatten, "Flatten"),
+                            (BrushMode::Smooth, "Smooth"),
+                        ] {
+                            ui.selectable_value(&mut self.brush_mode, mode, name);
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Radius");
+                        ui.add(egui::DragValue::new(&mut self.radius).range(0.01..=10_000.).speed(0.1));
+                        ui.label("Strength / second");
+                        ui.add(egui::DragValue::new(&mut self.strength).range(0.01..=100.).speed(0.1));
+                    });
+                    if self.brush_mode == BrushMode::Flatten {
+                        ui.horizontal(|ui| {
+                            ui.label("Flatten height");
+                            ui.add(egui::DragValue::new(&mut self.flatten_height).range(-10_000.0..=10_000.0).speed(0.1));
+                        });
+                    }
+                    ui.weak("Brush size and height use terrain-local units. Green contours preview the sculpt stroke.");
+                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            self.draft.as_ref().is_some_and(|d| d.changed),
+                            egui::Button::new("Apply terrain draft"),
+                        )
+                        .clicked()
+                    {
+                        let result = self.save_terrain(editor);
+                        self.report(result);
+                    }
+                    if ui.button("Discard terrain draft").clicked() {
+                        if let Some(draft) = &mut self.draft {
+                            draft.data = draft.source.terrain.clone();
+                            draft.changed = false;
+                            draft.paint_stroke = None;
+                            self.paint_layers = draft.data.paint.as_ref().map_or_else(
+                                || TerrainPaint::new(0).layers,
+                                |paint| paint.layers,
+                            );
+                        }
+                        self.error = false;
+                        self.message.clear();
+                    }
+                });
+            });
+    }
+    fn paint_controls(&mut self, ui: &mut egui::Ui) {
+        ui.label("Material layers");
+        ui.horizontal(|ui| {
+            for (index, name) in TerrainPaint::LAYER_NAMES.into_iter().enumerate() {
+                let color = self.paint_layers[index].color;
+                let swatch = Color32::from(egui::Rgba::from_rgb(color[0], color[1], color[2]));
+                ui.colored_label(swatch, "●");
+                ui.selectable_value(&mut self.paint_layer, index, name);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("Radius");
+            ui.add(
+                egui::DragValue::new(&mut self.radius)
+                    .range(0.01..=10_000.)
+                    .speed(0.1),
+            );
+            ui.label("Strength / second");
+            ui.add(
+                egui::DragValue::new(&mut self.paint_strength)
+                    .range(0.01..=100.)
+                    .speed(0.1),
+            );
+        });
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.label("Layer tint");
+            changed |= ui
+                .color_edit_button_rgb(&mut self.paint_layers[self.paint_layer].color)
+                .changed();
+            ui.label("Texture size");
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut self.paint_layers[self.paint_layer].tiling)
+                        .range(0.01..=100_000.)
+                        .speed(0.1)
+                        .suffix(" m"),
+                )
+                .changed();
+        });
+        if ui.button("Reset selected layer").clicked() {
+            let layer = &mut self.paint_layers[self.paint_layer];
+            let default = TerrainPaint::new(0).layers[self.paint_layer];
+            changed |= *layer != default;
+            *layer = default;
+        }
+        if changed && let Some(draft) = &mut self.draft {
+            let paint = draft
+                .data
+                .paint
+                .get_or_insert_with(|| TerrainPaint::new(draft.data.heights.len()));
+            paint.layers = self.paint_layers;
+            draft.changed = true;
+            draft.paint_stroke = None;
+        }
+        ui.weak("Paint soft blends of grass, dirt and rock. Release applies the material stroke; heights and collision stay unchanged.");
+        ui.weak(
+            "Each layer has a procedural texture. Tint and texture size affect the whole layer.",
+        );
     }
     fn poll(&mut self, editor: &mut Editor) {
         let completed = match &self.work {
@@ -186,7 +441,7 @@ impl LevelTools {
                                 self.open_terrain(editor, &id)?;
                             }
                             self.message = if terrain {
-                                "Terrain updated · Undo restores the previous geometry"
+                                "Terrain updated · Undo restores the previous terrain and materials"
                             } else {
                                 "Blockout placed · Undo removes this stroke"
                             }
@@ -233,6 +488,11 @@ impl LevelTools {
         busy: bool,
     ) {
         self.poll(editor);
+        // Release still ends a stroke when the author switched away from the 3D view.
+        if self.stroking && !ctx.input(|input| input.pointer.primary_down()) {
+            let result = self.finish_stroke(editor, !busy && editor.play.is_none());
+            self.report(result);
+        }
         if self.work.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(20));
         }
@@ -254,34 +514,15 @@ impl LevelTools {
             ui.add_enabled_ui(available, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.selectable_value(&mut self.mode, Mode::Select, "Select");
-                    ui.add_enabled_ui(self.draft.is_some(), |ui| { ui.selectable_value(&mut self.mode, Mode::Terrain, "Sculpt terrain"); });
+                    ui.add_enabled_ui(self.draft.is_some(), |ui| {
+                        ui.selectable_value(&mut self.mode, Mode::Terrain, "Sculpt terrain");
+                        ui.selectable_value(&mut self.mode, Mode::TerrainPaint, "Paint materials");
+                    });
                     ui.selectable_value(&mut self.mode, Mode::Blockout, "Place brushes");
                     ui.selectable_value(&mut self.mode, Mode::Measure, "Measure");
                 });
-                ui.weak("Drag in the 3D viewport to sculpt or place a stroke. Release to apply; Undo restores the whole stroke.");
-                egui::CollapsingHeader::new("Terrain").default_open(true).show(ui, |ui| {
-                    ui.horizontal(|ui| { ui.label("Width / depth"); for value in &mut self.terrain_size { ui.add(egui::DragValue::new(value).range(0.01..=100_000.).speed(1.)); } });
-                    ui.horizontal(|ui| { ui.label("Vertices per axis"); ui.add(egui::DragValue::new(&mut self.terrain_resolution).range(2..=129)); });
-                    vector(ui, "Origin", &mut self.origin, -1_000_000., 1_000_000.);
-                    if ui.add_enabled(!self.dirty(), egui::Button::new("Create terrain")).clicked() {
-                        let result = Terrain::flat([self.terrain_resolution; 2], self.terrain_size).and_then(|terrain| editor.terrain_job(TerrainRequest::Create { terrain, position: self.origin })).map(|job| { self.work = Some(Work::Geometry(job, true)); });
-                        self.report(result);
-                    }
-                    if ui.add_enabled(!self.dirty() && editor.selected.is_some(), egui::Button::new("Edit selected terrain")).clicked() {
-                        let id = editor.selected.clone().unwrap(); let result = self.open_terrain(editor, &id); self.report(result);
-                    }
-                    if let Some(draft) = &self.draft { ui.label(format!("Editing {}", draft.source.object())); }
-                    ui.horizontal_wrapped(|ui| {
-                        for (mode, name) in [(BrushMode::Raise, "Raise"), (BrushMode::Lower, "Lower"), (BrushMode::Flatten, "Flatten"), (BrushMode::Smooth, "Smooth")] { ui.selectable_value(&mut self.brush_mode, mode, name); }
-                    });
-                    ui.horizontal(|ui| { ui.label("Radius"); ui.add(egui::DragValue::new(&mut self.radius).range(0.01..=10_000.).speed(0.1)); ui.label("Strength / second"); ui.add(egui::DragValue::new(&mut self.strength).range(0.01..=100.).speed(0.1)); });
-                    ui.horizontal(|ui| { ui.label("Flatten height"); ui.add(egui::DragValue::new(&mut self.flatten_height).range(-10_000.0..=10_000.0).speed(0.1)); });
-                    ui.weak("Brush size and height use terrain-local units. Green wire contours preview the stroke until release.");
-                    ui.horizontal(|ui| {
-                        if ui.add_enabled(self.draft.as_ref().is_some_and(|d| d.changed), egui::Button::new("Apply terrain draft")).clicked() { let result = self.save_terrain(editor); self.report(result); }
-                        if ui.button("Discard terrain draft").clicked() { if let Some(draft) = &mut self.draft { draft.data = draft.source.terrain.clone(); draft.changed = false; } self.error = false; self.message.clear(); }
-                    });
-                });
+                ui.weak("Drag in the 3D viewport. Release to apply; Undo restores the whole stroke.");
+                self.terrain_controls(ui, editor);
                 egui::CollapsingHeader::new("Blockout brushes").show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         for (shape, label) in [(BrushPrimitive::Box, "Box"), (BrushPrimitive::Ramp, "Ramp"), (BrushPrimitive::Stairs { steps: 8 }, "Stairs"), (BrushPrimitive::Cylinder { sides: 16 }, "Cylinder")] {
@@ -375,43 +616,40 @@ impl LevelTools {
         let active = self.visible && self.mode != Mode::Select;
         let primary = ui.input(|i| i.pointer.primary_down());
         if self.stroking && !primary {
-            self.stroking = false;
-            if enabled && self.work.is_none() {
-                let result = if self.mode == Mode::Terrain {
-                    self.save_terrain(editor)
-                } else if !self.stamps.is_empty() {
-                    editor
-                        .blockout_job(
-                            Blockout {
-                                version: 1,
-                                primitive: self.primitive,
-                            },
-                            std::mem::take(&mut self.stamps),
-                        )
-                        .map(|job| self.work = Some(Work::Geometry(job, false)))
-                } else {
-                    Ok(())
-                };
-                self.report(result);
-            }
+            let result = self.finish_stroke(editor, enabled);
+            self.report(result);
         }
         if !active || !enabled || self.work.is_some() {
             return Ok(active);
         }
         let Some(pointer) = response.hover_pos().filter(|p| rect.contains(*p)) else {
+            if let Some(stroke) = self
+                .draft
+                .as_mut()
+                .and_then(|draft| draft.paint_stroke.as_mut())
+            {
+                stroke.previous = None;
+            }
             return Ok(active);
         };
         let ndc = [
             2. * (pointer.x - rect.left()) / rect.width() - 1.,
             1. - 2. * (pointer.y - rect.top()) / rect.height(),
         ];
-        let hit = if prefs.place_on_surfaces || self.mode == Mode::Terrain {
+        let hit = if prefs.place_on_surfaces || self.mode.terrain() {
             editor.pick_point_with_projection(Layer::ThreeD, projection, ndc)?
         } else {
             None
         };
         let fallback = plane_point(projection, ndc, prefs.plane_y);
         let Some(point) = hit.as_ref().map(|(_, p)| *p).or(fallback) else {
+            if let Some(stroke) = self
+                .draft
+                .as_mut()
+                .and_then(|draft| draft.paint_stroke.as_mut())
+            {
+                stroke.previous = None;
+            }
             return Ok(active);
         };
         match self.mode {
@@ -423,7 +661,7 @@ impl LevelTools {
                     self.measurement.push(point);
                 }
             }
-            Mode::Terrain => {
+            Mode::Terrain | Mode::TerrainPaint => {
                 let Some(draft) = &mut self.draft else {
                     return Ok(active);
                 };
@@ -433,6 +671,9 @@ impl LevelTools {
                         .as_ref()
                         .is_none_or(|(p, _)| p.object != draft.source.object())
                 {
+                    if let Some(stroke) = &mut draft.paint_stroke {
+                        stroke.previous = None;
+                    }
                     return Ok(active);
                 }
                 if draft.matrix_revision != editor.revision() {
@@ -441,19 +682,39 @@ impl LevelTools {
                 }
                 let matrix = draft.matrix;
                 let local = matrix.inverse().transform_point3(point);
-                if primary {
+                if primary && (self.stroking || response.is_pointer_button_down_on()) {
                     let dt = ui.input(|i| i.stable_dt).clamp(0.001, 0.05);
-                    draft.changed |= draft.data.brush(TerrainBrush {
-                        mode: self.brush_mode,
-                        center: [local.x, local.z],
-                        radius: self.radius,
-                        strength: self.strength * dt,
-                        target_height: self.flatten_height,
-                    })?;
+                    draft.changed |= if self.mode == Mode::TerrainPaint {
+                        if draft.paint_stroke.is_none() {
+                            draft.paint_stroke = Some(MaterialStroke::new(&draft.data)?);
+                        }
+                        draft.paint_stroke.as_mut().unwrap().paint(
+                            &mut draft.data,
+                            [local.x, local.z],
+                            self.paint_layer,
+                            self.radius,
+                            self.paint_strength,
+                            dt,
+                        )?
+                    } else {
+                        draft.data.brush(TerrainBrush {
+                            mode: self.brush_mode,
+                            center: [local.x, local.z],
+                            radius: self.radius,
+                            strength: self.strength * dt,
+                            target_height: self.flatten_height,
+                        })?
+                    };
                     self.stroking = true;
                     ui.ctx().request_repaint();
                 }
                 let radius = self.radius;
+                let brush_color = if self.mode == Mode::TerrainPaint {
+                    let color = self.paint_layers[self.paint_layer].color;
+                    Color32::from(egui::Rgba::from_rgb(color[0], color[1], color[2]))
+                } else {
+                    Color32::LIGHT_GREEN
+                };
                 for ring in [0.5, 1.] {
                     let mut previous = None;
                     for n in 0..=48 {
@@ -465,7 +726,7 @@ impl LevelTools {
                         if let Some((height, _)) = draft.data.sample(p) {
                             let p = matrix.transform_point3(Vec3::new(p[0], height + 0.01, p[1]));
                             if let Some(last) = previous {
-                                line(ui, rect, projection, last, p, Color32::LIGHT_GREEN);
+                                line(ui, rect, projection, last, p, brush_color);
                             }
                             previous = Some(p);
                         } else {
@@ -483,7 +744,7 @@ impl LevelTools {
                     scale: self.dimensions,
                 };
                 box_preview(ui, rect, projection, transform, Color32::LIGHT_BLUE);
-                if primary {
+                if primary && (self.stroking || response.is_pointer_button_down_on()) {
                     if self.stamps.len() < 256
                         && self.stamps.last().is_none_or(|last| {
                             Vec3::from_array(last.translation).distance(position)
@@ -643,6 +904,26 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
+    fn paint_drag_interpolates_samples_and_never_bridges_a_missed_surface() -> Result<()> {
+        let mut terrain = Terrain::flat([33; 2], [16.; 2])?;
+        let mut stroke = MaterialStroke::new(&terrain)?;
+        stroke.paint(&mut terrain, [-4., 0.], 1, 1., 4., 0.05)?;
+        stroke.paint(&mut terrain, [4., 0.], 1, 1., 4., 0.05)?;
+        assert!(terrain.paint.as_ref().unwrap().weights[16 * 33 + 16][1] > 0);
+
+        let mut terrain = Terrain::flat([33; 2], [16.; 2])?;
+        let mut stroke = MaterialStroke::new(&terrain)?;
+        stroke.paint(&mut terrain, [-4., 0.], 1, 1., 4., 0.05)?;
+        stroke.previous = None; // The pointer left the terrain between samples.
+        stroke.paint(&mut terrain, [4., 0.], 1, 1., 4., 0.05)?;
+        assert_eq!(
+            terrain.paint.as_ref().unwrap().weights[16 * 33 + 16],
+            [255, 0, 0]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn grid_clips_camera_crossings_and_snapping_handles_invalid_preferences() {
         let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(500., 500.));
         let projection = glam::camera::rh::proj::directx::perspective(1., 1., 0.1, 100.);
@@ -670,14 +951,44 @@ mod tests {
 
     #[test]
     fn viewport_sculpt_release_publishes_collision_and_one_undo_restores_draft() -> Result<()> {
+        viewport_terrain_stroke(Mode::Terrain, true, false)
+    }
+
+    #[test]
+    fn viewport_paint_release_preserves_geometry_and_one_undo_restores_material() -> Result<()> {
+        viewport_terrain_stroke(Mode::TerrainPaint, true, false)
+    }
+
+    #[test]
+    fn paint_release_after_leaving_3d_publishes_and_unlocks_controls() -> Result<()> {
+        viewport_terrain_stroke(Mode::TerrainPaint, true, true)
+    }
+
+    #[test]
+    fn dragging_into_terrain_from_outside_the_viewport_never_starts_paint() -> Result<()> {
+        viewport_terrain_stroke(Mode::TerrainPaint, false, false)
+    }
+
+    fn viewport_terrain_stroke(mode: Mode, owns_pointer: bool, release_in_ui: bool) -> Result<()> {
         struct Temp(std::path::PathBuf);
         impl Drop for Temp {
             fn drop(&mut self) {
                 let _ = std::fs::remove_dir_all(&self.0);
             }
         }
-        let temp =
-            Temp(std::env::temp_dir().join(format!("bozzard-sculpt-ui-{}", std::process::id())));
+        let temp = Temp(std::env::temp_dir().join(format!(
+            "bozzard-terrain-ui-{}-{}",
+            std::process::id(),
+            if release_in_ui {
+                "release-ui"
+            } else if !owns_pointer {
+                "outside"
+            } else if mode == Mode::TerrainPaint {
+                "paint"
+            } else {
+                "sculpt"
+            }
+        )));
         std::fs::create_dir(&temp.0)?;
         let mut editor = Editor::new(
             bozzard_scene::Scene::from_json(
@@ -704,6 +1015,7 @@ mod tests {
             ..Default::default()
         };
         tools.open_terrain(&editor, &id)?;
+        tools.mode = mode;
         // Move the terrain after opening the tool. The world-space stroke must
         // follow its new transform without rebuilding that matrix on idle frames.
         let mut moved = editor.scene().clone();
@@ -716,10 +1028,11 @@ mod tests {
             .translation = [2., 0., 0.];
         editor.apply("Move terrain", moved)?;
         let before = editor.scene().clone();
+        let before_terrain = editor.terrain_source(&id)?.terrain;
         let ctx = egui::Context::default();
         let projection = glam::camera::rh::proj::directx::orthographic(-4., 4., -4., 4., 0.1, 100.)
             * glam::camera::rh::view::look_at_mat4(Vec3::Y * 10., Vec3::ZERO, Vec3::NEG_Z);
-        let prefs = Preferences::default();
+        let mut prefs = Preferences::default();
         let snapping = crate::snapping::Snapping::default();
         for frame in 0..4 {
             let mut input = egui::RawInput {
@@ -727,12 +1040,15 @@ mod tests {
                 time: Some(frame as f64 / 60.),
                 ..Default::default()
             };
-            input
-                .events
-                .push(egui::Event::PointerMoved(Pos2::new(258., 258.)));
+            let pointer = if !owns_pointer && frame < 2 {
+                Pos2::new(512., 258.)
+            } else {
+                Pos2::new(258., 258.)
+            };
+            input.events.push(egui::Event::PointerMoved(pointer));
             if frame == 1 || frame == 3 {
                 input.events.push(egui::Event::PointerButton {
-                    pos: Pos2::new(258., 258.),
+                    pos: pointer,
                     button: egui::PointerButton::Primary,
                     pressed: frame == 1,
                     modifiers: Default::default(),
@@ -740,6 +1056,11 @@ mod tests {
             }
             let mut result = Ok(());
             let mut output = ctx.run_ui(input, |ui| {
+                if frame == 3 && release_in_ui {
+                    // The 2D view does not call the 3D viewport tool at all.
+                    tools.ui(ui.ctx(), &mut editor, &mut prefs, false);
+                    return;
+                }
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(500., 500.), egui::Sense::click_and_drag());
                 result = tools
@@ -760,10 +1081,18 @@ mod tests {
             output.textures_delta.clear();
             result?;
         }
+        if !owns_pointer {
+            assert!(tools.work.is_none());
+            assert!(!tools.dirty());
+            assert_eq!(editor.scene(), &before);
+            assert_eq!(tools.draft.as_ref().unwrap().data, before_terrain);
+            return Ok(());
+        }
         assert!(
             tools.work.is_some(),
-            "mouse release did not submit the sculpt stroke"
+            "mouse release did not submit the terrain stroke"
         );
+        assert!(!tools.stroking, "released strokes must unlock the controls");
         let deadline = Instant::now() + Duration::from_secs(10);
         while tools.work.is_some() {
             ensure!(Instant::now() < deadline, "sculpt publication timed out");
@@ -780,7 +1109,30 @@ mod tests {
             .sample([-2., 0.])
             .unwrap()
             .0;
-        assert!(height > 0.);
+        if mode == Mode::TerrainPaint {
+            let terrain = &tools.draft.as_ref().unwrap().data;
+            assert_eq!(terrain.heights, before_terrain.heights);
+            assert_eq!(height, 0.);
+            let paint = terrain
+                .paint
+                .as_ref()
+                .expect("stroke must initialize material layers");
+            assert!(paint.weights.iter().any(|weights| weights[1] > 0));
+            assert!(
+                paint.weights.iter().all(|weights| weights
+                    .iter()
+                    .map(|w| u16::from(*w))
+                    .sum::<u16>()
+                    == 255)
+            );
+            assert_eq!(
+                tools.mode,
+                Mode::TerrainPaint,
+                "publication must keep the active paint tool"
+            );
+        } else {
+            assert!(height > 0.);
+        }
         let collision = editor
             .collisions()?
             .raycast(Vec3::Y * 10., Vec3::NEG_Y, 20., None)?
@@ -789,6 +1141,10 @@ mod tests {
         editor.undo()?;
         tools.poll(&mut editor);
         assert_eq!(editor.scene(), &before);
+        assert_eq!(
+            tools.draft.as_ref().unwrap().data.paint,
+            before_terrain.paint
+        );
         assert_eq!(
             tools
                 .draft
