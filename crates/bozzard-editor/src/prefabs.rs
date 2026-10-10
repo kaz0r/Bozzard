@@ -250,10 +250,24 @@ pub(super) fn load_source(path: PathBuf, progress: &Progress) -> Result<LoadedSc
 }
 
 impl Editor {
+    /// Component differences from the selected instance's baseline. The inspector asks every
+    /// frame, so the result is kept until the next transaction or another instance is selected.
     pub fn prefab_overrides(&self) -> Result<Vec<PrefabOverride>> {
         let root = self
             .selected_prefab_root()
             .context("Select a prefab instance")?;
+        let mut cached = self.prefab_override_cache.borrow_mut();
+        if let Some((revision, cached_root, changes)) = cached.as_ref()
+            && *revision == self.revision
+            && cached_root == root
+        {
+            return Ok(changes.clone());
+        }
+        let changes = self.compare_prefab_instance(root)?;
+        *cached = Some((self.revision, root.to_owned(), changes.clone()));
+        Ok(changes)
+    }
+    fn compare_prefab_instance(&self, root: &str) -> Result<Vec<PrefabOverride>> {
         let link = &self.scene.prefabs[root];
         let mut changes = Vec::new();
         for baseline in &link.baseline {

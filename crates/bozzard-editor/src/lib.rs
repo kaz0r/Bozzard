@@ -83,6 +83,7 @@ pub struct Editor {
     world_transforms: std::cell::RefCell<Option<(u64, std::sync::Arc<WorldTransforms>)>>,
     dirty: std::cell::Cell<Option<(u64, bool)>>,
     gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
+    prefab_override_cache: std::cell::RefCell<Option<(u64, String, Vec<PrefabOverride>)>>,
     edit_demo: std::cell::RefCell<Option<(u64, SceneRuntime)>>,
     edit_collisions: std::cell::RefCell<Option<(u64, bozzard_scene::CollisionSnapshot)>>,
 }
@@ -135,6 +136,7 @@ impl Editor {
             world_transforms: Default::default(),
             dirty: Default::default(),
             gi_freshness: Default::default(),
+            prefab_override_cache: Default::default(),
             edit_demo: Default::default(),
             edit_collisions: Default::default(),
         }

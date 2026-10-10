@@ -396,6 +396,13 @@ fn main() -> Result<()> {
     });
     if matches!(mode.as_str(), "all" | "synthetic") {
         synthetic()?;
+        // The inspector compares the selected prefab instance with its baseline each frame.
+        let mut editor = Editor::open(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../examples/demo/scenes/prefab-lab.json"),
+        )?;
+        editor.select_object(Some("cargo-2".into()));
+        measure("prefab_inspector_overrides", || editor.prefab_overrides())?;
     }
     if matches!(mode.as_str(), "all" | "pagoda") {
         pagoda(path)?;
