@@ -89,6 +89,25 @@ fn synthetic() -> Result<()> {
         bozzard_assets::gi::is_current(editor.scene(), &editor.assets)
     })?;
     measure("gi_freshness_cached", || Ok(editor.gi_current()))?;
+    // A display edit changes the revision but none of the bake inputs.
+    measure_n(
+        "gi_freshness_after_display_edit",
+        200,
+        &mut editor,
+        |editor| {
+            let mut scene = editor.scene().clone();
+            scene.display.exposure_ev = if scene.display.exposure_ev == 0. {
+                0.5
+            } else {
+                0.
+            };
+            editor.apply("Exposure", scene)
+        },
+        |editor, ()| {
+            ensure!(editor.gi_current(), "display edits keep the bake current");
+            Ok(())
+        },
+    )?;
     let demo = bozzard_runtime::SceneRuntime::new(editor.scene())?;
     measure("extract_runtime_reference", || {
         bozzard_editor::extract(&demo, &editor.assets, Layer::ThreeD, 1.6)
