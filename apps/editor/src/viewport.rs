@@ -27,6 +27,8 @@ fn gameplay_orbit(response: &egui::Response, scene_captures_pointer: bool) -> Ve
 pub struct Drag {
     id: String,
     surface: Option<usize>,
+    /// The inspected surface this drag converted, selected again if the drag is cancelled.
+    split_from: Option<bozzard_editor::Pick>,
     axis: usize,
     start: Transform,
     pointer: Pos2,
@@ -1794,7 +1796,11 @@ impl App {
             && ui.input(|i| i.focused);
         if self.drag.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.editor.cancel_gesture()?;
-            self.drag = None;
+            if let Some(pick) = self.drag.take().and_then(|drag| drag.split_from) {
+                self.editor.select_pick(Some(pick))?;
+                self.hierarchy_state
+                    .reset_selection(self.editor.selected.as_deref());
+            }
             self.status = "Gizmo drag cancelled".into();
             self.error = false;
             return Ok(true);
@@ -1977,6 +1983,7 @@ impl App {
             self.drag = Some(Drag {
                 id: object.id.clone(),
                 surface,
+                split_from: None,
                 axis,
                 start: transform,
                 pointer,
@@ -2126,13 +2133,39 @@ impl App {
                     }
                     Tool::Scale => (amount * 0.01).exp().clamp(0.01, 100.0),
                 };
-                let transform = self.workspace.snapping.transform(
-                    drag.start,
-                    drag.tool,
-                    drag.axis,
-                    amount,
-                    ui.input(|i| i.modifiers.ctrl),
-                );
+                let snap = ui.input(|i| i.modifiers.ctrl);
+                let mut transform = self
+                    .workspace
+                    .snapping
+                    .transform(drag.start, drag.tool, drag.axis, amount, snap);
+                // The first movement converts an inspected surface inside this gesture.
+                // Its child keeps the surface's world placement and parent axes, so the
+                // drag continues from the child's transform.
+                if drag.surface.is_some() && transform != drag.start {
+                    match self.editor.split_selected_surface() {
+                        Ok(true) => {
+                            drag.split_from = Some(bozzard_editor::Pick {
+                                object: std::mem::take(&mut drag.id),
+                                surface: drag.surface.take(),
+                            });
+                            drag.id = self.editor.selected.clone().unwrap_or_default();
+                            drag.start = self.editor.selected_transform()?;
+                            transform = self
+                                .workspace
+                                .snapping
+                                .transform(drag.start, drag.tool, drag.axis, amount, snap);
+                            self.hierarchy_state
+                                .reset_selection(self.editor.selected.as_deref());
+                        }
+                        Ok(false) => {}
+                        Err(error) => {
+                            self.drag = None;
+                            self.editor.cancel_gesture()?;
+                            self.result(Err(error));
+                            return Ok(true);
+                        }
+                    }
+                }
                 let r = if let Some(group) = &drag.group_move {
                     let scene = group.translated_scene(self.editor.scene(), drag.start, transform);
                     self.editor.apply("Transform", scene)
