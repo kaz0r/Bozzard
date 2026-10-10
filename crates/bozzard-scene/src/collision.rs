@@ -247,51 +247,71 @@ impl SceneInstance {
         world: &World,
     ) -> Result<(CollisionSnapshot, transforms::Matrices<'_>)> {
         let (mut snapshot, matrices) = self.collision_geometry(world)?;
-        broad_phase::overlaps(&snapshot.boxes, &mut snapshot.overlaps);
-        // Layers gate overlap reporting exactly as they gate the solver, so a gameplay volume on
-        // its own layer stops firing On Overlap/On Collision events against everything.
-        let layers: BTreeMap<_, _> = snapshot
-            .boxes
-            .iter()
-            .map(|b| (b.id.clone(), (b.layers, b.mask)))
-            .chain(
-                snapshot
-                    .meshes
-                    .iter()
-                    .map(|m| (m.id.clone(), (m.layers, m.mask))),
-            )
-            .collect();
-        let interact = |a: &str, b: &str| {
-            layers.get(a).zip(layers.get(b)).is_some_and(
-                |(&(a_layers, a_mask), &(b_layers, b_mask))| {
-                    layers_interact(a_layers, a_mask, b_layers, b_mask)
-                },
-            )
-        };
-        snapshot.overlaps.retain(|(a, b)| interact(a, b));
-        let extra: Vec<_> = snapshot
-            .boxes
-            .iter()
-            .flat_map(|a| {
-                snapshot.meshes.iter().filter_map(move |b| {
-                    if interact(&a.id, &b.id) && b.intersects(a) {
-                        Some(if a.id < b.id {
-                            (a.id.clone(), b.id.clone())
-                        } else {
-                            (b.id.clone(), a.id.clone())
-                        })
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect();
-        snapshot.overlaps.extend(extra);
-        if let Some(physics) = world.resource::<crate::physics::Physics>() {
-            snapshot.overlaps.extend(physics.contacts(world, &matrices));
-        }
-        snapshot.overlaps.sort();
-        snapshot.overlaps.dedup();
+        let contacts = self.solid_contacts(world, &matrices);
+        snapshot.overlaps = overlap_pairs(&snapshot, contacts);
         Ok((snapshot, matrices))
     }
+    /// Rapier contact pairs that a geometry snapshot's overlaps include.
+    pub(crate) fn solid_contacts(
+        &self,
+        world: &World,
+        matrices: &transforms::Matrices<'_>,
+    ) -> Vec<(String, String)> {
+        world
+            .resource::<crate::physics::Physics>()
+            .map(|physics| physics.contacts(world, matrices))
+            .unwrap_or_default()
+    }
+}
+
+/// Unique, sorted object-ID pairs: overlapping boxes, boxes against meshes, and solid contacts.
+pub(crate) fn overlap_pairs(
+    snapshot: &CollisionSnapshot,
+    contacts: Vec<(String, String)>,
+) -> Vec<(String, String)> {
+    let mut overlaps = Vec::new();
+    broad_phase::overlaps(&snapshot.boxes, &mut overlaps);
+    // Layers gate overlap reporting exactly as they gate the solver, so a gameplay volume on
+    // its own layer stops firing On Overlap/On Collision events against everything.
+    let layers: BTreeMap<_, _> = snapshot
+        .boxes
+        .iter()
+        .map(|b| (b.id.as_str(), (b.layers, b.mask)))
+        .chain(
+            snapshot
+                .meshes
+                .iter()
+                .map(|m| (m.id.as_str(), (m.layers, m.mask))),
+        )
+        .collect();
+    let interact = |a: &str, b: &str| {
+        layers.get(a).zip(layers.get(b)).is_some_and(
+            |(&(a_layers, a_mask), &(b_layers, b_mask))| {
+                layers_interact(a_layers, a_mask, b_layers, b_mask)
+            },
+        )
+    };
+    overlaps.retain(|(a, b)| interact(a, b));
+    let extra: Vec<_> = snapshot
+        .boxes
+        .iter()
+        .flat_map(|a| {
+            snapshot.meshes.iter().filter_map(move |b| {
+                if interact(&a.id, &b.id) && b.intersects(a) {
+                    Some(if a.id < b.id {
+                        (a.id.clone(), b.id.clone())
+                    } else {
+                        (b.id.clone(), a.id.clone())
+                    })
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    overlaps.extend(extra);
+    overlaps.extend(contacts);
+    overlaps.sort();
+    overlaps.dedup();
+    overlaps
 }

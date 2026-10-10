@@ -71,23 +71,41 @@ impl SceneInstance {
         // immediately take the ordinary path on the next tick.
         let has_colliders = world.resource::<crate::physics::Physics>().is_some()
             || self.has_collision_geometry(world);
-        let snapshot = Arc::new(if has_colliders {
-            self.collision_snapshot(world)?.0
-        } else {
-            CollisionSnapshot::default()
-        });
-        // Contacts are only needed by a script that listens for solid collisions.
-        let contacts = if self
+        // Contacts are only needed by a script that listens for solid collisions, and
+        // overlap sets by one with an enter/exit hook. Queries need only the geometry;
+        // `overlap_count` pairs it with this tick's solid contacts when first called.
+        let listens_contact = self
             .scripts
             .values()
-            .any(|script| script.hooks.contains_key("on_collision_enter"))
-        {
-            let matrices = self.live_matrices(world)?;
-            self.blueprint_contacts(world, &snapshot, &matrices)
+            .any(|script| script.hooks.contains_key("on_collision_enter"));
+        let listens_overlap = self.scripts.values().any(|script| script.listens_overlap);
+        let mut overlap_contacts = None;
+        let (snapshot, contacts) = if has_colliders {
+            let (mut snapshot, matrices) = self.collision_geometry(world)?;
+            let solid = self.solid_contacts(world, &matrices);
+            if listens_contact || listens_overlap {
+                snapshot.overlaps = collision::overlap_pairs(&snapshot, solid);
+            } else {
+                overlap_contacts = Some(solid);
+            }
+            let contacts = if listens_contact {
+                self.blueprint_contacts(world, &snapshot, &matrices)
+            } else {
+                BTreeMap::new()
+            };
+            (Arc::new(snapshot), contacts)
+        } else {
+            // A contact listener still fails on invalid transforms, as its pass always did.
+            if listens_contact {
+                self.validate_live_transforms(world)?;
+            }
+            (Arc::new(CollisionSnapshot::default()), BTreeMap::new())
+        };
+        let overlaps = if listens_overlap {
+            self.script_overlaps(world, &snapshot)?
         } else {
             BTreeMap::new()
         };
-        let overlaps = self.script_overlaps(world, &snapshot)?;
         let owners: Vec<(String, Attachments)> = self
             .document
             .objects
@@ -112,6 +130,7 @@ impl SceneInstance {
         bozzard_diagnostics::measure(world, "Script read view", |world| {
             let mut host = engine.lock();
             self.build_view(world, &mut host, runtime, &snapshot, dt, input);
+            host.overlap_contacts = overlap_contacts;
             host.ui_events.clear();
             host.ui_pointer = [-1.; 2];
             host.ui_pointer_blocked = true;
@@ -285,16 +304,13 @@ impl SceneInstance {
         host.input = input;
         host.tokens = runtime.tokens.clone();
         host.geometry = snapshot.clone();
+        host.overlap_contacts = None;
+        host.overlap_counts = None;
         host.budget = 1_000_000;
         host.commands.clear();
         host.objects.clear();
         host.object_boards.clear();
         host.scene_board.clear();
-        let mut overlaps: BTreeMap<&str, usize> = BTreeMap::new();
-        for (a, b) in &snapshot.overlaps {
-            *overlaps.entry(a).or_default() += 1;
-            *overlaps.entry(b).or_default() += 1;
-        }
         let has_text = world.query::<TextRendering>().next().is_some();
         let has_gravity = world.query::<Gravity>().next().is_some();
         let has_grounded = world.query::<GravityState>().next().is_some();
@@ -321,7 +337,6 @@ impl SceneInstance {
                                 .get::<GravityState>(*entity)
                                 .is_some_and(|state| state.grounded)
                     }),
-                    overlaps: overlaps.get(id.as_str()).copied().unwrap_or(0),
                     animation: world
                         .resource::<middleware::animation::Runtime>()
                         .and_then(|r| r.players.get(id))
