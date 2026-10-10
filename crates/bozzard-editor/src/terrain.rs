@@ -24,7 +24,7 @@ pub enum TerrainRequest {
         position: [f32; 3],
     },
     Sculpt {
-        source: TerrainSource,
+        source: Box<TerrainSource>,
         terrain: Terrain,
     },
 }
@@ -435,6 +435,7 @@ impl Editor {
                     (terrain, object, asset, None, true, true)
                 }
                 TerrainRequest::Sculpt { source, terrain } => {
+                    let source = *source;
                     ensure!(
                         scene.objects.iter().any(|o| o.id == source.object
                             && o.drawable.as_ref().is_some_and(

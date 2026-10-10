@@ -91,7 +91,10 @@ fn painting_is_one_undo_step_with_immutable_sources_and_portable_cooked_pixels()
     paint_dirt(&mut terrain)?;
     let paint = terrain.paint.clone();
     let before_revision = editor.revision();
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     assert_eq!(editor.revision(), before_revision + 1);
     assert_eq!(editor.undo_label(), Some("Paint terrain"));
@@ -228,7 +231,10 @@ fn shared_terrain_paint_updates_defaults_once_and_preserves_authored_appearance(
     let source = editor.terrain_source(&id)?;
     let mut terrain = source.terrain.clone();
     paint_dirt(&mut terrain)?;
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     for object in editor
         .scene()
@@ -285,7 +291,10 @@ fn shared_terrain_paint_updates_defaults_once_and_preserves_authored_appearance(
     let source = editor.terrain_source(&id)?;
     let mut terrain = source.terrain.clone();
     terrain.paint.as_mut().unwrap().layers[1].color = [0.4, 0.15, 0.06];
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     let surface = editor
         .scene()
@@ -343,7 +352,10 @@ fn painted_creation_and_stale_cancelled_or_external_strokes_are_atomic() -> Resu
         let source = editor.terrain_source(&id)?;
         let mut terrain = source.terrain.clone();
         terrain.paint.as_mut().unwrap().layers[2].tiling *= 2.;
-        editor.terrain_job(TerrainRequest::Sculpt { source, terrain })
+        editor.terrain_job(TerrainRequest::Sculpt {
+            source: Box::new(source),
+            terrain,
+        })
     };
     let job = prepare(&editor)?;
     let prepared = wait(&job)?;
@@ -393,7 +405,10 @@ fn signed_zero_geometry_changes_rebuild_collision_and_retain_paint() -> Result<(
     let mut terrain = source.terrain.clone();
     let paint = terrain.paint.clone();
     terrain.heights[0] = -0.;
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     assert_eq!(editor.undo_label(), Some("Edit terrain"));
     assert_eq!(editor.terrain_source(&id)?.terrain.paint, paint);
@@ -438,7 +453,10 @@ fn sculpt_revisions_keep_render_collision_history_and_saved_sources_consistent()
         strength: 2.,
         target_height: 0.,
     })?;
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     assert_eq!(editor.scene().assets.len(), 1);
     assert_ne!(editor.scene().assets, initial.assets);
@@ -503,7 +521,10 @@ fn stale_cancelled_and_externally_changed_terrain_never_publish() -> Result<()> 
     let id = editor.accept_terrain(wait(&job)?)?;
     let source = editor.terrain_source(&id)?;
     let terrain = source.terrain.clone();
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     let prepared = wait(&job)?;
     let asset = temp
         .0
@@ -551,7 +572,10 @@ fn terrain_and_brush_prefabs_keep_saved_geometry_after_later_sculpting() -> Resu
         strength: 2.,
         target_height: 0.,
     })?;
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     let job = editor.prefab_job(PrefabCommand::Instantiate {
         asset: prefab,

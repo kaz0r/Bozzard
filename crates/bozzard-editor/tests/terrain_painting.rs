@@ -110,7 +110,10 @@ fn painted_terrain_cooked_relocation_matches_raw_with_exact_pixels() -> Result<(
         })?);
     }
     assert_eq!(terrain.heights, source.terrain.heights);
-    let job = editor.terrain_job(TerrainRequest::Sculpt { source, terrain })?;
+    let job = editor.terrain_job(TerrainRequest::Sculpt {
+        source: Box::new(source),
+        terrain,
+    })?;
     editor.accept_terrain(wait(&job)?)?;
     assert_eq!(fs::read(&source_path)?, original_bytes);
     let mesh = editor.selected_mesh().unwrap();

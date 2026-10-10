@@ -231,7 +231,7 @@ impl LevelTools {
         );
         self.work = Some(Work::Geometry(
             editor.terrain_job(TerrainRequest::Sculpt {
-                source: draft.source.clone(),
+                source: Box::new(draft.source.clone()),
                 terrain: draft.data.clone(),
             })?,
             true,

@@ -112,7 +112,7 @@ fn main() -> Result<()> {
         "painting must not change terrain geometry"
     );
     let job = editor.terrain_job(TerrainRequest::Sculpt {
-        source,
+        source: Box::new(source),
         terrain: painted,
     })?;
     editor.accept_terrain(wait(&job)?)?;
