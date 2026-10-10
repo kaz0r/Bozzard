@@ -133,6 +133,11 @@ struct Player {
 }
 
 fn main() -> Result<()> {
+    bozzard_diagnostics::crash::install(bozzard_diagnostics::crash::CrashConfig::new(
+        &bozzard_diagnostics::crash::executable_name("bozzard-player"),
+        env!("CARGO_PKG_VERSION"),
+        option_env!("BOZZARD_GIT_HASH"),
+    ));
     let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
@@ -141,6 +146,10 @@ fn main() -> Result<()> {
     let Some(options) = options()? else {
         return Ok(());
     };
+    // Exported games all run as `Game`; their reports carry the project's name instead.
+    if let Some(name) = &options.game_name {
+        bozzard_diagnostics::crash::set_app_name(name);
+    }
     if let Some(manifest) = &options.export_project {
         let (project, source) = bozzard_project::Project::load(manifest)?;
         project.require_runtime_modules(&[])?;
