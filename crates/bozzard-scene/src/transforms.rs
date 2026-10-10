@@ -1,6 +1,6 @@
 //! Reuse composed transforms for static scene objects across simulation and extraction.
 use super::*;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 pub(super) fn is_valid_matrix(matrix: Mat4) -> bool {
     matrix.is_finite() && matrix.inverse().is_finite()
@@ -25,7 +25,7 @@ struct CachedTransforms {
     revision: Option<u64>,
     ids: Vec<String>,
     entities: Vec<Entity>,
-    entity_indices: std::collections::HashMap<Entity, usize>,
+    entity_indices: bozzard_ecs::EntityMap<usize>,
     parents: Vec<Option<usize>>,
     matrices: Vec<Mat4>,
     live: Vec<Option<Entry>>,
@@ -40,6 +40,8 @@ struct CachedTransforms {
     worklist: Vec<usize>,
     disabled: bool,
     stats: TransformExtractionStats,
+    /// Live matrices lent to simulation systems; cleared whenever `matrices` changes.
+    shared: Option<Arc<[Mat4]>>,
 }
 
 fn compact<T>(items: &mut Vec<T>, active: usize) {
@@ -70,6 +72,40 @@ impl Cache {
             cached.ids.capacity(),
             cached.matrices.len(),
         ]
+    }
+}
+
+/// Live world matrices in document order. Systems share one copy until a transform
+/// or the hierarchy changes, instead of each building an ID-keyed map.
+#[derive(Clone)]
+pub(crate) struct Matrices<'a> {
+    instance: &'a SceneInstance,
+    dense: Arc<[Mat4]>,
+}
+impl<'a> Matrices<'a> {
+    /// No matrices, for systems that look up nothing this tick.
+    pub(crate) fn empty(instance: &'a SceneInstance) -> Self {
+        Self {
+            instance,
+            dense: Arc::new([]),
+        }
+    }
+    pub(crate) fn get(&self, id: &str) -> Option<&Mat4> {
+        self.entity(*self.instance.entities.get(id)?)
+    }
+    pub(crate) fn entity(&self, entity: Entity) -> Option<&Mat4> {
+        self.dense.get(*self.instance.object_indices.get(&entity)?)
+    }
+    /// The matrix at a document index.
+    pub(crate) fn at(&self, index: usize) -> Mat4 {
+        self.dense[index]
+    }
+}
+impl<Q: AsRef<str> + ?Sized> std::ops::Index<&Q> for Matrices<'_> {
+    type Output = Mat4;
+    fn index(&self, id: &Q) -> &Mat4 {
+        self.get(id.as_ref())
+            .expect("scene object has a live transform")
     }
 }
 
@@ -110,6 +146,28 @@ impl SceneInstance {
         }
     }
 
+    /// Validated live world matrices, shared until a transform or the hierarchy changes.
+    pub(crate) fn live_matrices(&self, world: &World) -> Result<Matrices<'_>> {
+        let mut cached = self.refresh_transforms(world, None)?;
+        let dense = match &cached.shared {
+            Some(dense) => dense.clone(),
+            None => {
+                let dense: Arc<[Mat4]> = cached.matrices.as_slice().into();
+                cached.shared = Some(dense.clone());
+                dense
+            }
+        };
+        Ok(Matrices {
+            instance: self,
+            dense,
+        })
+    }
+
+    /// Validate every live transform after a write, recomposing only changed subtrees.
+    pub(crate) fn validate_live_transforms(&self, world: &World) -> Result<()> {
+        self.refresh_transforms(world, None).map(drop)
+    }
+
     pub fn global_transforms(&self, world: &World) -> Result<BTreeMap<String, Mat4>> {
         self.with_render_transforms(world, None, |matrices| {
             Ok(self
@@ -148,6 +206,14 @@ impl SceneInstance {
         alpha: Option<f32>,
         extract: impl FnOnce(&[Mat4]) -> Result<T>,
     ) -> Result<T> {
+        extract(&self.refresh_transforms(world, alpha)?.matrices)
+    }
+
+    fn refresh_transforms(
+        &self,
+        world: &World,
+        alpha: Option<f32>,
+    ) -> Result<MutexGuard<'_, CachedTransforms>> {
         if let Some(alpha) = alpha {
             ensure!(
                 alpha.is_finite() && (0. ..=1.).contains(&alpha),
@@ -250,8 +316,9 @@ impl SceneInstance {
             && cached.source_revision == Some(source_revision)
         {
             cached.stats.revision_reuses = cached.matrices.len();
-            return extract(&cached.matrices);
+            return Ok(cached);
         }
+        cached.shared = None;
         cached.worklist.clear();
         let changes = cached
             .source_revision
@@ -391,6 +458,6 @@ impl SceneInstance {
         }
         cached.source_revision = Some(source_revision);
         cached.last_static = history.is_none();
-        extract(&cached.matrices)
+        Ok(cached)
     }
 }

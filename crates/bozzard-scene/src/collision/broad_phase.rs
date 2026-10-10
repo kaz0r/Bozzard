@@ -1,6 +1,6 @@
 use super::*;
 
-fn bounds(b: &CollisionBox) -> [DVec3; 2] {
+pub(super) fn bounds(b: &CollisionBox) -> [DVec3; 2] {
     let [x, y, z] = b.edges;
     let inradius = [(x, y.cross(z)), (y, z.cross(x)), (z, x.cross(y))]
         .into_iter()
@@ -17,6 +17,11 @@ fn bounds(b: &CollisionBox) -> [DVec3; 2] {
     let extent = (x.abs() + y.abs() + z.abs()) * (1.0 + 1e-6 * (1e-6 / inradius).max(1.0));
     let rounding = (b.center.abs() + extent).max(DVec3::ONE) * (64.0 * f64::EPSILON);
     [b.center - extent - rounding, b.center + extent + rounding]
+}
+
+/// Whether two conservative bounds meet; boxes whose bounds miss never intersect.
+pub(super) fn touch(a: &[DVec3; 2], b: &[DVec3; 2]) -> bool {
+    a[0].cmple(b[1]).all() && b[0].cmple(a[1]).all()
 }
 
 pub(super) fn overlaps(boxes: &[CollisionBox], output: &mut Vec<(String, String)>) {
@@ -40,11 +45,7 @@ pub(super) fn overlaps(boxes: &[CollisionBox], output: &mut Vec<(String, String)
             if b[0][axis] > a[1][axis] {
                 break;
             }
-            if boxes[i].id != boxes[j].id
-                && a[0].cmple(b[1]).all()
-                && b[0].cmple(a[1]).all()
-                && boxes[i].intersects(&boxes[j])
-            {
+            if boxes[i].id != boxes[j].id && touch(&a, &b) && boxes[i].intersects(&boxes[j]) {
                 let (i, j) = (i.min(j), i.max(j));
                 output.push((boxes[i].id.clone(), boxes[j].id.clone()));
             }

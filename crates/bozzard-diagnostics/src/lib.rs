@@ -1,4 +1,6 @@
 //! Bounded, graphics-independent diagnostics. Never part of a scene or save game.
+pub mod crash;
+pub mod paths;
 mod render;
 mod simulation;
 use bozzard_ecs::World;
@@ -16,6 +18,15 @@ pub enum Level {
     Info,
     Warning,
     Error,
+}
+impl Level {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Info => "Info",
+            Self::Warning => "Warning",
+            Self::Error => "Error",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -75,14 +86,32 @@ impl Console {
         self.discarded = 0;
         self.revision = self.revision.wrapping_add(1);
     }
+    /// Also remembered for crash reports; repeats collapse before either sees them.
     pub fn push(
+        &mut self,
+        level: Level,
+        source: &str,
+        message: &str,
+        location: Location,
+        tick: Option<u64>,
+    ) {
+        if self.push_event(level, source, message, location, tick) {
+            crash::record(
+                level.name(),
+                bounded(source, 128),
+                bounded(message, MAX_MESSAGE_BYTES),
+            );
+        }
+    }
+    /// Returns whether a new row was added rather than a repeat counted.
+    fn push_event(
         &mut self,
         level: Level,
         source: &str,
         message: &str,
         mut location: Location,
         tick: Option<u64>,
-    ) {
+    ) -> bool {
         let message = bounded(message, MAX_MESSAGE_BYTES);
         let source = bounded(source, 128);
         for text in [
@@ -105,7 +134,7 @@ impl Console {
             last.repetitions = last.repetitions.saturating_add(1);
             last.seconds = seconds;
             last.tick = tick;
-            return;
+            return false;
         }
         // Repetition counts do not change search results; keep cached row indices valid.
         self.revision = self.revision.wrapping_add(1);
@@ -132,13 +161,15 @@ impl Console {
             repetitions: 1,
             search,
         });
+        true
     }
     /// Move a runtime's new messages into the editor log without cloning its history.
+    /// They were remembered for crash reports when first logged.
     pub fn drain_into(&mut self, target: &mut Console) {
         target.discarded = target.discarded.saturating_add(self.discarded);
         self.discarded = 0;
         for event in self.events.drain(..) {
-            target.push(
+            target.push_event(
                 event.level,
                 &event.source,
                 &event.message,

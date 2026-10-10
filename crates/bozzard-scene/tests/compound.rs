@@ -53,6 +53,52 @@ fn a_rigidbody_carries_its_child_colliders_as_one_compound_body() {
 }
 
 #[test]
+fn static_colliders_follow_moved_parents_and_resized_shapes() {
+    // The floor's own transform never changes; only its parent moves, then its size.
+    let scene = scene(
+        r#"{"id":"stand","name":"stand",
+            "transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]}},
+          {"id":"floor","name":"floor","parent":"stand",
+            "transform":{"translation":[0,-0.5,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+            "collider":{"size":[4,1,4]}},
+          {"id":"body","name":"body",
+            "transform":{"translation":[10,3,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+            "collider":{"size":[1,1,1]},
+            "gravity":{"enabled":true,"acceleration":10}}"#,
+    );
+    let mut world = World::new();
+    let instance = scene.spawn(&mut world).unwrap();
+    instance.step_gravity(&mut world, 1. / 60.).unwrap();
+    let stand = instance.entity("stand").unwrap();
+    world
+        .get_mut::<bozzard_scene::Transform>(stand)
+        .unwrap()
+        .translation = [10., 0., 0.];
+    for _ in 0..120 {
+        instance.step_gravity(&mut world, 1. / 60.).unwrap();
+    }
+    let landed = center(&instance, &world, "body").y;
+    assert!(
+        (landed - 0.5).abs() < 0.05,
+        "the body should land on the moved floor, not at {landed}"
+    );
+    // A collider edit rebuilds the shape even though no transform changed.
+    let floor = instance.entity("floor").unwrap();
+    world
+        .get_mut::<bozzard_scene::BoxCollider>(floor)
+        .unwrap()
+        .size = [4., 3., 4.];
+    for _ in 0..120 {
+        instance.step_gravity(&mut world, 1. / 60.).unwrap();
+    }
+    let raised = center(&instance, &world, "body").y;
+    assert!(
+        (raised - 1.5).abs() < 0.05,
+        "the taller floor should lift the body to 1.5, not {raised}"
+    );
+}
+
+#[test]
 fn a_child_rigidbody_stays_its_own_body() {
     let scene = scene(
         r#"{"id":"body","name":"body",

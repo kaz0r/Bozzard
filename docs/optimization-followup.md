@@ -77,11 +77,12 @@ New checks exercise exhaustive SAT equivalence across 1,003 varied boxes; live m
 ## Remaining limits
 
 - Runtime GI still validates/fingerprints live scene inputs. Safely caching arbitrary public ECS mutations needs a separate mutation-tracking design; authoring revisions cannot substitute for it.
-- The collision broad phase targets box overlaps. Swept movement still checks the mover against obstacles, and densely overlapping bounds can degenerate to quadratic candidate traversal. Rapier's simulation broad phase is separate and unchanged.
+- The collision broad phase targets box overlaps. Swept movement still checks the mover against obstacles, and densely overlapping bounds can degenerate to quadratic candidate traversal. Rapier's simulation broad phase is separate and unchanged. Since then, swept movement runs SAT only against obstacles whose bounds can reach the mover, but it still scans every obstacle's bounds; see [runtime transform measurements](measurements/runtime-transforms.md).
 - A moving caster still invalidates the directional map because that map covers the scene. Local shadow keys still inspect candidate geometry per light face; there is no new renderer spatial index.
 - The auxiliary path is deliberately binary: color-only or all three auxiliary outputs. Effects needing only a subset still use the full attachment layout, with unused stores discarded. WGSL still declares its original outputs; backend compilation handles outputs without render targets. Per-output shader specialization and isolated GPU profiling remain future work.
 - Caches consume memory: one additional document snapshot, per-map caster keys, and up to eight inactive GPU graph variants. Static scene data/probe arrays and imported assets remain shared where their existing types support sharing.
-- Full hierarchy virtualization, UI paint batching, and persistent runtime transform caches remain separate opportunities. This pass removes redundant document copies and row lookups without changing the interaction model.
+- Full hierarchy virtualization and UI paint batching remain separate opportunities. This pass removes redundant document copies and row lookups without changing the interaction model.
+- Persistent runtime transform caches were added later. Physics, gameplay, collision geometry, scripts, particles, navigation and animation now share the live world-matrix cache instead of each building an ID-keyed map. Script and blueprint hierarchy writes recompose only the written subtree, and physics reuses body shapes while their inputs are unchanged. See [runtime transform measurements](measurements/runtime-transforms.md).
 
 ## Reproduction
 

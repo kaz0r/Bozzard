@@ -410,11 +410,11 @@ impl crate::SceneInstance {
         self.particle_state.emitters.clear();
     }
     pub fn step_particles(&mut self, world: &bozzard_ecs::World, dt: f32) -> Result<()> {
-        if self.component_entities::<ParticleEmitter>(world).is_empty() {
+        if !self.has_component::<ParticleEmitter>(world, |_| true) {
             self.particle_state.emitters.clear();
             return Ok(());
         }
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         let emitters: Vec<_> = self
             .entities
             .iter()

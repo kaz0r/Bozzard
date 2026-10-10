@@ -480,6 +480,19 @@ node_kinds! {
     AnimationProgress => "Animation Progress" { "Target": Object } -> { "Value": Number },
     AnimationState => "Animation State" { "Target": Object } -> { "Name": Text },
     AnimationEvent => "On Animation Event" { } -> { "Then": Exec, "Name": Text, "Seconds": Number },
+    WindowModeSetting => "Window Mode Setting" { } -> { "Mode": Text },
+    WindowSizeSetting => "Window Size Setting" { } -> { "Width": Number, "Height": Number },
+    VsyncSetting => "VSync Setting" { } -> { "Enabled": Bool },
+    QualitySetting => "Quality Setting" { } -> { "Preset": Text },
+    VolumeSetting => "Volume Setting" { "Channel": Text } -> { "Volume": Number },
+    SetWindowModeSetting => "Set Window Mode Setting" { "In": Exec, "Mode": Text } -> { "Then": Exec },
+    SetWindowSizeSetting => "Set Window Size Setting" { "In": Exec, "Width": Number, "Height": Number } -> { "Then": Exec },
+    SetVsyncSetting => "Set VSync Setting" { "In": Exec, "Enabled": Bool } -> { "Then": Exec },
+    SetQualitySetting => "Set Quality Setting" { "In": Exec, "Preset": Text } -> { "Then": Exec },
+    SetVolumeSetting => "Set Volume Setting" { "In": Exec, "Channel": Text, "Volume": Number } -> { "Then": Exec },
+    ApplySettings => "Apply Settings" { "In": Exec } -> { "Then": Exec },
+    SaveSettings => "Save Settings" { "In": Exec } -> { "Then": Exec },
+    ResetSettings => "Reset Settings to Defaults" { "In": Exec } -> { "Then": Exec },
 }
 
 impl NodeKind {

@@ -25,6 +25,7 @@ mod colliders;
 mod component_ui;
 mod compute_ui;
 mod content;
+mod crash_reports;
 pub mod custom_inspectors;
 mod debug;
 mod docking;
@@ -1968,6 +1969,7 @@ pub fn run_factory() -> Result<()> {
 }
 
 fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: bool) -> Result<()> {
+    crash_reports::install();
     if std::env::args().nth(1).as_deref() == Some("--runtime-info") {
         println!("{}", bozzard_project::runtime::description());
         return Ok(());
@@ -2118,6 +2120,11 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
     let passed = Arc::new(AtomicBool::new(false));
     let result = passed.clone();
     let is_smoke = smoke.is_some() || benchmark_frames.is_some();
+    let crash_notice = if is_smoke {
+        None
+    } else {
+        crash_reports::launch_notice()
+    };
     eframe::run_native(
         "Bozzard Editor",
         options,
@@ -2141,6 +2148,16 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
             let _ = factory_mode;
             app.pending_lobby = join_lobby;
             app.join_lobby = join_lobby.map(|id| id.to_string()).unwrap_or_default();
+            if let Some(notice) = crash_notice {
+                app.status = notice.lines().next().unwrap_or_default().to_owned();
+                app.debug.console.push(
+                    bozzard_diagnostics::Level::Warning,
+                    "Crash reports",
+                    &notice,
+                    bozzard_diagnostics::Location::default(),
+                    None,
+                );
+            }
             Ok(Box::new(app))
         }),
     )

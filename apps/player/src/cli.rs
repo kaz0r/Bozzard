@@ -32,6 +32,7 @@ impl Default for Options {
             occlusion_enabled: true,
             threaded_simulation: true,
             render_interpolation: true,
+            settings: None,
         }
     }
 }
@@ -105,6 +106,13 @@ pub(crate) fn options() -> Result<Option<Options>> {
             "--no-occlusion" => result.occlusion_enabled = false,
             "--single-threaded" => result.threaded_simulation = false,
             "--no-interpolation" => result.render_interpolation = false,
+            "--settings" => {
+                result.settings = Some(
+                    args.next()
+                        .context("--settings needs a player settings file")?
+                        .into(),
+                )
+            }
             "--smoke" => result.smoke = true,
             "--benchmark-frames" => {
                 let frames = args
@@ -144,7 +152,7 @@ pub(crate) fn options() -> Result<Option<Options>> {
                     "--no-interpolation renders exact fixed-tick poses for comparison or lower latency."
                 );
                 println!(
-                    "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game from a manifest or .bpack file. Exported games find gamepack.bpack beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
+                    "--content-catalog FILE_OR_URL --content ADDRESS starts an addressable scene; --content-cache DIR selects its cache.\n--project FILE starts a user game from a manifest or .bpack file. Exported games find gamepack.bpack beside the executable.\n--export-project FILE --export-dir NEW_FOLDER exports a native game using this player.\n--settings FILE reads and saves player settings there instead of the per-user location; --frames and --verify-* runs otherwise use defaults.\n--verify-flap-woods checks start, score, pause, game over, retry and quit without graphics.\n--verify-first-trail checks the reference route without graphics; add --frames 340 to present the route."
                 );
                 println!(
                     "--join-lobby ID (or +connect_lobby ID) accepts a Steam invitation; requires a --features steam build and the multiplayer scene.\nbozzard-player [--backend metal|vulkan|dx12] [--software|--hardware] [--frames N]\nbozzard-player --smoke [--backend ...] [--software|--hardware] [--output DIRECTORY]\n--benchmark-frames N compares reference/culling/cached draws during --smoke --scene.\n--inject-device-recreation rebuilds the GPU after one presented frame with --frames 2 or more.\n--no-occlusion disables hierarchical depth culling for reference comparisons.\n--gpu-memory-mib N sets the imported-asset GPU budget (default 512); unused resources are evicted.\n--scene FILE loads JSON; --write-scene FILE saves it and exits without a GPU.\n--view 2d|3d chooses the starting view; --save-path FILE sets the F5 destination.\nWithout gameplay logic: 1/2 switch views, Space pauses, arrows pan, F5 saves, R reloads, Escape closes.\nScript and Blueprint scenes own their keys; F5 saves and F6 reloads.\nPlayer Controller scenes: WASD move, Space jump, right-drag orbit. Progress/win in title; physical R restarts."

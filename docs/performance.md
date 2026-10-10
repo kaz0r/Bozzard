@@ -47,7 +47,7 @@ interval, pane, simulation and GPU data, and exits. Omit `--benchmark-play` to m
 authoring. Use the same layout/profile for comparisons; startup and upload frames
 are excluded. Existing ordinary editor arguments still apply.
 
-For the September 2026 optimization pass, including shadow reuse, idle editor drawing, CPU caches, and before/after results, see [the optimization review](optimization-results.md). For the subsequent live collision, per-light shadow, shader pipeline, render attachment, and editor document work, see [the follow-up review](optimization-followup.md). For Edit-frame document work on the Pagoda Garden, picking, multi-scene views and metadata-based hot reload, see [editor document measurements](measurements/editor-documents.md). The recorded measurements below describe an earlier pass.
+For the September 2026 optimization pass, including shadow reuse, idle editor drawing, CPU caches, and before/after results, see [the optimization review](optimization-results.md). For the subsequent live collision, per-light shadow, shader pipeline, render attachment, and editor document work, see [the follow-up review](optimization-followup.md). For shared runtime world matrices, scripted collision moves, script ticks and physics shape reuse, see [runtime transform measurements](measurements/runtime-transforms.md). The recorded measurements below describe an earlier pass.
 
 The benchmarks below separate factory simulation, editor CPU work, and synchronized rendering. Their elapsed CPU or synchronized wall times are not windowed FPS measurements.
 

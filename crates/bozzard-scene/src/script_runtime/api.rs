@@ -182,11 +182,15 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
             .ok_or_else(|| fail(format!("'{target}' has no Text Rendering")))?;
         Ok(Dynamic::from(text))
     });
-    read!(
-        "overlap_count",
-        (target: ImmutableString), |state|
-        Ok(Dynamic::from(state.view(&target)?.overlaps as f32))
-    );
+    {
+        let host = host.clone();
+        engine.register_fn(
+            "overlap_count",
+            move |target: ImmutableString| -> Result<Dynamic, Box<EvalAltResult>> {
+                Ok(Dynamic::from(borrow!(host).overlap_count(&target)? as f32))
+            },
+        );
+    }
 
     // Input, including the held-key edge that `On Input Pressed` provides in a graph.
     for (name, pressed) in [("input_held", false), ("input_pressed", true)] {
@@ -783,6 +787,67 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
             borrow!(host).record(Command::QuitGame);
         });
     }
+    // Player settings: reads see this tick's earlier edits, like blackboard variables.
+    {
+        use crate::player_settings::{Quality, Request, VolumeChannel, WindowMode};
+        read!("player_settings", (), |state| rhai::serde::to_dynamic(
+            state.settings
+        ));
+        read!("get_window_mode_setting", (), |state| Ok(Dynamic::from(
+            state.settings.window_mode.name().to_string()
+        )));
+        read!("get_window_size_setting", (), |state| Ok(
+            Dynamic::from_array(
+                state
+                    .settings
+                    .window_size
+                    .iter()
+                    .map(|&size| Dynamic::from(rhai::INT::from(size)))
+                    .collect()
+            )
+        ));
+        read!("get_vsync_setting", (), |state| Ok(Dynamic::from(
+            state.settings.vsync
+        )));
+        read!("get_quality_setting", (), |state| Ok(Dynamic::from(
+            state.settings.quality.name().to_string()
+        )));
+        read!("get_volume_setting", (channel: ImmutableString), |state| {
+            let channel = VolumeChannel::parse(&channel).map_err(settings_error)?;
+            Ok(Dynamic::from(state.settings.volume(channel)))
+        });
+        write!("set_window_mode_setting", (mode: ImmutableString), |state| {
+            settings_command(&mut state.settings, WindowMode::parse(&mode).map(Request::WindowMode))?
+        });
+        write!("set_window_size_setting", (width: rhai::INT, height: rhai::INT), |state| {
+            let size = (|| {
+                Ok([
+                    crate::player_settings::window_dimension(width as f32)?,
+                    crate::player_settings::window_dimension(height as f32)?,
+                ])
+            })();
+            settings_command(&mut state.settings, size.map(Request::WindowSize))?
+        });
+        write!("set_vsync_setting", (enabled: bool), |state| {
+            settings_command(&mut state.settings, Ok(Request::Vsync(enabled)))?
+        });
+        write!("set_quality_setting", (preset: ImmutableString), |state| {
+            settings_command(&mut state.settings, Quality::parse(&preset).map(Request::Quality))?
+        });
+        write!("set_volume_setting", (channel: ImmutableString, volume: f32), |state| {
+            let request = VolumeChannel::parse(&channel).map(|channel| Request::Volume(channel, volume));
+            settings_command(&mut state.settings, request)?
+        });
+        for (name, request) in [
+            ("apply_settings", Request::Apply),
+            ("save_settings", Request::Save),
+            ("reset_settings", Request::Reset),
+        ] {
+            write!(name, (), |state| {
+                settings_command(&mut state.settings, Ok(request))?
+            });
+        }
+    }
     {
         let host = host.clone();
         engine.register_fn("end_game", move |message: ImmutableString| {
@@ -1039,4 +1104,17 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
     engine.register_fn("to_radians", |value: f32| -> f32 { value.to_radians() });
     engine.register_fn("to_degrees", |value: f32| -> f32 { value.to_degrees() });
     engine
+}
+
+fn settings_error(error: anyhow::Error) -> Box<EvalAltResult> {
+    fail(format!("{error:#}"))
+}
+/// Validate a settings request against the host's mirror, then queue it.
+fn settings_command(
+    settings: &mut crate::player_settings::PlayerSettings,
+    request: anyhow::Result<crate::player_settings::Request>,
+) -> Result<Command, Box<EvalAltResult>> {
+    let request = request.map_err(settings_error)?;
+    settings.change(&request).map_err(settings_error)?;
+    Ok(Command::Settings(request))
 }
