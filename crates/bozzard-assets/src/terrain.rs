@@ -4,6 +4,9 @@ use anyhow::{Result, ensure};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
+mod paint;
+pub use paint::{TerrainLayer, TerrainPaint, TerrainPaintBrush, TerrainPaintStroke};
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Terrain {
@@ -14,6 +17,9 @@ pub struct Terrain {
     pub size: [f32; 2],
     /// Row-major local Y, with X varying fastest.
     pub heights: Vec<f32>,
+    /// Optional material layers. Missing in original version-1 terrain sources.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paint: Option<TerrainPaint>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,6 +51,7 @@ impl Terrain {
             resolution,
             size,
             heights: vec![0.; usize::from(resolution[0]) * usize::from(resolution[1])],
+            paint: None,
         };
         terrain.validate()?;
         Ok(terrain)
@@ -72,6 +79,9 @@ impl Terrain {
                 .all(|n| n.is_finite() && n.abs() <= 10_000.),
             "terrain heights must be finite and within ±10000"
         );
+        if let Some(paint) = &self.paint {
+            paint.validate(self.heights.len())?;
+        }
         Ok(())
     }
 
@@ -240,13 +250,21 @@ impl Terrain {
             let normal = Vec3::from_slice(&vertex[3..6]).normalize_or_zero();
             vertex[3..6].copy_from_slice(&normal.to_array());
         }
+        let parts = self
+            .paint
+            .as_ref()
+            .map(|paint| paint.mesh_part(self, &vertices, indices.len(), progress))
+            .transpose()?
+            .into_iter()
+            .collect();
         Ok(MeshData {
             skin: None,
             vertices,
             indices,
-            parts: Vec::new(),
+            parts,
             warnings: Vec::new(),
-        })
+        }
+        .with_surface_keys())
     }
 }
 

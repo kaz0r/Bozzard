@@ -6,6 +6,9 @@ use bozzard_assets::{
 };
 use std::io::{Read, Write};
 
+const TERRAIN_COLOR: [f32; 3] = [0.35, 0.5, 0.25];
+const TERRAIN_UV_SCALE: [f32; 2] = [16.; 2];
+
 #[derive(Clone)]
 pub struct TerrainSource {
     pub terrain: Terrain,
@@ -184,6 +187,29 @@ fn read_source(path: &Path) -> Result<Vec<u8>> {
         "terrain source exceeds 4 MiB"
     );
     Ok(bytes)
+}
+
+/// Replace only the appearance supplied by terrain creation. Authored object and
+/// surface materials, as well as independently edited drawable fields, survive.
+fn enable_painted_appearance(scene: &mut Scene, asset: &str) {
+    for object in &mut scene.objects {
+        let Some(drawable) = &mut object.drawable else {
+            continue;
+        };
+        if !matches!(&drawable.mesh, Mesh::Asset(id) | Mesh::Surface { asset: id, .. } if id == asset)
+        {
+            continue;
+        }
+        if drawable.texture == Texture::ProceduralChecker {
+            drawable.texture = Texture::White;
+        }
+        if drawable.color == TERRAIN_COLOR {
+            drawable.color = [1.; 3];
+        }
+        if drawable.uv_scale == TERRAIN_UV_SCALE {
+            drawable.uv_scale = [1.; 2];
+        }
+    }
 }
 
 impl Editor {
@@ -372,7 +398,7 @@ impl Editor {
         let asset_revision = self.asset_revision;
         Job::start("Preparing terrain", move |progress| {
             let mut scene = scene;
-            let (terrain, object, asset, expected, creating) = match request {
+            let (terrain, object, asset, expected, creating, geometry_changed) = match request {
                 TerrainRequest::Create { terrain, position } => {
                     ensure!(
                         position.iter().all(|v| v.is_finite()),
@@ -394,8 +420,8 @@ impl Editor {
                             layer: Layer::ThreeD,
                             mesh: Mesh::Asset(asset.clone()),
                             texture: Texture::ProceduralChecker,
-                            color: [0.35, 0.5, 0.25],
-                            uv_scale: [16.; 2],
+                            color: TERRAIN_COLOR,
+                            uv_scale: TERRAIN_UV_SCALE,
                             metallic: None,
                             roughness: Some(0.9),
                             gi_static: true,
@@ -403,7 +429,10 @@ impl Editor {
                         }),
                         ..Default::default()
                     });
-                    (terrain, object, asset, None, true)
+                    if terrain.paint.is_some() {
+                        enable_painted_appearance(&mut scene, &asset);
+                    }
+                    (terrain, object, asset, None, true, true)
                 }
                 TerrainRequest::Sculpt { source, terrain } => {
                     ensure!(
@@ -425,12 +454,25 @@ impl Editor {
                         read_source(&source.path)? == source.bytes,
                         "Terrain source changed externally; reload before sculpting"
                     );
+                    // Preserve collision only for the exact source position stream.
+                    let geometry_changed = terrain.resolution != source.terrain.resolution
+                        || terrain.size.map(f32::to_bits) != source.terrain.size.map(f32::to_bits)
+                        || terrain.heights.len() != source.terrain.heights.len()
+                        || terrain
+                            .heights
+                            .iter()
+                            .zip(&source.terrain.heights)
+                            .any(|(a, b)| a.to_bits() != b.to_bits());
+                    if source.terrain.paint.is_none() && terrain.paint.is_some() {
+                        enable_painted_appearance(&mut scene, &source.asset);
+                    }
                     (
                         terrain,
                         source.object,
                         source.asset,
                         Some((source.path, source.bytes)),
                         false,
+                        geometry_changed,
                     )
                 }
             };
@@ -445,7 +487,11 @@ impl Editor {
                 assets: None,
                 created: None,
                 object,
-                label: "Edit terrain",
+                label: if !geometry_changed {
+                    "Paint terrain"
+                } else {
+                    "Edit terrain"
+                },
             };
             prepared.write_revision(
                 &asset,
@@ -453,12 +499,16 @@ impl Editor {
                 &terrain.to_json()?,
                 assets,
             )?;
-            let create_for = if creating {
-                [prepared.object.clone()].into()
-            } else {
-                BTreeSet::new()
-            };
-            prepared.rebuild_colliders(&asset, &create_for, true)?;
+            // Paint changes appearance only: keep authored collision geometry and
+            // its shared BVH, rather than rebuilding every instance on each stroke.
+            if geometry_changed {
+                let create_for = if creating {
+                    [prepared.object.clone()].into()
+                } else {
+                    BTreeSet::new()
+                };
+                prepared.rebuild_colliders(&asset, &create_for, true)?;
+            }
             prepared.validate()?;
             progress.check()?;
             Ok(prepared)
