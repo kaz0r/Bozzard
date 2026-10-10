@@ -60,24 +60,6 @@ pub(super) struct Bloom {
     levels: Vec<Level>,
     size: [u32; 2],
 }
-fn texture(gpu: &Gpu, size: [u32; 2]) -> wgpu::TextureView {
-    gpu.device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some("bloom pyramid"),
-            size: wgpu::Extent3d {
-                width: size[0],
-                height: size[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
-}
 impl Bloom {
     pub fn new(gpu: &Gpu) -> Self {
         let layout = gpu
@@ -137,32 +119,14 @@ impl Bloom {
                 immediate_size: 0,
             });
         let pipeline = |entry: &'static str| {
-            gpu.device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(entry),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vs_main"),
-                        compilation_options: Default::default(),
-                        buffers: &[],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(entry),
-                        compilation_options: Default::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba16Float,
-                            blend: None,
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    primitive: Default::default(),
-                    depth_stencil: None,
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
+            gpu_util::fullscreen_pipeline(
+                gpu,
+                entry,
+                Some(&pipeline_layout),
+                &shader,
+                entry,
+                &[wgpu::TextureFormat::Rgba16Float],
+            )
         };
         let sampler = gpu.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("bloom linear clamp"),
@@ -177,7 +141,7 @@ impl Bloom {
             mapped_at_creation: false,
         });
         // WebGPU zero-initialization makes this a black fallback without a render pass.
-        let black = texture(gpu, [1, 1]);
+        let black = gpu_util::color_texture(gpu, [1, 1], "bloom pyramid");
         Self {
             prefilter: pipeline("prefilter"),
             downsample: pipeline("downsample"),
@@ -255,8 +219,8 @@ impl Bloom {
         self.size = size;
         let mut dims = size.map(|d| d.div_ceil(2));
         for _ in 0..6 {
-            let down = texture(gpu, dims);
-            let up = texture(gpu, dims);
+            let down = gpu_util::color_texture(gpu, dims, "bloom pyramid");
+            let up = gpu_util::color_texture(gpu, dims, "bloom pyramid");
             let previous = self.levels.last().map(|l| &l.down).unwrap_or(hdr);
             let down_binding = self.binding(gpu, previous, &self.black);
             self.levels.push(Level {

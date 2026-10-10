@@ -17,24 +17,6 @@ pub(super) struct Volumetric {
     dummy: wgpu::TextureView,
     targets: Option<Targets>,
 }
-fn texture(gpu: &Gpu, size: [u32; 2], label: &'static str) -> wgpu::TextureView {
-    gpu.device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: size[0],
-                height: size[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
-}
 fn shader_source() -> String {
     [
         include_str!("shadow_sample.wgsl"),
@@ -96,32 +78,14 @@ impl Volumetric {
                 source: wgpu::ShaderSource::Wgsl(shader_source().into()),
             });
         let pipeline = |entry, layout: &wgpu::PipelineLayout| {
-            gpu.device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(entry),
-                    layout: Some(layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vs_main"),
-                        compilation_options: Default::default(),
-                        buffers: &[],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(entry),
-                        compilation_options: Default::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba16Float,
-                            blend: None,
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    primitive: Default::default(),
-                    depth_stencil: None,
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
+            gpu_util::fullscreen_pipeline(
+                gpu,
+                entry,
+                Some(layout),
+                &shader,
+                entry,
+                &[wgpu::TextureFormat::Rgba16Float],
+            )
         };
         Self {
             trace: pipeline("trace_main", &trace_layout),
@@ -133,7 +97,7 @@ impl Volumetric {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
-            dummy: texture(gpu, [1, 1], "unused volume input"),
+            dummy: gpu_util::color_texture(gpu, [1, 1], "unused volume input"),
             targets: None,
         }
     }
@@ -186,12 +150,12 @@ impl Volumetric {
         );
         let changed = source_changed || self.targets.as_ref().is_none_or(|t| t.size != frame.size);
         if changed {
-            let scattering = texture(
+            let scattering = gpu_util::color_texture(
                 gpu,
                 frame.size.map(|d| d.div_ceil(2)),
                 "half resolution scattering and transmittance",
             );
-            let color = texture(gpu, frame.size, "HDR after volumetric scattering");
+            let color = gpu_util::color_texture(gpu, frame.size, "HDR after volumetric scattering");
             self.targets = Some(Targets {
                 size: frame.size,
                 trace_binding: self.binding(gpu, hdr, depth, &self.dummy),

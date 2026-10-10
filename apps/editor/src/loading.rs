@@ -1,5 +1,8 @@
 use super::*;
-use bozzard_assets::{AssetStore, Handle, job::Job};
+use bozzard_assets::{
+    AssetStore, Handle,
+    job::{Job, Progress},
+};
 
 pub enum Loading {
     Play(Job<bozzard_editor::PreparedPlay>),
@@ -16,65 +19,33 @@ pub enum Loading {
     Save(Job<bozzard_editor::PreparedSave>),
 }
 impl Loading {
-    pub fn fraction(&self) -> f32 {
+    /// The running job's shared progress: stage label, fraction and cancellation.
+    fn progress(&self) -> &Progress {
         match self {
-            Self::Play(job) => job.fraction(),
-            Self::Bundle(job) => job.fraction(),
-            Self::Lods(job) => job.fraction(),
-            Self::Export(job) => job.fraction(),
+            Self::Play(job) => job.progress(),
+            Self::Bundle(job) => job.progress(),
+            Self::Lods(job) => job.progress(),
+            Self::Export(job) => job.progress(),
             #[cfg(feature = "factory")]
-            Self::FactoryExport(job) => job.fraction(),
-            Self::Prefab(job) => job.fraction(),
-            Self::BakeGi(job) => job.fraction(),
-            Self::Import(job) => job.fraction(),
-            Self::Open(job) | Self::OpenAdditive(job) => job.fraction(),
-            Self::Save(job) => job.fraction(),
+            Self::FactoryExport(job) => job.progress(),
+            Self::Prefab(job) => job.progress(),
+            Self::BakeGi(job) => job.progress(),
+            Self::Import(job) => job.progress(),
+            Self::Open(job) | Self::OpenAdditive(job) => job.progress(),
+            Self::Save(job) => job.progress(),
         }
+    }
+    pub fn fraction(&self) -> f32 {
+        self.progress().fraction()
     }
     pub fn label(&self) -> String {
-        match self {
-            Self::Play(job) => job.label(),
-            Self::Bundle(job) => job.label(),
-            Self::Lods(job) => job.label(),
-            Self::Prefab(job) => job.label(),
-            Self::BakeGi(job) => job.label(),
-            Self::Import(job) => job.label(),
-            Self::Open(job) | Self::OpenAdditive(job) => job.label(),
-            Self::Save(job) => job.label(),
-            Self::Export(job) => job.label(),
-            #[cfg(feature = "factory")]
-            Self::FactoryExport(job) => job.label(),
-        }
+        self.progress().label()
     }
     pub fn cancel(&self) {
-        match self {
-            Self::Play(job) => job.cancel(),
-            Self::Bundle(job) => job.cancel(),
-            Self::Lods(job) => job.cancel(),
-            Self::Prefab(job) => job.cancel(),
-            Self::BakeGi(job) => job.cancel(),
-            Self::Import(job) => job.cancel(),
-            Self::Open(job) | Self::OpenAdditive(job) => job.cancel(),
-            Self::Save(job) => job.cancel(),
-            Self::Export(job) => job.cancel(),
-            #[cfg(feature = "factory")]
-            Self::FactoryExport(job) => job.cancel(),
-        }
+        self.progress().cancel();
     }
     pub fn cancelled(&self) -> bool {
-        match self {
-            Self::Play(job) => job.cancelled(),
-            Self::Bundle(job) => job.cancelled(),
-            Self::Lods(job) => job.cancelled(),
-            Self::Prefab(job) => job.cancelled(),
-            Self::BakeGi(job) => job.cancelled(),
-            Self::Import(job) => job.cancelled(),
-            Self::Open(job) | Self::OpenAdditive(job) => job.cancelled(),
-            Self::Save(job) => job.cancelled(),
-            Self::Export(job) => job.cancelled(),
-            #[cfg(feature = "factory")]
-            Self::FactoryExport(job) => job.cancelled(),
-        }
+        self.progress().cancelled()
     }
 }
 pub struct Refresh {

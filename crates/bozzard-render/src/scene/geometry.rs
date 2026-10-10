@@ -7,30 +7,16 @@ pub(super) struct GeometryBuffers {
     pub motion: wgpu::TextureView,
     pub specular: wgpu::TextureView,
 }
-pub(super) fn color_texture(gpu: &Gpu, size: [u32; 2], label: &str) -> wgpu::TextureView {
-    gpu.device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: size[0],
-                height: size[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
-}
 impl GeometryBuffers {
     pub fn new(gpu: &Gpu, size: [u32; 2]) -> Self {
         Self {
-            normal: color_texture(gpu, size, "surface normals and roughness"),
-            motion: color_texture(gpu, size, "motion previous depth and reactive coverage"),
-            specular: color_texture(gpu, size, "surface Fresnel and occlusion"),
+            normal: gpu_util::color_texture(gpu, size, "surface normals and roughness"),
+            motion: gpu_util::color_texture(
+                gpu,
+                size,
+                "motion previous depth and reactive coverage",
+            ),
+            specular: gpu_util::color_texture(gpu, size, "surface Fresnel and occlusion"),
         }
     }
 }

@@ -17,24 +17,6 @@ pub(super) struct Dof {
     dummy: wgpu::TextureView,
     targets: Option<Targets>,
 }
-fn texture(gpu: &Gpu, size: [u32; 2], label: &'static str) -> wgpu::TextureView {
-    gpu.device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: size[0],
-                height: size[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
-}
 impl Dof {
     pub fn new(gpu: &Gpu) -> Self {
         let texture_binding = |binding, sample_type| wgpu::BindGroupLayoutEntry {
@@ -89,36 +71,14 @@ impl Dof {
                 source: wgpu::ShaderSource::Wgsl(include_str!("depth_of_field.wgsl").into()),
             });
         let pipeline = |entry, count| {
-            let targets = vec![
-                Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba16Float,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL
-                });
-                count
-            ];
-            gpu.device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(entry),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vs_main"),
-                        compilation_options: Default::default(),
-                        buffers: &[],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(entry),
-                        compilation_options: Default::default(),
-                        targets: &targets,
-                    }),
-                    primitive: Default::default(),
-                    depth_stencil: None,
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
+            gpu_util::fullscreen_pipeline(
+                gpu,
+                entry,
+                Some(&pipeline_layout),
+                &shader,
+                entry,
+                &vec![wgpu::TextureFormat::Rgba16Float; count],
+            )
         };
         Self {
             pipelines: [
@@ -139,7 +99,7 @@ impl Dof {
                 min_filter: wgpu::FilterMode::Linear,
                 ..Default::default()
             }),
-            dummy: texture(gpu, [1, 1], "unused bokeh input"),
+            dummy: gpu_util::color_texture(gpu, [1, 1], "unused bokeh input"),
             targets: None,
         }
     }
@@ -200,10 +160,11 @@ impl Dof {
         let changed = self.targets.as_ref().is_none_or(|t| t.size != frame.size);
         if changed {
             let half = frame.size.map(|v| v.div_ceil(2));
-            let prefiltered = texture(gpu, half, "half-resolution color and circle of confusion");
-            let far = texture(gpu, half, "far bokeh");
-            let near = texture(gpu, half, "near bokeh and coverage");
-            let color = texture(gpu, frame.size, "HDR after depth of field");
+            let prefiltered =
+                gpu_util::color_texture(gpu, half, "half-resolution color and circle of confusion");
+            let far = gpu_util::color_texture(gpu, half, "far bokeh");
+            let near = gpu_util::color_texture(gpu, half, "near bokeh and coverage");
+            let color = gpu_util::color_texture(gpu, frame.size, "HDR after depth of field");
             let bindings = [
                 self.binding(gpu, hdr, depth, [&self.dummy; 3]),
                 self.binding(gpu, hdr, depth, [&prefiltered, &self.dummy, &self.dummy]),
