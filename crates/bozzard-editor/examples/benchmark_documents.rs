@@ -148,15 +148,16 @@ impl Session {
         Ok(())
     }
     fn light_transforms(&self) -> Result<usize> {
-        let matrices = self.editor.scene().global_transforms()?;
+        let matrices = self.editor.world_transforms()?;
         Ok(self
             .editor
             .scene()
             .objects
             .iter()
-            .filter(|o| o.light.is_some() || o.camera.is_some())
-            .inspect(|o| {
-                black_box(matrices[&o.id]);
+            .zip(matrices.matrices())
+            .filter(|(o, _)| o.light.is_some() || o.camera.is_some())
+            .inspect(|(_, matrix)| {
+                black_box(matrix);
             })
             .count())
     }

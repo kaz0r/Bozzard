@@ -35,6 +35,8 @@ pub use terrain::{PreparedGeometry, TerrainRequest, TerrainSource};
 mod foliage;
 pub use foliage::{FoliageSettings, PreparedFoliage};
 mod selection;
+mod transforms;
+pub use transforms::WorldTransforms;
 mod workspace;
 pub use loading::{LoadedScene, PreparedImport, PreparedPlay, PreparedSave};
 pub use selection::{Pick, SelectedSurface};
@@ -78,6 +80,8 @@ pub struct Editor {
     asset_revision: u64,
     runtime_asset_generation: u64,
     scene_snapshot: std::cell::RefCell<Option<(u64, std::sync::Arc<Scene>)>>,
+    world_transforms: std::cell::RefCell<Option<(u64, std::sync::Arc<WorldTransforms>)>>,
+    dirty: std::cell::Cell<Option<(u64, bool)>>,
     gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
     edit_demo: std::cell::RefCell<Option<(u64, SceneRuntime)>>,
     edit_collisions: std::cell::RefCell<Option<(u64, bozzard_scene::CollisionSnapshot)>>,
@@ -128,6 +132,8 @@ impl Editor {
             asset_revision: 1,
             runtime_asset_generation: 0,
             scene_snapshot: Default::default(),
+            world_transforms: Default::default(),
+            dirty: Default::default(),
             gi_freshness: Default::default(),
             edit_demo: Default::default(),
             edit_collisions: Default::default(),
@@ -156,8 +162,17 @@ impl Editor {
     pub fn asset_revision(&self) -> u64 {
         self.asset_revision
     }
+    /// Whether the document differs from the saved file. Every change to either
+    /// document advances the revision, so the comparison runs once per revision.
     pub fn dirty(&self) -> bool {
-        self.scene != self.saved
+        if let Some((revision, dirty)) = self.dirty.get()
+            && revision == self.revision
+        {
+            return dirty;
+        }
+        let dirty = self.scene != self.saved;
+        self.dirty.set(Some((self.revision, dirty)));
+        dirty
     }
     pub fn undo_label(&self) -> Option<&str> {
         self.past.last().map(|c| c.label.as_str())
@@ -214,10 +229,12 @@ impl Editor {
             self.play.is_none(),
             "Stop Play before editing the authored scene"
         );
-        self.validate_document(&scene)?;
+        // The current document is already valid; an unchanged frame of a held
+        // gizmo or slider must not validate the whole document again.
         if scene == self.scene {
             return Ok(());
         }
+        self.validate_document(&scene)?;
         // Catalog replacements validate all imports before publishing a new document.
         let assets = if scene.assets != self.scene.assets {
             Some(self.cached_assets(&scene, &self.path)?)
@@ -228,15 +245,15 @@ impl Editor {
             .as_ref()
             .unwrap_or(&self.assets)
             .validate_scene_resources(&scene)?;
+        let previous = std::mem::replace(&mut self.scene, scene);
         if self.gesture.is_none() {
             self.record(Change {
                 label: label.into(),
-                scene: self.scene.clone(),
+                scene: previous,
                 assets: assets.as_ref().map(|_| self.assets.clone()),
                 restore_file: None,
             });
         }
-        self.scene = scene;
         if let Some(assets) = assets {
             self.assets = assets;
             self.asset_revision += 1;
@@ -1751,6 +1768,30 @@ mod tests {
             Path::new("work/editor-test/scene.json"),
         )
         .unwrap()
+    }
+    #[test]
+    fn unchanged_applies_and_held_gizmo_frames_are_not_edits() {
+        let mut e = editor();
+        let id = e.scene().objects[1].id.clone();
+        e.select_object(Some(id));
+        let (revision, transform) = (e.revision(), e.selected_transform().unwrap());
+        e.begin_gesture("Transform gizmo");
+        e.set_selected_transform(transform).unwrap();
+        e.apply("Same document", e.scene().clone()).unwrap();
+        e.finish_gesture();
+        assert_eq!(e.revision(), revision);
+        assert!(!e.dirty() && e.undo_label().is_none());
+        let mut moved = transform;
+        moved.translation[1] += 1.;
+        e.set_selected_transform(moved).unwrap();
+        assert!(e.dirty() && e.revision() > revision);
+        assert_eq!(e.undo_label(), Some("Transform"));
+        e.undo().unwrap();
+        assert!(!e.dirty());
+        assert_eq!(e.selected_transform().unwrap(), transform);
+        e.redo().unwrap();
+        assert!(e.dirty());
+        assert_eq!(e.selected_transform().unwrap(), moved);
     }
     #[test]
     fn duplicate_preserves_exact_local_and_world_transforms() {
