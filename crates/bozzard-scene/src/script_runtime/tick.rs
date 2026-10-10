@@ -82,7 +82,7 @@ impl SceneInstance {
             .values()
             .any(|script| script.hooks.contains_key("on_collision_enter"))
         {
-            let matrices = self.global_transforms(world)?;
+            let matrices = self.live_matrices(world)?;
             self.blueprint_contacts(world, &snapshot, &matrices)
         } else {
             BTreeMap::new()
@@ -382,7 +382,7 @@ impl SceneInstance {
         if trigger_owners.is_empty() {
             return Ok(result);
         }
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         for (object, volume) in trigger_owners {
             let entity = self.entities[&object.id];
             let (center, edges, corners) = volume.geometry(matrices[&object.id])?;

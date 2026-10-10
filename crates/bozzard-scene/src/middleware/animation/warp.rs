@@ -1,7 +1,7 @@
 //! Root-motion alignment over explicit animation windows, including ticks crossing a boundary.
 use super::{Animator, Repeat};
 use anyhow::{Result, ensure};
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -93,7 +93,7 @@ impl MotionWarp {
     pub(crate) fn goal(
         &self,
         overrides: &BTreeMap<String, WarpGoal>,
-        objects: &BTreeMap<String, Mat4>,
+        objects: &crate::transforms::Matrices<'_>,
     ) -> Option<WarpGoal> {
         if let Some(goal) = overrides.get(&self.name) {
             return Some(*goal);

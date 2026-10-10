@@ -534,7 +534,7 @@ impl SceneInstance {
         if sources.is_empty() {
             return Ok(frame);
         }
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         let running = crate::game_flow::simulation_running(world);
         let listener = self
             .component_entities::<AudioListener>(world)

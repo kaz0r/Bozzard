@@ -166,7 +166,7 @@ impl SceneInstance {
         }
         let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
         let result = (|| -> Result<()> {
-            let matrices = self.global_transforms(world)?;
+            let matrices = self.live_matrices(world)?;
             let parents: BTreeMap<_, _> = self
                 .document
                 .objects

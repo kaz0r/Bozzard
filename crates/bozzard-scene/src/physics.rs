@@ -177,7 +177,7 @@ pub(crate) fn parent_pose(matrix: Mat4) -> Result<(Quat, f32)> {
 fn object_frame(
     world: &World,
     objects: &BTreeMap<&str, &Object>,
-    matrices: &BTreeMap<String, Mat4>,
+    matrices: &crate::transforms::Matrices<'_>,
     entities: &BTreeMap<String, Entity>,
     id: &str,
     dynamic: bool,
@@ -270,11 +270,11 @@ impl Physics {
     fn part_ids<'a>(
         &'a self,
         world: &World,
-        matrices: &BTreeMap<String, Mat4>,
+        matrices: &crate::transforms::Matrices<'_>,
     ) -> std::collections::HashMap<ColliderHandle, &'a str> {
         self.bodies
             .iter()
-            .filter(|(id, b)| matrices.get(*id) == Some(&b.pose))
+            .filter(|(id, b)| matrices.get(id) == Some(&b.pose))
             .flat_map(|(_, b)| {
                 b.handles
                     .iter()
@@ -287,7 +287,7 @@ impl Physics {
     pub(crate) fn contacts(
         &self,
         world: &World,
-        matrices: &BTreeMap<String, Mat4>,
+        matrices: &crate::transforms::Matrices<'_>,
     ) -> Vec<(String, String)> {
         let ids = self.part_ids(world, matrices);
         self.simulation
@@ -362,7 +362,7 @@ impl Physics {
         world: &World,
         objects: &BTreeMap<&str, &Object>,
         entities: &BTreeMap<String, Entity>,
-        matrices: &BTreeMap<String, Mat4>,
+        matrices: &crate::transforms::Matrices<'_>,
         root: &str,
         parts: &[String],
         dynamic: bool,
@@ -646,7 +646,7 @@ impl Physics {
         Ok(())
     }
     fn step(&mut self, instance: &SceneInstance, world: &mut World, dt: f32) -> Result<()> {
-        let matrices = instance.global_transforms(world)?;
+        let matrices = instance.live_matrices(world)?;
         let objects: BTreeMap<_, _> = instance
             .document
             .objects
@@ -914,13 +914,15 @@ impl Physics {
         for (_, e, _, t, _) in &updates {
             world.insert(*e, *t)?;
         }
-        if let Err(error) = instance.global_transforms(world) {
-            for (_, e, t, _, _) in updates {
-                world.insert(e, t)?;
+        let matrices = match instance.live_matrices(world) {
+            Ok(matrices) => matrices,
+            Err(error) => {
+                for (_, e, t, _, _) in updates {
+                    world.insert(e, t)?;
+                }
+                return Err(error);
             }
-            return Err(error);
-        }
-        let matrices = instance.global_transforms(world)?;
+        };
         for (_, e, _, _, state) in updates {
             world.insert(e, state)?;
         }
@@ -986,7 +988,7 @@ impl Physics {
     pub(crate) fn blueprint_contacts(
         &self,
         world: &World,
-        matrices: &BTreeMap<String, Mat4>,
+        matrices: &crate::transforms::Matrices<'_>,
     ) -> BTreeMap<String, Vec<collision::Contact>> {
         let ids = self.part_ids(world, matrices);
         let mut result: BTreeMap<String, Vec<collision::Contact>> = BTreeMap::new();

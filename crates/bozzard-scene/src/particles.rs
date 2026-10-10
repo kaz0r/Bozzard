@@ -414,7 +414,7 @@ impl crate::SceneInstance {
             self.particle_state.emitters.clear();
             return Ok(());
         }
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         let emitters: Vec<_> = self
             .entities
             .iter()
