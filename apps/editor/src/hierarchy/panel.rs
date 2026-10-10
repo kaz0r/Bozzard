@@ -40,8 +40,10 @@ impl App {
             self.hierarchy_search.clear();
             self.editor.finish_gesture();
             self.hierarchy_state.reset_selection(Some(&id));
-            self.hierarchy_state
-                .reveal(self.editor.scene(), self.editor.selected.as_deref());
+            self.hierarchy_state.reveal(
+                &self.editor.scene_snapshot(),
+                self.editor.selected.as_deref(),
+            );
         }
     }
 
@@ -203,8 +205,10 @@ impl App {
                 self.editor.select_object(Some(id));
                 self.hierarchy_state
                     .reset_selection(self.editor.selected.as_deref());
-                self.hierarchy_state
-                    .reveal(self.editor.scene(), self.editor.selected.as_deref());
+                self.hierarchy_state.reveal(
+                    &self.editor.scene_snapshot(),
+                    self.editor.selected.as_deref(),
+                );
                 self.status = "Parent updated · World transform preserved".into();
                 self.error = false;
             }
@@ -562,18 +566,17 @@ impl App {
     fn render_hierarchy_rows(
         &mut self,
         ui: &mut egui::Ui,
-        scene: &bozzard_scene::Scene,
+        scene: &std::sync::Arc<bozzard_scene::Scene>,
         hidden_objects: &std::collections::BTreeSet<String>,
         query: &str,
         can_reparent: bool,
     ) -> HierarchyRequests {
-        let children = super::children(scene);
-        let mut stack: Vec<_> = children
-            .get(&None)
-            .into_iter()
-            .flatten()
+        let index = self.hierarchy_state.index(scene);
+        let mut stack: Vec<_> = index
+            .roots()
+            .iter()
             .rev()
-            .map(|o| (*o, 0usize))
+            .map(|&root| (&scene.objects[root], 0usize))
             .collect();
         let mut requests = HierarchyRequests::default();
         if can_reparent {
@@ -621,7 +624,7 @@ impl App {
                         .enumerate()
                         .any(|(i, part)| crate::surfaces::surface_matches(i, part, query))
                 });
-            let expandable = has_surfaces || children.contains_key(&Some(object.id.as_str()));
+            let expandable = has_surfaces || index.has_children(&object.id);
             if object_matches || surface_matches {
                 requests.matches += 1;
                 requests.visible_ids.push(object.id.clone());
@@ -640,13 +643,8 @@ impl App {
                     }
                 }
             }
-            for child in children
-                .get(&Some(object.id.as_str()))
-                .into_iter()
-                .flatten()
-                .rev()
-            {
-                stack.push((child, depth + 1));
+            for &child in index.children(&object.id).iter().rev() {
+                stack.push((&scene.objects[child], depth + 1));
             }
         }
         let row_height = ui.spacing().interact_size.y.max(24.0);
