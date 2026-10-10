@@ -8,6 +8,7 @@ build = "../../tools/steam_build.rs"
 
 [dependencies]
 ctrlc = { version = "3.5", features = ["termination"] }
+bozzard-diagnostics.workspace = true
 bozzard-network = { path = "../../crates/bozzard-network" }
 bozzard-runtime.workspace = true
 anyhow.workspace = true

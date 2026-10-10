@@ -292,6 +292,7 @@ enum Command {
         owner: String,
         text: String,
     },
+    Settings(crate::player_settings::Request),
 }
 
 /// The read view and the write queue of the scripts running this tick.
@@ -311,6 +312,8 @@ struct Host {
     dt: f32,
     elapsed: f32,
     loading: crate::scene_loading::LoadStatus,
+    /// Edited player settings, including this tick's queued changes.
+    settings: crate::player_settings::PlayerSettings,
     input: GameplayInput,
     ui_events: Array,
     ui_pointer: [f32; 2],
