@@ -152,6 +152,11 @@ asset, including attachments spawned while compilation was in progress. It does 
 results. Active multiplayer Play rejects live replacement; all peers must stop and restart with
 the same script revision.
 
+Overlap sets and solid contacts are tracked only while a loaded script has a hook that uses them.
+A replacement that adds the scene's first overlap hook (`on_object_enter`, `on_object_exit`,
+`on_overlap_enter` or `on_overlap_exit`) or its first `on_collision_enter` therefore reports
+objects that already overlap or touch as entering on its first tick.
+
 For completion and help, use `bozzard_scene::script_function_descriptions()` and
 `bozzard_scene::script_hook_signatures()` instead of a separate handwritten function catalog.
 The existing `script_hook_descriptions()` API exposes the same names with argument counts.
