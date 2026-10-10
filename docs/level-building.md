@@ -12,6 +12,12 @@ the draft, and releasing publishes the render/collision mesh in one Undo step.
 Raise/Lower strength is measured per second. Flatten uses the selected local height.
 Apply draft retries a failed publication; Discard draft returns to the saved source.
 
+Choose **Paint materials** to blend Grass, Dirt and Rock with a soft circular
+brush. Each layer has a color and local repeat size; painting leaves heights and
+collision unchanged and publishes one Undo step on release. See
+[terrain material painting](terrain-material-painting.md) for controls, format,
+limitations and a portable before/after workshop.
+
 For blockout, choose Box, Ramp, Stairs or Cylinder, set dimensions and yaw, then
 place brushes in the viewport. Dragging places stamps at the chosen spacing;
 releasing publishes one Undo step. Matching primitives share mesh assets and keep
@@ -28,7 +34,8 @@ records two surface/plane clicks and displays distance and axis deltas. These
 overlays and preferences do not add objects to the saved scene.
 
 Terrain files end in `.terrain.json` and are mesh assets. Their versioned schema
-stores X/Z vertex counts, total width/depth and row-major heights. Each axis has
+stores X/Z vertex counts, total width/depth, row-major heights and optional material
+paint. Each axis has
 2–129 vertices; width/depth are 0.01–100,000 local units and heights are bounded to
 ±10,000. Larger landscapes can use multiple terrain objects. Generated geometry
 has smooth normals and UVs, while sampling follows the exact rendered triangles.
@@ -77,7 +84,7 @@ Headless checks:
 cargo test -p bozzard-assets --lib terrain::tests
 cargo test -p bozzard-assets --lib blockout::tests
 cargo test -p bozzard-assets --test procedural_meshes
-cargo test -p bozzard-editor --test terrain --test foliage --test blockout
+cargo test -p bozzard-editor --test terrain --test terrain_painting --test foliage --test blockout
 cargo test -p bozzard-editor-app level_tools::tests
 ```
 
