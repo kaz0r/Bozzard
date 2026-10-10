@@ -384,6 +384,47 @@ fn pagoda(path: PathBuf) -> Result<()> {
             Ok(store)
         },
     )?;
+
+    // Workspace views rebuilt after an edit: one hidden object, then a second open scene.
+    let edit = |session: &mut Session| -> Result<()> {
+        session.scenes.sync_view(&session.editor)?;
+        if session.editor.undo_label().is_some() {
+            session.editor.undo()
+        } else {
+            session.editor.create_empty()
+        }
+    };
+    let active = session.scenes.active();
+    session
+        .scenes
+        .set_object_visible(active, &pick.object, false);
+    measure_n(
+        "pagoda_hidden_object_view",
+        100,
+        &mut session,
+        edit,
+        |s, ()| s.scenes.sync_view(&s.editor),
+    )?;
+    session
+        .scenes
+        .set_object_visible(active, &pick.object, true);
+    let second = Editor::open(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/demo/scenes/scene-lab.json"),
+    )?;
+    let second = session.scenes.add(&mut session.editor, second)?;
+    measure_n(
+        "pagoda_two_scene_view_small_edit",
+        100,
+        &mut session,
+        edit,
+        |s, ()| s.scenes.sync_view(&s.editor),
+    )?;
+    session.scenes.activate(&mut session.editor, active)?;
+    measure_n("pagoda_two_scene_view", 100, &mut session, edit, |s, ()| {
+        s.scenes.sync_view(&s.editor)
+    })?;
+    black_box(second);
     Ok(())
 }
 

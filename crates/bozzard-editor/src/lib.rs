@@ -62,7 +62,8 @@ pub struct Editor {
     render_cache: bozzard_render_assets::RenderSceneCache,
     prefab_source: Option<prefabs::PrefabSource>,
     scene: Scene,
-    saved: Scene,
+    /// The document as last loaded or saved; `None` for views that are never saved.
+    saved: Option<Scene>,
     pub path: PathBuf,
     pub selected: Option<String>,
     surface_selection: Option<selection::SurfaceSelection>,
@@ -113,9 +114,17 @@ impl Editor {
     }
     fn from_loaded(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
         Self {
+            saved: Some(scene.clone()),
+            ..Self::authoring_view(scene, path, assets)
+        }
+    }
+    /// A document that is only displayed and picked, such as a combined workspace view.
+    /// It keeps no saved copy and is never dirty.
+    fn authoring_view(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
+        Self {
             render_cache: Default::default(),
             prefab_source: None,
-            saved: scene.clone(),
+            saved: None,
             scene,
             path,
             selected: None,
@@ -172,7 +181,10 @@ impl Editor {
         {
             return dirty;
         }
-        let dirty = self.scene != self.saved;
+        let dirty = self
+            .saved
+            .as_ref()
+            .is_some_and(|saved| self.scene != *saved);
         self.dirty.set(Some((self.revision, dirty)));
         dirty
     }
@@ -879,7 +891,7 @@ impl Editor {
             self.future.clear();
         }
         self.scene = rebased.clone();
-        self.saved = rebased;
+        self.saved = Some(rebased);
         self.path = path.to_path_buf();
         if self.play.is_some() {
             self.edit_assets = Some(assets);
