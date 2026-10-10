@@ -182,11 +182,15 @@ pub(super) fn register(host: Arc<Mutex<Host>>) -> Engine {
             .ok_or_else(|| fail(format!("'{target}' has no Text Rendering")))?;
         Ok(Dynamic::from(text))
     });
-    read!(
-        "overlap_count",
-        (target: ImmutableString), |state|
-        Ok(Dynamic::from(state.view(&target)?.overlaps as f32))
-    );
+    {
+        let host = host.clone();
+        engine.register_fn(
+            "overlap_count",
+            move |target: ImmutableString| -> Result<Dynamic, Box<EvalAltResult>> {
+                Ok(Dynamic::from(borrow!(host).overlap_count(&target)? as f32))
+            },
+        );
+    }
 
     // Input, including the held-key edge that `On Input Pressed` provides in a graph.
     for (name, pressed) in [("input_held", false), ("input_pressed", true)] {

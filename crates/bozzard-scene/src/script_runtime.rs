@@ -132,10 +132,20 @@ pub(crate) struct CompiledScript {
     ast: AST,
     hook_ast: AST,
     hooks: BTreeMap<String, usize>,
+    /// Declares an object or overlap enter/exit hook, so its owner's overlap set matters.
+    listens_overlap: bool,
     fingerprint: u64,
     source: Arc<str>,
     dependencies: BTreeSet<String>,
 }
+
+/// Hooks that observe an owner's overlap set.
+const OVERLAP_HOOKS: [&str; 4] = [
+    "on_object_enter",
+    "on_object_exit",
+    "on_overlap_enter",
+    "on_overlap_exit",
+];
 
 impl CompiledScript {
     /// Whether the script declares this hook with the argument count the engine calls it with.
@@ -153,7 +163,6 @@ struct ObjectView {
     text: Option<String>,
     rigidbody: bool,
     grounded: bool,
-    overlaps: usize,
     animation: Option<animation_api::View>,
 }
 
@@ -323,6 +332,11 @@ struct Host {
     /// Keep handles unique even after a spawned prefab is destroyed.
     next_token_serial: u64,
     geometry: Arc<CollisionSnapshot>,
+    /// Solid contacts for `overlap_count` when no hook needed this tick's overlap pairs;
+    /// `geometry.overlaps` is then empty until the first count.
+    overlap_contacts: Option<Vec<(String, String)>>,
+    /// Overlapping pairs per object, counted on the first `overlap_count` of a tick.
+    overlap_counts: Option<BTreeMap<String, usize>>,
     budget: usize,
     random: u64,
     commands: Vec<Command>,
@@ -385,6 +399,27 @@ impl Host {
         self.scene_board = runtime.scene_blackboard().clone();
     }
 
+    /// Pairs touching an object, counted once per tick and only for scripts that ask.
+    fn overlap_count(&mut self, target: &str) -> Result<usize, Box<EvalAltResult>> {
+        self.view(target)?;
+        let counts = self.overlap_counts.get_or_insert_with(|| {
+            let pairs = self
+                .overlap_contacts
+                .take()
+                .map(|contacts| collision::overlap_pairs(&self.geometry, contacts));
+            let mut counts = BTreeMap::new();
+            for (a, b) in pairs.as_ref().unwrap_or(&self.geometry.overlaps) {
+                *counts.entry(a.clone()).or_default() += 1;
+                *counts.entry(b.clone()).or_default() += 1;
+            }
+            counts
+        });
+        Ok(counts
+            .get(Self::resolve_token(&self.tokens, target))
+            .copied()
+            .unwrap_or(0))
+    }
+
     fn view(&self, target: &str) -> Result<&ObjectView, Box<EvalAltResult>> {
         let id = self.object_id(target);
         self.objects
@@ -393,8 +428,11 @@ impl Host {
     }
     /// Spawn handles address the object they created, so a script can keep using one.
     fn object_id<'a>(&'a self, target: &'a str) -> &'a str {
+        Self::resolve_token(&self.tokens, target)
+    }
+    fn resolve_token<'a>(tokens: &'a BTreeMap<String, String>, target: &'a str) -> &'a str {
         if target.starts_with(SPAWN_PREFIX) {
-            self.tokens.get(target).map_or(target, String::as_str)
+            tokens.get(target).map_or(target, String::as_str)
         } else {
             target
         }

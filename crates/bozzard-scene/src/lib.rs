@@ -1115,6 +1115,7 @@ impl Scene {
             render_cache: Default::default(),
             hierarchy_revision: 0,
             ui_layout_cache: Default::default(),
+            move_cache: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -1141,7 +1142,7 @@ pub struct SceneInstance {
     document: Scene,
     entities: BTreeMap<String, Entity>,
     /// Resolve live component queries back to scene objects without scanning world scenery.
-    object_indices: std::collections::HashMap<Entity, usize>,
+    object_indices: bozzard_ecs::EntityMap<usize>,
     order: Vec<usize>,
     /// Built on the first script registration, so a scene without scripts never pays for it.
     script_engine: std::sync::OnceLock<std::sync::Arc<script_runtime::ScriptEngine>>,
@@ -1156,6 +1157,7 @@ pub struct SceneInstance {
     render_cache: render_extraction::Cache,
     hierarchy_revision: u64,
     ui_layout_cache: middleware::ui::LayoutCache,
+    move_cache: collision::MoveCache,
 }
 
 impl SceneInstance {
@@ -1175,6 +1177,17 @@ impl SceneInstance {
             .collect();
         entries.sort_unstable_by_key(|(id, _)| *id);
         entries
+    }
+
+    /// Whether any live scene object has this component, without collecting them.
+    pub(crate) fn has_component<T: bozzard_ecs::Component>(
+        &self,
+        world: &World,
+        filter: impl Fn(&T) -> bool,
+    ) -> bool {
+        world
+            .query::<T>()
+            .any(|(entity, value)| self.object_indices.contains_key(&entity) && filter(value))
     }
 
     fn rebuild_hierarchy_index(&mut self) {
@@ -1303,8 +1316,8 @@ impl SceneInstance {
     /// An isolated root cannot affect any other object's composed transform.
     fn validate_transform_change(&self, world: &World, id: &str) -> Result<()> {
         if self.hierarchy_objects.contains(id) {
-            // ponytail: full checks for hierarchy edits; validate dirty subtrees if these become hot.
-            self.global_transforms(world)?;
+            // The live cache recomposes only the written object's subtree.
+            self.validate_live_transforms(world)?;
         } else {
             let local = world
                 .get::<Transform>(self.entities[id])

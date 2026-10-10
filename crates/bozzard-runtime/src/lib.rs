@@ -787,20 +787,22 @@ impl SceneRuntime {
             {
                 return;
             }
-            let dynamic: std::collections::HashSet<_> = world
-                .query::<bozzard_scene::Gravity>()
-                .filter(|(e, g)| {
-                    g.enabled && world.get::<bozzard_scene::PlayerController>(*e).is_none()
+            // Write through per-entity guards: a mutable Transform query would revise every
+            // transform and force a full hierarchy recomposition on the next read.
+            let spinning: Vec<_> = world
+                .query::<Spin>()
+                .filter(|(e, _)| {
+                    !world
+                        .get::<bozzard_scene::Gravity>(*e)
+                        .is_some_and(|g| g.enabled)
+                        || world.get::<bozzard_scene::PlayerController>(*e).is_some()
                 })
-                .map(|(e, _)| e)
+                .map(|(e, spin)| (e, *spin))
                 .collect();
-            for (entity, mut transform, spin) in world
-                .query_pair_mut::<Transform, Spin>()
-                .expect("distinct components")
-            {
-                if dynamic.contains(&entity) {
+            for (entity, spin) in spinning {
+                let Some(mut transform) = world.get_mut::<Transform>(entity) else {
                     continue;
-                }
+                };
                 for axis in 0..3 {
                     transform.rotation_degrees[axis] = (transform.rotation_degrees[axis]
                         + spin.0[axis] * tick.delta.as_secs_f32())
