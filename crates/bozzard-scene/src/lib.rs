@@ -1114,6 +1114,7 @@ impl Scene {
             render_cache: Default::default(),
             hierarchy_revision: 0,
             ui_layout_cache: Default::default(),
+            move_cache: Default::default(),
         };
         instance.initialize_gameplay(world);
         Ok(instance)
@@ -1155,6 +1156,7 @@ pub struct SceneInstance {
     render_cache: render_extraction::Cache,
     hierarchy_revision: u64,
     ui_layout_cache: middleware::ui::LayoutCache,
+    move_cache: collision::MoveCache,
 }
 
 impl SceneInstance {

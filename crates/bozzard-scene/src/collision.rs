@@ -7,6 +7,7 @@ mod queries;
 mod response;
 pub use mesh::{CollisionMesh, MeshCollider, TriangleMesh};
 pub use queries::{Contact, QueryHit};
+pub(crate) use response::MoveCache;
 pub use response::MoveResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
