@@ -147,7 +147,7 @@ reference scenes in `examples/demo/scenes/middleware-lab.json` and `ui-2d-lab.js
 - [x] **M** Editor Kennel panel: a **Kennel** tab beside the scene view browses and searches a registry, checks each package against the editor build (engine version, script API, Cargo features, host binaries), installs, updates, verifies and removes packages in the open project on its own background job, adds a package's scripts and assets to the scene catalog as one undoable change, and renders its hash-checked README. See [Kennel packages](docs/kennel.md#in-the-editor).
 - [ ] **M** Module manifest with dependency ordering, staged registration, and lifecycle cleanup; modules are compiled-in hooks without dependency resolution today (`docs/architecture.md`).
 - [ ] **L** Text scripting with hot reload, evaluated *before* native dylib plugins: an embedded VM (Rhai/Lua/WASM) calling the same action layer blueprints use. Native plugins stay behind a versioned C ABI.
-- [ ] **S** Ops basics a shipped game expects: save-game format and versioning, localization pipeline, accessibility options, telemetry/crash reporting hooks.
+- [ ] **S** Ops basics a shipped game expects: save-game format and versioning, localization pipeline, accessibility options, telemetry/crash reporting hooks. Versioned per-user [player settings](docs/player-settings.md) (window, VSync, quality, volumes) and crash reports shipped; key rebinding waits for input actions, and telemetry remains.
 - [ ] **XL** Additional platforms: web (wasm), mobile, consoles. Only after one game ships natively.
 
 ## 7 — Networking

@@ -349,6 +349,15 @@ impl Player {
                     )?;
                     view.renderer = renderer;
                 }
+                // Player settings belong to the user, not the scene instance.
+                if let Some(store) =
+                    self.demo
+                        .app
+                        .world
+                        .remove_resource::<bozzard_scene::player_settings::SettingsStore>()
+                {
+                    next.app.world.insert_resource(store);
+                }
                 self.assets = assets;
                 self.audio.stop();
                 self.demo = next;

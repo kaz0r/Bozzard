@@ -203,7 +203,8 @@ output and exit behaviour. A report contains:
 - UTC time, OS, architecture, process ID and the panicking thread's name and ID;
 - the panic message and source location, and a backtrace captured regardless of `RUST_BACKTRACE`;
 - the newest 64 log lines, each at most 512 bytes: console messages from Blueprints, scripts,
-  the runtime and the editor.
+  the runtime and the editor, plus player warnings such as a rejected
+  [settings file](player-settings.md).
 
 Reports are named `crash-<app>-<UTC time>-<process>-<n>.txt` in
 `<user data>/bozzard/crashes/` (the user data directory used by

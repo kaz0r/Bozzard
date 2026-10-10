@@ -232,6 +232,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `quit_game()` | requests Exit: closes the native player or stops editor Play; also available to script scenes without Game Flow |
 | `set_camera_size(target, size)` | sets an orthographic camera's vertical world span; positive finite size, smaller values zoom in |
 | `load_scene(name)`, `add_scene(name)`, `restart_scene()`, `save_game(slot)`, `load_game(slot)` | runtime scene control |
+| `set_window_mode_setting`, `set_window_size_setting`, `set_vsync_setting`, `set_quality_setting`, `set_volume_setting`, `apply_settings()`, `save_settings()`, `reset_settings()` | edit, apply, save or reset [player settings](player-settings.md); `player_settings()` and `get_*_setting` read them, including this tick's earlier edits |
 | `load_scene_async(name)`, `add_scene_async(name)`, `cancel_scene_load()`, `unload_scene(handle)` | background scene preparation and additive-instance lifetime |
 | `scene_loading()`, `scene_load_progress()`, `loaded_scene_handle()`, `scene_load_error()` | latest loading operation: active flag, 0–1 progress, result handle and failure text |
 | `set_object_variable(name, value)`, `set_scene_variable(name, value)` | blackboards, type-checked against the declaration |

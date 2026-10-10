@@ -12,6 +12,7 @@ mod handler;
 mod player;
 mod presentation;
 mod project;
+mod settings;
 mod smoke;
 mod view;
 use bozzard_render::{Backend, Gpu, SceneRenderer, instance, wgpu};
@@ -64,6 +65,8 @@ struct Options {
     occlusion_enabled: bool,
     threaded_simulation: bool,
     render_interpolation: bool,
+    /// Player settings file; replaces the per-user location and loads even in verification runs.
+    settings: Option<PathBuf>,
 }
 
 struct View {
@@ -88,6 +91,9 @@ struct View {
     occlusion_enabled: bool,
     device_recoveries: u8,
     profile_frames: bool,
+    /// The applied player settings this view was configured with, and their revision.
+    settings: bozzard_scene::player_settings::PlayerSettings,
+    settings_revision: u64,
 }
 
 /// Surface loss only invalidates presentation. A device callback signals the separate GPU path.
@@ -198,6 +204,7 @@ fn main() -> Result<()> {
         demo.instance().has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"
     );
+    settings::load(&mut demo, &options);
     let mut assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
     if options.gamepack.is_some() {
         assets.disable_hot_reload();

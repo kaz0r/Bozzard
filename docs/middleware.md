@@ -28,7 +28,7 @@ The sample assets are original test content: a two-joint glTF, a one-second chim
 
 Import WAV/PCM, OGG/Vorbis, MP3 or FLAC. Drag the asset into the scene to create an **Audio Source**, or assign it to an existing source. Imported duration is baked into the scene for headless completion events; loading, saving and exporting refresh it from the catalog. Explicit **Reload** also checks files whose timestamps were preserved by another tool.
 
-A source has volume, pitch, pan, looping, streaming, bus, autoplay and pause-with-game settings. Spatial sources attenuate between their minimum and maximum distance, using rolloff, and pan relative to the active camera or an enabled **Audio Listener**. Put **Audio Mixer** on one object to set master gain and the `Sfx`, `Music`, `Ui` and `Ambience` buses. Non-spatial UI/music sources can continue during game pause.
+A source has volume, pitch, pan, looping, streaming, bus, autoplay and pause-with-game settings. Spatial sources attenuate between their minimum and maximum distance, using rolloff, and pan relative to the active camera or an enabled **Audio Listener**. Put **Audio Mixer** on one object to set master gain and the `Sfx`, `Music`, `Ui` and `Ambience` buses. Each player's [volume settings](player-settings.md) scale that mix; Ambience follows the SFX slider. Non-spatial UI/music sources can continue during game pause.
 
 Blueprints provide **Play / Pause / Stop / Seek Audio**, source volume/pitch/pan, bus volume, playback queries and **On Audio Finished**. Completion and transport run without a sound device. Audio-finished chains and their Delay nodes can run while gameplay is paused, as can UI chains; ordinary gameplay timers stay frozen.
 
