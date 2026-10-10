@@ -1278,12 +1278,22 @@ fn reload_keeps_the_game_pack_and_multiplayer_session_settings() -> Result<()> {
     let document = load_document(options.scene.as_deref())?;
     let (demo, assets) = start_session(&document, &options)?;
     let mut player = Player::new(options, demo, assets);
-    assert!(!player.assets.hot_reload());
+    // The player has no console view: script and Blueprint log lines go to the terminal.
+    let prints_log = |player: &Player| {
+        let diagnostics = player
+            .demo
+            .app
+            .world
+            .resource::<bozzard_diagnostics::Diagnostics>();
+        diagnostics.is_some_and(|diagnostics| diagnostics.echo.is_some())
+    };
+    assert!(!player.assets.hot_reload() && prints_log(&player));
     player.handle_key(&Key::Character("r".into()), false)?;
     assert!(
         !player.assets.hot_reload(),
         "R re-enabled hot reload for packed assets"
     );
+    assert!(prints_log(&player), "R stopped printing log lines");
 
     // Earth Factory's co-op menu belongs to the multiplayer session startup creates.
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

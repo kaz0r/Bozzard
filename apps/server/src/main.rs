@@ -34,6 +34,14 @@ fn main() -> Result<()> {
     }
     let document = load_document(scene.as_deref())?;
     let mut demo = SceneRuntime::new_with_prefabs(&document, scene.as_deref())?;
+    // Script and Blueprint log lines have no console here; print them.
+    if let Some(diagnostics) = demo
+        .app
+        .world
+        .resource_mut::<bozzard_diagnostics::Diagnostics>()
+    {
+        diagnostics.echo = Some(bozzard_diagnostics::terminal);
+    }
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
     ctrlc::set_handler(move || signal.store(true, Ordering::Relaxed))?;

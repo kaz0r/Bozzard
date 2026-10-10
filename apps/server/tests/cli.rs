@@ -56,3 +56,46 @@ fn relocated_server_loads_adjacent_libraries_without_cargo_environment() {
             .contains("headless_ok ticks=120 entities=10")
     );
 }
+
+#[test]
+fn script_log_lines_reach_the_terminal() {
+    let root = std::env::temp_dir().join(format!("bozzard-server-log-{}", std::process::id()));
+    fs::create_dir(&root).unwrap();
+    fs::write(
+        root.join("speaker.rhai"),
+        r#"fn on_update(me, dt) { print("hello from a script"); log_warning("mind the gap"); }"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("scene.json"),
+        r#"{"version":1,"name":"Server log","views":{},
+            "assets":{"speaker":{"kind":"script","path":"speaker.rhai"}},
+            "objects":[{"id":"speaker","name":"Speaker",
+                "transform":{"translation":[0,0,0],"rotation_degrees":[0,0,0],"scale":[1,1,1]},
+                "script_manager":{"scripts":[{"enabled":true,"script":"speaker"}]}}]}"#,
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_bozzard-server"))
+        .args(["--ticks", "2", "--scene"])
+        .arg(root.join("scene.json"))
+        .output();
+    fs::remove_dir_all(&root).unwrap();
+    let output = output.unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let (stdout, stderr) = (
+        String::from_utf8(output.stdout).unwrap(),
+        String::from_utf8(output.stderr).unwrap(),
+    );
+    // print() is one line on stdout per call; warnings go to stderr with their source.
+    assert_eq!(
+        stdout.matches("hello from a script\n").count(),
+        2,
+        "{stdout}"
+    );
+    assert!(!stdout.contains("mind the gap"), "{stdout}");
+    assert_eq!(
+        stderr.matches("warning: Script: mind the gap\n").count(),
+        2,
+        "{stderr}"
+    );
+}

@@ -132,11 +132,18 @@ struct Player {
 }
 
 /// The runtime and assets for `document`, set up from the command line. Startup and the
-/// R/F6 reload both use this, so a reload keeps the same session: a game pack's assets
-/// stay without hot reload, the scene's multiplayer starts (joining `--join-lobby` if
-/// given) and `--single-threaded` still applies.
+/// R/F6 reload both use this, so a reload keeps the same session: engine log lines reach
+/// the terminal, a game pack's assets stay without hot reload, the scene's multiplayer
+/// starts (joining `--join-lobby` if given) and `--single-threaded` still applies.
 fn start_session(document: &Scene, options: &Options) -> Result<(SceneRuntime, assets::Assets)> {
     let mut demo = SceneRuntime::new_with_prefabs(document, options.scene.as_deref())?;
+    if let Some(diagnostics) = demo
+        .app
+        .world
+        .resource_mut::<bozzard_diagnostics::Diagnostics>()
+    {
+        diagnostics.echo = Some(bozzard_diagnostics::terminal);
+    }
     ensure!(
         demo.instance().has_view(options.layer),
         "scene has no requested view; use --view 2d or --view 3d"

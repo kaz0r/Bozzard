@@ -215,11 +215,28 @@ impl Profiler {
     }
 }
 
+/// Receives each line [`log`] records, as it is recorded: level, source and message.
+pub type Echo = fn(Level, &str, &str);
+
 #[derive(Default)]
 pub struct Diagnostics {
     pub console: Console,
     pub profiler: Profiler,
     pub tick: Option<u64>,
+    /// Library code never prints. A host without a console view installs one, such as
+    /// [`terminal`] in the native player and headless server.
+    pub echo: Option<Echo>,
+}
+
+/// An [`Echo`] for terminal hosts. Information is the bare message on standard output, one
+/// line per call (a script's `print`); warnings and errors go to standard error with their
+/// source.
+pub fn terminal(level: Level, source: &str, message: &str) {
+    match level {
+        Level::Info => println!("{message}"),
+        Level::Warning => eprintln!("warning: {source}: {message}"),
+        Level::Error => eprintln!("error: {source}: {message}"),
+    }
 }
 
 /// Cooperative debugger control. A system that pauses mid-execution must retain its
@@ -259,6 +276,9 @@ pub fn log(world: &mut World, level: Level, source: &str, message: &str, locatio
         diagnostics
             .console
             .push(level, source, message, location, diagnostics.tick);
+        if let Some(echo) = diagnostics.echo {
+            echo(level, source, message);
+        }
     }
 }
 
@@ -321,6 +341,43 @@ mod tests {
         assert!(log.events[0].id > last);
         assert_eq!(log.events[0].message.len(), MAX_MESSAGE_BYTES);
         assert_eq!(log.discarded, 0);
+    }
+    #[test]
+    fn an_installed_echo_receives_every_logged_line() {
+        thread_local! {
+            static LINES: std::cell::RefCell<Vec<String>> = Default::default();
+        }
+        fn record(level: Level, source: &str, message: &str) {
+            LINES.with(|lines| {
+                lines
+                    .borrow_mut()
+                    .push(format!("{level:?} {source} {message}"))
+            });
+        }
+        let mut world = World::default();
+        world.insert_resource(Diagnostics::default());
+        log(
+            &mut world,
+            Level::Info,
+            "Script",
+            "unseen",
+            Location::default(),
+        );
+        world.resource_mut::<Diagnostics>().unwrap().echo = Some(record);
+        for _ in 0..2 {
+            log(
+                &mut world,
+                Level::Warning,
+                "Script",
+                "again",
+                Location::default(),
+            );
+        }
+        // The console collapses the repeat; the echo still gets one line per call.
+        let console = &world.resource::<Diagnostics>().unwrap().console;
+        assert_eq!(console.events.len(), 2);
+        assert_eq!(console.events[1].repetitions, 2);
+        LINES.with(|lines| assert_eq!(*lines.borrow(), ["Warning Script again"; 2]));
     }
     #[test]
     fn percentiles_use_the_nearest_rank() {
