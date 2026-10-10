@@ -1257,3 +1257,109 @@ fn view_pause_pan_and_transactional_reload_work_without_a_gpu() {
     );
     assert_eq!(player.demo.app.ticks(), 0);
 }
+
+#[test]
+fn reload_keeps_the_game_pack_and_multiplayer_session_settings() -> Result<()> {
+    use bozzard_scene::middleware::ui::Input;
+    // An exported game runs from a pack whose assets never hot reload, before or after R.
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter-2d");
+    let pack = std::env::temp_dir().join(format!(
+        "bozzard-player-reload-{}.bpack",
+        std::process::id()
+    ));
+    bozzard_project::gamepack::write(&source, &pack, &Default::default())?;
+    let mut options = Options {
+        project: Some(pack.clone()),
+        ..Default::default()
+    };
+    let resolved = project::resolve(&mut options);
+    std::fs::remove_file(&pack)?;
+    resolved?;
+    let document = load_document(options.scene.as_deref())?;
+    let (demo, assets) = start_session(&document, &options)?;
+    let mut player = Player::new(options, demo, assets);
+    assert!(!player.assets.hot_reload());
+    player.handle_key(&Key::Character("r".into()), false)?;
+    assert!(
+        !player.assets.hot_reload(),
+        "R re-enabled hot reload for packed assets"
+    );
+
+    // Earth Factory's co-op menu belongs to the multiplayer session startup creates.
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/earth-factory/scenes/earth.json");
+    let options = Options {
+        scene: Some(path.clone()),
+        ..Default::default()
+    };
+    let (demo, assets) = start_session(&load_document(Some(&path))?, &options)?;
+    let mut player = Player::new(options, demo, assets);
+    let coop_menu_opens = |player: &mut Player| -> Result<bool> {
+        player.demo.app.step();
+        player.demo.check_simulation()?;
+        player.ui_input(Input::ActivateObject("coop-open-title".into()))?;
+        // The open co-op menu consumes Escape.
+        Ok(player.demo.multiplayer_key("Escape"))
+    };
+    assert!(coop_menu_opens(&mut player)?);
+    player.handle_key(&Key::Named(NamedKey::F6), false)?;
+    assert!(
+        coop_menu_opens(&mut player)?,
+        "F6 dropped the co-op multiplayer session"
+    );
+    Ok(())
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+#[ignore = "requires a desktop and GPU timestamp queries; presents 40 frames"]
+fn reload_keeps_gpu_profiling_in_frame_runs() -> Result<()> {
+    struct Probe {
+        player: Player,
+        /// GPU timings recorded before R.
+        reloaded: Option<usize>,
+    }
+    impl ApplicationHandler for Probe {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            self.player.resumed(event_loop);
+        }
+        fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+            self.player.window_event(event_loop, id, event);
+        }
+        fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+            self.player.about_to_wait(event_loop);
+            if self.reloaded.is_none() && self.player.frames >= 10 && !event_loop.exiting() {
+                self.reloaded = self
+                    .player
+                    .view
+                    .as_ref()
+                    .map(|view| view.gpu_frame_ms.len());
+                if let Err(error) = self.player.handle_key(&Key::Character("r".into()), false) {
+                    self.player.fail(event_loop, error);
+                }
+            }
+        }
+    }
+    // `--frames` turns on GPU pass timing; the renderer R creates must keep it.
+    let mut player = authored_player();
+    player.options.frames = Some(40);
+    let mut probe = Probe {
+        player,
+        reloaded: None,
+    };
+    let mut builder = EventLoop::builder();
+    winit::platform::x11::EventLoopBuilderExtX11::with_any_thread(&mut builder, true);
+    winit::platform::wayland::EventLoopBuilderExtWayland::with_any_thread(&mut builder, true);
+    builder.build()?.run_app(&mut probe)?;
+    if let Some(error) = probe.player.error {
+        return Err(error);
+    }
+    let before = probe.reloaded.context("R was never pressed")?;
+    ensure!(probe.player.frames == 40, "window closed early");
+    let after = probe.player.view.as_ref().unwrap().gpu_frame_ms.len();
+    ensure!(
+        after > before,
+        "GPU pass timing stopped at R: {before} samples before, {after} after"
+    );
+    Ok(())
+}

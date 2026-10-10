@@ -161,4 +161,8 @@ impl Assets {
     pub fn disable_hot_reload(&mut self) {
         self.hot_reload = false;
     }
+    #[cfg(test)]
+    pub fn hot_reload(&self) -> bool {
+        self.hot_reload
+    }
 }
