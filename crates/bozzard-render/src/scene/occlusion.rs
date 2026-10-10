@@ -357,7 +357,7 @@ impl SceneRenderer {
 impl Occlusion {
     pub(super) fn invalidate(&mut self) {
         // Asset replacement can change depth coverage without changing IDs or
-        // bounds. All publication/removal paths invalidate object bindings.
+        // bounds. Retiring resident geometry always invalidates this snapshot.
         self.snapshot = None;
         self.instance_snapshot = None;
         self.instance_inputs_valid = false;

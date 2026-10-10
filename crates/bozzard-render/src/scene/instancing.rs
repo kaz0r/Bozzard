@@ -31,7 +31,8 @@ pub(super) struct Pipelines {
 }
 pub(super) struct InstanceBinding {
     buffer: wgpu::Buffer,
-    texture: TextureKind,
+    /// `None` after the bound view was retired; the next use rebinds.
+    texture: Option<TextureKind>,
     pub binding: wgpu::BindGroup,
     bytes: Vec<u8>,
     revisions: Vec<u64>,
@@ -85,6 +86,14 @@ impl Instancing {
     pub(super) fn clear_depth_plan(&mut self) {
         self.shadow_plan = None;
         self.shadow_frame_batches.clear();
+    }
+    pub(super) fn forget_texture(&mut self, retired: &impl Fn(&TextureKind) -> bool) {
+        for binding in self.bindings.iter_mut().chain(&mut self.shadow_bindings) {
+            if binding.texture.as_ref().is_some_and(retired) {
+                binding.texture = None;
+            }
+        }
+        self.arena.forget_texture(retired);
     }
     pub(super) fn shadow_batching(&self) -> bool {
         self.enabled && self.shadow_batches_enabled
@@ -1313,7 +1322,7 @@ impl SceneRenderer {
                 let value = InstanceBinding {
                     buffer,
                     binding,
-                    texture: texture.clone(),
+                    texture: Some(texture.clone()),
                     bytes: Vec::with_capacity(BUFFER_BYTES),
                     revisions: Vec::with_capacity(MAX_INSTANCES),
                     parameter_buffer: parameters,
@@ -1323,7 +1332,7 @@ impl SceneRenderer {
                 };
                 bindings.push(value);
                 allocations += 1;
-            } else if bindings[slot].texture != *texture
+            } else if bindings[slot].texture.as_ref() != Some(texture)
                 || has_parameters && bindings[slot].parameter_buffer.is_none()
             {
                 if has_parameters && bindings[slot].parameter_buffer.is_none() {
@@ -1338,7 +1347,7 @@ impl SceneRenderer {
                     None,
                 )?;
                 bindings[slot].binding = binding;
-                bindings[slot].texture = texture.clone();
+                bindings[slot].texture = Some(texture.clone());
             }
             let binding = &mut bindings[slot];
             let old_len = binding.bytes.len();

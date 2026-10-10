@@ -395,3 +395,133 @@ fn mipmap_upload_benchmark() -> anyhow::Result<()> {
     );
     Ok(())
 }
+
+fn gpu() -> anyhow::Result<Gpu> {
+    pollster::block_on(Gpu::request(&instance(Backend::native()), None, false))
+}
+/// A renderer without history, for exact comparison after cache reuse.
+fn fresh(
+    gpu: &Gpu,
+    scene: &RenderScene,
+    setup: impl FnOnce(&mut SceneRenderer) -> anyhow::Result<()>,
+) -> anyhow::Result<Frame> {
+    let mut renderer = SceneRenderer::new(gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(gpu, &mut renderer)?;
+    setup(&mut renderer)?;
+    capture(gpu, &mut renderer, scene)?;
+    capture(gpu, &mut renderer, scene)
+}
+fn retained(stats: FrameStats, label: &str) {
+    assert_eq!(stats.shadow_maps_rendered, 0, "{label}: shadow maps");
+    assert_eq!(stats.object_buffer_allocations, 0, "{label}: objects");
+    assert_eq!(stats.instance_buffer_allocations, 0, "{label}: instances");
+    assert_eq!(stats.surface_records_built, 0, "{label}: preparation");
+    assert_eq!(stats.batch_plan_rebuilds, 0, "{label}: plan");
+    assert_eq!(stats.render_bundle_compilations, 0, "{label}: bundles");
+}
+fn cube(size: f32) -> (Vec<[f32; 8]>, Vec<u32>) {
+    let vertices = (0..8)
+        .map(|i| {
+            let p = Vec3::new(
+                if i & 1 == 0 { -size } else { size },
+                if i & 2 == 0 { -size } else { size },
+                if i & 4 == 0 { -size } else { size },
+            );
+            let n = p.normalize();
+            [p.x, p.y, p.z, n.x, n.y, n.z, 0.5, 0.5]
+        })
+        .collect();
+    let indices = vec![
+        0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 1, 4, 1, 5, 4, 2, 6, 3, 3, 6, 7, 0, 4, 2, 2, 4, 6,
+        1, 3, 5, 3, 7, 5,
+    ];
+    (vertices, indices)
+}
+
+#[test]
+fn unrelated_asset_publication_keeps_renderer_caches() -> anyhow::Result<()> {
+    let gpu = gpu()?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(&gpu, &mut renderer)?;
+    let mut scene = grid(320);
+    scene.items[0].material.texture = TextureKind::Imported("decal".into());
+    scene.items[0].material.lit = false;
+    scene.items[1].mesh = MeshKind::Imported("spare".into());
+    let decal = |renderer: &mut SceneRenderer, rgba: &[u8]| {
+        renderer.upload_image(&gpu, "decal", 1, 1, rgba)
+    };
+    decal(&mut renderer, &[255, 0, 0, 255])?;
+    let (vertices, indices) = cube(0.5);
+    renderer.upload_mesh(&gpu, "spare", &vertices, &indices)?;
+    renderer.upload_image(&gpu, "unused", 1, 1, &[0, 255, 0, 255])?;
+    capture(&gpu, &mut renderer, &scene)?;
+    let before = capture(&gpu, &mut renderer, &scene)?;
+    assert!(renderer.frame_stats().render_bundle_replays > 0);
+
+    // A new ID, or one the last frame did not draw, cannot be in any cache.
+    renderer.upload_image(&gpu, "fresh", 2, 2, &[90; 16])?;
+    assert_eq!(capture(&gpu, &mut renderer, &scene)?.rgba, before.rgba);
+    retained(renderer.frame_stats(), "new image");
+    renderer.remove_asset("unused");
+    renderer.remove_asset("never-uploaded");
+    assert_eq!(capture(&gpu, &mut renderer, &scene)?.rgba, before.rgba);
+    retained(renderer.frame_stats(), "unreferenced removal");
+
+    // A drawn but unlit texture rebinds its users and keeps every shadow map.
+    decal(&mut renderer, &[0, 0, 255, 255])?;
+    let recolored = capture(&gpu, &mut renderer, &scene)?;
+    assert_eq!(renderer.frame_stats().shadow_maps_rendered, 0);
+    assert_ne!(recolored.rgba, before.rgba);
+    let reference = fresh(&gpu, &scene, |renderer| {
+        decal(renderer, &[0, 0, 255, 255])?;
+        renderer.upload_mesh(&gpu, "spare", &vertices, &indices)
+    })?;
+    assert_eq!(
+        recolored.rgba, reference.rgba,
+        "same-ID texture replacement"
+    );
+
+    // A drawn caster still refreshes shadows; an evicted former caster does not.
+    let (larger, larger_indices) = cube(0.9);
+    renderer.upload_mesh(&gpu, "spare", &larger, &larger_indices)?;
+    let reshaped = capture(&gpu, &mut renderer, &scene)?;
+    assert!(renderer.frame_stats().shadow_maps_rendered > 0);
+    let reference = fresh(&gpu, &scene, |renderer| {
+        decal(renderer, &[0, 0, 255, 255])?;
+        renderer.upload_mesh(&gpu, "spare", &larger, &larger_indices)
+    })?;
+    assert_eq!(reshaped.rgba, reference.rgba, "same-ID caster replacement");
+    scene.items[1].mesh = MeshKind::Imported("mesh-1".into());
+    capture(&gpu, &mut renderer, &scene)?;
+    let settled = capture(&gpu, &mut renderer, &scene)?;
+    renderer.remove_asset("spare");
+    assert_eq!(capture(&gpu, &mut renderer, &scene)?.rgba, settled.rgba);
+    retained(renderer.frame_stats(), "former caster eviction");
+    Ok(())
+}
+
+#[test]
+fn text_atlas_changes_keep_shadow_maps() -> anyhow::Result<()> {
+    let gpu = gpu()?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(&gpu, &mut renderer)?;
+    let mut scene = grid(320);
+    capture(&gpu, &mut renderer, &scene)?;
+    let empty = capture(&gpu, &mut renderer, &scene)?;
+    scene.items.push(label("Score 10"));
+    let labelled = capture(&gpu, &mut renderer, &scene)?;
+    assert_eq!(renderer.frame_stats().shadow_maps_rendered, 0);
+    assert_eq!(renderer.frame_stats().surface_records_built, 0);
+    assert_eq!(labelled.rgba, fresh(&gpu, &scene, |_| Ok(()))?.rgba);
+    // Many new glyphs grow the atlas and replace its view.
+    let glyphs: String = (32..0x500).filter_map(char::from_u32).collect();
+    scene.items.push(label(&glyphs));
+    let grown = capture(&gpu, &mut renderer, &scene)?;
+    assert_eq!(renderer.frame_stats().shadow_maps_rendered, 0);
+    assert_eq!(grown.rgba, fresh(&gpu, &scene, |_| Ok(()))?.rgba);
+    scene.items.truncate(320);
+    assert_eq!(capture(&gpu, &mut renderer, &scene)?.rgba, empty.rgba);
+    assert_eq!(renderer.frame_stats().shadow_maps_rendered, 0);
+    assert_eq!(renderer.frame_stats().surface_records_built, 0);
+    Ok(())
+}

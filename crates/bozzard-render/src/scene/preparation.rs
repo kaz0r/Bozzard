@@ -10,10 +10,29 @@ pub(super) struct SurfacePreparation {
     models_changed: Vec<bool>,
     membership_new: Vec<bool>,
     view_projection: Option<Mat4>,
+    /// `draws` are the last successfully submitted frame's surfaces.
+    published: bool,
 }
 impl SurfacePreparation {
     pub fn clear(&mut self) {
         *self = Self::default();
+    }
+    pub fn publish(&mut self, draws: Vec<PreparedDraw>) {
+        self.draws = draws;
+        self.published = true;
+    }
+    /// Whether the last submitted frame drew a matching surface, and whether
+    /// one of those cast shadows. Unknown history reports both.
+    pub fn references(&self, matches: impl Fn(&PreparedDraw) -> bool) -> (bool, bool) {
+        if !self.published {
+            return (true, true);
+        }
+        self.draws
+            .iter()
+            .filter(|draw| matches(draw))
+            .fold((false, false), |(_, cast), draw| {
+                (true, cast || draw.object.material.lit && !draw.transparent)
+            })
     }
     fn compact(&mut self) {
         compact(&mut self.sources);
@@ -303,6 +322,7 @@ impl SceneRenderer {
             return draws;
         }
         let mut cache = mem::take(&mut self.surface_preparation);
+        cache.published = false;
         let membership_changed = remap_sources(&mut cache, &scene.items);
         cache.changed.resize(scene.items.len(), false);
         cache.models_changed.resize(scene.items.len(), false);
