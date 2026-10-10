@@ -725,8 +725,8 @@ impl SceneInstance {
         result
     }
     pub fn sprite_frame(&self, world: &World, layer: Layer) -> Result<Vec<Visual>> {
-        if self.component_entities::<Sprite>(world).is_empty()
-            && self.component_entities::<Tilemap>(world).is_empty()
+        if !self.has_component::<Sprite>(world, |_| true)
+            && !self.has_component::<Tilemap>(world, |_| true)
         {
             return Ok(Vec::new());
         }

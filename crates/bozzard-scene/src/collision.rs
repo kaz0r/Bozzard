@@ -147,16 +147,11 @@ pub struct CollisionSnapshot {
 }
 impl SceneInstance {
     pub(crate) fn has_collision_geometry(&self, world: &World) -> bool {
-        !self.component_entities::<BoxCollider>(world).is_empty()
-            || !self.component_entities::<MeshCollider>(world).is_empty()
-            || self
-                .component_entities::<crate::middleware::sprite::Tilemap>(world)
-                .into_iter()
-                .any(|(_, &e)| {
-                    world
-                        .get::<crate::middleware::sprite::Tilemap>(e)
-                        .is_some_and(|m| m.enabled && !m.solid.is_empty())
-                })
+        self.has_component::<BoxCollider>(world, |_| true)
+            || self.has_component::<MeshCollider>(world, |_| true)
+            || self.has_component::<crate::middleware::sprite::Tilemap>(world, |m| {
+                m.enabled && !m.solid.is_empty()
+            })
     }
     // Movement needs validated geometry, but has no use for all scene overlaps.
     pub(crate) fn collision_geometry(

@@ -20,6 +20,8 @@ type EventContacts = (
 struct Program {
     graph: Blueprint,
     nodes: BTreeMap<u32, usize>,
+    /// Event node indices in graph order, so a tick does not scan every node.
+    events: Vec<usize>,
     incoming: BTreeMap<Socket, Socket>,
     outgoing: BTreeMap<Socket, Vec<u32>>,
 }
@@ -41,6 +43,13 @@ impl Program {
                 .iter()
                 .enumerate()
                 .map(|(i, n)| (n.id, i))
+                .collect(),
+            events: graph
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| n.kind.event())
+                .map(|(i, _)| i)
                 .collect(),
             incoming: graph.wires.iter().map(|w| (w.to, w.from)).collect(),
             outgoing,
@@ -764,12 +773,13 @@ fn reference_id<'a>(reference: &'a ObjectRef, owner: &'a str) -> Option<&'a str>
     }
 }
 fn needs_overlap(graph: &Blueprint) -> bool {
-    graph.nodes.iter().any(|n| {
-        matches!(
-            n.kind,
-            K::TriggerEnter | K::TriggerExit | K::BodyEnter | K::BodyExit | K::OverlapCount
-        )
-    })
+    graph.nodes.iter().any(overlap_node)
+}
+fn overlap_node(node: &Node) -> bool {
+    matches!(
+        node.kind,
+        K::TriggerEnter | K::TriggerExit | K::BodyEnter | K::BodyExit | K::OverlapCount
+    )
 }
 
 fn list_index(v: f32) -> Result<usize> {
@@ -829,22 +839,24 @@ impl SceneInstance {
         Ok(())
     }
     fn blueprint_event_contacts(&self, world: &World, ui_only: bool) -> Result<EventContacts> {
-        let query_overlaps = !ui_only
-            && self
+        // One pass over the enabled graphs finds both kinds of collision event.
+        let (mut query_overlaps, mut query_solids) = (false, false);
+        if !ui_only {
+            for node in self
                 .document
                 .objects
                 .iter()
                 .flat_map(|o| &o.blueprints)
                 .filter(|b| b.enabled)
-                .any(|b| needs_overlap(&b.graph));
-        let query_solids = !ui_only
-            && self
-                .document
-                .objects
-                .iter()
-                .flat_map(|o| &o.blueprints)
-                .filter(|a| a.enabled)
-                .any(|a| a.graph.nodes.iter().any(|n| n.kind == K::CollisionEnter));
+                .flat_map(|b| &b.graph.nodes)
+            {
+                query_overlaps |= overlap_node(node);
+                query_solids |= node.kind == K::CollisionEnter;
+                if query_overlaps && query_solids {
+                    break;
+                }
+            }
+        }
         let collision_data = (query_overlaps || query_solids)
             .then(|| self.collision_snapshot(world))
             .transpose()?;
@@ -966,11 +978,15 @@ impl SceneInstance {
         } else if !enabled {
             run.timers.clear();
         }
-        for event in program.graph.nodes.iter().filter(|n| {
-            n.kind.event()
-                && (!ui_dispatch || n.kind == K::UiEvent)
-                && (!ui_only || matches!(n.kind, K::UiEvent | K::AudioFinished))
-        }) {
+        for event in program
+            .events
+            .iter()
+            .map(|&i| &program.graph.nodes[i])
+            .filter(|n| {
+                (!ui_dispatch || n.kind == K::UiEvent)
+                    && (!ui_only || matches!(n.kind, K::UiEvent | K::AudioFinished))
+            })
+        {
             let fire = match event.kind {
                 K::Enable => enabled && !run.enabled,
                 K::Disable => !enabled && run.enabled,
@@ -1078,26 +1094,31 @@ impl SceneInstance {
     }
     fn prepare_blueprints(&self, runtime: &mut BlueprintRuntime) {
         runtime.initialize_boards(&self.document);
+        // One reused key and one lookup: every tick finds runs that already exist.
+        let mut key = (String::new(), 0);
         for object in &self.document.objects {
             if object.blackboard.is_empty() && object.blueprints.is_empty() {
                 continue;
             }
-            runtime
-                .object_boards
-                .entry(object.id.clone())
-                .or_insert_with(|| object.blackboard.clone());
+            if !runtime.object_boards.contains_key(&object.id) {
+                runtime
+                    .object_boards
+                    .insert(object.id.clone(), object.blackboard.clone());
+            }
+            key.0.clone_from(&object.id);
             for (index, attachment) in object.blueprints.iter().enumerate() {
-                let run = runtime
-                    .runs
-                    .entry((object.id.clone(), index))
-                    .or_insert_with(|| Run {
+                key.1 = index;
+                let run = match runtime.runs.get_mut(&key) {
+                    Some(run) => run,
+                    None => runtime.runs.entry(key.clone()).or_insert_with(|| Run {
                         variables: attachment.graph.variables.clone(),
                         board: attachment.graph.blackboard.clone(),
                         random: object.id.bytes().fold(index as u64 + 1, |n, b| {
                             n.wrapping_mul(1099511628211) ^ u64::from(b)
                         }),
                         ..Run::default()
-                    });
+                    }),
+                };
                 if run.program.is_none() {
                     runtime.stats.compiled_graphs += 1;
                     run.program = Some(Arc::new(Program::new(&attachment.graph)));
@@ -2356,9 +2377,16 @@ impl BlueprintRuntime {
     /// Scripts share these boards with graphs, so an object that declares variables gets one even
     /// when it carries no graph at all.
     pub(crate) fn add_object_defaults(&mut self, owner: &str, defaults: &Blackboard) {
-        let board = self.object_boards.entry(owner.to_owned()).or_default();
+        // Runs every script tick; seeded boards need no key allocations.
+        let Some(board) = self.object_boards.get_mut(owner) else {
+            self.object_boards
+                .insert(owner.to_owned(), defaults.clone());
+            return;
+        };
         for (name, value) in defaults {
-            board.entry(name.clone()).or_insert_with(|| value.clone());
+            if !board.contains_key(name) {
+                board.insert(name.clone(), value.clone());
+            }
         }
     }
     /// Write one scalar through the same type check a `Set Variable` node performs.

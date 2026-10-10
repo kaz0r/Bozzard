@@ -1178,6 +1178,17 @@ impl SceneInstance {
         entries
     }
 
+    /// Whether any live scene object has this component, without collecting them.
+    pub(crate) fn has_component<T: bozzard_ecs::Component>(
+        &self,
+        world: &World,
+        filter: impl Fn(&T) -> bool,
+    ) -> bool {
+        world
+            .query::<T>()
+            .any(|(entity, value)| self.object_indices.contains_key(&entity) && filter(value))
+    }
+
     fn rebuild_hierarchy_index(&mut self) {
         self.hierarchy_revision = self
             .hierarchy_revision
