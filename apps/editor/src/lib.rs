@@ -260,6 +260,8 @@ struct App {
     preview_running: bool,
     preview_bypass: bool,
     last_assets: Instant,
+    /// When each document last read every source rather than only changed ones.
+    last_asset_verify: std::collections::BTreeMap<bozzard_editor::SceneId, Instant>,
     dialog: Option<files::Dialog>,
     file_browser: files::Browser,
     export_parent: Option<PathBuf>,
@@ -413,6 +415,7 @@ impl App {
             preview_running: true,
             preview_bypass: false,
             last_assets: Instant::now() - Duration::from_secs(1),
+            last_asset_verify: Default::default(),
             dialog: None,
             file_browser: Default::default(),
             export_parent: None,
@@ -593,11 +596,27 @@ impl App {
                     .unwrap_or_else(|| *ids.iter().min().unwrap())
             };
             let document = self.open_scenes.document(&self.editor, owner).unwrap();
+            // Most passes compare file metadata only. Every few seconds a pass reads each
+            // source of the document too, for edits that metadata can miss. Documents were
+            // read in full when they were loaded.
+            let verified = self
+                .last_asset_verify
+                .entry(owner)
+                .or_insert_with(Instant::now);
+            let scan = if self.force_reload {
+                bozzard_assets::RefreshScan::Reload
+            } else if verified.elapsed() >= bozzard_assets::RefreshScan::VERIFY_INTERVAL {
+                bozzard_assets::RefreshScan::Verify
+            } else {
+                bozzard_assets::RefreshScan::Changed
+            };
             self.refresh = Some(loading::Refresh {
                 owner,
                 workspace: self.open_scenes.revision(),
                 revision: document.asset_revision(),
-                job: document.assets.refresh_job_forced(self.force_reload)?,
+                scan,
+                started: Instant::now(),
+                job: document.assets.refresh_job_scan(scan)?,
             });
             self.force_reload = false;
             self.last_refreshed_scene = owner;
@@ -606,13 +625,15 @@ impl App {
         if self.loading.is_some() {
             return Ok(());
         }
-        if let Some((owner, workspace, revision, cancelled, result)) =
+        if let Some((owner, workspace, revision, scan, started, cancelled, result)) =
             self.refresh.as_ref().and_then(|refresh| {
                 refresh.job.poll().map(|result| {
                     (
                         refresh.owner,
                         refresh.workspace,
                         refresh.revision,
+                        refresh.scan,
+                        refresh.started,
                         refresh.job.cancelled(),
                         result,
                     )
@@ -636,6 +657,10 @@ impl App {
                 return Ok(());
             }
             let (store, changed) = result?;
+            // Only a published full pass restarts the interval; a discarded one runs again.
+            if scan != bozzard_assets::RefreshScan::Changed {
+                self.last_asset_verify.insert(owner, started);
+            }
             let initial_load = document
                 .assets
                 .entries()

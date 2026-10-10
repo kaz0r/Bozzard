@@ -759,9 +759,19 @@ impl SceneRuntime {
         Ok(demo)
     }
     pub fn new(document: &Scene) -> anyhow::Result<Self> {
+        Self::from_document(document, None)
+    }
+    /// Like `new`, sharing an immutable snapshot instead of copying it to restart from.
+    pub fn new_shared(document: &std::sync::Arc<Scene>) -> anyhow::Result<Self> {
+        Self::from_document(document, Some(document))
+    }
+    fn from_document(
+        document: &Scene,
+        shared: Option<&std::sync::Arc<Scene>>,
+    ) -> anyhow::Result<Self> {
         multiplayer::register_component()?;
         let mut migrated;
-        let document = if document.game_flow.is_some()
+        let (document, shared) = if document.game_flow.is_some()
             && !document
                 .objects
                 .iter()
@@ -769,12 +779,15 @@ impl SceneRuntime {
         {
             migrated = document.clone();
             migrated.ensure_game_menus()?;
-            &migrated
+            (&migrated, None)
         } else {
-            document
+            (document, shared)
         };
         let mut app = App::default();
-        let instance = document.spawn(&mut app.world)?;
+        let instance = match shared {
+            Some(shared) => shared.spawn_shared(&mut app.world)?,
+            None => document.spawn(&mut app.world)?,
+        };
         if document.game_flow.is_some() {
             app.world
                 .insert_resource(bozzard_scene::GameSession::default());

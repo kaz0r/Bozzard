@@ -1039,10 +1039,23 @@ impl Scene {
     pub fn spawn(&self, world: &mut World) -> Result<SceneInstance> {
         self.spawn_reporting(world, |_, _| Ok(()))
     }
+    /// Like `spawn`, keeping the caller's immutable document as the restart document.
+    pub fn spawn_shared(self: &std::sync::Arc<Self>, world: &mut World) -> Result<SceneInstance> {
+        self.spawn_with(world, Some(self.clone()), |_, _| Ok(()))
+    }
 
     fn spawn_reporting(
         &self,
         world: &mut World,
+        progress: impl FnMut(usize, usize) -> Result<()>,
+    ) -> Result<SceneInstance> {
+        self.spawn_with(world, None, progress)
+    }
+
+    fn spawn_with(
+        &self,
+        world: &mut World,
+        restart: Option<std::sync::Arc<Scene>>,
         mut progress: impl FnMut(usize, usize) -> Result<()>,
     ) -> Result<SceneInstance> {
         progress(0, self.objects.len())?;
@@ -1053,29 +1066,33 @@ impl Scene {
             entities.insert(object.id.clone(), object.spawn_in(world)?);
         }
         progress(self.objects.len(), self.objects.len())?;
-        let templates = self
-            .prefabs
-            .iter()
-            .map(|(root, link)| {
-                (
-                    link.asset.clone(),
-                    Prefab {
-                        nested: Default::default(),
-                        base: None,
-                        version: 1,
-                        name: link.asset.clone(),
-                        root: root.clone(),
-                        objects: link.baseline.clone(),
-                        assets: self
-                            .assets
-                            .iter()
-                            .filter(|(_, a)| a.kind != AssetKind::Prefab)
-                            .map(|(id, a)| (id.clone(), a.clone()))
-                            .collect(),
-                    },
-                )
-            })
-            .collect();
+        // One template per asset: the last instance in root order, as before.
+        let mut templates = BTreeMap::new();
+        let mut catalog = None;
+        for (root, link) in self.prefabs.iter().rev() {
+            if templates.contains_key(&link.asset) {
+                continue;
+            }
+            let assets: &BTreeMap<_, _> = catalog.get_or_insert_with(|| {
+                self.assets
+                    .iter()
+                    .filter(|(_, a)| a.kind != AssetKind::Prefab)
+                    .map(|(id, a)| (id.clone(), a.clone()))
+                    .collect()
+            });
+            templates.insert(
+                link.asset.clone(),
+                Prefab {
+                    nested: Default::default(),
+                    base: None,
+                    version: 1,
+                    name: link.asset.clone(),
+                    root: root.clone(),
+                    objects: link.baseline.clone(),
+                    assets: assets.clone(),
+                },
+            );
+        }
         let instance = SceneInstance {
             instance_id: scene_loading::next_instance_id(),
             additive_scenes: BTreeMap::new(),
@@ -1090,7 +1107,7 @@ impl Scene {
             order,
             templates,
             next_spawn: 0,
-            restart_document: std::sync::Arc::new(self.clone()),
+            restart_document: restart.unwrap_or_else(|| std::sync::Arc::new(self.clone())),
             scene_serial: 0,
             hierarchy_objects: self
                 .objects
@@ -1211,6 +1228,22 @@ impl SceneInstance {
     }
     pub fn document(&self) -> &Scene {
         &self.document
+    }
+    /// Continue another instance's decorative clock and particles, for an editor preview
+    /// rebuilt from an edited document. Emitters that no longer exist drop their particles
+    /// on the next step.
+    pub fn adopt_effects(&mut self, previous: &mut SceneInstance) {
+        self.particle_state = std::mem::take(&mut previous.particle_state);
+        self.display_time = previous.display_time;
+    }
+    /// The matrices of `global_transforms`, in `document()` object order and without
+    /// an ID map. Copy what is needed; the transform cache stays locked during `read`.
+    pub fn with_global_transforms<T>(
+        &self,
+        world: &World,
+        read: impl FnOnce(&[Mat4]) -> Result<T>,
+    ) -> Result<T> {
+        self.with_render_transforms(world, None, read)
     }
     /// Authored document generation. Public access is immutable; each live
     /// prefab/load replacement advances this generation with its hierarchy.
@@ -2074,6 +2107,50 @@ mod tests {
             assets: BTreeMap::new(),
             prefabs: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn spawn_keeps_the_last_template_per_asset_and_can_share_its_document() {
+        let mut scene = scene();
+        scene.objects = ["a", "b", "c"].map(object).to_vec();
+        for (asset, path) in [("crate", "crate.prefab.json"), ("lamp", "lamp.prefab.json")] {
+            scene.assets.insert(
+                asset.into(),
+                AssetSource {
+                    kind: AssetKind::Prefab,
+                    path: path.into(),
+                },
+            );
+        }
+        for (root, asset) in [("a", "crate"), ("b", "lamp"), ("c", "crate")] {
+            let mut base = object(root);
+            base.name = format!("{asset} baseline at {root}");
+            scene.prefabs.insert(
+                root.into(),
+                PrefabInstance {
+                    asset: asset.into(),
+                    members: BTreeMap::from([(root.into(), root.into())]),
+                    baseline: vec![base],
+                },
+            );
+        }
+        let shared = std::sync::Arc::new(scene.clone());
+        for instance in [
+            scene.spawn(&mut World::new()).unwrap(),
+            shared.spawn_shared(&mut World::new()).unwrap(),
+        ] {
+            assert_eq!(instance.templates.len(), 2);
+            for (asset, root) in [("crate", "c"), ("lamp", "b")] {
+                let template = &instance.templates[asset];
+                assert_eq!(template.root, root);
+                assert_eq!(template.objects, scene.prefabs[root].baseline);
+                assert_eq!(template.assets.len(), 0, "prefab assets are not nested");
+            }
+            assert_eq!(*instance.restart_document, scene);
+            assert_eq!(instance.document, scene);
+        }
+        let instance = shared.spawn_shared(&mut World::new()).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&instance.restart_document, &shared));
     }
 
     #[test]

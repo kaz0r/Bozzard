@@ -209,6 +209,157 @@ fn picking_index_follows_shared_geometry_across_reload_and_catalog_snapshots() {
 }
 
 #[test]
+fn change_scans_skip_settled_sources_and_still_see_every_edit() {
+    let dir = Temp::new();
+    let sources = BTreeMap::from([
+        (
+            "palette".into(),
+            AssetSource {
+                kind: AssetKind::Image,
+                path: "palette.png".into(),
+            },
+        ),
+        (
+            "mesh".into(),
+            AssetSource {
+                kind: AssetKind::Mesh,
+                path: "mesh.obj".into(),
+            },
+        ),
+        (
+            "tint".into(),
+            AssetSource {
+                kind: AssetKind::Material,
+                path: "tint.material.json".into(),
+            },
+        ),
+    ]);
+    std::fs::write(dir.0.join("palette.png"), PNG).unwrap();
+    std::fs::write(dir.0.join("mesh.obj"), OBJ).unwrap();
+    let material = |parent: Option<&str>| bozzard_scene::material_asset::MaterialAsset {
+        parent: parent.map(Into::into),
+        ..Default::default()
+    };
+    // The parent is missing, so the material fails without recording that dependency.
+    let tint_json = material(Some("base.material.json")).to_json().unwrap();
+    std::fs::write(dir.0.join("tint.material.json"), tint_json).unwrap();
+    let scan =
+        |store: &mut AssetStore, scan| store.refresh_scan(scan, &Default::default()).unwrap();
+    let mut store = AssetStore::new(&dir.0, &sources).unwrap();
+    assert_eq!(scan(&mut store, RefreshScan::Changed).len(), 3);
+    let (palette, mesh) = (
+        store.handle("palette").unwrap(),
+        store.handle("mesh").unwrap(),
+    );
+    let tint = store.handle("tint").unwrap();
+    assert!(matches!(
+        store.get(tint).unwrap().state(),
+        LoadState::Failed(_)
+    ));
+    let stamps = |store: &AssetStore, h| store.get(h).unwrap().stamps.clone().unwrap();
+    // Files written moments ago are read again until their timestamps settle.
+    let fresh = stamps(&store, palette);
+    assert!(scan(&mut store, RefreshScan::Changed).is_empty());
+    assert!(!Arc::ptr_eq(&fresh, &stamps(&store, palette)));
+    std::thread::sleep(SETTLE + std::time::Duration::from_millis(100));
+    assert!(scan(&mut store, RefreshScan::Changed).is_empty());
+    let settled = stamps(&store, palette);
+    assert!(settled.settled);
+    let failed = stamps(&store, tint);
+    assert!(!failed.settled, "a failed read never settles");
+    assert!(scan(&mut store, RefreshScan::Changed).is_empty());
+    assert!(
+        Arc::ptr_eq(&settled, &stamps(&store, palette)),
+        "settled source was read"
+    );
+    assert!(
+        !Arc::ptr_eq(&failed, &stamps(&store, tint)),
+        "failed source was skipped"
+    );
+    // A same-length edit still changes the file's metadata, so the scan reads it.
+    let mut damaged = PNG.to_vec();
+    damaged[PNG.len() / 2] ^= 0xff;
+    std::fs::write(dir.0.join("palette.png"), &damaged).unwrap();
+    assert_eq!(scan(&mut store, RefreshScan::Changed), vec![palette]);
+    assert!(matches!(
+        store.get(palette).unwrap().state(),
+        LoadState::Failed(_)
+    ));
+    std::fs::write(dir.0.join("palette.png"), NEXT_PNG).unwrap();
+    assert_eq!(scan(&mut store, RefreshScan::Changed), vec![palette]);
+    let AssetData::Image(image) = store.get(palette).unwrap().data().unwrap() else {
+        panic!()
+    };
+    assert_eq!(&image.rgba[..4], &[0, 255, 255, 255]);
+    // Deleting and restoring a source is seen too; Verify reads everything regardless.
+    std::fs::remove_file(dir.0.join("mesh.obj")).unwrap();
+    assert_eq!(scan(&mut store, RefreshScan::Changed), vec![mesh]);
+    assert!(matches!(
+        store.get(mesh).unwrap().state(),
+        LoadState::Failed(_)
+    ));
+    std::fs::write(dir.0.join("mesh.obj"), OBJ).unwrap();
+    assert_eq!(scan(&mut store, RefreshScan::Changed), vec![mesh]);
+    // Creating the missing parent repairs the material, although its own file is unchanged.
+    let base_json = material(None).to_json().unwrap();
+    std::fs::write(dir.0.join("base.material.json"), base_json).unwrap();
+    assert_eq!(scan(&mut store, RefreshScan::Changed), vec![tint]);
+    assert!(scan(&mut store, RefreshScan::Verify).is_empty());
+    store.require_ready().unwrap();
+    // Decoded entries keep digests, and the original bytes still match exactly.
+    assert!(store.get(mesh).unwrap().matches_standalone_source(OBJ));
+    assert!(
+        !store
+            .get(mesh)
+            .unwrap()
+            .matches_standalone_source(b"v 0 0 0\n")
+    );
+}
+
+#[test]
+fn source_stamps_settle_only_when_read_well_after_every_change() {
+    use std::time::{Duration, SystemTime};
+    let dir = Temp::new();
+    let (primary, library) = (dir.0.join("a.obj"), dir.0.join("a.mtl"));
+    std::fs::write(&primary, OBJ).unwrap();
+    std::fs::write(&library, b"newmtl a\n").unwrap();
+    let observed = ObservedSource {
+        primary: Ok(Digest::of(OBJ)),
+        dependencies: vec![(library.clone(), Ok(Digest::of(b"newmtl a\n")))],
+    };
+    let capture = |observed: &ObservedSource, started| {
+        SourceStamps::capture(&primary, &primary, observed, started)
+    };
+    // A read that starts long after the last change vouches for the files.
+    let later = SystemTime::now() + Duration::from_secs(60);
+    let stamps = capture(&observed, later);
+    assert!(stamps.settled && stamps.unchanged(&primary));
+    assert!(
+        !stamps.unchanged(&dir.0.join("b.obj")),
+        "stamps belong to one source"
+    );
+    // A read that starts within SETTLE of a change could miss a write in the same tick,
+    // however long ago the change was when the stamps are taken.
+    let modified = std::fs::metadata(&library).unwrap().modified().unwrap();
+    assert!(!capture(&observed, modified + SETTLE / 2).settled);
+    // A file removed after it was read may have changed first. One that was already
+    // missing when read is a settled observation, and a failed read never is.
+    std::fs::remove_file(&library).unwrap();
+    assert!(!stamps.unchanged(&primary));
+    assert!(!capture(&observed, later).settled);
+    let missing = ObservedSource {
+        primary: observed.primary.clone(),
+        dependencies: vec![(library, Err("missing".into()))],
+    };
+    assert!(capture(&missing, later).settled);
+    let failed = ObservedSource {
+        primary: Err("unreadable".into()),
+        dependencies: Vec::new(),
+    };
+    assert!(!capture(&failed, later).settled);
+}
+
+#[test]
 fn obj_import_generates_normals_and_flips_uv_origin() {
     let AssetData::Mesh(mesh) = import(
         AssetKind::Mesh,

@@ -1,0 +1,25 @@
+date: 2026-10-10T19:08:03+02:00
+host: Linux 7.2.9-arch1-1 x86_64
+cpu: AMD Ryzen 9 5950X 16-Core Processor
+governor: powersave
+boost: 0
+mode: all pairs: 7 warmup: 1 taskset: none
+before: /home/lord/Documents/bozzard-perf/editor-documents-bench/before/benchmark_documents
+  worktree: /home/lord/Documents/bozzard-perf/editor-documents-base
+  commit: e182886a2b0f8a95938c6b7bc33f5f0e0a9c1f16 (Merge remote-tracking branch 'origin/main' into fix/select-without-splitting)
+  uncommitted:  M crates/bozzard-editor/examples/benchmark_documents.rs
+  port: benchmark-port.patch (branch benchmark at 0fab691, light overlay via Scene::global_transforms, hot_reload_changed_scan via refresh_with)
+  toolchain: rustc 1.95.0 (59807616e 2026-04-14)
+  build: CARGO_BUILD_JOBS=10 cargo build --release --locked -p bozzard-editor --example benchmark_documents
+  built: 2026-10-10T18:54:58+02:00
+  sha256: 5bacdb7f6d403ff73f1ac645b7da1dd1104e1da706c0c032990e249f4e7419a2
+after: /home/lord/Documents/bozzard-perf/editor-documents-bench/after/benchmark_documents
+  worktree: /home/lord/Documents/bozzard-perf/editor-documents
+  commit: 0fab69193ae2de89ffa32e9bd4ca50027997201b (Index the scene hierarchy once per document snapshot)
+  uncommitted:
+  toolchain: rustc 1.95.0 (59807616e 2026-04-14)
+  build: CARGO_BUILD_JOBS=10 cargo build --release --locked -p bozzard-editor --example benchmark_documents
+  built: 2026-10-10T18:54:58+02:00
+  sha256: b9bea9a1b46b8a08e1ff2509198bdb02437232f4ef9bddc4f6131cf78c57ba85
+5bacdb7f6d403ff73f1ac645b7da1dd1104e1da706c0c032990e249f4e7419a2  /home/lord/Documents/bozzard-perf/editor-documents-bench/before/benchmark_documents
+b9bea9a1b46b8a08e1ff2509198bdb02437232f4ef9bddc4f6131cf78c57ba85  /home/lord/Documents/bozzard-perf/editor-documents-bench/after/benchmark_documents

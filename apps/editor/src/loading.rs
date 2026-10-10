@@ -52,6 +52,8 @@ pub struct Refresh {
     pub owner: bozzard_editor::SceneId,
     pub workspace: u64,
     pub revision: u64,
+    pub scan: bozzard_assets::RefreshScan,
+    pub started: std::time::Instant,
     pub job: Job<(AssetStore, Vec<Handle>)>,
 }
 
