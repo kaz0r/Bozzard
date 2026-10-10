@@ -1262,20 +1262,26 @@ impl SceneRenderer {
 
     /// Retire cached state for replaced or removed content. Surface expansion
     /// and shadow metadata compare asset IDs rather than contents, so they are
-    /// rebuilt only when the last submitted frame drew (or cast with) the ID.
+    /// rebuilt only when the last submitted frame used the ID: shadows when a
+    /// lit opaque caster used it, or a lit surface used replaced geometry,
+    /// whose bounds also fit the sun box.
     fn retire_asset(&mut self, id: &str, geometry: bool) {
         self.forget_texture(|texture| texture.asset() == Some(id));
         if geometry {
             // Retained occluder snapshots key depth inputs by mesh ID.
             self.occlusion.invalidate();
         }
-        let (drawn, cast) = self.surface_preparation.references(|draw| {
-            draw.object.mesh.asset() == Some(id) || draw.object.material.texture.asset() == Some(id)
-        });
-        if drawn {
+        let usage = self.surface_preparation.usage(
+            |item| item.mesh.asset() == Some(id) || item.material.texture.asset() == Some(id),
+            |draw| {
+                draw.object.mesh.asset() == Some(id)
+                    || draw.object.material.texture.asset() == Some(id)
+            },
+        );
+        if usage.drawn {
             self.surface_preparation.clear();
         }
-        if cast {
+        if usage.cast || geometry && usage.lit {
             self.invalidate_shadows();
         }
     }
@@ -1321,11 +1327,11 @@ impl SceneRenderer {
             TextureKind::Generated(handle) => handles.contains(handle),
             _ => false,
         };
-        let (_, cast) = self
+        let usage = self
             .surface_preparation
-            .references(|draw| retired(&draw.object.material.texture));
+            .usage(|_| false, |draw| retired(&draw.object.material.texture));
         self.forget_texture(retired);
-        if cast {
+        if usage.cast {
             self.invalidate_shadows();
         }
     }

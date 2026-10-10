@@ -433,11 +433,12 @@ impl SceneRenderer {
     /// Glyph bounds do not depend on the atlas, and text never casts shadows,
     /// so only a lit opaque surface sampling the atlas affects shadow maps.
     fn retire_text_atlas(&mut self) {
-        let (_, cast) = self
-            .surface_preparation
-            .references(|draw| draw.object.material.texture == TextureKind::Text);
+        let usage = self.surface_preparation.usage(
+            |_| false,
+            |draw| draw.object.material.texture == TextureKind::Text,
+        );
         self.forget_texture(|texture| *texture == TextureKind::Text);
-        if cast {
+        if usage.cast {
             self.invalidate_shadows();
         }
     }

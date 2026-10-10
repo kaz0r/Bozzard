@@ -423,14 +423,18 @@ fn retained(stats: FrameStats, label: &str) {
     assert_eq!(stats.render_bundle_compilations, 0, "{label}: bundles");
 }
 fn cube(size: f32) -> (Vec<[f32; 8]>, Vec<u32>) {
+    cuboid(Vec3::splat(-size), Vec3::splat(size))
+}
+fn cuboid(min: Vec3, max: Vec3) -> (Vec<[f32; 8]>, Vec<u32>) {
+    let center = (min + max) * 0.5;
     let vertices = (0..8)
         .map(|i| {
             let p = Vec3::new(
-                if i & 1 == 0 { -size } else { size },
-                if i & 2 == 0 { -size } else { size },
-                if i & 4 == 0 { -size } else { size },
+                if i & 1 == 0 { min.x } else { max.x },
+                if i & 2 == 0 { min.y } else { max.y },
+                if i & 4 == 0 { min.z } else { max.z },
             );
-            let n = p.normalize();
+            let n = (p - center).normalize();
             [p.x, p.y, p.z, n.x, n.y, n.z, 0.5, 0.5]
         })
         .collect();
@@ -500,6 +504,116 @@ fn unrelated_asset_publication_keeps_renderer_caches() -> anyhow::Result<()> {
     renderer.remove_asset("spare");
     assert_eq!(capture(&gpu, &mut renderer, &scene)?.rgba, settled.rgba);
     retained(renderer.frame_stats(), "former caster eviction");
+    Ok(())
+}
+
+#[test]
+fn replaced_lit_receiver_geometry_refits_sun_shadows() -> anyhow::Result<()> {
+    // Lit transparent surfaces never write shadow depth, but they extend the
+    // fitted sun box. The replacement is a pane far below its old extent, past
+    // the old far plane, where the grid's shadow falls on it only once the box
+    // is fitted again; sampling beyond the far plane reads as lit.
+    let gpu = gpu()?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(&gpu, &mut renderer)?;
+    let mut scene = grid(320);
+    scene.items.push(DrawItem {
+        motion_id: 10_000,
+        model: Mat4::from_translation(Vec3::new(-6., -1., -11.)),
+        mesh: MeshKind::Imported("veil".into()),
+        material: Material {
+            texture: TextureKind::Imported("glass".into()),
+            ..material(0)
+        },
+    });
+    let glass = |renderer: &mut SceneRenderer| {
+        renderer.upload_image(&gpu, "glass", 1, 1, &[200, 220, 255, 160])
+    };
+    glass(&mut renderer)?;
+    let (small, small_indices) = cube(0.5);
+    renderer.upload_mesh(&gpu, "veil", &small, &small_indices)?;
+    capture(&gpu, &mut renderer, &scene)?;
+    let before = capture(&gpu, &mut renderer, &scene)?;
+    let (large, large_indices) = cuboid(Vec3::new(-8., -12.5, -18.), Vec3::new(8., -12., -2.));
+    renderer.upload_mesh(&gpu, "veil", &large, &large_indices)?;
+    let moved = capture(&gpu, &mut renderer, &scene)?;
+    let reference = fresh(&gpu, &scene, |renderer| {
+        glass(renderer)?;
+        renderer.upload_mesh(&gpu, "veil", &large, &large_indices)
+    })?;
+    assert_ne!(moved.rgba, before.rgba);
+    assert_eq!(moved.rgba, reference.rgba, "lit receiver replacement");
+    Ok(())
+}
+
+#[test]
+fn caster_replaced_while_shadows_were_off_is_redrawn() -> anyhow::Result<()> {
+    // Shadow depth plans and packed caster geometry are refreshed only on
+    // frames that render shadows, so they can predate the last frame.
+    let gpu = gpu()?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(&gpu, &mut renderer)?;
+    let mut scene = grid(320);
+    scene.items[1].mesh = MeshKind::Imported("spare".into());
+    let (small, small_indices) = cube(0.5);
+    renderer.upload_mesh(&gpu, "spare", &small, &small_indices)?;
+    capture(&gpu, &mut renderer, &scene)?;
+    let before = capture(&gpu, &mut renderer, &scene)?;
+    scene.lighting.shadows = false;
+    scene.items[1].mesh = MeshKind::Imported("mesh-1".into());
+    capture(&gpu, &mut renderer, &scene)?;
+    let (large, large_indices) = cube(1.5);
+    renderer.upload_mesh(&gpu, "spare", &large, &large_indices)?;
+    scene.lighting.shadows = true;
+    scene.items[1].mesh = MeshKind::Imported("spare".into());
+    let restored = capture(&gpu, &mut renderer, &scene)?;
+    let reference = fresh(&gpu, &scene, |renderer| {
+        renderer.upload_mesh(&gpu, "spare", &large, &large_indices)
+    })?;
+    assert_ne!(restored.rgba, before.rgba);
+    assert_eq!(
+        restored.rgba, reference.rgba,
+        "caster replaced while shadows were off"
+    );
+    Ok(())
+}
+
+#[test]
+fn model_replacement_adds_surfaces_named_before_they_existed() -> anyhow::Result<()> {
+    // An item may name a surface the resident model does not have yet; it
+    // draws nothing, so no surface of the last frame refers to the model.
+    let gpu = gpu()?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(&gpu, &mut renderer)?;
+    let (vertices, indices) = cube(0.5);
+    let part = || ModelPart {
+        source_key: "0000000000000000",
+        start: 0,
+        count: indices.len() as u32,
+        color: [1.; 4],
+        alpha_cutoff: None,
+        image: None,
+        shading: None,
+    };
+    let one = [part()];
+    let two = [part(), part()];
+    renderer.upload_model(&gpu, "parts", &vertices, &indices, &one)?;
+    let mut scene = grid(320);
+    scene.items.push(DrawItem {
+        motion_id: 10_000,
+        model: Mat4::from_translation(Vec3::new(0., 3., 0.)) * Mat4::from_scale(Vec3::splat(4.)),
+        mesh: MeshKind::ModelPart("parts".into(), 1),
+        material: material(0),
+    });
+    capture(&gpu, &mut renderer, &scene)?;
+    let before = capture(&gpu, &mut renderer, &scene)?;
+    renderer.upload_model(&gpu, "parts", &vertices, &indices, &two)?;
+    let after = capture(&gpu, &mut renderer, &scene)?;
+    let reference = fresh(&gpu, &scene, |renderer| {
+        renderer.upload_model(&gpu, "parts", &vertices, &indices, &two)
+    })?;
+    assert_ne!(before.rgba, reference.rgba);
+    assert_eq!(after.rgba, reference.rgba, "surface added by replacement");
     Ok(())
 }
 
