@@ -148,6 +148,76 @@ fn cancelled_and_stale_bakes_never_publish() {
 }
 
 #[test]
+fn reused_freshness_matches_the_fingerprint_through_random_edits() -> anyhow::Result<()> {
+    let dir = Temp::new();
+    let mut e = editor(&dir.0.join("scene.json"));
+    let mut scene = e.scene().clone();
+    scene.gi.baked = Some(std::sync::Arc::new(bozzard_scene::BakedGi::new(
+        bozzard_assets::gi::source(&scene, &e.assets, scene.gi.volume)?,
+        scene.gi.volume,
+        std::sync::Arc::new(vec![
+            [0.; 4];
+            scene.gi.volume.probe_count()
+                * bozzard_scene::GI_PROBE_STRIDE
+        ]),
+    )?));
+    scene.gi.enabled = true;
+    e.apply("GI fixture", scene)?;
+    assert!(e.gi_current());
+    let baked = e.scene().clone();
+    let mut seed = 0x2545_f491_u64;
+    let mut next = |n: u64| {
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (seed >> 33) % n
+    };
+    let (mut fresh, mut stale) = (0, 0);
+    for step in 0..300 {
+        let mut scene = e.scene().clone();
+        let index = next(scene.objects.len() as u64) as usize;
+        let amount = next(1000) as f32 / 1000.;
+        match next(12) {
+            // Inputs outside the bake: these must keep a current bake current.
+            0 => scene.fog.distance_density = amount * 0.05,
+            1 => scene.display.exposure_ev = amount * 2. - 1.,
+            2 => scene.objects[index].name = format!("Object {step}"),
+            3 => scene.gi.intensity = 0.5 + amount,
+            // Bake inputs: geometry, materials, lights, sun and sky.
+            4 => scene.objects[index].transform.translation[0] += amount - 0.5,
+            5 => scene.lighting.sun_intensity = 0.5 + amount,
+            6 => scene.environment.intensity = 0.5 + amount,
+            7 => {
+                if let Some(drawable) = &mut scene.objects[index].drawable {
+                    drawable.color[1] = amount;
+                }
+            }
+            8 => {
+                e.undo()?;
+                scene = e.scene().clone();
+            }
+            9 => {
+                e.redo()?;
+                scene = e.scene().clone();
+            }
+            // Return to the baked document now and then.
+            _ => scene = baked.clone(),
+        }
+        let _ = e.apply("Random edit", scene);
+        let reference = bozzard_assets::gi::is_current(e.scene(), &e.assets).unwrap_or(false);
+        assert_eq!(e.gi_current(), reference, "step {step}");
+        assert_eq!(e.gi_current(), reference, "repeated query at step {step}");
+        if reference {
+            fresh += 1;
+        } else {
+            stale += 1;
+        }
+    }
+    assert!(fresh > 30 && stale > 30, "{fresh} current, {stale} stale");
+    Ok(())
+}
+
+#[test]
 fn freshness_tracks_public_asset_reload_and_preview_revision() -> anyhow::Result<()> {
     let dir = Temp::new();
     let mesh_path = dir.0.join("source.obj");

@@ -168,15 +168,17 @@ impl Editor {
         }
     }
     pub fn selected_transform_parent(&self) -> Result<Mat4> {
-        let object = self.selected_object().context("select an object")?;
-        let matrices = self.scene.global_transforms()?;
+        let index = self
+            .scene
+            .objects
+            .iter()
+            .position(|o| Some(&o.id) == self.selected.as_ref())
+            .context("select an object")?;
+        let matrices = self.world_transforms()?;
         if let Some(pivot) = self.selected_surface_pivot() {
-            Ok(matrices[&object.id] * Mat4::from_translation(pivot))
+            Ok(matrices.matrices()[index] * Mat4::from_translation(pivot))
         } else {
-            Ok(object
-                .parent
-                .as_ref()
-                .map_or(Mat4::IDENTITY, |p| matrices[p]))
+            Ok(matrices.parent(index))
         }
     }
     pub fn set_selected_transform(&mut self, transform: Transform) -> Result<()> {
@@ -186,13 +188,18 @@ impl Editor {
             value.transform = transform;
             self.set_selected_material_override(value)
         } else {
-            let mut scene = self.scene.clone();
-            scene
+            let index = self
+                .scene
                 .objects
-                .iter_mut()
-                .find(|o| Some(&o.id) == self.selected.as_ref())
-                .context("select an object")?
-                .transform = transform;
+                .iter()
+                .position(|o| Some(&o.id) == self.selected.as_ref())
+                .context("select an object")?;
+            // A held gizmo repeats its transform every frame; that is not an edit.
+            if self.scene.objects[index].transform == transform {
+                return Ok(());
+            }
+            let mut scene = self.scene.clone();
+            scene.objects[index].transform = transform;
             self.apply("Transform", scene)
         }
     }
@@ -218,6 +225,12 @@ impl Editor {
 
     /// Called inside the normal gesture boundary for slider drags, or as one command.
     pub fn set_selected_material_override(&mut self, value: SurfaceMaterialOverride) -> Result<()> {
+        let scene = self.surface_override_scene(value)?;
+        self.apply("Edit surface", scene)
+    }
+
+    /// The document with `value` saved as the selected surface's override.
+    pub(super) fn surface_override_scene(&self, value: SurfaceMaterialOverride) -> Result<Scene> {
         ensure!(self.play.is_none(), "Stop Play before editing materials");
         value.validate()?;
         let selected = self
@@ -248,7 +261,7 @@ impl Editor {
             values.push(value);
         }
         values.sort_by_key(|v| v.surface);
-        self.apply("Edit surface", scene)
+        Ok(scene)
     }
 }
 

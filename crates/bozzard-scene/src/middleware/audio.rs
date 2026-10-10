@@ -523,10 +523,13 @@ impl SceneInstance {
             .cloned()
             .unwrap_or_default();
         let runtime = world.resource::<Runtime>();
+        // The player's applied volume settings scale the authored mix.
+        let user = crate::player_settings::applied(world);
         let mut frame = Frame {
-            master: if mixer.muted { 0. } else { mixer.master },
+            master: if mixer.muted { 0. } else { mixer.master } * user.master_volume,
             buses: std::array::from_fn(|i| {
                 runtime.and_then(|r| r.buses[i]).unwrap_or(mixer.buses[i])
+                    * user.bus_volume(Bus::ALL[i])
             }),
             sources: Vec::new(),
         };
@@ -534,7 +537,7 @@ impl SceneInstance {
         if sources.is_empty() {
             return Ok(frame);
         }
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         let running = crate::game_flow::simulation_running(world);
         let listener = self
             .component_entities::<AudioListener>(world)

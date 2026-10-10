@@ -223,9 +223,9 @@ impl SceneInstance {
         let (collisions, objects) = if needs_ground {
             self.collision_geometry(world)?
         } else if needs_objects {
-            (Default::default(), self.global_transforms(world)?)
+            (Default::default(), self.live_matrices(world)?)
         } else {
-            (Default::default(), BTreeMap::new())
+            (Default::default(), crate::transforms::Matrices::empty(self))
         };
         let mut runtime = world.remove_resource::<Runtime>().unwrap_or_default();
         let mut signals = world.remove_resource::<Signals>().unwrap_or_default();
@@ -342,7 +342,7 @@ struct Frame<'a> {
     local: Transform,
     model: Mat4,
     collisions: &'a crate::CollisionSnapshot,
-    objects: &'a BTreeMap<String, Mat4>,
+    objects: &'a crate::transforms::Matrices<'a>,
     dt: f32,
 }
 struct Tick {

@@ -468,12 +468,20 @@ impl SceneInstance {
             world.insert(entity, GravityState::default())?;
             state.respawns = state.respawns.saturating_add(1);
         }
-        let matrices = self.global_transforms(world)?;
-        let player_box = self
-            .collisions(world)?
+        let matrices = self.live_matrices(world)?;
+        // Triggers test only the player's own collider, not a scene-wide snapshot.
+        let mut player_colliders = CollisionSnapshot::default();
+        self.object_colliders(
+            world,
+            &state.player,
+            entity,
+            matrices[&state.player],
+            &mut player_colliders,
+        )?;
+        let player_box = player_colliders
             .boxes
             .into_iter()
-            .find(|b| b.id == state.player)
+            .next()
             .context("player collider missing")?;
         let mut at_goal = false;
         if !state.won {
@@ -571,7 +579,7 @@ impl SceneInstance {
             target.is_finite() && desired.is_finite() && radius.is_finite() && radius > 0.0,
             "invalid camera probe"
         );
-        let matrices = self.global_transforms(world)?;
+        let matrices = self.live_matrices(world)?;
         let mut fraction = 1.0_f32;
         for (id, &entity) in &self.entities {
             if id == player {

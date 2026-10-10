@@ -64,6 +64,28 @@ pub struct Handle {
     index: usize,
 }
 
+/// How thoroughly a refresh looks for changed sources.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RefreshScan {
+    /// Read only sources whose files changed size, timestamps or identity (device, inode
+    /// and status-change time on Unix), whose last read failed, or whose last read came
+    /// too soon after a change for the timestamps to vouch for it. Metadata can still miss
+    /// an edit: a server or clock that stamps files more than two seconds in the past, a
+    /// network mount that caches attributes, or on Windows a replacement that keeps the
+    /// size and modification time. Hosts therefore also `Verify` every
+    /// [`RefreshScan::VERIFY_INTERVAL`].
+    Changed,
+    /// Read every source and compare it with what was decoded.
+    #[default]
+    Verify,
+    /// Verify, and probe audio files again even when their size and timestamp match.
+    Reload,
+}
+impl RefreshScan {
+    /// How often hosts that scan with `Changed` read every source anyway.
+    pub const VERIFY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LoadState {
     Pending,
@@ -231,8 +253,10 @@ pub struct Entry {
     mesh_index: Option<Arc<picking::MeshIndex>>,
     revision: u64,
     content_fingerprint: Option<u64>,
-    // Compare bytes, so same-size edits and coarse filesystem timestamps cannot hide changes.
-    observed: Option<Arc<SourceSnapshot>>,
+    // Compare content digests, so same-size edits and coarse timestamps cannot hide changes.
+    observed: Option<Arc<ObservedSource>>,
+    /// Metadata that lets a scan for changes skip reading an untouched source again.
+    stamps: Option<Arc<SourceStamps>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

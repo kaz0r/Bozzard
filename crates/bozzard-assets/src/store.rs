@@ -9,8 +9,8 @@ impl Entry {
                 source.dependencies.is_empty()
                     && source
                         .primary
-                        .as_deref()
-                        .is_ok_and(|original| original == bytes)
+                        .as_ref()
+                        .is_ok_and(|original| *original == Digest::of(bytes))
             })
     }
     /// Paths observed by the latest source read, for safe project-file deletion.
@@ -131,6 +131,7 @@ impl AssetStore {
                     revision: 0,
                     content_fingerprint: None,
                     observed: None,
+                    stamps: None,
                 }
             })
             .collect();
@@ -160,7 +161,8 @@ impl AssetStore {
             dependencies: Vec::new(),
         };
         entry.content_fingerprint = Some(fingerprint_snapshot(&snapshot));
-        entry.observed = Some(Arc::new(snapshot));
+        entry.observed = Some(Arc::new(snapshot.observed()));
+        entry.stamps = None;
         entry.data = Some(Arc::new(AssetData::Prefab(data)));
         entry.state = LoadState::Ready;
         entry.revision += 1;
@@ -331,29 +333,56 @@ impl AssetStore {
     }
 
     pub fn refresh_with(&mut self, progress: &job::Progress) -> Result<Vec<Handle>> {
+        self.refresh_scan(RefreshScan::Verify, progress)
+    }
+
+    /// `refresh_with`, reading only what `scan` asks for. An idle `Changed` scan only reads
+    /// file metadata.
+    pub fn refresh_scan(
+        &mut self,
+        scan: RefreshScan,
+        progress: &job::Progress,
+    ) -> Result<Vec<Handle>> {
+        if scan == RefreshScan::Reload {
+            for entry in &mut self.entries {
+                entry.audio_stamp = None;
+            }
+        }
+        // Decide what to read before canonicalizing paths for aliases.
+        let mut read = Vec::with_capacity(self.entries.len());
+        for (index, entry) in self.entries.iter().enumerate() {
+            if index % 64 == 0 {
+                progress.check()?;
+            }
+            let path = self.root.join(&entry.source.path);
+            read.push(if entry.observed.is_none() {
+                true
+            } else if entry.source.kind == AssetKind::Audio {
+                let stamp = audio::stamp(&path).ok();
+                stamp.is_none() || stamp != entry.audio_stamp
+            } else {
+                scan != RefreshScan::Changed
+                    || !entry.stamps.as_ref().is_some_and(|s| s.unchanged(&path))
+            });
+        }
+        if !read.contains(&true) {
+            return Ok(Vec::new());
+        }
         let mut changed = Vec::new();
         let total = self.entries.len();
         // Canonical local file identities retain their complete path, including
         // literal query/fragment characters. Decode aliases only once, and share
         // only an exact observed snapshot of the same kind and resolved file.
+        // Indexed at the first changed source, from the entries as they were before.
+        let mut before = Some(self.entries.clone());
         let mut decoded = BTreeMap::<PathBuf, Vec<Entry>>::new();
-        for entry in &self.entries {
-            if entry.data.is_some()
-                && entry.observed.is_some()
-                && matches!(entry.state, LoadState::Ready)
-            {
-                let path = self.root.join(&entry.source.path);
-                let path = std::fs::canonicalize(&path).unwrap_or(path);
-                decoded.entry(path).or_default().push(entry.clone());
-            }
-        }
+        let root = &self.root;
         for (index, entry) in self.entries.iter_mut().enumerate() {
+            if !read[index] {
+                continue;
+            }
             progress.stage(format!("Checking {} ({}/{total})", entry.id, index + 1))?;
-            let path = self.root.join(&entry.source.path);
-            // Relative buffers/images are resolved against the authored document
-            // location. A symlink in another directory can have different URI
-            // dependencies, even though its primary file canonicalizes alike.
-            let canonical_path = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+            let path = root.join(&entry.source.path);
             let audio_stamp = (entry.source.kind == AssetKind::Audio)
                 .then(|| audio::stamp(&path).ok())
                 .flatten();
@@ -361,6 +390,7 @@ impl AssetStore {
             {
                 continue;
             }
+            let read_started = std::time::SystemTime::now();
             let snapshot = if entry.source.kind == AssetKind::Audio {
                 audio::probe(&path, progress).and_then(|metadata| {
                     Ok(SourceSnapshot {
@@ -382,14 +412,40 @@ impl AssetStore {
                     dependencies: Vec::new(),
                 },
             };
-            if entry.observed.as_deref() == Some(&snapshot) {
+            let observed = snapshot.observed();
+            // Audio keeps its own size/timestamp stamp. Stamps change only together with
+            // `observed`, so an entry never pairs one read's stamps with another's digests.
+            let stamps = (entry.source.kind != AssetKind::Audio).then(|| {
+                let read = if entry.source.kind == AssetKind::Material {
+                    materials::snapshot_path(&path)
+                } else {
+                    path.clone()
+                };
+                Arc::new(SourceStamps::capture(&path, &read, &observed, read_started))
+            });
+            if entry.observed.as_deref() == Some(&observed) {
+                entry.stamps = stamps;
                 continue;
             }
             progress.stage(format!("Decoding {} ({}/{total})", entry.id, index + 1))?;
+            // Relative buffers/images are resolved against the authored document
+            // location. A symlink in another directory can have different URI
+            // dependencies, even though its primary file canonicalizes alike.
+            let canonical_path = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+            for entry in before.take().into_iter().flatten() {
+                if entry.data.is_some()
+                    && entry.observed.is_some()
+                    && matches!(entry.state, LoadState::Ready)
+                {
+                    let path = root.join(&entry.source.path);
+                    let path = std::fs::canonicalize(&path).unwrap_or(path);
+                    decoded.entry(path).or_default().push(entry);
+                }
+            }
             let alias = decoded.get(&canonical_path).and_then(|entries| {
                 entries.iter().find(|candidate| {
                     candidate.source.kind == entry.source.kind
-                        && candidate.observed.as_deref() == Some(&snapshot)
+                        && candidate.observed.as_deref() == Some(&observed)
                 })
             });
             let loaded = match &snapshot.primary {
@@ -415,7 +471,8 @@ impl AssetStore {
             });
             progress.check()?;
             let fingerprint = fingerprint_snapshot(&snapshot);
-            entry.observed = Some(Arc::new(snapshot));
+            entry.observed = Some(Arc::new(observed));
+            entry.stamps = stamps;
             match loaded {
                 Ok((data, mesh_index)) => {
                     entry.content_fingerprint = Some(fingerprint);
@@ -448,14 +505,16 @@ impl AssetStore {
     }
     /// Explicit reload also rechecks audio files whose size/timestamp was preserved externally.
     pub fn refresh_job_forced(&self, force: bool) -> Result<job::Job<(Self, Vec<Handle>)>> {
+        self.refresh_job_scan(if force {
+            RefreshScan::Reload
+        } else {
+            RefreshScan::Verify
+        })
+    }
+    pub fn refresh_job_scan(&self, scan: RefreshScan) -> Result<job::Job<(Self, Vec<Handle>)>> {
         let mut store = self.clone();
-        if force {
-            for entry in &mut store.entries {
-                entry.audio_stamp = None;
-            }
-        }
         job::Job::start("Checking assets", move |progress| {
-            let changed = store.refresh_with(&progress)?;
+            let changed = store.refresh_scan(scan, &progress)?;
             Ok((store, changed))
         })
     }

@@ -177,13 +177,18 @@ impl Editor {
         if self.selected_surface().is_none() {
             return Ok(None);
         }
-        let object = self.selected_object().unwrap();
-        if object.drawable.as_ref().unwrap().layer != layer {
+        let index = self
+            .scene
+            .objects
+            .iter()
+            .position(|o| Some(&o.id) == self.selected.as_ref())
+            .unwrap();
+        if self.scene.objects[index].drawable.as_ref().unwrap().layer != layer {
             return Ok(None);
         }
         let selection = self.surface_selection.as_ref().unwrap();
         let demo = self.edit_demo()?;
-        let transform = demo.instance().global_transforms(&demo.app.world)?[&object.id]
+        let transform = self.edit_world_matrix(&demo, index)?
             * self
                 .selected_material_override()?
                 .matrix(self.selected_surface_pivot().unwrap());
@@ -210,6 +215,49 @@ impl Editor {
                     .context("select an object to frame")?,
             ),
         )
+    }
+    /// Edit-world matrices of the document's objects, in document order.
+    fn edit_world_matrices(&self, demo: &SceneRuntime) -> Result<Vec<Mat4>> {
+        let instance = demo.instance();
+        let spawned = &instance.document().objects;
+        let objects = &self.scene.objects;
+        instance.with_global_transforms(&demo.app.world, |matrices| {
+            // The edit world spawns this document; generated game menus only append.
+            if spawned.len() >= objects.len()
+                && objects.iter().zip(spawned).all(|(a, b)| a.id == b.id)
+            {
+                return Ok(matrices[..objects.len()].to_vec());
+            }
+            let indices: std::collections::HashMap<_, _> = spawned
+                .iter()
+                .enumerate()
+                .map(|(index, object)| (object.id.as_str(), index))
+                .collect();
+            objects
+                .iter()
+                .map(|object| {
+                    indices
+                        .get(object.id.as_str())
+                        .map(|&index| matrices[index])
+                        .with_context(|| format!("'{}' is not in the edit world", object.id))
+                })
+                .collect()
+        })
+    }
+    /// The edit-world matrix of one document object.
+    fn edit_world_matrix(&self, demo: &SceneRuntime, index: usize) -> Result<Mat4> {
+        let id = &self.scene.objects[index].id;
+        let spawned = &demo.instance().document().objects;
+        let index = if spawned.get(index).is_some_and(|o| &o.id == id) {
+            index
+        } else {
+            spawned
+                .iter()
+                .position(|o| &o.id == id)
+                .with_context(|| format!("'{id}' is not in the edit world"))?
+        };
+        demo.instance()
+            .with_global_transforms(&demo.app.world, |matrices| Ok(matrices[index]))
     }
     /// Ray selection against actual triangle geometry, including imported meshes.
     pub fn pick(&self, layer: Layer, aspect: f32, ndc: [f32; 2]) -> Result<Option<String>> {
@@ -276,10 +324,10 @@ impl Editor {
             origin.is_finite() && direction.is_finite(),
             "invalid picking ray"
         );
-        let matrices = demo.instance().global_transforms(&demo.app.world)?;
+        let matrices = self.edit_world_matrices(&demo)?;
         let mut best: Option<(f32, Pick)> = None;
-        for object in &self.scene.objects {
-            let inverse = matrices[&object.id].inverse();
+        for (object, matrix) in self.scene.objects.iter().zip(matrices) {
+            let inverse = matrix.inverse();
             let o = inverse.transform_point3(origin);
             let d = inverse.transform_vector3(direction);
             if d.z.abs() >= 1e-8
@@ -309,19 +357,16 @@ impl Editor {
                 && text.color[3] > 0.
                 && text.layer == layer
                 && d.z.abs() >= 1e-8
+                // Lay text out only when its plane is in front of the nearest hit so far.
+                && -o.z / d.z > 0.
+                && best.as_ref().is_none_or(|(distance, _)| -o.z / d.z < *distance)
                 && let Some([min, max]) = bozzard_render::text_bounds(
                     &bozzard_render_assets::text_mesh(text, &self.assets)?,
                 )?
             {
                 let t = -o.z / d.z;
                 let p = o + d * t;
-                if t > 0.
-                    && p.x >= min.x
-                    && p.x <= max.x
-                    && p.y >= min.y
-                    && p.y <= max.y
-                    && best.as_ref().is_none_or(|(distance, _)| t < *distance)
-                {
+                if p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y {
                     best = Some((
                         t,
                         Pick {
@@ -358,6 +403,16 @@ impl Editor {
                     };
                     let entry = self.assets.get(self.assets.handle(asset).unwrap()).unwrap();
                     let center = bounds[0] * 0.5 + bounds[1] * 0.5;
+                    // The model BVH holds every part. Skip it when the ray misses this
+                    // part's bounds or enters them behind the nearest hit so far.
+                    let limit = best
+                        .as_ref()
+                        .map_or(f32::INFINITY, |(distance, _)| *distance);
+                    if !reference
+                        && bozzard_scene::spatial::box_entry(bounds, o + center, d, limit).is_none()
+                    {
+                        continue;
+                    }
                     entry
                         .raycast_filtered(
                             o + center,
@@ -884,6 +939,78 @@ mod tests {
         assert!(hits > 50);
         assert_eq!(editor.scene(), &before);
         assert_eq!(editor.undo_label(), Some("Fixture transforms"));
+    }
+
+    #[test]
+    fn split_surface_picks_match_the_full_scan_through_overlapping_parts() {
+        let fixture = Fixture::new();
+        let mut obj = String::from("mtllib parts.mtl\n");
+        for i in 0..48 {
+            let x = (i % 8) as f32 * 0.7 - 2.8;
+            let y = (i / 8) as f32 * 0.7 - 2.1;
+            obj.push_str(&format!(
+                "o Face{i}\nusemtl {}\nv {x} {y} 0\nv {} {y} 0\nv {x} {} 0\nf {} {} {}\n",
+                if i % 2 == 0 {
+                    "LeftPaint"
+                } else {
+                    "RightPaint"
+                },
+                x + 1.4,
+                y + 1.4,
+                i * 3 + 1,
+                i * 3 + 2,
+                i * 3 + 3
+            ));
+        }
+        std::fs::write(fixture.0.join("parts.obj"), obj).unwrap();
+        let mut editor = fixture.editor();
+        editor.select_object(Some("model".into()));
+        editor.select_surface(0).unwrap();
+        assert!(editor.split_selected_surface().unwrap());
+        // Stagger the surface children in depth and turn them, so parts overlap on screen
+        // and many rays cross the bounds of parts behind an earlier hit.
+        let mut scene = editor.scene().clone();
+        for (i, object) in scene
+            .objects
+            .iter_mut()
+            .filter(|o| {
+                matches!(
+                    o.drawable.as_ref().map(|d| &d.mesh),
+                    Some(Mesh::Surface { .. })
+                )
+            })
+            .enumerate()
+        {
+            object.transform.translation[0] *= 0.6;
+            object.transform.translation[2] = (i % 7) as f32 * 0.45 - 1.5;
+            object.transform.rotation_degrees = [i as f32 * 9., i as f32 * -13., i as f32];
+        }
+        editor.apply("Stagger surfaces", scene).unwrap();
+        let projections = [
+            projection(),
+            glam::camera::rh::proj::directx::perspective(1.1, 1.5, 0.1, 100.)
+                * glam::camera::rh::view::look_at_mat4(Vec3::new(3., 2., 9.), Vec3::ZERO, Vec3::Y),
+        ];
+        let mut hits = 0;
+        for projection in projections {
+            for y in -20..=20 {
+                for x in -30..=30 {
+                    let ndc = [x as f32 / 30., y as f32 / 20.];
+                    let actual = editor
+                        .pick_surface_with_projection(Layer::ThreeD, projection, ndc)
+                        .unwrap();
+                    assert_eq!(
+                        actual,
+                        editor
+                            .pick_surface_reference_with_projection(Layer::ThreeD, projection, ndc)
+                            .unwrap(),
+                        "{ndc:?}"
+                    );
+                    hits += usize::from(actual.is_some());
+                }
+            }
+        }
+        assert!(hits > 150, "{hits}");
     }
 
     #[test]

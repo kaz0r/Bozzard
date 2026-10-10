@@ -35,6 +35,8 @@ pub use terrain::{PreparedGeometry, TerrainRequest, TerrainSource};
 mod foliage;
 pub use foliage::{FoliageSettings, PreparedFoliage};
 mod selection;
+mod transforms;
+pub use transforms::WorldTransforms;
 mod workspace;
 pub use loading::{LoadedScene, PreparedImport, PreparedPlay, PreparedSave};
 pub use selection::{Pick, SelectedSurface};
@@ -60,7 +62,8 @@ pub struct Editor {
     render_cache: bozzard_render_assets::RenderSceneCache,
     prefab_source: Option<prefabs::PrefabSource>,
     scene: Scene,
-    saved: Scene,
+    /// The document as last loaded or saved; `None` for views that are never saved.
+    saved: Option<Scene>,
     pub path: PathBuf,
     pub selected: Option<String>,
     surface_selection: Option<selection::SurfaceSelection>,
@@ -78,7 +81,10 @@ pub struct Editor {
     asset_revision: u64,
     runtime_asset_generation: u64,
     scene_snapshot: std::cell::RefCell<Option<(u64, std::sync::Arc<Scene>)>>,
+    world_transforms: std::cell::RefCell<Option<(u64, std::sync::Arc<WorldTransforms>)>>,
+    dirty: std::cell::Cell<Option<(u64, bool)>>,
     gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
+    prefab_override_cache: std::cell::RefCell<Option<(u64, String, Vec<PrefabOverride>)>>,
     edit_demo: std::cell::RefCell<Option<(u64, SceneRuntime)>>,
     edit_collisions: std::cell::RefCell<Option<(u64, bozzard_scene::CollisionSnapshot)>>,
 }
@@ -108,9 +114,17 @@ impl Editor {
     }
     fn from_loaded(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
         Self {
+            saved: Some(scene.clone()),
+            ..Self::authoring_view(scene, path, assets)
+        }
+    }
+    /// A document that is only displayed and picked, such as a combined workspace view.
+    /// It keeps no saved copy and is never dirty.
+    fn authoring_view(scene: Scene, path: PathBuf, assets: AssetStore) -> Self {
+        Self {
             render_cache: Default::default(),
             prefab_source: None,
-            saved: scene.clone(),
+            saved: None,
             scene,
             path,
             selected: None,
@@ -128,7 +142,10 @@ impl Editor {
             asset_revision: 1,
             runtime_asset_generation: 0,
             scene_snapshot: Default::default(),
+            world_transforms: Default::default(),
+            dirty: Default::default(),
             gi_freshness: Default::default(),
+            prefab_override_cache: Default::default(),
             edit_demo: Default::default(),
             edit_collisions: Default::default(),
         }
@@ -156,8 +173,20 @@ impl Editor {
     pub fn asset_revision(&self) -> u64 {
         self.asset_revision
     }
+    /// Whether the document differs from the saved file. Every change to either
+    /// document advances the revision, so the comparison runs once per revision.
     pub fn dirty(&self) -> bool {
-        self.scene != self.saved
+        if let Some((revision, dirty)) = self.dirty.get()
+            && revision == self.revision
+        {
+            return dirty;
+        }
+        let dirty = self
+            .saved
+            .as_ref()
+            .is_some_and(|saved| self.scene != *saved);
+        self.dirty.set(Some((self.revision, dirty)));
+        dirty
     }
     pub fn undo_label(&self) -> Option<&str> {
         self.past.last().map(|c| c.label.as_str())
@@ -214,10 +243,12 @@ impl Editor {
             self.play.is_none(),
             "Stop Play before editing the authored scene"
         );
-        self.validate_document(&scene)?;
+        // The current document is already valid; an unchanged frame of a held
+        // gizmo or slider must not validate the whole document again.
         if scene == self.scene {
             return Ok(());
         }
+        self.validate_document(&scene)?;
         // Catalog replacements validate all imports before publishing a new document.
         let assets = if scene.assets != self.scene.assets {
             Some(self.cached_assets(&scene, &self.path)?)
@@ -228,15 +259,15 @@ impl Editor {
             .as_ref()
             .unwrap_or(&self.assets)
             .validate_scene_resources(&scene)?;
+        let previous = std::mem::replace(&mut self.scene, scene);
         if self.gesture.is_none() {
             self.record(Change {
                 label: label.into(),
-                scene: self.scene.clone(),
+                scene: previous,
                 assets: assets.as_ref().map(|_| self.assets.clone()),
                 restore_file: None,
             });
         }
-        self.scene = scene;
         if let Some(assets) = assets {
             self.assets = assets;
             self.asset_revision += 1;
@@ -860,7 +891,7 @@ impl Editor {
             self.future.clear();
         }
         self.scene = rebased.clone();
-        self.saved = rebased;
+        self.saved = Some(rebased);
         self.path = path.to_path_buf();
         if self.play.is_some() {
             self.edit_assets = Some(assets);
@@ -1287,6 +1318,30 @@ impl Editor {
         layer: Layer,
         size: [f32; 2],
     ) -> Result<bozzard_scene::middleware::ui::Frame> {
+        use bozzard_scene::{
+            Component,
+            middleware::ui::{Canvas, Frame, Widget},
+        };
+        // Widgets only come from authored UI components or generated game menus.
+        // Without them the frame is empty, so an edit need not rebuild the edit world.
+        if self.play.is_none()
+            && self.scene.game_flow.is_none()
+            && !self
+                .scene
+                .objects
+                .iter()
+                .any(|o| o.extras.contains_key(Canvas::NAME) || o.extras.contains_key(Widget::NAME))
+        {
+            ensure!(
+                size.iter()
+                    .all(|v| v.is_finite() && (1.0..=32768.).contains(v)),
+                "invalid UI viewport"
+            );
+            return Ok(Frame {
+                size,
+                ..Default::default()
+            });
+        }
         let edit;
         let demo = if let Some(play) = &self.play {
             play
@@ -1395,7 +1450,7 @@ impl Editor {
             .as_ref()
             .is_none_or(|(revision, _)| *revision != self.revision)
         {
-            let demo = SceneRuntime::new(&self.scene)?;
+            let demo = SceneRuntime::new_shared(&self.scene_snapshot())?;
             *self.edit_demo.borrow_mut() = Some((self.revision, demo));
         }
         Ok(std::cell::Ref::map(self.edit_demo.borrow(), |cached| {
@@ -1751,6 +1806,66 @@ mod tests {
             Path::new("work/editor-test/scene.json"),
         )
         .unwrap()
+    }
+    #[test]
+    fn unchanged_applies_and_held_gizmo_frames_are_not_edits() {
+        let mut e = editor();
+        let id = e.scene().objects[1].id.clone();
+        e.select_object(Some(id));
+        let (revision, transform) = (e.revision(), e.selected_transform().unwrap());
+        e.begin_gesture("Transform gizmo");
+        e.set_selected_transform(transform).unwrap();
+        e.apply("Same document", e.scene().clone()).unwrap();
+        e.finish_gesture();
+        assert_eq!(e.revision(), revision);
+        assert!(!e.dirty() && e.undo_label().is_none());
+        let mut moved = transform;
+        moved.translation[1] += 1.;
+        e.set_selected_transform(moved).unwrap();
+        assert!(e.dirty() && e.revision() > revision);
+        assert_eq!(e.undo_label(), Some("Transform"));
+        e.undo().unwrap();
+        assert!(!e.dirty());
+        assert_eq!(e.selected_transform().unwrap(), transform);
+        e.redo().unwrap();
+        assert!(e.dirty());
+        assert_eq!(e.selected_transform().unwrap(), moved);
+    }
+    #[test]
+    fn edit_ui_frames_match_a_fresh_edit_world_with_and_without_widgets() {
+        // Element IDs include the world instance; compare everything else.
+        let shape = |mut frame: bozzard_scene::middleware::ui::Frame| {
+            frame.elements.iter_mut().for_each(|e| e.id = 0);
+            format!("{frame:?}")
+        };
+        let scenes = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes");
+        // No UI, authored canvases and widgets, and game menus generated at spawn.
+        for name in ["scene-lab", "ui-2d-lab", "game-flow-lab"] {
+            let editor = Editor::open(&scenes.join(format!("{name}.json"))).unwrap();
+            let world = SceneRuntime::new(editor.scene()).unwrap();
+            let mut elements = 0;
+            for layer in [Layer::ThreeD, Layer::TwoD] {
+                for size in [[800., 600.], [1., 1.], [32768., 3.]] {
+                    let frame = editor.ui_frame(layer, size).unwrap();
+                    let reference = world.instance().ui_frame(&world.app.world, layer, size);
+                    elements += frame.elements.len();
+                    assert!(
+                        shape(frame) == shape(reference.unwrap()),
+                        "{name} {layer:?} {size:?}"
+                    );
+                }
+                for size in [[0., 600.], [f32::NAN, 1.], [40000., 1.]] {
+                    assert!(editor.ui_frame(layer, size).is_err());
+                    assert!(
+                        world
+                            .instance()
+                            .ui_frame(&world.app.world, layer, size)
+                            .is_err()
+                    );
+                }
+            }
+            assert_eq!(elements > 0, name != "scene-lab", "{name}");
+        }
     }
     #[test]
     fn duplicate_preserves_exact_local_and_world_transforms() {

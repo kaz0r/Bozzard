@@ -236,6 +236,7 @@ impl SceneInstance {
                         .context("End Game needs Game Flow enabled in scene settings")?
                         .end_game(&message)?;
                 }
+                Command::Settings(request) => crate::player_settings::request(world, request)?,
                 Command::QuitGame => {
                     world.insert_resource(crate::GameSession {
                         phase: crate::GamePhase::Quit,
@@ -396,6 +397,11 @@ impl SceneInstance {
         if let Some(boards) = world.resource::<BlueprintRuntime>() {
             engine.lock().copy_boards(boards, &self.document);
         }
+        // The tick's hooks returned their network frame to the world before commands.
+        engine.lock().network = world
+            .resource::<NetworkFrame>()
+            .cloned()
+            .unwrap_or_default();
         for owner in &members {
             self.run_destroy_hooks(&engine, runtime, owner)?;
         }
@@ -589,6 +595,10 @@ impl SceneInstance {
         let engine = self.script_engine();
         let snapshot = Arc::new(self.collision_snapshot(world)?.0);
         let mut runtime = world.remove_resource::<ScriptRuntime>().unwrap_or_default();
+        engine.lock().network = world
+            .resource::<NetworkFrame>()
+            .cloned()
+            .unwrap_or_default();
         self.build_view(
             world,
             &mut engine.lock(),

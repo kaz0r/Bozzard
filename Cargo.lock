@@ -624,6 +624,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "siphasher",
  "texpresso",
  "tobj",
 ]
@@ -823,6 +824,7 @@ name = "bozzard-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bozzard-diagnostics",
  "bozzard-network",
  "bozzard-runtime",
  "ctrlc",

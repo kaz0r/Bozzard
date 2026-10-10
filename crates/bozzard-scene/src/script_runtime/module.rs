@@ -49,6 +49,8 @@ impl NetworkOutbox {
 pub struct ScriptModule {
     asset: String,
     compiled: Arc<CompiledScript>,
+    /// Script function arities by name, listed once instead of on every replay call.
+    functions: Arc<BTreeMap<String, BTreeSet<usize>>>,
     engine: Arc<Mutex<ScriptEngine>>,
 }
 
@@ -59,10 +61,9 @@ impl ScriptModule {
 
     pub fn require_function(&self, name: &str, args: usize) -> Result<()> {
         ensure!(
-            self.compiled
-                .ast
-                .iter_functions()
-                .any(|f| f.name == name && f.params.len() == args),
+            self.functions
+                .get(name)
+                .is_some_and(|arities| arities.contains(&args)),
             "script '{}': missing {name} with {args} argument(s)",
             self.asset
         );
@@ -132,13 +133,22 @@ impl SceneInstance {
         engine
             .engine
             .set_module_resolver(rhai::module_resolvers::DummyModuleResolver::new());
+        let compiled = self
+            .scripts
+            .get(asset)
+            .with_context(|| format!("script '{asset}' was not loaded"))?
+            .clone();
+        let mut functions: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
+        for function in compiled.ast.iter_functions() {
+            functions
+                .entry(function.name.to_owned())
+                .or_default()
+                .insert(function.params.len());
+        }
         Ok(ScriptModule {
             asset: asset.into(),
-            compiled: self
-                .scripts
-                .get(asset)
-                .with_context(|| format!("script '{asset}' was not loaded"))?
-                .clone(),
+            compiled,
+            functions: Arc::new(functions),
             engine: Arc::new(Mutex::new(engine)),
         })
     }
@@ -262,6 +272,33 @@ mod tests {
             .unwrap();
         let direct_pipes: serde_json::Value = module.call_args("step", (&pipes, 0.25f32)).unwrap();
         assert_eq!(direct_pipes, legacy_pipes);
+    }
+
+    #[test]
+    fn required_functions_match_both_name_and_arity() {
+        let module = module(
+            r#"
+            fn step(state) { state }
+            fn step(state, dt) { state }
+            fn reset() { 0 }
+        "#,
+        );
+        for (name, args) in [("step", 1), ("step", 2), ("reset", 0)] {
+            assert!(module.require_function(name, args).is_ok(), "{name}/{args}");
+        }
+        for (name, args) in [("step", 0), ("step", 3), ("reset", 1), ("missing", 0)] {
+            let error = module.require_function(name, args).unwrap_err().to_string();
+            assert!(
+                error.contains(&format!("missing {name} with {args} argument(s)")),
+                "{error}"
+            );
+        }
+        assert!(module.call::<i64>("reset", vec![]).is_ok());
+        assert!(
+            module
+                .call::<i64>("reset", vec![serde_json::json!(1)])
+                .is_err()
+        );
     }
 
     #[test]
