@@ -49,7 +49,8 @@ struct Level {
     up_binding: Option<wgpu::BindGroup>,
 }
 pub(super) struct Bloom {
-    source_dirty: bool,
+    /// First downsample bindings for the most recent display sources.
+    sources: gpu_util::Recent<wgpu::TextureView, wgpu::BindGroup>,
     prefilter: wgpu::RenderPipeline,
     downsample: wgpu::RenderPipeline,
     upsample: wgpu::RenderPipeline,
@@ -151,7 +152,7 @@ impl Bloom {
             uniform,
             black,
             levels: Vec::new(),
-            source_dirty: false,
+            sources: Default::default(),
             size: [0, 0],
         }
     }
@@ -184,7 +185,6 @@ impl Bloom {
             ],
         })
     }
-    /// Returns whether the display pass must rebind its bloom image.
     pub fn prepare(
         &mut self,
         gpu: &Gpu,
@@ -192,11 +192,12 @@ impl Bloom {
         size: [u32; 2],
         settings: BloomSettings,
         active: bool,
-    ) -> bool {
+        created: &mut usize,
+    ) {
         if !active {
-            let changed = !self.levels.is_empty();
             self.levels.clear();
-            return changed;
+            self.sources.clear();
+            return;
         }
         gpu.queue.write_buffer(
             &self.uniform,
@@ -208,21 +209,29 @@ impl Bloom {
                 settings.anamorphic,
             ]),
         );
+        let mut sources = std::mem::take(&mut self.sources);
         if self.size == size && !self.levels.is_empty() {
-            if self.source_dirty {
-                self.levels[0].down_binding = self.binding(gpu, hdr, &self.black);
-                self.source_dirty = false;
+            if sources.select(hdr.clone(), |hdr| self.binding(gpu, hdr, &self.black)) {
+                *created += 1;
             }
-            return false;
+            self.levels[0].down_binding = sources.current().unwrap().clone();
+            self.sources = sources;
+            return;
         }
         self.levels.clear();
+        sources.clear();
         self.size = size;
         let mut dims = size.map(|d| d.div_ceil(2));
         for _ in 0..6 {
             let down = gpu_util::color_texture(gpu, dims, "bloom pyramid");
             let up = gpu_util::color_texture(gpu, dims, "bloom pyramid");
-            let previous = self.levels.last().map(|l| &l.down).unwrap_or(hdr);
-            let down_binding = self.binding(gpu, previous, &self.black);
+            let down_binding = if let Some(previous) = self.levels.last() {
+                self.binding(gpu, &previous.down, &self.black)
+            } else {
+                sources.select(hdr.clone(), |hdr| self.binding(gpu, hdr, &self.black));
+                sources.current().unwrap().clone()
+            };
+            *created += 1;
             self.levels.push(Level {
                 down,
                 up,
@@ -242,11 +251,9 @@ impl Bloom {
                 &next.up
             };
             self.levels[i].up_binding = Some(self.binding(gpu, &self.levels[i].down, low));
+            *created += 1;
         }
-        true
-    }
-    pub fn invalidate(&mut self) {
-        self.source_dirty = true;
+        self.sources = sources;
     }
     pub fn output(&self) -> &wgpu::TextureView {
         self.levels

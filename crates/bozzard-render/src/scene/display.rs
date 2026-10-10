@@ -10,7 +10,12 @@ pub(super) struct Display {
     exposure: auto_exposure::Exposure,
     pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
-    target: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
+    target: Option<(wgpu::TextureView, [u32; 2])>,
+    /// Display bindings for the most recent source and bloom images.
+    bindings: gpu_util::Recent<[wgpu::TextureView; 2], wgpu::BindGroup>,
+    /// Bind groups created by the last `prepare` for temporal resolve,
+    /// exposure metering, depth of field, bloom and the display pass.
+    pub bind_groups: usize,
     srgb_target: bool,
 }
 impl Display {
@@ -46,6 +51,8 @@ impl Display {
             pipeline,
             uniform,
             target: None,
+            bindings: Default::default(),
+            bind_groups: 0,
             srgb_target: format.is_srgb(),
         }
     }
@@ -61,7 +68,7 @@ impl Display {
             !raw || !self.srgb_target,
             "raw linear diagnostics need a non-sRGB output target"
         );
-        let resized = self.target.as_ref().is_none_or(|(_, _, old)| *old != size);
+        let resized = self.target.as_ref().is_none_or(|(_, old)| *old != size);
         let replacement = resized.then(|| {
             gpu.device
                 .create_texture(&wgpu::TextureDescriptor {
@@ -107,6 +114,9 @@ impl Display {
         let depth_changed =
             self.post.prepare(gpu, reflected, settings, &frame)? || resized || reflection_changed;
         let source = self.post.output().unwrap_or(reflected);
+        // Consumers key bindings by their source views, so temporal ping-pong
+        // and other source changes need no separate invalidation.
+        let mut created = 0;
         if !raw
             && settings.volumetric_fog.enabled
             && settings.volumetric_fog.density > 0.
@@ -117,12 +127,9 @@ impl Display {
                 .context("volumetric fog requires scene light bindings")?;
             self.volume = Some(volumetric::Volumetric::new(gpu, &shadows.sample_layout));
         }
-        let volume_changed = if let Some(volume) = &mut self.volume {
-            volume.prepare(gpu, source, settings, &frame, depth_changed)?
-        } else {
-            false
-        };
-        let source_changed = depth_changed || volume_changed;
+        if let Some(volume) = &mut self.volume {
+            volume.prepare(gpu, source, settings, &frame, depth_changed)?;
+        }
         let source = self
             .volume
             .as_ref()
@@ -134,19 +141,16 @@ impl Display {
         {
             self.temporal = Some(temporal::Temporal::new(gpu));
         }
-        let temporal_changed = if let Some(temporal) = &mut self.temporal {
-            temporal.prepare(gpu, source, settings, &frame)
-        } else {
-            false
-        };
-        let source_changed = source_changed || temporal_changed;
+        if let Some(temporal) = &mut self.temporal {
+            temporal.prepare(gpu, source, settings, &frame, &mut created);
+        }
         let source = self
             .temporal
             .as_ref()
             .and_then(|v| v.output())
             .unwrap_or(source);
         self.exposure
-            .prepare(gpu, source, settings, raw, source_changed);
+            .prepare(gpu, source, settings, raw, &mut created);
         if !raw
             && settings.depth_of_field.enabled
             && settings.depth_of_field.max_blur_radius > 0.
@@ -154,33 +158,34 @@ impl Display {
         {
             self.dof = Some(depth_of_field::Dof::new(gpu));
         }
-        let dof_changed = if let Some(dof) = &mut self.dof {
-            dof.prepare(gpu, source, settings.depth_of_field, &frame, source_changed)?
-        } else {
-            false
-        };
-        let source_changed =
-            dof_changed || (self.dof.as_ref().and_then(|d| d.output()).is_none() && source_changed);
+        if let Some(dof) = &mut self.dof {
+            dof.prepare(gpu, source, settings.depth_of_field, &frame, &mut created)?;
+        }
         let source = self
             .dof
             .as_ref()
             .and_then(|dof| dof.output())
             .unwrap_or(source);
-        if source_changed {
-            self.bloom.invalidate();
-        }
-        let bloom_changed = self.bloom.prepare(
+        self.bloom.prepare(
             gpu,
             source,
             size,
             settings.bloom,
             !raw && settings.bloom.enabled && settings.bloom.intensity > 0.,
+            &mut created,
         );
-        let binding = (source_changed || bloom_changed).then(|| self.binding(gpu, source));
+        let mut bindings = std::mem::take(&mut self.bindings);
+        if replacement.is_some() {
+            bindings.clear();
+        }
+        let key = [source.clone(), self.bloom.output().clone()];
+        if bindings.select(key, |[source, _]| self.binding(gpu, source)) {
+            created += 1;
+        }
+        self.bindings = bindings;
+        self.bind_groups = created;
         if let Some(view) = replacement {
-            self.target = Some((view, binding.unwrap(), size));
-        } else if let Some(binding) = binding {
-            self.target.as_mut().unwrap().1 = binding;
+            self.target = Some((view, size));
         }
         let grade = settings.color_grading;
         gpu.queue.write_buffer(
@@ -310,7 +315,7 @@ impl Display {
             ..Default::default()
         });
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.target.as_ref().unwrap().1, &[]);
+        pass.set_bind_group(0, self.bindings.current().unwrap(), &[]);
         pass.draw(0..3, 0..1);
     }
 }

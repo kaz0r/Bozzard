@@ -179,6 +179,7 @@ struct Totals {
     indirect_runs: usize,
     pipeline_binds: usize,
     shadow_draws: usize,
+    post_bind_groups: usize,
 }
 impl Totals {
     fn add(&mut self, stats: &FrameStats, wall: f64) {
@@ -195,10 +196,11 @@ impl Totals {
         self.indirect_runs += stats.multi_draw_indirect_runs;
         self.pipeline_binds += stats.pipeline_binds;
         self.shadow_draws += stats.shadow_draws;
+        self.post_bind_groups += stats.post_bind_groups;
     }
     fn print(self, workload: &str, frames: usize) {
         println!(
-            "renderer_caches workload={workload} frames={frames} cpu_median_ms={:.3} synchronized_median_ms={:.3} encode_median_ms={:.3} shadow_maps={} shadow_draws={} object_buffer_allocations={} instance_buffer_allocations={} surface_records_built={} plan_rebuilds={} bundle_compilations={} bundle_replays={} indirect_runs={} pipeline_binds={}",
+            "renderer_caches workload={workload} frames={frames} cpu_median_ms={:.3} synchronized_median_ms={:.3} encode_median_ms={:.3} shadow_maps={} shadow_draws={} object_buffer_allocations={} instance_buffer_allocations={} surface_records_built={} plan_rebuilds={} bundle_compilations={} bundle_replays={} indirect_runs={} pipeline_binds={} post_bind_groups={}",
             median(self.cpu),
             median(self.wall),
             median(self.encode),
@@ -212,6 +214,7 @@ impl Totals {
             self.bundle_replays,
             self.indirect_runs,
             self.pipeline_binds,
+            self.post_bind_groups,
         );
     }
 }
@@ -523,5 +526,29 @@ fn text_atlas_changes_keep_shadow_maps() -> anyhow::Result<()> {
     assert_eq!(capture(&gpu, &mut renderer, &scene)?.rgba, empty.rgba);
     assert_eq!(renderer.frame_stats().shadow_maps_rendered, 0);
     assert_eq!(renderer.frame_stats().surface_records_built, 0);
+    Ok(())
+}
+
+#[test]
+fn temporal_ping_pong_reuses_post_bind_groups() -> anyhow::Result<()> {
+    let gpu = gpu()?;
+    let mut renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8Unorm);
+    upload_meshes(&gpu, &mut renderer)?;
+    let mut scene = grid(320);
+    scene.display.temporal_aa.enabled = true;
+    scene.display.bloom.enabled = true;
+    scene.display.auto_exposure.enabled = true;
+    scene.display.depth_of_field.enabled = true;
+    for blur in [false, true] {
+        scene.display.motion_blur.enabled = blur;
+        let mut created = Vec::new();
+        for frame in 0..6 {
+            scene.display.time_seconds = frame as f32 / 60.;
+            capture(&gpu, &mut renderer, &scene)?;
+            created.push(renderer.frame_stats().post_bind_groups);
+        }
+        // Both history indices bind once; later frames alternate between them.
+        assert_eq!(created[2..], [0; 4], "motion blur {blur}: {created:?}");
+    }
     Ok(())
 }

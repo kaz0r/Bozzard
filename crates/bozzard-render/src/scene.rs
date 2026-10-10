@@ -2097,6 +2097,7 @@ impl SceneRenderer {
                 shadows: Some(&self.shadows),
             },
         )?;
+        self.stats.post_bind_groups = self.display.bind_groups;
         self.prepare_gi(gpu, scene.gi.as_ref())?;
         scene.lighting.validate()?;
         let lights = local_lights::uniform(&scene.lights)?;
