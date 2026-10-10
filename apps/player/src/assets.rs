@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bozzard_assets::{AssetStore, LoadState};
+use bozzard_assets::{AssetStore, LoadState, RefreshScan};
 use bozzard_render::{Gpu, SceneRenderer};
 use bozzard_scene::Scene;
 use std::{
@@ -11,7 +11,11 @@ pub struct Assets {
     store: AssetStore,
     residency: bozzard_render_assets::Residency,
     last_poll: Instant,
+    /// When a published reload last read every source rather than only changed ones.
+    last_verify: Instant,
     reload: Option<bozzard_assets::job::Job<(AssetStore, Vec<bozzard_assets::Handle>)>>,
+    reload_scan: RefreshScan,
+    reload_started: Instant,
     last_pressure: usize,
     scene_generation: u64,
     reload_generation: u64,
@@ -38,7 +42,10 @@ impl Assets {
             store,
             residency: bozzard_render_assets::Residency::default(),
             last_poll: Instant::now(),
+            last_verify: Instant::now(),
             reload: None,
+            reload_scan: RefreshScan::Changed,
+            reload_started: Instant::now(),
             last_pressure: 0,
             scene_generation: 0,
             reload_generation: 0,
@@ -124,7 +131,15 @@ impl Assets {
             return Ok(());
         }
         if self.reload.is_none() && self.last_poll.elapsed() >= Duration::from_millis(500) {
-            self.reload = Some(self.store.refresh_job()?);
+            // Compare file metadata, and now and then read every source for edits that
+            // metadata can miss, as the editor does.
+            self.reload_scan = if self.last_verify.elapsed() >= RefreshScan::VERIFY_INTERVAL {
+                RefreshScan::Verify
+            } else {
+                RefreshScan::Changed
+            };
+            self.reload_started = Instant::now();
+            self.reload = Some(self.store.refresh_job_scan(self.reload_scan)?);
             self.reload_generation = self.scene_generation;
         }
         let Some(result) = self.reload.as_ref().and_then(|job| job.poll()) else {
@@ -136,6 +151,9 @@ impl Assets {
             return Ok(());
         }
         let (store, changed) = result?;
+        if self.reload_scan == RefreshScan::Verify {
+            self.last_verify = self.reload_started;
+        }
         self.store = store;
         for handle in changed {
             let entry = self
