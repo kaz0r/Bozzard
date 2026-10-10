@@ -51,6 +51,8 @@ use std::{
 
 const MAX_SOURCE_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_DECODED_IMAGE_BYTES: usize = 128 * 1024 * 1024;
+/// Widest and tallest image any importer decodes, so the largest one generated output may hold.
+const MAX_IMAGE_SIDE: u32 = 4096;
 // Sponza's complete set of shared PBR maps decodes to 272 MiB.
 const MAX_GLTF_IMAGE_BYTES: usize = 512 * 1024 * 1024;
 const MAX_VERTICES: usize = 1_000_000;

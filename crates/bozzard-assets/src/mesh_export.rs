@@ -49,11 +49,18 @@ impl Images {
         let source = if let Some(index) = self.shared.get(&key) {
             *index
         } else {
+            // The output is only useful if the importer can read it back, so it gets the
+            // same limit as every imported, cooked or compressed image.
             ensure!(
-                (1..=8192).contains(&image.width)
-                    && (1..=8192).contains(&image.height)
-                    && image.rgba.len() as u64
-                        == u64::from(image.width) * u64::from(image.height) * 4,
+                (1..=crate::MAX_IMAGE_SIDE).contains(&image.width)
+                    && (1..=crate::MAX_IMAGE_SIDE).contains(&image.height),
+                "generated texture is {}×{} pixels; images are limited to {max}×{max}",
+                image.width,
+                image.height,
+                max = crate::MAX_IMAGE_SIDE
+            );
+            ensure!(
+                image.rgba.len() as u64 == u64::from(image.width) * u64::from(image.height) * 4,
                 "invalid generated texture dimensions"
             );
             let mut png = Vec::new();
