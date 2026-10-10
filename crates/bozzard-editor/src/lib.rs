@@ -1304,6 +1304,30 @@ impl Editor {
         layer: Layer,
         size: [f32; 2],
     ) -> Result<bozzard_scene::middleware::ui::Frame> {
+        use bozzard_scene::{
+            Component,
+            middleware::ui::{Canvas, Frame, Widget},
+        };
+        // Widgets only come from authored UI components or generated game menus.
+        // Without them the frame is empty, so an edit need not rebuild the edit world.
+        if self.play.is_none()
+            && self.scene.game_flow.is_none()
+            && !self
+                .scene
+                .objects
+                .iter()
+                .any(|o| o.extras.contains_key(Canvas::NAME) || o.extras.contains_key(Widget::NAME))
+        {
+            ensure!(
+                size.iter()
+                    .all(|v| v.is_finite() && (1.0..=32768.).contains(v)),
+                "invalid UI viewport"
+            );
+            return Ok(Frame {
+                size,
+                ..Default::default()
+            });
+        }
         let edit;
         let demo = if let Some(play) = &self.play {
             play
@@ -1412,7 +1436,7 @@ impl Editor {
             .as_ref()
             .is_none_or(|(revision, _)| *revision != self.revision)
         {
-            let demo = SceneRuntime::new(&self.scene)?;
+            let demo = SceneRuntime::new_shared(&self.scene_snapshot())?;
             *self.edit_demo.borrow_mut() = Some((self.revision, demo));
         }
         Ok(std::cell::Ref::map(self.edit_demo.borrow(), |cached| {
@@ -1792,6 +1816,42 @@ mod tests {
         e.redo().unwrap();
         assert!(e.dirty());
         assert_eq!(e.selected_transform().unwrap(), moved);
+    }
+    #[test]
+    fn edit_ui_frames_match_a_fresh_edit_world_with_and_without_widgets() {
+        // Element IDs include the world instance; compare everything else.
+        let shape = |mut frame: bozzard_scene::middleware::ui::Frame| {
+            frame.elements.iter_mut().for_each(|e| e.id = 0);
+            format!("{frame:?}")
+        };
+        let scenes = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo/scenes");
+        // No UI, authored canvases and widgets, and game menus generated at spawn.
+        for name in ["scene-lab", "ui-2d-lab", "game-flow-lab"] {
+            let editor = Editor::open(&scenes.join(format!("{name}.json"))).unwrap();
+            let world = SceneRuntime::new(editor.scene()).unwrap();
+            let mut elements = 0;
+            for layer in [Layer::ThreeD, Layer::TwoD] {
+                for size in [[800., 600.], [1., 1.], [32768., 3.]] {
+                    let frame = editor.ui_frame(layer, size).unwrap();
+                    let reference = world.instance().ui_frame(&world.app.world, layer, size);
+                    elements += frame.elements.len();
+                    assert!(
+                        shape(frame) == shape(reference.unwrap()),
+                        "{name} {layer:?} {size:?}"
+                    );
+                }
+                for size in [[0., 600.], [f32::NAN, 1.], [40000., 1.]] {
+                    assert!(editor.ui_frame(layer, size).is_err());
+                    assert!(
+                        world
+                            .instance()
+                            .ui_frame(&world.app.world, layer, size)
+                            .is_err()
+                    );
+                }
+            }
+            assert_eq!(elements > 0, name != "scene-lab", "{name}");
+        }
     }
     #[test]
     fn duplicate_preserves_exact_local_and_world_transforms() {

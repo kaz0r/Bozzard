@@ -16,14 +16,36 @@ impl EffectsPreview {
     /// Native previews use persistent GPU particle motion; headless previews retain the CPU reference.
     pub fn with_gpu_particles(editor: &Editor, gpu: bool) -> Result<Self> {
         let source = editor.scene_snapshot();
-        let mut demo = SceneRuntime::new(&source)?;
+        Ok(Self {
+            demo: Self::world(&source, gpu, None)?,
+            source,
+            render_cache: Default::default(),
+        })
+    }
+    /// The preview world of `source`. While the emitters stay the same, an edit continues
+    /// the previous world's particles and clock instead of prewarming them again.
+    fn world(
+        source: &Arc<Scene>,
+        gpu: bool,
+        previous: Option<(&Scene, &mut SceneRuntime)>,
+    ) -> Result<SceneRuntime> {
+        let mut demo = SceneRuntime::new_shared(source)?;
         demo.with_instance(|instance, _| instance.set_gpu_particles(gpu));
-        if editor
-            .scene()
-            .objects
-            .iter()
-            .any(|o| o.particle_emitter.is_some())
+        let emitters = |scene: &Scene| {
+            scene
+                .objects
+                .iter()
+                .filter(|o| o.particle_emitter.is_some())
+                .map(|o| o.id.clone())
+                .collect::<Vec<_>>()
+        };
+        if let Some((scene, previous)) = previous
+            && emitters(scene) == emitters(source)
         {
+            demo.with_instance(|instance, _| {
+                previous.with_instance(|old, _| instance.adopt_effects(old))
+            });
+        } else if source.objects.iter().any(|o| o.particle_emitter.is_some()) {
             for _ in 0..24 {
                 demo.with_instance(|instance, world| {
                     instance
@@ -32,17 +54,17 @@ impl EffectsPreview {
                 })?;
             }
         }
-        Ok(Self {
-            source,
-            demo,
-            render_cache: Default::default(),
-        })
+        Ok(demo)
     }
     fn adopt_source(&mut self, editor: &Editor) -> Result<()> {
         // Panel edits can land after advance; refresh before either render path
         // so the viewport revision always describes the pixels it actually drew.
-        if !Arc::ptr_eq(&self.source, &editor.scene_snapshot()) {
-            *self = Self::with_gpu_particles(editor, self.demo.instance().gpu_particles_enabled())?;
+        let source = editor.scene_snapshot();
+        if !Arc::ptr_eq(&self.source, &source) {
+            // Like the editor's own cache across edit worlds, extraction payloads stay.
+            let gpu = self.demo.instance().gpu_particles_enabled();
+            self.demo = Self::world(&source, gpu, Some((&self.source, &mut self.demo)))?;
+            self.source = source;
         }
         Ok(())
     }
@@ -263,6 +285,54 @@ mod tests {
             assert!(!after.particles.is_empty());
             assert!(
                 after
+                    .particles
+                    .iter()
+                    .all(|p| p.simulation.is_some() == gpu)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn edits_continue_preview_particles_until_the_emitters_change() -> Result<()> {
+        for gpu in [false, true] {
+            let mut editor = Editor::new(
+                bozzard_runtime::scene_document()?,
+                std::path::Path::new("/tmp/bozzard-effects-continue.json"),
+            )?;
+            editor.create_particle_emitter(bozzard_scene::ParticleKind::Sparks)?;
+            let mut preview = EffectsPreview::with_gpu_particles(&editor, gpu)?;
+            for _ in 0..5 {
+                preview.advance(&editor, Duration::from_secs_f32(0.1), true)?;
+            }
+            let before = preview.render(&editor, Layer::ThreeD, 1.)?;
+            assert!(!before.particles.is_empty());
+            // An edit that keeps the emitters continues their particles and clock.
+            let mut scene = editor.scene().clone();
+            scene.objects[0].name.push_str(" renamed");
+            scene.objects[0].transform.translation[1] += 1.;
+            editor.apply("Rename", scene)?;
+            let after = preview.render(&editor, Layer::ThreeD, 1.)?;
+            assert!(Arc::ptr_eq(&preview.source, &editor.scene_snapshot()));
+            assert_eq!(after.display.time_seconds, before.display.time_seconds);
+            assert_eq!(after.particles, before.particles);
+            preview.advance(&editor, Duration::from_secs_f32(0.1), true)?;
+            assert_ne!(
+                preview.render(&editor, Layer::ThreeD, 1.)?.particles,
+                before.particles
+            );
+            // Another emitter starts again from a freshly prewarmed preview.
+            editor.create_particle_emitter(bozzard_scene::ParticleKind::Smoke)?;
+            let rebuilt = preview.render(&editor, Layer::ThreeD, 1.)?;
+            let fresh = EffectsPreview::with_gpu_particles(&editor, gpu)?.render(
+                &editor,
+                Layer::ThreeD,
+                1.,
+            )?;
+            assert_eq!(rebuilt.display.time_seconds, fresh.display.time_seconds);
+            assert_eq!(rebuilt.particles.len(), fresh.particles.len());
+            assert!(
+                rebuilt
                     .particles
                     .iter()
                     .all(|p| p.simulation.is_some() == gpu)

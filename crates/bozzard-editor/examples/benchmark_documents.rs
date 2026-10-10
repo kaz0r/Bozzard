@@ -309,6 +309,32 @@ fn pagoda(path: PathBuf) -> Result<()> {
             session.frame()
         },
     )?;
+    // The same edit split into the transaction and the frame that follows it.
+    measure_n(
+        "pagoda_structural_edit_only",
+        100,
+        &mut session,
+        |session| {
+            if session.editor.undo_label().is_some() {
+                session.editor.undo()?;
+            }
+            session.frame()
+        },
+        |session, ()| session.editor.create_empty(),
+    )?;
+    measure_n(
+        "pagoda_frame_after_edit",
+        100,
+        &mut session,
+        |session| {
+            if session.editor.undo_label().is_some() {
+                session.editor.undo()?;
+            }
+            session.frame()?;
+            session.editor.create_empty()
+        },
+        |session, ()| session.frame(),
+    )?;
     measure_n(
         "pagoda_undo_frame",
         100,
