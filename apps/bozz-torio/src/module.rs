@@ -277,7 +277,7 @@ mod tests {
         let path = SceneSource::default_path();
         let source = SceneSource::open(path.clone()).unwrap();
         let module = FactoryModule::from_scene(&source.authored, &path).unwrap();
-        let mut play = bozzard_demo::SceneDemo::new(&source.authored).unwrap();
+        let mut play = bozzard_runtime::SceneRuntime::new(&source.authored).unwrap();
         play.app
             .install_modules(vec![Box::new(module.clone())])
             .unwrap();

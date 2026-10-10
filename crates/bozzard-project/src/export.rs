@@ -50,7 +50,7 @@ pub fn prepare_export(
         "player runtime is missing: {}",
         player.display()
     );
-    let steam_app_id = bozzard_demo::multiplayer::app_id(scene)?;
+    let steam_app_id = bozzard_runtime::multiplayer::app_id(scene)?;
     crate::runtime::validate_player(player, steam_app_id)?;
     let destination = std::path::absolute(destination)?;
     ensure!(
@@ -117,7 +117,7 @@ pub fn prepare_export(
     progress.stage("Validating compressed gamepack")?;
     let verified = GamePack::open(&data.join(GAMEPACK), progress)?;
     let (packed_project, packed_scene) = Project::load(&verified.project_path())?;
-    packed_project.validate_scene(&bozzard_demo::load_document(Some(&packed_scene))?)?;
+    packed_project.validate_scene(&bozzard_runtime::load_document(Some(&packed_scene))?)?;
     drop(verified);
     fs::remove_dir_all(content)?;
     progress.stage("Copying native player")?;
@@ -256,7 +256,7 @@ impl Cooker<'_> {
         self.scene_sources(&mut cooked, source.parent().unwrap_or(Path::new(".")))?;
         progress.stage("Validating exported scene and assets")?;
         let runtime =
-            bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&data.join(filename)))?;
+            bozzard_runtime::SceneRuntime::new_with_prefabs(&cooked, Some(&data.join(filename)))?;
         let mut assets = AssetStore::new(data, &runtime.instance().document().assets)?;
         assets.load_pending_with(progress)?;
         assets.require_ready()?;
@@ -275,8 +275,10 @@ impl Cooker<'_> {
                 if level.gi.baked.is_none() {
                     continue;
                 }
-                let runtime =
-                    bozzard_demo::SceneDemo::new_with_prefabs(level, Some(&data.join(filename)))?;
+                let runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(
+                    level,
+                    Some(&data.join(filename)),
+                )?;
                 let mut level_assets =
                     assets.for_catalog(data, &runtime.instance().document().assets)?;
                 level_assets.load_pending_with(progress)?;
@@ -402,7 +404,7 @@ impl Cooker<'_> {
             }
             fs::write(destination, bytes)?;
         } else if kind == AssetKind::Prefab {
-            let mut prefab = bozzard_demo::load_prefab(&source, self.progress)?.prefab;
+            let mut prefab = bozzard_runtime::load_prefab(&source, self.progress)?.prefab;
             self.catalog(&mut prefab.assets, source.parent().unwrap(), true)?;
             fs::write(destination, prefab.to_json()?)?;
         } else if kind == AssetKind::Material {
@@ -464,7 +466,7 @@ fn rebind_gi(
         return Ok(());
     }
     progress.stage("Checking baked lighting against cooking inputs")?;
-    let before = bozzard_demo::SceneDemo::new_with_prefabs(original, Some(source))?;
+    let before = bozzard_runtime::SceneRuntime::new_with_prefabs(original, Some(source))?;
     let before = before.instance().document();
     let root = source.parent().unwrap_or(Path::new("."));
     let mut originals = AssetStore::new(root, &before.assets)?;

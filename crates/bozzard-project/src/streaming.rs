@@ -6,7 +6,7 @@ use bozzard_app::{
     job::{Job, Progress},
 };
 use bozzard_assets::AssetStore;
-use bozzard_demo::relative_reference as relative;
+use bozzard_runtime::relative_reference as relative;
 use bozzard_scene::{
     Scene,
     scene_loading::{PreparedScene, SceneLoadPlan, SceneLoader, SceneLoaderHandle, SceneSource},
@@ -109,12 +109,12 @@ fn acquire(
     ensure!(json.len() <= 64 * 1024 * 1024, "scene file exceeds 64 MiB");
     progress.check()?;
     let document = Scene::from_json(&json)?;
-    let bozzard_demo::RuntimeSceneFiles {
+    let bozzard_runtime::RuntimeSceneFiles {
         mut scene,
         mut templates,
         sources,
         kernels,
-    } = bozzard_demo::prepare_runtime_files(&document, Some(&path), progress)?;
+    } = bozzard_runtime::prepare_runtime_files(&document, Some(&path), progress)?;
     rebase(
         &mut scene,
         path.parent().context("scene parent")?,
@@ -233,7 +233,7 @@ fn restore(
     let document = plan.checkpoint_document().context("saved scene missing")?;
     progress.report(0, 4, "Preparing saved scene dependencies")?;
     let files =
-        bozzard_demo::prepare_runtime_files(document, Some(&root.join("scene.json")), progress)?;
+        bozzard_runtime::prepare_runtime_files(document, Some(&root.join("scene.json")), progress)?;
     ensure!(
         files.scene.assets == document.assets,
         "saved prefab dependencies changed; restore the matching project/content version"

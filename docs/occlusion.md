@@ -9,7 +9,7 @@ culling**. The player enables it by default; `--no-occlusion` and the renderer's
 ## Reproduce a scene
 
 ```sh
-cargo run -p bozzard-demo --example occlusion_lab -- work/occlusion-lab.json
+cargo run -p bozzard-runtime --example occlusion_lab -- work/occlusion-lab.json
 cargo run -p bozzard-editor-app -- --scene work/occlusion-lab.json
 cargo run -p bozzard-player --release -- --scene work/occlusion-lab.json
 ```

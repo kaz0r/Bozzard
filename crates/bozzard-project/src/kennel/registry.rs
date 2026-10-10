@@ -337,9 +337,9 @@ fn render_index(packages: &[Package]) -> Result<Vec<u8>> {
 pub fn build_index(registry: &Path) -> Result<Index> {
     let packages = scan(registry)?;
     let bytes = render_index(&packages)?;
-    bozzard_demo::save_json(std::str::from_utf8(&bytes)?, &registry.join(INDEX_FILE))?;
+    bozzard_runtime::save_json(std::str::from_utf8(&bytes)?, &registry.join(INDEX_FILE))?;
     for (path, schema) in SCHEMAS {
-        bozzard_demo::save_json(schema, &registry.join(path))?;
+        bozzard_runtime::save_json(schema, &registry.join(path))?;
     }
     Ok(serde_json::from_slice(&bytes)?)
 }

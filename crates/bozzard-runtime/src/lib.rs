@@ -1,0 +1,1042 @@
+//! Shared simulation for the native player and the headless executable.
+pub mod factory;
+pub mod multiplayer;
+mod prefab_sources;
+mod prefabs;
+pub mod steam_runtime;
+use bozzard_app::{App, Entity, Plugin};
+use bozzard_scene::{GameplayInput, GameplayState, Scene, SceneInstance, Spin, Transform};
+pub use prefab_sources::{ResolvedPrefab, load_prefab, resolve_prefab};
+use std::{
+    io::Write,
+    path::Path,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
+pub fn load_document(path: Option<&Path>) -> anyhow::Result<Scene> {
+    multiplayer::register_component()?;
+    match path {
+        Some(path) => Scene::from_json(&std::fs::read_to_string(path)?),
+        None => scene_document(),
+    }
+}
+
+/// Rebase file references when saving elsewhere; assets themselves stay at their source paths.
+pub fn save_document_from(scene: &Scene, path: &Path, source: Option<&Path>) -> anyhow::Result<()> {
+    save_document(&prepare_document_from(scene, path, source)?, path)
+}
+
+/// Rebase through existing ancestor directories; the lazy target need not exist yet.
+pub fn relative_reference(target: &Path, root: &Path) -> anyhow::Result<String> {
+    use anyhow::{Context, ensure};
+    use std::path::{Component, PathBuf};
+    fn normalized(path: &Path) -> anyhow::Result<PathBuf> {
+        let absolute = std::path::absolute(path)?;
+        let mut ancestor = absolute.as_path();
+        let mut suffix = Vec::new();
+        let canonical = loop {
+            if let Ok(canonical) = ancestor.canonicalize() {
+                break canonical;
+            }
+            match ancestor.components().next_back() {
+                Some(Component::Normal(name)) => suffix.push(name.to_owned()),
+                Some(Component::ParentDir) => suffix.push("..".into()),
+                Some(Component::CurDir) => suffix.push(".".into()),
+                _ => break ancestor.to_owned(),
+            }
+            ancestor = ancestor.parent().context("path has no existing ancestor")?;
+        };
+        let mut canonical = canonical;
+        for part in suffix.into_iter().rev() {
+            canonical.push(part);
+        }
+        let mut result = PathBuf::new();
+        for part in canonical.components() {
+            match part {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    result.pop();
+                }
+                _ => result.push(part.as_os_str()),
+            }
+        }
+        Ok(result)
+    }
+    let root = normalized(root)?;
+    let target = normalized(target)?;
+    let from: Vec<_> = root.components().collect();
+    let to: Vec<_> = target.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    ensure!(
+        common > 0 && from.first() == to.first(),
+        "scene assets cannot cross filesystem roots"
+    );
+    let mut relative = PathBuf::new();
+    for _ in common..from.len() {
+        relative.push("..");
+    }
+    for part in &to[common..] {
+        relative.push(part.as_os_str());
+    }
+    Ok(relative
+        .to_str()
+        .context("scene path is not UTF-8")?
+        .replace('\\', "/"))
+}
+
+/// Prepare rebased references without replacing the destination document.
+pub fn prepare_document_from(
+    scene: &Scene,
+    path: &Path,
+    source: Option<&Path>,
+) -> anyhow::Result<Scene> {
+    use anyhow::{Context, ensure};
+    if scene.assets.is_empty() && scene.runtime_scene_sources.is_empty() {
+        scene.validate()?;
+        return Ok(scene.clone());
+    }
+    scene.validate()?;
+    let parent = |path: &Path| {
+        path.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .to_path_buf()
+    };
+    let root = source
+        .map(parent)
+        .unwrap_or_else(|| Path::new(".").to_path_buf());
+    let destination = parent(path);
+    std::fs::create_dir_all(&destination)?;
+    let destination = destination.canonicalize()?;
+    let mut saved = scene.clone();
+    for asset in saved.assets.values_mut() {
+        let target = root
+            .join(&asset.path)
+            .canonicalize()
+            .with_context(|| format!("resolving asset '{}' for save", asset.path))?;
+        let from: Vec<_> = destination.components().collect();
+        let to: Vec<_> = target.components().collect();
+        let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+        ensure!(
+            common > 0 && from.first() == to.first(),
+            "cannot save relative asset references across filesystem roots"
+        );
+        let mut relative = std::path::PathBuf::new();
+        for _ in common..from.len() {
+            relative.push("..");
+        }
+        for component in &to[common..] {
+            relative.push(component.as_os_str());
+        }
+        asset.path = relative
+            .to_str()
+            .context("asset path is not UTF-8")?
+            .replace('\\', "/");
+    }
+    for input in saved.runtime_scene_sources.values_mut() {
+        use bozzard_scene::scene_loading::SceneSource;
+        match input {
+            SceneSource::File { path } => {
+                *path = relative_reference(&root.join(&*path), &destination)?
+            }
+            SceneSource::Content { catalog, .. }
+                if !catalog.starts_with("https://") && !catalog.starts_with("http://") =>
+            {
+                *catalog = relative_reference(&root.join(&*catalog), &destination)?;
+            }
+            _ => {}
+        }
+    }
+    for level in saved.runtime_scenes.values_mut() {
+        for (id, asset) in &mut std::sync::Arc::make_mut(level).assets {
+            *asset = saved.assets[id].clone();
+        }
+    }
+    Ok(saved)
+}
+
+/// Validate first, then replace through a sibling temporary file so failed saves keep the old file.
+pub fn save_document(scene: &Scene, path: &Path) -> anyhow::Result<()> {
+    save_json(&scene.to_json()?, path)
+}
+
+/// Atomic replacement shared by scene and portable blueprint exports.
+pub fn save_json(json: &str, path: &Path) -> anyhow::Result<()> {
+    save_atomic(path, |file| Ok(file.write_all(json.as_bytes())?))
+}
+
+/// Stream a document/capture into a sibling file before replacing the destination.
+pub fn save_atomic(
+    path: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    static NEXT_SAVE: AtomicU64 = AtomicU64::new(0);
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    let temp = parent.join(format!(
+        ".bozzard-save-{}-{}.tmp",
+        std::process::id(),
+        NEXT_SAVE.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temp)?;
+    let result = (|| -> anyhow::Result<()> {
+        write(&mut file)?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&temp, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result
+}
+
+pub fn scene_document() -> anyhow::Result<Scene> {
+    Scene::from_json(include_str!("../../../examples/demo/scenes/scene-lab.json"))
+}
+
+#[derive(Default)]
+struct SimulationStatus {
+    error: Option<String>,
+}
+
+/// File-backed dependencies prepared without spawning a second runtime world.
+pub struct RuntimeSceneFiles {
+    pub scene: Scene,
+    pub templates: std::collections::BTreeMap<String, bozzard_scene::Prefab>,
+    pub sources: std::collections::BTreeMap<String, String>,
+    pub kernels: std::collections::BTreeMap<String, std::sync::Arc<bozzard_scene::compute::Kernel>>,
+}
+
+pub fn prepare_runtime_files(
+    document: &Scene,
+    path: Option<&Path>,
+    progress: &bozzard_app::job::Progress,
+) -> anyhow::Result<RuntimeSceneFiles> {
+    progress.stage("Preparing prefab catalog")?;
+    let mut scene = document.clone();
+    let mut templates = std::collections::BTreeMap::new();
+    // Prefabs first: loading them merges the catalog of every prefab a scene can spawn into the
+    // scene, and a prefab member may carry scripts of its own. Script sources are then read
+    // once, next to the prefabs, so ticks never do file I/O.
+    let (main, loaded) = prefabs::load(document, path, progress)?;
+    scene.assets = main.assets;
+    templates.extend(loaded);
+    for (name, level) in &document.runtime_scenes {
+        progress.stage(format!("Preparing runtime scene {name}"))?;
+        let mut source = level.as_ref().clone();
+        source.assets = scene.assets.clone();
+        let (mut prepared, loaded) = prefabs::load(&source, path, progress)?;
+        scene.assets.extend(prepared.assets.clone());
+        templates.extend(loaded);
+        prepared.runtime_scenes.clear();
+        scene
+            .runtime_scenes
+            .insert(name.clone(), std::sync::Arc::new(prepared));
+    }
+    for level in scene.runtime_scenes.values_mut() {
+        std::sync::Arc::make_mut(level).assets = scene.assets.clone();
+    }
+    // Load the final shared catalog once, after every level has contributed dependencies.
+    let sources = bozzard_scene::load_sources_with_progress(&scene, path, progress)?;
+    let kernels = bozzard_scene::load_compute_kernels_with_progress(&scene, path, progress)?;
+    Ok(RuntimeSceneFiles {
+        scene,
+        templates,
+        sources,
+        kernels,
+    })
+}
+
+pub struct SceneRuntime {
+    pub app: App,
+    multiplayer: Option<multiplayer::Multiplayer>,
+    factory_multiplayer: Option<factory::network::Multiplayer>,
+    simulation_worker: Option<bozzard_app::simulation_worker::SimulationWorker>,
+    render_interpolation: bool,
+    steam_overlay_active: bool,
+}
+
+impl SceneRuntime {
+    /// Enable presentation history for local native frames. Pause/debugger and
+    /// network presentation use their exact or independently smoothed state.
+    pub fn set_render_interpolation(&mut self, enabled: bool) -> anyhow::Result<()> {
+        self.render_interpolation = enabled;
+        let active = enabled
+            && !self.app.is_paused()
+            && bozzard_scene::game_flow::simulation_running(&self.app.world)
+            && !self.multiplayer_active();
+        let fraction = self.app.interpolation();
+        self.with_instance(|instance, world| {
+            instance.set_render_interpolation(world, active)?;
+            SceneInstance::set_render_interpolation_fraction(world, fraction)
+        })
+    }
+
+    pub fn render_view(
+        &self,
+        layer: bozzard_scene::Layer,
+        aspect: f32,
+        inspection_pose: Option<glam::Mat4>,
+    ) -> anyhow::Result<bozzard_scene::SceneView> {
+        if self.render_interpolation
+            && !self.app.is_paused()
+            && bozzard_scene::game_flow::simulation_running(&self.app.world)
+            && !self.multiplayer_active()
+        {
+            self.instance().view_interpolated_from_camera(
+                &self.app.world,
+                layer,
+                aspect,
+                inspection_pose,
+                self.app.interpolation(),
+            )
+        } else {
+            self.instance()
+                .view_from_camera(&self.app.world, layer, aspect, inspection_pose)
+        }
+    }
+    /// A frozen native snapshot shares unchanged drawable and shader payloads.
+    pub fn render_view_shared(
+        &self,
+        layer: bozzard_scene::Layer,
+        aspect: f32,
+        inspection_pose: Option<glam::Mat4>,
+    ) -> anyhow::Result<bozzard_scene::SharedSceneView> {
+        if self.render_interpolation
+            && !self.app.is_paused()
+            && bozzard_scene::game_flow::simulation_running(&self.app.world)
+            && !self.multiplayer_active()
+        {
+            self.instance().view_shared_interpolated_from_camera(
+                &self.app.world,
+                layer,
+                aspect,
+                inspection_pose,
+                self.app.interpolation(),
+            )
+        } else {
+            self.instance()
+                .view_shared_from_camera(&self.app.world, layer, aspect, inspection_pose)
+        }
+    }
+    /// Native hosts opt into overlapping local simulation with a prepared frame.
+    /// Multiplayer retains its own independently paced worker.
+    pub fn set_threaded_simulation(&mut self, enabled: bool) -> anyhow::Result<()> {
+        if enabled == self.simulation_worker.is_some() {
+            return Ok(());
+        }
+        let enabled = enabled && !self.requires_multiplayer() && self.multiplayer.is_none();
+        if enabled && self.simulation_worker.is_none() {
+            self.simulation_worker = Some(bozzard_app::simulation_worker::SimulationWorker::new()?);
+        } else if !enabled {
+            self.simulation_worker = None;
+        }
+        Ok(())
+    }
+
+    pub fn advance_with_frame<R>(
+        &mut self,
+        elapsed: std::time::Duration,
+        frame: impl FnOnce() -> R,
+    ) -> anyhow::Result<R> {
+        let result = if let Some(worker) = &mut self.simulation_worker {
+            worker.advance_with(&mut self.app, elapsed, frame)?
+        } else {
+            bozzard_app::simulation_worker::advance_serial(&mut self.app, elapsed, frame)
+        };
+        self.check_simulation()?;
+        Ok(result)
+    }
+
+    pub fn requires_multiplayer(&self) -> bool {
+        self.instance()
+            .document()
+            .objects
+            .iter()
+            .any(|o| o.extras.contains_key("steam_multiplayer"))
+    }
+    pub fn simulation_worker_failed(&self) -> bool {
+        self.simulation_worker
+            .as_ref()
+            .is_some_and(|worker| worker.failed())
+    }
+    /// Called only when publishing Play on the main thread, never by scene-loading workers.
+    pub fn enable_editor_multiplayer(&mut self) -> anyhow::Result<()> {
+        #[cfg(feature = "steam")]
+        steam_runtime::initialize_editor(self.instance().document())?;
+        self.enable_multiplayer(None)
+    }
+
+    pub fn enable_multiplayer(&mut self, join: Option<u64>) -> anyhow::Result<()> {
+        if factory::is_factory(self.instance().document()) {
+            if self.factory_multiplayer.is_none() {
+                self.factory_multiplayer =
+                    Some(factory::network::Multiplayer::new(self.instance(), join)?);
+            }
+            return Ok(());
+        }
+        anyhow::ensure!(
+            join.is_none() || self.requires_multiplayer(),
+            "--join-lobby requires a multiplayer scene"
+        );
+        if self.requires_multiplayer() && self.multiplayer.is_none() {
+            let net = multiplayer::Multiplayer::new(self.instance(), join)?;
+            self.attach_multiplayer(net)?;
+        }
+        Ok(())
+    }
+    pub fn attach_multiplayer(&mut self, mut net: multiplayer::Multiplayer) -> anyhow::Result<()> {
+        anyhow::ensure!(self.multiplayer.is_none(), "multiplayer already active");
+        self.simulation_worker = None;
+        net.update(self)?;
+        self.multiplayer = Some(net);
+        Ok(())
+    }
+    pub fn multiplayer_active(&self) -> bool {
+        self.multiplayer.is_some()
+            || self
+                .factory_multiplayer
+                .as_ref()
+                .is_some_and(|net| net.active())
+    }
+    /// Flap's prediction worker owns its ticks; factory co-op uses the ordinary
+    /// local simulation worker for host production and guest presentation.
+    pub fn multiplayer_drives_simulation(&self) -> bool {
+        self.multiplayer.is_some()
+    }
+    /// Live edits are local-only. Network peers must coordinate a restart so host and
+    /// prediction rules remain identical.
+    pub fn request_script_reload(
+        &mut self,
+        asset: &str,
+        source: String,
+    ) -> anyhow::Result<bozzard_scene::ScriptReloadRequest> {
+        anyhow::ensure!(
+            !self.multiplayer_active(),
+            "Stop multiplayer Play and restart all peers to load script edits"
+        );
+        self.with_instance(|instance, _| instance.request_script_reload(asset, source))
+    }
+    pub fn publish_script_reload(
+        &mut self,
+        candidate: bozzard_scene::ScriptReloadCandidate,
+    ) -> anyhow::Result<bozzard_scene::ScriptReloadStatus> {
+        anyhow::ensure!(
+            !self.multiplayer_active(),
+            "Stop multiplayer Play and restart all peers to load script edits"
+        );
+        self.with_instance(|instance, world| instance.publish_script_reload(world, candidate))
+    }
+    pub fn multiplayer_quit(&self) -> bool {
+        self.multiplayer.as_ref().is_some_and(|net| net.quit)
+    }
+    pub fn multiplayer_title(&self) -> Option<String> {
+        self.multiplayer.as_ref().map(|net| net.title())
+    }
+    pub fn multiplayer_telemetry(&self) -> Option<multiplayer::Telemetry> {
+        self.multiplayer
+            .as_ref()
+            .map(multiplayer::Multiplayer::telemetry)
+    }
+    pub fn multiplayer_chatting(&self) -> bool {
+        self.multiplayer.as_ref().is_some_and(|net| net.chatting)
+            || self
+                .factory_multiplayer
+                .as_ref()
+                .is_some_and(|net| net.chatting)
+    }
+    pub fn multiplayer_text(&mut self, text: &str) -> bool {
+        if self.steam_overlay_active {
+            return true;
+        }
+        if let Some(net) = &mut self.factory_multiplayer {
+            return net.text(text);
+        }
+        self.multiplayer.as_mut().is_some_and(|net| net.text(text))
+    }
+    pub fn multiplayer_key(&mut self, key: &str) -> bool {
+        if self.steam_overlay_active {
+            return true;
+        }
+        if let Some(net) = &mut self.factory_multiplayer {
+            let consumed = net.key(key);
+            if consumed {
+                self.clear_gameplay_input();
+            }
+            return consumed;
+        }
+        self.multiplayer.as_mut().is_some_and(|net| net.key(key))
+    }
+    pub fn join_multiplayer(&mut self, id: u64) -> anyhow::Result<()> {
+        if let Some(net) = &mut self.factory_multiplayer {
+            return net.join(id);
+        }
+        self.multiplayer
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("Start multiplayer Play first"))?
+            .join(id)
+    }
+    pub fn pump_multiplayer(&mut self) -> anyhow::Result<()> {
+        if let Some(mut net) = self.factory_multiplayer.take() {
+            let result = net.update(self);
+            self.factory_multiplayer = Some(net);
+            result?;
+        }
+        if let Some(mut net) = self.multiplayer.take() {
+            let result = net.update(self);
+            self.multiplayer = Some(net);
+            result?;
+        }
+        self.set_steam_overlay_active(steam_runtime::overlay_active());
+        Ok(())
+    }
+
+    pub fn steam_overlay_active(&self) -> bool {
+        self.steam_overlay_active
+    }
+
+    /// Native overlay transitions cancel held controls and drags without pausing
+    /// the simulation. Clear both edges so closing it cannot replay stale input.
+    pub fn set_steam_overlay_active(&mut self, active: bool) {
+        if self.steam_overlay_active == active {
+            return;
+        }
+        self.steam_overlay_active = active;
+        self.clear_gameplay_input();
+        if let Some(ui) = self
+            .app
+            .world
+            .resource_mut::<bozzard_scene::middleware::ui::Runtime>()
+        {
+            ui.active = None;
+            ui.pointer = None;
+            ui.pointer_blocked = false;
+            ui.script_events.clear();
+            ui.script_events
+                .push(bozzard_scene::middleware::ui::ScriptEvent {
+                    kind: "cancel",
+                    target: String::new(),
+                    position: [0.; 2],
+                    delta: 0.,
+                    blocked: true,
+                });
+        }
+    }
+
+    pub fn ui_input(
+        &mut self,
+        layer: bozzard_scene::Layer,
+        size: [f32; 2],
+        input: bozzard_scene::middleware::ui::Input,
+    ) -> anyhow::Result<bool> {
+        if self.steam_overlay_active {
+            return Ok(true);
+        }
+        if let Some(mut net) = self.multiplayer.take() {
+            let result = net.ui_input(self, layer, size, input);
+            self.multiplayer = Some(net);
+            return result;
+        }
+        if self.app.is_paused() {
+            return Ok(false);
+        }
+        let phase = self.game_session().map(|s| s.phase);
+        let consumed =
+            self.with_instance(|instance, world| instance.ui_input(world, layer, size, input))?;
+        if let Some(mut net) = self.factory_multiplayer.take() {
+            let result = net.handle_ui(self);
+            self.factory_multiplayer = Some(net);
+            result?;
+        }
+        self.with_instance(|instance, world| instance.dispatch_ui_blueprints(world))?;
+        if phase != self.game_session().map(|s| s.phase) {
+            self.clear_gameplay_input();
+        }
+        Ok(consumed)
+    }
+    /// UI callbacks can suspend outside App::step; resume them before the next fixed tick.
+    pub fn resume_debug_dispatch(&mut self) -> anyhow::Result<()> {
+        if !self.app.is_paused()
+            && self
+                .app
+                .world
+                .resource::<bozzard_scene::BlueprintRuntime>()
+                .is_some_and(|r| r.pending_ui_dispatch())
+        {
+            self.with_instance(|instance, world| instance.dispatch_ui_blueprints(world))?;
+        }
+        Ok(())
+    }
+    pub fn debug_command(&mut self, command: bozzard_scene::DebugCommand) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !self.multiplayer_active(),
+            "Network Play cannot pause or step; Stop Play to leave the lobby"
+        );
+        bozzard_scene::BlueprintDebugger::send(&mut self.app.world, command);
+        self.clear_gameplay_input();
+        if matches!(
+            command,
+            bozzard_scene::DebugCommand::StepNode | bozzard_scene::DebugCommand::StepTick
+        ) {
+            self.resume_debug_dispatch()?;
+            self.app.step();
+            self.check_simulation()?;
+        }
+        Ok(())
+    }
+    pub fn game_session(&self) -> Option<&bozzard_scene::GameSession> {
+        self.app.world.resource::<bozzard_scene::GameSession>()
+    }
+    pub fn game_action(&mut self, action: bozzard_scene::GameAction) -> anyhow::Result<()> {
+        use bozzard_scene::{GameAction as A, GamePhase as P, GameSession};
+        let Some(phase) = self.game_session().map(|s| s.phase) else {
+            return Ok(());
+        };
+        let next = match (phase, action) {
+            (P::Ready, A::Start) | (P::Paused, A::Resume) => P::Playing,
+            (P::Playing, A::Pause) => P::Paused,
+            (P::Playing | P::Paused | P::GameOver, A::Restart) => {
+                self.with_instance(|instance, world| instance.restart_runtime_scene(world))?;
+                self.app.world.insert_resource(SimulationStatus::default());
+                P::Playing
+            }
+            (_, A::Quit) => P::Quit,
+            _ => return Ok(()),
+        };
+        self.app
+            .world
+            .resource_mut::<GameSession>()
+            .expect("game session")
+            .phase = next;
+        self.clear_gameplay_input();
+        Ok(())
+    }
+    pub fn instance(&self) -> &SceneInstance {
+        self.app
+            .world
+            .resource::<SceneInstance>()
+            .expect("scene instance")
+    }
+    pub fn with_instance<R>(
+        &mut self,
+        f: impl FnOnce(&mut SceneInstance, &mut bozzard_app::World) -> R,
+    ) -> R {
+        let mut instance = self
+            .app
+            .world
+            .remove_resource::<SceneInstance>()
+            .expect("scene instance");
+        let result = f(&mut instance, &mut self.app.world);
+        self.app.world.insert_resource(instance);
+        result
+    }
+    pub fn accepts_gameplay_input(&self) -> bool {
+        !self.steam_overlay_active
+            && !self.app.is_paused()
+            && (self.gameplay().is_some() || self.instance().has_gameplay_logic())
+    }
+    pub fn gameplay(&self) -> Option<&GameplayState> {
+        self.app.world.resource::<GameplayState>()
+    }
+    /// Preserve queued edges until a fixed tick; neutral input clears them on focus loss.
+    pub fn set_gameplay_input(&mut self, input: GameplayInput) {
+        if self.steam_overlay_active
+            || self.app.is_paused()
+            || !bozzard_scene::game_flow::simulation_running(&self.app.world)
+        {
+            self.clear_gameplay_input();
+            return;
+        }
+        let previous = self
+            .app
+            .world
+            .resource::<GameplayInput>()
+            .copied()
+            .unwrap_or_default();
+        self.app.world.insert_resource(GameplayInput {
+            movement: input.movement,
+            keys: input.keys,
+            pressed_keys: previous.pressed_keys
+                | input.pressed_keys
+                | (input.keys & !previous.keys),
+            jump: previous.jump || input.jump,
+            fire: previous.fire || input.fire,
+            interact: previous.interact || input.interact,
+            orbit: [
+                previous.orbit[0] + input.orbit[0],
+                previous.orbit[1] + input.orbit[1],
+            ],
+        });
+    }
+    pub fn clear_gameplay_input(&mut self) {
+        self.app.world.insert_resource(GameplayInput::default());
+    }
+    pub fn check_simulation(&self) -> anyhow::Result<()> {
+        if let Some(error) = self
+            .app
+            .world
+            .resource::<SimulationStatus>()
+            .and_then(|status| status.error.as_ref())
+        {
+            anyhow::bail!("simulation failed: {error}");
+        }
+        Ok(())
+    }
+    pub fn new_with_prefabs(document: &Scene, path: Option<&Path>) -> anyhow::Result<Self> {
+        Self::new_with_prefabs_progress(document, path, &bozzard_app::job::Progress::default())
+    }
+    pub fn new_with_prefabs_progress(
+        document: &Scene,
+        path: Option<&Path>,
+        progress: &bozzard_app::job::Progress,
+    ) -> anyhow::Result<Self> {
+        let RuntimeSceneFiles {
+            scene,
+            templates,
+            sources,
+            kernels,
+        } = prepare_runtime_files(document, path, progress)?;
+        progress.stage("Preparing runtime world")?;
+        let mut demo = Self::new(&scene)?;
+        progress.check()?;
+        let directory = std::env::var_os("BOZZARD_SAVE_DIR")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                let base = std::env::var_os("LOCALAPPDATA")
+                    .or_else(|| std::env::var_os("XDG_DATA_HOME"))
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| {
+                        std::env::var_os("HOME")
+                            .map(|p| std::path::PathBuf::from(p).join(".local/share"))
+                    })?;
+                let key = document.name.bytes().fold(14695981039346656037u64, |h, b| {
+                    (h ^ u64::from(b)).wrapping_mul(1099511628211)
+                });
+                Some(base.join("bozzard/saves").join(format!("{key:016x}")))
+            });
+        if let Some(directory) = directory {
+            demo.app
+                .world
+                .insert_resource(bozzard_scene::scene_control::GameSaves::in_directory(
+                    directory,
+                ));
+        }
+        demo.with_instance(|instance, _| -> anyhow::Result<()> {
+            for (asset, prefab) in templates {
+                progress.check()?;
+                instance.register_prefab(asset, prefab)?;
+            }
+            instance.register_scripts_with_progress(sources, progress)?;
+            instance.register_compute_kernels(kernels)?;
+            Ok(())
+        })?;
+        progress.check()?;
+        Ok(demo)
+    }
+    pub fn new(document: &Scene) -> anyhow::Result<Self> {
+        multiplayer::register_component()?;
+        let mut migrated;
+        let document = if document.game_flow.is_some()
+            && !document
+                .objects
+                .iter()
+                .any(|o| o.extras.contains_key("ui_canvas"))
+        {
+            migrated = document.clone();
+            migrated.ensure_game_menus()?;
+            &migrated
+        } else {
+            document
+        };
+        let mut app = App::default();
+        let instance = document.spawn(&mut app.world)?;
+        if document.game_flow.is_some() {
+            app.world
+                .insert_resource(bozzard_scene::GameSession::default());
+        }
+        app.add_named_system("Spin", |world, _, tick| {
+            if !bozzard_scene::game_flow::simulation_running(world)
+                || world
+                    .resource::<SimulationStatus>()
+                    .is_some_and(|status| status.error.is_some())
+            {
+                return;
+            }
+            let dynamic: std::collections::HashSet<_> = world
+                .query::<bozzard_scene::Gravity>()
+                .filter(|(e, g)| {
+                    g.enabled && world.get::<bozzard_scene::PlayerController>(*e).is_none()
+                })
+                .map(|(e, _)| e)
+                .collect();
+            for (entity, mut transform, spin) in world
+                .query_pair_mut::<Transform, Spin>()
+                .expect("distinct components")
+            {
+                if dynamic.contains(&entity) {
+                    continue;
+                }
+                for axis in 0..3 {
+                    transform.rotation_degrees[axis] = (transform.rotation_degrees[axis]
+                        + spin.0[axis] * tick.delta.as_secs_f32())
+                    .rem_euclid(360.0);
+                }
+            }
+        });
+        app.world.insert_resource(instance);
+        app.world.insert_resource(SimulationStatus::default());
+        app.add_named_system("Audio", |world, _, tick| {
+            if world
+                .resource::<SimulationStatus>()
+                .is_some_and(|s| s.error.is_some())
+            {
+                return;
+            }
+            let instance = world
+                .remove_resource::<SceneInstance>()
+                .expect("scene instance");
+            let result = instance.step_audio(world, tick.delta.as_secs_f32());
+            world.insert_resource(instance);
+            if let Err(error) = result {
+                world.insert_resource(SimulationStatus {
+                    error: Some(format!("{error:#}")),
+                });
+            }
+        });
+        app.add_named_system("Gameplay", move |world, _, tick| {
+            use bozzard_diagnostics::measure;
+            // UI and audio completion Blueprints remain responsive while gameplay is paused.
+            if world
+                .resource::<SimulationStatus>()
+                .is_some_and(|status| status.error.is_some())
+            {
+                return;
+            }
+            let dt = tick.delta.as_secs_f32();
+            let input = world
+                .resource::<GameplayInput>()
+                .copied()
+                .unwrap_or_default();
+            let mut gravity_instance = world
+                .remove_resource::<SceneInstance>()
+                .expect("scene instance");
+            let resuming = world
+                .resource::<bozzard_scene::BlueprintRuntime>()
+                .is_some_and(|r| r.suspended());
+            let simulation = if !resuming && bozzard_scene::game_flow::simulation_running(world) {
+                gravity_instance
+                    .advance_display(dt)
+                    .and_then(|()| {
+                        measure(world, "Character movement", |world| {
+                            gravity_instance.gameplay_motion(world, dt)
+                        })
+                    })
+                    .and_then(|()| {
+                        measure(world, "Physics", |world| {
+                            gravity_instance.step_gravity(world, dt)
+                        })
+                    })
+                    .and_then(|()| {
+                        measure(world, "Interactions", |world| {
+                            gravity_instance.gameplay_interactions(world)
+                        })
+                    })
+                    .and_then(|()| gravity_instance.step_middleware(world, dt))
+                    // Scripts precede graphs so graph reads observe this tick's script writes.
+                    .and_then(|()| {
+                        measure(world, "Scripts", |world| {
+                            gravity_instance.step_scripts(world, dt, input)
+                        })
+                    })
+            } else {
+                Ok(())
+            };
+            let error = simulation
+                .and_then(|()| {
+                    measure(world, "Blueprints", |world| {
+                        gravity_instance.step_blueprints(world, dt, input)
+                    })
+                })
+                .and_then(|()| {
+                    if !world
+                        .resource::<bozzard_diagnostics::ExecutionControl>()
+                        .is_some_and(|c| c.paused)
+                        && bozzard_scene::game_flow::simulation_running(world)
+                    {
+                        measure(world, "Particles", |world| {
+                            gravity_instance.step_particles(world, dt)
+                        })
+                    } else {
+                        Ok(())
+                    }
+                })
+                .err()
+                .map(|error| format!("{error:#}"));
+            if !world
+                .resource::<bozzard_diagnostics::ExecutionControl>()
+                .is_some_and(|c| c.paused)
+            {
+                world.insert_resource(GameplayInput {
+                    // Movement and held keys are levels; edges and deltas are consumed per tick.
+                    movement: input.movement,
+                    keys: input.keys,
+                    ..Default::default()
+                });
+            }
+            world.insert_resource(gravity_instance);
+            world.insert_resource(SimulationStatus { error });
+        });
+        factory::install(&mut app, document);
+        app.add_tick_observer("Presentation history", |world, _| {
+            if !SceneInstance::render_interpolation_enabled(world) {
+                return;
+            }
+            let instance = world
+                .remove_resource::<SceneInstance>()
+                .expect("scene instance");
+            let result = instance.capture_render_transforms(world);
+            world.insert_resource(instance);
+            if let Err(error) = result {
+                world.insert_resource(SimulationStatus {
+                    error: Some(format!("{error:#}")),
+                });
+            }
+        });
+        Ok(Self {
+            app,
+            multiplayer: None,
+            factory_multiplayer: None,
+            simulation_worker: None,
+            render_interpolation: false,
+            steam_overlay_active: false,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Position(pub [f32; 3]);
+#[derive(Debug, Clone, Copy)]
+pub struct Velocity(pub [f32; 3]);
+
+pub struct MovementPlugin;
+impl Plugin for MovementPlugin {
+    fn name(&self) -> &'static str {
+        "bozzard.demo.movement"
+    }
+    fn build(&self, app: &mut App) {
+        app.add_system(|world, _, tick| {
+            for (_, mut position, velocity) in world
+                .query_pair_mut::<Position, Velocity>()
+                .expect("distinct component types")
+            {
+                for axis in 0..3 {
+                    position.0[axis] += velocity.0[axis] * tick.delta.as_secs_f32();
+                }
+            }
+        });
+    }
+}
+
+pub fn demo() -> (App, Entity) {
+    let mut app = App::default();
+    app.add_plugin(MovementPlugin).unwrap();
+    let entity = app.world.spawn();
+    app.world.insert(entity, Position([0.0; 3])).unwrap();
+    app.world.insert(entity, Velocity([0.1, 0.0, 0.0])).unwrap();
+    (app, entity)
+}
+
+#[cfg(feature = "steam")]
+pub fn pump_idle_steam_callbacks() {
+    bozzard_network::steam::pump_idle_callbacks();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn gameplay_edges_accumulate_until_tick_and_clear_on_focus_loss() {
+        let document = Scene::from_json(include_str!(
+            "../../../examples/demo/scenes/first-trail.json"
+        ))
+        .unwrap();
+        let mut demo = SceneRuntime::new(&document).unwrap();
+        demo.set_gameplay_input(GameplayInput {
+            orbit: [10.0, 0.0],
+            jump: true,
+            ..Default::default()
+        });
+        demo.set_gameplay_input(GameplayInput {
+            orbit: [10.0, 0.0],
+            ..Default::default()
+        });
+        demo.app.step();
+        demo.check_simulation().unwrap();
+        let yaw = demo.gameplay().unwrap().yaw;
+        assert!((yaw - 356.0).abs() < 0.001);
+        demo.app.step();
+        assert_eq!(demo.gameplay().unwrap().yaw, yaw);
+        demo.set_gameplay_input(GameplayInput {
+            movement: [1.0, 0.0],
+            keys: bozzard_scene::keys::bit("F"),
+            orbit: [100.0, 0.0],
+            jump: true,
+            fire: true,
+            interact: true,
+            ..Default::default()
+        });
+        demo.clear_gameplay_input();
+        demo.app.step();
+        assert_eq!(demo.gameplay().unwrap().yaw, yaw);
+        assert_eq!(
+            demo.app.world.resource::<GameplayInput>().unwrap().movement,
+            [0.0; 2]
+        );
+    }
+    #[test]
+    fn scene_animation_and_save_reload_preserve_parented_objects() {
+        let mut demo = SceneRuntime::new(&scene_document().unwrap()).unwrap();
+        let before = demo.instance().global_transforms(&demo.app.world).unwrap()["satellite"];
+        for _ in 0..120 {
+            demo.app.step();
+        }
+        let after = demo.instance().global_transforms(&demo.app.world).unwrap()["satellite"];
+        assert_ne!(before, after);
+        let saved = demo.instance().capture(&demo.app.world).unwrap();
+        let other =
+            SceneRuntime::new(&Scene::from_json(&saved.to_json().unwrap()).unwrap()).unwrap();
+        assert_eq!(
+            other
+                .instance()
+                .global_transforms(&other.app.world)
+                .unwrap()["satellite"],
+            after
+        );
+    }
+    #[test]
+    fn simulation_moves_on_all_three_axes() {
+        let (mut app, e) = demo();
+        app.world.insert(e, Velocity([0.1, -0.2, 0.3])).unwrap();
+        for _ in 0..120 {
+            app.step();
+        }
+        for (actual, expected) in app
+            .world
+            .get::<Position>(e)
+            .unwrap()
+            .0
+            .iter()
+            .zip([0.2, -0.4, 0.6])
+        {
+            assert!((actual - expected).abs() < 1e-5);
+        }
+    }
+}

@@ -325,7 +325,7 @@ For a debug build (`cargo run`), Flap Woods unchanged-frame scene presentation m
 
 ```sh
 python3 tools/steam.py test
-cargo test -p bozzard-demo --test multiplayer --test flapwoods
+cargo test -p bozzard-runtime --test multiplayer --test flapwoods
 cargo test -p bozzard-player --features steam
 cargo test -p bozzard-editor --test multiplayer
 cargo test -p bozzard-editor-app --features steam

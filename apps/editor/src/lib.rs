@@ -555,7 +555,7 @@ impl App {
                     self.loading = Some(loading::Loading::Open(Editor::open_job(path)?));
                 }
                 Some(Pending::New) => {
-                    let mut scene = bozzard_demo::scene_document()?;
+                    let mut scene = bozzard_runtime::scene_document()?;
                     scene.name = "Untitled level".into();
                     scene.objects.retain(|o| o.camera.is_some());
                     let path = untitled_scene_path()?;
@@ -2038,7 +2038,7 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
         #[cfg(not(feature = "factory"))]
         let available: &[&str] = &[];
         project.require_runtime_modules(available)?;
-        project.validate_scene(&bozzard_demo::load_document(Some(&scene))?)?;
+        project.validate_scene(&bozzard_runtime::load_document(Some(&scene))?)?;
         source = Some(scene);
     }
     let editor = if let Some(path) = source {
@@ -2049,20 +2049,20 @@ fn run_with_mode(custom_inspectors: custom_inspectors::Registry, factory_mode: b
         {
             Editor::open(&path)?
         } else {
-            Editor::new_pending(bozzard_demo::load_document(Some(&path))?, &path)?
+            Editor::new_pending(bozzard_runtime::load_document(Some(&path))?, &path)?
         }
     } else {
         let path = match &smoke {
             Some(directory) => std::path::absolute(directory.join("initial-scene.json"))?,
             None => untitled_scene_path()?,
         };
-        Editor::new(bozzard_demo::scene_document()?, &path)?
+        Editor::new(bozzard_runtime::scene_document()?, &path)?
     };
     if let Some(dir) = &smoke {
         std::fs::create_dir_all(dir)?;
     }
     #[cfg(feature = "steam")]
-    if let Err(error) = bozzard_demo::steam_runtime::initialize_editor(editor.scene()) {
+    if let Err(error) = bozzard_runtime::steam_runtime::initialize_editor(editor.scene()) {
         eprintln!("Steam: {error:#}. Editing is available; Play will retry.");
     }
     let instance = bozzard_render::instance(backend);
@@ -2273,12 +2273,12 @@ mod shortcut_tests {
 
     #[test]
     fn scene_open_selects_an_existing_view_and_preserves_valid_preferences() {
-        let mut scene = bozzard_demo::scene_document().unwrap();
+        let mut scene = bozzard_runtime::scene_document().unwrap();
         let mut workspace = Workspace::default();
         scene.views.remove(&Layer::ThreeD);
         workspace.select_available_view(&scene);
         assert!(workspace.layer_2d);
-        scene = bozzard_demo::scene_document().unwrap();
+        scene = bozzard_runtime::scene_document().unwrap();
         workspace.select_available_view(&scene);
         assert!(workspace.layer_2d);
         scene.views.remove(&Layer::TwoD);

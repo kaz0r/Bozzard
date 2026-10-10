@@ -36,4 +36,4 @@ bozzard-network = { path = "../../crates/bozzard-network", features = ["steam"],
 workspace = true
 
 [dev-dependencies]
-bozzard-demo.workspace = true
+bozzard-runtime.workspace = true

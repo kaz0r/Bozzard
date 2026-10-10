@@ -11,7 +11,7 @@ pub struct LoadedScene {
 pub struct PreparedPlay {
     path: PathBuf,
     revision: u64,
-    play: SceneDemo,
+    play: SceneRuntime,
     assets: AssetStore,
     progress: Progress,
 }
@@ -77,7 +77,7 @@ impl Editor {
         let cached = self.assets.clone();
         Job::start("Preparing Play", move |progress| {
             progress.report(0, 3, "Loading runtime scenes, prefabs and scripts")?;
-            let mut play = SceneDemo::new_with_prefabs_progress(&scene, Some(&path), &progress)?;
+            let mut play = SceneRuntime::new_with_prefabs_progress(&scene, Some(&path), &progress)?;
             progress.report(1, 3, "Preparing runtime assets")?;
             let mut assets = cached.for_catalog(root(&path), &play.instance().document().assets)?;
             assets.refresh_with(&progress)?;
@@ -190,7 +190,7 @@ impl Editor {
                 return prefabs::load_source(path, &progress);
             }
             progress.report(0, 4, "Reading scene")?;
-            let mut scene = bozzard_demo::load_document(Some(&path))?;
+            let mut scene = bozzard_runtime::load_document(Some(&path))?;
             scene.ensure_game_menus()?;
             scene.validate()?;
             progress.report(1, 4, "Preparing scene assets")?;
@@ -317,7 +317,7 @@ mod tests {
         let source = temp.0.join("image.png");
         std::fs::write(&source, PNG).unwrap();
         let mut editor = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &temp.0.join("scene.json"),
         )
         .unwrap();
@@ -348,7 +348,7 @@ mod tests {
         let source = temp.0.join("image.png");
         std::fs::write(&source, PNG).unwrap();
         let mut editor = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &temp.0.join("scene.json"),
         )
         .unwrap();
@@ -371,7 +371,7 @@ mod tests {
         let source = temp.0.join("image.png");
         std::fs::write(&source, PNG).unwrap();
         let path = temp.0.join("scene.json");
-        let mut editor = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+        let mut editor = Editor::new(bozzard_runtime::scene_document().unwrap(), &path).unwrap();
         let id = editor.import(&source).unwrap();
         let prepared = wait(&editor.save_job(path.clone()).unwrap()).unwrap();
         assert!(!path.exists());
@@ -392,7 +392,7 @@ mod tests {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/demo/scenes/assets/courier.gltf");
         let editor = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &temp.0.join("scene.json"),
         )
         .unwrap();
@@ -457,7 +457,7 @@ mod tests {
     fn cancelled_and_stale_play_preparation_never_enters_play() {
         let temp = Temp::new();
         let mut editor = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &temp.0.join("scene.json"),
         )
         .unwrap();

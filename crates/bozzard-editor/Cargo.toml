@@ -6,11 +6,11 @@ rust-version.workspace = true
 publish.workspace = true
 
 [features]
-steam = ["bozzard-demo/steam"]
+steam = ["bozzard-runtime/steam"]
 
 [dependencies]
 bozzard-diagnostics.workspace = true
-bozzard-demo.workspace = true
+bozzard-runtime.workspace = true
 bozzard-scene.workspace = true
 bozzard-assets.workspace = true
 bozzard-render.workspace = true

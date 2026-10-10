@@ -7,7 +7,7 @@ fn threaded_frames_preserve_factory_state_input_menus_and_stop_restart() -> anyh
     use std::time::Duration;
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
-    let mut scene = bozzard_demo::load_document(Some(&path))?;
+    let mut scene = bozzard_runtime::load_document(Some(&path))?;
     scene
         .blackboard
         .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));
@@ -1184,7 +1184,7 @@ struct RendererSample {
 fn profile_factory_renderer(profile: FactoryProfile) -> anyhow::Result<()> {
     use bozzard_render::{Gpu, SceneRenderer, wgpu};
     use bozzard_scene::blueprint::Value;
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let mut editor = Editor::open(&path)?;

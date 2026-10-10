@@ -35,7 +35,7 @@ pub(crate) fn print_frame_percentiles(label: &str, samples: &VecDeque<f64>) {
 
 impl Player {
     /// A player for `demo` before its window opens, with idle input and empty frame statistics.
-    pub(crate) fn new(options: Options, demo: SceneDemo, assets: assets::Assets) -> Self {
+    pub(crate) fn new(options: Options, demo: SceneRuntime, assets: assets::Assets) -> Self {
         Self {
             options,
             view: None,
@@ -314,7 +314,7 @@ impl Player {
             {
                 let document = load_document(self.options.scene.as_deref())?;
                 let mut next =
-                    SceneDemo::new_with_prefabs(&document, self.options.scene.as_deref())?;
+                    SceneRuntime::new_with_prefabs(&document, self.options.scene.as_deref())?;
                 next.set_threaded_simulation(self.options.threaded_simulation)?;
                 let mut assets = assets::Assets::load(
                     next.instance().document(),

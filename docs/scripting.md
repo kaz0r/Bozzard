@@ -14,7 +14,7 @@ cargo run -p bozzard-server -- --scene examples/demo/scenes/script-lab.json --ti
 The **[Target Range](blueprints.md#target-range-example) game is ported to scripts** as
 `examples/demo/scenes/target-range-rs.json`: the same arena, weapons, recoil, respawn and win, with
 the player, the weapon table, the shot, the cubes and the win condition all in
-`scenes/scripts/target-range/*.rs` and no graph of its own. `examples/demo/tests/target_range_rs.rs`
+`scenes/scripts/target-range/*.rs` and no graph of its own. `crates/bozzard-runtime/tests/target_range_rs.rs`
 runs the Blueprint scene's assertions against it, which is the point of the pair: a game ported from
 graphs to scripts keeps its behaviour.
 

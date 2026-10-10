@@ -144,7 +144,7 @@ fn bundles_are_deterministic_reusable_and_addressable_without_authoring_sources(
         assert!(resolved.asset_source().is_err());
         let path = resolved.path();
         let scene = Scene::from_json(&fs::read_to_string(&path)?)?;
-        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path))?;
+        let mut runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path))?;
         let mut assets = AssetStore::new(
             path.parent().unwrap(),
             &runtime.instance().document().assets,

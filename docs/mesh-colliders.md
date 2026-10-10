@@ -23,7 +23,7 @@ Cooking is synchronous and capped at 100,000 triangles per component; zero-area 
 
 ```sh
 cargo test -p bozzard-scene --test rigidbody --test gravity
-cargo test -p bozzard-demo --test mesh_colliders
+cargo test -p bozzard-runtime --test mesh_colliders
 cargo test -p bozzard-editor --test mesh_colliders
 python3 tools/check_headless.py
 ```

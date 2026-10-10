@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/*", "examples/demo"]
+members = ["crates/*", "apps/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,7 +24,7 @@ bozzard-ecs = { path = "crates/bozzard-ecs" }
 bozzard-app = { path = "crates/bozzard-app" }
 bozzard-render = { path = "crates/bozzard-render" }
 bozzard-render-assets = { path = "crates/bozzard-render-assets" }
-bozzard-demo = { path = "examples/demo" }
+bozzard-runtime = { path = "crates/bozzard-runtime" }
 bozzard-scene = { path = "crates/bozzard-scene" }
 glam = "0.33.6"
 serde = { version = "1.0", features = ["derive", "rc"] }

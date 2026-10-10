@@ -49,7 +49,7 @@ unit tests. Player and editor builds check successfully. The user subsequently
 confirmed the two-computer retest works correctly, including the movement fix.
 
 Rhai continues to own factory rules and presentation. Native code owns local files and authenticated Steam transport.
-`examples/demo/src/factory/state.rs` defines a bounded, data-only snapshot; it contains no executable scripts, asset paths, or render handles.
+`crates/bozzard-runtime/src/factory/state.rs` defines a bounded, data-only snapshot; it contains no executable scripts, asset paths, or render handles.
 Scene and controller blackboard patches validate all fields before publication.
 Factory scripts archive the occupied region at a tick boundary. File reads, encoding, and atomic writes run on a background worker.
 Loading validates the file and the runtime schema before replacing visuals and restoring the saved archives.
@@ -93,7 +93,7 @@ Save round trips, malformed-file rejection, autosave timing, and guest authority
 `crates/bozzard-network/src/coop_lobby.rs` implements the Steam lobby/transport layer, reusing Flap Woods lifecycle helpers while permitting solo start and in-game joins. The native player/editor adapter connects it to the factory protocol and authored lobby UI; the user's two-computer session confirms basic gameplay integration.
 The Steam-enabled build and packet scope/size tests pass. The implementation follows Valve's [lobby lifecycle](https://partner.steamgames.com/doc/features/multiplayer/matchmaking) and [Networking Messages](https://partner.steamgames.com/doc/api/ISteamNetworkingMessages) APIs.
 
-The factory replication model now lives in `examples/demo/src/factory/shared.rs` and
+The factory replication model now lives in `crates/bozzard-runtime/src/factory/shared.rs` and
 `replication/`. A canonical Earth-first world is separate from private player records.
 Live snapshots include the occupied chunk's latest edits and buffers without moving
 the camera or completing a rotation. Each recipient gets only their own backpack;
@@ -187,7 +187,7 @@ Offline solo startup remains available when Steam is unavailable.
 Native editor/player frame scheduling now distinguishes Flap's prediction worker from
 the factory's normal simulation worker. A real Steam editor test covers pending lobby
 creation, serial Play ticks, and the threaded frame path after joining. This catches
-integration failures that calling `SceneDemo::advance_with_frame` directly cannot.
+integration failures that calling `SceneRuntime::advance_with_frame` directly cannot.
 The real Steam native-player check also passes through its keyboard dispatcher and
 frame scheduling: movement still works, Enter captures typing, Escape ends typing
 without leaving a movement key held, and factory beats keep advancing. The existing

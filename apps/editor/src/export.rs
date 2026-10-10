@@ -199,7 +199,7 @@ impl App {
                             }
                         }
                         ui.weak("Includes current scene changes, even if you haven't saved them.");
-                        if let Ok(Some(id)) = bozzard_demo::multiplayer::app_id(self.editor.scene()) {
+                        if let Ok(Some(id)) = bozzard_runtime::multiplayer::app_id(self.editor.scene()) {
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 theme::chip(ui, &format!("Steam · App ID {id}"), theme::SKY);

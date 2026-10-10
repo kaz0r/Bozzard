@@ -88,7 +88,7 @@ Diagnostics never enter authored scenes or gameplay saves.
 Reproduce the CPU overhead benchmark:
 
 ```sh
-cargo run --release -p bozzard-demo --example benchmark_diagnostics
+cargo run --release -p bozzard-runtime --example benchmark_diagnostics
 ```
 
 On the development Apple M2 Pro, two alternating runs of the middleware lab measured median
@@ -175,12 +175,12 @@ let values = demo.instance().inspect_blueprint(&demo.app.world, "hero-cube", 2, 
 ```
 
 Custom hosts that dispatch UI callbacks outside fixed ticks should call
-`SceneDemo::resume_debug_dispatch()` before their next `App::advance()`; the editor does this.
+`SceneRuntime::resume_debug_dispatch()` before their next `App::advance()`; the editor does this.
 
 Reproduce the debugger benchmark with:
 
 ```sh
-cargo run --release -p bozzard-demo --example benchmark_blueprint_debugger
+cargo run --release -p bozzard-runtime --example benchmark_blueprint_debugger
 ```
 
 On the development Apple M2 Pro, 2,048 continuously active graphs measured 1.93–1.98 ms/tick

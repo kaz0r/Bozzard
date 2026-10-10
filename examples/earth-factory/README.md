@@ -105,8 +105,8 @@ To profile one versus eight producing regions (including unloaded factories), or
 running on one versus both planets, run:
 
 ```sh
-cargo test -p bozzard-demo --release --test earth_factory profile_world_factories -- --ignored --nocapture
-cargo test -p bozzard-demo --release --test earth_factory profile_planet_factories -- --ignored --nocapture
+cargo test -p bozzard-runtime --release --test earth_factory profile_world_factories -- --ignored --nocapture
+cargo test -p bozzard-runtime --release --test earth_factory profile_planet_factories -- --ignored --nocapture
 ```
 
 This reports headless CPU tick timings separately for ordinary frames and production beats;
@@ -131,13 +131,13 @@ normal controller, including simultaneous power refresh/production, old literal
 archive pages, and placement during a production beat:
 
 ```sh
-cargo test --offline -p bozzard-demo --test earth_factory four_hundred_
+cargo test --offline -p bozzard-runtime --test earth_factory four_hundred_
 ```
 
 To measure the simulation cost of crossing, discovery, and streaming separately in release mode:
 
 ```sh
-cargo test --release -p bozzard-demo --test earth_factory profile_chunk_transitions -- --ignored --exact --nocapture
+cargo test --release -p bozzard-runtime --test earth_factory profile_chunk_transitions -- --ignored --exact --nocapture
 ```
 
 **Map.** Press **M** or click **Map** to see the current planet: **17 × 17** regions on Stellar-BX or **13 × 13** on Stella-Z2. Green cells are currently loaded; blue-gray cells were explored but have unloaded; dark cells are unexplored. Orange marks your current region, and **H** marks the landing site. Counts match the debug HUD. North stays at the top when the camera rotates. The map blocks movement, building, collection, and camera zoom while factories continue running. **M** or **Close** returns to play; **Escape** opens the factory menu. Opening the map closes the journal or storage.
@@ -426,7 +426,7 @@ Editable Blender source, construction previews, and the manifest are in
 blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_travel_ship.py
 python3 examples/earth-factory/tools/generate_scene.py
 python3 examples/earth-factory/tools/validate_travel_ship.py
-cargo test --offline -p bozzard-demo --test earth_factory rocket
+cargo test --offline -p bozzard-runtime --test earth_factory rocket
 ```
 
 ## Spaceship debris prototypes
@@ -454,7 +454,7 @@ Editable Blender source, a preview, and the geometry/spawn manifest are in
 blender --background -noaudio --threads 4 --python examples/earth-factory/tools/generate_spaceship_debris.py
 python3 examples/earth-factory/tools/generate_scene.py
 python3 examples/earth-factory/tools/validate_spaceship_debris.py
-cargo test --offline -p bozzard-demo --test earth_factory spaceship_debris
+cargo test --offline -p bozzard-runtime --test earth_factory spaceship_debris
 ```
 
 ## Foundations and indoor factories
@@ -503,7 +503,7 @@ blender --background -noaudio --threads 4 --python examples/earth-factory/tools/
 python3 examples/earth-factory/tools/generate_scene.py
 python3 examples/earth-factory/tools/generate_foundation_showroom.py
 python3 examples/earth-factory/tools/validate_foundations.py
-cargo test --offline -p bozzard-demo --test earth_factory foundations
+cargo test --offline -p bozzard-runtime --test earth_factory foundations
 ```
 
 Indoor presentation caches the occupied structure slots and door locations when
@@ -515,7 +515,7 @@ in place, and view refreshes reuse decoded neighboring room pages.
 For a repeatable CPU profile of a sealed factory across a region boundary:
 
 ```sh
-cargo run --offline -p bozzard-demo --example benchmark_foundations -- 6
+cargo run --offline -p bozzard-runtime --example benchmark_foundations -- 6
 ```
 
 The argument is the factory's side length, from 3 to 18 tiles. The benchmark
@@ -612,5 +612,5 @@ blender --background -noaudio --threads 4 --python examples/earth-factory/tools/
 python3 examples/earth-factory/tools/generate_scene.py
 python3 examples/earth-factory/tools/generate_renewables_showroom.py
 python3 examples/earth-factory/tools/validate_renewables.py
-cargo test --offline -p bozzard-demo --test earth_factory renewables_
+cargo test --offline -p bozzard-runtime --test earth_factory renewables_
 ```

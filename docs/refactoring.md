@@ -23,10 +23,16 @@ Rules:
 | [x] Editor job boilerplate | `Loading` forwards fraction, label and cancellation through one `Progress` handle (`Job::progress`) instead of four 11-arm matches. | Editor app tests and the editor smoke run |
 | [x] Split the player | `apps/player/src/main.rs`, 3,000 lines, becomes `cli`, `view` (window, surface, device), `player` (mouse look, title, keyboard commands), `handler` (event loop) and `controls_tests`. One `Player::new` replaces three struct literals. | 17 unit tests and the three-OS device-recreation smoke in CI |
 | [x] Renderer construction helpers | `scene/gpu_util.rs` holds `color_texture` (the HDR target four passes each redefined) and `fullscreen_pipeline` (seven copies of the same full-screen pass descriptor). Both run at construction and resize time only. | The renderer's 174 tests, including post-processing, optics, volumetric and temporal |
-| [ ] Runtime crate | `bozzard-demo`'s library moves to `crates/bozzard-runtime`. `examples/demo` keeps its scenes, tests and benchmarks. Document I/O (`save_json`, `save_atomic`, …) moves to `bozzard-scene`; the Steam wrappers go to `bozzard_network::steam`. | Workspace tests; `tools/check_headless.py` for the server's dependency tree |
+| [x] Runtime crate | `bozzard-demo`'s library, tests and benchmarks move to `crates/bozzard-runtime`, and `SceneDemo` becomes `SceneRuntime`. `examples/demo` is now scenes, assets and project files only, like the other examples. | Workspace tests; `tools/check_headless.py` for the server's dependency tree |
 
 ## Phase 2: settle duplicated behaviour
 
+- **Runtime crate boundaries.** Document I/O (`save_json`, `save_atomic`,
+  `relative_reference`, `prepare_document_from`) belongs in `bozzard-scene`. The Steam
+  wrappers (`ShutdownGuard`, the overlay checks, idle callbacks) duplicate
+  `bozzard_network::steam`. The Stellar-IX `factory` session code should be its own crate
+  that the runtime installs, rather than code `SceneRuntime` calls directly. The demo
+  movement plugin (`Position`, `Velocity`, `demo()`) is used only by the player smoke test.
 - **Shared scene actions.** Blueprints and scripts each write transform, color, text,
   visibility, light, cursor, log and end-game effects themselves. Scripts skip transform
   writes that change nothing and blueprints don't. Quit replaces the game session from a

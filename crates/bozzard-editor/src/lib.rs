@@ -1,8 +1,8 @@
 //! Testable editor document transactions. The authored document never becomes the play world.
 use anyhow::{Context, Result, ensure};
 use bozzard_assets::{AssetData, AssetStore};
-use bozzard_demo::{SceneDemo, prepare_document_from, save_document};
 use bozzard_render::RenderScene;
+use bozzard_runtime::{SceneRuntime, prepare_document_from, save_document};
 use bozzard_scene::{
     AssetKind, AssetSource, Drawable, Layer, Mesh, Object, Scene, Texture, Transform,
 };
@@ -67,7 +67,7 @@ pub struct Editor {
     past: Vec<Change>,
     future: Vec<Change>,
     gesture: Option<Change>,
-    pub play: Option<SceneDemo>,
+    pub play: Option<SceneRuntime>,
     pending_simulation: Option<Duration>,
     script_reload_jobs:
         BTreeMap<String, bozzard_assets::job::Job<bozzard_scene::ScriptReloadCandidate>>,
@@ -79,7 +79,7 @@ pub struct Editor {
     runtime_asset_generation: u64,
     scene_snapshot: std::cell::RefCell<Option<(u64, std::sync::Arc<Scene>)>>,
     gi_freshness: std::cell::RefCell<Option<gi::Freshness>>,
-    edit_demo: std::cell::RefCell<Option<(u64, SceneDemo)>>,
+    edit_demo: std::cell::RefCell<Option<(u64, SceneRuntime)>>,
     edit_collisions: std::cell::RefCell<Option<(u64, bozzard_scene::CollisionSnapshot)>>,
 }
 
@@ -89,10 +89,10 @@ impl Editor {
             return prefabs::load_source(path.to_path_buf(), &Default::default())
                 .map(LoadedScene::into_editor);
         }
-        Self::new(bozzard_demo::load_document(Some(path))?, path)
+        Self::new(bozzard_runtime::load_document(Some(path))?, path)
     }
     pub fn new(mut scene: Scene, path: &Path) -> Result<Self> {
-        bozzard_demo::multiplayer::register_component()?;
+        bozzard_runtime::multiplayer::register_component()?;
         scene.ensure_game_menus()?;
         scene.validate()?;
         let assets = load_assets(&scene, path)?;
@@ -100,7 +100,7 @@ impl Editor {
         Ok(Self::from_loaded(scene, path.to_path_buf(), assets))
     }
     pub fn new_pending(mut scene: Scene, path: &Path) -> Result<Self> {
-        bozzard_demo::multiplayer::register_component()?;
+        bozzard_runtime::multiplayer::register_component()?;
         scene.ensure_game_menus()?;
         scene.validate()?;
         let assets = AssetStore::new(root(path), &scene.assets)?;
@@ -582,7 +582,7 @@ impl Editor {
             .find(|o| o.id == object)
             .and_then(|o| o.blueprints.get(index))
             .context("blueprint no longer exists")?;
-        bozzard_demo::save_json(&attachment.graph.to_json()?, path)
+        bozzard_runtime::save_json(&attachment.graph.to_json()?, path)
     }
     pub fn set_shader_graph(
         &mut self,
@@ -623,7 +623,7 @@ impl Editor {
             .find(|o| o.id == object)
             .and_then(|o| o.shader_graph.as_ref())
             .context("object has no shader graph")?;
-        bozzard_demo::save_json(&graph.to_json()?, path)
+        bozzard_runtime::save_json(&graph.to_json()?, path)
     }
     pub fn refresh_audio_metadata(&mut self) -> Result<()> {
         if self.play.is_none() && !self.assets.audio_metadata_current(&self.scene)? {
@@ -643,7 +643,7 @@ impl Editor {
         self.surface_selection = None;
         self.finish_gesture();
         if self.play.is_none() {
-            let mut play = SceneDemo::new_with_prefabs(&self.scene, Some(&self.path))?;
+            let mut play = SceneRuntime::new_with_prefabs(&self.scene, Some(&self.path))?;
             let assets = self.cached_assets(play.instance().document(), &self.path)?;
             bozzard_project::streaming::install(&mut play.app.world, &self.path, &assets)?;
             play.enable_editor_multiplayer()?;
@@ -728,7 +728,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|play| play.multiplayer_active())
         {
-            bozzard_demo::pump_idle_steam_callbacks();
+            bozzard_runtime::pump_idle_steam_callbacks();
         }
         if let Some(play) = &mut self.play {
             // Pump pending lobby creation/join even before membership is bound.
@@ -824,7 +824,7 @@ impl Editor {
         if self
             .play
             .as_ref()
-            .is_some_and(SceneDemo::simulation_worker_failed)
+            .is_some_and(SceneRuntime::simulation_worker_failed)
         {
             // A panicking system may have removed scene resources mid-update.
             // Stop before an inspector/render query can touch the partial world.
@@ -1388,14 +1388,14 @@ impl Editor {
     }
     /// Authoring queries share one immutable world until a document transaction changes
     /// its revision. Play owns a separate world and never mutates this snapshot.
-    fn edit_demo(&self) -> Result<std::cell::Ref<'_, SceneDemo>> {
+    fn edit_demo(&self) -> Result<std::cell::Ref<'_, SceneRuntime>> {
         if self
             .edit_demo
             .borrow()
             .as_ref()
             .is_none_or(|(revision, _)| *revision != self.revision)
         {
-            let demo = SceneDemo::new(&self.scene)?;
+            let demo = SceneRuntime::new(&self.scene)?;
             *self.edit_demo.borrow_mut() = Some((self.revision, demo));
         }
         Ok(std::cell::Ref::map(self.edit_demo.borrow(), |cached| {
@@ -1585,7 +1585,7 @@ fn subtrees<'a>(scene: &'a Scene, roots: impl IntoIterator<Item = &'a str>) -> B
     ids
 }
 pub fn extract(
-    demo: &SceneDemo,
+    demo: &SceneRuntime,
     assets: &bozzard_assets::AssetStore,
     layer: Layer,
     aspect: f32,
@@ -1593,7 +1593,7 @@ pub fn extract(
     extract_with_gi(demo, assets, layer, aspect, None, None)
 }
 fn extract_with_gi(
-    demo: &SceneDemo,
+    demo: &SceneRuntime,
     assets: &bozzard_assets::AssetStore,
     layer: Layer,
     aspect: f32,
@@ -1612,7 +1612,7 @@ fn extract_with_gi(
     bozzard_render_assets::render_scene(view, assets, layer, gi)
 }
 fn extract_frame_with_gi(
-    demo: &SceneDemo,
+    demo: &SceneRuntime,
     assets: &bozzard_assets::AssetStore,
     cache: &bozzard_render_assets::RenderSceneCache,
     layer: Layer,
@@ -1747,7 +1747,7 @@ mod tests {
     }
     fn editor() -> Editor {
         Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             Path::new("work/editor-test/scene.json"),
         )
         .unwrap()
@@ -2222,7 +2222,7 @@ mod tests {
     fn save_round_trips_and_save_as_discards_history() {
         let dir = Temp::new();
         let path = dir.0.join("scene.json");
-        let mut e = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+        let mut e = Editor::new(bozzard_runtime::scene_document().unwrap(), &path).unwrap();
         e.create(Mesh::Cube, Layer::ThreeD).unwrap();
         assert!(e.dirty());
         // Saving during Play persists the authored document, not the simulated world.
@@ -2259,7 +2259,7 @@ mod tests {
                 std::fs::copy(fixture.join(&file), downloads.join(&file)).unwrap();
             }
             let mut e = Editor::new(
-                bozzard_demo::scene_document().unwrap(),
+                bozzard_runtime::scene_document().unwrap(),
                 &dir.0.join("project/scene.json"),
             )
             .unwrap();
@@ -2334,7 +2334,7 @@ mod tests {
         .unwrap();
         std::fs::write(source.join("mesh.obj"), "mtllib mesh.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nusemtl paint\nf 1/1 2/2 3/3\n").unwrap();
         let mut e = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &dir.0.join("project/scene.json"),
         )
         .unwrap();
@@ -2368,7 +2368,7 @@ mod tests {
         let source = dir.0.join("triangle.obj");
         std::fs::write(&source, "v 2 0 0\nv 4 0 0\nv 2 3 0\nf 1 2 3\n").unwrap();
         let mut e = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &dir.0.join("project/scene.json"),
         )
         .unwrap();
@@ -2394,7 +2394,7 @@ mod tests {
         let source = downloads.join("palette.png");
         std::fs::write(&source, PNG).unwrap();
         let mut e = Editor::new(
-            bozzard_demo::scene_document().unwrap(),
+            bozzard_runtime::scene_document().unwrap(),
             &project.join("scene.json"),
         )
         .unwrap();
@@ -2431,7 +2431,7 @@ mod tests {
         let path = dir.0.join("scene.json");
         let source = dir.0.join("source.png");
         std::fs::write(&source, PNG).unwrap();
-        let mut e = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+        let mut e = Editor::new(bozzard_runtime::scene_document().unwrap(), &path).unwrap();
         let id = e.import(&source).unwrap();
         e.save(&path).unwrap();
         let saved_bytes = std::fs::read(&path).unwrap();

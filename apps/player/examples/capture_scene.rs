@@ -1,8 +1,8 @@
 //! Capture a scene using the player renderer, including a bloom-off comparison.
 use anyhow::{Context, Result, ensure};
 use bozzard_assets::AssetStore;
-use bozzard_demo::SceneDemo;
 use bozzard_render::{Backend, Gpu, SceneRenderer, capture_offscreen, instance, wgpu};
+use bozzard_runtime::SceneRuntime;
 use bozzard_scene::{Layer, Scene};
 use std::path::PathBuf;
 
@@ -32,7 +32,7 @@ fn main() -> Result<()> {
             .context("asset not ready")?;
         bozzard_render_assets::upload(&gpu, &mut renderer, id, &data)?;
     }
-    let demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    let demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     let mut scene = presentation::extract(&demo, &assets, Layer::ThreeD, 1.25)?;
     let size = [1200, 960];
     let with = capture_offscreen(&gpu, size[0], size[1], |view| {

@@ -206,7 +206,7 @@ fn automatic_cooking_reuses_content_keys_rebuilds_only_dependents_and_recovers_b
     let (project, path) = Project::load(&root.join(bozzard_project::MANIFEST))?;
     assert_eq!(project.cook, CookTarget::Source);
     let (scene, _) = load(&path)?;
-    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path))?;
+    let mut runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path))?;
     runtime.app.step();
     runtime.check_simulation()?;
     Ok(())
@@ -302,7 +302,7 @@ fn animated_models_and_transitive_prefab_models_are_cooked_and_relocated() -> an
     for name in ["middleware-lab", "prefab-lab", "material-gallery"] {
         let path = temp.data(&temp.0.join(name)).join("scene.json");
         let (scene, _) = load(&path)?;
-        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path))?;
+        let mut runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path))?;
         if name == "prefab-lab" {
             let id = runtime.with_instance(|instance, world| {
                 instance.spawn_prefab(world, "cargo-prefab", [0.; 3])
