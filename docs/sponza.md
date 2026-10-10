@@ -73,7 +73,7 @@ Inspect the complete CPU import with:
 cargo run -p bozzard-assets --example inspect --locked --offline -- work/sponza/glTF/Sponza.gltf
 ```
 
-In the editor, click imported geometry or a surface row to convert this legacy model into independent child entities (undoable). **W / E / R** and Properties Transform edit the selected child; select its parent to move the whole model. **Add Component → Material** exposes texture and PBR overrides; children can also own Rigidbody and Blueprint components. See [submesh editing](assets.md#editing-a-submesh). **F** frames the child and **Shift+F** frames the layer. A source primitive can contain disconnected geometry; those pieces are not automatically split.
+In the editor, click imported geometry or a surface row to inspect that surface; selecting does not change the document. The first edit converts this legacy model into independent child entities, undoable together with the edit. **W / E / R** and Properties Transform edit the selected child; select its parent to move the whole model. **Add Component → Material** exposes texture and PBR overrides; children can also own Rigidbody and Blueprint components. See [submesh editing](assets.md#editing-a-submesh). **F** frames the child and **Shift+F** frames the layer. A source primitive can contain disconnected geometry; those pieces are not automatically split.
 
 The CPU-only surface reproduction is:
 
