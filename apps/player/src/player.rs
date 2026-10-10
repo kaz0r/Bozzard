@@ -19,11 +19,7 @@ pub(crate) fn print_frame_percentiles(label: &str, samples: &VecDeque<f64>) {
     }
     let mut sorted: Vec<_> = samples.iter().copied().collect();
     sorted.sort_by(f64::total_cmp);
-    let percentile = |p: f64| {
-        sorted[((sorted.len() as f64 * p).ceil() as usize)
-            .saturating_sub(1)
-            .min(sorted.len() - 1)]
-    };
+    let percentile = |p| bozzard_diagnostics::percentile(&sorted, p).unwrap_or(0.);
     println!(
         "{label} n={} median={:.3}ms p95={:.3}ms p99={:.3}ms",
         sorted.len(),
@@ -313,28 +309,11 @@ impl Player {
                     || matches!(key, Key::Character(value) if value.eq_ignore_ascii_case("r"))) =>
             {
                 let document = load_document(self.options.scene.as_deref())?;
-                let mut next =
-                    SceneRuntime::new_with_prefabs(&document, self.options.scene.as_deref())?;
-                next.set_threaded_simulation(self.options.threaded_simulation)?;
-                let mut assets = assets::Assets::load(
-                    next.instance().document(),
-                    self.options.scene.as_deref(),
-                )?;
-                bozzard_project::streaming::install(
-                    &mut next.app.world,
-                    self.options
-                        .scene
-                        .as_deref()
-                        .unwrap_or(Path::new("scene.json")),
-                    assets.store(),
-                )?;
-                ensure!(
-                    next.instance().has_view(self.options.layer),
-                    "reloaded scene is missing the active view"
-                );
+                let (next, mut assets) = start_session(&document, &self.options)?;
                 if let Some(view) = &mut self.view {
-                    let mut renderer = SceneRenderer::new(&view.gpu, view.config.format);
-                    renderer.set_occlusion_enabled(self.options.occlusion_enabled);
+                    let mut renderer = view
+                        .renderer_settings
+                        .renderer(&view.gpu, view.config.format);
                     let render = extract(
                         &next,
                         assets.store(),

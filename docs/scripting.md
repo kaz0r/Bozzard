@@ -238,7 +238,7 @@ errors: a thrown script stops the simulation and reports the hook, the object an
 | `set_object_variable(target, name, value)` | write another local object's declared scalar with the same type checks and immediate read-after-write behavior |
 | `set_object_list(name, values)`, `set_scene_list(name, values)` | replace a declared list with an array, checked against its element type and capacity |
 | `set_object_list(target, name, values)` | replace a declared list on another local object, with the same type/capacity checks and immediate read-after-write behavior |
-| `print(value)` | one line to stdout and the runtime's message list |
+| `print(value)` | one informational line in the engine log (**Debug → Console** in the editor; stdout in the native player and headless server) and the runtime's message list |
 
 Sun, ambient, environment, fog, and star setters are transient Play overrides. They do not edit the authored scene and reset on scene restart/Stop. Stars require an enabled environment background and do not contribute to surface lighting.
 
@@ -340,3 +340,8 @@ query, 16 attachments per object, 64 kept `print` lines, and 32 MiB of script so
 ## Debug console
 
 `print(message)` and `log_info(message)` write informational messages to **Debug → Console**. `log_warning(message)` and `log_error(message)` set their corresponding severity. The console retains the object source; runtime failures also include the script asset and attachment. Logging an error does not throw. See [debugging](debugging.md).
+
+The native player and the headless server have no console view, so they print the same log:
+informational lines as the bare message on stdout, warnings and errors on stderr as
+`warning: Script: message` or `error: Script: message`. Blueprint log nodes and engine errors
+print the same way, with their own source.

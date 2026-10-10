@@ -85,9 +85,8 @@ struct View {
     gpu_frame_ms: VecDeque<f64>,
     software: bool,
     hardware: bool,
-    occlusion_enabled: bool,
+    renderer_settings: view::RendererSettings,
     device_recoveries: u8,
-    profile_frames: bool,
 }
 
 /// Surface loss only invalidates presentation. A device callback signals the separate GPU path.
@@ -130,6 +129,37 @@ struct Player {
     fault_injected: bool,
     error: Option<anyhow::Error>,
     command_error: Option<String>,
+}
+
+/// The runtime and assets for `document`, set up from the command line. Startup and the
+/// R/F6 reload both use this, so a reload keeps the same session: engine log lines reach
+/// the terminal, a game pack's assets stay without hot reload, the scene's multiplayer
+/// starts (joining `--join-lobby` if given) and `--single-threaded` still applies.
+fn start_session(document: &Scene, options: &Options) -> Result<(SceneRuntime, assets::Assets)> {
+    let mut demo = SceneRuntime::new_with_prefabs(document, options.scene.as_deref())?;
+    if let Some(diagnostics) = demo
+        .app
+        .world
+        .resource_mut::<bozzard_diagnostics::Diagnostics>()
+    {
+        diagnostics.echo = Some(bozzard_diagnostics::terminal);
+    }
+    ensure!(
+        demo.instance().has_view(options.layer),
+        "scene has no requested view; use --view 2d or --view 3d"
+    );
+    let mut assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
+    if options.gamepack.is_some() {
+        assets.disable_hot_reload();
+    }
+    bozzard_project::streaming::install(
+        &mut demo.app.world,
+        options.scene.as_deref().unwrap_or(Path::new("scene.json")),
+        assets.store(),
+    )?;
+    demo.enable_multiplayer(options.join_lobby)?;
+    demo.set_threaded_simulation(options.threaded_simulation)?;
+    Ok((demo, assets))
 }
 
 fn main() -> Result<()> {
@@ -184,25 +214,8 @@ fn main() -> Result<()> {
     }
     #[cfg(feature = "steam")]
     bozzard_runtime::steam_runtime::initialize_player(&document)?;
-    let mut demo = SceneRuntime::new_with_prefabs(&document, options.scene.as_deref())?;
-    ensure!(
-        demo.instance().has_view(options.layer),
-        "scene has no requested view; use --view 2d or --view 3d"
-    );
-    let mut assets = assets::Assets::load(demo.instance().document(), options.scene.as_deref())?;
-    if options.gamepack.is_some() {
-        assets.disable_hot_reload();
-    }
-    bozzard_project::streaming::install(
-        &mut demo.app.world,
-        options.scene.as_deref().unwrap_or(Path::new("scene.json")),
-        assets.store(),
-    )?;
+    let (demo, assets) = start_session(&document, &options)?;
     let mut player = Player::new(options, demo, assets);
-    player.demo.enable_multiplayer(player.options.join_lobby)?;
-    player
-        .demo
-        .set_threaded_simulation(player.options.threaded_simulation)?;
     if player.options.verify_flap_woods {
         return flap_woods::verify(&mut player);
     }

@@ -215,11 +215,28 @@ impl Profiler {
     }
 }
 
+/// Receives each line [`log`] records, as it is recorded: level, source and message.
+pub type Echo = fn(Level, &str, &str);
+
 #[derive(Default)]
 pub struct Diagnostics {
     pub console: Console,
     pub profiler: Profiler,
     pub tick: Option<u64>,
+    /// Library code never prints. A host without a console view installs one, such as
+    /// [`terminal`] in the native player and headless server.
+    pub echo: Option<Echo>,
+}
+
+/// An [`Echo`] for terminal hosts. Information is the bare message on standard output, one
+/// line per call (a script's `print`); warnings and errors go to standard error with their
+/// source.
+pub fn terminal(level: Level, source: &str, message: &str) {
+    match level {
+        Level::Info => println!("{message}"),
+        Level::Warning => eprintln!("warning: {source}: {message}"),
+        Level::Error => eprintln!("error: {source}: {message}"),
+    }
 }
 
 /// Cooperative debugger control. A system that pauses mid-execution must retain its
@@ -245,11 +262,23 @@ pub fn measure<T>(
     }
     result
 }
+/// Nearest-rank percentile of samples sorted in ascending order: the smallest sample with at
+/// least `fraction` of all samples at or below it. Every frame-time report (the editor's
+/// Debug pane and benchmark, the player's `--frames` summary) uses this one definition.
+pub fn percentile(sorted: &[f64], fraction: f64) -> Option<f64> {
+    let last = sorted.len().checked_sub(1)?;
+    let rank = (sorted.len() as f64 * fraction).ceil() as usize;
+    Some(sorted[rank.saturating_sub(1).min(last)])
+}
+
 pub fn log(world: &mut World, level: Level, source: &str, message: &str, location: Location) {
     if let Some(diagnostics) = world.resource_mut::<Diagnostics>() {
         diagnostics
             .console
             .push(level, source, message, location, diagnostics.tick);
+        if let Some(echo) = diagnostics.echo {
+            echo(level, source, message);
+        }
     }
 }
 
@@ -312,6 +341,55 @@ mod tests {
         assert!(log.events[0].id > last);
         assert_eq!(log.events[0].message.len(), MAX_MESSAGE_BYTES);
         assert_eq!(log.discarded, 0);
+    }
+    #[test]
+    fn an_installed_echo_receives_every_logged_line() {
+        thread_local! {
+            static LINES: std::cell::RefCell<Vec<String>> = Default::default();
+        }
+        fn record(level: Level, source: &str, message: &str) {
+            LINES.with(|lines| {
+                lines
+                    .borrow_mut()
+                    .push(format!("{level:?} {source} {message}"))
+            });
+        }
+        let mut world = World::default();
+        world.insert_resource(Diagnostics::default());
+        log(
+            &mut world,
+            Level::Info,
+            "Script",
+            "unseen",
+            Location::default(),
+        );
+        world.resource_mut::<Diagnostics>().unwrap().echo = Some(record);
+        for _ in 0..2 {
+            log(
+                &mut world,
+                Level::Warning,
+                "Script",
+                "again",
+                Location::default(),
+            );
+        }
+        // The console collapses the repeat; the echo still gets one line per call.
+        let console = &world.resource::<Diagnostics>().unwrap().console;
+        assert_eq!(console.events.len(), 2);
+        assert_eq!(console.events[1].repetitions, 2);
+        LINES.with(|lines| assert_eq!(*lines.borrow(), ["Warning Script again"; 2]));
+    }
+    #[test]
+    fn percentiles_use_the_nearest_rank() {
+        let samples: Vec<f64> = (1..=30).map(f64::from).collect();
+        assert_eq!(percentile(&samples, 0.5), Some(15.));
+        // 95% of 30 samples is 28.5, so the 29th sample: no fewer than 95% are at or below it.
+        assert_eq!(percentile(&samples, 0.95), Some(29.));
+        assert_eq!(percentile(&samples, 0.99), Some(30.));
+        assert_eq!(percentile(&samples, 0.), Some(1.));
+        assert_eq!(percentile(&samples, 1.), Some(30.));
+        assert_eq!(percentile(&[7.], 0.99), Some(7.));
+        assert_eq!(percentile(&[], 0.5), None);
     }
     #[test]
     fn disabled_profiling_is_empty_and_nested_scopes_keep_their_parent() {

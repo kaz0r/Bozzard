@@ -10,6 +10,7 @@ build = "../../tools/steam_build.rs"
 ctrlc = { version = "3.5", features = ["termination"] }
 bozzard-network = { path = "../../crates/bozzard-network" }
 bozzard-runtime.workspace = true
+bozzard-diagnostics.workspace = true
 anyhow.workspace = true
 
 [lints]

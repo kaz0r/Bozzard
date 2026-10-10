@@ -823,6 +823,57 @@ fn gltf_pbr_maps_share_images_preserve_uvs_samplers_and_tangents() {
 }
 
 #[test]
+fn generated_mesh_export_only_writes_images_the_importer_accepts() {
+    let mesh = |width: u32| MeshData {
+        skin: None,
+        vertices: vec![
+            [0., 0., 0., 0., 0., 1., 0., 0.],
+            [1., 0., 0., 0., 0., 1., 1., 0.],
+            [0., 1., 0., 0., 0., 1., 0., 1.],
+        ],
+        indices: vec![0, 1, 2],
+        parts: vec![MeshPart {
+            source_key: String::new(),
+            name: "Wide".into(),
+            material_name: None,
+            start: 0,
+            count: 3,
+            color: [1.; 4],
+            image: Some(Arc::new(ImageData {
+                width,
+                height: 1,
+                rgba: vec![255; width as usize * 4],
+                compressed: None,
+            })),
+            alpha_cutoff: None,
+            shading: None,
+        }],
+        warnings: Vec::new(),
+    };
+    let reimport = |bytes: &[u8]| {
+        import(
+            AssetKind::Mesh,
+            Path::new("lod.gltf"),
+            bytes,
+            &no_dependencies(),
+        )
+    };
+    // The widest image the importer decodes survives an export round trip.
+    let portable = mesh_gltf(&mesh(4096), &job::Progress::default()).unwrap();
+    let AssetData::Mesh(restored) = reimport(&portable).unwrap() else {
+        panic!()
+    };
+    assert_eq!(restored.parts[0].image.as_ref().unwrap().width, 4096);
+    // Anything wider would write a model that cannot be imported again.
+    for width in [4097, 8192] {
+        let error = mesh_gltf(&mesh(width), &job::Progress::default())
+            .err()
+            .unwrap_or_else(|| panic!("exported a {width}-pixel image the importer rejects"));
+        assert!(format!("{error:#}").contains("4096"), "{error:#}");
+    }
+}
+
+#[test]
 fn gltf_uses_requested_uv_set_and_accepts_small_nonzero_scale() {
     let buffer = format!(
         "data:application/octet-stream;base64,{}",
