@@ -43,7 +43,8 @@ target/release/bozzard-editor --scene examples/earth-factory/scenes/earth.json \
 ```
 
 `--benchmark-frames 1..240` records native editor frames, prints JSON with CPU,
-interval, pane, simulation and GPU data, and exits. Omit `--benchmark-play` to measure
+interval, pane, simulation and GPU data, and exits. Its medians and p95 values use
+nearest-rank selection, as do the Debug pane and the player's `--frames` summary. Omit `--benchmark-play` to measure
 authoring. Use the same layout/profile for comparisons; startup and upload frames
 are excluded. Existing ordinary editor arguments still apply.
 

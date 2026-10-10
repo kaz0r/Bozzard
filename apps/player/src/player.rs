@@ -19,11 +19,7 @@ pub(crate) fn print_frame_percentiles(label: &str, samples: &VecDeque<f64>) {
     }
     let mut sorted: Vec<_> = samples.iter().copied().collect();
     sorted.sort_by(f64::total_cmp);
-    let percentile = |p: f64| {
-        sorted[((sorted.len() as f64 * p).ceil() as usize)
-            .saturating_sub(1)
-            .min(sorted.len() - 1)]
-    };
+    let percentile = |p| bozzard_diagnostics::percentile(&sorted, p).unwrap_or(0.);
     println!(
         "{label} n={} median={:.3}ms p95={:.3}ms p99={:.3}ms",
         sorted.len(),

@@ -245,6 +245,15 @@ pub fn measure<T>(
     }
     result
 }
+/// Nearest-rank percentile of samples sorted in ascending order: the smallest sample with at
+/// least `fraction` of all samples at or below it. Every frame-time report (the editor's
+/// Debug pane and benchmark, the player's `--frames` summary) uses this one definition.
+pub fn percentile(sorted: &[f64], fraction: f64) -> Option<f64> {
+    let last = sorted.len().checked_sub(1)?;
+    let rank = (sorted.len() as f64 * fraction).ceil() as usize;
+    Some(sorted[rank.saturating_sub(1).min(last)])
+}
+
 pub fn log(world: &mut World, level: Level, source: &str, message: &str, location: Location) {
     if let Some(diagnostics) = world.resource_mut::<Diagnostics>() {
         diagnostics
@@ -312,6 +321,18 @@ mod tests {
         assert!(log.events[0].id > last);
         assert_eq!(log.events[0].message.len(), MAX_MESSAGE_BYTES);
         assert_eq!(log.discarded, 0);
+    }
+    #[test]
+    fn percentiles_use_the_nearest_rank() {
+        let samples: Vec<f64> = (1..=30).map(f64::from).collect();
+        assert_eq!(percentile(&samples, 0.5), Some(15.));
+        // 95% of 30 samples is 28.5, so the 29th sample: no fewer than 95% are at or below it.
+        assert_eq!(percentile(&samples, 0.95), Some(29.));
+        assert_eq!(percentile(&samples, 0.99), Some(30.));
+        assert_eq!(percentile(&samples, 0.), Some(1.));
+        assert_eq!(percentile(&samples, 1.), Some(30.));
+        assert_eq!(percentile(&[7.], 0.99), Some(7.));
+        assert_eq!(percentile(&[], 0.5), None);
     }
     #[test]
     fn disabled_profiling_is_empty_and_nested_scopes_keep_their_parent() {
