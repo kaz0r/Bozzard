@@ -127,8 +127,13 @@ impl SceneInstance {
                 ))
             })
             .collect();
+        // Hooks never touch the world, so the read view borrows the network frame
+        // instead of copying it; the frame returns before commands are applied.
+        let network = world.remove_resource::<NetworkFrame>();
+        let restore_network = network.is_some();
         bozzard_diagnostics::measure(world, "Script read view", |world| {
             let mut host = engine.lock();
+            host.network = network.unwrap_or_default();
             self.build_view(world, &mut host, runtime, &snapshot, dt, input);
             host.overlap_contacts = overlap_contacts;
             host.ui_events.clear();
@@ -240,6 +245,10 @@ impl SceneInstance {
                 .resource_mut::<BlueprintRuntime>()
                 .expect("borrowed boards"),
         );
+        let network = std::mem::take(&mut engine.lock().network);
+        if restore_network {
+            world.insert_resource(network);
+        }
         hooks?;
         let commands = std::mem::take(&mut engine.lock().commands);
         runtime.stats.commands = commands.len();
@@ -250,7 +259,8 @@ impl SceneInstance {
         runtime.tokens = tokens;
         result
     }
-    /// Seeds readable object state. The caller then lends or copies the blackboards.
+    /// Seeds readable object state. The caller sets the network frame, then lends or
+    /// copies the blackboards.
     pub(super) fn build_view(
         &self,
         world: &World,
@@ -260,10 +270,6 @@ impl SceneInstance {
         dt: f32,
         input: GameplayInput,
     ) {
-        host.network = world
-            .resource::<NetworkFrame>()
-            .cloned()
-            .unwrap_or_default();
         host.network_requests = world
             .resource::<NetworkOutbox>()
             .map_or(0, NetworkOutbox::len);
@@ -302,55 +308,108 @@ impl SceneInstance {
         host.elapsed = runtime.elapsed;
         host.loading = self.scene_load_status(world);
         host.input = input;
-        host.tokens = runtime.tokens.clone();
+        // Spawns are rare; most ticks find the previous tick's handles unchanged.
+        if host.tokens != runtime.tokens {
+            host.tokens.clone_from(&runtime.tokens);
+        }
         host.geometry = snapshot.clone();
         host.overlap_contacts = None;
         host.overlap_counts = None;
         host.budget = 1_000_000;
         host.commands.clear();
-        host.objects.clear();
         host.object_boards.clear();
         host.scene_board.clear();
+        self.update_object_views(world, &mut host.objects, runtime);
+    }
+    /// Refresh every object's view in place while the object set is unchanged, so a
+    /// steady scene allocates no keys or text; otherwise rebuild the map.
+    fn update_object_views(
+        &self,
+        world: &World,
+        objects: &mut BTreeMap<String, ObjectView>,
+        runtime: &ScriptRuntime,
+    ) {
+        // Spawn handles from the previous tick's hooks are not objects.
+        let handles: Vec<String> = objects
+            .range::<str, _>((
+                std::ops::Bound::Included(SPAWN_PREFIX),
+                std::ops::Bound::Unbounded,
+            ))
+            .map(|(id, _)| id)
+            .take_while(|id| id.starts_with(SPAWN_PREFIX))
+            .cloned()
+            .collect();
+        for id in handles {
+            objects.remove(&id);
+        }
         let has_text = world.query::<TextRendering>().next().is_some();
         let has_gravity = world.query::<Gravity>().next().is_some();
         let has_grounded = world.query::<GravityState>().next().is_some();
-        for (id, entity) in &self.entities {
-            let Some(transform) = world.get::<Transform>(*entity) else {
+        let animation = world.resource::<middleware::animation::Runtime>();
+        let refresh =
+            |id: &String, entity: Entity, transform: &Transform, view: &mut ObjectView| {
+                view.position = transform.translation;
+                view.rotation = transform.rotation_degrees;
+                view.scale = transform.scale;
+                match has_text
+                    .then(|| world.get::<TextRendering>(entity))
+                    .flatten()
+                {
+                    Some(text) => match &mut view.text {
+                        Some(current) => current.clone_from(&text.text),
+                        None => view.text = Some(text.text.clone()),
+                    },
+                    None => view.text = None,
+                }
+                view.rigidbody = has_gravity
+                    && world.get::<Gravity>(entity).is_some_and(|g| g.enabled)
+                    && world.get::<PlayerController>(entity).is_none();
+                view.grounded = runtime.moved.get(id).copied().unwrap_or_else(|| {
+                    has_grounded
+                        && world
+                            .get::<GravityState>(entity)
+                            .is_some_and(|state| state.grounded)
+                });
+                let player = animation.and_then(|r| r.players.get(id));
+                match player.zip(world.get::<middleware::animation::Animator>(entity)) {
+                    Some((player, animator)) => {
+                        let state = animator.states.get(player.state);
+                        let view = view.animation.get_or_insert_with(Default::default);
+                        match state {
+                            Some(state) => view.state.clone_from(&state.name),
+                            None => view.state.clear(),
+                        }
+                        view.progress = state.map_or(0., |s| player.clock.position(1., s.repeat));
+                        view.playing = player.clock.playing;
+                    }
+                    None => view.animation = None,
+                }
+            };
+        let mut views = objects.iter_mut();
+        let mut retained = true;
+        for (id, &entity) in &self.entities {
+            let Some(transform) = world.get::<Transform>(entity) else {
                 continue;
             };
-            host.objects.insert(
-                id.clone(),
-                ObjectView {
-                    position: transform.translation,
-                    rotation: transform.rotation_degrees,
-                    scale: transform.scale,
-                    text: has_text
-                        .then(|| world.get::<TextRendering>(*entity))
-                        .flatten()
-                        .map(|text| text.text.clone()),
-                    rigidbody: has_gravity
-                        && world.get::<Gravity>(*entity).is_some_and(|g| g.enabled)
-                        && world.get::<PlayerController>(*entity).is_none(),
-                    grounded: runtime.moved.get(id).copied().unwrap_or_else(|| {
-                        has_grounded
-                            && world
-                                .get::<GravityState>(*entity)
-                                .is_some_and(|state| state.grounded)
-                    }),
-                    animation: world
-                        .resource::<middleware::animation::Runtime>()
-                        .and_then(|r| r.players.get(id))
-                        .zip(world.get::<middleware::animation::Animator>(*entity))
-                        .map(|(player, animator)| {
-                            let state = animator.states.get(player.state);
-                            animation_api::View {
-                                state: state.map_or_else(String::new, |s| s.name.clone()),
-                                progress: state.map_or(0., |s| player.clock.position(1., s.repeat)),
-                                playing: player.clock.playing,
-                            }
-                        }),
-                },
-            );
+            match views.next() {
+                Some((key, view)) if key == id => refresh(id, entity, transform, view),
+                _ => {
+                    retained = false;
+                    break;
+                }
+            }
+        }
+        if retained && views.next().is_none() {
+            return;
+        }
+        objects.clear();
+        for (id, &entity) in &self.entities {
+            let Some(transform) = world.get::<Transform>(entity) else {
+                continue;
+            };
+            let mut view = ObjectView::default();
+            refresh(id, entity, transform, &mut view);
+            objects.insert(id.clone(), view);
         }
     }
     /// Overlap sets for script owners, matching what a blueprint sees for the same object.
