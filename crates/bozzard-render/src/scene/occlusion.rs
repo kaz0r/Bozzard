@@ -10,6 +10,14 @@ const MAX_OCCLUDERS: usize = 32;
 const MAX_DEPTH_TRIANGLES: u64 = 100_000;
 const UNPRODUCTIVE_COOLDOWN: u32 = 30;
 
+/// Each surface's mesh bounds and index count by draw index, resolved once
+/// per frame from the string-keyed asset catalogs.
+#[derive(Clone, Copy)]
+pub(super) struct Meshes<'a> {
+    pub bounds: &'a [[Vec3; 2]],
+    pub counts: &'a [u32],
+}
+
 #[derive(Clone, Copy, Debug, Default, serde::Serialize)]
 pub struct OcclusionResult {
     pub frame_id: u64,
@@ -309,13 +317,14 @@ impl SceneRenderer {
         &mut self,
         gpu: &Gpu,
         draws: &[PreparedDraw],
+        meshes: Meshes<'_>,
         view_projection: Mat4,
         size: [u32; 2],
         visible: &mut [bool],
     ) {
         let started = std::time::Instant::now();
         let mut state = std::mem::take(&mut self.occlusion);
-        state.apply_instances(self, gpu, view_projection, size, draws, visible);
+        state.apply_instances(self, gpu, view_projection, size, draws, meshes, visible);
         self.occlusion = state;
         self.stats.occlusion_prepare_ms += started.elapsed().as_secs_f64() * 1000.;
     }
@@ -334,6 +343,7 @@ impl SceneRenderer {
         view_projection: Mat4,
         size: [u32; 2],
         draws: &[PreparedDraw],
+        meshes: Meshes<'_>,
         visible: &[bool],
         batches: &[instancing::Batch],
     ) -> Mode {
@@ -346,6 +356,7 @@ impl SceneRenderer {
             view_projection,
             size,
             draws,
+            meshes,
             visible,
             batches,
         );
@@ -465,6 +476,7 @@ impl Occlusion {
         vp: Mat4,
         size: [u32; 2],
         draws: &[PreparedDraw],
+        meshes: Meshes<'_>,
         visible: &[bool],
     ) {
         if self.camera != Some((vp, size)) {
@@ -480,7 +492,7 @@ impl Occlusion {
         // Selection: cheap predicates first, then a conservative screen bound,
         // and an exact projection only where the bound can reach the threshold.
         for (index, draw) in draws.iter().enumerate() {
-            let bounds = renderer.mesh_for(&draw.object).bounds;
+            let bounds = meshes.bounds[index];
             if index == self.projections.len() {
                 self.projections.push(CachedProjection {
                     model: draw.object.model,
@@ -496,7 +508,7 @@ impl Occlusion {
                     && cached.bounds == bounds
             };
             let qualifies = visible[index]
-                && renderer.mesh_for(&draw.object).count as u64 / 3 <= MAX_DEPTH_TRIANGLES
+                && meshes.counts[index] as u64 / 3 <= MAX_DEPTH_TRIANGLES
                 && opaque(renderer, draw);
             if !qualifies && self.bound_prepass {
                 continue;
@@ -533,7 +545,7 @@ impl Occlusion {
         // Candidate rectangles need every projection, but only when depth exists.
         if !self.occluders.is_empty() {
             for (index, draw) in draws.iter().enumerate() {
-                let bounds = renderer.mesh_for(&draw.object).bounds;
+                let bounds = meshes.bounds[index];
                 let cached = &mut self.projections[index];
                 if cached.camera != generation
                     || cached.model != draw.object.model
@@ -564,7 +576,7 @@ impl Occlusion {
         self.occluders.sort_unstable_by(order);
         let mut triangles = 0;
         self.occluders.retain(|(i, _)| {
-            let count = u64::from(renderer.mesh_for(&draws[*i].object).count / 3);
+            let count = u64::from(meshes.counts[*i] / 3);
             if triangles + count > MAX_DEPTH_TRIANGLES {
                 return false;
             }
@@ -572,6 +584,7 @@ impl Occlusion {
             true
         });
     }
+    #[allow(clippy::too_many_arguments)]
     fn apply_instances(
         &mut self,
         renderer: &mut SceneRenderer,
@@ -579,6 +592,7 @@ impl Occlusion {
         vp: Mat4,
         size: [u32; 2],
         draws: &[PreparedDraw],
+        meshes: Meshes<'_>,
         visible: &mut [bool],
     ) {
         self.instance_applied = false;
@@ -621,7 +635,7 @@ impl Occlusion {
             // A failed/no-occluder refresh must not leave the preceding input
             // certificate valid, even if a later frame reverts its source data.
             self.instance_inputs_valid = false;
-            self.refresh_inputs(renderer, vp, size, draws, visible);
+            self.refresh_inputs(renderer, vp, size, draws, meshes, visible);
             self.refreshed = true;
             if self.occluders.is_empty() {
                 return;
@@ -637,7 +651,7 @@ impl Occlusion {
                     &mut self.instance_candidates,
                     rectangle,
                     nearest,
-                    renderer.mesh_for(&draw.object).count,
+                    meshes.counts[index],
                     u32::from(visible[index]),
                 );
             }
@@ -694,6 +708,7 @@ impl Occlusion {
         vp: Mat4,
         size: [u32; 2],
         draws: &[PreparedDraw],
+        meshes: Meshes<'_>,
         visible: &[bool],
         batches: &[instancing::Batch],
     ) -> Mode {
@@ -717,7 +732,7 @@ impl Occlusion {
             return Mode::Disabled;
         }
         if !self.refreshed {
-            self.refresh_inputs(renderer, vp, size, draws, visible);
+            self.refresh_inputs(renderer, vp, size, draws, meshes, visible);
         }
         self.refreshed = false;
         if self.occluders.is_empty() {
@@ -726,7 +741,7 @@ impl Occlusion {
         let triangles = self
             .occluders
             .iter()
-            .map(|(i, _)| u64::from(renderer.mesh_for(&draws[*i].object).count / 3))
+            .map(|(i, _)| u64::from(meshes.counts[*i] / 3))
             .sum();
         self.candidates.clear();
         let mut tested = 0;
@@ -758,12 +773,8 @@ impl Occlusion {
                     .extend_from_slice(&((edge.max(0.) / 8.) as u32).to_le_bytes());
             }
             self.candidates.extend_from_slice(&nearest.to_le_bytes());
-            self.candidates.extend_from_slice(
-                &renderer
-                    .mesh_for(&draws[batch.indices[0]].object)
-                    .count
-                    .to_le_bytes(),
-            );
+            self.candidates
+                .extend_from_slice(&meshes.counts[batch.indices[0]].to_le_bytes());
             self.candidates
                 .extend_from_slice(&(batch.indices.len() as u32).to_le_bytes());
             self.candidates

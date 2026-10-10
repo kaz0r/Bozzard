@@ -2211,14 +2211,33 @@ impl SceneRenderer {
         }
         let mut bounds = std::mem::take(&mut self.frame_scratch.bounds);
         bounds.clear();
-        bounds.extend(draws.iter().map(|d| self.mesh_for(&d.object).bounds));
+        let mut counts = std::mem::take(&mut self.frame_scratch.counts);
+        counts.clear();
+        // Resolve each surface's mesh (a string-keyed catalog lookup) once per
+        // frame; occlusion reads the same bounds and index counts by draw.
+        for draw in &draws {
+            let mesh = self.mesh_for(&draw.object);
+            bounds.push(mesh.bounds);
+            counts.push(mesh.count);
+        }
+        let meshes = occlusion::Meshes {
+            bounds: &bounds,
+            counts: &counts,
+        };
         let visibility_started = std::time::Instant::now();
         let mut visible = std::mem::take(&mut self.frame_scratch.visible);
         self.visibility(scene, &draws, &bounds, &mut visible);
         let mut frustum_visible = std::mem::take(&mut self.frame_scratch.frustum);
         frustum_visible.clear();
         frustum_visible.extend_from_slice(&visible);
-        self.apply_cached_instance_occlusion(gpu, &draws, view_projection, size, &mut visible);
+        self.apply_cached_instance_occlusion(
+            gpu,
+            &draws,
+            meshes,
+            view_projection,
+            size,
+            &mut visible,
+        );
         self.stats.visibility_ms = visibility_started.elapsed().as_secs_f64() * 1000.;
         self.light_selection.update(&scene.lights);
         self.stats.scene_items = scene.items.len();
@@ -2478,6 +2497,7 @@ impl SceneRenderer {
             view_projection,
             size,
             &draws,
+            meshes,
             &frustum_visible,
             &batches,
         );
@@ -3212,6 +3232,7 @@ impl SceneRenderer {
         let (stable, unchanged) = comparison.into_buffers();
         self.frame_scratch = frame_scratch::Scratch {
             bounds,
+            counts,
             visible,
             frustum: frustum_visible,
             items: visible_items,
