@@ -1,7 +1,7 @@
 //! Prefer physical gameplay keys; fall back to egui's logical key when a backend omits the
 //! physical key. Editor shortcuts continue using logical keys. Any key a scene can bind is
 //! tracked, so a scene chooses its own buttons.
-use bozzard_demo::SceneDemo;
+use bozzard_runtime::SceneRuntime;
 use bozzard_scene::{GameplayInput, keys};
 use eframe::egui::{Context, Event, Key, Modifiers, PointerButton, RawInput};
 
@@ -96,7 +96,7 @@ impl GameplayControls {
         input: &RawInput,
         previous_modifiers: Modifiers,
         eligible: bool,
-        play: Option<&mut SceneDemo>,
+        play: Option<&mut SceneRuntime>,
     ) {
         self.prepare_with_pointer(input, previous_modifiers, eligible, eligible, play);
     }
@@ -110,7 +110,7 @@ impl GameplayControls {
         previous_modifiers: Modifiers,
         eligible: bool,
         pointer_eligible: bool,
-        play: Option<&mut SceneDemo>,
+        play: Option<&mut SceneRuntime>,
     ) {
         let scene_keyboard = play
             .as_ref()
@@ -231,12 +231,12 @@ impl GameplayControls {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn demo() -> SceneDemo {
+    fn demo() -> SceneRuntime {
         let scene = bozzard_scene::Scene::from_json(include_str!(
             "../../../examples/demo/scenes/first-trail.json"
         ))
         .unwrap();
-        SceneDemo::new(&scene).unwrap()
+        SceneRuntime::new(&scene).unwrap()
     }
     fn key(logical: Key, physical: Key, repeat: bool) -> Event {
         Event::Key {
@@ -425,7 +425,7 @@ mod tests {
             "demo_mode".into(),
             BlackboardValue::Scalar(Value::Bool(true)),
         );
-        let mut demo = SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        let mut demo = SceneRuntime::new_with_prefabs(&scene, Some(&path)).unwrap();
         for _ in 0..8 {
             demo.app.step();
         }
@@ -468,7 +468,7 @@ mod tests {
             "../../../examples/demo/scenes/blueprint-lab.json"
         ))
         .unwrap();
-        let mut demo = SceneDemo::new(&scene).unwrap();
+        let mut demo = SceneRuntime::new(&scene).unwrap();
         let mut controls = GameplayControls::default();
         controls.prepare(
             &raw(vec![key(Key::Space, Key::Space, false)]),
@@ -498,7 +498,7 @@ mod tests {
                 .replace("\"key\": \"jump\"", "\"key\": \"U\""),
         )
         .unwrap();
-        let mut demo = SceneDemo::new(&scene).unwrap();
+        let mut demo = SceneRuntime::new(&scene).unwrap();
         let mut controls = GameplayControls::default();
         let release = Event::Key {
             key: Key::U,
@@ -785,7 +785,7 @@ mod tests {
             "../../../examples/demo/scenes/blueprint-lab.json"
         ))
         .unwrap();
-        let mut demo = SceneDemo::new(&scene).unwrap();
+        let mut demo = SceneRuntime::new(&scene).unwrap();
         let mut controls = GameplayControls::default();
         let ctrl = Modifiers {
             ctrl: true,

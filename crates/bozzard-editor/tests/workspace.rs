@@ -3,7 +3,7 @@ use bozzard_scene::{Layer, Mesh};
 use std::path::Path;
 
 fn document(name: &str) -> Editor {
-    let mut scene = bozzard_demo::scene_document().unwrap();
+    let mut scene = bozzard_runtime::scene_document().unwrap();
     scene.name = name.into();
     Editor::new(scene, Path::new(name)).unwrap()
 }
@@ -87,7 +87,10 @@ fn saving_one_document_leaves_the_other_dirty_and_discard_is_local() -> anyhow::
         let mut workspace = OpenScenes::default();
         let second = workspace.add(
             &mut first,
-            Editor::new(bozzard_demo::scene_document()?, &root.join("second.json"))?,
+            Editor::new(
+                bozzard_runtime::scene_document()?,
+                &root.join("second.json"),
+            )?,
         )?;
         first.create_empty()?;
         let edited_second = first.scene().clone();

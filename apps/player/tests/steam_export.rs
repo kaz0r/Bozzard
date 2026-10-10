@@ -26,7 +26,7 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
     fs::create_dir(&empty).unwrap();
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/demo/scenes/flap-woods-multiplayer.json");
-    let mut scene = bozzard_demo::load_document(Some(&source)).unwrap();
+    let mut scene = bozzard_runtime::load_document(Some(&source)).unwrap();
     let project = Project {
         version: 1,
         name: "Together".into(),
@@ -91,7 +91,7 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
                 "{name}"
             );
         }
-        let (name, bytes) = bozzard_demo::steam_runtime::redistributable().unwrap();
+        let (name, bytes) = bozzard_runtime::steam_runtime::redistributable().unwrap();
         assert_eq!(
             fs::read(binary.parent().unwrap().join(name)).unwrap(),
             bytes
@@ -117,9 +117,10 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
         let snapshot = empty.join(format!("snapshot-{app_id}.json"));
         let saved = run(&["--write-scene", snapshot.to_str().unwrap()]);
         assert!(saved.status.success(), "{saved:?}");
-        let relocated = bozzard_demo::load_document(Some(&snapshot)).unwrap();
-        let demo = bozzard_demo::SceneDemo::new_with_prefabs(&relocated, Some(&snapshot)).unwrap();
-        let rules = bozzard_demo::multiplayer::rules_for(demo.instance()).unwrap();
+        let relocated = bozzard_runtime::load_document(Some(&snapshot)).unwrap();
+        let demo =
+            bozzard_runtime::SceneRuntime::new_with_prefabs(&relocated, Some(&snapshot)).unwrap();
+        let rules = bozzard_runtime::multiplayer::rules_for(demo.instance()).unwrap();
         let mut bird = rules.spawn(0).unwrap();
         rules.predict(&mut bird, true).unwrap();
         assert!(
@@ -139,8 +140,8 @@ fn native_exports_include_verified_sdk_and_run_relocated_without_python_or_libra
             );
         }
         assert_eq!(
-            bozzard_demo::multiplayer::app_id(
-                &bozzard_demo::load_document(Some(&snapshot)).unwrap()
+            bozzard_runtime::multiplayer::app_id(
+                &bozzard_runtime::load_document(Some(&snapshot)).unwrap()
             )
             .unwrap(),
             Some(app_id)

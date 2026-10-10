@@ -278,7 +278,7 @@ fn prefabs_and_additive_loading_remap_shared_material_bindings() -> Result<()> {
     main.set_runtime_scene_source(
         "chunk",
         Some(SceneSource::File {
-            path: bozzard_demo::relative_reference(&chunk.path, &temp.0)?,
+            path: bozzard_runtime::relative_reference(&chunk.path, &temp.0)?,
         }),
     )?;
     main.start_play()?;

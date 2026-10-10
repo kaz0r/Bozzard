@@ -29,5 +29,5 @@ Portable copies are in `examples/demo/scenes/assets/Blueprints/yard-*.blueprint.
 
 ```sh
 cargo test -p bozzard-editor --test gold_yard
-cargo test -p bozzard-demo --test blueprints mouse_deltas
+cargo test -p bozzard-runtime --test blueprints mouse_deltas
 ```

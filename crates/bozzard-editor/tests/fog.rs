@@ -4,7 +4,7 @@ use bozzard_scene::Layer;
 #[test]
 fn fog_history_play_save_and_2d_isolation() {
     let path = std::env::temp_dir().join(format!("bozzard-fog-{}.json", std::process::id()));
-    let mut e = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+    let mut e = Editor::new(bozzard_runtime::scene_document().unwrap(), &path).unwrap();
     let initial = e.scene().clone();
     e.begin_gesture("Fog slider");
     for density in [0.1, 0.2] {

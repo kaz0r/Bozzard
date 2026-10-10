@@ -23,7 +23,7 @@ fn measure<T>(label: &str, mut operation: impl FnMut() -> Result<T>) -> Result<(
 }
 
 fn main() -> Result<()> {
-    let mut scene = bozzard_demo::scene_document()?;
+    let mut scene = bozzard_runtime::scene_document()?;
     let mut template = scene
         .objects
         .iter()
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         bozzard_assets::gi::is_current(editor.scene(), &editor.assets)
     })?;
     measure("gi_freshness_cached", || Ok(editor.gi_current()))?;
-    let demo = bozzard_demo::SceneDemo::new(editor.scene())?;
+    let demo = bozzard_runtime::SceneRuntime::new(editor.scene())?;
     measure("extract_runtime_reference", || {
         bozzard_editor::extract(&demo, &editor.assets, Layer::ThreeD, 1.6)
     })?;

@@ -1,7 +1,7 @@
 //! Headless scene simulation with optional real-time pacing and graceful shutdown.
 //! Steam listen-server hosting lives in the multiplayer player.
 use anyhow::{Context, Result, bail};
-use bozzard_demo::{SceneDemo, load_document, save_document_from};
+use bozzard_runtime::{SceneRuntime, load_document, save_document_from};
 use std::{
     path::PathBuf,
     sync::{
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
         }
     }
     let document = load_document(scene.as_deref())?;
-    let mut demo = SceneDemo::new_with_prefabs(&document, scene.as_deref())?;
+    let mut demo = SceneRuntime::new_with_prefabs(&document, scene.as_deref())?;
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
     ctrlc::set_handler(move || signal.store(true, Ordering::Relaxed))?;

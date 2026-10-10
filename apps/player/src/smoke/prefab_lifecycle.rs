@@ -11,7 +11,7 @@ fn bonfire_gpu_soak() -> Result<()> {
         .iter()
         .filter(|o| o.drawable.is_some())
         .count();
-    let mut demo = SceneDemo::new_with_prefabs(&document, Some(&path))?;
+    let mut demo = SceneRuntime::new_with_prefabs(&document, Some(&path))?;
     let instance = instance(bozzard_render::Backend::native());
     let gpu = pollster::block_on(Gpu::request(&instance, None, false))?;
     gpu.require_hardware()?;

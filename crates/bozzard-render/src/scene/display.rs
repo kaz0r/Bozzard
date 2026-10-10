@@ -21,33 +21,14 @@ impl Display {
                 label: Some("HDR display transform"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("display.wgsl").into()),
             });
-        let pipeline = gpu
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("HDR display pass"),
-                layout: None,
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: Default::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                multiview_mask: None,
-                cache: None,
-            });
+        let pipeline = gpu_util::fullscreen_pipeline(
+            gpu,
+            "HDR display pass",
+            None,
+            &shader,
+            "fs_main",
+            &[format],
+        );
         let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("display settings"),
             size: 128,

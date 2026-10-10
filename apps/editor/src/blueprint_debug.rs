@@ -567,7 +567,7 @@ impl App {
                     error: Option<&'a str>,
                 }
                 use std::io::Write;
-                bozzard_demo::save_atomic(&path, |file| {
+                bozzard_runtime::save_atomic(&path, |file| {
                     let mut writer = std::io::BufWriter::new(file);
                     serde_json::to_writer_pretty(
                         &mut writer,

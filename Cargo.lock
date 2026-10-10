@@ -577,13 +577,13 @@ dependencies = [
  "base64 0.22.1",
  "bozzard-app",
  "bozzard-assets",
- "bozzard-demo",
  "bozzard-diagnostics",
  "bozzard-ecs",
  "bozzard-network",
  "bozzard-project",
  "bozzard-render",
  "bozzard-render-assets",
+ "bozzard-runtime",
  "bozzard-scene",
  "flate2",
  "glam 0.33.6",
@@ -650,20 +650,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bozzard-demo"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bozzard-app",
- "bozzard-diagnostics",
- "bozzard-network",
- "bozzard-scene",
- "glam 0.33.6",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "bozzard-diagnostics"
 version = "0.1.0"
 dependencies = [
@@ -681,12 +667,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bozzard-assets",
- "bozzard-demo",
  "bozzard-diagnostics",
  "bozzard-network",
  "bozzard-project",
  "bozzard-render",
  "bozzard-render-assets",
+ "bozzard-runtime",
  "bozzard-scene",
  "glam 0.33.6",
  "pollster 0.4.0",
@@ -702,12 +688,12 @@ dependencies = [
  "bozz-torio",
  "bozzard-assets",
  "bozzard-audio",
- "bozzard-demo",
  "bozzard-diagnostics",
  "bozzard-editor",
  "bozzard-project",
  "bozzard-render",
  "bozzard-render-assets",
+ "bozzard-runtime",
  "bozzard-scene",
  "eframe",
  "glam 0.33.6",
@@ -741,11 +727,11 @@ dependencies = [
  "bozzard-app",
  "bozzard-assets",
  "bozzard-audio",
- "bozzard-demo",
  "bozzard-diagnostics",
  "bozzard-project",
  "bozzard-render",
  "bozzard-render-assets",
+ "bozzard-runtime",
  "bozzard-scene",
  "glam 0.33.6",
  "pollster 0.4.0",
@@ -760,7 +746,7 @@ dependencies = [
  "anyhow",
  "bozzard-app",
  "bozzard-assets",
- "bozzard-demo",
+ "bozzard-runtime",
  "bozzard-scene",
  "flate2",
  "reqwest",
@@ -802,6 +788,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "bozzard-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bozzard-app",
+ "bozzard-diagnostics",
+ "bozzard-network",
+ "bozzard-scene",
+ "glam 0.33.6",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bozzard-scene"
 version = "0.1.0"
 dependencies = [
@@ -823,8 +823,8 @@ name = "bozzard-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bozzard-demo",
  "bozzard-network",
+ "bozzard-runtime",
  "ctrlc",
 ]
 

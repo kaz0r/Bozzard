@@ -6,7 +6,7 @@ use bozzard_scene::Layer;
 #[test]
 #[ignore = "requires a native graphics adapter; writes Stellar-IX previews"]
 fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let source = std::fs::read_to_string(path.parent().unwrap().join("scripts/earth_factory.rs"))?;
@@ -254,7 +254,7 @@ fn title_assembler_journal_and_powered_night_render() -> anyhow::Result<()> {
             }
         }
         if label == "saves" {
-            use bozzard_demo::factory::{Session, saves, set_session, state::State};
+            use bozzard_runtime::factory::{Session, saves, set_session, state::State};
             let directory =
                 std::env::temp_dir().join(format!("stellar-save-preview-{}", std::process::id()));
             let state = State::capture(

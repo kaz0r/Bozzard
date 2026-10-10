@@ -12,7 +12,7 @@ use bozzard_scene::{
 fn simulation_worker_preserves_rendered_world() -> anyhow::Result<()> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
-    let mut scene = bozzard_demo::load_document(Some(&path))?;
+    let mut scene = bozzard_runtime::load_document(Some(&path))?;
     scene
         .blackboard
         .insert("seed".into(), BlackboardValue::Scalar(Value::Number(4.)));

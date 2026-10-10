@@ -1,15 +1,15 @@
-use bozzard_demo::SceneDemo;
 use bozzard_editor::Editor;
+use bozzard_runtime::SceneRuntime;
 use bozzard_scene::{Blueprint, GameplayInput, Layer, Transform};
 use std::path::PathBuf;
 
-fn step(demo: &mut SceneDemo, ticks: usize) {
+fn step(demo: &mut SceneRuntime, ticks: usize) {
     for _ in 0..ticks {
         demo.app.step();
         demo.check_simulation().unwrap();
     }
 }
-fn place_player(demo: &mut SceneDemo, position: [f32; 3]) {
+fn place_player(demo: &mut SceneRuntime, position: [f32; 3]) {
     let entity = demo.instance().entity("player").unwrap();
     demo.app
         .world

@@ -11,7 +11,7 @@ use std::{path::PathBuf, time::Instant};
 #[ignore = "native full-pipeline parity; accepts software graphics adapters"]
 fn retained_factory_pixels_and_checkpoints_match_reference() -> Result<()> {
     use bozzard_scene::{Drawable, Texture, Transform};
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let gpu = pollster::block_on(Gpu::request_prefer_software(&bozzard_render::instance(
         bozzard_render::Backend::native(),
@@ -166,7 +166,7 @@ fn profile_earth_factory_retained_camera() -> Result<()> {
 #[test]
 #[ignore = "native batch-order parity; accepts software graphics adapters"]
 fn batch_planning_factory_pixels_match_rebuilt_plans_during_motion() -> Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let gpu = pollster::block_on(Gpu::request_prefer_software(&bozzard_render::instance(
         bozzard_render::Backend::native(),
@@ -429,7 +429,7 @@ fn compare_geometry_pixels(
 }
 
 fn profile(workload: Workload, batch_planning: bool) -> Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let play = editor.play.as_ref().unwrap();
     let camera_id = &play.instance().document().views[&Layer::ThreeD];
@@ -706,7 +706,7 @@ fn profile_earth_factory_graph_instancing() -> Result<()> {
 }
 
 fn profile_graph_instancing(workload: Workload) -> Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let play = editor.play.as_ref().unwrap();
     let camera_id = &play.instance().document().views[&Layer::ThreeD];
@@ -894,7 +894,7 @@ fn profile_graph_instancing(workload: Workload) -> Result<()> {
 #[test]
 #[ignore = "native graph-instancing motion parity; accepts software graphics adapters"]
 fn graph_instancing_factory_pixels_and_checkpoints_match_during_motion() -> Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let mut editor = dense_factory()?;
     let gpu = pollster::block_on(Gpu::request_prefer_software(&bozzard_render::instance(
         bozzard_render::Backend::native(),

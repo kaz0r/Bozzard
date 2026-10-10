@@ -446,18 +446,18 @@ cargo build --release --locked --offline -p bozzard-editor-app -p bozzard-player
 target/release/bozzard-editor --scene examples/earth-factory/scenes/earth.json \
   --hardware --backend vulkan --benchmark-play --benchmark-frames 180
 
-cargo run --release --locked --offline -p bozzard-demo --example benchmark_factory -- \
+cargo run --release --locked --offline -p bozzard-runtime --example benchmark_factory -- \
   examples/earth-factory/scenes/earth.json --output work/factory-ticks.json
 # For a busy-save comparison, use an isolated scene wrapper and copied save.
 # Do not point that harness at a production save directory.
 
-cargo test --locked --offline -p bozzard-demo --test earth_factory
+cargo test --locked --offline -p bozzard-runtime --test earth_factory
 cargo test --locked --offline -p bozzard-scene numeric_archive --lib
 cargo test --locked --offline -p bozzard-project
 cargo test --locked --offline -p bozzard-editor-app -p bozzard-player -p bozz-torio
 PYTHONPATH=tools python3 -m unittest test_package test_bozz_torio_package
 cargo clippy --locked --offline -p bozzard-project -p bozzard-scene \
-  -p bozzard-player -p bozzard-editor-app -p bozz-torio -p bozzard-demo \
+  -p bozzard-player -p bozzard-editor-app -p bozz-torio -p bozzard-runtime \
   --all-targets -- -D warnings
 cargo fmt --all -- --check
 python3 tools/chart_further_optimizations.py

@@ -18,7 +18,7 @@ required-features = ["factory"]
 
 [features]
 default = ["steam"]
-steam = ["bozzard-demo/steam", "bozzard-editor/steam"]
+steam = ["bozzard-runtime/steam", "bozzard-editor/steam"]
 factory = ["dep:bozz-torio"]
 
 [dependencies]
@@ -26,7 +26,7 @@ bozzard-diagnostics.workspace = true
 bozzard-audio.workspace = true
 bozzard-project = { path = "../../crates/bozzard-project" }
 bozzard-editor = { path = "../../crates/bozzard-editor" }
-bozzard-demo.workspace = true
+bozzard-runtime.workspace = true
 bozz-torio = { path = "../bozz-torio", default-features = false, optional = true }
 bozzard-scene.workspace = true
 bozzard-assets.workspace = true

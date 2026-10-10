@@ -164,7 +164,8 @@ fn starter_projects_play_relocate_export_and_refuse_existing_destinations() -> a
         fs::remove_dir_all(&source)?;
         let (_, scene_path) = Project::load(&temp.data(&exported).join(bozzard_project::MANIFEST))?;
         let scene = load(&scene_path);
-        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&scene_path))?;
+        let mut runtime =
+            bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&scene_path))?;
         runtime.game_action(GameAction::Start)?;
         let player = runtime.instance().entity("player").unwrap();
         let initial = runtime
@@ -246,7 +247,7 @@ fn styled_text_exports_primary_and_fallback_fonts_and_loads_without_source_files
         source.join("fallback.ttf"),
         include_bytes!("../../bozzard-assets/tests/fonts/test.ttf"),
     )?;
-    let mut scene = bozzard_demo::scene_document()?;
+    let mut scene = bozzard_runtime::scene_document()?;
     for id in ["variable", "fallback"] {
         scene.assets.insert(
             id.into(),
@@ -312,7 +313,7 @@ fn automatically_simplified_pbr_lod_exports_without_its_source_project() -> anyh
         source.join("base.gltf"),
         bozzard_assets::portable_gltf(&fixture)?,
     )?;
-    let mut scene = bozzard_demo::scene_document()?;
+    let mut scene = bozzard_runtime::scene_document()?;
     scene.assets.insert(
         "base".into(),
         AssetSource {
@@ -387,7 +388,7 @@ fn automatically_simplified_pbr_lod_exports_without_its_source_project() -> anyh
     fs::remove_dir_all(source)?;
     let path = temp.data(&target).join("scene.json");
     let exported = load(&path);
-    let runtime = bozzard_demo::SceneDemo::new_with_prefabs(&exported, Some(&path))?;
+    let runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(&exported, Some(&path))?;
     let frame = runtime
         .instance()
         .view(&runtime.app.world, Layer::ThreeD, 1.)?;
@@ -480,7 +481,8 @@ fn declared_compute_assets_survive_relocation_and_source_removal() {
         let root = temp.data(&temp.0.join(format!("relocated {name}")));
         let (_, path) = Project::load(&root.join(bozzard_project::MANIFEST)).unwrap();
         let cooked = load(&path);
-        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
+        let mut runtime =
+            bozzard_runtime::SceneRuntime::new_with_prefabs(&cooked, Some(&path)).unwrap();
         assert_eq!(runtime.instance().compute_kernels().len(), 1);
         let mut assets = bozzard_assets::AssetStore::new(&root, &cooked.assets).unwrap();
         assets.load_pending().unwrap();
@@ -544,7 +546,8 @@ fn export_survives_source_removal_and_runs_the_whole_trail() {
     assert_eq!(manifest.name, "Test & Game");
     let cooked = load(&path);
     assert_eq!(scene.objects, cooked.objects);
-    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
+    let mut runtime =
+        bozzard_runtime::SceneRuntime::new_with_prefabs(&cooked, Some(&path)).unwrap();
     let mut assets = bozzard_assets::AssetStore::new(
         path.parent().unwrap(),
         &runtime.instance().document().assets,
@@ -607,7 +610,8 @@ fn model_images_buffers_and_spawn_prefabs_are_relocatable_and_deterministic() {
     for name in ["model-lab", "bonfire-lab", "gold-yard", "prefab-lab"] {
         let path = temp.data(&temp.0.join(name)).join("scene.json");
         let scene = load(&path);
-        let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&path)).unwrap();
+        let mut runtime =
+            bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&path)).unwrap();
         let mut assets = bozzard_assets::AssetStore::new(
             path.parent().unwrap(),
             &runtime.instance().document().assets,
@@ -737,7 +741,8 @@ fn runtime_scene_library_assets_are_relocated_and_load_without_sources() {
     fs::remove_dir_all(&source).unwrap();
     let path = temp.data(&folder).join("scene.json");
     let cooked = load(&path);
-    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&path)).unwrap();
+    let mut runtime =
+        bozzard_runtime::SceneRuntime::new_with_prefabs(&cooked, Some(&path)).unwrap();
     runtime
         .with_instance(|i, w| i.load_runtime_scene(w, "second", false))
         .unwrap();
@@ -788,9 +793,11 @@ fn middleware_exports_keep_skin_audio_ui_nav_and_atlas_content_after_relocation(
         let mut assets = bozzard_assets::AssetStore::new(&root, &cooked.assets).unwrap();
         assets.load_pending().unwrap();
         assets.require_ready().unwrap();
-        let mut demo =
-            bozzard_demo::SceneDemo::new_with_prefabs(&cooked, Some(&root.join("scene.json")))
-                .unwrap();
+        let mut demo = bozzard_runtime::SceneRuntime::new_with_prefabs(
+            &cooked,
+            Some(&root.join("scene.json")),
+        )
+        .unwrap();
         if view == Layer::TwoD {
             demo.ui_input(view, [1280., 720.], Input::Key("Enter".into()))
                 .unwrap();
@@ -853,7 +860,7 @@ fn nested_variant_prefabs_resolve_and_spawn_after_export_and_source_removal() ->
         fixtures().join("assets/middleware-panel.png"),
         source.join("image.png"),
     )?;
-    let demo = bozzard_demo::scene_document()?;
+    let demo = bozzard_runtime::scene_document()?;
     let mut object = demo
         .objects
         .iter()
@@ -968,7 +975,7 @@ fn nested_variant_prefabs_resolve_and_spawn_after_export_and_source_removal() ->
     fs::remove_dir_all(source)?;
     let path = temp.data(&output).join("scene.json");
     let exported = load(&path);
-    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&exported, Some(&path))?;
+    let mut runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(&exported, Some(&path))?;
     runtime.game_action(bozzard_scene::GameAction::Start)?;
     runtime.app.step();
     runtime.check_simulation()?;

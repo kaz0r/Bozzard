@@ -50,6 +50,17 @@ impl Progress {
     pub fn fraction(&self) -> f32 {
         f32::from_bits(self.fraction.load(Ordering::Relaxed))
     }
+    /// The current stage label.
+    pub fn label(&self) -> String {
+        self.label.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+    /// Ask the operation to stop; its result will not be published.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+    pub fn cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
     /// Share cancellation/labels while reporting a bounded part of a parent operation.
     pub fn subtask(&self, start: f32, end: f32) -> Result<Self> {
         anyhow::ensure!(
@@ -90,18 +101,18 @@ impl<T: Send + 'static> Job<T> {
             })?;
         Ok(Self { receiver, progress })
     }
+    /// The progress the worker reports through, shared with this handle.
+    pub fn progress(&self) -> &Progress {
+        &self.progress
+    }
     pub fn cancel(&self) {
-        self.progress.cancelled.store(true, Ordering::Relaxed);
+        self.progress.cancel();
     }
     pub fn cancelled(&self) -> bool {
-        self.progress.cancelled.load(Ordering::Relaxed)
+        self.progress.cancelled()
     }
     pub fn label(&self) -> String {
-        self.progress
-            .label
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        self.progress.label()
     }
     pub fn fraction(&self) -> f32 {
         self.progress.fraction()
@@ -143,7 +154,8 @@ mod tests {
         nested.set_fraction(0.25).unwrap();
         assert!((parent.fraction() - 0.45).abs() < 1e-6);
         assert!(parent.set_fraction(f32::NAN).is_err());
-        parent.cancelled.store(true, Ordering::Relaxed);
+        parent.cancel();
+        assert!(nested.cancelled());
         assert!(nested.report(1, 1, "cancelled").is_err());
     }
     fn wait<T: Send + 'static>(job: &Job<T>) -> Result<T> {

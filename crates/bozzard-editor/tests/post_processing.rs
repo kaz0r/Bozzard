@@ -3,7 +3,7 @@ use bozzard_scene::{DisplayPreset, DisplaySettings, Layer, PostProcessVolume};
 #[test]
 fn post_processing_history_save_play_and_2d_isolation() {
     let path = std::env::temp_dir().join(format!("bozzard-post-{}.json", std::process::id()));
-    let mut editor = Editor::new(bozzard_demo::scene_document().unwrap(), &path).unwrap();
+    let mut editor = Editor::new(bozzard_runtime::scene_document().unwrap(), &path).unwrap();
     let initial = editor.scene().clone();
     editor.begin_gesture("Grade");
     for preset in [DisplayPreset::Cinematic, DisplayPreset::Bonfire] {

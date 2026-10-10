@@ -443,7 +443,7 @@ pub(super) fn validate_content(root: &Path, index: &Index, progress: &Progress) 
     for (path, scene) in scenes {
         for level in std::iter::once(&scene).chain(scene.runtime_scenes.values().map(Arc::as_ref)) {
             progress.check()?;
-            let runtime = bozzard_demo::SceneDemo::new_with_prefabs(level, Some(&path))?;
+            let runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(level, Some(&path))?;
             let mut scene_assets = store.for_catalog(
                 path.parent().unwrap(),
                 &runtime.instance().document().assets,

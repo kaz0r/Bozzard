@@ -64,10 +64,10 @@ tick resumes smoothing.
 
 `App::add_tick_observer` runs after the final system and deferred commands. It never
 captures a partial debugger tick, and compiled-module shutdown removes registered
-observers. `SceneDemo` captures presentation transforms there and enables history
+observers. `SceneRuntime` captures presentation transforms there and enables history
 only when a native host opts in.
 
-Native hosts call `SceneDemo::set_render_interpolation` before preparing each frame,
+Native hosts call `SceneRuntime::set_render_interpolation` before preparing each frame,
 then extract through `render_view`. This also synchronizes host edits made between
 ticks, before simulation can overwrite their transform change stamp. Low-level
 scene hosts use `set_render_interpolation`, `capture_render_transforms`, and
@@ -139,7 +139,7 @@ surface acquisition, presentation pacing, and worker joins; it is not pure CPU t
 ## Reproduce the evidence
 
 ```sh
-cargo run --release -p bozzard-demo --example benchmark_interpolation \
+cargo run --release -p bozzard-runtime --example benchmark_interpolation \
   --locked --offline -- work/interpolation
 cargo run --release -p bozzard-editor --example capture_interpolation \
   --locked --offline -- work/interpolation/native

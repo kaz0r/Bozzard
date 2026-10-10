@@ -73,7 +73,7 @@ pub fn component(
                         baked.settings == surface.settings,
                         "Navigation settings changed during bake; bake again"
                     );
-                    let demo = bozzard_demo::SceneDemo::new(scene)?;
+                    let demo = bozzard_runtime::SceneRuntime::new(scene)?;
                     let geometry = demo.instance().navigation_geometry(&demo.app.world)?;
                     anyhow::ensure!(
                         bozzard_scene::middleware::navigation::geometry_signature(&geometry)
@@ -111,7 +111,7 @@ pub fn component(
             let ctx = ui.ctx().clone();
             std::thread::spawn(move || {
                 let result = (|| -> Result<NavData> {
-                    let demo = bozzard_demo::SceneDemo::new(&document)?;
+                    let demo = bozzard_runtime::SceneRuntime::new(&document)?;
                     demo.instance()
                         .bake_navigation(&demo.app.world, &settings, |done, _| {
                             anyhow::ensure!(
@@ -162,7 +162,7 @@ pub fn component(
                         triangles += 2;
                     }
                 }
-                let demo = bozzard_demo::SceneDemo::new(scene)?;
+                let demo = bozzard_runtime::SceneRuntime::new(scene)?;
                 let current = bozzard_scene::middleware::navigation::geometry_signature(
                     &demo.instance().navigation_geometry(&demo.app.world)?,
                 ) == data.geometry_signature;

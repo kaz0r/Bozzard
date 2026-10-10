@@ -1,13 +1,13 @@
 //! Editor Play integration through the same UI/worker boundary used by real Steam.
 use anyhow::Result;
-use bozzard_demo::{
-    SceneDemo,
-    multiplayer::{Action, Backend, Multiplayer, Threaded, View},
-};
 use bozzard_editor::Editor;
 use bozzard_network::{
     Message,
     flap::{Host, InputFrame, Replica},
+};
+use bozzard_runtime::{
+    SceneRuntime,
+    multiplayer::{Action, Backend, Multiplayer, Threaded, View},
 };
 use bozzard_scene::{Layer, Scene, Transform, middleware::ui::Input};
 use std::{
@@ -39,7 +39,7 @@ const COUNTDOWN_TICKS: u16 = 300;
 #[ignore = "requires local Steam; creates/leaves a solo test lobby without inviting or messaging anyone"]
 fn factory_editor_lobby_keeps_serial_and_threaded_play_advancing() -> Result<()> {
     use bozzard_scene::{BlueprintRuntime, blueprint::Value};
-    let _shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/earth-factory/scenes/earth.json");
     let mut editor = Editor::open(&path)?;
@@ -77,7 +77,7 @@ fn factory_editor_lobby_keeps_serial_and_threaded_play_advancing() -> Result<()>
             .unwrap()
             .app
             .world
-            .resource::<bozzard_demo::factory::host::HostRuntime>()
+            .resource::<bozzard_runtime::factory::host::HostRuntime>()
             .is_some()
     );
     let ticks = |editor: &Editor| match editor
@@ -119,8 +119,8 @@ fn scene_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/demo/scenes/flap-woods-multiplayer.json")
 }
-fn runtime(scene: &Scene) -> SceneDemo {
-    SceneDemo::new_with_prefabs(scene, Some(&scene_path())).unwrap()
+fn runtime(scene: &Scene) -> SceneRuntime {
+    SceneRuntime::new_with_prefabs(scene, Some(&scene_path())).unwrap()
 }
 impl FakeSteam {
     fn new(
@@ -128,7 +128,7 @@ impl FakeSteam {
         updates: Arc<AtomicUsize>,
         dropped: Arc<AtomicUsize>,
     ) -> Self {
-        let rules = bozzard_demo::multiplayer::rules_for(runtime(&scene()).instance()).unwrap();
+        let rules = bozzard_runtime::multiplayer::rules_for(runtime(&scene()).instance()).unwrap();
         let mut host = Host::new(10, rules.clone()).unwrap();
         host.join(20).unwrap();
         Self {
@@ -221,7 +221,7 @@ fn scene() -> Scene {
     ))
     .unwrap()
 }
-fn click(play: &mut SceneDemo, id: &str) {
+fn click(play: &mut SceneRuntime, id: &str) {
     play.ui_input(
         Layer::ThreeD,
         [1280., 720.],

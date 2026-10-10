@@ -68,7 +68,7 @@ fn load(path: &Path) -> Scene {
 #[test]
 fn earth_factory_explores_and_opens_its_journal_after_source_independent_export()
 -> anyhow::Result<()> {
-    let _steam_shutdown = bozzard_demo::steam_runtime::ShutdownGuard;
+    let _steam_shutdown = bozzard_runtime::steam_runtime::ShutdownGuard;
     use bozzard_scene::{BlueprintRuntime, GameplayInput, blueprint::Value, keys};
     let temp = Temp::new();
     let source = temp.0.join("source");
@@ -99,7 +99,7 @@ fn earth_factory_explores_and_opens_its_journal_after_source_independent_export(
     assert!(fs::read_to_string(relocated.join("STEAM-README.txt"))?.contains("480"));
     let (_, scene_path) = Project::load(&temp.data(&relocated).join(bozzard_project::MANIFEST))?;
     let scene = load(&scene_path);
-    let mut runtime = bozzard_demo::SceneDemo::new_with_prefabs(&scene, Some(&scene_path))?;
+    let mut runtime = bozzard_runtime::SceneRuntime::new_with_prefabs(&scene, Some(&scene_path))?;
     runtime.app.step();
     runtime.check_simulation()?;
     runtime.enable_multiplayer(None)?;
@@ -148,7 +148,7 @@ fn earth_factory_explores_and_opens_its_journal_after_source_independent_export(
             runtime
                 .app
                 .world
-                .resource::<bozzard_demo::factory::host::HostRuntime>()
+                .resource::<bozzard_runtime::factory::host::HostRuntime>()
                 .is_some(),
             "exported lobby did not connect its host simulation"
         );

@@ -381,7 +381,7 @@ impl OpenScenes {
             }
             if current.is_prefab_source() {
                 // Inspection cameras never enter the source file or its history.
-                let cameras = bozzard_demo::scene_document()?;
+                let cameras = bozzard_runtime::scene_document()?;
                 for (layer, id) in cameras.views {
                     if let std::collections::btree_map::Entry::Vacant(entry) =
                         scene.views.entry(layer)
@@ -489,7 +489,7 @@ mod tests {
     use super::*;
 
     fn eye_scene() -> Scene {
-        let mut scene = bozzard_demo::scene_document().unwrap();
+        let mut scene = bozzard_runtime::scene_document().unwrap();
         let mut drawable = scene
             .objects
             .iter()
@@ -782,7 +782,7 @@ mod tests {
 
     #[test]
     fn object_eye_hides_preview_descendants_without_changing_play_scene() {
-        let mut scene = bozzard_demo::scene_document().unwrap();
+        let mut scene = bozzard_runtime::scene_document().unwrap();
         let drawable = scene
             .objects
             .iter()

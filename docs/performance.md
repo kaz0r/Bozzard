@@ -63,7 +63,7 @@ paired full-path profiles and exact factory pixel comparisons, see
 Run the real factory scene in an empty creative world with a fixed seed, including its normal HUD and production updates:
 
 ```sh
-cargo run -p bozzard-demo --example benchmark_factory --locked --offline
+cargo run -p bozzard-runtime --example benchmark_factory --locked --offline
 ```
 
 An optional scene path selects a copy of the factory for before/after comparisons. The benchmark warms up for 60 ticks, then reports median/p95 timings for 180 ticks and the recorded CPU stages. Script timings separate read-view preparation, Rhai hooks, and command application. It does not open a window or measure GPU work.

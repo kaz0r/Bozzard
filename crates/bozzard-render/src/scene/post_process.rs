@@ -47,24 +47,6 @@ pub(super) struct PostProcess {
     targets: Option<Targets>,
     ao_enabled: bool,
 }
-fn texture(gpu: &Gpu, size: [u32; 2], label: &'static str) -> wgpu::TextureView {
-    gpu.device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: size[0],
-                height: size[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
-}
 impl PostProcess {
     pub fn invalidate(&mut self) {
         self.targets = None;
@@ -120,32 +102,14 @@ impl PostProcess {
                 source: wgpu::ShaderSource::Wgsl(include_str!("post_process.wgsl").into()),
             });
         let pipeline = |entry| {
-            gpu.device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(entry),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vs_main"),
-                        compilation_options: Default::default(),
-                        buffers: &[],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(entry),
-                        compilation_options: Default::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba16Float,
-                            blend: None,
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    primitive: Default::default(),
-                    depth_stencil: None,
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
+            gpu_util::fullscreen_pipeline(
+                gpu,
+                entry,
+                Some(&pipeline_layout),
+                &shader,
+                entry,
+                &[wgpu::TextureFormat::Rgba16Float],
+            )
         };
         Self {
             ao_pipeline: pipeline("ao_main"),
@@ -163,7 +127,7 @@ impl PostProcess {
                 min_filter: wgpu::FilterMode::Linear,
                 ..Default::default()
             }),
-            dummy: texture(gpu, [1, 1], "unused AO input"),
+            dummy: gpu_util::color_texture(gpu, [1, 1], "unused AO input"),
             targets: None,
             ao_enabled: false,
         }
@@ -224,12 +188,12 @@ impl PostProcess {
             .context("depth post-processing requires a scene depth texture")?;
         let changed = self.targets.as_ref().is_none_or(|t| t.size != frame.size);
         if changed {
-            let ao = texture(
+            let ao = gpu_util::color_texture(
                 gpu,
                 frame.size.map(|d| d.div_ceil(2)),
                 "half resolution SSAO",
             );
-            let color = texture(gpu, frame.size, "HDR after depth effects");
+            let color = gpu_util::color_texture(gpu, frame.size, "HDR after depth effects");
             self.targets = Some(Targets {
                 size: frame.size,
                 ao_binding: self.binding(gpu, hdr, depth, &self.dummy),

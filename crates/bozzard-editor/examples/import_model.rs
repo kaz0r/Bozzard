@@ -14,7 +14,7 @@ fn main() -> Result<()> {
         arguments.next().context("missing new scene path")?,
     ))?;
     ensure!(!path.exists(), "destination scene already exists");
-    let mut scene = bozzard_demo::scene_document()?;
+    let mut scene = bozzard_runtime::scene_document()?;
     scene.name = "Imported model".into();
     scene.objects.retain(|object| object.camera.is_some());
     let mut editor = Editor::new(scene, &path)?;

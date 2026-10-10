@@ -43,7 +43,7 @@ pub fn compatible(mut actual: serde_json::Value, mut expected: serde_json::Value
 }
 
 pub fn description() -> serde_json::Value {
-    let library = bozzard_demo::steam_runtime::redistributable().map(|(name, bytes)| {
+    let library = bozzard_runtime::steam_runtime::redistributable().map(|(name, bytes)| {
         serde_json::json!({"name": name, "sha256": format!("{:x}", Sha256::digest(bytes))})
     });
     serde_json::json!({
@@ -57,7 +57,7 @@ pub fn description() -> serde_json::Value {
 
 pub(crate) fn validate_player(player: &Path, app_id: Option<u32>) -> Result<()> {
     ensure!(
-        app_id.is_none() || bozzard_demo::steam_runtime::redistributable().is_some(),
+        app_id.is_none() || bozzard_runtime::steam_runtime::redistributable().is_some(),
         "Steam export requires the standard Steam-enabled editor/player build"
     );
     let output = Command::new(player)
@@ -111,7 +111,7 @@ fn select_player(
 }
 
 pub(crate) fn stage(root: &Path, executable: &Path, app_id: Option<u32>) -> Result<()> {
-    let Some((name, bytes)) = bozzard_demo::steam_runtime::redistributable() else {
+    let Some((name, bytes)) = bozzard_runtime::steam_runtime::redistributable() else {
         return Ok(());
     };
     let directory = executable
