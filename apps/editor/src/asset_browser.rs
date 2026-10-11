@@ -19,6 +19,10 @@ pub struct AssetBrowser {
     meshes: HashMap<String, (u64, Arc<MeshPreview>)>,
     catalog_revision: u64,
     compute_entry: String,
+    /// Engine-rendered model previews; without a GPU (tests) the CPU rasterizer draws them.
+    pub models: Option<crate::model_thumbnails::ModelThumbnails>,
+    /// The egui pass that last rendered a model preview.
+    model_pass: Option<u64>,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -88,8 +92,6 @@ struct AssetSnapshot {
 struct MeshPreview {
     vertex_count: usize,
     index_count: usize,
-    vertices: Vec<[f32; 8]>,
-    indices: Vec<u32>,
     warnings: Vec<String>,
 }
 
@@ -242,7 +244,10 @@ impl AssetBrowser {
                 });
             ui.separator();
             if ui
-                .add_enabled(editing, egui::Button::new("Import…"))
+                .add_enabled(
+                    editing,
+                    egui::Button::new(crate::theme::labeled(crate::icons::DOWNLOAD, "Import…")),
+                )
                 .on_hover_text(
                     "Import images, models, audio, .rs scripts, .compute.wgsl shaders, .material.json or .prefab.json",
                 )
@@ -256,11 +261,18 @@ impl AssetBrowser {
                     output.import_requested = true;
                 }
             }
-            if ui.add_enabled(editing, egui::Button::new("New material")).clicked() {
+            if ui
+                .add_enabled(
+                    editing,
+                    egui::Button::new(crate::theme::labeled(crate::icons::ADD, "Material")),
+                )
+                .on_hover_text("New material")
+                .clicked()
+            {
                 output.material_create = true;
             }
             if ui
-                .add_enabled(editing, egui::Button::new("Reload"))
+                .add_enabled(editing, egui::Button::new(crate::icons::REFRESH))
                 .on_hover_text("Reload changed asset files")
                 .clicked()
             {
@@ -269,8 +281,8 @@ impl AssetBrowser {
             ui.separator();
             ui.add(
                 egui::TextEdit::singleline(&mut self.search)
-                    .hint_text("Search assets")
-                    .desired_width(140.0),
+                    .hint_text(crate::theme::labeled(crate::icons::SEARCH, "Search"))
+                    .desired_width((ui.available_width() - 150.0).clamp(70.0, 160.0)),
             );
             if ui.small_button("×").on_hover_text("Clear search").clicked() {
                 self.search.clear();
@@ -317,6 +329,7 @@ impl AssetBrowser {
         ui.horizontal_top(|ui| {
             if sidebar {
                 ui.allocate_ui_with_layout(Vec2::new(130.0, available.y), egui::Layout::top_down(egui::Align::Min), |ui| {
+                    ui.spacing_mut().button_padding.x = 4.0;
                     ui.small("PROJECT");
                     for (filter, name) in [(AssetFilter::All, "All assets"), (AssetFilter::Images, "Textures"), (AssetFilter::Fonts, "Fonts"), (AssetFilter::Audio, "Audio"), (AssetFilter::Models, "Models"), (AssetFilter::Materials, "Materials"), (AssetFilter::Prefabs, "Prefabs"), (AssetFilter::Blueprints, "Blueprints"), (AssetFilter::ShaderGraphs, "Shader graphs"), (AssetFilter::Compute, "Compute shaders")] {
                         ui.horizontal(|ui| {
@@ -330,6 +343,10 @@ impl AssetBrowser {
                 });
                 ui.separator();
             }
+            // Size the grid from the room actually left beside the sidebar.
+            let grid_width = grid_width.min(
+                ui.available_width() - if side_details && selected.is_some() { 276.0 } else { 0.0 },
+            );
             ui.allocate_ui_with_layout(
                 Vec2::new(grid_width, grid_height),
                 egui::Layout::top_down(egui::Align::Min),
@@ -358,13 +375,13 @@ impl AssetBrowser {
                             }
                         });
                     } else {
-                        let columns = (grid_width / 112.0).floor().max(1.0) as usize;
+                        let columns = (grid_width / (PREVIEW.x + 16.0)).floor().max(1.0) as usize;
                         // Tiles have one preview, a single-line name and a type label.
                         // Reserve the error line uniformly when any entry has failed.
                         let failed = shown.iter().any(|asset| matches!(asset.state, LoadState::Failed(_)));
                         let tile_spacing = ui.spacing().item_spacing;
-                        let content_height = 64.0 + ui.spacing().interact_size.y
-                            + ui.text_style_height(&egui::TextStyle::Small)
+                        let content_height = PREVIEW.y + ui.spacing().interact_size.y
+                            + ui.text_style_height(&egui::TextStyle::Body)
                             + 2.0 * ui.spacing().item_spacing.y
                             + if failed { ui.text_style_height(&egui::TextStyle::Body) + ui.spacing().item_spacing.y } else { 0.0 };
                         ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
@@ -551,7 +568,7 @@ impl AssetBrowser {
                         })
                     })
                     .collect();
-                let columns = (ui.available_width() / 112.0).floor().max(1.0) as usize;
+                let columns = (ui.available_width() / (PREVIEW.x + 16.0)).floor().max(1.0) as usize;
                 egui::Grid::new("blueprint-grid")
                     .num_columns(columns)
                     .spacing(Vec2::new(8.0, 8.0))
@@ -633,7 +650,7 @@ impl AssetBrowser {
                         })
                     })
                     .collect();
-                let columns = (ui.available_width() / 112.0).floor().max(1.0) as usize;
+                let columns = (ui.available_width() / (PREVIEW.x + 16.0)).floor().max(1.0) as usize;
                 egui::Grid::new("shader-grid")
                     .num_columns(columns)
                     .spacing(Vec2::new(8.0, 8.0))
@@ -710,43 +727,24 @@ impl AssetBrowser {
         icon: GraphIcon,
         selected: bool,
     ) -> egui::Response {
-        const TILE: Vec2 = Vec2::new(96.0, 92.0);
         let file = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         let name = file
             .strip_suffix(".blueprint.json")
             .or_else(|| file.strip_suffix(".shadergraph.json"))
             .unwrap_or(file);
-        egui::Frame::new()
-            .inner_margin(4)
-            .corner_radius(2)
-            .stroke(Stroke::new(
-                1.0,
-                if selected {
-                    super::theme::ACCENT
-                } else {
-                    Color32::TRANSPARENT
-                },
-            ))
-            .fill(if selected {
-                Color32::from_rgb(57, 51, 41)
-            } else {
-                Color32::TRANSPARENT
-            })
+        tile_frame(selected)
             .show(ui, |ui| {
                 ui.vertical(|ui| {
-                    ui.set_width(TILE.x);
-                    ui.set_min_height(TILE.y);
-                    let preview =
-                        ui.allocate_exact_size(Vec2::new(TILE.x, 64.0), egui::Sense::click());
+                    ui.set_width(PREVIEW.x);
+                    ui.set_min_height(PREVIEW.y + 28.0);
+                    let preview = ui.allocate_exact_size(PREVIEW, egui::Sense::click());
                     let icon_painter = ui.painter_at(preview.0);
-                    icon_painter.rect_filled(preview.0, 2.0, Color32::from_gray(25));
+                    icon_painter.rect_filled(preview.0, 4.0, crate::theme::SUNKEN);
                     match icon {
                         GraphIcon::Blueprint => draw_blueprint_icon(&icon_painter, preview.0),
                         GraphIcon::Shader => draw_shader_icon(&icon_painter, preview.0),
                     }
-                    let name = ui
-                        .add(egui::Button::selectable(selected, name).truncate())
-                        .on_hover_text(file);
+                    let name = ui.add(tile_name(name, selected)).on_hover_text(file);
                     ui.small(kind);
                     preview.1 | name
                 })
@@ -764,138 +762,120 @@ impl AssetBrowser {
         content_height: f32,
         command: &mut Option<AssetCommand>,
     ) {
-        const TILE: Vec2 = Vec2::new(96.0, 92.0);
         let selected_drawable = editor
             .selected_object()
             .is_some_and(|object| object.drawable.is_some() || asset.kind == AssetKind::Audio)
             && (editor.selected_surface().is_none() || asset.kind == AssetKind::Image);
         let selected = self.selected.as_deref() == Some(&asset.id);
-        egui::Frame::new()
-            .inner_margin(4)
-            .corner_radius(2)
-            .stroke(Stroke::new(
-                1.0,
-                if selected {
-                    super::theme::ACCENT
-                } else {
-                    Color32::TRANSPARENT
-                },
-            ))
-            .fill(if selected {
-                Color32::from_rgb(57, 51, 41)
-            } else {
-                Color32::TRANSPARENT
-            })
-            .show(ui, |ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(TILE.x);
-                    ui.set_min_height(TILE.y.max(content_height));
-                    let preview =
-                        ui.allocate_exact_size(Vec2::new(TILE.x, 64.0), Sense::click_and_drag());
-                    let thumbnail = self.thumbnail(ui.ctx(), editor, asset);
-                    draw_preview(ui, preview.0, asset, thumbnail);
-                    let ready = editing && matches!(asset.state, LoadState::Ready);
-                    if ready && asset.kind == AssetKind::Prefab {
-                        preview.1.dnd_set_drag_payload(PrefabDrag(asset.id.clone()));
+        tile_frame(selected).show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.set_width(PREVIEW.x);
+                ui.set_min_height(content_height);
+                let preview = ui.allocate_exact_size(PREVIEW, Sense::click_and_drag());
+                let thumbnail = self.thumbnail(ui.ctx(), editor, asset);
+                draw_preview(ui, preview.0, asset, thumbnail);
+                let ready = editing && matches!(asset.state, LoadState::Ready);
+                if ready && asset.kind == AssetKind::Prefab {
+                    preview.1.dnd_set_drag_payload(PrefabDrag(asset.id.clone()));
+                }
+                if preview.1.clicked() || preview.1.secondary_clicked() {
+                    self.selected = Some(asset.id.clone());
+                }
+                if preview.1.double_clicked() && ready {
+                    if asset.kind == AssetKind::ComputeShader {
+                        self.show_details = true;
+                    } else if asset.kind == AssetKind::Material {
+                        *command = Some(AssetCommand::EditMaterial(asset.id.clone()));
+                    } else {
+                        *command = Some(AssetCommand::Add(asset.id.clone()));
                     }
-                    if preview.1.clicked() || preview.1.secondary_clicked() {
-                        self.selected = Some(asset.id.clone());
-                    }
-                    if preview.1.double_clicked() && ready {
-                        if asset.kind == AssetKind::ComputeShader {
-                            self.show_details = true;
-                        } else if asset.kind == AssetKind::Material {
-                            *command = Some(AssetCommand::EditMaterial(asset.id.clone()));
-                        } else {
+                }
+                preview
+                    .1
+                    .on_hover_text(format!(
+                        "{}\nDouble-click to add · Right-click for actions",
+                        asset.path
+                    ))
+                    .context_menu(|ui| {
+                        if ui
+                            .add_enabled(
+                                ready
+                                    && !matches!(
+                                        asset.kind,
+                                        AssetKind::ComputeShader | AssetKind::Material
+                                    ),
+                                egui::Button::new("Add to scene"),
+                            )
+                            .clicked()
+                        {
                             *command = Some(AssetCommand::Add(asset.id.clone()));
+                            ui.close();
                         }
-                    }
-                    preview
-                        .1
-                        .on_hover_text(format!(
-                            "{}\nDouble-click to add · Right-click for actions",
-                            asset.path
-                        ))
-                        .context_menu(|ui| {
-                            if ui
-                                .add_enabled(
-                                    ready
-                                        && !matches!(
-                                            asset.kind,
-                                            AssetKind::ComputeShader | AssetKind::Material
-                                        ),
-                                    egui::Button::new("Add to scene"),
-                                )
-                                .clicked()
-                            {
-                                *command = Some(AssetCommand::Add(asset.id.clone()));
-                                ui.close();
-                            }
-                            if ui
-                                .add_enabled(
-                                    ready
-                                        && selected_drawable
-                                        && !matches!(
-                                            asset.kind,
-                                            AssetKind::Prefab | AssetKind::ComputeShader
-                                        )
-                                        && (asset.kind != AssetKind::Font
-                                            || editor.selected_object().is_some_and(|object| {
-                                                object.text_rendering.is_some()
-                                            })),
-                                    egui::Button::new("Assign to selected"),
-                                )
-                                .clicked()
-                            {
-                                *command = Some(AssetCommand::Assign(asset.id.clone()));
-                                ui.close();
-                            }
-                            if ui.button("Show details").clicked() {
-                                self.show_details = true;
-                                ui.close();
-                            }
-                            ui.separator();
-                            if ui
-                                .add_enabled(editing, egui::Button::new("Delete from project…"))
-                                .clicked()
-                            {
-                                *command = Some(AssetCommand::Delete(asset.id.clone()));
-                                ui.close();
-                            }
-                            if ui
-                                .add_enabled(
-                                    editing && asset.users == 0,
-                                    egui::Button::new("Remove from scene library"),
-                                )
-                                .on_hover_text("The source file stays on disk")
-                                .clicked()
-                            {
-                                *command = Some(AssetCommand::Remove(asset.id.clone()));
-                                ui.close();
-                            }
-                        });
-                    if ui
-                        .add(egui::Button::selectable(selected, &asset.id).truncate())
-                        .on_hover_text(&asset.path)
-                        .clicked()
-                    {
-                        self.selected = Some(asset.id.clone());
-                    }
-                    ui.small(match asset.kind {
-                        AssetKind::Audio => "Audio",
-                        AssetKind::Prefab => "Prefab",
-                        AssetKind::Image => "Image",
-                        AssetKind::Mesh => "Model",
-                        AssetKind::Script => "Script",
-                        AssetKind::Font => "Font",
-                        AssetKind::Material => "Material",
-                        AssetKind::ComputeShader => "Compute",
+                        if ui
+                            .add_enabled(
+                                ready
+                                    && selected_drawable
+                                    && !matches!(
+                                        asset.kind,
+                                        AssetKind::Prefab | AssetKind::ComputeShader
+                                    )
+                                    && (asset.kind != AssetKind::Font
+                                        || editor
+                                            .selected_object()
+                                            .is_some_and(|object| object.text_rendering.is_some())),
+                                egui::Button::new("Assign to selected"),
+                            )
+                            .clicked()
+                        {
+                            *command = Some(AssetCommand::Assign(asset.id.clone()));
+                            ui.close();
+                        }
+                        if ui.button("Show details").clicked() {
+                            self.show_details = true;
+                            ui.close();
+                        }
+                        ui.separator();
+                        if ui
+                            .add_enabled(editing, egui::Button::new("Delete from project…"))
+                            .clicked()
+                        {
+                            *command = Some(AssetCommand::Delete(asset.id.clone()));
+                            ui.close();
+                        }
+                        if ui
+                            .add_enabled(
+                                editing && asset.users == 0,
+                                egui::Button::new("Remove from scene library"),
+                            )
+                            .on_hover_text("The source file stays on disk")
+                            .clicked()
+                        {
+                            *command = Some(AssetCommand::Remove(asset.id.clone()));
+                            ui.close();
+                        }
                     });
-                    if matches!(asset.state, LoadState::Failed(_)) {
-                        ui.colored_label(Color32::LIGHT_RED, "Load failed");
-                    }
+                if ui
+                    .add(tile_name(&asset.id, selected))
+                    .on_hover_text(&asset.path)
+                    .clicked()
+                {
+                    self.selected = Some(asset.id.clone());
+                }
+                ui.weak(match asset.kind {
+                    AssetKind::Audio => "Audio",
+                    AssetKind::Prefab => "Prefab",
+                    AssetKind::Image => "Image",
+                    AssetKind::Mesh => "Model",
+                    AssetKind::Script => "Script",
+                    AssetKind::Font => "Font",
+                    AssetKind::Material => "Material",
+                    AssetKind::ComputeShader => "Compute",
                 });
+                if matches!(asset.state, LoadState::Failed(_)) {
+                    ui.colored_label(Color32::LIGHT_RED, "Load failed");
+                }
             });
+        });
     }
 
     fn thumbnail(
@@ -909,24 +889,59 @@ impl AssetBrowser {
         {
             return Some(thumbnail.texture.clone());
         }
-        let image = editor
+        let data = editor
             .assets
             .handle(&asset.id)
             .and_then(|handle| editor.assets.get(handle))
-            .and_then(|entry| entry.data())
-            .and_then(|data| match data {
-                AssetData::Image(image) => Some(image),
-                AssetData::Material(material) => material.image.as_deref(),
-                AssetData::Mesh(_)
-                | AssetData::Prefab(_)
-                | AssetData::Script(_)
-                | AssetData::Font(_)
-                | AssetData::ComputeShader(_)
-                | AssetData::Audio(_) => None,
-            })?;
+            .and_then(|entry| entry.data())?;
+        let image = match data {
+            AssetData::Image(image) => thumbnail_image(image.width, image.height, &image.rgba),
+            AssetData::Material(material) => {
+                let image = material.image.as_deref()?;
+                thumbnail_image(image.width, image.height, &image.rgba)
+            }
+            AssetData::Mesh(mesh) => {
+                // One model preview advances per frame; the others keep their icon
+                // until it is their turn.
+                let pass = ctx.cumulative_pass_nr();
+                if self.model_pass == Some(pass) {
+                    ctx.request_repaint();
+                    return None;
+                }
+                self.model_pass = Some(pass);
+                let Some(models) = self.models.as_mut() else {
+                    return self.cache_thumbnail(ctx, asset, crate::mesh_thumbnail::render(mesh));
+                };
+                match models.request(&editor.assets, &asset.id) {
+                    crate::model_thumbnails::Preview::Ready(image) => image,
+                    crate::model_thumbnails::Preview::Pending => {
+                        ctx.request_repaint();
+                        return None;
+                    }
+                    crate::model_thumbnails::Preview::Failed(error) => {
+                        eprintln!("Model preview for {}: {error}", asset.id);
+                        crate::mesh_thumbnail::render(mesh)
+                    }
+                }
+            }
+            AssetData::Prefab(_)
+            | AssetData::Script(_)
+            | AssetData::Font(_)
+            | AssetData::ComputeShader(_)
+            | AssetData::Audio(_) => return None,
+        };
+        self.cache_thumbnail(ctx, asset, image)
+    }
+
+    fn cache_thumbnail(
+        &mut self,
+        ctx: &egui::Context,
+        asset: &AssetSnapshot,
+        image: ColorImage,
+    ) -> Option<TextureHandle> {
         let texture = ctx.load_texture(
             format!("asset-thumbnail-{}-{}", asset.id, asset.revision),
-            thumbnail_image(image.width, image.height, &image.rgba),
+            image,
             egui::TextureOptions::LINEAR,
         );
         self.thumbnails.insert(
@@ -1240,7 +1255,7 @@ fn snapshots(
                     let sampled = match mesh_cache.get(&entry.id) {
                         Some((r, preview)) if *r == revision => preview.clone(),
                         _ => {
-                            let preview = Arc::new(sample_mesh(mesh));
+                            let preview = Arc::new(summarize_mesh(mesh));
                             mesh_cache.insert(entry.id.clone(), (revision, preview.clone()));
                             preview
                         }
@@ -1290,50 +1305,48 @@ fn snapshots(
         .collect()
 }
 
-/// Re-index a bounded sample, so thumbnails never retain a second full copy of
-/// an imported mesh. Invalid triangles are ignored here and remain reported by
-/// the asset loader itself.
-fn sample_mesh(mesh: &bozzard_assets::MeshData) -> MeshPreview {
-    const MAX_PREVIEW_TRIANGLES: usize = 400;
-    // Even stride over the whole index buffer: first-N sampling renders one
-    // magnified patch (the sphere models' first tris are a tiny cap) or a
-    // single edge-on face strip (rounded boxes), not the object.
-    let triangle_count = mesh.indices.len() / 3;
-    let stride = triangle_count.div_ceil(MAX_PREVIEW_TRIANGLES).max(1);
-    let mut vertices = Vec::new();
-    let mut indices = Vec::new();
-    let mut remap = HashMap::new();
-    for triangle in mesh
-        .indices
-        .chunks_exact(3)
-        .step_by(stride * 3)
-        .take(MAX_PREVIEW_TRIANGLES)
-    {
-        let mut local = [0; 3];
-        let mut valid = true;
-        for (slot, &index) in triangle.iter().enumerate() {
-            let Some(vertex) = mesh.vertices.get(index as usize) else {
-                valid = false;
-                break;
-            };
-            let mapped = *remap.entry(index).or_insert_with(|| {
-                let next = vertices.len() as u32;
-                vertices.push(*vertex);
-                next
-            });
-            local[slot] = mapped;
-        }
-        if valid {
-            indices.extend(local);
-        }
-    }
+/// Counts and loader warnings for the details pane. The tile thumbnail is rendered
+/// from the full mesh by `mesh_thumbnail` and cached as a texture.
+fn summarize_mesh(mesh: &bozzard_assets::MeshData) -> MeshPreview {
     MeshPreview {
         vertex_count: mesh.vertices.len(),
         index_count: mesh.indices.len(),
-        vertices,
-        indices,
         warnings: mesh.warnings.clone(),
     }
+}
+
+/// Tile preview area: wide enough for a square model render with room around it.
+const PREVIEW: Vec2 = Vec2::new(100.0, 84.0);
+
+/// A tile's shell: an accent outline and faint fill when selected.
+fn tile_frame(selected: bool) -> egui::Frame {
+    egui::Frame::new()
+        .inner_margin(4)
+        .corner_radius(6)
+        .stroke(Stroke::new(
+            1.0,
+            if selected {
+                crate::theme::ACCENT
+            } else {
+                Color32::TRANSPARENT
+            },
+        ))
+        .fill(if selected {
+            crate::theme::accent(26)
+        } else {
+            Color32::TRANSPARENT
+        })
+}
+
+/// The asset name under a tile: frameless, truncated, brighter when selected.
+fn tile_name(name: &str, selected: bool) -> egui::Button<'static> {
+    egui::Button::new(egui::RichText::new(name.to_owned()).color(if selected {
+        crate::theme::TEXT
+    } else {
+        crate::theme::TEXT_DIM
+    }))
+    .frame(false)
+    .truncate()
 }
 
 /// Keep thumbnail texture memory predictable even when a source image is 4K.
@@ -1501,7 +1514,7 @@ fn draw_preview(
     thumbnail: Option<TextureHandle>,
 ) {
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 2.0, Color32::from_gray(25));
+    painter.rect_filled(rect, 4.0, crate::theme::SUNKEN);
     match (asset.kind, thumbnail, asset.mesh.as_ref()) {
         (AssetKind::Font, _, _) => {
             painter.text(
@@ -1518,7 +1531,7 @@ fn draw_preview(
         (AssetKind::Prefab, _, _) => {
             draw_node_graph_icon(&painter, rect, Color32::from_rgb(178, 155, 244));
         }
-        (AssetKind::Image | AssetKind::Material, Some(texture), _) => {
+        (AssetKind::Image | AssetKind::Material | AssetKind::Mesh, Some(texture), _) => {
             let size = texture.size_vec2();
             let scale = (rect.width() / size.x).min(rect.height() / size.y).min(1.0);
             let image_rect = Rect::from_center_size(rect.center(), size * scale);
@@ -1529,90 +1542,31 @@ fn draw_preview(
                 Color32::WHITE,
             );
         }
-        (AssetKind::Mesh, _, Some(mesh)) => {
-            draw_mesh_preview(&painter, rect.shrink(8.0), &mesh.vertices, &mesh.indices);
-        }
         (AssetKind::Material, _, _) => draw_shader_icon(&painter, rect),
         (AssetKind::Mesh, _, _) => {
             painter.text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "◇",
-                egui::FontId::proportional(34.0),
-                Color32::from_gray(150),
+                crate::icons::DEPLOYED_CODE,
+                egui::FontId::proportional(30.0),
+                crate::theme::TEXT_MUTED,
             );
         }
-        _ => {
+        (kind, _, _) => {
+            // Scripts, compute shaders and images still loading get their kind's icon.
             painter.text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Image",
-                egui::FontId::proportional(13.0),
-                Color32::from_gray(150),
+                match kind {
+                    AssetKind::Script => crate::icons::CODE,
+                    AssetKind::ComputeShader => crate::icons::MEMORY,
+                    AssetKind::Image => crate::icons::IMAGE,
+                    _ => crate::icons::DESCRIPTION,
+                },
+                egui::FontId::proportional(28.0),
+                crate::theme::TEXT_MUTED,
             );
         }
-    }
-}
-
-fn draw_mesh_preview(painter: &egui::Painter, rect: Rect, vertices: &[[f32; 8]], indices: &[u32]) {
-    if vertices.is_empty() {
-        return;
-    }
-    let rotation = glam::Mat4::from_rotation_x(-0.25) * glam::Mat4::from_rotation_y(0.55);
-    let projected: Vec<_> = vertices
-        .iter()
-        .map(|v| rotation.transform_point3(glam::Vec3::from_slice(&v[..3])))
-        .collect();
-    let min = projected
-        .iter()
-        .fold(glam::Vec3::splat(f32::INFINITY), |min, p| min.min(*p));
-    let max = projected
-        .iter()
-        .fold(glam::Vec3::splat(f32::NEG_INFINITY), |max, p| max.max(*p));
-    let center = min * 0.5 + max * 0.5;
-    let scale = (rect.width() / (max.x - min.x).max(0.01))
-        .min(rect.height() / (max.y - min.y).max(0.01))
-        * 0.88;
-    let mut triangles: Vec<_> = indices
-        .chunks_exact(3)
-        .filter_map(|t| {
-            let p = [
-                *projected.get(t[0] as usize)?,
-                *projected.get(t[1] as usize)?,
-                *projected.get(t[2] as usize)?,
-            ];
-            Some(p)
-        })
-        .collect();
-    triangles.sort_by(|a, b| (a[0].z + a[1].z + a[2].z).total_cmp(&(b[0].z + b[1].z + b[2].z)));
-    for triangle in triangles {
-        let normal = (triangle[1] - triangle[0])
-            .cross(triangle[2] - triangle[0])
-            .normalize_or_zero();
-        let light =
-            (0.45 + 0.55 * normal.dot(glam::Vec3::new(0.4, 0.7, 0.6).normalize()).abs()) as f64;
-        let points = triangle.map(|p| {
-            Pos2::new(
-                rect.center().x + (p.x - center.x) * scale,
-                rect.center().y - (p.y - center.y) * scale,
-            )
-        });
-        // Raw mesh, not Shape::convex_polygon: the path tessellator's miter
-        // join explodes on sharp projected corners (thin slivers from any
-        // edge-on triangle) and throws feather vertices across the tile.
-        let mut shape = egui::Mesh::default();
-        for &p in &points {
-            shape.colored_vertex(
-                p,
-                Color32::from_rgb(
-                    (188.0 * light) as u8,
-                    (177.0 * light) as u8,
-                    (152.0 * light) as u8,
-                ),
-            );
-        }
-        shape.add_triangle(0, 1, 2);
-        painter.add(egui::Shape::Mesh(std::sync::Arc::new(shape)));
     }
 }
 
@@ -1681,58 +1635,6 @@ mod tests {
         );
         assert!(browser.thumbnails.len() < 30);
         assert_eq!(editor.scene(), &original);
-    }
-
-    #[test]
-    fn mesh_preview_samples_the_whole_mesh_not_just_the_first_triangles() {
-        // 2000 triangles: the first 500 huddle in one corner, the rest spread
-        // across the unit cube. First-N sampling would miss everything else.
-        let mut vertices: Vec<[f32; 8]> = (0..500)
-            .map(|i| {
-                let f = i as f32 * 0.0001;
-                [f, f, f, 0., 1., 0., 0., 0.]
-            })
-            .collect();
-        let mut indices: Vec<u32> = Vec::new();
-        for i in 0..500u32 {
-            indices.extend([i, i, i]);
-        }
-        let spread = [
-            [0., 0., 0.],
-            [1., 0., 0.],
-            [0., 1., 0.],
-            [0., 0., 1.],
-            [1., 1., 0.],
-            [1., 0., 1.],
-            [0., 1., 1.],
-            [1., 1., 1.],
-        ];
-        for corner in spread {
-            let base = vertices.len() as u32;
-            vertices.push([corner[0], corner[1], corner[2], 0., 1., 0., 0., 0.]);
-            vertices.push([corner[0] + 0.01, corner[1], corner[2], 0., 1., 0., 0., 0.]);
-            vertices.push([corner[0], corner[1] + 0.01, corner[2], 0., 1., 0., 0., 0.]);
-            indices.extend([base, base + 1, base + 2]);
-        }
-        let mesh = bozzard_assets::MeshData {
-            skin: None,
-            vertices,
-            indices,
-            parts: vec![],
-            warnings: vec![],
-        };
-        let preview = sample_mesh(&mesh);
-        let xs: Vec<_> = preview.vertices.iter().map(|v| v[0]).collect();
-        let ys: Vec<_> = preview.vertices.iter().map(|v| v[1]).collect();
-        let zs: Vec<_> = preview.vertices.iter().map(|v| v[2]).collect();
-        // Bounded sample: stride keeps the whole mesh represented, capped at 400.
-        assert_eq!(preview.indices.len() / 3, 85);
-        let peak = |values: &[f32]| values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-        assert!(
-            peak(&xs).max(peak(&zs)) > 0.9,
-            "sample must reach the far corners, not only the corner cluster"
-        );
-        assert!(peak(&ys) > 0.9);
     }
 
     #[test]

@@ -46,6 +46,8 @@ mod lights;
 mod loading;
 mod lod_ui;
 mod material_ui;
+mod mesh_thumbnail;
+mod model_thumbnails;
 mod motion_ui;
 mod multi_inspector;
 mod multi_scene;
@@ -353,6 +355,8 @@ impl App {
         let renderer = SceneRenderer::new(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb);
         let compute = bozzard_render_assets::ComputeBridge::new(&gpu);
         let kennel = kennel::Store::new(workspace.kennel_registry.clone());
+        let mut asset_browser = asset_browser::AssetBrowser::default();
+        asset_browser.models = Some(model_thumbnails::ModelThumbnails::new(gpu.clone()));
         Ok(Self {
             debug: Default::default(),
             benchmark: None,
@@ -392,7 +396,7 @@ impl App {
             multi_inspector_cache: None,
             hierarchy_frame_requested: false,
             hierarchy_rename: None,
-            asset_browser: asset_browser::AssetBrowser::default(),
+            asset_browser,
             kennel,
             lod_tools: lod_ui::LodTools::default(),
             blueprint_pane: blueprints::BlueprintPane::default(),
