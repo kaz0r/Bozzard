@@ -13,6 +13,7 @@ mod handler;
 mod player;
 mod presentation;
 mod project;
+mod record;
 mod settings;
 mod smoke;
 mod view;
@@ -72,6 +73,14 @@ struct Options {
     capture: Option<PathBuf>,
     capture_ticks: u32,
     capture_size: [u32; 2],
+    /// Write `record_frames` offscreen frames into this directory, one per video frame.
+    record: Option<PathBuf>,
+    record_frames: u32,
+    record_fps: u32,
+    /// Camera path JSON flown during the recording.
+    record_camera: Option<PathBuf>,
+    /// Draw HUD and UI widgets into recorded frames.
+    record_ui: bool,
 }
 
 struct View {
@@ -231,6 +240,9 @@ fn main() -> Result<()> {
         }
         println!("scene_saved path={}", path.display());
         return Ok(());
+    }
+    if let Some(directory) = &options.record {
+        return record::run(&document, &options, directory);
     }
     if let Some(path) = &options.capture {
         return capture::run(&document, &options, path);
