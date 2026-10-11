@@ -1,5 +1,5 @@
 //! Bounded editor docking: five resizable tab groups and detachable tool windows.
-use crate::theme;
+use crate::{icons, theme};
 use eframe::egui::{self, Color32};
 use serde::{Deserialize, Serialize};
 
@@ -100,6 +100,9 @@ pub struct Layout {
     tab_layers: [Option<egui::LayerId>; PANES],
     #[serde(skip)]
     drag_candidate: Option<(Pane, egui::Pos2)>,
+    /// The center tab names what it shows: the scene, a Blueprint or a shader graph.
+    #[serde(skip)]
+    pub scene_title: &'static str,
 }
 fn default_locations() -> [Dock; PANES] {
     Pane::ALL.map(Pane::home)
@@ -132,6 +135,7 @@ impl Default for Layout {
             tab_rects: [None; PANES],
             tab_layers: [None; PANES],
             drag_candidate: None,
+            scene_title: "Scene",
         }
     }
 }
@@ -180,7 +184,7 @@ impl Layout {
                 .min_size(180.)
                 .max_size(600.)
                 .resizable(true)
-                .frame(theme::card())
+                .frame(theme::dock())
                 .show(ui, |ui| {
                     if (left && lower) || dragging {
                         egui::Panel::top(egui::Id::new(("dock-left-split", generation)))
@@ -213,7 +217,7 @@ impl Layout {
                 .min_size(120.)
                 .max_size(650.)
                 .resizable(true)
-                .frame(theme::card())
+                .frame(theme::dock())
                 .show(ui, |ui| {
                     self.group(ui, Dock::Bottom, visible, &mut action, &mut draw);
                 });
@@ -224,17 +228,13 @@ impl Layout {
                 .min_size(180.)
                 .max_size(600.)
                 .resizable(true)
-                .frame(theme::card())
+                .frame(theme::dock())
                 .show(ui, |ui| {
                     self.group(ui, Dock::Right, visible, &mut action, &mut draw);
                 });
         }
         egui::CentralPanel::default()
-            .frame(
-                theme::card()
-                    .fill(Color32::from_rgb(10, 11, 17))
-                    .inner_margin(4),
-            )
+            .frame(theme::dock())
             .show(ui, |ui| {
                 self.group(ui, Dock::Center, visible, &mut action, &mut draw);
             });
@@ -328,35 +328,54 @@ impl Layout {
             *active = Pane::ALL.into_iter().find(|p| present[*p as usize]);
         }
         ui.set_min_size(ui.available_size());
-        let header = ui
-            .horizontal_wrapped(|ui| {
-                for pane in Pane::ALL {
-                    if !present[pane as usize] {
-                        continue;
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let header = egui::Frame::new()
+            .fill(theme::SUNKEN)
+            .inner_margin(egui::Margin::symmetric(4, 0))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    for pane in Pane::ALL {
+                        if !present[pane as usize] {
+                            continue;
+                        }
+                        let tab = ui
+                            .push_id(("dock-tab", pane), |ui| {
+                                let title = if pane == Pane::Scene {
+                                    self.scene_title
+                                } else {
+                                    pane.title()
+                                };
+                                tab(ui, title, *active == Some(pane))
+                            })
+                            .inner;
+                        tab.dnd_set_drag_payload(pane);
+                        self.tab_rects[pane as usize] = Some(tab.rect);
+                        self.tab_layers[pane as usize] = Some(ui.layer_id());
+                        if tab.clicked() {
+                            *active = Some(pane);
+                        }
+                        tab.context_menu(|ui| Self::menu(ui, pane, dock, action));
                     }
-                    let tab = ui
-                        .push_id(("dock-tab", pane), |ui| {
-                            ui.add(
-                                egui::Button::selectable(*active == Some(pane), pane.title())
-                                    .sense(egui::Sense::click_and_drag()),
+                    if active.is_none() {
+                        ui.add_space(8.0);
+                        ui.weak(format!("Drop a panel · {}", dock.title()));
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if let Some(pane) = *active {
+                            egui::containers::menu::MenuButton::from_button(
+                                egui::Button::new(
+                                    egui::RichText::new(icons::MORE_HORIZ).color(theme::TEXT_MUTED),
+                                )
+                                .frame_when_inactive(false),
                             )
-                        })
-                        .inner;
-                    tab.dnd_set_drag_payload(pane);
-                    self.tab_rects[pane as usize] = Some(tab.rect);
-                    self.tab_layers[pane as usize] = Some(ui.layer_id());
-                    if tab.clicked() {
-                        *active = Some(pane);
-                    }
-                    tab.context_menu(|ui| Self::menu(ui, pane, dock, action));
-                }
-                if let Some(pane) = *active {
-                    ui.menu_button("…", |ui| Self::menu(ui, pane, dock, action))
-                        .response
-                        .on_hover_text("Move panel");
-                } else {
-                    ui.weak(format!("Drop a panel · {}", dock.title()));
-                }
+                            .ui(ui, |ui| Self::menu(ui, pane, dock, action))
+                            .0
+                            .on_hover_text("Move panel");
+                        }
+                    });
+                });
             })
             .response;
         // Empty destinations can appear during this drag. Their new egui response
@@ -366,18 +385,19 @@ impl Layout {
                 && ui.ctx().layer_id_at(p) == Some(ui.layer_id())
         });
         if over && egui::DragAndDrop::has_payload_of_type::<Pane>(ui.ctx()) {
-            ui.painter().rect_filled(
-                header.rect,
-                2.,
-                Color32::from_rgba_unmultiplied(132, 158, 255, 60),
-            );
+            ui.painter().rect_filled(header.rect, 0., theme::accent(50));
             if ui.input(|i| i.pointer.any_released())
                 && let Some(pane) = egui::DragAndDrop::take_payload::<Pane>(ui.ctx())
             {
                 *action = Some((*pane, dock));
             }
         }
-        ui.separator();
+        ui.painter().hline(
+            header.rect.x_range(),
+            header.rect.bottom(),
+            egui::Stroke::new(1.0, theme::BORDER),
+        );
+        ui.spacing_mut().item_spacing.y = ui.ctx().global_style().spacing.item_spacing.y;
         if let Some(pane) = *active {
             ui.push_id(("pane-content", pane), |ui| {
                 if dock == Dock::Center || dock == Dock::Floating {
@@ -387,11 +407,48 @@ impl Layout {
                     // so a docked panel can always be dragged smaller.
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
-                        .show(ui, |ui| draw(pane, ui));
+                        .show(ui, |ui| {
+                            egui::Frame::new()
+                                .inner_margin(egui::Margin::symmetric(10, 8))
+                                .show(ui, |ui| {
+                                    ui.set_min_width(ui.available_width());
+                                    draw(pane, ui)
+                                })
+                        });
                 }
             });
         }
     }
+}
+
+/// A dock tab: icon and title, lit with an accent rule and the panel color when active.
+fn tab(ui: &mut egui::Ui, title: &str, active: bool) -> egui::Response {
+    let font = egui::FontId::proportional(12.5);
+    let galley = ui.painter().layout_no_wrap(
+        format!("{}  {title}", theme::pane_icon(title)),
+        font,
+        Color32::PLACEHOLDER,
+    );
+    let size = egui::vec2(galley.size().x + 24.0, 30.0);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+    let painter = ui.painter();
+    let (fill, text) = if active {
+        (theme::PANEL, theme::TEXT)
+    } else if response.hovered() {
+        (theme::glass(6), theme::TEXT)
+    } else {
+        (Color32::TRANSPARENT, theme::TEXT_DIM)
+    };
+    painter.rect_filled(rect, 0.0, fill);
+    if active {
+        painter.hline(
+            rect.x_range(),
+            rect.top() + 1.0,
+            egui::Stroke::new(2.0, theme::ACCENT),
+        );
+    }
+    painter.galley(rect.center() - galley.size() / 2.0, galley, text);
+    response
 }
 
 #[cfg(test)]

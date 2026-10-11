@@ -438,14 +438,20 @@ impl App {
             && self.dialog.is_none()
             && !self.confirm_discard)
             .then_some(true);
+        let toolbar = egui::Frame::new().inner_margin(egui::Margin::symmetric(8, 4)).show(ui, |ui| {
+        ui.set_min_width(ui.available_width());
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
             ui.add_enabled_ui(self.editor.play.is_none() && self.drag.is_none() && !self.mouse_captured && !self.fly_latched, |ui| {
-                ui.selectable_value(&mut self.workspace.tool, Tool::Move, "Move")
-                    .on_hover_text("Drag an arrow to move along a parent-space axis · W over viewport");
-                ui.selectable_value(&mut self.workspace.tool, Tool::Rotate, "Rotate")
-                    .on_hover_text("Drag a colored ring to rotate · E over viewport");
-                ui.selectable_value(&mut self.workspace.tool, Tool::Scale, "Scale")
-                    .on_hover_text("Drag an axis square to resize; drag the white center diagonally for uniform scale · R over viewport");
+                for (tool, icon, hint) in [
+                    (Tool::Move, icons::OPEN_WITH, "Move · W over viewport\nDrag an arrow to move along a parent-space axis"),
+                    (Tool::Rotate, icons::AUTORENEW, "Rotate · E over viewport\nDrag a colored ring to rotate"),
+                    (Tool::Scale, icons::OPEN_IN_FULL, "Scale · R over viewport\nDrag an axis square to resize; drag the white center diagonally for uniform scale"),
+                ] {
+                    if theme::icon_button(ui, icon, self.workspace.tool == tool, hint).clicked() {
+                        self.workspace.tool = tool;
+                    }
+                }
                 if self.editor.selected_surface().is_some() && ui.button("Select whole model")
                     .on_hover_text("Switch from editing this surface to moving, rotating or scaling the entire model.")
                     .clicked() {
@@ -453,7 +459,7 @@ impl App {
                     self.editor.select_object(self.editor.selected.clone());
                 }
             });
-            ui.separator();
+            theme::toolbar_divider(ui);
             ui.selectable_value(&mut self.workspace.layer_2d, false, "3D");
             ui.selectable_value(&mut self.workspace.layer_2d, true, "2D");
             if self.workspace.layer_2d && self.editor.play.is_none() {
@@ -477,8 +483,9 @@ impl App {
                     }
                 }
             }
-            ui.toggle_value(&mut self.level_tools.visible, "Build");
-            if ui.toggle_value(&mut self.workspace.timeline_visible, "Timeline").clicked() {
+            theme::toolbar_divider(ui);
+            ui.toggle_value(&mut self.level_tools.visible, theme::labeled(icons::CONSTRUCTION, "Build"));
+            if ui.toggle_value(&mut self.workspace.timeline_visible, theme::labeled(icons::MOVIE, "Timeline")).clicked() {
                 self.dock_focus = Some(docking::Pane::Timeline);
                 if !self.workspace.timeline_visible {
                     self.timeline_scrub = None;
@@ -486,7 +493,12 @@ impl App {
                     self.viewport_stamp = None;
                 }
             }
-            ui.menu_button("View", |ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(egui::RichText::new(icons::HELP).size(15.0).color(theme::TEXT_MUTED)).on_hover_text("W/E/R: tools · F: frame selection · Shift+F: frame all\nClick: select surface · Alt-click: select whole model\nRight-drag: look · Tab: toggle fly · WASD: move\nSpace/Ctrl: up/down · Shift: faster · Middle-drag: pan\nScroll: dolly · Esc: release / cancel / deselect");
+            ui.menu_button(theme::labeled(icons::GRID_ON, "Snap"), |ui| {
+                ui.add_enabled_ui(self.editor.play.is_none(), |ui| self.workspace.snapping.ui(ui));
+            });
+            ui.menu_button(theme::labeled(icons::VISIBILITY, "View"), |ui| {
                 ui.checkbox(&mut self.workspace.colliders_visible, "Collider guides");
                 ui.checkbox(&mut self.workspace.stats_visible, "Renderer statistics");
                 ui.separator();
@@ -519,11 +531,14 @@ impl App {
                 ui.close();
             }
             });
-            ui.menu_button("Snap", |ui| {
-                ui.add_enabled_ui(self.editor.play.is_none(), |ui| self.workspace.snapping.ui(ui));
             });
-            ui.label("?").on_hover_text("W/E/R: tools · F: frame selection · Shift+F: frame all\nClick: select surface · Alt-click: select whole model\nRight-drag: look · Tab: toggle fly · WASD: move\nSpace/Ctrl: up/down · Shift: faster · Middle-drag: pan\nScroll: dolly · Esc: release / cancel / deselect");
         });
+        }).response;
+        ui.painter().hline(
+            toolbar.rect.x_range(),
+            toolbar.rect.bottom(),
+            egui::Stroke::new(1.0, theme::BORDER),
+        );
         if let Some(state) = self.editor.play.as_ref().and_then(|play| play.gameplay()) {
             ui.label(state.feedback());
             if !self.workspace.layer_2d

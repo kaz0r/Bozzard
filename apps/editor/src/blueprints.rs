@@ -132,7 +132,7 @@ impl App {
             .iter()
             .map(|o| (o.id.clone(), o.name.clone()))
             .collect();
-        egui::CollapsingHeader::new("BLUEPRINTS")
+        crate::theme::Foldout::new(crate::icons::SCHEMA, "Blueprints")
             .id_salt((&object.id, "blueprints"))
             .default_open(!object.blueprints.is_empty())
             .show(ui, |ui| {

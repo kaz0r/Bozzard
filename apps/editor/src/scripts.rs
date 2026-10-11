@@ -399,7 +399,7 @@ impl App {
             .map(|(id, source)| (id.clone(), source.path.clone()))
             .collect();
         let mut open_asset = None;
-        egui::CollapsingHeader::new("SCRIPT MANAGER")
+        crate::theme::Foldout::new(crate::icons::CODE, "Script manager")
             .id_salt((&object.id, "script_manager"))
             .default_open(true)
             .show(ui, |ui| {

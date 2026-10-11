@@ -23,7 +23,7 @@ fn slider(ui: &mut egui::Ui, value: &mut f32, range: std::ops::RangeInclusive<f3
     );
 }
 pub fn controls(ui: &mut egui::Ui, display: &mut DisplaySettings) {
-    egui::CollapsingHeader::new("POST PROCESSING")
+    crate::theme::Foldout::new(crate::icons::TUNE, "Post-processing")
         .default_open(true)
         .show(ui, |ui| {
             presets(ui, display);
@@ -188,7 +188,7 @@ pub fn controls(ui: &mut egui::Ui, display: &mut DisplaySettings) {
         });
 }
 pub fn volumes(ui: &mut egui::Ui, volumes: &mut Vec<PostProcessVolume>) {
-    egui::CollapsingHeader::new("POST-PROCESS VOLUMES").show(ui, |ui| {
+    crate::theme::Foldout::new(crate::icons::CROP_FREE, "Post-process volumes").show(ui, |ui| {
         ui.weak("World-space boxes blend into the scene look. Higher priority applies last.");
         let mut remove = None;
         for (index, volume) in volumes.iter_mut().enumerate() {
@@ -359,7 +359,6 @@ fn exposure_controls(ui: &mut egui::Ui, exposure: &mut bozzard_scene::AutoExposu
 
 impl App {
     pub fn effects_inspector(&mut self, ui: &mut egui::Ui) {
-        theme::panel_title(ui, "Effects");
         if self.workspace.layer_2d {
             ui.weak("Effects apply to the 3D view.");
         }
