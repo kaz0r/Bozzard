@@ -965,6 +965,7 @@ impl App {
             && self.editor.selected_object().is_some_and(|o| {
                 o.collider.is_some_and(|c| c.enabled)
                     || o.mesh_collider.as_ref().is_some_and(|c| c.enabled)
+                    || o.shape_collider.is_some_and(|c| c.enabled)
             })
         {
             // Ignore OS key repeats: holding Space must not auto-jump after landing.

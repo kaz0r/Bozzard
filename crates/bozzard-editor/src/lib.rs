@@ -369,6 +369,7 @@ impl Editor {
             id: id.clone(),
             material: None,
             mesh_collider: None,
+            shape_collider: None,
             text_rendering: None,
             name: match mesh {
                 Mesh::Quad => "Sprite",
@@ -416,6 +417,7 @@ impl Editor {
             id: id.clone(),
             material: None,
             mesh_collider: None,
+            shape_collider: None,
             text_rendering: None,
             name: match kind {
                 bozzard_scene::LightKind::Point => "Point light",
@@ -952,6 +954,7 @@ impl Editor {
             id: id.clone(),
             material: None,
             mesh_collider: None,
+            shape_collider: None,
             text_rendering: None,
             name: asset_id.into(),
             parent: None,

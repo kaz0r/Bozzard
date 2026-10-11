@@ -25,6 +25,8 @@ struct PartKey {
     /// Shape scale, without rotation: the offset pose carries the rotation.
     linear: Mat3,
     collider: Option<BoxCollider>,
+    /// Sphere, capsule or cylinder, cooked to the exact Rapier primitive where possible.
+    shape: Option<ShapeCollider>,
     mesh: Option<TriangleMesh>,
     /// A tilemap's merged solid rectangles, as one compound shape.
     tiles: Option<Tilemap>,
@@ -54,6 +56,9 @@ impl PartKey {
             || world
                 .get::<MeshCollider>(self.entity)
                 .is_some_and(|c| c.enabled)
+            || world
+                .get::<ShapeCollider>(self.entity)
+                .is_some_and(|c| c.enabled)
     }
     fn cook(&self) -> Result<SharedShape> {
         if let Some(tiles) = &self.tiles {
@@ -78,6 +83,11 @@ impl PartKey {
                 self.object
             );
             return Ok(SharedShape::capsule_y(half_height, radius));
+        }
+        if let Some(shape) = self.shape {
+            return shape
+                .rapier_shape(self.linear)
+                .with_context(|| format!("invalid shape collider on '{}'", self.object));
         }
         if let Some(collider) = self.collider {
             let (_, _, corners) = collider.geometry(Mat4::from_mat3(self.linear))?;
@@ -135,7 +145,7 @@ struct Body {
 struct LayoutKey {
     instance: u64,
     hierarchy: u64,
-    components: [bozzard_ecs::ComponentRevision; 5],
+    components: [bozzard_ecs::ComponentRevision; 6],
 }
 impl LayoutKey {
     fn of(instance: &SceneInstance, world: &World) -> Self {
@@ -145,6 +155,7 @@ impl LayoutKey {
             components: [
                 world.component_revision::<BoxCollider>(),
                 world.component_revision::<MeshCollider>(),
+                world.component_revision::<ShapeCollider>(),
                 world.component_revision::<Tilemap>(),
                 world.component_revision::<PlayerController>(),
                 world.component_revision::<Gravity>(),
@@ -181,6 +192,9 @@ impl Layout {
             }
             let colliding = world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
                 || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled)
+                || world
+                    .get::<ShapeCollider>(entity)
+                    .is_some_and(|c| c.enabled)
                 || world
                     .get::<Tilemap>(entity)
                     .is_some_and(|t| t.enabled && !collision_boxes(world, id, t).is_empty());
@@ -515,23 +529,33 @@ impl Physics {
                 .get::<MeshCollider>(entity)
                 .filter(|c| c.enabled)
                 .cloned();
+            let shape = world
+                .get::<ShapeCollider>(entity)
+                .copied()
+                .filter(|c| c.enabled);
             let tiles = world
                 .get::<Tilemap>(entity)
                 .filter(|t| t.enabled && !collision_boxes(world, id, t).is_empty())
                 .cloned();
             ensure!(
-                box_collider.is_none() || mesh.is_none(),
+                [box_collider.is_some(), mesh.is_some(), shape.is_some()]
+                    .into_iter()
+                    .filter(|&present| present)
+                    .count()
+                    <= 1,
                 "choose one collider on '{id}'"
             );
             let groups = box_collider
                 .map(|c| (c.layers, c.mask))
                 .or_else(|| mesh.as_ref().map(|m| (m.layers, m.mask)))
+                .or_else(|| shape.map(|c| (c.layers, c.mask)))
                 .unwrap_or((DEFAULT_LAYERS, DEFAULT_MASK));
             // A Player Controller's collider is the authored capsule, not its Box Collider. The box
             // stays for the CPU queries (triggers, respawn, Blueprints) and for camera clearance.
             // A tilemap's merged solid rectangles take the place of a box or mesh collider.
-            let (collider, mesh, tiles, capsule) = if let Some(config) = &player {
+            let (collider, shape, mesh, tiles, capsule) = if let Some(config) = &player {
                 (
+                    None,
                     None,
                     None,
                     None,
@@ -539,9 +563,9 @@ impl Physics {
                     Some((config.capsule_half_height(), config.capsule_radius)),
                 )
             } else if tiles.is_some() {
-                (None, None, tiles, None)
+                (None, None, None, tiles, None)
             } else {
-                (box_collider, mesh, None, None)
+                (box_collider, shape, mesh, None, None)
             };
             // The world frame of the shape, and its pose relative to the body. The body pose
             // already carries the root's rotation, so a child cancels it out again.
@@ -573,6 +597,7 @@ impl Physics {
                 entity,
                 linear,
                 collider,
+                shape,
                 mesh,
                 tiles,
                 capsule,

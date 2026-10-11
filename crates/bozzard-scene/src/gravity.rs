@@ -100,7 +100,10 @@ impl SceneInstance {
         let entity = self.entity(id).context("unknown jumping object")?;
         if !world.get::<Gravity>(entity).is_some_and(|g| g.enabled)
             || !(world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
-                || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled))
+                || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled)
+                || world
+                    .get::<ShapeCollider>(entity)
+                    .is_some_and(|c| c.enabled))
             || !world
                 .get::<GravityState>(entity)
                 .is_some_and(|s| s.grounded)
@@ -137,7 +140,10 @@ impl SceneInstance {
             gravity.validate()?;
             if !gravity.enabled
                 || !(world.get::<BoxCollider>(entity).is_some_and(|c| c.enabled)
-                    || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled))
+                    || world.get::<MeshCollider>(entity).is_some_and(|c| c.enabled)
+                    || world
+                        .get::<ShapeCollider>(entity)
+                        .is_some_and(|c| c.enabled))
             {
                 world.insert(entity, GravityState::default())?;
                 continue;

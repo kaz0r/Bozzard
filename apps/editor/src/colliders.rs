@@ -89,6 +89,32 @@ impl App {
             glam::Vec3::new(0.0, -0.5, 0.0),
             egui::Stroke::new(2.0, DECAL_GUIDE),
         );
+    /// The sphere, capsule and cylinder colliders behind a snapshot's meshes, by object ID.
+    fn shape_colliders<'a>(
+        &self,
+        snapshot: &'a bozzard_scene::CollisionSnapshot,
+    ) -> std::collections::HashMap<&'a str, bozzard_scene::ShapeCollider> {
+        snapshot
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                let shape = if let Some(play) = &self.editor.play {
+                    let entity = play.instance().entity(&mesh.id)?;
+                    play.app
+                        .world
+                        .get::<bozzard_scene::ShapeCollider>(entity)
+                        .copied()
+                } else {
+                    self.editor
+                        .scene()
+                        .objects
+                        .iter()
+                        .find(|o| o.id == mesh.id)?
+                        .shape_collider
+                };
+                Some((mesh.id.as_str(), shape?))
+            })
+            .collect()
     }
     pub fn collider_overlay(&self, ui: &egui::Ui, rect: Rect, projection: Mat4) -> Result<f32> {
         let mut snapshot = self.editor.collisions()?;
@@ -145,6 +171,8 @@ impl App {
             }
         }
         let mut sampled = false;
+        let mut shapes = 0;
+        let shape_colliders = self.shape_colliders(&snapshot);
         for mesh in &snapshot.meshes {
             let selected = self.editor.selected.as_deref() == Some(&mesh.id);
             let color = if colliding.contains(mesh.id.as_str()) {
@@ -162,6 +190,17 @@ impl App {
                     );
                 }
             };
+            // A sphere, capsule or cylinder draws its own outline, not its faceted surface.
+            if let Some(shape) = shape_colliders.get(mesh.id.as_str()) {
+                shapes += 1;
+                for [a, b] in shape.outline() {
+                    draw(
+                        mesh.matrix.transform_point3(a),
+                        mesh.matrix.transform_point3(b),
+                    );
+                }
+                continue;
+            }
             let bounds = mesh.mesh.bounds();
             let corners: [glam::Vec3; 8] = std::array::from_fn(|i| {
                 mesh.matrix.transform_point3(glam::Vec3::new(
@@ -192,9 +231,10 @@ impl App {
             }
         }
         let mut label = format!(
-            "Colliders: {} boxes + {} meshes  ·  Overlaps: {}",
+            "Colliders: {} boxes + {} shapes + {} meshes  ·  Overlaps: {}",
             snapshot.boxes.len(),
-            snapshot.meshes.len(),
+            shapes,
+            snapshot.meshes.len() - shapes,
             snapshot.overlaps.len()
         );
         if sampled {

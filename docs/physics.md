@@ -4,13 +4,13 @@ Rapier owns dynamic bodies — their velocities, inertia and sleeping. The scene
 public pose: editing an object's Transform is a teleport on the next tick. This page covers what
 authors can now reach from the Inspector and from Blueprints and scripts.
 
-Everything here is headless-testable: `crates/bozzard-scene/tests/{layers,compound,joints,capsule}.rs`
-exercise the collision filters, compound bodies, constraints and the character controller without a
-window or a GPU.
+Everything here is headless-testable: `crates/bozzard-scene/tests/{layers,compound,joints,capsule,shape_colliders}.rs`
+exercise the collision filters, compound bodies, constraints, the character controller and the
+sphere/capsule/cylinder colliders without a window or a GPU.
 
 ## Collision layers and masks
 
-Every Box Collider, Mesh Collider and Trigger volume carries two 32-bit fields:
+Every Box Collider, Shape Collider, Mesh Collider and Trigger volume carries two 32-bit fields:
 
 - **Layers** — which layers this collider belongs to.
 - **Collides with** (Triggers label it **Detects**) — which layers it will meet.
@@ -36,6 +36,40 @@ One side refusing is enough. The same rule drives:
 Blueprint spatial queries (**Raycast**, **Sphere Overlap**, **Box Overlap**, **Line of Sight**) see
 every enabled solid collider regardless of layers; use their Ignore object to exclude one. Add
 per-query layer masks when a game needs them.
+
+## Shape colliders
+
+**Add Component → Shape Collider** gives an object a sphere, a capsule or a cylinder:
+
+| Field | Meaning |
+| --- | --- |
+| Shape | Sphere, Capsule or Cylinder. |
+| Center | Offset from the object's origin, in local units. |
+| Radius | Local radius. |
+| Height | Full length along Axis, rounded caps included. A capsule shorter than its diameter is a sphere. Hidden for a sphere. |
+| Axis | The local axis a capsule or cylinder runs along. Hidden for a sphere. |
+| Layers / Collides with | As for the other colliders. |
+
+An object has one kind of collider: Box, Shape or Mesh. A new Shape Collider is a sphere sized to
+the selected mesh's largest extent. Add a Rigidbody to make it fall; removing the collider removes
+the Rigidbody with it, as for a box.
+
+Rapier simulates the **exact primitive**, so a ball rolls down a slope, a drum stands on its flat end
+and tips over its rim, and a capsule lying on its side rests on its radius. The shape follows the
+object's scale: a uniform scale, or a cylinder stretched along its own axis, keeps the exact
+primitive, while a scale that squashes it (an ellipsoid "sphere") becomes the convex hull of the
+scaled surface. A non-zero Center or an X/Z axis is a one-shape compound around the primitive.
+
+The CPU side — the swept box mover, overlap events, spawn validation, the follow camera's probe and
+the Blueprint/script queries — sees a closed convex tessellation instead: 24 segments around the
+axis and 6 rings per cap. Its vertices lie on the true surface and its faces sit less than 1% of the
+radius inside it, so a ray or a box stops within that margin of the real wall, and a box in the
+corner of a cylinder's bounding square does not count as touching it. Shapes are listed with the
+meshes in a `CollisionSnapshot`; **Move With Collision** still moves only objects with a Box
+Collider.
+
+The editor draws a Shape Collider as its outline — rings and cap arcs — and the collider readout
+counts boxes, shapes and meshes separately.
 
 ## Rigidbody settings
 
@@ -128,7 +162,9 @@ box to match the capsule; the capsule is what blocks and moves.
 ## What is not here
 
 - Dynamic concave decomposition. A dynamic Mesh Collider is still its convex hull; a static one
-  keeps its holes. Mesh/mesh overlap is still not queried.
+  keeps its holes. Mesh/mesh overlap is still not queried, and that includes a Shape Collider
+  against a Shape or Mesh Collider; Rapier contacts still report a Rigidbody touching one.
+- Trigger volumes are boxes. A spherical trigger needs a Trigger shape option.
 - Joint contacts are always disabled; there is no per-joint toggle yet.
 - Ragdolls, vehicles and force-driven characters are still dynamic bodies, not the controller.
 - No layer matrix in the scene file and no named layers beyond the eight above.
