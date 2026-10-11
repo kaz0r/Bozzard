@@ -68,7 +68,9 @@ terraces feel like a smooth slope. The palm trunk is a post to walk around.
 
 `scripts/world.rhai` keeps the clock as whole game seconds plus a fraction, so the
 8× rate stays exact over a long session. It moves the scene's single sun light
-between the sun and the moon with `set_sun_direction`. It also blends the sky, fog,
+between the sun and the moon with `set_sun_direction`. The light moves in steps of a
+tenth of a degree, so the shadow map isn't redrawn every tick and shadow edges don't
+crawl; the visible sun and moon still move smoothly. It also blends the sky, fog,
 ambient light and stars by the sun's height. The scene sets a 32 m
 [sun shadow distance](../../docs/lighting.md#sun-shadow-distance), so shadows stay
 sharp even with the ship more than a kilometre away.

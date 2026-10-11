@@ -1037,14 +1037,20 @@ fn on_update(me, dt) {{
     set_fog(mix([0.0, 0.0, 0.0], horizon, {SKY_INTENSITY}), density);
     set_star_intensity(0.8 * (1.0 - island::smooth(-0.2, -0.02, e)));
 
-    // One directional light: the sun by day, the moon by night, dark in between.
+    // One directional light: the sun by day, the moon by night, dark in between. The
+    // light steps in tenths of a degree, so the shadow map is not redrawn (and its edges
+    // do not crawl) every tick while the visible discs and the sky move smoothly.
     let daylight = island::smooth(-0.02, 0.3, e);
     set_scene_variable("daylight", daylight);
+    let step = 0.00174533;
+    let q = round(theta / step) * step;
+    let light_sun = [cos(q), sin(q) * cos(TILT), sin(q) * sin(TILT)];
+    let light_moon = [-light_sun[0], -light_sun[1], light_sun[2] * 0.6 + 0.25];
     if e > -0.03 {{
-        set_sun_direction(sun);
+        set_sun_direction(light_sun);
         set_sun_light(mix([1.0, 0.42, 0.16], [1.0, 0.96, 0.88], island::smooth(0.0, 0.4, e)), {SUN_INTENSITY} * daylight);
     }} else {{
-        set_sun_direction(moon);
+        set_sun_direction(light_moon);
         set_sun_light([0.55, 0.66, 1.0], 0.32 * island::smooth(-0.02, 0.3, moon[1]));
     }}
     set_ambient_light(mix([0.42, 0.52, 0.95], [0.86, 0.93, 1.0], daylight), 0.03 + 0.06 * daylight);
@@ -1170,6 +1176,19 @@ fn cycle(list, current) {
     list[(i + 1) % list.len()]
 }
 
+// Rewrite a label only when its text changes; the last text is kept on this object.
+fn show(id, key, text) {
+    if text != get_object_variable(key) {
+        set_object_variable(key, text);
+        set_ui_text(id, text);
+    }
+}
+
+fn part_of_day(hours) {
+    if hours < 5.0 || hours >= 21.0 { "Night" } else if hours < 11.0 { "Morning" }
+    else if hours < 14.0 { "Midday" } else if hours < 18.0 { "Afternoon" } else { "Evening" }
+}
+
 fn on_start(me) {
     set_ui_value("ui-opt-vsync", if get_vsync_setting() { 1.0 } else { 0.0 });
     set_ui_text("ui-opt-quality", `Quality: ${title(get_quality_setting())}`);
@@ -1210,17 +1229,17 @@ fn on_update(me, dt) {
     if sensitivity != get_scene_variable("sensitivity") {
         set_scene_variable("sensitivity", sensitivity);
     }
-    set_ui_text("ui-opt-sensitivity", `Mouse sensitivity   ${island::fixed(sensitivity, 2)}x`);
+    show("ui-opt-sensitivity", "sensitivity_text", `Mouse sensitivity   ${island::fixed(sensitivity, 2)}x`);
     let fov = round(get_ui_value("ui-opt-fov"));
     if fov != get_scene_variable("fov") {
         set_scene_variable("fov", fov);
     }
-    set_ui_text("ui-opt-fov", `Field of view   ${fov.to_int()}°`);
+    show("ui-opt-fov", "fov_text", `Field of view   ${fov.to_int()}°`);
     set_scene_variable("invert_y", get_ui_value("ui-opt-invert") > 0.5);
     set_scene_variable("bobbing", get_ui_value("ui-opt-bob") > 0.5);
     let distance = round(get_ui_value("ui-opt-distance"));
     set_scene_variable("view_distance", distance);
-    set_ui_text("ui-opt-distance", `View distance   ${DISTANCE[distance.to_int()]}`);
+    show("ui-opt-distance", "distance_text", `View distance   ${DISTANCE[distance.to_int()]}`);
     let shadows = get_ui_value("ui-opt-shadows") > 0.5;
     if shadows != get_scene_variable("shadows") {
         set_scene_variable("shadows", shadows);
@@ -1246,22 +1265,22 @@ fn on_update(me, dt) {
     }
     let show_fps = get_ui_value("ui-opt-fps") > 0.5;
     set_ui_visible("ui-fps", show_fps);
-    if show_fps {
+    if show_fps && elapsed_time() - get_object_variable("fps_at") > 0.25 {
+        set_object_variable("fps_at", elapsed_time());
         let stats = render_stats();
         if stats.available && stats.rate_ready {
-            set_ui_text("ui-fps", `${round(stats.fps).to_int()} FPS   ${island::fixed(stats.frame_ms, 1)} ms`);
+            show("ui-fps", "fps_text", `${round(stats.fps).to_int()} FPS   ${island::fixed(stats.frame_ms, 1)} ms`);
         }
     }
 
     // Clock and compass.
     let hours = get_scene_variable("time_of_day");
     let day = get_scene_variable("day").to_int();
-    let sun_up = hours >= 6.0 && hours < 18.0;
-    set_ui_text("ui-clock", `Day ${day}   ${island::hours_text(hours)}   ${if sun_up { "day" } else { "night" }}`);
+    show("ui-clock", "clock_text", `Day ${day}  ·  ${island::hours_text(hours)}  ·  ${part_of_day(hours)}`);
     let yaw = get_object_variable("player", "yaw");
     let heading = (360.0 - (yaw % 360.0) + 360.0) % 360.0;
     let index = (round(heading / 45.0).to_int()) % 8;
-    set_ui_text("ui-compass", `${HEADINGS[index]}   ${round(heading).to_int() % 360}°`);
+    show("ui-compass", "compass_text", `${HEADINGS[index]}   ${round(heading).to_int() % 360}°`);
 
     // Toast messages fade out after a few seconds; the controls hint after the intro.
     let since = elapsed_time() - get_scene_variable("toast_time");
@@ -1302,12 +1321,16 @@ def widget(object_id, name, parent, **fields):
 def ui_objects():
     objs = [{"id": "ui", "name": "HUD / settings menu (Esc)", "transform": tf((0, 0, 0)),
              "ui_canvas": {"layer": "3d", "reference": [1280, 720], "scaling": "fit", "order": 10},
+             "blackboard": {key: text("") for key in ("clock_text", "compass_text", "fps_text", "sensitivity_text",
+                                                      "fov_text", "distance_text")} | {"fps_at": number(-1)},
              "script_manager": {"scripts": [{"enabled": True, "script": "hud-script"}]}}]
     hud = [
-        widget("ui-clock", "Clock", "ui", order=1, text="Day 1   08:00", font_size=22,
-               anchors=anchors((0, 0), (0, 0), (0, 0), (24, 18), (420, 34))),
-        widget("ui-compass", "Compass", "ui", order=2, text="N", font_size=20, text_alignment="center",
-               anchors=anchors((0.5, 0), (0.5, 0), (0.5, 0), (0, 18), (300, 34))),
+        widget("ui-clock", "Clock", "ui", order=1, text="Day 1  ·  08:00  ·  Morning", font_size=21,
+               background=[0.0, 0.0, 0.0, 0.28], padding=[12, 7, 12, 7], auto_text_width=True,
+               anchors=anchors((0, 0), (0, 0), (0, 0), (20, 16), (300, 38))),
+        widget("ui-compass", "Compass", "ui", order=2, text="N", font_size=19, text_alignment="center",
+               background=[0.0, 0.0, 0.0, 0.28], padding=[14, 7, 14, 7], auto_text_width=True,
+               anchors=anchors((0.5, 0), (0.5, 0), (0.5, 0), (0, 16), (120, 36))),
         widget("ui-crosshair", "Crosshair", "ui", kind="panel", order=3, background=[1.0, 1.0, 1.0, 0.8],
                anchors=anchors((0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0, 0), (4, 4))),
         widget("ui-settings-button", "Settings button", "ui", kind="button", order=4, text="Settings  (Esc)",

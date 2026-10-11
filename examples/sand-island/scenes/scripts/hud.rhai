@@ -28,6 +28,19 @@ fn cycle(list, current) {
     list[(i + 1) % list.len()]
 }
 
+// Rewrite a label only when its text changes; the last text is kept on this object.
+fn show(id, key, text) {
+    if text != get_object_variable(key) {
+        set_object_variable(key, text);
+        set_ui_text(id, text);
+    }
+}
+
+fn part_of_day(hours) {
+    if hours < 5.0 || hours >= 21.0 { "Night" } else if hours < 11.0 { "Morning" }
+    else if hours < 14.0 { "Midday" } else if hours < 18.0 { "Afternoon" } else { "Evening" }
+}
+
 fn on_start(me) {
     set_ui_value("ui-opt-vsync", if get_vsync_setting() { 1.0 } else { 0.0 });
     set_ui_text("ui-opt-quality", `Quality: ${title(get_quality_setting())}`);
@@ -68,17 +81,17 @@ fn on_update(me, dt) {
     if sensitivity != get_scene_variable("sensitivity") {
         set_scene_variable("sensitivity", sensitivity);
     }
-    set_ui_text("ui-opt-sensitivity", `Mouse sensitivity   ${island::fixed(sensitivity, 2)}x`);
+    show("ui-opt-sensitivity", "sensitivity_text", `Mouse sensitivity   ${island::fixed(sensitivity, 2)}x`);
     let fov = round(get_ui_value("ui-opt-fov"));
     if fov != get_scene_variable("fov") {
         set_scene_variable("fov", fov);
     }
-    set_ui_text("ui-opt-fov", `Field of view   ${fov.to_int()}°`);
+    show("ui-opt-fov", "fov_text", `Field of view   ${fov.to_int()}°`);
     set_scene_variable("invert_y", get_ui_value("ui-opt-invert") > 0.5);
     set_scene_variable("bobbing", get_ui_value("ui-opt-bob") > 0.5);
     let distance = round(get_ui_value("ui-opt-distance"));
     set_scene_variable("view_distance", distance);
-    set_ui_text("ui-opt-distance", `View distance   ${DISTANCE[distance.to_int()]}`);
+    show("ui-opt-distance", "distance_text", `View distance   ${DISTANCE[distance.to_int()]}`);
     let shadows = get_ui_value("ui-opt-shadows") > 0.5;
     if shadows != get_scene_variable("shadows") {
         set_scene_variable("shadows", shadows);
@@ -104,22 +117,22 @@ fn on_update(me, dt) {
     }
     let show_fps = get_ui_value("ui-opt-fps") > 0.5;
     set_ui_visible("ui-fps", show_fps);
-    if show_fps {
+    if show_fps && elapsed_time() - get_object_variable("fps_at") > 0.25 {
+        set_object_variable("fps_at", elapsed_time());
         let stats = render_stats();
         if stats.available && stats.rate_ready {
-            set_ui_text("ui-fps", `${round(stats.fps).to_int()} FPS   ${island::fixed(stats.frame_ms, 1)} ms`);
+            show("ui-fps", "fps_text", `${round(stats.fps).to_int()} FPS   ${island::fixed(stats.frame_ms, 1)} ms`);
         }
     }
 
     // Clock and compass.
     let hours = get_scene_variable("time_of_day");
     let day = get_scene_variable("day").to_int();
-    let sun_up = hours >= 6.0 && hours < 18.0;
-    set_ui_text("ui-clock", `Day ${day}   ${island::hours_text(hours)}   ${if sun_up { "day" } else { "night" }}`);
+    show("ui-clock", "clock_text", `Day ${day}  ·  ${island::hours_text(hours)}  ·  ${part_of_day(hours)}`);
     let yaw = get_object_variable("player", "yaw");
     let heading = (360.0 - (yaw % 360.0) + 360.0) % 360.0;
     let index = (round(heading / 45.0).to_int()) % 8;
-    set_ui_text("ui-compass", `${HEADINGS[index]}   ${round(heading).to_int() % 360}°`);
+    show("ui-compass", "compass_text", `${HEADINGS[index]}   ${round(heading).to_int() % 360}°`);
 
     // Toast messages fade out after a few seconds; the controls hint after the intro.
     let since = elapsed_time() - get_scene_variable("toast_time");

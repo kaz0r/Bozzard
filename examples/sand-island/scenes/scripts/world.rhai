@@ -78,14 +78,20 @@ fn on_update(me, dt) {
     set_fog(mix([0.0, 0.0, 0.0], horizon, 0.55), density);
     set_star_intensity(0.8 * (1.0 - island::smooth(-0.2, -0.02, e)));
 
-    // One directional light: the sun by day, the moon by night, dark in between.
+    // One directional light: the sun by day, the moon by night, dark in between. The
+    // light steps in tenths of a degree, so the shadow map is not redrawn (and its edges
+    // do not crawl) every tick while the visible discs and the sky move smoothly.
     let daylight = island::smooth(-0.02, 0.3, e);
     set_scene_variable("daylight", daylight);
+    let step = 0.00174533;
+    let q = round(theta / step) * step;
+    let light_sun = [cos(q), sin(q) * cos(TILT), sin(q) * sin(TILT)];
+    let light_moon = [-light_sun[0], -light_sun[1], light_sun[2] * 0.6 + 0.25];
     if e > -0.03 {
-        set_sun_direction(sun);
+        set_sun_direction(light_sun);
         set_sun_light(mix([1.0, 0.42, 0.16], [1.0, 0.96, 0.88], island::smooth(0.0, 0.4, e)), 2.4 * daylight);
     } else {
-        set_sun_direction(moon);
+        set_sun_direction(light_moon);
         set_sun_light([0.55, 0.66, 1.0], 0.32 * island::smooth(-0.02, 0.3, moon[1]));
     }
     set_ambient_light(mix([0.42, 0.52, 0.95], [0.86, 0.93, 1.0], daylight), 0.03 + 0.06 * daylight);
