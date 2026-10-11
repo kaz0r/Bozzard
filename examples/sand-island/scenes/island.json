@@ -73,9 +73,33 @@
    "kind": "script",
    "path": "scripts/cloud.rhai"
   },
+  "coconut": {
+   "kind": "mesh",
+   "path": "assets/coconut.gltf"
+  },
+  "driftwood-0": {
+   "kind": "mesh",
+   "path": "assets/driftwood-0.gltf"
+  },
+  "driftwood-1": {
+   "kind": "mesh",
+   "path": "assets/driftwood-1.gltf"
+  },
+  "driftwood-2": {
+   "kind": "mesh",
+   "path": "assets/driftwood-2.gltf"
+  },
+  "game-script": {
+   "kind": "script",
+   "path": "scripts/game.rhai"
+  },
   "hud-script": {
    "kind": "script",
    "path": "scripts/hud.rhai"
+  },
+  "icons": {
+   "kind": "image",
+   "path": "assets/icons.png"
   },
   "island": {
    "kind": "mesh",
@@ -84,6 +108,26 @@
   "island-lib": {
    "kind": "script",
    "path": "scripts/island.rhai"
+  },
+  "lighthouse": {
+   "kind": "mesh",
+   "path": "assets/lighthouse.gltf"
+  },
+  "lighthouse-beam": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-beam.gltf"
+  },
+  "lighthouse-glass": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-glass.gltf"
+  },
+  "lighthouse-lamp": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-lamp.gltf"
+  },
+  "lighthouse-windows": {
+   "kind": "mesh",
+   "path": "assets/lighthouse-windows.gltf"
   },
   "moon": {
    "kind": "mesh",
@@ -108,6 +152,50 @@
   "player-script": {
    "kind": "script",
    "path": "scripts/player.rhai"
+  },
+  "raft-ghost-1": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-1.gltf"
+  },
+  "raft-ghost-2": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-2.gltf"
+  },
+  "raft-ghost-3": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-3.gltf"
+  },
+  "raft-ghost-4": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-4.gltf"
+  },
+  "raft-ghost-5": {
+   "kind": "mesh",
+   "path": "assets/raft-ghost-5.gltf"
+  },
+  "raft-site": {
+   "kind": "mesh",
+   "path": "assets/raft-site.gltf"
+  },
+  "raft-stage-1": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-1.gltf"
+  },
+  "raft-stage-2": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-2.gltf"
+  },
+  "raft-stage-3": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-3.gltf"
+  },
+  "raft-stage-4": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-4.gltf"
+  },
+  "raft-stage-5": {
+   "kind": "mesh",
+   "path": "assets/raft-stage-5.gltf"
   },
   "ship": {
    "kind": "mesh",
@@ -151,6 +239,126 @@
   }
  },
  "blackboard": {
+  "mode": {
+   "scalar": {
+    "text": "title"
+   }
+  },
+  "control": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "camp_open": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "menu_open": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "wood": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "fronds": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "rope": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "coconuts": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "sail": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "paddle": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "energy": {
+   "scalar": {
+    "number": 85.0
+   }
+  },
+  "raft_stage": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "lighthouse_seen": {
+   "scalar": {
+    "bool": false
+   }
+  },
+  "prompt": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "pickup": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "pickup_time": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "toast": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "toast_time": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "fade_kind": {
+   "scalar": {
+    "text": ""
+   }
+  },
+  "fade_start": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "launch_start": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "launch_armed": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
+  "start_time": {
+   "scalar": {
+    "number": 0.0
+   }
+  },
+  "shake_time": {
+   "scalar": {
+    "number": -100.0
+   }
+  },
   "time_of_day": {
    "scalar": {
     "number": 8.0
@@ -176,9 +384,9 @@
     "number": 0.0
    }
   },
-  "menu_open": {
+  "daylight": {
    "scalar": {
-    "bool": false
+    "number": 1.0
    }
   },
   "sensitivity": {
@@ -219,21 +427,6 @@
   "bloom": {
    "scalar": {
     "bool": true
-   }
-  },
-  "toast": {
-   "scalar": {
-    "text": ""
-   }
-  },
-  "toast_time": {
-   "scalar": {
-    "number": -100.0
-   }
-  },
-  "daylight": {
-   "scalar": {
-    "number": 1.0
    }
   }
  },
@@ -326,7 +519,7 @@
      7.0
     ],
     "rotation_degrees": [
-     0,
+     2,
      -36.8699,
      0
     ],
@@ -341,6 +534,133 @@
     "vertical_fov_degrees": 75,
     "near": 0.15,
     "far": 12000
+   }
+  },
+  {
+   "id": "game",
+   "name": "Game / gathering, camp, raft, lighthouse",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "blackboard": {
+    "wood_on": {
+     "list": {
+      "element": "bool",
+      "capacity": 6,
+      "values": [
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "bool": false
+       }
+      ]
+     }
+    },
+    "nut_on": {
+     "list": {
+      "element": "bool",
+      "capacity": 4,
+      "values": [
+       {
+        "bool": true
+       },
+       {
+        "bool": true
+       },
+       {
+        "bool": false
+       },
+       {
+        "bool": false
+       }
+      ]
+     }
+    },
+    "palm_stock": {
+     "scalar": {
+      "number": 10.0
+     }
+    },
+    "palm_next": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "wood_next": {
+     "scalar": {
+      "number": 45.0
+     }
+    },
+    "tutorial": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "tutorial_time": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "look_time": {
+     "scalar": {
+      "number": 0.0
+     }
+    },
+    "cursor": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "warned": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "fade_applied": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "gathered": {
+     "scalar": {
+      "number": 0.0
+     }
+    }
+   },
+   "script_manager": {
+    "scripts": [
+     {
+      "enabled": true,
+      "script": "game-script"
+     }
+    ]
    }
   },
   {
@@ -427,6 +747,31 @@
     "fov_now": {
      "scalar": {
       "number": 75.0
+     }
+    },
+    "aboard": {
+     "scalar": {
+      "bool": false
+     }
+    },
+    "raft_x": {
+     "scalar": {
+      "number": -8.868
+     }
+    },
+    "raft_z": {
+     "scalar": {
+      "number": 8.517
+     }
+    },
+    "raft_yaw": {
+     "scalar": {
+      "number": 133.843
+     }
+    },
+    "raft_speed": {
+     "scalar": {
+      "number": 0.0
      }
     }
    },
@@ -573,7 +918,7 @@
   },
   {
    "id": "a-palm-crown",
-   "name": "Palm crown / sways",
+   "name": "Palm crown / sways, shakes",
    "parent": "a-palm",
    "transform": {
     "translation": [
@@ -616,6 +961,834 @@
       "script": "palm-script"
      }
     ]
+   }
+  },
+  {
+   "id": "a-raft-site",
+   "name": "Raft site / stakes on the south-west beach",
+   "transform": {
+    "translation": [
+     -8.868,
+     0.65,
+     8.517
+    ],
+    "rotation_degrees": [
+     -14.458,
+     133.843,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-site"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "raft",
+   "name": "Raft / built in five stages",
+   "transform": {
+    "translation": [
+     -8.868,
+     0.65,
+     8.517
+    ],
+    "rotation_degrees": [
+     -14.458,
+     133.843,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "raft-stage-1",
+   "name": "Raft stage 1",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-1",
+   "name": "Raft stage 1 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-2",
+   "name": "Raft stage 2",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-2",
+   "name": "Raft stage 2 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-3",
+   "name": "Raft stage 3",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-3"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-3",
+   "name": "Raft stage 3 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-3"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-4",
+   "name": "Raft stage 4",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-4"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-4",
+   "name": "Raft stage 4 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-4"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-stage-5",
+   "name": "Raft stage 5",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-stage-5"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "raft-ghost-5",
+   "name": "Raft stage 5 preview",
+   "parent": "raft",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "raft-ghost-5"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-0",
+   "name": "Driftwood 1",
+   "transform": {
+    "translation": [
+     14.556,
+     0.25,
+     8.506
+    ],
+    "rotation_degrees": [
+     0,
+     224.0848,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-0"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-1",
+   "name": "Driftwood 2",
+   "transform": {
+    "translation": [
+     -15.147,
+     0.25,
+     1.511
+    ],
+    "rotation_degrees": [
+     0,
+     255.6795,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-2",
+   "name": "Driftwood 3",
+   "transform": {
+    "translation": [
+     -6.653,
+     0.25,
+     -15.158
+    ],
+    "rotation_degrees": [
+     0,
+     170.5253,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-3",
+   "name": "Driftwood 4",
+   "transform": {
+    "translation": [
+     12.915,
+     0.25,
+     -7.366
+    ],
+    "rotation_degrees": [
+     0,
+     206.3461,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-0"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-4",
+   "name": "Driftwood 5",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     306.3371,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-1"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "wood-5",
+   "name": "Driftwood 6",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     32.2351,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "driftwood-2"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-0",
+   "name": "Coconut 1",
+   "transform": {
+    "translation": [
+     4.6,
+     2.0,
+     -3.1
+    ],
+    "rotation_degrees": [
+     0,
+     31.553,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-1",
+   "name": "Coconut 2",
+   "transform": {
+    "translation": [
+     1.7,
+     2.5,
+     -1.1
+    ],
+    "rotation_degrees": [
+     0,
+     16.0339,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-2",
+   "name": "Coconut 3",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     250.8358,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "nut-3",
+   "name": "Coconut 4",
+   "transform": {
+    "translation": [
+     0.0,
+     -500.0,
+     0.0
+    ],
+    "rotation_degrees": [
+     0,
+     308.8604,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "coconut"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
    }
   },
   {
@@ -689,6 +1862,81 @@
     "layer": "3d",
     "mesh": {
      "asset": "ship-lights"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "b-lighthouse",
+   "name": "Lighthouse islet / the way home",
+   "transform": {
+    "translation": [
+     -505.0,
+     0,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "lighthouse-windows",
+   "name": "Lighthouse cottage windows / night only",
+   "transform": {
+    "translation": [
+     -505.0,
+     0,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-windows"
     },
     "texture": "white",
     "color": [
@@ -2905,6 +4153,120 @@
       }
      }
     ]
+   }
+  },
+  {
+   "id": "lighthouse-glass",
+   "name": "Lighthouse lantern glass",
+   "transform": {
+    "translation": [
+     -505.0,
+     0,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-glass"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "lighthouse-lamp",
+   "name": "Lighthouse lamp / night only",
+   "transform": {
+    "translation": [
+     -505.0,
+     29.25,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-lamp"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
+   }
+  },
+  {
+   "id": "lighthouse-beam",
+   "name": "Lighthouse beam / turns at night",
+   "transform": {
+    "translation": [
+     -505.0,
+     29.25,
+     485.0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "drawable": {
+    "layer": "3d",
+    "mesh": {
+     "asset": "lighthouse-beam"
+    },
+    "texture": "white",
+    "color": [
+     1,
+     1,
+     1
+    ],
+    "uv_scale": [
+     1,
+     1
+    ],
+    "gi_static": false
    }
   },
   {
@@ -5382,7 +6744,7 @@
   },
   {
    "id": "ui",
-   "name": "HUD / settings menu (Esc)",
+   "name": "HUD and menus",
    "transform": {
     "translation": [
      0,
@@ -5440,6 +6802,56 @@
       "text": ""
      }
     },
+    "objective_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "prompt_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "site_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "light_text": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_wood": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_fronds": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_rope": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_coconuts": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_sail": {
+     "scalar": {
+      "text": ""
+     }
+    },
+    "count_paddle": {
+     "scalar": {
+      "text": ""
+     }
+    },
     "fps_at": {
      "scalar": {
       "number": -1.0
@@ -5482,7 +6894,7 @@
      0.0,
      0.0,
      0.0,
-     0.28
+     0.3
     ],
     "text_color": [
      0.95,
@@ -5499,7 +6911,6 @@
     "order": 1,
     "text": "Day 1  \u00b7  08:00  \u00b7  Morning",
     "font_size": 21,
-    "auto_text_width": true,
     "anchors": {
      "min": [
       0,
@@ -5520,6 +6931,74 @@
      "size": [
       300,
       38
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-objective",
+   "name": "Objective",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     7,
+     12,
+     7
+    ],
+    "order": 2,
+    "text": "",
+    "font_size": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      20,
+      60
+     ],
+     "size": [
+      600,
+      58
      ]
     }
    }
@@ -5551,7 +7030,7 @@
      0.0,
      0.0,
      0.0,
-     0.28
+     0.3
     ],
     "text_color": [
      0.95,
@@ -5565,11 +7044,10 @@
      14,
      7
     ],
-    "order": 2,
+    "order": 3,
     "text": "N",
     "font_size": 19,
     "text_alignment": "center",
-    "auto_text_width": true,
     "anchors": {
      "min": [
       0.5,
@@ -5635,7 +7113,7 @@
      0,
      0
     ],
-    "order": 3,
+    "order": 4,
     "anchors": {
      "min": [
       0.5,
@@ -5656,6 +7134,146 @@
      "size": [
       4,
       4
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-prompt",
+   "name": "Interaction prompt",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     7,
+     12,
+     7
+    ],
+    "order": 5,
+    "text": "",
+    "font_size": 18,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      34
+     ],
+     "size": [
+      640,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-pickup",
+   "name": "Pickup",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     1.0,
+     0.92,
+     0.62,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 6,
+    "text": "",
+    "font_size": 17,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      78
+     ],
+     "size": [
+      520,
+      28
      ]
     }
    }
@@ -5701,10 +7319,11 @@
      8,
      8
     ],
-    "order": 4,
+    "order": 7,
     "text": "Settings  (Esc)",
     "font_size": 16,
     "text_alignment": "center",
+    "visible": false,
     "shortcuts": [
      "Escape"
     ],
@@ -5725,6 +7344,80 @@
      "offset": [
       -24,
       16
+     ],
+     "size": [
+      170,
+      38
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-button",
+   "name": "Camp button",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.03,
+     0.05,
+     0.08,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     8,
+     8,
+     8
+    ],
+    "order": 8,
+    "text": "Camp  (C)",
+    "font_size": 16,
+    "text_alignment": "center",
+    "visible": false,
+    "shortcuts": [
+     "C"
+    ],
+    "accessible_name": "Open camp",
+    "anchors": {
+     "min": [
+      1,
+      0
+     ],
+     "max": [
+      1,
+      0
+     ],
+     "pivot": [
+      1,
+      0
+     ],
+     "offset": [
+      -24,
+      60
      ],
      "size": [
       170,
@@ -5774,7 +7467,7 @@
      0,
      0
     ],
-    "order": 5,
+    "order": 9,
     "text": "",
     "font_size": 16,
     "text_alignment": "right",
@@ -5794,7 +7487,7 @@
      ],
      "offset": [
       -24,
-      60
+      104
      ],
      "size": [
       240,
@@ -5844,10 +7537,11 @@
      10,
      7
     ],
-    "order": 6,
-    "font_size": 17,
+    "order": 10,
+    "font_size": 16,
     "text_alignment": "center",
-    "text": "WASD move   Shift sprint   Space jump   Hold T to speed up time   Esc settings",
+    "visible": false,
+    "text": "WASD move   Shift sprint   Space jump   E gather and build   C camp   Hold T to speed up time",
     "anchors": {
      "min": [
       0.5,
@@ -5863,18 +7557,351 @@
      ],
      "offset": [
       0,
-      -24
+      -122
      ],
      "size": [
-      860,
-      36
+      900,
+      34
      ]
     }
    }
   },
   {
-   "id": "ui-toast",
-   "name": "Message",
+   "id": "ui-energy",
+   "name": "Energy",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 11,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      1
+     ],
+     "max": [
+      0,
+      1
+     ],
+     "pivot": [
+      0,
+      1
+     ],
+     "offset": [
+      20,
+      -20
+     ],
+     "size": [
+      260,
+      50
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy-label",
+   "name": "Energy label",
+   "parent": "ui-energy",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "Energy",
+    "font_size": 14,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      12,
+      5
+     ],
+     "size": [
+      236,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy-bar",
+   "name": "Energy bar",
+   "parent": "ui-energy",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.5
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      12,
+      28
+     ],
+     "size": [
+      236,
+      12
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-energy-fill",
+   "name": "Energy fill",
+   "parent": "ui-energy-bar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.3,
+     0.85,
+     0.45,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      236,
+      12
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-hotbar",
+   "name": "Inventory",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.3
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     8,
+     8,
+     8
+    ],
+    "order": 12,
+    "layout": "row",
+    "gap": 8,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -18
+     ],
+     "size": [
+      536,
+      88
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-label-site",
+   "name": "Raft site label",
    "parent": "ui",
    "transform": {
     "translation": [
@@ -5899,7 +7926,7 @@
      0.0,
      0.0,
      0.0,
-     0.45
+     0.4
     ],
     "text_color": [
      0.95,
@@ -5908,35 +7935,1976 @@
      1.0
     ],
     "padding": [
-     12,
-     9,
-     12,
-     9
+     8,
+     5,
+     8,
+     5
     ],
-    "order": 7,
-    "font_size": 20,
-    "text_alignment": "center",
+    "order": 13,
+    "text": "Raft",
+    "font_size": 15,
     "visible": false,
+    "text_alignment": "center",
     "anchors": {
      "min": [
-      0.5,
-      0.7
+      0,
+      0
      ],
      "max": [
-      0.5,
-      0.7
+      0,
+      0
      ],
      "pivot": [
       0.5,
-      0.5
+      1
      ],
      "offset": [
       0,
       0
      ],
      "size": [
-      760,
-      42
+      190,
+      28
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-label-light",
+   "name": "Lighthouse label",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.4
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     8,
+     5,
+     8,
+     5
+    ],
+    "order": 14,
+    "text": "Lighthouse",
+    "font_size": 15,
+    "visible": false,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      210,
+      28
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-wood",
+   "name": "driftwood",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-wood",
+   "name": "driftwood icon",
+   "parent": "ui-slot-wood",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.0,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-wood",
+   "name": "driftwood count",
+   "parent": "ui-slot-wood",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 driftwood",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-fronds",
+   "name": "palm fronds",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-fronds",
+   "name": "palm fronds icon",
+   "parent": "ui-slot-fronds",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.16666666666666666,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-fronds",
+   "name": "palm fronds count",
+   "parent": "ui-slot-fronds",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 palm fronds",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-rope",
+   "name": "rope",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-rope",
+   "name": "rope icon",
+   "parent": "ui-slot-rope",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.3333333333333333,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-rope",
+   "name": "rope count",
+   "parent": "ui-slot-rope",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 rope",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-coconuts",
+   "name": "coconuts",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-coconuts",
+   "name": "coconuts icon",
+   "parent": "ui-slot-coconuts",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.5,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-coconuts",
+   "name": "coconuts count",
+   "parent": "ui-slot-coconuts",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 coconuts",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-sail",
+   "name": "frond sail",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 4,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-sail",
+   "name": "frond sail icon",
+   "parent": "ui-slot-sail",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.6666666666666666,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-sail",
+   "name": "frond sail count",
+   "parent": "ui-slot-sail",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 frond sail",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-slot-paddle",
+   "name": "paddle",
+   "parent": "ui-hotbar",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.06,
+     0.09,
+     0.13,
+     0.85
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 5,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      80,
+      72
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-icon-paddle",
+   "name": "paddle icon",
+   "parent": "ui-slot-paddle",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "image",
+    "background": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "image": "icons",
+    "uv": [
+     0.8333333333333334,
+     0,
+     0.16666666666666666,
+     1
+    ],
+    "anchors": {
+     "min": [
+      0.5,
+      0
+     ],
+     "max": [
+      0.5,
+      0
+     ],
+     "pivot": [
+      0.5,
+      0
+     ],
+     "offset": [
+      0,
+      6
+     ],
+     "size": [
+      36,
+      36
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-count-paddle",
+   "name": "paddle count",
+   "parent": "ui-slot-paddle",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "text": "0 paddle",
+    "font_size": 12,
+    "text_alignment": "center",
+    "anchors": {
+     "min": [
+      0.5,
+      1
+     ],
+     "max": [
+      0.5,
+      1
+     ],
+     "pivot": [
+      0.5,
+      1
+     ],
+     "offset": [
+      0,
+      -6
+     ],
+     "size": [
+      80,
+      20
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp",
+   "name": "Camp panel",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     22,
+     20,
+     22,
+     20
+    ],
+    "order": 30,
+    "layout": "column",
+    "visible": false,
+    "gap": 10,
+    "anchors": {
+     "min": [
+      1,
+      0.5
+     ],
+     "max": [
+      1,
+      0.5
+     ],
+     "pivot": [
+      1,
+      0.5
+     ],
+     "offset": [
+      -24,
+      0
+     ],
+     "size": [
+      460,
+      470
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-title",
+   "name": "Camp title",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "Camp",
+    "font_size": 26,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      34
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-note",
+   "name": "Camp note",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 14,
+    "text": "Craft, eat and rest. Greyed-out recipes need more materials.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      22
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-craft-rope",
+   "name": "Twist rope  \u00b7  2 palm fronds",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 2,
+    "text": "Twist rope  \u00b7  2 palm fronds",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Twist rope  \u00b7  2 palm fronds",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-craft-paddle",
+   "name": "Carve a paddle  \u00b7  2 driftwood, 1 rope",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 3,
+    "text": "Carve a paddle  \u00b7  2 driftwood, 1 rope",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Carve a paddle  \u00b7  2 driftwood, 1 rope",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-craft-sail",
+   "name": "Weave a frond sail  \u00b7  4 palm fronds, 2 rope",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 4,
+    "text": "Weave a frond sail  \u00b7  4 palm fronds, 2 rope",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Weave a frond sail  \u00b7  4 palm fronds, 2 rope",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-eat",
+   "name": "Eat a coconut  \u00b7  +30 energy",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 5,
+    "text": "Eat a coconut  \u00b7  +30 energy",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Eat a coconut  \u00b7  +30 energy",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-rest",
+   "name": "Rest in the shade until dusk",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.09,
+     0.14,
+     0.21,
+     0.92
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 6,
+    "text": "Rest in the shade until dusk",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [],
+    "accessible_name": "Rest in the shade until dusk",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-camp-close",
+   "name": "Close  (C)",
+   "parent": "ui-camp",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 7,
+    "text": "Close  (C)",
+    "font_size": 17,
+    "text_alignment": "center",
+    "shortcuts": [
+     "C",
+     "Escape"
+    ],
+    "accessible_name": "Close  (C)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      416,
+      46
      ]
     }
    }
@@ -5982,7 +9950,7 @@
      0,
      0
     ],
-    "order": 20,
+    "order": 40,
     "visible": false,
     "anchors": {
      "min": [
@@ -7021,7 +10989,7 @@
     ],
     "order": 5,
     "font_size": 15,
-    "text": "WASD walk, Shift sprint, Space jump.\nHold T to speed up time.\nArrow keys adjust a focused slider; Tab moves focus.",
+    "text": "WASD walk, Shift sprint, Space jump, E gather.\nC opens camp. Hold T to speed up time.\nArrow keys adjust a focused slider; Tab moves focus.",
     "anchors": {
      "min": [
       0,
@@ -7671,6 +11639,1248 @@
      "size": [
       404,
       40
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title",
+   "name": "Title screen",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.01,
+     0.03,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 50,
+    "visible": true,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-card",
+   "name": "Title screen card",
+   "parent": "ui-title",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     34,
+     30,
+     34,
+     30
+    ],
+    "layout": "column",
+    "gap": 14,
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      780,
+      470
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-name",
+   "name": "Title",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "SAND ISLAND",
+    "font_size": 52,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      64
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-story",
+   "name": "Story",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 19,
+    "text": "You wake up on a tiny island with one palm tree. The ship that could have saved you is already steaming away, and the current is too strong to swim.\nBuild a raft and find your way home.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      108
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-controls",
+   "name": "Controls",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "font_size": 15,
+    "text": "WASD walk   Shift sprint   Space jump   Mouse look\nE gather and build   C camp: craft, eat and rest\nHold T to speed up time   Esc settings",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      76
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-buttons",
+   "name": "Title buttons",
+   "parent": "ui-title-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "layout": "row",
+    "gap": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      712,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-start",
+   "name": "Start  (Enter)",
+   "parent": "ui-title-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 0,
+    "text": "Start  (Enter)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Enter",
+     "Space",
+     "E"
+    ],
+    "accessible_name": "Start  (Enter)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      260,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-title-quit",
+   "name": "Quit  (Esc)",
+   "parent": "ui-title-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.35,
+     0.12,
+     0.12,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 1,
+    "text": "Quit  (Esc)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Escape"
+    ],
+    "accessible_name": "Quit  (Esc)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      180,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end",
+   "name": "Ending screen",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.01,
+     0.03,
+     0.55
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 51,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-card",
+   "name": "Ending screen card",
+   "parent": "ui-end",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.025,
+     0.04,
+     0.07,
+     0.9
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     34,
+     30,
+     34,
+     30
+    ],
+    "layout": "column",
+    "gap": 14,
+    "anchors": {
+     "min": [
+      0.5,
+      0.5
+     ],
+     "max": [
+      0.5,
+      0.5
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      720,
+      430
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-name",
+   "name": "Ending title",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 0,
+    "text": "RESCUED",
+    "font_size": 52,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      64
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-story",
+   "name": "Ending story",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 1,
+    "font_size": 19,
+    "text": "The lighthouse keeper spots your frond sail and rows out to meet you. After everything, you are going home.",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      84
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-stats",
+   "name": "Ending stats",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.62,
+     0.72,
+     0.82,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 2,
+    "font_size": 16,
+    "text": "",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      70
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-buttons",
+   "name": "Ending buttons",
+   "parent": "ui-end-card",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 3,
+    "layout": "row",
+    "gap": 16,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      652,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-again",
+   "name": "Play again  (Enter)",
+   "parent": "ui-end-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.13,
+     0.42,
+     0.33,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 0,
+    "text": "Play again  (Enter)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Enter"
+    ],
+    "accessible_name": "Play again  (Enter)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      260,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-end-quit",
+   "name": "Quit  (Esc)",
+   "parent": "ui-end-buttons",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "button",
+    "background": [
+     0.35,
+     0.12,
+     0.12,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "order": 1,
+    "text": "Quit  (Esc)",
+    "font_size": 19,
+    "text_alignment": "center",
+    "shortcuts": [
+     "Escape"
+    ],
+    "accessible_name": "Quit  (Esc)",
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      0,
+      0
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      180,
+      52
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-fade",
+   "name": "Fade",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "panel",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "order": 90,
+    "visible": false,
+    "anchors": {
+     "min": [
+      0,
+      0
+     ],
+     "max": [
+      1,
+      1
+     ],
+     "pivot": [
+      0,
+      0
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "id": "ui-toast",
+   "name": "Message",
+   "parent": "ui",
+   "transform": {
+    "translation": [
+     0,
+     0,
+     0
+    ],
+    "rotation_degrees": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "ui_widget": {
+    "kind": "label",
+    "background": [
+     0.0,
+     0.0,
+     0.0,
+     0.45
+    ],
+    "text_color": [
+     0.95,
+     0.97,
+     1.0,
+     1.0
+    ],
+    "padding": [
+     12,
+     9,
+     12,
+     9
+    ],
+    "order": 95,
+    "font_size": 20,
+    "text_alignment": "center",
+    "visible": false,
+    "anchors": {
+     "min": [
+      0.5,
+      0.3
+     ],
+     "max": [
+      0.5,
+      0.3
+     ],
+     "pivot": [
+      0.5,
+      0.5
+     ],
+     "offset": [
+      0,
+      0
+     ],
+     "size": [
+      820,
+      42
      ]
     }
    }

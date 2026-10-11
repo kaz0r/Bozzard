@@ -87,7 +87,7 @@ Pass a scene path to either the editor or player with `--scene PATH`.
 | Middleware | [Guide](docs/middleware.md) | Audio, animation, timelines, UI, tilemaps, navigation, and particles |
 | Compute | [Waves scene](examples/demo/scenes/compute-waves.json) · [Guide](docs/compute.md) | WGSL compute jobs and generated material textures |
 | Pagoda Garden | [Scene](examples/pagoda-garden/scenes/pagoda.json) · [Guide](examples/pagoda-garden/README.md) | A 142k-voxel pagoda garden baked for the batch renderer, with orbit camera, koi, clouds, petals and a day/night toggle |
-| Sand Island | [Scene](examples/sand-island/scenes/island.json) · [Guide](examples/sand-island/README.md) | A first-person voxel castaway island: smooth walking and swimming, a day/night cycle at 8× real time, a steamship sailing away under voxel smoke, and a HUD with a settings menu |
+| Sand Island | [Scene](examples/sand-island/scenes/island.json) · [Guide](examples/sand-island/README.md) | A first-person voxel survival game: gather driftwood and palm fronds, craft at camp, build a raft in five stages and sail it to a distant lighthouse, through a day/night cycle at 8× real time |
 | Sponza | [Setup and licensing](docs/sponza.md) | Imported architecture and renderer verification; assets download separately |
 
 ## Editor
