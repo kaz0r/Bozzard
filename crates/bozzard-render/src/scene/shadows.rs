@@ -1490,6 +1490,7 @@ mod tests {
             gi: None,
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             shader_time: 0.,
             skin_poses: Default::default(),
         };
@@ -1704,6 +1705,7 @@ mod tests {
             shader_time: 0.,
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![LocalLight {
@@ -2010,6 +2012,7 @@ mod metadata_tests {
             shader_time: 0.,
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![LocalLight {

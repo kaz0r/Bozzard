@@ -425,6 +425,7 @@ impl Stage {
             shader_time: view.display_time,
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![],

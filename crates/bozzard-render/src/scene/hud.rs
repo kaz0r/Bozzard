@@ -305,6 +305,7 @@ mod tests {
             skin_poses: Default::default(),
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![],

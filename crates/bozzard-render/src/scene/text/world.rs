@@ -357,6 +357,7 @@ mod tests {
             shader_time: 0.,
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![],

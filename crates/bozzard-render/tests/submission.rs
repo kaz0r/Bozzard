@@ -8,6 +8,7 @@ fn scene(count: usize) -> RenderScene {
         shader_time: 0.,
         particles: vec![],
         trails: Vec::new(),
+        decals: Vec::new(),
         view_projection: glam::camera::rh::proj::directx::orthographic(
             -1.,
             side as f32,

@@ -337,6 +337,7 @@ impl App {
             shader_time: self.preview_time,
             particles: Vec::new(),
             trails: Vec::new(),
+            decals: Vec::new(),
             view_projection: lens * glam::camera::rh::view::look_at_mat4(eye, Vec3::ZERO, Vec3::Y),
             items: vec![bozzard_render::DrawItem {
                 motion_id: 0,

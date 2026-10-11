@@ -6,6 +6,7 @@ fn scene() -> RenderScene {
         shader_time: 0.,
         particles: vec![],
         trails: Vec::new(),
+        decals: Vec::new(),
         view_projection: glam::camera::rh::proj::directx::orthographic(-3., 3., -2., 2., 0.1, 30.),
         items: vec![],
         lighting: Lighting {

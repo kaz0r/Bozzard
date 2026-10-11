@@ -1713,6 +1713,16 @@ impl SceneInstance {
                 } else {
                     Vec::new()
                 },
+                decals: if layer == Layer::ThreeD {
+                    world
+                        .query::<middleware::decal::Decal>()
+                        .filter_map(|(entity, decal)| {
+                            decal.view(matrices[*self.object_indices.get(&entity)?])
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                },
                 fog: self.fog_override.unwrap_or(self.document.fog),
                 lights,
                 environment: self
@@ -1782,6 +1792,8 @@ pub struct RenderView<D> {
     pub particles: Vec<Particle>,
     /// Trail Renderer ribbons, oldest point first, with the current position as the head.
     pub trails: Vec<middleware::trail::TrailRibbon>,
+    /// Decal volumes with their images, in no particular order.
+    pub decals: Vec<middleware::decal::DecalView>,
     pub display_time: f32,
     pub texts: Vec<(Mat4, TextRendering)>,
     /// Immutable text descriptors used by retained extraction. Owned extraction

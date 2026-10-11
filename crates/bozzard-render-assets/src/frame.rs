@@ -792,6 +792,22 @@ fn frame_settings<D>(
                     .collect(),
             })
             .collect(),
+        decals: if layer == Layer::ThreeD {
+            view.decals
+                .iter()
+                .map(|decal| bozzard_render::DecalItem {
+                    volume: decal.volume,
+                    texture: decal.image.as_deref().map_or(TextureKind::White, |id| {
+                        TextureKind::Imported(assets.canonical_asset_id(id).to_owned())
+                    }),
+                    color: decal.color,
+                    min_facing: decal.min_facing,
+                    lit: decal.lit,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
         fog: bozzard_render::FogSettings {
             enabled: layer == Layer::ThreeD && view.fog.enabled,
             color: view.fog.color,

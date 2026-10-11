@@ -121,6 +121,7 @@ fn authored_widgets_render_and_accessible_actions_match_hit_geometry() -> anyhow
             shader_time: 0.,
             particles: vec![],
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: None,
             lights: vec![],

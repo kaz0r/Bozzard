@@ -8,6 +8,7 @@ fn render(particles: Vec<Particle>) -> RenderScene {
         shader_time: 0.,
         particles,
         trails: Vec::new(),
+        decals: Vec::new(),
         view_projection: glam::camera::rh::proj::directx::orthographic(-3., 3., -2., 4., 0.1, 20.),
         items: vec![],
         lighting: Lighting {

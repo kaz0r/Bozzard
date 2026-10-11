@@ -1401,6 +1401,9 @@ impl App {
         } else {
             false
         };
+        if self.editor.play.is_none() && !self.workspace.layer_2d {
+            self.decal_overlay(ui, rect, projection);
+        }
         let collider_label_height = if self.workspace.colliders_visible && !self.workspace.layer_2d
         {
             self.collider_overlay(ui, rect, projection)?

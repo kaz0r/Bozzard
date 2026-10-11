@@ -59,6 +59,7 @@ pub(super) fn checks(gpu: &Gpu, output: &Path) -> Result<()> {
                     shader_time: 0.,
                     particles: Vec::new(),
                     trails: Vec::new(),
+                    decals: Vec::new(),
                     fog: Default::default(),
                     view_projection: glam::camera::rh::proj::directx::orthographic(
                         -0.8, 0.8, -0.8, 0.8, 0.1, 10.,
@@ -164,6 +165,7 @@ fn mixed_lights(gpu: &Gpu, renderer: &mut SceneRenderer) -> Result<()> {
         shader_time: 0.,
         particles: Vec::new(),
         trails: Vec::new(),
+        decals: Vec::new(),
         fog: Default::default(),
         view_projection: glam::camera::rh::proj::directx::orthographic(-2., 2., -2., 2., 0.1, 10.)
             * Mat4::from_translation(Vec3::new(0., 0., -3.)),

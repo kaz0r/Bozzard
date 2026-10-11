@@ -2,6 +2,7 @@
 pub mod animation;
 pub mod audio;
 pub mod curve;
+pub mod decal;
 pub mod navigation;
 pub mod particle;
 pub mod registry;
@@ -27,6 +28,7 @@ pub const ENTRIES: &[registry::Entry] = &[
     registry::entry::<ui::Localization>(),
     registry::entry::<particle::Modules>(),
     registry::entry::<trail::Trail>(),
+    registry::entry::<decal::Decal>(),
 ];
 
 pub mod checkpoint;

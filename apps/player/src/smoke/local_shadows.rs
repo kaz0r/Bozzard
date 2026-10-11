@@ -115,6 +115,7 @@ fn checks_for_kind(gpu: &Gpu, output: &Path, point: bool) -> Result<()> {
         shader_time: 0.,
         particles: Vec::new(),
         trails: Vec::new(),
+        decals: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![light],

@@ -90,6 +90,7 @@ fn fog_gpu_basic_pbr_distance_height_alpha_and_bypass() -> anyhow::Result<()> {
         shader_time: 0.,
         particles: Vec::new(),
         trails: Vec::new(),
+        decals: Vec::new(),
         fog: FogSettings {
             enabled: true,
             color: [1., 0., 0.],

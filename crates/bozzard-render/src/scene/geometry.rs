@@ -96,8 +96,9 @@ pub(super) fn stores(scene: &RenderScene, raw: bool, caching: bool) -> [bool; 3]
         !raw && scene.display.reflections.enabled && scene.display.reflections.strength > 0.;
     [
         temporal || reflections,
-        // The particle pass loads motion coverage, even when temporal effects are off.
-        temporal || (!raw && !scene.particles.is_empty()),
+        // The particle pass loads motion coverage, even when temporal effects are off, and
+        // decals move transparent surfaces into that same pass.
+        temporal || (!raw && (!scene.particles.is_empty() || !scene.decals.is_empty())),
         reflections,
     ]
 }
@@ -720,6 +721,14 @@ fn frame_signature(
         }
         hash.write(&record);
     }
+    hash.write_usize(scene.decals.len());
+    for decal in &scene.decals {
+        decal.texture.hash(&mut hash);
+        decal.lit.hash(&mut hash);
+        hash.floats(&decal.volume.to_cols_array());
+        hash.floats(&decal.color);
+        hash.floats(&[decal.min_facing]);
+    }
     hash.write_usize(scene.trails.len());
     for ribbon in &scene.trails {
         ribbon.additive.hash(&mut hash);
@@ -932,6 +941,7 @@ mod tests {
             skin_poses: Default::default(),
             particles: (0..6).map(particle).collect(),
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: Some(IrradianceVolume {
                 min: [0.; 3],
@@ -1066,6 +1076,7 @@ mod tests {
             skin_poses: Default::default(),
             particles: (0..16_384).map(particle).collect(),
             trails: Vec::new(),
+            decals: Vec::new(),
             fog: Default::default(),
             gi: Some(IrradianceVolume {
                 min: [0.; 3],

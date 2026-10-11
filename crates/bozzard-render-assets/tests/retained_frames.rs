@@ -79,6 +79,7 @@ fn owned(view: &SharedSceneView) -> SceneView {
         material_instances: view.material_instances.clone(),
         particles: view.particles.clone(),
         trails: Vec::new(),
+        decals: Vec::new(),
         display_time: view.display_time,
         texts: view
             .texts

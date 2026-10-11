@@ -11,14 +11,15 @@ mod scene;
 pub use pbr::{MaterialMap, ModelShading};
 pub use scene::{
     AmbientOcclusion, AutoExposure, BatchPlanRebuildReason, BatchingStats, BlockCompression,
-    BloomSettings, ColorGrading, CompressedImage, DepthOfField, DisplaySettings, DrawItem,
-    EnvironmentSettings, FilmGrain, FogSettings, FrameStats, HeatDistortion, IrradianceVolume,
-    Lighting, LocalLight, LocalShadowSettings, MAX_LOCAL_LIGHTS, MAX_SHADOWED_POINT_LIGHTS,
-    MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart, ModelUploadStats,
-    OcclusionResult, Particle, ParticleKind, PendingUpload, RenderScene, SceneRenderer, ScreenText,
-    ShaderSource, ShaderWarmup, SpotShadowSettings, SurfaceMaterialOverride, TextAlignment,
-    TextMesh, TextureKind, ToneMapper, TrailPoint, TrailRibbon, UploadContext, UploadData,
-    UploadProgress, UploadSource, Vignette, VolumetricFog, text_bounds, upload_memory_bytes,
+    BloomSettings, ColorGrading, CompressedImage, DecalItem, DepthOfField, DisplaySettings,
+    DrawItem, EnvironmentSettings, FilmGrain, FogSettings, FrameStats, HeatDistortion,
+    IrradianceVolume, Lighting, LocalLight, LocalShadowSettings, MAX_DECALS, MAX_LOCAL_LIGHTS,
+    MAX_SHADOWED_POINT_LIGHTS, MAX_SHADOWED_SPOT_LIGHTS, Material, MeshKind, ModelImage, ModelPart,
+    ModelUploadStats, OcclusionResult, Particle, ParticleKind, PendingUpload, RenderScene,
+    SceneRenderer, ScreenText, ShaderSource, ShaderWarmup, SpotShadowSettings,
+    SurfaceMaterialOverride, TextAlignment, TextMesh, TextureKind, ToneMapper, TrailPoint,
+    TrailRibbon, UploadContext, UploadData, UploadProgress, UploadSource, Vignette, VolumetricFog,
+    text_bounds, upload_memory_bytes,
 };
 
 use anyhow::{Context, Result, ensure};

@@ -68,6 +68,7 @@ pub(super) fn checks(gpu: &Gpu) -> Result<()> {
         shader_time: 0.,
         particles: Vec::new(),
         trails: Vec::new(),
+        decals: Vec::new(),
         fog: Default::default(),
         gi: Some(volume([0.2, 0.4, 0.6], [2; 3])),
         lights: vec![],

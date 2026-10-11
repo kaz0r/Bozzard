@@ -24,6 +24,7 @@ fn scene(mesh: &bozzard_assets::MeshData, time: f32) -> anyhow::Result<RenderSce
         skin_poses: poses,
         particles: vec![],
         trails: Vec::new(),
+        decals: Vec::new(),
         fog: Default::default(),
         gi: None,
         lights: vec![],
